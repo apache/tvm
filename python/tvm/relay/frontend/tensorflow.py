@@ -140,10 +140,10 @@ def _pool3d(name):
                   'is not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
         if attr['data_format'] == "NDHWC":
-            tmp_shape = attr['_input_shapes'][inputs[0]]
-            input_shape = [tmp_shape[ii] for ii in (0, 4, 1, 2, 3)]
+            input_shape = [attr['_input_shapes'][inputs[0]][i] for i in (0, 4, 1, 2, 3)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
             attr['data_format'] = "NCDHW"
+            attr['_input_shapes'][inputs[0]] = input_shape
             flip_layout = True
 
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -174,7 +174,6 @@ def _pool3d(name):
         if name == "avg_pool":
             attr['count_include_pad'] = False
         attr['ceil_mode'] = False
-        attr['data_format'] = 'NCDHW'
         out = AttrCvt(
             op_name=name,
             transforms={

@@ -242,17 +242,13 @@ def _test_pooling(input_shape, **kwargs):
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
             kwargs['data_format'] = 'NCHW'
             _test_pooling_iteration(input_shape, **kwargs)
-        elif len(input_shape) == 5:
-            input_shape = [input_shape[ii] for ii in (0, 4, 1, 2, 3)]
-            kwargs['data_format'] = 'NCDHW'
-            _test_pooling_iteration(input_shape, **kwargs)
 
 
 def test_forward_pooling():
     """ Pooling """
     # TensorFlow only supports NDHWC for max_pool3d on CPU
-    for pool_type in ['MAX', 'AVG']:
-
+    for pool_type in ['AVG', 'MAX']:
+        # NDHWC is the default layout for max_pool3d and avg_pool3d in TensorFlow
         _test_pooling(input_shape=[1, 3, 32, 32, 32],
                       window_shape=[2, 2, 2],
                       padding='VALID',
@@ -273,6 +269,25 @@ def test_forward_pooling():
                       pooling_type=pool_type,
                       dilation_rate=[1, 1, 1],
                       strides=[2, 2, 2])
+
+        # test cases for max_pool3d & avg_pool3d with layout NCDHW
+        # TensorFlow pool3d  doesn't support NCDHW on cpu
+        if is_gpu_available():
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[1, 1, 1],
+                          padding='SAME',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[1, 1, 1],
+                          data_format='NCDHW')
+
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[2, 2, 2],
+                          padding='VALID',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[2, 2, 2],
+                          data_format='NCDHW')
 
         _test_pooling(input_shape=[2, 9, 10, 2],
                       window_shape=[1, 1],
