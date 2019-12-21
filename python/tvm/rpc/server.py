@@ -59,19 +59,21 @@ logger = logging.getLogger('RPCServer')
 
 _temp = None
 
-class NoDaemonProcess(multiprocessing.Process):
-    # make 'daemon' attribute always return False
-    def _get_daemon(self):
-        return False
-    def _set_daemon(self, value):
-        pass
-    daemon = property(_get_daemon, _set_daemon)
+if os.name == 'nt':
+    class NoDaemonProcess(multiprocessing.Process):
+        # make 'daemon' attribute always return False
+        def _get_daemon(self):
+            return False
+        def _set_daemon(self, value):
+            pass
+        daemon = property(_get_daemon, _set_daemon)
 
-# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
-# because the latter is only a wrapper function, not a proper class.
-# pylint: disable=W0223
-class MyPool(multiprocessing.pool.Pool):
-    Process = NoDaemonProcess
+if os.name == 'nt':
+    # We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
+    # because the latter is only a wrapper function, not a proper class.
+    # pylint: disable=W0223
+    class MyPool(multiprocessing.pool.Pool):
+        Process = NoDaemonProcess
 
 # pylint: disable=unused-variable
 @register_func("tvm.rpc.server.workpath", override=True)
