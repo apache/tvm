@@ -42,12 +42,14 @@ bool DequantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(input_dtype == Int(8) || input_dtype == UInt(8) || input_dtype == Int(32))
+  CHECK(input_dtype == DataType::Int(8) ||
+        input_dtype == DataType::UInt(8) ||
+        input_dtype == DataType::Int(32))
     << "Input type should be one of the quantized types [unit8, int8, int32] but was "
     <<  input_dtype;
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type, output will always be float 32.
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, Float(32)));
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, DataType::Float(32)));
   return true;
 }
 
@@ -65,10 +67,10 @@ Expr MakeDequantize(Expr data,
 
 Expr DequantizeLower(const Expr& input_tensor,
                      const DequantizeAttrs* attrs) {
-  const auto input_zero_point = MakeConstantScalar(Int(32), attrs->input_zero_point);
-  const auto input_scale = MakeConstantScalar(Float(32), attrs->input_scale);
-  auto shift = Subtract(Cast(input_tensor, Int(32)), input_zero_point);
-  auto scaled_output = Multiply(Cast(shift, Float(32)), input_scale);
+  const auto input_zero_point = MakeConstantScalar(DataType::Int(32), attrs->input_zero_point);
+  const auto input_scale = MakeConstantScalar(DataType::Float(32), attrs->input_scale);
+  auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), input_zero_point);
+  auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), input_scale);
   return scaled_output;
 }
 

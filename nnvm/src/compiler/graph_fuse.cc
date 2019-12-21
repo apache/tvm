@@ -352,17 +352,17 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
             prod *= x;
           }
           CHECK_LE(prod, static_cast<int64_t>(std::numeric_limits<int>::max()));
-          shape.push_back(make_const(Int(32), prod));
+          shape.push_back(make_const(DataType::Int(32), prod));
         } else {
           for (int64_t x : shape_vec[idx.entry_id(e)]) {
             CHECK_LE(x, static_cast<int64_t>(std::numeric_limits<int>::max()));
-            shape.push_back(make_const(Int(32), x));
+            shape.push_back(make_const(DataType::Int(32), x));
           }
         }
         std::ostringstream os_name;
         os_name << "input" << fe.imap.size();
         Tensor data = placeholder(
-            shape, TVMType2Type(GetDLType(dtype_vec[idx.entry_id(e)])),
+            shape, DataType(GetDLType(dtype_vec[idx.entry_id(e)])),
             os_name.str());
         NodeEntry garg = Symbol::CreateVariable(os_name.str()).outputs[0];
         fe.imap[e] = garg;

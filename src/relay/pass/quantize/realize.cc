@@ -76,7 +76,7 @@ RELAY_DEFINE_NODE_REF(QRealizeIntExpr, QRealizeIntExprNode, QRealizeExpr);
 Expr QRealizeIntExprNode::Realize() const {
   Expr data = this->data;
   // dequantize
-  data = Cast(data, Float(32));
+  data = Cast(data, DataType::Float(32));
   data = Multiply(data, this->dom_scale);
   return data;
 }
@@ -112,7 +112,8 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
   } else if (static_cast<int>(factor) == factor) {
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
-    data = qnn::FixedPointMultiply(Cast(data, Int(64)), factor, data_shape, cfg->rounding);
+    data = qnn::FixedPointMultiply(
+        Cast(data, DataType::Int(64)), factor, data_shape, cfg->rounding);
     return Cast(data, dtype);
   }
 }
@@ -165,7 +166,7 @@ Expr QuantizeRealize(const Call& ref_call,
       data = Clip(data, clip_min_imm, clip_max_imm);
       return QRealizeIntExprNode::make(data, dom_scale, n->dtype);
     } else {
-      data = Cast(data, Int(64));
+      data = Cast(data, DataType::Int(64));
       data = qnn::FixedPointMultiply(data, idom_scale_imm / odom_scale_imm,
                                      ref_call->type_as<TensorTypeNode>()->shape,
                                      cfg->rounding);
@@ -177,9 +178,9 @@ Expr QuantizeRealize(const Call& ref_call,
   // quantize from real
   CHECK(!new_args[0]->IsInstance<TempExprNode>());
   Expr data = new_args[0];
-  Expr scaled_data = Multiply(data, MakeConstantScalar(Float(32), 1 / dom_scale_imm));
+  Expr scaled_data = Multiply(data, MakeConstantScalar(DataType::Float(32), 1 / dom_scale_imm));
   Expr round_data = Clip(Round(scaled_data), clip_min_imm, clip_max_imm);
-  return QRealizeIntExprNode::make(round_data, dom_scale, Float(32));
+  return QRealizeIntExprNode::make(round_data, dom_scale, DataType::Float(32));
 }
 
 Expr FoldConstantOpt(const Expr& expr) {
@@ -350,7 +351,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
 
   // unify the dom_scale
   float s = ChooseDomScale(nptrs);
-  Expr dom_scale = MakeConstantScalar(Float(32), s);
+  Expr dom_scale = MakeConstantScalar(DataType::Float(32), s);
   for (size_t i = 0; i < ret.size(); ++i) {
     float cur_s = GetScalarFromConstant<float>(nptrs[i]->dom_scale);
     ret.Set(i, MulAndDiv(ret[i], cur_s, s, dtype, ref_args[i]->type_as<TensorTypeNode>()->shape));

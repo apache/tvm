@@ -895,7 +895,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
-        if (attrs->dtype == Int(32)) {
+        if (attrs->dtype == DataType::Int(32)) {
           *rv = true;
         }
       }

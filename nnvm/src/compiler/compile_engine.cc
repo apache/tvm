@@ -47,52 +47,52 @@ using namespace tvm;
  * \param type the tvm type.
  * \return corresponding DLDataType
  */
-int GetTypeFlag(tvm::Type type) {
-  if (type == tvm::Float(32)) return 0;
-  if (type == tvm::Float(64)) return 1;
-  if (type == tvm::Float(16)) return 2;
-  if (type == tvm::UInt(8)) return 3;
-  if (type == tvm::Int(32)) return 4;
-  if (type == tvm::Int(8)) return 5;
-  if (type == tvm::Int(64)) return 6;
-  if (type == tvm::Int(16)) return 7;
-  if (type == tvm::UInt(16)) return 8;
-  if (type == tvm::UInt(32)) return 9;
-  if (type == tvm::UInt(64)) return 10;
-  if (type == tvm::UInt(1)) return 11;
+int GetTypeFlag(tvm::DataType type) {
+  if (type == tvm::DataType::Float(32)) return 0;
+  if (type == tvm::DataType::Float(64)) return 1;
+  if (type == tvm::DataType::Float(16)) return 2;
+  if (type == tvm::DataType::UInt(8)) return 3;
+  if (type == tvm::DataType::Int(32)) return 4;
+  if (type == tvm::DataType::Int(8)) return 5;
+  if (type == tvm::DataType::Int(64)) return 6;
+  if (type == tvm::DataType::Int(16)) return 7;
+  if (type == tvm::DataType::UInt(16)) return 8;
+  if (type == tvm::DataType::UInt(32)) return 9;
+  if (type == tvm::DataType::UInt(64)) return 10;
+  if (type == tvm::DataType::UInt(1)) return 11;
   LOG(FATAL) << "cannot convert " << type;
   return 0;
 }
 // convert from type flag to tvm type.
-Type GetTVMType(int type_flag) {
+DataType GetTVMType(int type_flag) {
   switch (type_flag) {
     case 0:
-      return tvm::Float(32);
+      return tvm::DataType::Float(32);
     case 1:
-      return tvm::Float(64);
+      return tvm::DataType::Float(64);
     case 2:
-      return tvm::Float(16);
+      return tvm::DataType::Float(16);
     case 3:
-      return tvm::UInt(8);
+      return tvm::DataType::UInt(8);
     case 4:
-      return tvm::Int(32);
+      return tvm::DataType::Int(32);
     case 5:
-      return tvm::Int(8);
+      return tvm::DataType::Int(8);
     case 6:
-      return tvm::Int(64);
+      return tvm::DataType::Int(64);
     case 7:
-      return tvm::Int(16);
+      return tvm::DataType::Int(16);
     case 8:
-      return tvm::UInt(16);
+      return tvm::DataType::UInt(16);
     case 9:
-      return tvm::UInt(32);
+      return tvm::DataType::UInt(32);
     case 10:
-      return tvm::UInt(64);
+      return tvm::DataType::UInt(64);
     case 11:
-      return tvm::UInt(1);
+      return tvm::DataType::UInt(1);
     default:
       LOG(FATAL) << "unknown type_flag=" << type_flag;
-      return Float(32);
+      return DataType::Float(32);
   }
 }
 
@@ -216,7 +216,7 @@ class CompileEngine {
         Array<Expr> shape;
         for (int64_t x : shape_vec[idx.entry_id(nid, i)]) {
           CHECK_LE(x, static_cast<int64_t>(std::numeric_limits<int>::max()));
-          shape.push_back(make_const(Int(32), x));
+          shape.push_back(make_const(DataType::Int(32), x));
         }
         out_info.push_back(
             placeholder(shape,

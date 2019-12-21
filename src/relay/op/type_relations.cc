@@ -136,7 +136,7 @@ bool BroadcastCompRel(const Array<Type>& types,
   if (auto t0 = ToTensorType(types[0])) {
     if (auto t1 = ToTensorType(types[1])) {
       CHECK_EQ(t0->dtype, t1->dtype);
-      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::Bool()));
+      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::DataType::Bool()));
       return true;
     }
   }

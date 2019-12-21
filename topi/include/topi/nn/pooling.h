@@ -74,18 +74,18 @@ inline Tensor pool_impl(const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = cast(Int(32), kernel_size[0]);
-  auto kernel_width = cast(Int(32), kernel_size[1]);
-  auto stride_height = cast(Int(32), stride_size[0]);
-  auto stride_width = cast(Int(32), stride_size[1]);
+  auto kernel_height = cast(DataType::DataType::Int(32), kernel_size[0]);
+  auto kernel_width = cast(DataType::DataType::Int(32), kernel_size[1]);
+  auto stride_height = cast(DataType::DataType::Int(32), stride_size[0]);
+  auto stride_width = cast(DataType::DataType::Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = cast(Int(32), padding_size[0]);
-  auto pad_left = cast(Int(32), padding_size[1]);
-  auto pad_bottom = cast(Int(32), padding_size[2]);
-  auto pad_right = cast(Int(32), padding_size[3]);
+  auto pad_top = cast(DataType::DataType::Int(32), padding_size[0]);
+  auto pad_left = cast(DataType::DataType::Int(32), padding_size[1]);
+  auto pad_bottom = cast(DataType::DataType::Int(32), padding_size[2]);
+  auto pad_right = cast(DataType::DataType::Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -122,7 +122,8 @@ inline Tensor pool_impl(const Tensor& x,
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
   if (pool_type == kMaxPool) {
-    auto temp = do_pad ? pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp") : x;
+    auto temp = do_pad ? pad(
+        x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
@@ -156,10 +157,10 @@ inline Tensor pool_impl(const Tensor& x,
         Expr w_start = output[width_axis] * stride_width - pad_left;
         Expr h_end = ir::Min::make(h_start + kernel_height, height);
         Expr w_end = ir::Min::make(w_start + kernel_width, width);
-        h_start = ir::Max::make(h_start, make_const(Int(32), 0));
-        w_start = ir::Max::make(w_start, make_const(Int(32), 0));
+        h_start = ir::Max::make(h_start, make_const(DataType::DataType::Int(32), 0));
+        w_start = ir::Max::make(w_start, make_const(DataType::DataType::Int(32), 0));
         Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
-                                           make_const(Int(32), 1));
+                                           make_const(DataType::DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);
@@ -180,18 +181,18 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
   CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
-  auto kernel_height = cast(Int(32), kernel_size[0]);
-  auto kernel_width = cast(Int(32), kernel_size[1]);
-  auto stride_height = cast(Int(32), stride_size[0]);
-  auto stride_width = cast(Int(32), stride_size[1]);
+  auto kernel_height = cast(DataType::DataType::Int(32), kernel_size[0]);
+  auto kernel_width = cast(DataType::DataType::Int(32), kernel_size[1]);
+  auto stride_height = cast(DataType::DataType::Int(32), stride_size[0]);
+  auto stride_width = cast(DataType::DataType::Int(32), stride_size[1]);
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_top = cast(Int(32), padding_size[0]);
-  auto pad_left = cast(Int(32), padding_size[1]);
-  auto pad_bottom = cast(Int(32), padding_size[2]);
-  auto pad_right = cast(Int(32), padding_size[3]);
+  auto pad_top = cast(DataType::DataType::Int(32), padding_size[0]);
+  auto pad_left = cast(DataType::DataType::Int(32), padding_size[1]);
+  auto pad_bottom = cast(DataType::DataType::Int(32), padding_size[2]);
+  auto pad_right = cast(DataType::DataType::Int(32), padding_size[3]);
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
@@ -236,7 +237,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     auto windoww = tvm::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
 
     auto argmax = MakeArgmaxReducer();
-    auto pad_x = do_pad ? pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp") : x;
+    auto pad_x = do_pad ? pad(
+        x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
 
     auto mp_argmax =
         tvm::compute(out_shape,
@@ -264,10 +266,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
           Expr out_idx_lower_h = ir::Select::make(
-              pad_inds[height_axis] < kernel_height, make_const(Int(32), 0),
+              pad_inds[height_axis] < kernel_height, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
           Expr out_idx_lower_w = ir::Select::make(
-              pad_inds[width_axis] < kernel_width, make_const(Int(32), 0),
+              pad_inds[width_axis] < kernel_width, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
@@ -293,10 +295,12 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
-          Expr out_idx_lower_h = ir::Select::make(pad_h_idx < kernel_height, make_const(Int(32), 0),
-                                                  (pad_h_idx - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::Select::make(pad_w_idx < kernel_width, make_const(Int(32), 0),
-                                                  (pad_w_idx - kernel_width) / stride_width + 1);
+          Expr out_idx_lower_h = ir::Select::make(
+              pad_h_idx < kernel_height, make_const(DataType::Int(32), 0),
+              (pad_h_idx - kernel_height) / stride_height + 1);
+          Expr out_idx_lower_w = ir::Select::make(
+              pad_w_idx < kernel_width, make_const(DataType::Int(32), 0),
+              (pad_w_idx - kernel_width) / stride_width + 1);
 
           Expr divide_factor;  // number of pooled elements
           if (count_include_pad) {
@@ -306,10 +310,11 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
             Expr w_start = out_idx[width_axis] * stride_width - pad_left;
             Expr h_end = ir::Min::make(h_start + kernel_height, height);
             Expr w_end = ir::Min::make(w_start + kernel_width, width);
-            h_start = ir::Max::make(h_start, make_const(Int(32), 0));
-            w_start = ir::Max::make(w_start, make_const(Int(32), 0));
+            h_start = ir::Max::make(h_start, make_const(DataType::Int(32), 0));
+            w_start = ir::Max::make(w_start, make_const(DataType::Int(32), 0));
             divide_factor =
-                ir::Max::make((h_end - h_start) * (w_end - w_start), make_const(Int(32), 1));
+                ir::Max::make((h_end - h_start) * (w_end - w_start),
+                              make_const(DataType::Int(32), 1));
           }
           return tvm::sum(tvm::if_then_else(
               ir::And::make(
@@ -487,8 +492,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto out_height = cast(Int(32), output_size[0]);
-  auto out_width = cast(Int(32), output_size[1]);
+  auto out_height = cast(DataType::Int(32), output_size[0]);
+  auto out_width = cast(DataType::Int(32), output_size[1]);
   Array<Expr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
@@ -650,10 +655,10 @@ inline Tensor pool_impl_nd(const Tensor& x,
   bool do_pad = false;
   for (int i = 0; i < k_size; i++) {
     int ii = axis[i];
-    kernel[i] = cast(Int(32), kernel_size[i]);
-    stride[i] = cast(Int(32), stride_size[i]);
-    pad_head[i] = cast(Int(32), padding_size[i]);
-    pad_tail[i] = cast(Int(32), padding_size[i + k_size]);
+    kernel[i] = cast(DataType::Int(32), kernel_size[i]);
+    stride[i] = cast(DataType::Int(32), stride_size[i]);
+    pad_head[i] = cast(DataType::Int(32), padding_size[i]);
+    pad_tail[i] = cast(DataType::Int(32), padding_size[i + k_size]);
     const int64_t *padding0 = as_const_int(pad_head[i]);
     const int64_t *padding1 = as_const_int(pad_tail[i]);
     do_pad = (do_pad) ? do_pad : ((padding0 && *padding0) || (padding1 && *padding1));
@@ -676,7 +681,8 @@ inline Tensor pool_impl_nd(const Tensor& x,
   }
 
   if (pool_type == kMaxPool) {
-    auto temp = do_pad ? pad(x, pad_before, pad_after, x->dtype.min(), "pad_temp") : x;
+    auto temp = do_pad ? pad(
+        x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
@@ -711,7 +717,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
       if (count_include_pad) {
-        auto kernel_size = make_const(Int(32), 1);
+        auto kernel_size = make_const(DataType::Int(32), 1);
         for (int i = 0; i < k_size; i++) {
           kernel_size *= kernel[i];
         }
@@ -719,16 +725,16 @@ inline Tensor pool_impl_nd(const Tensor& x,
       } else {
         std::vector<Expr> start(k_size);
         std::vector<Expr> end(k_size);
-        auto kernel_size = make_const(Int(32), 1);
+        auto kernel_size = make_const(DataType::Int(32), 1);
         for (int i = 0; i < k_size; i++) {
           int ii = axis[i];
           start[i] = output[ii] * stride[i] - pad_head[i];
           end[i] = ir::Min::make(start[i] + kernel[i], x->shape[ii]);
-          start[i] = ir::Max::make(start[i], make_const(Int(32), 0));
+          start[i] = ir::Max::make(start[i], make_const(DataType::Int(32), 0));
           kernel_size *= (end[i] - start[i]);
         }
 
-        Expr divide_factor = ir::Max::make(kernel_size, make_const(Int(32), 1));
+        Expr divide_factor = ir::Max::make(kernel_size, make_const(DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);

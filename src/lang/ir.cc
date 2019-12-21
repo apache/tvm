@@ -35,7 +35,7 @@ Expr UIntImm::make(DataType t, uint64_t value) {
   CHECK(t.is_uint() && t.lanes() == 1)
       << "ValueError: UIntImm can only take scalar";
   NodePtr<UIntImm> node = make_node<UIntImm>();
-  node->type = t;
+  node->dtype = t;
   node->value = value;
   return Expr(node);
 }
@@ -44,23 +44,23 @@ Expr FloatImm::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
   NodePtr<FloatImm> node = make_node<FloatImm>();
-  node->type = t;
+  node->dtype = t;
   node->value = value;
   return Expr(node);
 }
 
 Expr StringImm::make(std::string value) {
   NodePtr<StringImm> node = make_node<StringImm>();
-  node->type = Handle();
+  node->dtype = DataType::Handle();
   node->value = std::move(value);
   return Expr(node);
 }
 
 Expr Cast::make(DataType t, Expr value) {
   CHECK(value.defined());
-  CHECK_EQ(t.lanes(), value.type().lanes());
+  CHECK_EQ(t.lanes(), value.dtype().lanes());
   NodePtr<Cast> node = make_node<Cast>();
-  node->type = t;
+  node->dtype = t;
   node->value = std::move(value);
   return Expr(node);
 }
@@ -68,12 +68,12 @@ Expr Cast::make(DataType t, Expr value) {
 Expr And::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
-  CHECK(a.type().is_bool());
-  CHECK(b.type().is_bool());
-  CHECK(a.type() == b.type()) << "TypeError: mismatched types";
+  CHECK(a.dtype().is_bool());
+  CHECK(b.dtype().is_bool());
+  CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   NodePtr<And> node = make_node<And>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
@@ -82,12 +82,12 @@ Expr And::make(Expr a, Expr b) {
 Expr Or::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
-  CHECK(a.type().is_bool());
-  CHECK(b.type().is_bool());
-  CHECK(a.type() == b.type()) << "TypeError: mismatched types";
+  CHECK(a.dtype().is_bool());
+  CHECK(b.dtype().is_bool());
+  CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   NodePtr<Or> node = make_node<Or>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
@@ -95,10 +95,10 @@ Expr Or::make(Expr a, Expr b) {
 
 Expr Not::make(Expr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
-  CHECK(a.type().is_bool());
+  CHECK(a.dtype().is_bool());
 
   NodePtr<Not> node = make_node<Not>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   return Expr(node);
 }
@@ -107,27 +107,27 @@ Expr Select::make(Expr condition, Expr true_value, Expr false_value) {
   CHECK(condition.defined()) << "ValueError: condition is undefined";
   CHECK(true_value.defined()) << "ValueError: true_value is undefined";
   CHECK(false_value.defined()) << "ValueError: true_value is undefined";
-  CHECK(condition.type().is_bool());
-  CHECK_EQ(condition.type().lanes(), true_value.type().lanes());
-  CHECK(false_value.type() == true_value.type()) << "TypeError: mismatched types";
+  CHECK(condition.dtype().is_bool());
+  CHECK_EQ(condition.dtype().lanes(), true_value.dtype().lanes());
+  CHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
 
   NodePtr<Select> node = make_node<Select>();
-  node->type = true_value.type();
+  node->dtype = true_value.dtype();
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
   node->false_value = std::move(false_value);
   return Expr(node);
 }
 
-Expr Load::make(DataType type, Var buffer_var, Expr index, Expr predicate) {
+Expr Load::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
   CHECK(buffer_var.defined());
   CHECK(predicate.defined());
   CHECK(index.defined());
-  CHECK_EQ(type.lanes(), index.type().lanes());
-  CHECK_EQ(type.lanes(), predicate.type().lanes());
+  CHECK_EQ(dtype.lanes(), index.dtype().lanes());
+  CHECK_EQ(dtype.lanes(), predicate.dtype().lanes());
 
   NodePtr<Load> node = make_node<Load>();
-  node->type = type;
+  node->dtype = dtype;
   node->buffer_var = std::move(buffer_var);
   node->index = std::move(index);
   node->predicate = std::move(predicate);
@@ -138,13 +138,13 @@ Expr Load::make(DataType type, Var buffer_var, Expr index, Expr predicate) {
 Expr Ramp::make(Expr base, Expr stride, int lanes) {
   CHECK(base.defined());
   CHECK(stride.defined());
-  CHECK(base.type().is_scalar());
-  CHECK(stride.type().is_scalar());
+  CHECK(base.dtype().is_scalar());
+  CHECK(stride.dtype().is_scalar());
   CHECK_GT(lanes, 1);
-  CHECK_EQ(stride.type(), base.type());
+  CHECK_EQ(stride.dtype(), base.dtype());
 
   NodePtr<Ramp> node = make_node<Ramp>();
-  node->type = base.type().with_lanes(lanes);
+  node->dtype = base.dtype().with_lanes(lanes);
   node->base = base;
   node->stride = stride;
   node->lanes = lanes;
@@ -153,11 +153,11 @@ Expr Ramp::make(Expr base, Expr stride, int lanes) {
 
 Expr Broadcast::make(Expr value, int lanes) {
   CHECK(value.defined());
-  CHECK(value.type().is_scalar());
+  CHECK(value.dtype().is_scalar());
   CHECK_GT(lanes, 1);
 
   NodePtr<Broadcast> node = make_node<Broadcast>();
-  node->type = value.type().with_lanes(lanes);
+  node->dtype = value.dtype().with_lanes(lanes);
   node->value = std::move(value);
   node->lanes = lanes;
   return Expr(node);
@@ -166,10 +166,10 @@ Expr Broadcast::make(Expr value, int lanes) {
 Expr Let::make(Var var, Expr value, Expr body) {
   CHECK(value.defined());
   CHECK(body.defined());
-  CHECK_EQ(value.type(), var.type());
+  CHECK_EQ(value.dtype(), var.dtype());
 
   NodePtr<Let> node = make_node<Let>();
-  node->type = body.type();
+  node->dtype = body.dtype();
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
@@ -192,7 +192,7 @@ bool Call::is_vectorizable() const {
   return false;
 }
 
-Expr Call::make(DataType type,
+Expr Call::make(DataType dtype,
                 std::string name,
                 Array<Expr> args,
                 CallType call_type,
@@ -204,12 +204,12 @@ Expr Call::make(DataType type,
 
   if (call_type == Halide) {
     for (size_t i = 0; i < args.size(); ++i) {
-      CHECK(args[i].type().is_int());
+      CHECK(args[i].dtype().is_int());
     }
   }
 
   NodePtr<Call> node = make_node<Call>();
-  node->type = type;
+  node->dtype = dtype;
   node->name = std::move(name);
   node->args = std::move(args);
   node->call_type = call_type;
@@ -223,17 +223,17 @@ Expr Shuffle::make(Array<Expr> vectors,
   CHECK_NE(vectors.size(), 0U);
   CHECK_NE(indices.size(), 0U);
 
-  Type base_type = vectors[0].type().element_of();
+  DataType base_type = vectors[0].dtype().element_of();
   int total_lanes = 0;
 
   for (Expr val : vectors) {
-    CHECK(val.type().element_of() == base_type);
-    total_lanes += val.type().lanes();
+    CHECK(val.dtype().element_of() == base_type);
+    total_lanes += val.dtype().lanes();
   }
   CHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
   NodePtr<Shuffle> node = make_node<Shuffle>();
-  node->type = base_type.with_lanes(static_cast<int>(indices.size()));
+  node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
   return Expr(node);
@@ -247,8 +247,8 @@ Expr Shuffle::make_concat(Array<Expr> vectors) {
   Array<Expr> indices;
   int index = 0;
   for (const Expr& e : vectors) {
-    for (int i = 0; i < e.type().lanes(); ++i) {
-      indices.push_back(IntImm::make(Int(32), index++));
+    for (int i = 0; i < e.dtype().lanes(); ++i) {
+      indices.push_back(IntImm::make(DataType::Int(32), index++));
     }
   }
   return make(vectors, indices);
@@ -298,7 +298,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
   }
-  n->type = source[value_index].type();
+  n->dtype = source[value_index].dtype();
   n->combiner = std::move(combiner);
   n->source = std::move(source);
   n->axis = std::move(axis);
@@ -315,7 +315,7 @@ Expr Any::make() {
 Stmt LetStmt::make(Var var, Expr value, Stmt body) {
   CHECK(value.defined());
   CHECK(body.defined());
-  CHECK_EQ(value.type(), var.type());
+  CHECK_EQ(value.dtype(), var.dtype());
 
   NodePtr<LetStmt> node = make_node<LetStmt>();
   node->var = std::move(var);
@@ -338,7 +338,7 @@ Stmt AttrStmt::make(NodeRef node,
 
 Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
   CHECK(condition.defined());
-  CHECK(message.type() == Int(32) ||
+  CHECK(message.dtype() == DataType::Int(32) ||
         message.as<StringImm>())
       << "TypeError: AssertStmt message must be an int or string:"
       << message << "\n";
@@ -368,9 +368,9 @@ Stmt For::make(Var loop_var,
                Stmt body) {
   CHECK(min.defined());
   CHECK(extent.defined());
-  CHECK(min.type().is_scalar());
-  CHECK(extent.type().is_scalar());
-  CHECK(loop_var.type().is_scalar());
+  CHECK(min.dtype().is_scalar());
+  CHECK(extent.dtype().is_scalar());
+  CHECK(loop_var.dtype().is_scalar());
   CHECK(body.defined());
 
   NodePtr<For> node = make_node<For>();
@@ -387,8 +387,8 @@ Stmt Store::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   CHECK(value.defined());
   CHECK(index.defined());
   CHECK(predicate.defined());
-  CHECK_EQ(value.type().lanes(), index.type().lanes());
-  CHECK_EQ(value.type().lanes(), predicate.type().lanes());
+  CHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
+  CHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
 
   NodePtr<Store> node = make_node<Store>();
   node->buffer_var = std::move(buffer_var);
@@ -416,7 +416,7 @@ Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> ar
 }
 
 Stmt Allocate::make(Var buffer_var,
-                    DataType type,
+                    DataType dtype,
                     Array<Expr> extents,
                     Expr condition,
                     Stmt body,
@@ -424,15 +424,15 @@ Stmt Allocate::make(Var buffer_var,
                     std::string free_function) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
-      CHECK(extents[i].type().is_scalar());
+      CHECK(extents[i].dtype().is_scalar());
     }
     CHECK(body.defined());
     CHECK(condition.defined());
-    CHECK(condition.type().is_bool());
+    CHECK(condition.dtype().is_bool());
 
     NodePtr<Allocate> node = make_node<Allocate>();
     node->buffer_var = std::move(buffer_var);
-    node->type = type;
+    node->dtype = dtype;
     node->extents = std::move(extents);
     node->condition = std::move(condition);
     node->body = std::move(body);
@@ -464,42 +464,42 @@ Stmt Free::make(Var buffer_var) {
 
 Stmt Realize::make(FunctionRef func,
                    int value_index,
-                   DataType type,
+                   DataType dtype,
                    Region bounds,
                    Expr condition,
                    Stmt body) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.type().is_scalar());
-    CHECK(bounds[i]->extent.type().is_scalar());
+    CHECK(bounds[i]->min.dtype().is_scalar());
+    CHECK(bounds[i]->extent.dtype().is_scalar());
   }
   CHECK(body.defined());
   CHECK(condition.defined());
-  CHECK(condition.type().is_bool());
+  CHECK(condition.dtype().is_bool());
 
   NodePtr<Realize> node = make_node<Realize>();
   node->func = std::move(func);
   node->value_index = value_index;
-  node->type = type;
+  node->dtype = dtype;
   node->bounds = std::move(bounds);
   node->condition = std::move(condition);
   node->body = std::move(body);
   return Stmt(node);
 }
 
-Stmt Prefetch::make(FunctionRef func, int value_index, DataType type, Region bounds) {
+Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.type().is_scalar());
-    CHECK(bounds[i]->extent.type().is_scalar());
+    CHECK(bounds[i]->min.dtype().is_scalar());
+    CHECK(bounds[i]->extent.dtype().is_scalar());
   }
 
   NodePtr<Prefetch> node = make_node<Prefetch>();
   node->func = std::move(func);
   node->value_index = value_index;
-  node->type = type;
+  node->dtype = dtype;
   node->bounds = std::move(bounds);
   return Stmt(node);
 }
@@ -555,14 +555,14 @@ Stmt Evaluate::make(Expr value) {
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<UIntImm>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const UIntImm*>(node.get());
-    p->stream << "(" << op->type << ")" << op->value;
+    p->stream << "(" << op->dtype << ")" << op->value;
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<FloatImm>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const FloatImm*>(node.get());
     auto& stream = p->stream;
-    switch (op->type.bits()) {
+    switch (op->dtype.bits()) {
       case 64:
         stream << op->value;
         break;
@@ -573,7 +573,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
         stream << op->value << 'h';
         break;
       default:
-        LOG(FATAL) << "Unknown float type bits=" << op->type.bits();
+        LOG(FATAL) << "Unknown float type bits=" << op->dtype.bits();
     }
   });
 
@@ -616,7 +616,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Cast>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const Cast*>(node.get());
-    p->stream << op->type << '(';
+    p->stream << op->dtype << '(';
     p->Print(op->value);
     p->stream << ')';
   })
@@ -959,7 +959,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Allocate>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const Allocate*>(node.get());
     p->PrintIndent();
-    p->stream << "allocate " << op->buffer_var << "[" << op->type;
+    p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
     for (size_t i = 0; i < op->extents.size(); ++i) {
       p->stream << " * ";
       p->Print(op->extents[i]);

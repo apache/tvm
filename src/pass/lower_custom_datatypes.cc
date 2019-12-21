@@ -42,8 +42,8 @@ class CustomDatatypesLowerer : public IRMutator {
   explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
   inline Expr Mutate_(const Cast* op, const Expr& e) final {
-    auto type_code = op->type.code();
-    auto src_type_code = op->value.type().code();
+    auto type_code = op->dtype.code();
+    auto src_type_code = op->value.dtype().code();
     // If either datatype is a registered custom datatype, we must lower.
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
@@ -60,7 +60,7 @@ class CustomDatatypesLowerer : public IRMutator {
   }
 
   inline Expr Mutate_(const FloatImm* imm, const Expr& e) final {
-    auto type_code = imm->type.code();
+    auto type_code = imm->dtype.code();
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
@@ -71,12 +71,12 @@ class CustomDatatypesLowerer : public IRMutator {
   }
 
   inline Stmt Mutate_(const Allocate* allocate, const Stmt& s) final {
-    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->type.code());
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
     Stmt stmt = IRMutator::Mutate_(allocate, s);
     allocate = stmt.as<Allocate>();
 
     if (toBeLowered) {
-      auto new_allocate_type = UInt(allocate->type.bits(), allocate->type.lanes());
+      auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
       return Allocate::make(allocate->buffer_var, new_allocate_type, allocate->extents,
                             allocate->condition, allocate->body, allocate->new_expr,
                             allocate->free_function);
@@ -85,11 +85,11 @@ class CustomDatatypesLowerer : public IRMutator {
   }
 
   inline Expr Mutate_(const Load* load, const Expr& e) final {
-    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->type.code());
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->dtype.code());
     Expr expr = IRMutator::Mutate_(load, e);
     load = expr.as<Load>();
     if (toBeLowered) {
-      auto new_load_type = UInt(load->type.bits());
+      auto new_load_type = DataType::UInt(load->dtype.bits());
       return Load::make(new_load_type, load->buffer_var, load->index, load->predicate);
     }
     return expr;
@@ -97,7 +97,7 @@ class CustomDatatypesLowerer : public IRMutator {
 
 #define DEFINE_MUTATE__(OP)                                                        \
   inline Expr Mutate_(const OP* op, const Expr& e) final {                         \
-    auto type_code = op->type.code();                                              \
+    auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
     Expr expr = IRMutator::Mutate_(op, e);                                         \
     op = expr.as<OP>();                                                            \

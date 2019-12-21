@@ -33,37 +33,37 @@ namespace tvm {
 namespace runtime {
 
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == Float(64)) {                              \
+  if (type == DataType::Float(64)) {                              \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(32)) {                       \
+  } else if (type == DataType::Float(32)) {                       \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(16)) {                       \
+  } else if (type == DataType::Float(16)) {                       \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(64)) {                         \
+  } else if (type == DataType::Int(64)) {                         \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(32)) {                         \
+  } else if (type == DataType::Int(32)) {                         \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(16)) {                         \
+  } else if (type == DataType::Int(16)) {                         \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(8)) {                          \
+  } else if (type == DataType::Int(8)) {                          \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(64)) {                        \
+  } else if (type == DataType::UInt(64)) {                        \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(32)) {                        \
+  } else if (type == DataType::UInt(32)) {                        \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(16)) {                        \
+  } else if (type == DataType::UInt(16)) {                        \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(8)) {                         \
+  } else if (type == DataType::UInt(8)) {                         \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
@@ -73,22 +73,22 @@ namespace runtime {
 DataType TfLiteDType2TVMDType(TfLiteType dtype) {
   switch (dtype) {
     case kTfLiteFloat32:
-      return Float(32);
+      return DataType::Float(32);
     case kTfLiteInt32:
-      return Int(32);
+      return DataType::Int(32);
     case kTfLiteInt64:
-      return Int(64);
+      return DataType::Int(64);
     case kTfLiteInt16:
-      return Int(16);
+      returnDataType::Int(16);
     case kTfLiteInt8:
-      return Int(8);
+      returnDataType::Int(8);
     case kTfLiteUInt8:
-      return UInt(8);
+      return DataType::UInt(8);
     case kTfLiteFloat16:
-      return Float(16);
+      return DataType::Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
-      return Float(32);
+      return DataType::Float(32);
   }
 }
 

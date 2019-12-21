@@ -132,7 +132,7 @@ class BoundDeducer: public IRVisitor {
     Expr target_var = left ? op->a : op->b;
 
     SignType sign_operand;
-    if (operand.type().is_uint()) {
+    if (operand.dtype().is_uint()) {
       sign_operand = kPositive;
     } else {
       sign_operand = expr_map_[operand].sign_type();

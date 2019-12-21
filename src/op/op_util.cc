@@ -74,7 +74,7 @@ MakeLoopNest(const Stage& stage,
     if (bind_iv->thread_tag.length() == 0) {
       // Only generate new loop if we're not bound to a thread.
       if (new_loop_var) {
-        var = Var(iv->var->name_hint + ".init", bind_iv->var.type());
+        var = Var(iv->var->name_hint + ".init", bind_iv->var.dtype());
       }
 
       ForType for_type = ForType::Serial;
@@ -98,7 +98,7 @@ MakeLoopNest(const Stage& stage,
           const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
           Expr pvalue = it_attr->pragma_values[k];
           if (!pvalue.defined()) {
-            pvalue = make_const(Int(32), 1);
+            pvalue = make_const(DataType::Int(32), 1);
           }
           nest[i + 1].emplace_back(
               AttrStmt::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
@@ -114,7 +114,7 @@ MakeLoopNest(const Stage& stage,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
-        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.type());
+        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(
             For::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
@@ -197,7 +197,7 @@ class TensorReplacer : public ir::IRMutator {
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
         Expr ret = ir::Call::make(
-            op->type, it->second->op->name, op->args,
+            op->dtype, it->second->op->name, op->args,
             op->call_type, it->second->op, it->second->value_index);
         found = true;
         return IRMutator::Mutate_(ret.as<ir::Call>(), ret);

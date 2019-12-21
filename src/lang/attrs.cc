@@ -177,7 +177,7 @@ bool AttrsEqualHandler::VisitAttr_(const Not* lhs, const ObjectRef& other) {
 
 bool AttrsEqualHandler::VisitAttr_(const Cast* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<Cast>()) {
-    if (lhs->type != rhs->type) return false;
+    if (lhs->dtype != rhs->dtype) return false;
     return Equal(lhs->value, rhs->value);
   } else {
     return false;
@@ -188,7 +188,7 @@ bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<Call>()) {
     return
         lhs->name == rhs->name &&
-        lhs->type == rhs->type &&
+        lhs->dtype == rhs->dtype &&
         lhs->call_type == rhs->call_type &&
         Equal(lhs->args, rhs->args);
   } else {
@@ -290,7 +290,7 @@ size_t AttrsHashHandler::VisitAttr_(const Cast* op) {
   static size_t key = std::hash<std::string>()(Cast::_type_key);
   AttrsHash hasher;
   size_t res = key;
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->value));
   return res;
 }
@@ -300,7 +300,7 @@ size_t AttrsHashHandler::VisitAttr_(const Call* op) {
   AttrsHash hasher;
   size_t res = key;
   res = Combine(res, hasher(op->name));
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->args));
   return res;
 }

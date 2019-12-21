@@ -82,10 +82,10 @@ class GPUCodeVerifier : public IRVisitor {
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
-      local_memory_per_block_ += size * op->type.bytes() * op->type.lanes();
+      local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     } else if (visited_shared_buffers_.count(op->buffer_var.get()) != 0) {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
-      shared_memory_per_block_ += size * op->type.bytes() * op->type.lanes();
+      shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
   }
 

@@ -38,7 +38,7 @@ TVM_REGISTER_GLOBAL("test.sch")
 
 TEST(Relay, BuildModule) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({2, 3}, ::tvm::Float(32));
+  auto tensor_type = relay::TensorTypeNode::make({2, 3}, DataType::Float(32));
   auto a = relay::VarNode::make("a", tensor_type);
   auto b = relay::VarNode::make("b", tensor_type);
   auto add_op = relay::Op::Get("add");

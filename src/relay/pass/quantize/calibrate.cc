@@ -56,7 +56,7 @@ class StatsCollector : private ExprMutator {
       // rewrite the annotation
       auto new_attrs = make_node<SimulatedQuantizeAttrs>();
       const Expr& quantize_input = new_call->args[0];  // expression being quantized
-      auto placeholder = MakeConstantScalar(Float(32), 0.);  // unused argument
+      auto placeholder = MakeConstantScalar(DataType::Float(32), 0.);  // unused argument
       Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};
       new_attrs->kind = QAnnotateKind::kQIdentity;
       new_attrs->sign = attrs->sign;
