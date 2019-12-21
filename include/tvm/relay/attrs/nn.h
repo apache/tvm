@@ -823,10 +823,14 @@ struct DeformableConv2DAttrs : public tvm::AttrsNode<DeformableConv2DAttrs> {
 
 /*! \brief Attributes used in subpixel operators */
 struct SubPixelAttrs : public tvm::AttrsNode<SubPixelAttrs> {
-  std::string data_layout;
+  int block_size;
+  std::string layout;
 
   TVM_DECLARE_ATTRS(SubPixelAttrs, "relay.attrs.SubPixelAttrs") {
-    TVM_ATTR_FIELD(data_layout)
+    TVM_ATTR_FIELD(block_size)
+        .describe("The size of subpixel blocks to compose or decompose.")
+        .set_default(1);
+    TVM_ATTR_FIELD(layout)
         .set_default("NCHW")
         .describe(
             "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."

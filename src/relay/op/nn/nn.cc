@@ -959,6 +959,65 @@ Accept logits.
 .set_support_level(10)
 .add_type_rel("CrossEntropy", CrossEntropyRel);
 
+// Depth to space and space to depth
+TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
+
+bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCHW("NCHW");
+
+  const SubPixelAttrs* param = attrs.as<SubPixelAttrs>();
+  CHECK(param != nullptr);
+  const int block_size = param->block_size;
+  const Layout in_layout(param->layout);
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  CHECK(layout_converter.defined())
+      << "DepthToSpace only support input layouts that are convertible from NCHW."
+      << " But got " << in_layout;
+
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(1, indexdiv(data->shape[1], (block_size * block_size)));
+  oshape.Set(2, data->shape[2] * block_size);
+  oshape.Set(3, data->shape[3] * block_size);
+
+  // Assign output type
+  reporter->Assign(types[1],
+                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
+
+  return true;
+}
+
+// Positional relay function to create DepthToSpace opeator
+// used by frontend FFI
+Expr MakeDepthToSpace(Expr data, int block_size, std::string layout) {
+  auto attrs = make_node<SubPixelAttrs>();
+  attrs->block_size = block_size;
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("nn.depth_to_space");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
+
+RELAY_REGISTER_OP("nn.depth_to_space")
+    .describe(R"code(Rearrange input channels into spatial pixels.
+
+- **data**: data is a 4D array of shape
+            (batch, in_channels, in_height, in_width) for NCHW
+
+- **out**: Output is a 4D array of shape
+           (batch, in_channels / block_size * block_size, in_height * block_size, in_width * block_size) for NCHW.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SubPixelAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .add_type_rel("DepthToSpace", DepthToSpaceRel)
+    .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
