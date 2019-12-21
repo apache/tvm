@@ -1,4 +1,9 @@
-cmake_minimum_required(VERSION 3.9)
+if(WIN32)
+  cmake_minimum_required(VERSION 3.9)
+else()
+  cmake_minimum_required(VERSION 3.2)
+endif()
+
 project(tvm C CXX)
 
 # Utility functions
