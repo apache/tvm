@@ -1985,3 +1985,26 @@ def cross_entropy_with_logits(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy_with_logits(predictions, targets)
+
+
+def depth_to_space(data, block_size, layout='NCHW'):
+    """Convert channels into spatial blocks.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with channels divisible by block_size**2
+    
+    block_size : int
+        Size of blocks to convert channels into.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel / block_size * block_size, 
+                           in_height * block_size, in_width * block_size]
+    """
+    return _make.depth_to_space(data, block_size, layout)

@@ -1016,8 +1016,8 @@ RELAY_REGISTER_OP("nn.depth_to_space")
     .set_attrs_type<SubPixelAttrs>()
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor")
-    .add_type_rel("DepthToSpace", DepthToSpaceRel)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+    .set_support_level(5)
+    .add_type_rel("DepthToSpace", DepthToSpaceRel);
 
 }  // namespace relay
 }  // namespace tvm

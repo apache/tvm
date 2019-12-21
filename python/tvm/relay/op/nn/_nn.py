@@ -881,6 +881,16 @@ def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
 
+
+@reg.register_compute("nn.depth_to_space")
+def compute_depth_to_space(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.depth_to_space", schedule_injective)
+reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
+
 # shape func
 @script
 def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):
