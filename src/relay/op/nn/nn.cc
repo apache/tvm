@@ -31,6 +31,7 @@
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
 #include <vector>
+#include <string>
 #include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
