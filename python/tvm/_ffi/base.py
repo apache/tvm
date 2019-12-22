@@ -56,7 +56,7 @@ def _load_lib():
 
 # version number
 __version__ = libinfo.__version__
-# library instance of nnvm
+# library instance
 _LIB, _LIB_NAME = _load_lib()
 
 # Whether we are runtime only
