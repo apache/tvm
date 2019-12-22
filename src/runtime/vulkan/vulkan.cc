@@ -724,7 +724,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
 
   ~VulkanModuleNode() {
     // cleanup vulkan related caches.
-    for (int device_id = 0; device_id < ecache_.size(); ++device_id) {
+    for (size_t device_id = 0; device_id < ecache_.size(); ++device_id) {
       for (auto& kv : ecache_[device_id]) {
         auto& pe = kv.second;
         CHECK(pe);
@@ -1026,7 +1026,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
   descriptor_buffers.resize(num_buffer_args_);
-  for (int i = 0; i < num_buffer_args_; ++i) {
+  for (size_t i = 0; i < num_buffer_args_; ++i) {
     void* buf = args[static_cast<int>(i)];
     VkDescriptorBufferInfo binfo;
     binfo.buffer = static_cast<VulkanBuffer*>(buf)->buffer;
@@ -1066,7 +1066,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   const auto& deferred_initializer = [&vctx, pipeline, descriptor_buffers]() {
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.resize(descriptor_buffers.size());
-    for (int i = 0; i < write_descriptor_sets.size(); i++) {
+    for (size_t i = 0; i < write_descriptor_sets.size(); i++) {
       write_descriptor_sets[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
       write_descriptor_sets[i].pNext = 0;
       write_descriptor_sets[i].dstSet = pipeline->descriptor_set;
@@ -1104,7 +1104,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   VulkanStreamToken deferred_token;
   deferred_token.descriptor_set_ = pipeline->descriptor_set;
   deferred_token.buffers_.resize(descriptor_buffers.size());
-  for (int i = 0; i < descriptor_buffers.size(); ++i) {
+  for (size_t i = 0; i < descriptor_buffers.size(); ++i) {
     deferred_token.buffers_[i] = descriptor_buffers[i].buffer;
   }
   VulkanThreadEntry::ThreadLocal()->Stream(device_id)->LaunchDeferred(
