@@ -77,11 +77,14 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         return tvm_output.asnumpy()
 
 
-def get_onnxruntime_output(model, x, dtype='float32'):
+def get_onnxruntime_output(model, inputs, dtype='float32'):
     import onnxruntime.backend
     rep = onnxruntime.backend.prepare(model, 'CPU')
-    x = x.astype(dtype)
-    ort_out = rep.run(x)[0]
+    if isinstance(inputs, list) and len(inputs) > 1:
+        ort_out = rep.run(inputs)
+    else:
+        x = inputs.astype(dtype)
+        ort_out = rep.run(x)[0]
     return ort_out
 
 
@@ -1746,6 +1749,83 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def verify_conv(x_shape, w_shape, y_shape, p):
+    node = helper.make_node('Conv',
+                            inputs=['x', 'W'],
+                            outputs=['y'],
+                            kernel_shape=[3, 3],
+                            # Default values for other attributes:
+                            # strides=[1, 1],
+                            # dilations=[1, 1],
+                            # groups=1
+                            pads=p,)
+
+    graph = helper.make_graph([node],
+                              'conv_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='conv_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_conv():
+    # Convolution with padding
+    # (1, 1, 5, 5) input tensor
+    # (1, 1, 3, 3) tensor for convolution weights
+    # (1, 1, 5, 5) output tensor
+    # [1, 1, 1, 1] list for pads
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1])
+
+    # Convolution without padding
+    # (1, 1, 5, 5) input tensor
+    # (1, 1, 3, 3) tensor for convolution weights
+    # (1, 1, 3, 3) output tensor
+    # [0, 0, 0, 0] list for pads
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0])
+
+
+def verify_convtranspose(x_shape, w_shape, y_shape, p):
+    node = onnx.helper.make_node("ConvTranspose",
+                                 inputs=["x", "W"],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                 group=1,
+                                 kernel_shape=[3, 3],
+                                 pads=p)
+
+    graph = helper.make_graph([node],
+                              'verify_convtranspose_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='convtranspose_trest')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_convtranspose():
+    # Convolution Transpose with padding
+    # (1, 1, 3, 3) input tensor
+    # (1, 2, 3, 3) tensor for convolution weights
+    # (1, 2, 7, 3) output tensor
+    # [1, 2, 1, 2] list for pads
+    verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1800,3 +1880,5 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_conv()
+    test_convtranspose()
