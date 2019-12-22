@@ -45,7 +45,7 @@ struct SType {
   /*! \brief The Id to represent type */
   uint32_t id{0};
   /*! \brief corresponding TVM type */
-  tvm::Type type;
+  tvm::DataType type;
   /*! \brief content type id if it is a pointer/struct-array class */
   uint32_t element_type_id{0};
   /*! \brief The storage class, if it is a pointer */
@@ -424,7 +424,7 @@ class IRBuilder {
    * \param dtype The data type.
    * \return The corresponding spirv type.
    */
-  SType GetSType(const tvm::Type& dtype);
+  SType GetSType(const tvm::DataType& dtype);
   /*!
    * \brief Get the pointer type that points to value_type
    * \param value_type.
@@ -575,7 +575,7 @@ class IRBuilder {
   // get constant given value encoded in uint64_t
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
   // declare type
-  SType DeclareType(const Type& dtype);
+  SType DeclareType(const DataType& dtype);
   /*! \brief internal instruction builder  */
   InstrBuilder ib_;
   /*! \brief Current label */

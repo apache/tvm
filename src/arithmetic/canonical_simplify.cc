@@ -115,7 +115,7 @@ class SplitExprNode : public CanonicalExprNode {
 
   Expr NormalizeWithScale(int64_t sscale) const {
     Expr res = this->index;
-    Type dtype = this->type;
+    DataType dtype = this->dtype;
     if (this->scale == 0) {
       return make_const(dtype, 0);
     }
@@ -190,9 +190,9 @@ class SumExprNode : public CanonicalExprNode {
   Expr Normalize() const final {
     // quick path 1.
     if (this->args.size() == 0) {
-      return make_const(this->type, this->base);
+      return make_const(this->dtype, this->base);
     }
-    return Normalize_(this->type,
+    return Normalize_(this->dtype,
                       SimplifySplitExprs(args),
                       base);
   }
@@ -379,7 +379,7 @@ class SumExprNode : public CanonicalExprNode {
     std::stable_sort(args.begin(), args.end(), fcompare);
     return args;
   }
-  static Expr Normalize_(Type dtype,
+  static Expr Normalize_(DataType dtype,
                          const std::vector<SplitExpr>& args,
                          int64_t base) {
     // Positive scales first
@@ -508,7 +508,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       expr = op->Normalize();
     }
     NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
-    n->type = expr.type();
+    n->dtype = expr.dtype();
     n->index = std::move(expr);
     n->div_mode = kTruncDiv;
     return SplitExpr(n);
@@ -545,7 +545,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       return GetRef<SumExpr>(op);
     }
     NodePtr<SumExprNode> n = make_node<SumExprNode>();
-    n->type = expr.type();
+    n->dtype = expr.dtype();
     if (const auto* op = expr.as<IntImm>()) {
       n->base = op->value;
       return SumExpr(n);
@@ -560,7 +560,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Add* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   // normalize
@@ -586,7 +586,7 @@ Mutate_(const Add* op, const Expr& self) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Sub* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   // normalize
@@ -613,7 +613,7 @@ Mutate_(const Sub* op, const Expr& self) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Mul* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   // normalize
@@ -657,8 +657,8 @@ SeparateDivisibleParts(const SumExprNode* psum,
                        SumExpr* out_non_divisible) {
   auto divisible = make_node<SumExprNode>();
   auto non_divisible = make_node<SumExprNode>();
-  divisible->type = psum->type;
-  non_divisible->type = psum->type;
+  divisible->dtype = psum->dtype;
+  non_divisible->dtype = psum->dtype;
 
   if (psum->base % coeff == 0) {
     divisible->base = psum->base;
@@ -698,11 +698,11 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
       return lhs;
     } else if (lhs->upper_factor <= (lhs->lower_factor * scaled_cval)) {
       // (x % c1) / c2  => 0 when c2 >= c1
-      return ToSplitExpr(make_zero(lhs.type()));
+      return ToSplitExpr(make_zero(lhs.dtype()));
     } else {
       // move the upper_factor modular into index.
       lhs.CopyOnWrite()->index =
-          ModImpl(lhs->index, make_const(lhs.type(), lhs->upper_factor), div_mode);
+          ModImpl(lhs->index, make_const(lhs.dtype(), lhs->upper_factor), div_mode);
       lhs.CopyOnWrite()->upper_factor = SplitExprNode::kPosInf;
       lhs.CopyOnWrite()->scale = 1;
       lhs.CopyOnWrite()->lower_factor *= scaled_cval;
@@ -720,7 +720,7 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Div* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
 
@@ -764,7 +764,7 @@ Mutate_(const Div* op, const Expr& self) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
@@ -781,7 +781,7 @@ Mutate_(const Div* op, const Expr& self) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const FloorDiv* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   Expr a = this->CanonicalMutate(op->a);
@@ -820,7 +820,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
@@ -859,7 +859,7 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
       if (new_upper_factor < lhs->upper_factor &&
           lhs->upper_factor != SplitExprNode::kPosInf) {
         auto updated = ToSplitExpr(Mutate(ModImpl(
-            lhs->index, make_const(lhs.type(), new_upper_factor), div_mode)));
+            lhs->index, make_const(lhs.dtype(), new_upper_factor), div_mode)));
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           return SplitDivConst(updated, lhs->lower_factor, div_mode);
@@ -887,7 +887,7 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const Mod* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   // normalize
@@ -906,7 +906,7 @@ Mutate_(const Mod* op, const Expr& self) {
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       if (extra->IsZero()) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
       // both lhs and extra are non-negative
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
@@ -957,7 +957,7 @@ Mutate_(const Mod* op, const Expr& self) {
 
 Expr CanonicalSimplifier::Impl::
 Mutate_(const FloorMod* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
+  if (!IsIndexType(op->dtype)) {
     return Rewriter::Mutate_(op, self);
   }
   // normalize

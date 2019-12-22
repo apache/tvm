@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -89,12 +89,12 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
  * \return the get expression.
  */
 inline Expr TVMStructGet(
-    Type dtype, Var handle, int index,
+    DataType dtype, Var handle, int index,
     intrinsic::TVMStructFieldKind kind) {
   Array<Expr> args ={
     handle,
-    make_const(Int(32), index),
-    make_const(Int(32), static_cast<int>(kind))};
+    make_const(DataType::Int(32), index),
+    make_const(DataType::Int(32), static_cast<int>(kind))};
   return Call::make(dtype, intrinsic::tvm_struct_get, args, Call::PureIntrinsic);
 }
 
@@ -104,10 +104,10 @@ inline Expr TVMStructGet(
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, Type dtype, int offset) {
+inline Expr AddressOffset(Var handle, DataType dtype, int offset) {
   return Call::make(
-      Handle(), intrinsic::tvm_address_of,
-      {Load::make(dtype, handle, make_const(Int(32), offset * dtype.lanes()),
+      DataType::Handle(), intrinsic::tvm_address_of,
+      {Load::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
                   const_true(dtype.lanes()))},
       Call::PureIntrinsic);
 }
@@ -118,13 +118,13 @@ inline Expr AddressOffset(Var handle, Type dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, Type dtype, Expr offset) {
+inline Expr AddressOffset(Var handle, DataType dtype, Expr offset) {
   if (dtype.lanes() != 1) {
-    offset = offset * make_const(offset.type(), dtype.lanes());
-    offset = Ramp::make(offset, make_const(offset.type(), 1), dtype.lanes());
+    offset = offset * make_const(offset.dtype(), dtype.lanes());
+    offset = Ramp::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
   return Call::make(
-      Handle(), intrinsic::tvm_address_of,
+      DataType::Handle(), intrinsic::tvm_address_of,
       {Load::make(dtype, handle, offset,
                   const_true(dtype.lanes()))},
       Call::PureIntrinsic);
@@ -143,11 +143,11 @@ inline Stmt TVMStructSet(
     intrinsic::TVMStructFieldKind kind, Expr value) {
   Array<Expr> args ={
     handle,
-    make_const(Int(32), index),
-    make_const(Int(32), static_cast<int>(kind)),
+    make_const(DataType::Int(32), index),
+    make_const(DataType::Int(32), static_cast<int>(kind)),
     value};
   return Evaluate::make(
-      Call::make(Int(32), intrinsic::tvm_struct_set, args, Call::Intrinsic));
+      Call::make(DataType::Int(32), intrinsic::tvm_struct_set, args, Call::Intrinsic));
 }
 
 /*!
@@ -155,13 +155,13 @@ inline Stmt TVMStructSet(
  * \param t The original type.
  * \return The corresponding API type.
  */
-inline Type APIType(Type t) {
+inline DataType APIType(DataType t) {
   if (t.is_handle()) return t;
   CHECK_EQ(t.lanes(), 1)
       << "Cannot pass vector type through packed API.";
-  if (t.is_uint() || t.is_int()) return Int(64);
+  if (t.is_uint() || t.is_int()) return DataType::Int(64);
   CHECK(t.is_float());
-  return Float(64);
+  return DataType::Float(64);
 }
 
 /*!
@@ -170,7 +170,7 @@ inline Type APIType(Type t) {
  * \param const_size The constant size of the array.
  * \return the alignment
  */
-inline int GetTempAllocaAlignment(Type type, int32_t const_size) {
+inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
     int64_t const_s = static_cast<int64_t>(const_size) * type.bits() * type.lanes() / 8;

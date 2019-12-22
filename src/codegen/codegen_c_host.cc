@@ -48,7 +48,7 @@ void CodeGenCHost::AddFunction(LoweredFunc f) {
   ReserveKeywordsAsUnique();
   // add to alloc buffer type.
   for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.type());
+    RegisterHandleType(kv.first.get(), kv.second.dtype());
   }
 
   this->stream << "#ifdef __cplusplus\n";
@@ -59,7 +59,7 @@ void CodeGenCHost::AddFunction(LoweredFunc f) {
     Var v = f->args[i];
     std::string vid = AllocVarID(v.get());
     if (i != 0) stream << ", ";
-    if (v.type().is_handle()) {
+    if (v.dtype().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
       if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
@@ -77,7 +77,7 @@ void CodeGenCHost::AddFunction(LoweredFunc f) {
         stream << ' ' << restrict_keyword_;
       }
     } else {
-      PrintType(v.type(), stream);
+      PrintType(v.dtype(), stream);
     }
     stream << ' ' << vid;
   }
@@ -96,14 +96,14 @@ std::string CodeGenCHost::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCHost::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
         << "does not support vector types";
     os << "void*"; return;
   }
-  if (t == Bool()) {
+  if (t == DataType::Bool()) {
     os << "bool"; return;
   }
   bool fail = false;
@@ -145,7 +145,7 @@ void CodeGenCHost::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
 void CodeGenCHost::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
-  PrintType(op->type, os);
+  PrintType(op->dtype, os);
   os << ")(";
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
@@ -268,10 +268,10 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op,
                                            std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
   VisitExpr(op->a, temp_a);
-  std::string a_id = SSAGetID(temp_a.str(), op->a.type());
+  std::string a_id = SSAGetID(temp_a.str(), op->a.dtype());
   std::ostringstream temp_b;
   VisitExpr(op->b, temp_b);
-  std::string b_id = SSAGetID(temp_b.str(), op->b.type());
+  std::string b_id = SSAGetID(temp_b.str(), op->b.dtype());
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "
      << "? (" << a_id << ") : (" << b_id << "))";

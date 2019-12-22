@@ -33,12 +33,12 @@ namespace ir {
 
 inline Expr ConstInt32(size_t index) {
   CHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(Int(32), static_cast<int>(index));
+  return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
 inline Expr StackAlloca(std::string type, size_t num) {
   Array<Expr> args = {StringImm::make(type), ConstInt32(num)};
-  return Call::make(Handle(), intrinsic::tvm_stack_alloca, args, Call::Intrinsic);
+  return Call::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, Call::Intrinsic);
 }
 
 // Calculate the statistics of packed function.
@@ -46,10 +46,10 @@ inline Expr StackAlloca(std::string type, size_t num) {
 class BuiltinLower : public IRMutator {
  public:
   Stmt Build(Stmt stmt) {
-    stack_shape_ = Var("stack_shape", Handle());
-    stack_array_ = Var("stack_array", Handle());
-    stack_value_ = Var("stack_value", Handle());
-    stack_tcode_ = Var("stack_tcode", Handle());
+    stack_shape_ = Var("stack_shape", DataType::Handle());
+    stack_array_ = Var("stack_array", DataType::Handle());
+    stack_value_ = Var("stack_value", DataType::Handle());
+    stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->Mutate(stmt);
     if (max_shape_stack_ != 0) {
       stmt = LetStmt::make(
@@ -86,7 +86,7 @@ class BuiltinLower : public IRMutator {
     if (op->new_expr.defined()) return stmt;
     // Get constant allocation bound.
     int64_t dev_type;
-    int64_t nbytes = GetVectorBytes(op->type);
+    int64_t nbytes = GetVectorBytes(op->dtype);
     if (device_type_.defined()) {
       if (arith::GetConst(device_type_, &dev_type)) {
         if (dev_type == kDLCPU) {
@@ -97,18 +97,18 @@ class BuiltinLower : public IRMutator {
         }
       }
     }
-    Expr total_bytes = make_const(op->extents[0].type(), nbytes);
+    Expr total_bytes = make_const(op->extents[0].dtype(), nbytes);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = Evaluate::make(Call::make(Int(32),
+    Stmt throw_last_error = Evaluate::make(Call::make(DataType::Int(32),
                                            intrinsic::tvm_throw_last_error, {},
                                            Call::Intrinsic));
 
     Stmt body = Block::make(
-        IfThenElse::make(Call::make(Bool(1),
+        IfThenElse::make(Call::make(DataType::Bool(1),
                                     intrinsic::tvm_handle_is_null,
                                     {op->buffer_var}, Call::PureIntrinsic),
                          throw_last_error),
@@ -116,27 +116,27 @@ class BuiltinLower : public IRMutator {
 
     Stmt alloca = LetStmt::make(
         op->buffer_var,
-        Call::make(op->buffer_var.type(),
+        Call::make(op->buffer_var.dtype(),
                    "TVMBackendAllocWorkspace",
-                   {cast(Int(32), device_type_),
-                    cast(Int(32), device_id_),
-                    cast(UInt(64), total_bytes),
-                    IntImm::make(Int(32), op->type.code()),
-                    IntImm::make(Int(32), op->type.bits())},
+                   {cast(DataType::Int(32), device_type_),
+                    cast(DataType::Int(32), device_id_),
+                    cast(DataType::UInt(64), total_bytes),
+                    IntImm::make(DataType::Int(32), op->dtype.code()),
+                    IntImm::make(DataType::Int(32), op->dtype.bits())},
                    Call::Extern),
         body);
 
-    Expr free_op = Call::make(Int(32),
+    Expr free_op = Call::make(DataType::Int(32),
                               "TVMBackendFreeWorkspace",
-                              {cast(Int(32), device_type_),
-                                    cast(Int(32), device_id_),
+                              {cast(DataType::Int(32), device_type_),
+                                    cast(DataType::Int(32), device_id_),
                                     op->buffer_var},
                               Call::Extern);
-    Stmt free_stmt = IfThenElse::make(free_op != make_zero(Int(32)), throw_last_error);
+    Stmt free_stmt = IfThenElse::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = Block::make(alloca, free_stmt);
     body = AttrStmt::make(
         op->buffer_var, attr::storage_alignment,
-        make_const(Int(32), runtime::kTempAllocaAlignment),
+        make_const(DataType::Int(32), runtime::kTempAllocaAlignment),
         body);
     return body;
   }
@@ -164,7 +164,7 @@ class BuiltinLower : public IRMutator {
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
       return MakeArray(op, e);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
-      return make_zero(op->type);
+      return make_zero(op->dtype);
     } else {
       return IRMutator::Mutate_(op, e);
     }
@@ -177,10 +177,10 @@ class BuiltinLower : public IRMutator {
     op = expr.as<Call>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
-          Store::make(stack_shape_, cast(Int(64), op->args[i]),
+          Store::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
                       ConstInt32(stack_begin +i), const_true(1)));
     }
-    return AddressOffset(stack_shape_, Int(64), stack_begin);
+    return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
   // make array
   Expr MakeArray(const Call* op, const Expr& e) {
@@ -194,40 +194,40 @@ class BuiltinLower : public IRMutator {
         TVMStructSet(stack_array_, idx, intrinsic::kArrShape, op->args[1]));
     Expr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
-      strides = make_zero(Handle());
+      strides = make_zero(DataType::Handle());
     }
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrStrides, strides));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrNDim, op->args[3]));
-    Type dtype = op->args[4].type();
+    DataType dtype = op->args[4].dtype();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeCode,
-                     make_const(UInt(8), static_cast<int>(dtype.code()))));
+                     make_const(DataType::UInt(8), static_cast<int>(dtype.code()))));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeBits,
-                     make_const(UInt(8), dtype.bits())));
+                     make_const(DataType::UInt(8), dtype.bits())));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeLanes,
-                     make_const(UInt(16), dtype.lanes())));
+                     make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
     Expr byte_offset = op->args[5];
     if (!is_zero(byte_offset)) {
-      byte_offset = byte_offset * make_const(byte_offset.type(), data_bytes);
+      byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
     }
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrByteOffset,
-                     cast(UInt(64), byte_offset)));
+                     cast(DataType::UInt(64), byte_offset)));
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrDeviceId,
-                     cast(Int(32), device_id_)));
+                     cast(DataType::Int(32), device_id_)));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrDeviceType,
-                     cast(Int(32), device_type_)));
-    return TVMStructGet(Handle(), stack_array_, idx, intrinsic::kArrAddr);
+                     cast(DataType::Int(32), device_type_)));
+    return TVMStructGet(DataType::Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
   // call packed.
   Expr MakeCallPacked(const Call* op, const Expr& e) {
@@ -241,8 +241,8 @@ class BuiltinLower : public IRMutator {
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
       Expr arg = op->args[i];
-      Type t = arg.type();
-      Type api_type = APIType(t);
+      DataType t = arg.dtype();
+      DataType api_type = APIType(t);
       if (t != api_type) {
         arg = Cast::make(api_type, arg);
       }
@@ -274,7 +274,7 @@ class BuiltinLower : public IRMutator {
       ConstInt32(arg_stack_begin + op->args.size() - 1)
     };
     return Call::make(
-        Int(32), intrinsic::tvm_call_packed_lowered,
+        DataType::Int(32), intrinsic::tvm_call_packed_lowered,
         packed_args, Call::Intrinsic);
   }
 
@@ -290,8 +290,8 @@ class BuiltinLower : public IRMutator {
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
       Expr arg = op->args[i];
-      Type t = arg.type();
-      Type api_type = APIType(t);
+      DataType t = arg.dtype();
+      DataType api_type = APIType(t);
       if (t != api_type) {
         arg = Cast::make(api_type, arg);
       }
@@ -324,7 +324,7 @@ class BuiltinLower : public IRMutator {
       op->args[args_size - 1]
     };
     return Call::make(
-        op->type, intrinsic::tvm_call_trace_packed_lowered,
+        op->dtype, intrinsic::tvm_call_trace_packed_lowered,
         packed_args, Call::Intrinsic);
   }
 

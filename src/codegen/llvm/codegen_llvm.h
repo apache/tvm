@@ -206,12 +206,12 @@ class CodeGenLLVM :
    * \param t The original type.
    * \return LLVM type of t
    */
-  llvm::Type* LLVMType(const Type& t) const;
+  llvm::Type* LLVMType(const DataType& t) const;
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
   void GetAlignment(
-      Type t, const Variable* buf_var, const Expr& index,
+      DataType t, const Variable* buf_var, const Expr& index,
       int* p_alignment, int* p_native_bits);
   // Get constant string
   llvm::Value* GetConstString(const std::string& str);
@@ -221,19 +221,19 @@ class CodeGenLLVM :
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
-  llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
+  llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
   // comparison op
   llvm::Value* GetVarValue(const Variable* v) const;
-  llvm::Value* CreateLT(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateLE(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGT(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGE(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateAdd(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateSub(Type t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateMul(Type t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGE(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  llvm::Value* CreateBufferPtr(Type t, llvm::Value* buffer, llvm::Value* index);
-  llvm::Value* CreateBufferVecPtr(Type t, llvm::Value* buffer, llvm::Value* index);
+  llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  llvm::Value* CreateBufferVecPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -245,7 +245,7 @@ class CodeGenLLVM :
                        llvm::Value* stride,
                        const VarExpr& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, Type type);
+  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, DataType type);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function

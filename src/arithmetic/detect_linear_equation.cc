@@ -53,10 +53,10 @@ class LinearEqDetector
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = make_zero(var_.type());
+      ret->base = make_zero(var_.dtype());
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = make_zero(var_.type());
+      ret->coeff = make_zero(var_.dtype());
     }
     return true;
   }
@@ -100,7 +100,7 @@ class LinearEqDetector
   LinearEqEntry VisitExpr_(const Variable* op, const Expr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
-      ret.coeff = make_const(op->type, 1);
+      ret.coeff = make_const(op->dtype, 1);
     } else {
       ret.base = e;
     }
@@ -190,16 +190,16 @@ bool DetectClipBound(
   // canonical form: exp >= 0
   Expr canonical;
   if (const LT* op = cond.as<LT>()) {
-    if (!op->a.type().is_int()) return false;
-    canonical = op->b - op->a - make_const(op->a.type(), 1);
+    if (!op->a.dtype().is_int()) return false;
+    canonical = op->b - op->a - make_const(op->a.dtype(), 1);
   } else if (const LE* op = cond.as<LE>()) {
-    if (!op->a.type().is_int()) return false;
+    if (!op->a.dtype().is_int()) return false;
     canonical = op->b - op->a;
   } else if (const GT* op = cond.as<GT>()) {
-    if (!op->a.type().is_int()) return false;
-    canonical = op->a - op->b - make_const(op->a.type(), 1);
+    if (!op->a.dtype().is_int()) return false;
+    canonical = op->a - op->b - make_const(op->a.dtype(), 1);
   } else if (const GE* op = cond.as<GE>()) {
-    if (!op->a.type().is_int()) return false;
+    if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;
   } else {
     return false;

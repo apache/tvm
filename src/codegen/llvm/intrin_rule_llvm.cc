@@ -67,19 +67,19 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
   const ir::Call* call = e.as<ir::Call>();
   CHECK(call != nullptr);
   const Expr& x = call->args[0];
-  Expr one = make_const(x.type(), 1);
-  Expr two = make_const(x.type(), 2);
-  Expr neg_two = make_const(x.type(), -2);
+  Expr one = make_const(x.dtype(), 1);
+  Expr two = make_const(x.dtype(), 2);
+  Expr neg_two = make_const(x.dtype(), -2);
 
   Expr exp_neg2x = ir::Call::make(
-      x.type(), "exp", {neg_two * x}, ir::Call::PureIntrinsic);
+      x.dtype(), "exp", {neg_two * x}, ir::Call::PureIntrinsic);
   Expr exp_pos2x = ir::Call::make(
-      x.type(), "exp", {two * x}, ir::Call::PureIntrinsic);
+      x.dtype(), "exp", {two * x}, ir::Call::PureIntrinsic);
 
   Expr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   Expr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
   *rv = ir::Select::make(
-      x >= make_zero(x.type()), tanh_pos, tanh_neg);
+      x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
 });
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")

@@ -82,7 +82,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           << "Can only handle constant size stack allocation in GPU";
       StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->type, constant_size);
+        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
       }
       // maximum necessary alignment in the AMD devices
       if (info.alignment > 16) {
@@ -93,7 +93,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
             return builder_->CreateAlloca(
-                LLVMType(op->type), ConstInt32(constant_size));
+                LLVMType(op->dtype), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
@@ -108,7 +108,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->type), constant_size);
+        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->dtype), constant_size);
         // Allocate shared memory in global, address_space = 3
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
@@ -122,7 +122,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     buf = builder_->CreatePointerCast(
-        buf, LLVMType(op->type)->getPointerTo(
+        buf, LLVMType(op->dtype)->getPointerTo(
             buf->getType()->getPointerAddressSpace()));
     CHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;

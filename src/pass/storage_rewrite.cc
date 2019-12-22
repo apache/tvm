@@ -306,7 +306,7 @@ class InplaceOpVerifier : public IRVisitor {
     }
     if (src_ == buf) {
       if (store_ == nullptr ||
-          store_->value.type() != op->type ||
+          store_->value.dtype() != op->dtype ||
           !ir::Equal(store_->index, op->index)) {
         result_ = false; return;
       }
@@ -370,7 +370,7 @@ class StoragePlanRewriter : public IRMutator {
     if (it == alloc_map_.end()) return stmt;
     return Store::make(it->second->alloc_var,
                        op->value,
-                       RemapIndex(op->value.type(), op->index, it->second),
+                       RemapIndex(op->value.dtype(), op->index, it->second),
                        op->predicate);
   }
   Expr Mutate_(const Load* op, const Expr& e) final {
@@ -378,9 +378,9 @@ class StoragePlanRewriter : public IRMutator {
     op = expr.as<Load>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return Load::make(op->type,
+    return Load::make(op->dtype,
                       it->second->alloc_var,
-                      RemapIndex(op->type, op->index, it->second),
+                      RemapIndex(op->dtype, op->index, it->second),
                       op->predicate);
   }
   Expr Mutate_(const Variable* op, const Expr& e) final {
@@ -397,7 +397,7 @@ class StoragePlanRewriter : public IRMutator {
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
-      Type dtype = op->args[0].type();
+      DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();
       auto it = alloc_map_.find(buffer);
        if (it == alloc_map_.end()) return IRMutator::Mutate_(op, e);
@@ -407,10 +407,10 @@ class StoragePlanRewriter : public IRMutator {
        uint64_t elem_bits = dtype.bits() * dtype.lanes();
        CHECK_EQ(se->bits_offset % elem_bits, 0U);
        if (se->bits_offset != 0) {
-         offset = make_const(offset.type(), se->bits_offset / elem_bits) + offset;
+         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
        }
        return Call::make(
-           op->type, op->name,
+           op->dtype, op->name,
            {op->args[0], se->alloc_var, offset, extent, op->args[4]},
            op->call_type);
     } else {
@@ -485,7 +485,7 @@ class StoragePlanRewriter : public IRMutator {
     // The var expr of new allocation.
     VarExpr alloc_var;
     // The allocation element type.
-    Type elem_type;
+    DataType elem_type;
     // This is non-zero if this allocate is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
@@ -524,11 +524,11 @@ class StoragePlanRewriter : public IRMutator {
     return MergeNest(nest, body);
   }
   // Remap the index
-  Expr RemapIndex(Type dtype, Expr index, StorageEntry* e) {
+  Expr RemapIndex(DataType dtype, Expr index, StorageEntry* e) {
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(e->bits_offset % elem_bits, 0U);
-    return make_const(index.type(), e->bits_offset / elem_bits) + index;
+    return make_const(index.dtype(), e->bits_offset / elem_bits) + index;
   }
   // Prepare the new allocations
   void PrepareNewAlloc() {
@@ -564,16 +564,16 @@ class StoragePlanRewriter : public IRMutator {
         }
         // Get the allocation size;
         e->alloc_var = e->allocs[0]->buffer_var;
-        Type alloc_type = e->allocs[0]->type;
+        DataType alloc_type = e->allocs[0]->dtype;
         for (const Allocate* op : e->allocs) {
-          if (op->type.lanes() > alloc_type.lanes()) {
-            alloc_type = op->type;
+          if (op->dtype.lanes() > alloc_type.lanes()) {
+            alloc_type = op->dtype;
           }
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
           Expr sz = arith::ComputeReduce<Mul>(e->allocs[0]->extents,
-                                              make_const(Int(32), 1));
+                                              make_const(DataType::Int(32), 1));
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {sz},
               e->allocs[0]->condition, Evaluate::make(0));
@@ -587,8 +587,8 @@ class StoragePlanRewriter : public IRMutator {
           // Build a merged allocation
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
-            Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(Int(32), 1));
-            auto nbits = op->type.bits() * op->type.lanes();
+            Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(DataType::Int(32), 1));
+            auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImm>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
                 LOG(WARNING) << "The allocation requires : " << imm->value
@@ -596,7 +596,7 @@ class StoragePlanRewriter : public IRMutator {
                              << " bits, which is greater than the maximum of"
                                 " int32. The size is cast to int64."
                              << "\n";
-                sz = make_const(Int(64), imm->value);
+                sz = make_const(DataType::Int(64), imm->value);
               }
             }
             // transform to bits
@@ -613,7 +613,7 @@ class StoragePlanRewriter : public IRMutator {
           combo_size = indexdiv(combo_size, type_bits);
           // round up for can not divided
           if (!divided) {
-            combo_size = combo_size + make_const(Int(32), 1);
+            combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = Allocate::make(
@@ -658,7 +658,7 @@ class StoragePlanRewriter : public IRMutator {
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    Expr alloc_size = make_const(e->allocs[0]->extents[0].type(),
+    Expr alloc_size = make_const(e->allocs[0]->extents[0].dtype(),
                                  (total_bits + type_bits - 1) / type_bits);
     e->new_alloc = Allocate::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
@@ -751,12 +751,12 @@ class StoragePlanRewriter : public IRMutator {
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == ae.storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
-                    src_entry->elem_type == ae.alloc->type.element_of() &&
+                    src_entry->elem_type == ae.alloc->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
                   uint64_t const_nbits =
                       static_cast<uint64_t>(ae.alloc->constant_allocation_size()) *
-                      ae.alloc->type.bits() *
-                      ae.alloc->type.lanes();
+                      ae.alloc->dtype.bits() *
+                      ae.alloc->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -816,7 +816,7 @@ class StoragePlanRewriter : public IRMutator {
     std::unique_ptr<StorageEntry> entry(new StorageEntry());
     entry->attach_scope_ = attach_scope;
     entry->scope = scope;
-    entry->elem_type = op->type.element_of();
+    entry->elem_type = op->dtype.element_of();
     entry->const_nbits = const_nbits;
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
@@ -830,13 +830,13 @@ class StoragePlanRewriter : public IRMutator {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
-    uint64_t op_elem_bits = op->type.bits() * op->type.lanes();
+    uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
     uint64_t const_nbits = static_cast<uint64_t>(
         op->constant_allocation_size() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
-      if (scope.rank >= StorageRank::kWarp || op->type.is_handle()) {
+      if (scope.rank >= StorageRank::kWarp || op->dtype.is_handle()) {
         return NewAlloc(op, attach_scope, scope, const_nbits);
       }
       if (const_nbits > 0  &&  const_nbits <= 32) {
@@ -865,7 +865,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry *e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (e->elem_type != op->dtype.element_of()) continue;
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -877,7 +877,7 @@ class StoragePlanRewriter : public IRMutator {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->type.element_of()) continue;
+        if (e->elem_type != op->dtype.element_of()) continue;
         sym_free_list_.erase(it);
         return e;
       }
@@ -896,7 +896,7 @@ class StoragePlanRewriter : public IRMutator {
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
       if (e->scope.rank >= StorageRank::kWarp ||
-          e->allocs[0]->type.is_handle()) return;
+          e->allocs[0]->dtype.is_handle()) return;
       // disable reuse of small arrays
       if (e->const_nbits > 0 && e->const_nbits <= 32) return;
     }
@@ -932,17 +932,17 @@ class StoragePlanRewriter : public IRMutator {
 class VectorAllocRewriter : public IRMutator {
  public:
   Expr Mutate_(const Load* op, const Expr& e) final {
-    UpdateTypeMap(op->buffer_var.get(), op->type);
+    UpdateTypeMap(op->buffer_var.get(), op->dtype);
     return IRMutator::Mutate_(op, e);
   }
 
   Stmt Mutate_(const Store* op, const Stmt& s) final {
-    UpdateTypeMap(op->buffer_var.get(), op->value.type());
+    UpdateTypeMap(op->buffer_var.get(), op->value.dtype());
     return IRMutator::Mutate_(op, s);
   }
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      Type dtype = op->args[0].type();
+      DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();
       UpdateTypeMap(buffer, dtype);
     }
@@ -955,15 +955,15 @@ class VectorAllocRewriter : public IRMutator {
     const auto& tvec = acc_map_[op->buffer_var.get()];
 
     if (tvec.size() == 1 &&
-        tvec[0].element_of() == op->type.element_of() &&
-        tvec[0].lanes() % op->type.lanes() == 0 &&
-        tvec[0].lanes() != op->type.lanes()) {
-      int factor = tvec[0].lanes() / op->type.lanes();
+        tvec[0].element_of() == op->dtype.element_of() &&
+        tvec[0].lanes() % op->dtype.lanes() == 0 &&
+        tvec[0].lanes() != op->dtype.lanes()) {
+      int factor = tvec[0].lanes() / op->dtype.lanes();
       Array<Expr> extents = op->extents;
       arith::ModularSet me = analyzer_.modular_set(extents[extents.size() - 1]);
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
-                    extents[extents.size() - 1] / make_const(extents[0].type(), factor));
+                    extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
         return Allocate::make(
             op->buffer_var, tvec[0], extents,
             op->condition, op->body);
@@ -972,7 +972,7 @@ class VectorAllocRewriter : public IRMutator {
     return stmt;
   }
 
-  void UpdateTypeMap(const Variable* buffer, Type t) {
+  void UpdateTypeMap(const Variable* buffer, DataType t) {
     auto& tvec = acc_map_[buffer];
     if (std::find(tvec.begin(), tvec.end(), t) == tvec.end()) {
       tvec.push_back(t);
@@ -980,7 +980,7 @@ class VectorAllocRewriter : public IRMutator {
   }
 
   // Internal access map
-  std::unordered_map<const Variable*, std::vector<Type> > acc_map_;
+  std::unordered_map<const Variable*, std::vector<DataType> > acc_map_;
   // internal analyzer
   arith::Analyzer analyzer_;
 };
@@ -991,7 +991,7 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
   VectorAllocRewriter rewriter;
   n->body = rewriter.Mutate(n->body);
   for (Var arg : f->args) {
-    if (arg.type().is_handle()) {
+    if (arg.dtype().is_handle()) {
       const auto& tvec = rewriter.acc_map_[arg.get()];
       if (tvec.size() == 1) {
         Expr dtype = make_const(tvec[0], 0);

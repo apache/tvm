@@ -291,7 +291,7 @@ class PConstWithTypeLike :
   }
 
   Expr Eval() const {
-    return make_const(ref_.Eval().type(), value_);
+    return make_const(ref_.Eval().dtype(), value_);
   }
 
  private:
@@ -474,7 +474,7 @@ class PCastExpr :
 
   bool Match_(const NodeRef& node) const {
     if (const ir::Cast* ptr = node.as<ir::Cast>()) {
-      if (!dtype_.Match_(ptr->type)) return false;
+      if (!dtype_.Match_(ptr->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
       return true;
     } else {
@@ -730,7 +730,7 @@ class PCallExpr :
 #define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)        \
   struct OpName {                                                     \
     static Expr Eval(Array<Expr> args) {                              \
-      return ir::Call::make(args[0].type(), kName, args,              \
+      return ir::Call::make(args[0].dtype(), kName, args,             \
                             ir::Call::PureIntrinsic);                 \
     }                                                                 \
     static constexpr const char* kName = IntrinStr;                   \
@@ -751,7 +751,7 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 #define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)         \
   struct OpName {                                                     \
     static Expr Eval(Array<Expr> args) {                              \
-      return ir::Call::make(args[0].type(), kName, args,              \
+      return ir::Call::make(args[0].dtype(), kName, args,             \
                             ir::Call::PureIntrinsic);                 \
     }                                                                 \
     static constexpr const char* kName = IntrinStr;                   \
@@ -768,7 +768,7 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
 struct PIfThenElseOp {
   static Expr Eval(Array<Expr> args) {
     return ir::Call::make(
-        args[1].type(), kName, args,
+        args[1].dtype(), kName, args,
         ir::Call::PureIntrinsic);
   }
   static constexpr const char* kName = "tvm_if_then_else";

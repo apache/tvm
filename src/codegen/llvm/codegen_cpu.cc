@@ -43,7 +43,7 @@ void CodeGenCPU::Init(const std::string& module_name,
   func_handle_map_.clear();
   export_system_symbols_.clear();
   // TVM runtime types
-  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, TVMShapeIndexType().bits());
+  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
   t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
   t_tvm_func_handle_ = t_void_p_;
@@ -252,7 +252,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
   return CodeGenLLVM::Finish();
 }
 llvm::Value* CodeGenCPU::CreateStructRefPtr(
-    Type t, llvm::Value* buf, llvm::Value* index, int kind) {
+    DataType t, llvm::Value* buf, llvm::Value* index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
@@ -329,7 +329,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const Call* op) {
     arg_types.push_back(v->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(
-      LLVMType(op->type), arg_types, false);
+      LLVMType(op->dtype), arg_types, false);
   // Check if it is available in global function table as injected function.
   auto it = gv_func_map_.find(op->name);
   if (it != gv_func_map_.end()) {
@@ -448,7 +448,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     new_vmap[var.get()] = v;
-    if (var.type().is_handle() && !alias_var_set_.count(var.get())) {
+    if (var.dtype().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
@@ -532,8 +532,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   UnpackClosureData(cdata, vfields, &new_vmap);
   // setup parallel env
   ParallelEnv par_env;
-  par_env.task_id = Var("task_id", Int(32));
-  par_env.num_task = Var("num_task", Int(32));
+  par_env.task_id = Var("task_id", DataType::Int(32));
+  par_env.num_task = Var("num_task", DataType::Int(32));
   new_vmap[par_env.task_id.get()] = task_id;
   new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
       builder_->CreateInBoundsGEP(
@@ -670,7 +670,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 
 llvm::BasicBlock *
 CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
-                           llvm::Value **ret_tcode, const Type &r_type,
+                           llvm::Value **ret_tcode, const DataType &r_type,
                            const int64_t begin, const int64_t end) {
   using llvm::BasicBlock;
   std::string func_name = args[0].as<StringImm>()->value;
@@ -684,15 +684,15 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
       builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(begin));
   llvm::Value *arg_tcode =
-      CreateBufferPtr(Int(32), stack_tcode, ConstInt32(begin));
+      CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
   llvm::Value *ret_value = builder_->CreateInBoundsGEP(
       builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(end));
-  *ret_tcode = CreateBufferPtr(Int(32), stack_tcode, ConstInt32(end));
+  *ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
   BasicBlock *end_block = CheckCallSuccess(builder_->CreateCall(
       RuntimeTVMFuncCall(), {handle, arg_value, arg_tcode, ConstInt32(nargs),
                              ret_value, *ret_tcode}));
-  Type r_api_type = ir::APIType(r_type);
+  DataType r_api_type = ir::APIType(r_type);
   *rvalue = builder_->CreateAlignedLoad(
       builder_->CreatePointerCast(ret_value,
                                   LLVMType(r_api_type)->getPointerTo()),
@@ -705,7 +705,7 @@ llvm::Value *CodeGenCPU::CreateCallPacked(const Call *op) {
   CHECK_EQ(op->args.size(), 5U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
-  MakeCallPacked(op->args, &rvalue, &ret_tcode, op->type,
+  MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype,
                  op->args[3].as<IntImm>()->value,
                  op->args[4].as<IntImm>()->value);
   return rvalue;
@@ -717,7 +717,7 @@ llvm::Value *CodeGenCPU::CreateCallTracePacked(const Call *op) {
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
   BasicBlock *end_block = MakeCallPacked(
-      op->args, &rvalue, &ret_tcode, op->type, op->args[3].as<IntImm>()->value,
+      op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImm>()->value,
       op->args[4].as<IntImm>()->value);
   // Get traced value.
   llvm::Value *traced_value = MakeValue(op->args[5]);
@@ -800,7 +800,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     CHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImm>()->value;
     llvm::Value* ref = this->CreateStructRefPtr(
-        op->type, MakeValue(op->args[0]),
+        op->dtype, MakeValue(op->args[0]),
         MakeValue(op->args[1]), kind);
     if (kind == intrinsic::kArrAddr) {
       return builder_->CreatePointerCast(ref, t_void_p_);
@@ -812,7 +812,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     int kind = op->args[2].as<IntImm>()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     llvm::Value* ref = this->CreateStructRefPtr(
-        op->args[3].type(), MakeValue(op->args[0]),
+        op->args[3].dtype(), MakeValue(op->args[0]),
         MakeValue(op->args[1]), kind);
     CHECK(kind != intrinsic::kArrAddr);
     if (value->getType()->isPointerTy()) {
@@ -922,7 +922,7 @@ void CodeGenCPU::VisitStmt_(const For* op) {
       CHECK(parallel_env_.task_id.defined());
       CHECK(parallel_env_.num_task.defined());
       CHECK(parallel_env_.penv != nullptr);
-      Type t = op->extent.type();
+      DataType t = op->extent.dtype();
       Expr num_task = cast(t, parallel_env_.num_task);
       Expr task_id = cast(t, parallel_env_.task_id);
       CHECK(!parallel_env_.in_parallel_loop)
