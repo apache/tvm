@@ -1994,7 +1994,7 @@ def depth_to_space(data, block_size, layout='NCHW'):
     ----------
     data : tvm.relay.Expr
         Input data with channels divisible by block_size**2
-    
+
     block_size : int
         Size of blocks to convert channels into.
 
@@ -2004,7 +2004,7 @@ def depth_to_space(data, block_size, layout='NCHW'):
     Returns
     -------
     result : tvm.relay.Expr
-        Tensor with shape [in_batch, in_channel / block_size * block_size, 
+        Tensor with shape [in_batch, in_channel / block_size * block_size,
                            in_height * block_size, in_width * block_size]
     """
     return _make.depth_to_space(data, block_size, layout)
@@ -2017,7 +2017,7 @@ def space_to_depth(data, block_size, layout='NCHW'):
     ----------
     data : tvm.relay.Expr
         Input data with spatial dimensions divisible by block_size
-    
+
     block_size : int
         Size of blocks to decompose into channels.
 
@@ -2027,7 +2027,7 @@ def space_to_depth(data, block_size, layout='NCHW'):
     Returns
     -------
     result : tvm.relay.Expr
-        Tensor with shape [in_batch, in_channel * block_size * block_size, 
+        Tensor with shape [in_batch, in_channel * block_size * block_size,
                            in_height / block_size, in_width / block_size]
     """
     return _make.space_to_depth(data, block_size, layout)
