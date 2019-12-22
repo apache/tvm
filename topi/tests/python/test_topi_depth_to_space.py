@@ -66,6 +66,7 @@ def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, la
     for device in get_all_backend():
         check_device(device)
 
+
 def test_depth_to_space():
     for layout in ['NCHW', 'NHWC']:
         # Simplest possible case

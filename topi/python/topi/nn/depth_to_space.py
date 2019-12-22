@@ -20,39 +20,61 @@ from __future__ import absolute_import
 import tvm
 from .. import tag
 
+
 def depth_to_space(data, block_size, layout='NCHW'):
+    """Perform depth to space transformation on the data
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        4-D tensor in either NCHW or NHWC layout.
+
+    block_size : int
+        Size of blocks to compose from channel dimension.
+
+    layout : string
+        Either NCHW or NHWC, indicating data layout.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        Output of shape [N, C / block_size**2, H * block_size, W * block_size]
+    """
     if layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
         channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
-        output_shape = [in_n, channel_factor, in_h * block_size, in_w * block_size]
+        output_shape = [in_n, channel_factor,
+                        in_h * block_size, in_w * block_size]
     elif layout == 'NHWC':
         in_n, in_h, in_w, in_c = data.shape
         channel_factor = tvm.truncdiv(in_c, (block_size * block_size))
-        output_shape = [in_n, in_h * block_size, in_w * block_size, channel_factor]
+        output_shape = [in_n, in_h * block_size,
+                        in_w * block_size, channel_factor]
     else:
         raise ValueError("Only NCHW and NHWC layouts are currently supported.")
-    
+
     def _get_indices(*indices):
         if layout == 'NCHW':
             n, c, y, x = indices
         elif layout == 'NHWC':
             n, y, x, c = indices
         return n, c, y, x
-    
+
     def _get_pixel(n, c, y, x):
         block_x = tvm.truncdiv(x, block_size)
         block_y = tvm.truncdiv(y, block_size)
         idx_x = tvm.truncmod(x, block_size)
         idx_y = tvm.truncmod(y, block_size)
         channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
-        
+
         if layout == 'NCHW':
-            return data(n, channel_idx, block_y, block_x)
+            output = data(n, channel_idx, block_y, block_x)
         else:
-            return data(n, block_y, block_x, channel_idx)
-    
+            output = data(n, block_y, block_x, channel_idx)
+        return output
+
     def _compute(*indices):
         n, c, y, x = _get_indices(*indices)
         return _get_pixel(n, c, y, x)
-    
+
     return tvm.compute(output_shape, _compute, name='depth_to_space', tag=tag.INJECTIVE)

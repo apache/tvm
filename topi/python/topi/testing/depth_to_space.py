@@ -33,7 +33,7 @@ def depth_to_space_python(data, block_size):
     Returns
     -------
     d2s_out : np.ndarray
-        4-D with shape [batch, in_channel / (block_size * block_size), 
+        4-D with shape [batch, in_channel / (block_size * block_size),
                         out_height * block_size, out_width * block_size]
     """
     in_n, in_c, in_h, in_w = data.shape
