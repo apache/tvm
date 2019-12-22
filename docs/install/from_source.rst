@@ -163,7 +163,7 @@ Method 1
    .. code:: bash
 
        export TVM_HOME=/path/to/tvm
-       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:${PYTHONPATH}
+       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:$TVM_HOME/nnvm/python:$TVM_HOME/vta/python:${PYTHONPATH}
 
 
 Method 2
