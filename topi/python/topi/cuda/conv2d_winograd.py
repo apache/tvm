@@ -163,7 +163,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         eps, nu, ci, co = s[kernel_pack].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # skip this part during tuning to make recrods accurate
-            # this part will be pre-computed during NNVM's pre-compute optimization pass
+            # this part will be pre-computed during pre-compute optimization pass
             s[G].pragma(s[G].op.axis[0], 'debug_skip_region')
             s[kernel_pack].pragma(eps, 'debug_skip_region')
         else:
@@ -311,19 +311,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
-    inputs : nnvm.symbol or tvm.relay.Expr
+    inputs : tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
     F: symbol
-        The context, can be either nnvm.sym or relay.op
+        The context, can be relay.op
 
     Note
     ----
     Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
     """
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
@@ -331,9 +331,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     copy_inputs = [s for s in inputs]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
-    if F.__name__ == 'tvm.relay.op':
-        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
-        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
+    new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
 
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")

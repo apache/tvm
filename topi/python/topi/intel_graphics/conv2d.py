@@ -189,8 +189,6 @@ def __topi_nn_conv2d_NCHWc(*args, **kwargs):
 
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfo, F):
-    import nnvm.symbol as sym
-
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
 
@@ -208,7 +206,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     dilation = attrs.get_int_tuple("dilation")
     out_dtype = attrs["out_dtype"]
 
-    layout_name = 'layout' if F == sym else 'data_layout'
+    layout_name = 'data_layout'
     layout = attrs[layout_name]
     kh, kw = attrs.get_int_tuple("kernel_size")
 
@@ -258,8 +256,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
          new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
 
     dispatch_ctx.update(target, new_workload, cfg)
-    if F == sym:
-        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
     return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'intel_graphics', 'direct')
