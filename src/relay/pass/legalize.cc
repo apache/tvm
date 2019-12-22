@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file legalize.cc
  * \brief Converts an expr to another expr. This pass can be used to transform an op based on its
  * shape, dtype or layout to another op or a sequence of ops.
@@ -103,7 +102,7 @@ Pass Legalize(const std::string& legalize_map_attr_name) {
       [=](Function f, Module m, PassContext pc) {
         return Downcast<Function>(relay::legalize::Legalize(f, legalize_map_attr_name));
       };
-  return CreateFunctionPass(pass_func, 0, "Legalize", {ir::StringImm::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "Legalize", {ir::StringImm::make("InferType")});
 }
 
 TVM_REGISTER_API("relay._transform.Legalize").set_body_typed(Legalize);

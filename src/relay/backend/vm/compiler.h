@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/compiler.h
  * \brief A compiler from relay::Module to the VM byte code.
  */
@@ -86,14 +85,14 @@ class VMCompiler : public runtime::ModuleNode {
   virtual ~VMCompiler() {}
 
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+                                 const ObjectPtr<Object>& sptr_to_self);
 
   const char* type_key() const {
     return "VMCompiler";
   }
 
   void InitVM() {
-    exec_ = std::make_shared<Executable>();
+    exec_ = make_object<Executable>();
   }
 
   /*!
@@ -141,7 +140,7 @@ class VMCompiler : public runtime::ModuleNode {
   /*! \brief Global shared meta data */
   VMCompilerContext context_;
   /*! \brief Compiled executable. */
-  std::shared_ptr<Executable> exec_;
+  ObjectPtr<Executable> exec_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
 };

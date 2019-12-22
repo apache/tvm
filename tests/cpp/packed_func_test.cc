@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 
@@ -143,15 +144,15 @@ TEST(PackedFunc, Type) {
   using namespace tvm;
   using namespace tvm::runtime;
   auto get_type = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-      Type x = args[0];
+      DataType x = args[0];
       *rv = x;
     });
   auto get_type2 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       *rv = args[0];
     });
-  CHECK(get_type("int32").operator Type() == Int(32));
-  CHECK(get_type("float").operator Type() == Float(32));
-  CHECK(get_type2("float32x2").operator Type() == Float(32, 2));
+  CHECK(get_type("int32").operator DataType() == DataType::Int(32));
+  CHECK(get_type("float").operator DataType() == DataType::Float(32));
+  CHECK(get_type2("float32x2").operator DataType() == DataType::Float(32, 2));
 }
 
 TEST(TypedPackedFunc, HighOrder) {

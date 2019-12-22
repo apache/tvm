@@ -27,6 +27,7 @@
 #include <vector>
 #include <utility>
 #include <unordered_map>
+#include "object_internal.h"
 #include "runtime_base.h"
 
 namespace tvm {
@@ -73,13 +74,12 @@ class TypeContext {
     return child_tindex == parent_tindex;
   }
 
-  uint32_t GetOrAllocRuntimeTypeIndex(const char* key,
+  uint32_t GetOrAllocRuntimeTypeIndex(const std::string& skey,
                                       uint32_t static_tindex,
                                       uint32_t parent_tindex,
                                       uint32_t num_child_slots,
                                       bool child_slots_can_overflow) {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::string skey = key;
     auto it = type_key2index_.find(skey);
     if (it != type_key2index_.end()) {
       return it->second;
@@ -106,7 +106,7 @@ class TypeContext {
           << "Conflicting static index " << static_tindex
           << " between " << type_table_[allocated_tindex].name
           << " and "
-          << key;
+          << skey;
     } else if (pinfo.allocated_slots + num_slots < pinfo.num_slots) {
       // allocate the slot from parent's reserved pool
       allocated_tindex = parent_tindex + pinfo.allocated_slots;
@@ -152,11 +152,11 @@ class TypeContext {
     return type_table_[tindex].name_hash;
   }
 
-  uint32_t TypeKey2Index(const char* key) {
-    std::string skey = key;
+  uint32_t TypeKey2Index(const std::string& skey) {
     auto it = type_key2index_.find(skey);
     CHECK(it != type_key2index_.end())
-        << "Cannot find type " << key;
+        << "Cannot find type " << skey
+        << ". Did you forget to register the node by TVM_REGISTER_NODE_TYPE ?";
     return it->second;
   }
 
@@ -176,7 +176,7 @@ class TypeContext {
   std::unordered_map<std::string, uint32_t> type_key2index_;
 };
 
-uint32_t Object::GetOrAllocRuntimeTypeIndex(const char* key,
+uint32_t Object::GetOrAllocRuntimeTypeIndex(const std::string& key,
                                             uint32_t static_tindex,
                                             uint32_t parent_tindex,
                                             uint32_t num_child_slots,
@@ -198,22 +198,10 @@ size_t Object::TypeIndex2KeyHash(uint32_t tindex) {
   return TypeContext::Global()->TypeIndex2KeyHash(tindex);
 }
 
-uint32_t Object::TypeKey2Index(const char* key) {
+uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
-class TVMObjectCAPI {
- public:
-  static void Free(TVMObjectHandle obj) {
-    if (obj != nullptr) {
-      static_cast<Object*>(obj)->DecRef();
-    }
-  }
-
-  static uint32_t TypeKey2Index(const char* type_key) {
-    return Object::TypeKey2Index(type_key);
-  }
-};
 }  // namespace runtime
 }  // namespace tvm
 
@@ -226,13 +214,13 @@ int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
 
 int TVMObjectFree(TVMObjectHandle obj) {
   API_BEGIN();
-  tvm::runtime::TVMObjectCAPI::Free(obj);
+  tvm::runtime::ObjectInternal::ObjectFree(obj);
   API_END();
 }
 
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();
-  out_tindex[0] = tvm::runtime::TVMObjectCAPI::TypeKey2Index(
+  out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(
       type_key);
   API_END();
 }

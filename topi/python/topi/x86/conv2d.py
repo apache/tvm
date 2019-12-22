@@ -41,6 +41,13 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     """
     Get default schedule config for the workload
     """
+    static_data_shape = []
+    for dim in get_const_tuple(data.shape):
+        if isinstance(dim, tvm.expr.Var):
+            static_data_shape.append(1)
+        else:
+            static_data_shape.append(dim)
+    data = tvm.placeholder(static_data_shape, dtype=data.dtype)
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
         from .depthwise_conv2d import _fallback_schedule
@@ -110,7 +117,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     kh, kw, _, _ = get_const_tuple(kernel.shape)
     if layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
-    # FIXME - https://github.com/dmlc/tvm/issues/4122
+    # FIXME - https://github.com/apache/incubator-tvm/issues/4122
     # _declaration_conv_nhwc_pack expects kernel layout to be HWOI. However, the tests use HWIO
     # layout. Commenting until we have clarity about the nhwc_pack implementation from the author.
     # elif layout == 'NHWC' and kh == 1 and kw == 1 and kernel.dtype == "int8":

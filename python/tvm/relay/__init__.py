@@ -23,12 +23,13 @@ from ..api import register_func
 from . import base
 from . import ty
 from . import expr
+from . import type_functor
 from . import expr_functor
 from . import module
 from . import adt
 from . import analysis
 from . import transform
-from .build_module import build, create_executor
+from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import prelude
 from . import parser
@@ -58,6 +59,8 @@ from . import quantize
 from . import qnn
 
 from .scope_builder import ScopeBuilder
+# Load Memory pass
+from . import memory_alloc
 
 # Required to traverse large programs
 setrecursionlimit(10000)
@@ -117,6 +120,11 @@ bind = expr.bind
 module_pass = transform.module_pass
 function_pass = transform.function_pass
 alpha_equal = analysis.alpha_equal
+
+# TypeFunctor
+TypeFunctor = type_functor.TypeFunctor
+TypeVisitor = type_functor.TypeVisitor
+TypeMutator = type_functor.TypeMutator
 
 # ExprFunctor
 ExprFunctor = expr_functor.ExprFunctor

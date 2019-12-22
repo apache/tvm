@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file stackvm.h
  * \brief A simple stack-based virtual machine.
  *

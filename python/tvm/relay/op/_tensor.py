@@ -26,7 +26,6 @@ schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
 
 register_schedule("log", schedule_broadcast)
-register_schedule("log1p", schedule_broadcast)
 register_schedule("cos", schedule_broadcast)
 register_schedule("sin", schedule_broadcast)
 register_schedule("atan", schedule_broadcast)
@@ -50,8 +49,10 @@ register_schedule("add", schedule_broadcast)
 register_schedule("subtract", schedule_broadcast)
 register_schedule("multiply", schedule_broadcast)
 register_schedule("divide", schedule_broadcast)
+register_schedule("floor_divide", schedule_broadcast)
 register_schedule("power", schedule_injective)
 register_schedule("mod", schedule_broadcast)
+register_schedule("floor_mod", schedule_broadcast)
 register_schedule("logical_and", schedule_broadcast)
 register_schedule("logical_or", schedule_broadcast)
 register_schedule("equal", schedule_broadcast)
@@ -119,19 +120,21 @@ def _cast_shape_function(x):
 def cast_shape_func(attrs, inputs, out_ndims):
     return [_cast_shape_function(*inputs)]
 
+# shape func
 @script
-def _expand_dims_shape_func(x):
-    ndim = len(x.shape)
-    out = output_tensor((ndim+1,), "int64")
-    out[0] = int64(1)
-    for i in const_range(0, ndim):
-        out[i+1] = int64(x.shape[i])
+def _full_shape_func(x):
+    out_ndim = len(x)
+    out = output_tensor((out_ndim,), "int64")
+    for i in const_range(out_ndim):
+        out[i] = x[i]
     return out
 
-def expand_dims_shape_func(attrs, inputs, out_ndims):
-    return [_expand_dims_shape_func(*inputs)]
+def full_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape func for zeros, zeros_like, ones, ones_like.
+    """
+    return [_full_shape_func(*inputs)]
 
-# shape func
 @script
 def _broadcast_shape_func(x, y, ndim):
     out = output_tensor((ndim,), "int64")
@@ -161,16 +164,30 @@ def _broadcast_shape_func(x, y, ndim):
     return out
 
 def broadcast_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape function for broadcast op.
+    """
     return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
-register_shape_func("expand_dims", False, expand_dims_shape_func)
+def elemwise_shape_func(attrs, inputs, _):
+    """
+    Shape function for elemwise op.
+    """
+    return [topi.math.identity(inputs[0])]
+
 register_shape_func("cast", False, cast_shape_func)
+register_shape_func("zeros", False, full_shape_func)
+register_shape_func("zeros_like", False, full_shape_func)
+register_shape_func("ones", False, full_shape_func)
+register_shape_func("ones_like", False, full_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)
 register_shape_func("multiply", False, broadcast_shape_func)
 register_shape_func("divide", False, broadcast_shape_func)
+register_shape_func("floor_divide", False, broadcast_shape_func)
 register_shape_func("mod", False, broadcast_shape_func)
+register_shape_func("floor_mod", False, broadcast_shape_func)
 register_shape_func("logical_and", False, broadcast_shape_func)
 register_shape_func("logical_or", False, broadcast_shape_func)
 register_shape_func("equal", False, broadcast_shape_func)
@@ -179,3 +196,6 @@ register_shape_func("less", False, broadcast_shape_func)
 register_shape_func("less_equal", False, broadcast_shape_func)
 register_shape_func("greater", False, broadcast_shape_func)
 register_shape_func("greater_equal", False, broadcast_shape_func)
+
+register_shape_func("sqrt", False, elemwise_shape_func)
+register_shape_func("negative", False, elemwise_shape_func)

@@ -59,9 +59,11 @@ An example in c++.
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <algorithm>
 #include <fstream>
 #include <iterator>
-#include <algorithm>
+#include <stdexcept>
+#include <string>
 
 int main()
 {
@@ -97,7 +99,9 @@ int main()
     int64_t in_shape[4] = {1, 3, 224, 224};
     TVMArrayAlloc(in_shape, in_ndim, dtype_code, dtype_bits, dtype_lanes, device_type, device_id, &x);
     // load image data saved in binary
-    std::ifstream data_fin("cat.bin", std::ios::binary);
+    const std::string data_filename = "cat.bin";
+    std::ifstream data_fin(data_filename, std::ios::binary);
+    if(!data_fin) throw std::runtime_error("Could not open: " + data_filename);
     data_fin.read(static_cast<char*>(x->data), 3 * 224 * 224 * 4);
 
     // get the function from the module(set input data)
@@ -144,7 +148,7 @@ This process need few additional options as given below to NNVM build.
 Module export require additional options for not to compile but save as ```lib.export_library (path, fcompile=False)```
 
 The output of above API is a tar compressed file containing object file ```(lib.o)``` and cpp source file ```(devc.cc)``` which embeds device blob. Thease two files should be compiled along with other files or objects while building c++ application.
-Please refer to [Makefile](https://github.com/dmlc/tvm/tree/master/apps/howto_deploy/Makefile#L32) for a reference.
+Please refer to [Makefile](https://github.com/apache/incubator-tvm/tree/master/apps/howto_deploy/Makefile#L32) for a reference.
 
 The c++ code to load this system module require the below change.
 

@@ -215,7 +215,7 @@ void PassDownIndex(const Stage& stage,
       CHECK(is_zero(parent_min));
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
-      state[s->iter] = make_zero(s->iter->var.type());
+      state[s->iter] = make_zero(s->iter->var.dtype());
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -514,7 +514,7 @@ std::vector<Expr> MakeBoundCheck(
       Range dom = dom_map.at(iv);
       Expr value = value_map.at(iv) - dom->min;
       Expr vmax = EvalSet(value, iset_dmap).max();
-      if (vmax.type() != value.type() || !analyzer.CanProve(vmax < dom->extent)) {
+      if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
     }
@@ -529,10 +529,10 @@ std::vector<Expr> MakeBoundCheck(
       Expr vmin = s.min();
       Expr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]
-      if (vmin.type() != value.type() || !analyzer.CanProve(vmin >= 0)) {
+      if (vmin.dtype() != value.dtype() || !analyzer.CanProve(vmin >= 0)) {
         preds.emplace_back(value >= 0);
       }
-      if (vmax.type() != value.type() || !analyzer.CanProve(vmax < iv->dom->extent)) {
+      if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < iv->dom->extent)) {
         preds.emplace_back(value < iv->dom->extent);
       }
     }

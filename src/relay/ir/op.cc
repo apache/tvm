@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/op.cc
  * \brief Resolve incomplete types to complete types.
  */
@@ -95,6 +94,20 @@ const bool Op::HasGenericAttr(const std::string& key) {
   return true;
 }
 
+// Resets attr of the OpMap.
+void OpRegistry::reset_attr(const std::string& key) {
+  OpManager* mgr = OpManager::Global();
+  std::lock_guard<std::mutex> lock(mgr->mutex);
+  std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
+  if (op_map == nullptr) {
+    return;
+  }
+  uint32_t index = op_->index_;
+  if (op_map->data_.size() > index) {
+    op_map->data_[index] = std::make_pair(TVMRetValue(), 0);
+  }
+}
+
 void OpRegistry::UpdateAttr(const std::string& key,
                             TVMRetValue value,
                             int plevel) {
@@ -113,7 +126,10 @@ void OpRegistry::UpdateAttr(const std::string& key,
   CHECK(p.second != plevel)
       << "Attribute " << key << " of operator " << this->name
       << " is already registered with same plevel=" << plevel;
-  if (p.second < plevel) {
+  CHECK(value.type_code() != kNull)
+      << "Registered packed_func is Null for " << key
+      << " of operator " << this->name;
+  if (p.second < plevel && value.type_code() != kNull) {
     op_map->data_[index] = std::make_pair(value, plevel);
   }
 }
@@ -150,6 +166,15 @@ TVM_REGISTER_API("relay.op._OpSetAttr")
     auto& reg =
         OpRegistry::Registry()->__REGISTER_OR_GET__(op->name).set_name();
     reg.set_attr(attr_name, value, plevel);
+  });
+
+TVM_REGISTER_API("relay.op._OpResetAttr")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    auto& reg =
+        OpRegistry::Registry()->__REGISTER_OR_GET__(op->name);
+    reg.reset_attr(attr_name);
   });
 
 TVM_REGISTER_API("relay.op._Register")
@@ -195,12 +220,13 @@ NodePtr<Node> CreateOp(const std::string& name) {
 
 TVM_REGISTER_NODE_TYPE(OpNode)
 .set_creator(CreateOp)
-.set_global_key([](const Node* n) {
+.set_global_key([](const Object* n) {
     return static_cast<const OpNode*>(n)->name;
   });
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<OpNode>([](const OpNode* node, tvm::IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<OpNode>([](const ObjectRef& ref, IRPrinter* p) {
+    auto* node = static_cast<const OpNode*>(ref.get());
     p->stream << "Op(" << node->name << ")";
   });
 

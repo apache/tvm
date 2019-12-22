@@ -145,7 +145,7 @@ def test_where():
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
     test_func = funcs[0]
     ref_func = funcs[1]
-    dtype = "bool" if ref_func in [np.all] else dtype
+    dtype = "bool" if ref_func in [np.all, np.any] else dtype
 
     x = relay.var("x", relay.TensorType(data, dtype))
     z = test_func(x, axis, keepdims, exclude)
@@ -207,6 +207,7 @@ def test_reduce_functions():
                  [relay.std, np.std],
                  [relay.prod, np.prod],
                  [relay.all, np.all],
+                 [relay.any, np.any],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())
@@ -299,8 +300,48 @@ def test_strided_slice():
     verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
 
 
+def test_strided_set():
+    def verify(dshape, begin, end, strides, vshape, test_ref=True):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        v = relay.var("v", relay.TensorType(vshape, "float32"))
+        begin_c = relay.const(begin, dtype="int32")
+        end_c = relay.const(end, dtype="int32")
+        if strides:
+            strides_c = relay.const(strides, dtype="int32")
+            z = relay.strided_set(x, v, begin=begin_c, end=end_c, strides=strides_c)
+        else:
+            z = relay.strided_set(x, v, begin=begin_c, end=end_c)
+        func = relay.Function([x, v], z)
+        func = run_infer_type(func)
+        text = func.astext()
+        assert "strided_set" in text
+        print(text)
+        assert func.body.checked_type == relay.ty.TensorType(dshape, "float32")
+        if not test_ref:
+            return
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        v_data = np.random.uniform(size=vshape).astype("float32")
+        ref_res = topi.testing.strided_set_python(
+            x_data, v_data, begin, end, strides)
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data, v_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
+
+
 if __name__ == "__main__":
     test_strided_slice()
+    test_strided_set()
     test_binary_op()
     test_cmp_type()
     test_binary_int_broadcast()

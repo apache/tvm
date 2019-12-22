@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file compile_engine.h
  * \brief Internal engine to compile a subgraph fragment and cache compilation.
  */
@@ -55,7 +54,7 @@ struct GraphFuncNode : public tvm::Node {
   /*! \brief The lowered functions */
   tvm::Array<tvm::LoweredFunc> funcs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("target", &target);
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
@@ -78,7 +77,7 @@ struct GraphCacheEntryNode : public tvm::Node {
   /*! \brief Index of the master node for calling schedule*/
   int master_idx;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("graph_func", &graph_func);
     v->Visit("use_count", &use_count);
     v->Visit("master_idx", &master_idx);
@@ -118,7 +117,7 @@ GraphFunc GraphLower(Graph graph,
  * \param type the tvm type
  * \return corresponding DLDataType
  */
-int GetTypeFlag(tvm::Type type);
+int GetTypeFlag(tvm::DataType type);
 
 /*!
  * \brief Get TVM Type from type flag
@@ -126,7 +125,7 @@ int GetTypeFlag(tvm::Type type);
  * \param type_flag the type flag
  * \return corresponding TVM type
  */
-tvm::Type GetTVMType(int type_flag);
+tvm::DataType GetTVMType(int type_flag);
 
 }  // namespace compiler
 }  // namespace nnvm

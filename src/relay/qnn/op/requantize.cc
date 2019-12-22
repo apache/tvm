@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/op/requantize.cc
  * \brief QNN requantize operator.
  */
@@ -36,8 +35,6 @@ namespace qnn {
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
 
 // Lowering of qnn.requantize op
-
-
 
 /*
  * \brief Lower requantize to a sequence of ops.
@@ -61,7 +58,7 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
   double double_multiplier = param->input_scale / param->output_scale;
 
-  DataType hp_dtype = Int(64);
+  DataType hp_dtype = DataType::Int(64);
 
   auto tensor = Cast(input_tensor, hp_dtype);
   // 1) Subtract the input_zero_point
@@ -73,8 +70,8 @@ Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
   // 2) If the input and output scales are same, we can skip the fixed point multiplication.
   auto scaled_int64_t = tensor;
   if (param->input_scale != param->output_scale) {
-    scaled_int64_t = FixedPointMuliply(scaled_int64_t, double_multiplier, input_shape,
-                                       param->rounding);
+    scaled_int64_t =
+        FixedPointMultiply(scaled_int64_t, double_multiplier, input_shape, param->rounding);
   }
 
   // 3) Add the output zero point.
@@ -146,14 +143,18 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto in_dtype = data->dtype;
-  CHECK(in_dtype == Int(8) || in_dtype == UInt(8) || in_dtype == Int(32))
+  CHECK(in_dtype == DataType::Int(8) ||
+        in_dtype == DataType::UInt(8) ||
+        in_dtype == DataType::Int(32))
       << "Input type should be one of [int8, uint8, int32] but was " << in_dtype;
 
   const Array<tvm::Expr> oshape = data->shape;
   // assign output type
   const RequantizeAttrs* param = attrs.as<RequantizeAttrs>();
   auto out_dtype = param->out_dtype;
-  CHECK(out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32))
+  CHECK(out_dtype == DataType::Int(8) ||
+        out_dtype == DataType::UInt(8) ||
+        out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
   reporter->Assign(types[1], TensorTypeNode::make(oshape, out_dtype));
   return true;

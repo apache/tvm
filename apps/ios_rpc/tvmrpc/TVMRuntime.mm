@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file TVMRuntime.mm
  */
 #include "TVMRuntime.h"
@@ -28,13 +27,15 @@
 #include "../../../src/runtime/workspace_pool.cc"
 #include "../../../src/runtime/thread_pool.cc"
 #include "../../../src/runtime/threading_backend.cc"
-#include "../../../src/runtime/module_util.cc"
-#include "../../../src/runtime/system_lib_module.cc"
+#include "../../../src/runtime/library_module.cc"
+#include "../../../src/runtime/system_library.cc"
 #include "../../../src/runtime/module.cc"
 #include "../../../src/runtime/registry.cc"
 #include "../../../src/runtime/file_util.cc"
-#include "../../../src/runtime/dso_module.cc"
+#include "../../../src/runtime/dso_library.cc"
 #include "../../../src/runtime/ndarray.cc"
+#include "../../../src/runtime/object.cc"
+
 // RPC server
 #include "../../../src/runtime/rpc/rpc_session.cc"
 #include "../../../src/runtime/rpc/rpc_server_env.cc"

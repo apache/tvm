@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,16 +18,17 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file target_info.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/target_info.h>
 #include <tvm/packed_func_ext.h>
 
 namespace tvm {
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const MemoryInfoNode *op, IRPrinter *p) {
+.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const MemoryInfoNode*>(node.get());
     p->stream << "mem-info("
               << "unit_bits=" << op->unit_bits << ", "
               << "max_num_bits=" << op->max_num_bits << ", "

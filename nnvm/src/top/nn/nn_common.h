@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file nn_common.h
  * \brief Common utilities for nn ops.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file touch_extractor.h
  * \brief Extract feature of touch pattern of axes in lowered IR
  */
@@ -92,31 +91,31 @@ class TouchExtractor : public FeatureVisitor {
 
   // arithmetic stats
   void Visit_(const Add *op) {
-    if (op->type.is_float())
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Sub *op) {
-    if (op->type.is_float())
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Mul *op) {
-    if (op->type.is_float())
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].mul_ct++;
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Div *op) {
-    if (op->type.is_float())
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
     IRVisitor::Visit_(op);
   }
 
   void Visit_(const Mod *op) {
-    if (op->type.is_float())
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
     IRVisitor::Visit_(op);
   }

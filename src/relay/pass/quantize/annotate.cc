@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file annotate.cc
  *
@@ -41,7 +40,7 @@ class QAnnotateExprNode : public TempExprNode {
   Expr expr;
   QAnnotateKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("expr", &expr);
     v->Visit("kind", &kind);
   }

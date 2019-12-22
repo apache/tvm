@@ -18,14 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_functor.h
  * \brief A way to defined arbitrary function signature with dispatch on types.
  */
 #ifndef TVM_RELAY_IR_TYPE_FUNCTOR_H_
 #define TVM_RELAY_IR_TYPE_FUNCTOR_H_
 
-#include <tvm/node/ir_functor.h>
+#include <tvm/node/functor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/adt.h>
 #include <string>
@@ -54,7 +53,7 @@ template <typename R, typename... Args>
 class TypeFunctor<R(const Type& n, Args...)> {
  private:
   using TSelf = TypeFunctor<R(const Type& n, Args...)>;
-  using FType = tvm::IRFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
+  using FType = tvm::NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
   /*! \brief the result type of this functor */

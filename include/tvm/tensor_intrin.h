@@ -87,7 +87,7 @@ class TensorIntrinNode : public Node {
   /*! \brief constructor */
   TensorIntrinNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op", &op);
     v->Visit("inputs", &inputs);
@@ -152,7 +152,7 @@ class TensorIntrinCallNode : public Node {
   /*! \brief scalar expression inputs */
   Array<Expr> scalar_inputs;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("intrin", &intrin);
     v->Visit("tensors", &tensors);
     v->Visit("regions", &regions);

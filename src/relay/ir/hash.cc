@@ -267,6 +267,8 @@ class RelayHashHandler:
     hash = Combine(hash, TypeHash(func->ret_type));
     hash = Combine(hash, ExprHash(func->body));
 
+    hash = Combine(hash, AttrHash(func->attrs));
+
     return hash;
   }
 

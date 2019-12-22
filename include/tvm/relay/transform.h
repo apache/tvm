@@ -101,7 +101,7 @@ class PassContextNode : public RelayNode {
 
   PassContextNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
@@ -196,7 +196,7 @@ class PassInfoNode : public RelayNode {
 
   PassInfoNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
@@ -221,6 +221,7 @@ class Pass;
  */
 class PassNode : public RelayNode {
  public:
+  virtual ~PassNode() {}
   /*!
    * \brief Get the pass information/meta data. */
   virtual PassInfo Info() const = 0;
@@ -247,7 +248,7 @@ class PassNode : public RelayNode {
   virtual Module operator()(const Module& mod,
                             const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(tvm::AttrVisitor* v) override {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.Pass";
   TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
@@ -551,24 +552,29 @@ TVM_DLL Pass Legalize(const std::string& legalize_map_attr_name = "FTVMLegalize"
 TVM_DLL Pass CanonicalizeCast();
 
 /*!
- * \brief Add abstraction over a function
+ * \brief Add abstraction over a constructor or global variable bound to a function.
  *
  * For example: `square` is transformed to
- * `fun x -> square x`.
+ * `fn (%x: int32) -> int32 { square(x) }`.
  *
  * See https://en.wikipedia.org/wiki/Lambda_calculus#%CE%B7-conversion
  * for more details.
  *
+ * \param expand_constructor Whether to expand constructors.
+ * \param expand_global_var Whether to expand global variables.
+ *
  * \return The pass.
  */
-TVM_DLL Pass EtaExpand();
+TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
 
 /*!
  * \brief Print the IR for a module to help debugging.
  *
+ * \param show_meta_data The flag to control if meta data needs to be printed.
+ *
  * \return the pass.
  */
-TVM_DLL Pass PrintIR();
+TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
 }  // namespace transform
 

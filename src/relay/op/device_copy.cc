@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file src/relay/op/device_copy.cc
  * \brief Crossing device data copy operator.
@@ -27,6 +26,7 @@
  * used as "barrier" to avoid fusing operators belonging to differen devices.
  */
 
+#include <tvm/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>

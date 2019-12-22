@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file graph_runtime.h
  * \brief Interface code with TVM graph runtime.
 */
@@ -61,13 +60,13 @@ struct NDArrayWrapperNode : public ::tvm::Node {
   std::string name;
   tvm::runtime::NDArray array;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("array", &array);
   }
 
   static constexpr const char* _type_key = "NDArrayWrapper";
-  TVM_DECLARE_NODE_TYPE_INFO(NDArrayWrapperNode, Node);
+  TVM_DECLARE_NODE_TYPE_INFO(NDArrayWrapperNode, tvm::Node);
 };
 
 TVM_DEFINE_NODE_REF(NDArrayWrapper, NDArrayWrapperNode);

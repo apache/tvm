@@ -32,7 +32,8 @@ namespace tvm {
 using namespace ir;
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ScanOpNode>([](const ScanOpNode *op, IRPrinter *p) {
+.set_dispatch<ScanOpNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const ScanOpNode*>(node.get());
     p->stream << "scan(" << op->name << ", " << op << ")";
 });
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
@@ -52,7 +53,7 @@ Array<IterVar> ScanOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ScanOpNode::output_dtype(size_t i) const {
+DataType ScanOpNode::output_dtype(size_t i) const {
   return update[i]->dtype;
 }
 

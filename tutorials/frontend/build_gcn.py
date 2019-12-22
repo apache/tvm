@@ -46,6 +46,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import dgl
+import networkx as nx
 from dgl.nn.pytorch import GraphConv
 
 class GCN(nn.Module):
@@ -88,7 +89,7 @@ def load_dataset(dataset="cora"):
 
     # Remove self-loops to avoid duplicate passing of a node's feature to itself
     g = data.graph
-    g.remove_edges_from(g.selfloop_edges())
+    g.remove_edges_from(nx.selfloop_edges(g))
     g.add_edges_from(zip(g.nodes, g.nodes))
 
     return g, data
@@ -110,7 +111,7 @@ def evaluate(data, logits):
 Parameters
 ----------
 dataset: str
-    Name of dataset. You can choose from ['cora', 'citeseer', 'pubmed']. 
+    Name of dataset. You can choose from ['cora', 'citeseer', 'pubmed'].
 
 num_layer: int
     number of hidden layers
@@ -251,7 +252,7 @@ def GraphConv(layer_name,
 ######################################################################
 # Prepare the parameters needed in the GraphConv layers
 # ------------------
-# 
+#
 import numpy as np
 import networkx as nx
 

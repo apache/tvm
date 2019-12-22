@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
@@ -166,7 +165,7 @@ class IRUseDefAnalysis : public IRMutator {
 class HostDeviceSplitter : public IRMutator {
  public:
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    handle_data_type_[op->buffer_var.get()] = make_const(op->type, 0);
+    handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
     return IRMutator::Mutate_(op, s);
   }
 
@@ -210,7 +209,7 @@ class HostDeviceSplitter : public IRMutator {
     n->thread_axis = m.thread_axis_;
     // Strictly order the arguments: Var pointers, positional arguments.
     for (Var v : m.undefined_) {
-      if (v.type().is_handle()) {
+      if (v.dtype().is_handle()) {
         n->args.push_back(v);
         // mark handle data type.
         auto it = handle_data_type_.find(v.get());
@@ -220,7 +219,7 @@ class HostDeviceSplitter : public IRMutator {
       }
     }
     for (Var v : m.undefined_) {
-      if (!v.type().is_handle()) {
+      if (!v.dtype().is_handle()) {
         n->args.push_back(v);
       }
     }
@@ -235,7 +234,7 @@ class HostDeviceSplitter : public IRMutator {
     }
     device_funcs_.emplace_back(f_device);
     return Evaluate::make(Call::make(
-        Int(32), intrinsic::tvm_call_packed,
+        DataType::Int(32), intrinsic::tvm_call_packed,
         call_args, Call::Intrinsic));
   }
 

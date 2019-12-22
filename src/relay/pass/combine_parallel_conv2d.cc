@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file combine_parallel_conv2d.cc
  * \brief Combine parallel 2d convolutions into a single convolution.
@@ -205,7 +204,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
-                           MakeConstScalar(Int(32), num_filters));
+                           MakeConstScalar(DataType::Int(32), num_filters));
   }
 };
 

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file runtime.cc
  * \brief Generic VTA runtime in C++11.
  *
@@ -348,7 +347,7 @@ class BaseQueue {
    * \brief Reset the pointer of the buffer.
    *  Set SRAM pointer to be the current end.
    */
-  void Reset() {
+  virtual void Reset() {
     dram_buffer_.clear();
     sram_begin_ = sram_end_;
   }
@@ -442,6 +441,12 @@ class UopQueue : public BaseQueue<VTAUop> {
       // Reset indices
       sram_begin_ = sram_end_;
     }
+  }
+  /*! \brief clear cache and reset base queue buffer.*/
+  void Reset() {
+    cache_.clear();
+    cache_idx_ = 0;
+    BaseQueue<VTAUop>::Reset();
   }
   void AutoReadBarrier() {
     ReadBarrier();
@@ -1010,7 +1015,7 @@ class CommandQueue {
           elem_bytes = VTA_ACC_ELEM_BYTES;
           break;
       case VTA_MEM_ID_OUT:
-          elem_bytes = VTA_INP_ELEM_BYTES;
+          elem_bytes = VTA_OUT_ELEM_BYTES;
           break;
       default:
           LOG(FATAL) << "Memory id not recognized:" << memory_id;

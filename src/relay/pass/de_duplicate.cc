@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file de_duplicate.cc
  * \brief Use a fresh Id for every Var to make the result well-formed.
@@ -52,7 +51,9 @@ Expr DeDup(const Expr& e) {
     }
 
     Expr VisitExpr(const Expr& e) final {
-      return ExprMutator::VisitExpr(e);
+      auto ret = ExprMutator::VisitExpr(e);
+      ret->checked_type_ = e->checked_type_;
+      return ret;
     }
 
     Expr VisitExpr_(const VarNode* op) final {

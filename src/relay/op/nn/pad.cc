@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file pad.cc
  * \brief Implementation of operator pad
  */
@@ -148,8 +147,12 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    auto padding = make_const(data->shape[i].type(), *width1 + *width2);
-    oshape.push_back(data->shape[i] + padding);
+    if (!data->shape[i].as<ir::Any>()) {
+      auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
+      oshape.push_back(data->shape[i] + padding);
+    } else {
+      oshape.push_back(data->shape[i]);
+    }
   }
 
   reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape),
@@ -253,7 +256,7 @@ bool MirrorPadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    auto padding = make_const(data->shape[i].type(), *width1 + *width2);
+    auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
     oshape.push_back(data->shape[i] + padding);
   }
 

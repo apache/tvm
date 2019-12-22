@@ -20,7 +20,7 @@
 /*!
  * \file tvm/packed_func_ext.h
  * \brief Extension package to PackedFunc
- *   This enales pass NodeRef types into/from PackedFunc.
+ *   This enales pass ObjectRef types into/from PackedFunc.
  */
 #ifndef TVM_PACKED_FUNC_EXT_H_
 #define TVM_PACKED_FUNC_EXT_H_
@@ -129,18 +129,18 @@ inline std::string ObjectTypeName() {
 
 // extensions for tvm arg value
 
-template<typename TNodeRef>
-inline TNodeRef TVMArgValue::AsNodeRef() const {
+template<typename TObjectRef>
+inline TObjectRef TVMArgValue::AsObjectRef() const {
   static_assert(
-      std::is_base_of<NodeRef, TNodeRef>::value,
-      "Conversion only works for NodeRef");
-  if (type_code_ == kNull) return TNodeRef(NodePtr<Node>(nullptr));
+      std::is_base_of<ObjectRef, TObjectRef>::value,
+      "Conversion only works for ObjectRef");
+  if (type_code_ == kNull) return TObjectRef(NodePtr<Node>(nullptr));
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
-  CHECK(ObjectTypeChecker<TNodeRef>::Check(ptr))
-      << "Expected type " << ObjectTypeName<TNodeRef>()
+  CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
+      << "Expected type " << ObjectTypeName<TObjectRef>()
       << " but get " << ptr->GetTypeKey();
-  return TNodeRef(ObjectPtr<Node>(ptr));
+  return TObjectRef(ObjectPtr<Node>(ptr));
 }
 
 inline TVMArgValue::operator tvm::Expr() const {
@@ -184,47 +184,30 @@ inline TVMArgValue::operator tvm::Integer() const {
   return Integer(ObjectPtr<Node>(ptr));
 }
 
-template<typename TNodeRef, typename>
+template<typename TObjectRef, typename>
 inline bool TVMPODValue_::IsObjectRef() const {
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
-  return ObjectTypeChecker<TNodeRef>::Check(ptr);
+  return ObjectTypeChecker<TObjectRef>::Check(ptr);
 }
 
 // extensions for TVMRetValue
-template<typename TNodeRef>
-inline TNodeRef TVMRetValue::AsNodeRef() const {
+template<typename TObjectRef>
+inline TObjectRef TVMRetValue::AsObjectRef() const {
   static_assert(
-      std::is_base_of<NodeRef, TNodeRef>::value,
-      "Conversion only works for NodeRef");
-  if (type_code_ == kNull) return TNodeRef();
+      std::is_base_of<ObjectRef, TObjectRef>::value,
+      "Conversion only works for ObjectRef");
+  if (type_code_ == kNull) return TObjectRef();
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
 
   Object* ptr = static_cast<Object*>(value_.v_handle);
 
-  CHECK(ObjectTypeChecker<TNodeRef>::Check(ptr))
-      << "Expected type " << ObjectTypeName<TNodeRef>()
+  CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
+      << "Expected type " << ObjectTypeName<TObjectRef>()
       << " but get " << ptr->GetTypeKey();
-  return TNodeRef(ObjectPtr<Object>(ptr));
+  return TObjectRef(ObjectPtr<Object>(ptr));
 }
 
-// type related stuffs
-inline TVMRetValue& TVMRetValue::operator=(const DataType& t) {
-  return this->operator=(t.operator DLDataType());
-}
-
-inline TVMRetValue::operator tvm::DataType() const {
-  return DataType(operator DLDataType());
-}
-
-inline TVMArgValue::operator tvm::DataType() const {
-  return DataType(operator DLDataType());
-}
-
-inline void TVMArgsSetter::operator()(
-    size_t i, const DataType& t) const {
-  this->operator()(i, t.operator DLDataType());
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_PACKED_FUNC_EXT_H_

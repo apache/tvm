@@ -190,6 +190,36 @@ def test_forward_conv():
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
+def test_forward_batch_norm():
+    data = keras.layers.Input(shape=(32, 32, 3))
+    batch_norm_funcs = [keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=True, scale=False,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=True, scale=True,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=False, scale=True,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones'),
+                       keras.layers.BatchNormalization(axis=-1, momentum=0.99, epsilon=0.001,
+                                                        center=False, scale=False,
+                                                        beta_initializer='zeros',
+                                                        gamma_initializer='ones',
+                                                        moving_mean_initializer='zeros',
+                                                        moving_variance_initializer='ones')]
+    for batch_norm_func in batch_norm_funcs:
+        x = batch_norm_func(data)
+        keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
 
 def test_forward_upsample(interpolation='nearest'):
     data = keras.layers.Input(shape=(32, 32, 3))
@@ -333,6 +363,7 @@ if __name__ == '__main__':
     test_forward_sequential()
     test_forward_pool()
     test_forward_conv()
+    test_forward_batch_norm()
     test_forward_upsample(interpolation='nearest')
     test_forward_upsample(interpolation='bilinear')
     test_forward_reshape()

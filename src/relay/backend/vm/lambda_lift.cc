@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/lambda_lift.cc
  * \brief Lift all local functions into global functions.
  */
@@ -38,21 +37,19 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-static const char* kIsClosure = "IsClosure";
-
 inline std::string GenerateName(const Function& func) {
   size_t hash = StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 
 bool IsClosure(const Function& func) {
-  NodeRef res = FunctionGetAttr(func, kIsClosure);
+  NodeRef res = FunctionGetAttr(func, attr::kClosure);
   const ir::IntImm* pval = res.as<ir::IntImm>();
   return pval && pval->value != 0;
 }
 
 Function MarkClosure(const Function& func) {
-  return FunctionSetAttr(func, kIsClosure, tvm::Integer(1));
+  return FunctionSetAttr(func, attr::kClosure, tvm::Integer(1));
 }
 
 /* The goal of this class is to lift out any nested functions into top-level
@@ -61,9 +58,39 @@ Function MarkClosure(const Function& func) {
  * We will lift a function out into a global which takes the set of the free
  * vars and then return the new created function.
  */
-struct LambdaLifter : ExprMutator {
-  Module module_;
+class LambdaLifter : public ExprMutator {
+ public:
   explicit LambdaLifter(const Module& module) : module_(module) {}
+
+  Expr VisitExpr_(const LetNode* let_node) final {
+    bool is_lambda = false;
+    if (auto func = let_node->value.as<FunctionNode>()) {
+      if (!func->IsPrimitive()) {
+        is_lambda = true;
+        letrec_.push_back(let_node->var);
+      }
+    }
+    auto value = VisitExpr(let_node->value);
+    if (is_lambda) {
+      letrec_.pop_back();
+    }
+    auto body = VisitExpr(let_node->body);
+    return LetNode::make(let_node->var, value, body);
+  }
+
+  Expr VisitExpr_(const CallNode* call_node) final {
+    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    if (auto var_node = call_node->op.as<VarNode>()) {
+      auto var = GetRef<Var>(var_node);
+      if (!letrec_.empty() && var == letrec_.back()) {
+        auto it = lambda_map_.find(var);
+        CHECK(it != lambda_map_.end());
+        return CallNode::make(it->second, call->args, call_node->attrs,
+                              call_node->type_args);
+      }
+    }
+    return std::move(call);
+  }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
@@ -73,8 +100,31 @@ struct LambdaLifter : ExprMutator {
       return std::move(func);
     }
 
+    auto name = GenerateName(func);
+    auto global = GlobalVarNode::make(name);
     auto free_vars = FreeVars(func);
     auto free_type_vars = FreeTypeVars(func, module_);
+
+    Array<Var> captured_vars;
+    bool recursive = false;
+    for (const auto& var : free_vars) {
+      if (!letrec_.empty() && var == letrec_.back()) {
+        recursive = true;
+        continue;
+      }
+      captured_vars.push_back(var);
+    }
+    if (recursive) {
+      if (!captured_vars.empty()) {
+        Array<Expr> fvs;
+        for (auto fv : captured_vars) {
+          fvs.push_back(fv);
+        }
+        lambda_map_.emplace(letrec_.back(), CallNode::make(global, fvs));
+      } else {
+        lambda_map_.emplace(letrec_.back(), global);
+      }
+    }
     auto body = Downcast<Function>(ExprMutator::VisitExpr_(func_node));
 
     // When performing this optimization there are two cases.
@@ -100,30 +150,34 @@ struct LambdaLifter : ExprMutator {
     // The "inner" function should be used to generate the
     // code for the closure.
     Function lifted_func;
-    if (free_vars.size() == 0) {
-      lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, free_type_vars);
+    if (captured_vars.size() == 0 && free_type_vars.size() == 0) {
+      lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, body->type_params);
     } else {
       lifted_func =
-          FunctionNode::make(free_vars, body, func->func_type_annotation(), free_type_vars);
-
+          FunctionNode::make(captured_vars, body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
     }
 
     CHECK(lifted_func.defined());
 
-    auto name = GenerateName(lifted_func);
-    auto global = GlobalVarNode::make(name);
 
-    // Add the lifted function to the module.
-    module_->Add(global, lifted_func);
+    if (module_->ContainGlobalVar(name)) {
+      const auto existing_func = module_->Lookup(name);
+      CHECK(AlphaEqual(lifted_func, existing_func)) << "lifted function hash collision";
+      // If an identical function already exists, use its global var.
+      global = module_->GetGlobalVar(name);
+    } else {
+      // Add the lifted function to the module.
+      module_->Add(global, lifted_func);
+    }
 
-    if (free_vars.size() == 0) {
+    if (captured_vars.size() == 0) {
       return std::move(global);
     } else {
       // If we need to allocate a closure,
       // we pass the variables in its environment here.
       Array<Expr> fvs;
-      for (auto fv : free_vars) {
+      for (auto fv : captured_vars) {
         fvs.push_back(fv);
       }
       return CallNode::make(global, fvs);
@@ -135,7 +189,6 @@ struct LambdaLifter : ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       auto func = pair.second;
-      DLOG(INFO) << "Lifting " << AsText(func, false);
       func = FunctionNode::make(func->params,
                                 VisitExpr(func->body),
                                 func->ret_type,
@@ -145,6 +198,11 @@ struct LambdaLifter : ExprMutator {
     }
     return module_;
   }
+
+ private:
+  std::unordered_map<Var, Expr, NodeHash, NodeEqual> lambda_map_;
+  std::vector<Var> letrec_;
+  Module module_;
 };
 
 }  // namespace vm

@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 #--------------------------------------------------------------------
 #  Template custom cmake configuration for compiling
 #
@@ -14,7 +31,7 @@
 #  $ cd build
 #  $ cmake ..
 #
-#  Then buld in parallel with 8 threads
+#  Then build in parallel with 8 threads
 #
 #  $ make -j8
 #--------------------------------------------------------------------
@@ -92,7 +109,7 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
 set(USE_VM_PROFILER OFF)
 
 # Whether enable uTVM standalone runtime
-set(USE_MICRO_STANDALONE_RUNTIME ON)
+set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
@@ -115,6 +132,9 @@ set(USE_BLAS none)
 # set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL_PATH none)
 
+# Whether use MKLDNN library
+set(USE_MKLDNN OFF)
+
 # Whether use OpenMP thread pool, choices: gnu, intel
 # Note: "gnu" uses gomp library, "intel" uses iomp5 library
 set(USE_OPENMP none)
@@ -124,6 +144,15 @@ set(USE_RANDOM OFF)
 
 # Whether use NNPack
 set(USE_NNPACK OFF)
+
+# Possible values:
+# - ON: enable tflite with cmake's find search
+# - OFF: disable tflite
+# - /path/to/libtensorflow-lite.a: use specific path to tensorflow lite library 
+set(USE_TFLITE OFF)
+
+# /path/to/tensorflow: tensorflow root path when use tflite library
+set(USE_TENSORFLOW_PATH none)
 
 # Whether use CuDNN
 set(USE_CUDNN OFF)
@@ -143,7 +172,14 @@ set(USE_ROCBLAS OFF)
 # Whether use contrib sort
 set(USE_SORT ON)
 
+# Whether use MKL-DNN (DNNL) codegen
+set(USE_DNNL_CODEGEN OFF)
+
 # Build ANTLR parser for Relay text format
+# Possible values:
+# - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
+# - OFF: disable ANTLR
+# - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
 set(USE_ANTLR OFF)
 
 # Whether use Relay debug mode
@@ -157,3 +193,6 @@ set(USE_VTA_TSIM ON)
 
 # Whether to build VTA FPGA driver (device side only)
 set(USE_VTA_FPGA OFF)
+
+# Whether to build the example external runtime module
+set(USE_EXAMPLE_EXT_RUNTIME OFF)

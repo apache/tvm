@@ -144,7 +144,8 @@ class BuildConfig(NodeBase):
         "dump_pass_ir": False,
         "instrument_bound_checkers": False,
         "disable_select_rewriting": False,
-        "disable_vectorize": False
+        "disable_vectorize": False,
+        "disable_assert": False
     }
     _dump_ir = DumpIR()
 
@@ -387,6 +388,7 @@ def lower(sch,
     binds, arg_list = get_binds(args, compact, binds)
 
     # Phase 1
+    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
@@ -413,7 +415,6 @@ def lower(sch,
 
     # Phase 3
     stmt = ir_pass.Simplify(stmt)
-    stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
     if not cfg.disable_select_rewriting:
         stmt = ir_pass.RewriteUnsafeSelect(stmt)
@@ -465,6 +466,7 @@ def _build_for_device(flist, target, target_host):
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
             func = ir_pass.ThreadSync(func, "warp")
+            func = ir_pass.InferFragment(func)
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
             fsplits = [s for s in ir_pass.SplitHostDevice(func)]
@@ -494,6 +496,8 @@ def _build_for_device(flist, target, target_host):
         assert not fdevice
 
     target_host = _target.create(target_host)
+    fdevice = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fdevice]
+    fhost = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fhost]
     fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
@@ -568,10 +572,11 @@ def build(inputs,
         B = tvm.placeholder((n,), name='B')
         C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s1 = tvm.create_schedule(C.op)
-        s2 = topi.cpp.cuda.schedule_injective("cuda", [C])
-        f1 = tvm.lower(s1, [A, B, C], name="test_add1")
-        f2 = tvm.lower(s2, [A, B, C], name="test_add2")
-        m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
+        with tvm.target.cuda() as cuda_tgt:
+          s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
+          f1 = tvm.lower(s1, [A, B, C], name="test_add1")
+          f2 = tvm.lower(s2, [A, B, C], name="test_add2")
+          m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
 
     Note
     ----

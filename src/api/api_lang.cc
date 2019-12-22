@@ -35,10 +35,10 @@
 namespace tvm {
 
 TVM_REGISTER_API("_min_value")
-.set_body_method(&DataType::min);
+.set_body_typed(min_value);
 
 TVM_REGISTER_API("_max_value")
-.set_body_method(&DataType::max);
+.set_body_typed(max_value);
 
 TVM_REGISTER_API("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
@@ -287,8 +287,8 @@ TVM_REGISTER_API("_TensorHash")
   });
 
 TVM_REGISTER_API("_Placeholder")
-.set_body_typed<Tensor(Array<Expr>, Type, std::string)>([](
-  Array<Expr> shape, Type dtype, std::string name
+.set_body_typed<Tensor(Array<Expr>, DataType, std::string)>([](
+  Array<Expr> shape, DataType dtype, std::string name
 ) {
   return placeholder(shape, dtype, name);
 });

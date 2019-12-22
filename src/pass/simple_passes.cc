@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file simple_passes.cc
  * \brief Implementation of simple passes
  */

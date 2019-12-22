@@ -36,15 +36,22 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
+static inline Array<IndexExpr> get_shape(const Type& type) {
+  auto input_tt = type.as<TensorTypeNode>();
+  CHECK(input_tt != nullptr) << "Type information missing."
+                             << " Please run infer_type pass.";
+  return input_tt->shape;
+}
+
 static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
-    auto* min_value = as_const_int(dtype.min());
+    auto* min_value = as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else if (dtype.is_uint()) {
-    auto* min_value = as_const_uint(dtype.min());
+    auto* min_value = as_const_uint(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
@@ -57,11 +64,11 @@ static inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
-    auto* max_value = as_const_int(dtype.max());
+    auto* max_value = as_const_int(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else if (dtype.is_uint()) {
-    auto* max_value = as_const_uint(dtype.max());
+    auto* max_value = as_const_uint(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
@@ -115,9 +122,9 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMuliply(Expr tensor, double multiplier,
-                       const Array<IndexExpr>& input_shape,
-                       const std::string& rounding);
+Expr FixedPointMultiply(Expr tensor, double multiplier,
+                        const Array<IndexExpr>& input_shape,
+                        const std::string& rounding);
 
 }  // namespace qnn
 }  // namespace relay

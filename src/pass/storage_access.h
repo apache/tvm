@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file storage_access.h
  * \brief Common data structure for storage access analysis.
  */
@@ -59,7 +58,7 @@ class StorageAccessVisitor : public IRVisitor {
     /*! \brief The buffer variable, if any */
     Var buffer = NullValue<Var>();
     /*! \brief The access data type */
-    Type dtype;
+    DataType dtype;
     /*! \brief The touched access range */
     arith::IntSet touched;
     /*! \brief The type of access */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file loop_partition.cc
  */
 #include <tvm/ir.h>
@@ -182,7 +181,7 @@ class PartitionFinder : public IRVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const Variable* var = thread_axis->var.get();
-      IntSet dom = IntSet::range(Range(make_zero(op->value.type()), op->value));
+      IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       IRVisitor::Visit_(op);
@@ -352,12 +351,12 @@ class LoopPartitioner : public IRMutator {
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert({var.get(),
-        IntSet::interval(make_zero(var.type()), op->value - 1)});
+        IntSet::interval(make_zero(var.dtype()), op->value - 1)});
       res = IRMutator::Mutate_(op, stmt);
       relax_map_.erase(var.get());
     } else {
       hint_map_.insert({var.get(),
-        IntSet::interval(make_zero(var.type()), op->value - 1)});
+        IntSet::interval(make_zero(var.dtype()), op->value - 1)});
       res = IRMutator::Mutate_(op, stmt);
       hint_map_.erase(var.get());
     }
@@ -513,17 +512,19 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
-    Expr cond = (body_begin - min >= 0);
-    if (!analyzer_.CanProve(cond)) {
-      LOG(WARNING) << "Cannot prove: " << cond
-                   << ", when generating the pre doubt loop";
-      body_begin = Max::make(body_begin, min);
-      // stop recursing on this interval if we can't prove it has non-negative length
-      pre_stmt_recurse = false;
-    }
-    if (!partition_thread_scope) {
-      Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
-      pre_stmt = MakeFor(node, body_begin - min, pre_body);
+    if (!analyzer_.CanProve(body_begin == min)) {
+      Expr cond = (body_begin - min >= 0);
+      if (!analyzer_.CanProve(cond)) {
+        LOG(WARNING) << "Cannot prove: " << cond
+                     << ", when generating the pre doubt loop";
+        body_begin = Max::make(body_begin, min);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        pre_stmt_recurse = false;
+      }
+      if (!partition_thread_scope) {
+        Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+        pre_stmt = MakeFor(node, body_begin - min, pre_body);
+      }
     }
   } else {
     body_begin = min;
@@ -536,19 +537,21 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
-    // require the extent to be non-negative
-    Expr cond = (max - post_doubt_begin + 1 >= 0);
-    if (!analyzer_.CanProve(cond)) {
-      LOG(WARNING) << "Cannot prove: " << cond
-                   << ", when generating the post doubt loop";
-      post_doubt_begin = Min::make(post_doubt_begin, max+1);
-      // stop recursing on this interval if we can't prove it has non-negative length
-      post_stmt_recurse = false;
-    }
-    if (!partition_thread_scope) {
-      Stmt post_body =
-        Substitute(body, {{Var{var}, var + post_doubt_begin}});
-      post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+    if (!analyzer_.CanProve(middle_interval.max() == max)) {
+      // require the extent to be non-negative
+      Expr cond = (max - post_doubt_begin + 1 >= 0);
+      if (!analyzer_.CanProve(cond)) {
+        LOG(WARNING) << "Cannot prove: " << cond
+                     << ", when generating the post doubt loop";
+        post_doubt_begin = Min::make(post_doubt_begin, max+1);
+        // stop recursing on this interval if we can't prove it has non-negative length
+        post_stmt_recurse = false;
+      }
+      if (!partition_thread_scope) {
+        Stmt post_body =
+          Substitute(body, {{Var{var}, var + post_doubt_begin}});
+        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+      }
     }
   } else {
     post_doubt_begin = max + 1;
@@ -592,9 +595,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
-  if (analyzer_.CanProve(extent == make_const(Int(32), 1))) {
+  if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
-    return Substitute(body, {{Var{for_node->loop_var}, make_const(Int(32), 0)}});
+    return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     return For::make(for_node->loop_var, 0, extent,
                      for_node->for_type, for_node->device_api, body);

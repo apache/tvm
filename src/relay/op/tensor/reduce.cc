@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file reduce.cc
  * \brief Reduction operators.
  */
@@ -210,12 +209,22 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     return in_shape;
   }
 
-  auto max_shape = make_const(Int(64), 1);
+  auto max_shape = make_const(DataType::Int(64), 1);
+  bool is_dynamic_input = false;
   for (int64_t axis : r_axes) {
-    max_shape *= in_shape[axis];
+    if (in_shape[axis].as<IntImm>()) {
+      max_shape *= in_shape[axis];
+    } else {
+      is_dynamic_input = true;
+      break;
+    }
   }
-  CHECK(reporter->Assert(max_shape < make_const(Int(64), std::numeric_limits<int32_t>::max())))
-    << "The maximum possible index of reduced shape cannot be more than int32 max.";
+
+  if (is_dynamic_input) {
+    CHECK(reporter->Assert(max_shape < make_const(
+        DataType::Int(64), std::numeric_limits<int32_t>::max())))
+      << "The maximum possible index of reduced shape cannot be more than int32 max.";
+  }
 
   if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
@@ -263,7 +272,7 @@ bool ArgReduceRel(const Array<Type>& types,
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, Int(32)));
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, DataType::Int(32)));
   return true;
 }
 
@@ -417,6 +426,43 @@ Example::
 .set_support_level(4)
 .add_type_rel("Reduce", ReduceRel)
 .set_attr<FTVMCompute>("FTVMCompute", AllCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> AnyCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::any);
+}
+
+
+RELAY_REGISTER_REDUCE_OP("any")
+.describe(R"code(Computes the logical OR of boolean array elements over given axes.
+
+Example::
+
+  data = [[[ True,  True,  True],
+           [ True,  True,  True],
+           [False,  True, False]],
+          [[ True, False, False],
+           [ True,  True, False],
+           [False,  True,  True]]]
+
+  any(data, axis=1)
+  [[True,  True, True],
+   [True,  True, True]]
+
+  any(data, axis=0)
+  [[ True,  True, True],
+   [ True,  True, True],
+   [False,  True, True]]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<ReduceAttrs>()
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", AnyCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 

@@ -74,7 +74,10 @@ def compile_cuda(code,
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
-    cmd += ["-arch", arch]
+    if isinstance(arch, list):
+        cmd += arch
+    else:
+        cmd += ["-arch", arch]
 
     if options:
         if isinstance(options, str):
@@ -245,8 +248,8 @@ def have_int8(compute_version):
     compute_version : str
         compute capability of a GPU (e.g. "6.1")
     """
-    major, minor = parse_compute_version(compute_version)
-    if major == 6 and minor == 1:
+    major, _ = parse_compute_version(compute_version)
+    if major >= 6:
         return True
 
     return False

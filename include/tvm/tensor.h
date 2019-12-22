@@ -163,7 +163,7 @@ class TensorNode : public Node {
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
   /*! \brief data type in the content of the tensor */
-  Type dtype;
+  DataType dtype;
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -171,14 +171,14 @@ class TensorNode : public Node {
   /*! \brief constructor */
   TensorNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
   TVM_DLL static Tensor make(Array<Expr> shape,
-                             Type dtype,
+                             DataType dtype,
                              Operation op,
                              int value_index);
 

@@ -27,11 +27,13 @@
 #include <string>
 #include <algorithm>
 #include <unordered_map>
+#include <iostream>
 #include "base.h"
-#include "dtype.h"
+#include "node/node.h"
 #include "node/container.h"
-#include "node/ir_functor.h"
+#include "node/functor.h"
 #include "runtime/c_runtime_api.h"
+#include "runtime/data_type.h"
 
 namespace tvm {
 
@@ -39,7 +41,7 @@ namespace tvm {
 class ExprNode : public Node {
  public:
   /*! \brief The data type of the expression. */
-  DataType type;
+  DataType dtype;
 
   static constexpr const char* _type_key = "Expr";
   TVM_DECLARE_BASE_NODE_INFO(ExprNode, Node);
@@ -67,8 +69,8 @@ class Expr : public NodeRef {
   TVM_DLL Expr(std::string str);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
-  DataType type() const {
-    return static_cast<const ExprNode*>(get())->type;
+  DataType dtype() const {
+    return static_cast<const ExprNode*>(get())->dtype;
   }
 
   /*! \brief type indicate the container type */
@@ -110,8 +112,8 @@ class Variable : public ExprNode {
 
   static Var make(DataType dtype, std::string name_hint);
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("name", &name_hint);
   }
 
@@ -124,14 +126,14 @@ class Var : public Expr {
  public:
   explicit Var(ObjectPtr<Object> n) : Expr(n) {}
   TVM_DLL explicit Var(std::string name_hint = "v",
-                       Type t = Int(32));
+                       DataType t = DataType::Int(32));
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
   Var copy_with_suffix(const std::string& suffix) const {
-    return Var((*this)->name_hint + suffix, (*this)->type);
+    return Var((*this)->name_hint + suffix, (*this)->dtype);
   }
   /*!
    * \brief Get pointer to the internal value.
@@ -164,8 +166,8 @@ class IntImm : public ExprNode {
   /*! \brief the Internal value. */
   int64_t value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
@@ -230,7 +232,7 @@ class RangeNode : public Node {
   RangeNode() {}
   RangeNode(Expr min, Expr extent) : min(min), extent(extent) {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("min", &min);
     v->Visit("extent", &extent);
   }
@@ -406,7 +408,7 @@ class IterVarNode : public Node {
    */
   std::string thread_tag;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
     v->Visit("var", &var);
     v->Visit("iter_type", &iter_type);
@@ -450,7 +452,7 @@ inline const char* IterVarType2String(IterVarType t) {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(std::string name_hint, Type t = Int(32));
+TVM_DLL Var var(std::string name_hint, DataType t = DataType::Int(32));
 
 /*
  * \brief Template function to convert Map to unordered_map
@@ -485,12 +487,12 @@ class IRPrinter {
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
-  using FType = IRFunctor<void(const ObjectRef&, IRPrinter *)>;
+  using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
   TVM_DLL static FType& vtable();
 };
 
 // default print function for all nodes
-inline std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
   IRPrinter(os).Print(n);
   return os;
 }

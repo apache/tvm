@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rocm_module.cc
  */
 #include <tvm/runtime/registry.h>
@@ -68,7 +67,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+      const ObjectPtr<Object>& sptr_to_self) final;
 
 
   void SaveToFile(const std::string& file_name,
@@ -123,16 +122,9 @@ class ROCMModuleNode : public runtime::ModuleNode {
     hipDeviceptr_t global = nullptr;
     size_t nbytes = 0;
 
-    hipError_t result = hipSuccess;
-    // ROCM doesn't support hipModuleGetGlobal yet.
-    // hipError_t result = hipModuleGetGlobal(&global, &nbytes,
-    //                                    module_[device_id], global_name.c_str());
+    ROCM_DRIVER_CALL(hipModuleGetGlobal(&global, &nbytes,
+                                        module_[device_id], global_name.c_str()));
     CHECK_EQ(nbytes, expect_nbytes);
-    if (result != hipSuccess) {
-      LOG(FATAL)
-          << "ROCMError: hipModuleGetGlobal " << global_name
-          << " failed with error: " << hipGetErrorString(result);
-    }
     return global;
   }
 
@@ -158,7 +150,7 @@ class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
   void Init(ROCMModuleNode* m,
-            std::shared_ptr<ModuleNode> sptr,
+            ObjectPtr<Object> sptr,
             const std::string& func_name,
             size_t num_void_args,
             const std::vector<std::string>& thread_axis_tags) {
@@ -204,7 +196,7 @@ class ROCMWrappedFunc {
   // internal module
   ROCMModuleNode* m_;
   // the resource holder
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // Device function cache per device.
@@ -217,7 +209,7 @@ class ROCMWrappedFunc {
 
 PackedFunc ROCMModuleNode::GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) {
+      const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
@@ -235,8 +227,7 @@ Module ROCMModuleCreate(
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string hip_source,
     std::string assembly) {
-  std::shared_ptr<ROCMModuleNode> n =
-    std::make_shared<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
+  auto n = make_object<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return Module(n);
 }
 

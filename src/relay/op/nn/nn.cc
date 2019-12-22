@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file nn.cc
  * \brief Property def of nn operators.
  */
@@ -405,10 +404,15 @@ bool BatchFlattenRel(const Array<Type>& types,
   if (data == nullptr) return false;
   if (data->shape.size() == 0) return false;
 
-  auto target_dim = make_const(Int(32), 1);
+  auto target_dim = make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    target_dim = target_dim * data->shape[i];
+    if (!data->shape[i].as<ir::Any>()) {
+      target_dim = target_dim * data->shape[i];
+    } else {
+      target_dim = data->shape[i];
+      break;
+    }
   }
 
   std::vector<IndexExpr> oshape({data->shape[0], target_dim});
@@ -910,7 +914,7 @@ bool CrossEntropyRel(const Array<Type>& types,
   return true;
 }
 
-// Positional relay function to create batch_matmul operator used by frontend FFI.
+// Positional relay function to create cross_entropy operator used by frontend FFI.
 Expr MakeCrossEntropy(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy");
   return CallNode::make(op, {predictions, targets}, Attrs(), {});
@@ -925,6 +929,29 @@ RELAY_REGISTER_OP("nn.cross_entropy")
 .describe(R"code(
 Computes cross entropy given predictions and targets.
 Do log on the data - do not accept logits.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("x", "1D Tensor", "Predictions.")
+.add_argument("y", "1D Tensor", "Targets.")
+.set_support_level(10)
+.add_type_rel("CrossEntropy", CrossEntropyRel);
+
+
+// Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
+Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
+  static const Op& op = Op::Get("nn.cross_entropy_with_logits");
+  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.cross_entropy_with_logits")
+.set_body_typed(MakeCrossEntropyWithLogits);
+
+
+RELAY_REGISTER_OP("nn.cross_entropy_with_logits")
+.describe(R"code(
+Computes cross entropy given predictions and targets.
+Accept logits.
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .add_argument("x", "1D Tensor", "Predictions.")

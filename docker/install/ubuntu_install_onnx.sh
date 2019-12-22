@@ -22,6 +22,7 @@ set -o pipefail
 
 # fix to certain version for now
 pip3 install onnx==1.5.0
+pip3 install onnxruntime==1.0.0
 
 # torch depends on a number of other packages, but unhelpfully, does
 # not expose that in the wheel!!!

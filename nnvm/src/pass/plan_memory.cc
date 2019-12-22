@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file plan_memory.cc
  * \brief Assign memory tag to each of the data entries.
  */
@@ -41,6 +40,7 @@ static int GetDTypeSize(int type_flag) {
     case kInt8:
       return 1;
     case kFloat16:
+    case kBfloat16:
     case kInt16:
     case kUint16:
       return 2;

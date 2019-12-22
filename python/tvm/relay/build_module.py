@@ -60,6 +60,7 @@ class BuildModule(object):
         self._get_graph_json = self.mod["get_graph_json"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
+        self._optimize = self.mod["optimize"]
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
@@ -112,6 +113,42 @@ class BuildModule(object):
         params = self.get_params()
 
         return graph_json, mod, params
+
+    def optimize(self, func, target=None, params=None):
+        """
+        Parameters
+        ----------
+        func: relay.Function
+            The function to build.
+
+        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+        device/context name) to str/tvm.target.Target, optional
+            For heterogeneous compilation, it is a dictionary indicating context
+            to target mapping. For homogeneous compilation, it is a build target.
+
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+
+        Returns
+        -------
+        mod : relay.Module
+            The optimized relay module.
+
+        params : dict
+            The parameters of the final graph.
+        """
+        target = _update_target(target)
+
+        # Setup the params.
+        if params:
+            self._set_params(params)
+        mod = self._optimize(func, target)
+        # Get artifacts
+        params = self.get_params()
+
+        return mod, params
+
 
     def _set_params(self, params):
         inputs = {}
@@ -206,6 +243,57 @@ def build(mod, target=None, target_host=None, params=None):
         bld_mod = BuildModule()
         graph_json, mod, params = bld_mod.build(func, target, target_host, params)
     return graph_json, mod, params
+
+
+def optimize(mod, target=None, params=None):
+    """Helper function that optimizes a Relay module.
+
+    Parameters
+    ----------
+    mod : relay.Module
+        The module to build. Using relay.Function is deprecated.
+
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
+    name) to str/tvm.target.Target, optional
+        For heterogeneous compilation, it is a dictionary indicating context to
+        target mapping. For homogeneous compilation, it is a build target.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    Returns
+    -------
+    mod : relay.Module
+        The optimized relay module.
+
+    params : dict
+        The parameters of the final graph.
+    """
+    if isinstance(mod, _Module):
+        func = mod["main"]
+    elif isinstance(mod, _expr.Function):
+        func = mod
+        warnings.warn(
+            "Please use input parameter mod (tvm.relay.module.Module) "
+            "instead of deprecated parameter func (tvm.relay.expr.Function)",
+            DeprecationWarning)
+    else:
+        raise ValueError("Type of input parameter mod must be tvm.relay.module.Module")
+
+    target = _update_target(target)
+
+    # If current dispatch context is fallback context (the default root context),
+    # then load pre-tuned parameters from TopHub
+    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+        tophub_context = autotvm.tophub.context(list(target.values()))
+    else:
+        tophub_context = autotvm.util.EmptyContext()
+
+    with tophub_context:
+        bld_mod = BuildModule()
+        mod, params = bld_mod.optimize(func, target, params)
+    return mod, params
 
 
 class GraphExecutor(_interpreter.Executor):

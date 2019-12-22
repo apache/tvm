@@ -37,8 +37,9 @@ TVM_REGISTER_NODE_TYPE(TargetNode);
 TVM_REGISTER_NODE_TYPE(GenericFuncNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
-  p->stream << op->str();
+.set_dispatch<TargetNode>([](const ObjectRef& node, IRPrinter *p) {
+    auto* op = static_cast<const TargetNode*>(node.get());
+    p->stream << op->str();
   });
 
 
@@ -84,7 +85,9 @@ Target CreateTarget(const std::string& target_name,
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
-  if (target_name == "c" || target_name == "llvm") {
+  if (target_name == "c" && t->device_name == "micro_dev") {
+    t->device_type = kDLMicroDev;
+  } else if (target_name == "c" || target_name == "llvm") {
     t->keys_array.push_back(ir::StringImm::make("cpu"));
   } else if (target_name == "cuda" || target_name == "nvptx") {
     t->device_type = kDLGPU;
@@ -306,6 +309,10 @@ Target intel_graphics(const std::vector<std::string>& options) {
 Target stackvm(const std::vector<std::string>& options) {
   return CreateTarget("stackvm", options);
 }
+
+Target ext_dev(const std::vector<std::string>& options) {
+  return CreateTarget("ext_dev", options);
+}
 }  // namespace target
 
 bool LLVMEnabled() {
@@ -327,12 +334,12 @@ Target DefaultTargetHost(Target target) {
 }
 
 Buffer BufferWithOffsetAlignment(Array<Expr> shape,
-                                 Type dtype,
+                                 DataType dtype,
                                  std::string name,
                                  int data_alignment,
                                  int offset_factor,
                                  bool compact) {
-  auto data = Var(name, Handle());
+  auto data = Var(name, DataType::Handle());
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -346,7 +353,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
 
   Expr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].type());
+    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
   } else {
     elem_offset = Expr();
   }
@@ -422,7 +429,6 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 2
   stmt = ir::Simplify(stmt);
-  stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
@@ -517,6 +523,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -524,6 +531,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
@@ -653,7 +661,8 @@ tvm::BuildConfig BuildConfig::Current() {
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
+.set_dispatch<BuildConfigNode>([](const ObjectRef& node, IRPrinter *p) {
+  auto* op = static_cast<const BuildConfigNode*>(node.get());
   p->stream << "build_config(";
   p->stream << "data_alignment=" << op->data_alignment << ", ";
   p->stream << "offset_factor=" << op->offset_factor << ", ";
@@ -669,6 +678,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
   p->stream << "disable_vectorize=" << op->disable_vectorize;
+  p->stream << "disable_assert=" << op->disable_assert;
   p->stream << ")";
 });
 

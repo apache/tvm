@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_amdgpu.cc
  * \brief AMDGPU code generator.
  */
@@ -36,6 +35,29 @@
 namespace tvm {
 namespace codegen {
 
+namespace {
+
+// calls the device api to get the max threads per block
+static inline int DetectROCMmaxThreadsPerBlock() {
+  TVMContext tvm_ctx;
+  tvm_ctx.device_type = kDLROCM;
+  tvm_ctx.device_id = 0;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  if (api != nullptr) {
+    TVMRetValue val;
+    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
+    if (val.operator int() == 1) {
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->
+        GetAttr(tvm_ctx, tvm::runtime::kMaxThreadsPerBlock, &val);
+      return val.operator int();
+    }
+  }
+  LOG(WARNING) << "Cannot get maximum number of threads for AMD codegen";
+  return 256;  // see the discussion at PR #4342 for the choice of default
+}
+
+}  // namespace
+
 // AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
@@ -43,6 +65,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
+    std::ostringstream attr;
+    attr << "1," << DetectROCMmaxThreadsPerBlock();
+    function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
   void VisitStmt_(const Allocate* op) final {
@@ -57,7 +82,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           << "Can only handle constant size stack allocation in GPU";
       StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->type, constant_size);
+        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
       }
       // maximum necessary alignment in the AMD devices
       if (info.alignment > 16) {
@@ -68,7 +93,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
             return builder_->CreateAlloca(
-                LLVMType(op->type), ConstInt32(constant_size));
+                LLVMType(op->dtype), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
@@ -83,7 +108,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->type), constant_size);
+        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->dtype), constant_size);
         // Allocate shared memory in global, address_space = 3
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
@@ -97,7 +122,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     buf = builder_->CreatePointerCast(
-        buf, LLVMType(op->type)->getPointerTo(
+        buf, LLVMType(op->dtype)->getPointerTo(
             buf->getType()->getPointerAddressSpace()));
     CHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
@@ -174,7 +199,7 @@ inline int DetectROCMComputeVersion(const std::string& target) {
     TVMRetValue val;
     api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
     if (val.operator int() == 1) {
-      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kGcnArch, &val);
       return val.operator int();
     }
   }
@@ -183,6 +208,11 @@ inline int DetectROCMComputeVersion(const std::string& target) {
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+#if TVM_LLVM_VERSION < 90
+  LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
+  // Lower versions will crash when loading the bitcode, see
+  // issue #4087 for a discussion
+#endif
   InitializeLLVM();
   CHECK(target.length() >= 4 &&
         target.substr(0, 4) == "rocm");
@@ -240,9 +270,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+            pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*mObj);
@@ -253,9 +287,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_AssemblyFile";
+#else
+  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
+                                llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);

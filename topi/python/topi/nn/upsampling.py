@@ -17,10 +17,12 @@
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
 import topi
+import tvm
 from ..util import simplify
 
 
-def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corners=False):
+def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
+               align_corners=False):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -31,8 +33,11 @@ def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corn
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
 
-    scale : int
-        Scaling factor
+    scale_h : float
+        Scaling factor for height
+
+    scale_w : float
+        Scaling factor for width
 
     layout : string, optional
         either "NCHW" or "NHWC"
@@ -43,14 +48,17 @@ def upsampling(data, scale, layout="NCHW", method='nearest_neighbor', align_corn
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, channel, in_height*scale, in_width*scale]
+        4-D with shape [batch, channel, in_height*scale_h, in_width*scale_w]
         or [batch, in_height*scale, in_width*scale, channel]
     """
     base_layout = layout[0:4]
     if base_layout == "NCHW":
-        out_shape = (simplify(data.shape[2] * scale), simplify(data.shape[3] * scale))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[2] * scale_h), data.shape[2].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[3] * scale_w), data.shape[3].dtype)))
     elif layout == "NHWC":
-        out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
+        out_shape = (simplify(topi.cast(tvm.round(data.shape[1] * scale_h), data.shape[1].dtype)),
+                     simplify(topi.cast(tvm.round(data.shape[2] * scale_w), data.shape[2].dtype)))
+
     else:
         raise ValueError("not support this layout {} yet".format(layout))
     return topi.image.resize(data, out_shape, layout=layout,

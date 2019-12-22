@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file narrow_channel_access.cc
  * \brief Narrow channel access to a smaller range
  *  when possible by bringing it to the internal loop.
@@ -94,7 +93,7 @@ class ChannelAccessIndexRewriter : public IRMutator {
     op = expr.as<Load>();
     if (read_access_ && buf_var_ == op->buffer_var.get()) {
       return Load::make(
-          op->type, op->buffer_var, ir::Simplify(op->index - min_),
+          op->dtype, op->buffer_var, ir::Simplify(op->index - min_),
           op->predicate);
     } else {
       return expr;

@@ -18,11 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file graph_runtime.cc
  */
-#include "graph_runtime.h"
-
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -37,6 +34,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include "graph_runtime.h"
 
 namespace tvm {
 namespace runtime {
@@ -396,7 +395,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
   // Get compiled function from the module that contains both host and device
   // code.
-  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
+  tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
   auto fexec = [arg_ptr, pf]() {
@@ -411,7 +410,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
 
 PackedFunc GraphRuntime::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -478,7 +477,7 @@ PackedFunc GraphRuntime::GetFunction(
 Module GraphRuntimeCreate(const std::string& sym_json,
                           const tvm::runtime::Module& m,
                           const std::vector<TVMContext>& ctxs) {
-  std::shared_ptr<GraphRuntime> exec = std::make_shared<GraphRuntime>();
+  auto exec = make_object<GraphRuntime>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
@@ -510,18 +509,6 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
         << args.num_args;
     const auto& contexts = GetAllContext(args);
     *rv = GraphRuntimeCreate(args[0], args[1], contexts);
-  });
-
-TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
-  .set_body([](TVMArgs args, TVMRetValue* rv) {
-    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                  "graph_runtime.remote_create is "
-                                  "at least 4, but it has "
-                               << args.num_args;
-    void* mhandle = args[1];
-    const auto& contexts = GetAllContext(args);
-    *rv = GraphRuntimeCreate(
-        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
   });
 }  // namespace runtime
 }  // namespace tvm

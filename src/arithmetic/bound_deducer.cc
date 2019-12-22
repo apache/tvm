@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
@@ -53,17 +52,17 @@ class VariablePathFinder: public IRVisitor {
     if (!found_) path_.pop_back();
   }
 
-  std::vector<const Node*> path_;
+  std::vector<const Object*> path_;
 
  private:
   bool found_{false};
   Expr target_;
-  std::unordered_set<const Node*> visited_;
+  std::unordered_set<const Object*> visited_;
 };
 
 // get the path to the variable,
 // return empty vector to represent failure
-std::vector<const Node*> GetPath(Expr target, Expr expr) {
+std::vector<const Object*> GetPath(Expr target, Expr expr) {
   VariablePathFinder v(target);
   v.Visit(expr);
   return v.path_;
@@ -133,7 +132,7 @@ class BoundDeducer: public IRVisitor {
     Expr target_var = left ? op->a : op->b;
 
     SignType sign_operand;
-    if (operand.type().is_uint()) {
+    if (operand.dtype().is_uint()) {
       sign_operand = kPositive;
     } else {
       sign_operand = expr_map_[operand].sign_type();
@@ -189,7 +188,7 @@ class BoundDeducer: public IRVisitor {
   const std::unordered_map<const Variable*, IntSet>& hint_map_;
   const std::unordered_map<const Variable*, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
-  std::vector<const Node*> path_;
+  std::vector<const Object*> path_;
   size_t iter_{0};
   // internal analzyer
   Analyzer analyzer_;

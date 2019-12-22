@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file graph_fuse.h
  * \brief Definition of structs used by graph fusion
 */
@@ -48,7 +47,7 @@ enum class FuseRule {
  * \return corresponding DLDataType
  */
 inline DLDataType GetDLType(int type_flag) {
-  return tvm::Type2TVMType(GetTVMType(type_flag));
+  return GetTVMType(type_flag);
 }
 
 struct INodeEntryHash {

@@ -19,7 +19,6 @@
 
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file pooling.cc
  * \brief Property def of pooling operators.
  */

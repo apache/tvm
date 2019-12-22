@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/backend/vm/compiler.cc
  * \brief A compiler from relay::Module to the VM byte code.
  */
@@ -31,6 +30,7 @@
 #include <tvm/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/relay/attrs/memory.h>
 #include <topi/tags.h>
 #include <algorithm>
 #include <iostream>
@@ -44,6 +44,7 @@
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
+#include "../../op/op_common.h"
 #include "compiler.h"
 
 namespace tvm {
@@ -53,6 +54,13 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
+Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions);
+
+Pass ManifestAlloc(Target target_host) {
+  auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
+  CHECK(f != nullptr) << "could not load memory allocation pass";
+  return (*f)(target_host);
+}
 
 }  // namespace transform
 
@@ -194,6 +202,39 @@ TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> 
   return else_branch;
 }
 
+std::vector<int64_t> ToAllocTensorShape64(NDArray shape) {
+  std::vector<int64_t> raw_shape;
+  DLTensor tensor = shape.ToDLPack()->dl_tensor;
+  CHECK_EQ(tensor.ndim, 1u);
+  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
+
+  // TODO(@jroesch): we really need to standaridize the bit width of
+  // all of the shape manipulating code.
+  CHECK_EQ(tensor.dtype.bits, 64) << "found " << tensor.dtype.bits;
+  int64_t* int_ptr = reinterpret_cast<int64_t*>(tensor.data);
+  for (auto i = 0; i < tensor.shape[0]; i++) {
+    raw_shape.push_back(int_ptr[i]);
+  }
+  return raw_shape;
+}
+
+
+std::vector<int64_t> ToAllocTensorShape32(NDArray shape) {
+  std::vector<int64_t> raw_shape;
+  DLTensor tensor = shape.ToDLPack()->dl_tensor;
+  CHECK_EQ(tensor.ndim, 1u);
+  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
+
+  // TODO(@jroesch): we really need to standaridize the bit width of
+  // all of the shape manipulating code.
+  CHECK_LE(tensor.dtype.bits, 32) << "found " << tensor.dtype.bits;
+  int32_t* int_ptr = reinterpret_cast<int32_t*>(tensor.data);
+  for (auto i = 0; i < tensor.shape[0]; i++) {
+    raw_shape.push_back(static_cast<int64_t>(int_ptr[i]));
+  }
+  return raw_shape;
+}
+
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
   VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
@@ -248,13 +289,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       case Opcode::LoadConsti:
       case Opcode::Invoke:
       case Opcode::AllocClosure:
+      case Opcode::AllocStorage:
       case Opcode::Move:
       case Opcode::InvokeClosure:
         last_register_ = instr.dst;
         break;
       case Opcode::InvokePacked:
-        last_register_ = instr.packed_args[instr.arity - 1];
-        break;
       case Opcode::If:
       case Opcode::Ret:
       case Opcode::Goto:
@@ -302,7 +342,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const LetNode* let_node) {
-    DLOG(INFO) << AsText(let_node->value);
+    DLOG(INFO) << PrettyPrint(let_node->value);
     this->VisitExpr(let_node->value);
     var_register_map_.insert({let_node->var, this->last_register_});
     this->VisitExpr(let_node->body);
@@ -369,100 +409,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     this->last_register_ = true_register;
   }
 
-  Index EmitGetShape(const TensorTypeNode* ttype, Index reg) {
-    bool const_shape = true;
-    std::vector<int64_t> shape;
-    for (auto dim : ttype->shape) {
-      if (auto kdim = dim.as<IntImm>()) {
-        shape.push_back(kdim->value);
-      } else {
-        const_shape = false;
-      }
-    }
-    if (const_shape) {
-      int64_t ndim = shape.size();
-      DLContext cpu_ctx;
-      cpu_ctx.device_type = kDLCPU;
-      cpu_ctx.device_id = 0;
-      NDArray shape_tensor;
-      if (ndim == 0) {
-        shape_tensor = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
-      } else {
-        shape_tensor = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
-        int64_t* dims = reinterpret_cast<int64_t*>(shape_tensor->data);
-        for (size_t i = 0; i < shape.size(); ++i) {
-          dims[i] = shape[i];
-        }
-      }
-      size_t konst_idx = context_->constants.size();
-      context_->constants.push_back(shape_tensor);
-      Emit(Instruction::LoadConst(konst_idx, NewRegister()));
-      return last_register_;
-    }
-    // For dynamic shape, we need insert shape_of op to get its shape at runtime
-    auto attrs = make_node<ShapeOfAttrs>();
-    attrs->dtype = Int(64);
-    static const Op& op = Op::Get("shape_of");
-    auto input = VarNode::make("input", GetRef<Type>(ttype));
-    auto expr = CallNode::make(op, {input}, Attrs(attrs), {});
-    auto func = FunctionNode::make({input}, expr, IncompleteTypeNode::make(Kind::kType), {});
-    auto mod = ModuleNode::make({}, {});
-    auto main_gv = GlobalVarNode::make("main");
-    mod->Add(main_gv, func);
-    func = mod->Lookup(main_gv);
-
-    // shape_of op has to be run on the host target
-    // TODO(@icemelon9): handle heterogeneous target, such as cuda
-    auto key = CCacheKeyNode::make(func, target_host_);
-    auto cfunc = engine_->Lower(key);
-    auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
-      op_index = context_->cached_funcs.size();
-      context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
-    } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
-    std::vector<Index> arg_regs{reg};
-    int64_t ndim = ttype->shape.size();
-    if (ndim == 0) {
-      Emit(Instruction::AllocTensor({}, Int(64), NewRegister()));
-    } else {
-      Emit(Instruction::AllocTensor({ndim}, Int(64), NewRegister()));
-    }
-    Index shape_reg = last_register_;
-    arg_regs.push_back(shape_reg);
-    Emit(Instruction::InvokePacked(op_index, 2, 1, arg_regs));
-    return shape_reg;
-  }
-
-  std::vector<Index> EmitShapeFunc(const Type& ret_type, const Function& func,
-                                   const std::vector<Index>& unpacked_arg_regs) {
-    // Find the mapping from params to registers
-    int idx = 0;
-    std::vector<std::vector<Index>> param_regs;
-    std::vector<std::vector<const TensorTypeNode*>> param_types;
-    for (auto param : func->params) {
-      auto ty = param->checked_type();
-      std::vector<Index> regs;
-      std::vector<const TensorTypeNode*> types;
-      if (auto ttype = ty.as<TensorTypeNode>()) {
-        regs.push_back(unpacked_arg_regs[idx++]);
-        types.push_back(ttype);
-      } else if (const auto tuple_ty = ret_type.as<TupleTypeNode>()) {
-        for (size_t j = 0; j < tuple_ty->fields.size(); ++j, ++idx) {
-          regs.push_back(unpacked_arg_regs[idx]);
-          auto ttype = tuple_ty->fields[j].as<TensorTypeNode>();
-          CHECK(ttype);
-          types.push_back(ttype);
-        }
-      } else {
-        LOG(FATAL) << "unsupported parameter type " << ty;
-      }
-      param_regs.push_back(regs);
-      param_types.push_back(types);
-    }
-
+  void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
     auto key = CCacheKeyNode::make(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
@@ -476,161 +423,187 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
 
     // Prepare input and output registers
-    std::vector<Index> shape_func_args;
-    std::vector<Index> shape_regs;
-    for (size_t i = 0; i < func->params.size(); ++i) {
-      int state = cfunc->shape_func_param_states[i]->value;
-      if (state & kNeedInputData) {
-        for (auto reg : param_regs[i]) {
-          // TODO(@icemelon9): Need to copy data here for heterogeneous exec
-          shape_func_args.push_back(reg);
-        }
-      }
-      if (state & kNeedInputShape) {
-        for (size_t j = 0; j < param_regs[i].size(); ++j) {
-          shape_func_args.push_back(EmitGetShape(param_types[i][j], param_regs[i][j]));
-        }
-      }
-    }
-    for (auto t : cfunc->outputs) {
-      int64_t ndim = t->shape[0].as<IntImm>()->value;
-      Emit(Instruction::AllocTensor({ndim}, t->dtype, NewRegister()));
-      shape_func_args.push_back(last_register_);
-      shape_regs.push_back(last_register_);
+    std::vector<Index> argument_registers;
+    for (auto input : inputs) {
+      auto reg = var_register_map_.find(Downcast<Var>(input));
+      CHECK(reg != var_register_map_.end())
+        << "internal error: all variables should be in the register mapping";
+      argument_registers.push_back(reg->second);
     }
 
-    int arity = shape_func_args.size();
-    int ret_count = shape_regs.size();
-    Emit(Instruction::InvokePacked(op_index, arity, ret_count, shape_func_args));
+    for (auto output : outputs) {
+      auto reg = var_register_map_.find(Downcast<Var>(output));
+      CHECK(reg != var_register_map_.end())
+        << "internal error: all variables should be in the register mapping";
+      argument_registers.push_back(reg->second);
+    }
 
-    // Alloc return tensors given the shape regs
-    std::vector<DataType> ret_dtypes;
-    if (const auto* tuple_type = ret_type.as<TupleTypeNode>()) {
-      for (auto field : tuple_type->fields) {
-        const TensorTypeNode* tty = field.as<TensorTypeNode>();
-        CHECK(tty);
-        ret_dtypes.push_back(tty->dtype);
-      }
-    } else {
-      auto tty = ret_type.as<TensorTypeNode>();
-      CHECK(tty);
-      ret_dtypes.push_back(tty->dtype);
-    }
-    std::vector<Index> ret_regs;
-    for (size_t i = 0; i < shape_regs.size(); ++i) {
-      Emit(Instruction::AllocTensorReg(shape_regs[i], ret_dtypes[i], NewRegister()));
-      ret_regs.push_back(last_register_);
-    }
-    return ret_regs;
+    Emit(Instruction::InvokePacked(op_index,
+      argument_registers.size(),
+      outputs.size(),
+      argument_registers));
   }
 
-  std::vector<Index> AllocReturnType(const Type& ret_type, const Function& func,
-                                     const std::vector<Index>& unpacked_arg_regs) {
-    auto op = func->body.as<CallNode>()->op;
-    // 1. If either func param types or ret type is dynamic, we need to insert
-    // shape func to perform type checking at runtime.
-    // 2. We skip the shape_of function since currently Relay doesn't support
-    // dynamic rank tensor.
-    if (op != Op::Get("shape_of") && IsDynamic(func->checked_type())) {
-      return EmitShapeFunc(ret_type, func, unpacked_arg_regs);
-    }
-    std::vector<Index> ret_regs;
-    auto alloc_tensor = [&](const TensorTypeNode* ttype) {
-      const TensorType& tensor_type = GetRef<TensorType>(ttype);
-      std::vector<int64_t> shape;
-      for (auto dim : tensor_type->shape) {
-        shape.push_back(Downcast<tvm::Integer>(dim)->value);
-      }
-      Emit(Instruction::AllocTensor(shape, Type2TVMType(tensor_type->dtype), NewRegister()));
-      ret_regs.push_back(last_register_);
-    };
-    if (const TensorTypeNode* ttype = ret_type.as<TensorTypeNode>()) {
-      alloc_tensor(ttype);
-    } else if (const TupleTypeNode* ttype = ret_type.as<TupleTypeNode>()) {
-      for (auto field : ttype->fields) {
-        alloc_tensor(field.as<TensorTypeNode>());
-      }
-    } else {
-      LOG(FATAL) << "Unsupported return value type";
-    }
-    return ret_regs;
-  }
+  void EmitInvokeTVMOp(const Function& func,
+                       const Expr& inputs,
+                       const Expr& outputs) {
+    std::vector<Index> argument_registers;
 
-  void EmitInvokePrimitive(const Function& func,
-                           const std::vector<Index>& arg_registers,
-                           const Type& ret_type) {
-    std::vector<Index> unpacked_arg_regs;
-    std::vector<Instruction> allocs;
+    CHECK(func->IsPrimitive())
+      << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
-    // Arity calculation must flatten tuples.
-    size_t arity = 0;
-    CHECK_EQ(func->params.size(), arg_registers.size());
-    for (size_t i = 0; i < func->params.size(); i++) {
-      auto ty = func->params[i]->checked_type();
-      if (ty.as<TensorTypeNode>()) {
-        unpacked_arg_regs.push_back(arg_registers[i]);
-        arity += 1;
-      } else if (auto tuple_ty = ty.as<TupleTypeNode>()) {
-        for (size_t f = 0; f < tuple_ty->fields.size(); f++) {
-          const auto& field = tuple_ty->fields[f];
-          CHECK(field.as<TensorTypeNode>())
-            << "only supports non-nested tuples currently "
-            << "found " << field;
-          auto dst =  NewRegister();
-          Emit(Instruction::GetField(arg_registers[i], f, dst));
-          unpacked_arg_regs.push_back(dst);
-        }
-        arity += tuple_ty->fields.size();
-      } else {
-        LOG(FATAL) << "unsupported parameter type " << ty;
-      }
+    auto input_tuple = inputs.as<TupleNode>();
+    CHECK(input_tuple)
+      << "internal error: invoke_tvm_op inputs must be a tuple,"
+      << "please file a bug in the memory manifestation pass";
+
+    auto output_tuple = outputs.as<TupleNode>();
+    CHECK(output_tuple)
+      << "internal error: invoke_tvm_op outputs must be a tuple,"
+      << "please file a bug in the memory manifestation pass";
+
+    for (auto input : input_tuple->fields) {
+      auto reg = var_register_map_.find(Downcast<Var>(input));
+      CHECK(reg != var_register_map_.end())
+        << "internal error: all variables should be in the register mapping";
+      argument_registers.push_back(reg->second);
     }
 
-    auto ret_regs = AllocReturnType(ret_type, func, unpacked_arg_regs);
-    size_t return_count = ret_regs.size();
-    arity += return_count;
-    for (auto reg : ret_regs) {
-      unpacked_arg_regs.push_back(reg);
+    for (auto output : output_tuple->fields) {
+      auto reg = var_register_map_.find(Downcast<Var>(output));
+      CHECK(reg != var_register_map_.end())
+        << "internal error: all variables should be in the register mapping";
+      argument_registers.push_back(reg->second);
     }
 
-    // Next generate the invoke instruction.
-    CHECK(func->IsPrimitive());
     Target target;
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      for (auto kv : targets_) {
-        target = kv.second;
-      }
+
+    if (!func->UseDefaultCompiler()) {
+      target = tvm::target::ext_dev();
     } else {
-      // heterogeneous execution.
-      LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      // Next generate the invoke instruction.
+      if (targets_.size() == 1) {
+        // homogeneous execution.
+        const auto& it = targets_.begin();
+        target = (*it).second;
+      } else {
+        // heterogeneous execution.
+        LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      }
     }
+
     auto key = CCacheKeyNode::make(func, target);
     auto cfunc = engine_->Lower(key);
-    // TODO(jroesch): support lowered funcs for multiple targets
-    CHECK_EQ(cfunc->funcs.size(), 1);
+
     auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+    if (!func->UseDefaultCompiler()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
-    }
-
-    Emit(Instruction::InvokePacked(op_index, arity, return_count, unpacked_arg_regs));
-
-    if (return_count > 1) {
-      // return value is a tuple, we need to create a tuple
-      std::vector<Index> fields_registers;
-      for (size_t i = arity - return_count; i < arity; ++i) {
-        fields_registers.push_back(unpacked_arg_regs[i]);
+      // TODO(jroesch): support lowered funcs for multiple targets
+      CHECK_EQ(cfunc->funcs.size(), 1);
+      if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+        op_index = context_->cached_funcs.size();
+        context_->cached_funcs.push_back(cfunc);
+        context_->seen_funcs[cfunc->funcs[0]] = op_index;
+      } else {
+        op_index = context_->seen_funcs[cfunc->funcs[0]];
       }
-      Emit(Instruction::AllocADT(0, return_count, fields_registers, NewRegister()));
     }
+
+    Emit(Instruction::InvokePacked(op_index,
+      argument_registers.size(),
+      output_tuple->fields.size(),
+      argument_registers));
   }
 
   void VisitExpr_(const CallNode* call_node) {
+    Expr op = call_node->op;
+
+    // First we handle the case in which we are using an opaque
+    // operator used to define a sub-dialect, such as memory
+    // allocation operations.
+    if (op.as<OpNode>()) {
+      OpMatch<void> matcher;
+      matcher.Match("memory.invoke_tvm_op",
+        [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+          CHECK_EQ(args.size(), 3);
+          EmitInvokeTVMOp(Downcast<Function>(args[0]), args[1], args[2]);
+      }).Match("memory.alloc_tensor",
+        [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+          CHECK_EQ(args.size(), 2);
+
+          // Get the attributes.
+          auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+          CHECK(alloc_attrs != nullptr)
+              << "must be the alloc tensor attrs";
+          auto dtype = alloc_attrs->dtype;
+
+          // The storage will be passed dynamically.
+          this->VisitExpr(args[0]);
+          auto storage_register = last_register_;
+
+          // If the shape is constant then we will emit a static tensor allocation instruction.
+          auto const_shape = args[1].as<ConstantNode>();
+
+          if (const_shape) {
+            NDArray shape = const_shape->data;
+            std::vector<int64_t> raw_shape;
+            DLTensor tensor = shape.ToDLPack()->dl_tensor;
+            // TODO(@jroesch): we need to get an RFC done to standarize this
+            if (tensor.dtype.bits == 64) {
+              raw_shape = ToAllocTensorShape64(shape);
+            } else if (tensor.dtype.bits == 32) {
+              raw_shape = ToAllocTensorShape32(shape);
+            } else {
+              LOG(FATAL) << "unsupported bitwidth: " << tensor.dtype.bits;
+            }
+
+            // Add context field.
+            Emit(Instruction::AllocTensor(storage_register, raw_shape, dtype, NewRegister()));
+          } else {
+            this->VisitExpr(args[1]);
+            auto shape_register = last_register_;
+            Emit(Instruction::AllocTensorReg(
+              storage_register,
+              shape_register,
+              dtype,
+              NewRegister()));
+          }
+      }).Match("memory.alloc_storage",
+        [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+          CHECK_EQ(args.size(), 2);
+          // Compute the size of the allocation.
+          this->VisitExpr(args[0]);
+          auto size_register = last_register_;
+
+          this->VisitExpr(args[1]);
+          auto alignment_register = last_register_;
+
+          // Get the dtype hint from the attributes.
+          auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+          CHECK(alloc_attrs != nullptr)
+              << "must be the alloc tensor attrs";
+          auto dtype = alloc_attrs->dtype;
+
+          Emit(Instruction::AllocStorage(size_register, alignment_register, dtype, NewRegister()));
+      }).Match("memory.shape_func",
+        [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+          CHECK_EQ(args.size(), 3);
+          auto shape_func = Downcast<Function>(args[0]);
+          auto inputs = Downcast<Tuple>(args[1]);
+          auto outputs = Downcast<Tuple>(args[2]);
+          EmitShapeFunc(shape_func, inputs->fields, outputs->fields);
+      }).Match("memory.kill",
+        [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+          LOG(FATAL) << "memory.kill is not yet supported";
+      });
+      matcher(GetRef<Call>(call_node));
+      return;
+    }
+
+    // In the case its not one of these specialized operators we will generate code
+    // for one of the "standard" cases.
     std::vector<Index> args_registers;
 
     for (auto arg : call_node->args) {
@@ -638,18 +611,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       args_registers.push_back(last_register_);
     }
 
-    Expr op = call_node->op;
-
-    if (auto func_node = op.as<FunctionNode>()) {
-      CHECK(func_node->IsPrimitive());
-      EmitInvokePrimitive(GetRef<Function>(func_node), args_registers, call_node->checked_type());
-    } else if (auto global_node = op.as<GlobalVarNode>()) {
+    if (auto global_node = op.as<GlobalVarNode>()) {
+      // In the case we are invoking a global we need to find its
+      // global ID, and then check whether it is closure invocation
+      // or whether it is a standard global, and emit the correct
+      // calling convention.
       auto global = GetRef<GlobalVar>(global_node);
       auto it = context_->global_map.find(global);
       CHECK(it != context_->global_map.end());
       DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                       << " with func_index=" << it->second;
-
       auto func = context_->module->Lookup(global);
       if (IsClosure(func)) {
         auto arity = func->params.size();
@@ -658,14 +629,21 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         Emit(Instruction::Invoke(it->second, args_registers, NewRegister()));
       }
     } else if (auto constructor_node = op.as<ConstructorNode>()) {
+      // In the constructor case, we simply need to find its tag
+      // and emit a call to allocate the data structure.
       auto constructor = GetRef<Constructor>(constructor_node);
       Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
                                       NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
+      // If we are calling a variable, it must be the case that it is a closure so we
+      // emit invoke closure here.
       VisitExpr(GetRef<Var>(var_node));
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
-      LOG(FATAL) << "unsupported case in vm compiler: " << op;
+      // Finally if there are any other cases this is a bug.
+      LOG(FATAL) << "internal error: unreachable code,"
+                 << "should be transformed away by previous passes"
+                 << PrettyPrint(GetRef<Expr>(call_node));
     }
   }
 
@@ -776,7 +754,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
-                                   const std::shared_ptr<ModuleNode>& sptr_to_self) {
+                                   const ObjectPtr<Object>& sptr_to_self) {
   if (name == "compile") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
@@ -836,7 +814,6 @@ relay::Function VMCompiler::BindParamsByName(
   return ret;
 }
 
-
 void VMCompiler::Compile(Module mod,
                          const TargetsMap& targets,
                          const tvm::Target& target_host) {
@@ -852,8 +829,7 @@ void VMCompiler::Compile(Module mod,
   targets_ = targets;
   target_host_ = target_host;
 
-  // Run some optimizations first, this code should
-  // be moved to pass manager.
+  // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModule(mod, targets_);
 
   // Populate the global map.
@@ -885,7 +861,7 @@ void VMCompiler::Compile(Module mod,
 
   // populate constants
   for (auto data : context_.constants) {
-    exec_->constants.push_back(runtime::vm::Tensor(data));
+    exec_->constants.push_back(vm::Tensor(data));
   }
 
   LibraryCodegen();
@@ -897,6 +873,8 @@ void VMCompiler::Compile(Module mod,
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
+  Array<tvm::Expr> entry_functions{tvm::Expr{"main"}};
+  pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
 
@@ -904,6 +882,10 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   if (targets.size() == 1) {
     pass_seqs.push_back(transform::Legalize());
   }
+
+  // eta expand to support constructors in argument position
+  pass_seqs.push_back(transform::EtaExpand(
+    /* expand_constructor */ true, /* expand_global_var */ false));
 
   pass_seqs.push_back(transform::SimplifyInference());
   PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
@@ -913,7 +895,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
-        if (attrs->dtype == Int(32)) {
+        if (attrs->dtype == DataType::Int(32)) {
           *rv = true;
         }
       }
@@ -942,6 +924,15 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
   pass_seqs.push_back(transform::LambdaLift());
   pass_seqs.push_back(transform::InlinePrimitives());
 
+  // Manifest the allocations.
+  pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
+  // Compute away possibly introduced constant computation.
+  pass_seqs.push_back(transform::FoldConstant());
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
+  // Manifest the allocations needed for the shape functions.
+  pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
+
   transform::Sequential seq(pass_seqs);
   transform::PassContext pass_ctx = PassContext::Current();
   // TODO(wweic): Support heterogenous execution
@@ -968,37 +959,51 @@ void VMCompiler::LibraryCodegen() {
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, Array<LoweredFunc>> tgt_funcs;
-  for (auto &cfunc : cached_funcs) {
+  std::unordered_map<std::string, Array<LoweredFunc>> funcs;
+  for (auto& cfunc : cached_funcs) {
     std::string target_str = cfunc->target->str();
-    if (tgt_funcs.count(target_str) == 0) {
-      tgt_funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+    if (target_str == "ext_dev") {
+      continue;
+    } else if (funcs.count(target_str) == 0) {
+      funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
     } else {
-      tgt_funcs[target_str].push_back(cfunc->funcs[0]);
+      funcs[target_str].push_back(cfunc->funcs[0]);
     }
   }
-  Map<Target, Array<LoweredFunc>> funcs;
-  for (auto &it : tgt_funcs) {
-    funcs.Set(Target::Create(it.first), it.second);
-  }
 
-  if (const auto *f = runtime::Registry::Get("relay.backend.build")) {
-    // The target is just a dummy arg because funcs already contains corresponding target
-    // therefore target won't be used in the build function
-    runtime::Module mod = (*f)(funcs, Target(), target_host_);
+  auto compile_engine = CompileEngine::Global();
+  auto ext_mods = compile_engine->LowerExternalFunctions();
+  runtime::Module mod;
+  if (funcs.size() > 0) {
+    mod = tvm::build(funcs, target_host_, tvm::BuildConfig::Current());
     CHECK(mod.operator->());
-    exec_->lib = mod;
   } else {
-    LOG(FATAL) << "relay.backend.build is not registered";
+    CHECK_EQ(ext_mods.size(), 1U)
+        << "Expect to have a TVM DSOModule when multiple runtime modules exist";
   }
+  if (!ext_mods.empty()) {
+    if (funcs.size() == 0) {
+      mod = ext_mods[0];
+    } else {
+      // Import all external runtime modules.
+      for (auto it : ext_mods) {
+        mod.Import(it);
+      }
+    }
+  }
+  exec_->lib = mod;
   size_t primitive_index = 0;
   for (auto cfunc : cached_funcs) {
-    exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    if (cfunc->target->str() == "ext_dev") {
+      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    } else {
+      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    }
   }
 }
 
 runtime::Module CreateVMCompiler() {
-  std::shared_ptr<VMCompiler> exec = std::make_shared<VMCompiler>();
+  auto exec = make_object<VMCompiler>();
   return runtime::Module(exec);
 }
 

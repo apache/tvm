@@ -36,6 +36,7 @@ else:
 
 CURRENT_DIR = os.path.dirname(__file__)
 
+
 def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
@@ -56,7 +57,9 @@ def get_lib_path():
         libs = None
     return libs, version
 
+
 LIB_LIST, __version__ = get_lib_path()
+
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
@@ -101,12 +104,14 @@ def config_cython():
         print("WARNING: Cython is not installed, will compile without cython module")
         return []
 
+
 class BinaryDistribution(Distribution):
     def has_ext_modules(self):
         return True
 
     def is_pure(self):
         return False
+
 
 include_libs = False
 wheel_include_libs = False
@@ -138,6 +143,12 @@ if include_libs:
         "data_files": [('tvm', LIB_LIST)]
     }
 
+
+def get_package_data_files():
+    # Relay standard libraries
+    return ['relay/std/prelude.rly']
+
+
 setup(name='tvm',
       version=__version__,
       description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
@@ -148,9 +159,20 @@ setup(name='tvm',
         'attrs',
         'psutil',
         ],
+      extras_require={'test': ['pillow',
+                               'matplotlib'],
+                      'extra_feature': ['tornado',
+                                        'psutil',
+                                        'xgboost',
+                                        'mypy',
+                                        'orderedset',
+                                        'antlr4-python3-runtime']},
+
       packages=find_packages(),
+      package_dir={'tvm': 'tvm'},
+      package_data={'tvm': get_package_data_files()},
       distclass=BinaryDistribution,
-      url='https://github.com/dmlc/tvm',
+      url='https://github.com/apache/incubator-tvm',
       ext_modules=config_cython(),
       **setup_kwargs)
 

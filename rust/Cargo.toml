@@ -22,7 +22,7 @@ members = [
 	"runtime",
 	"runtime/tests/test_tvm_basic",
 	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_nnvm",
+	"runtime/tests/test_nn",
 	"frontend",
 	"frontend/tests/basics",
 	"frontend/tests/callback",

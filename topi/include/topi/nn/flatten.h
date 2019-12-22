@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Softmax op constructions
  * \file nn/flatten.h
  */
@@ -52,9 +51,9 @@ inline Tensor flatten(const Tensor& x,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
   auto ishape = x->shape;
-  int dim = 1;
+  Expr dim = 1;
   for (size_t i = 1; i < ishape.size(); ++i) {
-    dim = dim * static_cast<int>(topi::detail::GetConstInt(ishape[i]));
+    dim = dim * ishape[i];
   }
 
   Array<Expr> oshape({ ishape[0], dim });

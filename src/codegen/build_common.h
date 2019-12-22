@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Common build utilities
  * \file build_common.h
  */
@@ -40,7 +39,7 @@ ExtractFuncInfo(const Array<LoweredFunc>& funcs) {
   for (LoweredFunc f : funcs) {
     runtime::FunctionInfo info;
     for (size_t i = 0; i < f->args.size(); ++i) {
-      info.arg_types.push_back(Type2TVMType(f->args[i].type()));
+      info.arg_types.push_back(f->args[i].dtype());
     }
     for (size_t i = 0; i < f->thread_axis.size(); ++i) {
       info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);

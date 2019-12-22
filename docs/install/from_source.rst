@@ -29,7 +29,7 @@ To get started, clone TVM repo from github. It is important to clone the submodu
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm tvm
 
 For windows users who use github tools, you can open the git shell, and type the following command.
 
@@ -106,6 +106,14 @@ The configuration of TVM can be modified by `config.cmake`.
       cd build
       cmake ..
       make -j4
+
+  - You can also use Ninja build system instead of Unix Makefiles. It can be faster to build than using Makefiles.
+
+  .. code:: bash
+
+      cd build
+      cmake .. -G Ninja
+      ninja
 
 If everything goes well, we can go to :ref:`python-package-installation`
 
@@ -195,10 +203,11 @@ Python dependencies
 
        pip3 install --user tornado psutil xgboost
 
-   * If you want to parse Relay text format progams, you must use Python 3 and run the following
+   * If you want to build tvm to compile a model, you must use Python 3 and run the following
 
    .. code:: bash
 
+       sudo apt install antlr4
        pip3 install --user mypy orderedset antlr4-python3-runtime
 
 

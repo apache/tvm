@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file calibrate.cc
  *
@@ -57,7 +56,7 @@ class StatsCollector : private ExprMutator {
       // rewrite the annotation
       auto new_attrs = make_node<SimulatedQuantizeAttrs>();
       const Expr& quantize_input = new_call->args[0];  // expression being quantized
-      auto placeholder = MakeConstantScalar(Float(32), 0.);  // unused argument
+      auto placeholder = MakeConstantScalar(DataType::Float(32), 0.);  // unused argument
       Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};
       new_attrs->kind = QAnnotateKind::kQIdentity;
       new_attrs->sign = attrs->sign;
@@ -87,12 +86,12 @@ class StatsCollector : private ExprMutator {
  * \param expr The simulation graph after annotation.
  * \return The profile graph.
  */
-Expr CollectStats(const Expr& expr) {
+Expr CreateStatsCollector(const Expr& expr) {
   return StatsCollector().Collect(expr);
 }
 
-TVM_REGISTER_API("relay._quantize.CollectStats")
-.set_body_typed(CollectStats);
+TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
+.set_body_typed(CreateStatsCollector);
 
 }  // namespace quantize
 }  // namespace relay

@@ -379,9 +379,9 @@ def log_softmax_grad(orig, grad):
 @register_gradient("nn.bias_add")
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
-    data, bias = orig.args
+    data = orig.args[0]
     return [collapse_sum_like(grad, data),
-            collapse_sum_like(grad, bias)]
+            _sum(grad, orig.attrs.axis, keepdims=False, exclude=True)]
 
 
 @register_gradient("nn.dense")
@@ -449,3 +449,12 @@ def cross_entropy_grad(orig, grad):
     batch_size = take(shape, const(0, dtype='int32'), axis=0)
     grad = grad / batch_size.astype('float32')
     return [-grad * y / x, -grad * log(x)]
+
+
+@register_gradient("nn.cross_entropy_with_logits")
+def cross_entropy_with_logits_grad(orig, grad):
+    x, y = orig.args
+    shape = shape_of(x)
+    batch_size = take(shape, const(0, dtype='int32'), axis=0)
+    grad = grad / batch_size.astype('float32')
+    return [-grad * y, -grad * x]

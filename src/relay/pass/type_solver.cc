@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
@@ -153,7 +152,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   // default: unify only if alpha-equal
   Type VisitTypeDefault_(const Node* op, const Type& tn) final {
     NodeRef nr = GetRef<NodeRef>(op);
-    Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    Type t1 = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     if (!AlphaEqual(t1, tn)) {
       return Type(nullptr);
     }
@@ -411,7 +410,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Node* op) override {
     NodeRef nr = GetRef<NodeRef>(op);
-    Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     UpdateRelSet(t);
   }
 
@@ -495,7 +494,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 
   void VisitTypeDefault_(const Node* op) override {
     NodeRef nr = GetRef<NodeRef>(op);
-    Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     TransferLinks(t);
   }
 
@@ -530,8 +529,10 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 };
 
 // constructor
-TypeSolver::TypeSolver(const GlobalVar& current_func, const Module& module,
-                       ErrorReporter* err_reporter)
+TypeSolver::TypeSolver(
+  const GlobalVar& current_func,
+  const Module& module,
+  ErrorReporter* err_reporter)
     : reporter_(make_node<Reporter>(this)),
       current_func(current_func),
       err_reporter_(err_reporter),

@@ -39,7 +39,7 @@ Check out the `/tvm/install/ubuntu_install_sgx.sh` for the commands to get these
 If using Docker, start by running
 
 ```
-git clone --recursive https://github.com/dmlc/tvm.git
+git clone --recursive https://github.com/apache/incubator-tvm.git tvm
 docker run --rm -it -v $(pwd)/tvm:/mnt tvmai/ci-cpu /bin/bash
 ```
 then, in the container
@@ -49,7 +49,7 @@ mkdir build && cd build
 cmake .. -DUSE_LLVM=ON -DUSE_SGX=/opt/sgxsdk -DRUST_SGX_SDK=/opt/rust-sgx-sdk
 make -j4
 cd ..
-pip install -e python -e topi/python -e nnvm/python
+pip install -e python -e topi/python
 cd apps/sgx
 ```
 

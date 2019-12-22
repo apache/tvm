@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file partition.cc
  *
@@ -42,7 +41,7 @@ class QPartitionExprNode : public TempExprNode {
   /*! \brief The original expression */
   Expr expr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("expr", &expr);
   }
 

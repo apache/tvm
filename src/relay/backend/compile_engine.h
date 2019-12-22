@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/compile_engine.h
  * \brief Internal compialtion engine handle function cache.
  *  and interface to low level code generation.
@@ -27,6 +26,7 @@
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
 #include <tvm/lowered_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
@@ -59,7 +59,7 @@ struct CachedFuncNode : public Node {
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("target", &target);
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
@@ -84,7 +84,7 @@ class CCacheKeyNode : public Node {
   /*! \brief The hardware target.*/
   Target target;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
   }
@@ -141,7 +141,7 @@ class CCacheValueNode : public Node {
   /*! \brief usage statistics */
   int use_count{0};
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("cached_func", &cached_func);
     v->Visit("use_count", &use_count);
   }
@@ -187,11 +187,17 @@ class CompileEngineNode : public Node {
    * \return The result.
    */
   virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
+  /*!
+   * \brief Lower the external function using external codegen tools.
+   * \return The runtime moduels for each needed external codegen tool.
+   */
+  virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
+
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
 
   // VisitAttrs
-  void VisitAttrs(AttrVisitor*) final {}
+  void VisitAttrs(AttrVisitor*) {}
 
   static constexpr const char* _type_key = "relay.CompileEngine";
   TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);

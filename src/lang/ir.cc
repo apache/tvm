@@ -35,7 +35,7 @@ Expr UIntImm::make(DataType t, uint64_t value) {
   CHECK(t.is_uint() && t.lanes() == 1)
       << "ValueError: UIntImm can only take scalar";
   NodePtr<UIntImm> node = make_node<UIntImm>();
-  node->type = t;
+  node->dtype = t;
   node->value = value;
   return Expr(node);
 }
@@ -44,23 +44,23 @@ Expr FloatImm::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
   NodePtr<FloatImm> node = make_node<FloatImm>();
-  node->type = t;
+  node->dtype = t;
   node->value = value;
   return Expr(node);
 }
 
 Expr StringImm::make(std::string value) {
   NodePtr<StringImm> node = make_node<StringImm>();
-  node->type = Handle();
+  node->dtype = DataType::Handle();
   node->value = std::move(value);
   return Expr(node);
 }
 
 Expr Cast::make(DataType t, Expr value) {
   CHECK(value.defined());
-  CHECK_EQ(t.lanes(), value.type().lanes());
+  CHECK_EQ(t.lanes(), value.dtype().lanes());
   NodePtr<Cast> node = make_node<Cast>();
-  node->type = t;
+  node->dtype = t;
   node->value = std::move(value);
   return Expr(node);
 }
@@ -68,12 +68,12 @@ Expr Cast::make(DataType t, Expr value) {
 Expr And::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
-  CHECK(a.type().is_bool());
-  CHECK(b.type().is_bool());
-  CHECK(a.type() == b.type()) << "TypeError: mismatched types";
+  CHECK(a.dtype().is_bool());
+  CHECK(b.dtype().is_bool());
+  CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   NodePtr<And> node = make_node<And>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
@@ -82,12 +82,12 @@ Expr And::make(Expr a, Expr b) {
 Expr Or::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
-  CHECK(a.type().is_bool());
-  CHECK(b.type().is_bool());
-  CHECK(a.type() == b.type()) << "TypeError: mismatched types";
+  CHECK(a.dtype().is_bool());
+  CHECK(b.dtype().is_bool());
+  CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
   NodePtr<Or> node = make_node<Or>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
@@ -95,10 +95,10 @@ Expr Or::make(Expr a, Expr b) {
 
 Expr Not::make(Expr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
-  CHECK(a.type().is_bool());
+  CHECK(a.dtype().is_bool());
 
   NodePtr<Not> node = make_node<Not>();
-  node->type = Bool(a.type().lanes());
+  node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   return Expr(node);
 }
@@ -107,27 +107,27 @@ Expr Select::make(Expr condition, Expr true_value, Expr false_value) {
   CHECK(condition.defined()) << "ValueError: condition is undefined";
   CHECK(true_value.defined()) << "ValueError: true_value is undefined";
   CHECK(false_value.defined()) << "ValueError: true_value is undefined";
-  CHECK(condition.type().is_bool());
-  CHECK_EQ(condition.type().lanes(), true_value.type().lanes());
-  CHECK(false_value.type() == true_value.type()) << "TypeError: mismatched types";
+  CHECK(condition.dtype().is_bool());
+  CHECK_EQ(condition.dtype().lanes(), true_value.dtype().lanes());
+  CHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
 
   NodePtr<Select> node = make_node<Select>();
-  node->type = true_value.type();
+  node->dtype = true_value.dtype();
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
   node->false_value = std::move(false_value);
   return Expr(node);
 }
 
-Expr Load::make(DataType type, Var buffer_var, Expr index, Expr predicate) {
+Expr Load::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
   CHECK(buffer_var.defined());
   CHECK(predicate.defined());
   CHECK(index.defined());
-  CHECK_EQ(type.lanes(), index.type().lanes());
-  CHECK_EQ(type.lanes(), predicate.type().lanes());
+  CHECK_EQ(dtype.lanes(), index.dtype().lanes());
+  CHECK_EQ(dtype.lanes(), predicate.dtype().lanes());
 
   NodePtr<Load> node = make_node<Load>();
-  node->type = type;
+  node->dtype = dtype;
   node->buffer_var = std::move(buffer_var);
   node->index = std::move(index);
   node->predicate = std::move(predicate);
@@ -138,13 +138,13 @@ Expr Load::make(DataType type, Var buffer_var, Expr index, Expr predicate) {
 Expr Ramp::make(Expr base, Expr stride, int lanes) {
   CHECK(base.defined());
   CHECK(stride.defined());
-  CHECK(base.type().is_scalar());
-  CHECK(stride.type().is_scalar());
+  CHECK(base.dtype().is_scalar());
+  CHECK(stride.dtype().is_scalar());
   CHECK_GT(lanes, 1);
-  CHECK_EQ(stride.type(), base.type());
+  CHECK_EQ(stride.dtype(), base.dtype());
 
   NodePtr<Ramp> node = make_node<Ramp>();
-  node->type = base.type().with_lanes(lanes);
+  node->dtype = base.dtype().with_lanes(lanes);
   node->base = base;
   node->stride = stride;
   node->lanes = lanes;
@@ -153,11 +153,11 @@ Expr Ramp::make(Expr base, Expr stride, int lanes) {
 
 Expr Broadcast::make(Expr value, int lanes) {
   CHECK(value.defined());
-  CHECK(value.type().is_scalar());
+  CHECK(value.dtype().is_scalar());
   CHECK_GT(lanes, 1);
 
   NodePtr<Broadcast> node = make_node<Broadcast>();
-  node->type = value.type().with_lanes(lanes);
+  node->dtype = value.dtype().with_lanes(lanes);
   node->value = std::move(value);
   node->lanes = lanes;
   return Expr(node);
@@ -166,10 +166,10 @@ Expr Broadcast::make(Expr value, int lanes) {
 Expr Let::make(Var var, Expr value, Expr body) {
   CHECK(value.defined());
   CHECK(body.defined());
-  CHECK_EQ(value.type(), var.type());
+  CHECK_EQ(value.dtype(), var.dtype());
 
   NodePtr<Let> node = make_node<Let>();
-  node->type = body.type();
+  node->dtype = body.dtype();
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
@@ -192,7 +192,7 @@ bool Call::is_vectorizable() const {
   return false;
 }
 
-Expr Call::make(DataType type,
+Expr Call::make(DataType dtype,
                 std::string name,
                 Array<Expr> args,
                 CallType call_type,
@@ -204,12 +204,12 @@ Expr Call::make(DataType type,
 
   if (call_type == Halide) {
     for (size_t i = 0; i < args.size(); ++i) {
-      CHECK(args[i].type().is_int());
+      CHECK(args[i].dtype().is_int());
     }
   }
 
   NodePtr<Call> node = make_node<Call>();
-  node->type = type;
+  node->dtype = dtype;
   node->name = std::move(name);
   node->args = std::move(args);
   node->call_type = call_type;
@@ -223,17 +223,17 @@ Expr Shuffle::make(Array<Expr> vectors,
   CHECK_NE(vectors.size(), 0U);
   CHECK_NE(indices.size(), 0U);
 
-  Type base_type = vectors[0].type().element_of();
+  DataType base_type = vectors[0].dtype().element_of();
   int total_lanes = 0;
 
   for (Expr val : vectors) {
-    CHECK(val.type().element_of() == base_type);
-    total_lanes += val.type().lanes();
+    CHECK(val.dtype().element_of() == base_type);
+    total_lanes += val.dtype().lanes();
   }
   CHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
   NodePtr<Shuffle> node = make_node<Shuffle>();
-  node->type = base_type.with_lanes(static_cast<int>(indices.size()));
+  node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
   return Expr(node);
@@ -247,8 +247,8 @@ Expr Shuffle::make_concat(Array<Expr> vectors) {
   Array<Expr> indices;
   int index = 0;
   for (const Expr& e : vectors) {
-    for (int i = 0; i < e.type().lanes(); ++i) {
-      indices.push_back(IntImm::make(Int(32), index++));
+    for (int i = 0; i < e.dtype().lanes(); ++i) {
+      indices.push_back(IntImm::make(DataType::Int(32), index++));
     }
   }
   return make(vectors, indices);
@@ -298,7 +298,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
   }
-  n->type = source[value_index].type();
+  n->dtype = source[value_index].dtype();
   n->combiner = std::move(combiner);
   n->source = std::move(source);
   n->axis = std::move(axis);
@@ -315,7 +315,7 @@ Expr Any::make() {
 Stmt LetStmt::make(Var var, Expr value, Stmt body) {
   CHECK(value.defined());
   CHECK(body.defined());
-  CHECK_EQ(value.type(), var.type());
+  CHECK_EQ(value.dtype(), var.dtype());
 
   NodePtr<LetStmt> node = make_node<LetStmt>();
   node->var = std::move(var);
@@ -338,7 +338,7 @@ Stmt AttrStmt::make(NodeRef node,
 
 Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
   CHECK(condition.defined());
-  CHECK(message.type() == Int(32) ||
+  CHECK(message.dtype() == DataType::Int(32) ||
         message.as<StringImm>())
       << "TypeError: AssertStmt message must be an int or string:"
       << message << "\n";
@@ -368,9 +368,9 @@ Stmt For::make(Var loop_var,
                Stmt body) {
   CHECK(min.defined());
   CHECK(extent.defined());
-  CHECK(min.type().is_scalar());
-  CHECK(extent.type().is_scalar());
-  CHECK(loop_var.type().is_scalar());
+  CHECK(min.dtype().is_scalar());
+  CHECK(extent.dtype().is_scalar());
+  CHECK(loop_var.dtype().is_scalar());
   CHECK(body.defined());
 
   NodePtr<For> node = make_node<For>();
@@ -387,8 +387,8 @@ Stmt Store::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   CHECK(value.defined());
   CHECK(index.defined());
   CHECK(predicate.defined());
-  CHECK_EQ(value.type().lanes(), index.type().lanes());
-  CHECK_EQ(value.type().lanes(), predicate.type().lanes());
+  CHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
+  CHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
 
   NodePtr<Store> node = make_node<Store>();
   node->buffer_var = std::move(buffer_var);
@@ -416,7 +416,7 @@ Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> ar
 }
 
 Stmt Allocate::make(Var buffer_var,
-                    DataType type,
+                    DataType dtype,
                     Array<Expr> extents,
                     Expr condition,
                     Stmt body,
@@ -424,15 +424,15 @@ Stmt Allocate::make(Var buffer_var,
                     std::string free_function) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
-      CHECK(extents[i].type().is_scalar());
+      CHECK(extents[i].dtype().is_scalar());
     }
     CHECK(body.defined());
     CHECK(condition.defined());
-    CHECK(condition.type().is_bool());
+    CHECK(condition.dtype().is_bool());
 
     NodePtr<Allocate> node = make_node<Allocate>();
     node->buffer_var = std::move(buffer_var);
-    node->type = type;
+    node->dtype = dtype;
     node->extents = std::move(extents);
     node->condition = std::move(condition);
     node->body = std::move(body);
@@ -464,42 +464,42 @@ Stmt Free::make(Var buffer_var) {
 
 Stmt Realize::make(FunctionRef func,
                    int value_index,
-                   DataType type,
+                   DataType dtype,
                    Region bounds,
                    Expr condition,
                    Stmt body) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.type().is_scalar());
-    CHECK(bounds[i]->extent.type().is_scalar());
+    CHECK(bounds[i]->min.dtype().is_scalar());
+    CHECK(bounds[i]->extent.dtype().is_scalar());
   }
   CHECK(body.defined());
   CHECK(condition.defined());
-  CHECK(condition.type().is_bool());
+  CHECK(condition.dtype().is_bool());
 
   NodePtr<Realize> node = make_node<Realize>();
   node->func = std::move(func);
   node->value_index = value_index;
-  node->type = type;
+  node->dtype = dtype;
   node->bounds = std::move(bounds);
   node->condition = std::move(condition);
   node->body = std::move(body);
   return Stmt(node);
 }
 
-Stmt Prefetch::make(FunctionRef func, int value_index, DataType type, Region bounds) {
+Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.type().is_scalar());
-    CHECK(bounds[i]->extent.type().is_scalar());
+    CHECK(bounds[i]->min.dtype().is_scalar());
+    CHECK(bounds[i]->extent.dtype().is_scalar());
   }
 
   NodePtr<Prefetch> node = make_node<Prefetch>();
   node->func = std::move(func);
   node->value_index = value_index;
-  node->type = type;
+  node->dtype = dtype;
   node->bounds = std::move(bounds);
   return Stmt(node);
 }
@@ -553,14 +553,16 @@ Stmt Evaluate::make(Expr value) {
 
 // Printers
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<UIntImm>([](const UIntImm* op, IRPrinter* p) {
-    p->stream << "(" << op->type << ")" << op->value;
+.set_dispatch<UIntImm>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const UIntImm*>(node.get());
+    p->stream << "(" << op->dtype << ")" << op->value;
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<FloatImm>([](const FloatImm* op, IRPrinter* p) {
+.set_dispatch<FloatImm>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const FloatImm*>(node.get());
     auto& stream = p->stream;
-    switch (op->type.bits()) {
+    switch (op->dtype.bits()) {
       case 64:
         stream << op->value;
         break;
@@ -571,12 +573,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
         stream << op->value << 'h';
         break;
       default:
-        LOG(FATAL) << "Unknown float type bits=" << op->type.bits();
+        LOG(FATAL) << "Unknown float type bits=" << op->dtype.bits();
     }
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<StringImm>([](const StringImm* op, IRPrinter* p) {
+.set_dispatch<StringImm>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const StringImm*>(node.get());
     auto& stream = p->stream;
     stream << '"';
     for (size_t i = 0; i < op->value.size(); ++i) {
@@ -611,101 +614,116 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Cast>([](const Cast* op, IRPrinter* p) {
-    p->stream << op->type << '(';
+.set_dispatch<Cast>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Cast*>(node.get());
+    p->stream << op->dtype << '(';
     p->Print(op->value);
     p->stream << ')';
   })
-.set_dispatch<Variable>([](const Variable* op, IRPrinter* p) {
+.set_dispatch<Variable>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Variable*>(node.get());
     // omit the type
     // stream << op->name << "." << op->type;
     p->stream << op->name_hint;
   })
-.set_dispatch<Add>([](const Add* op, IRPrinter* p) {
+.set_dispatch<Add>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Add*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " + ";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Sub>([](const Sub* op, IRPrinter* p) {
+.set_dispatch<Sub>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Sub*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " - ";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Mul>([](const Mul* op, IRPrinter* p) {
+.set_dispatch<Mul>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Mul*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << "*";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Div>([](const Div* op, IRPrinter* p) {
+.set_dispatch<Div>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Div*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << "/";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Mod>([](const Mod* op, IRPrinter* p) {
+.set_dispatch<Mod>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Mod*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " % ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<Min>([](const Min* op, IRPrinter* p) {
+.set_dispatch<Min>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Min*>(node.get());
     p->stream << "min(";
     p->Print(op->a);
     p->stream << ", ";
     p->Print(op->b);
     p->stream << ")";
 })
-.set_dispatch<Max>([](const Max* op, IRPrinter* p) {
+.set_dispatch<Max>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Max*>(node.get());
     p->stream << "max(";
     p->Print(op->a);
     p->stream << ", ";
     p->Print(op->b);
     p->stream << ")";
 })
-.set_dispatch<EQ>([](const EQ* op, IRPrinter* p) {
+.set_dispatch<EQ>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const EQ*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " == ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<NE>([](const NE* op, IRPrinter* p) {
+.set_dispatch<NE>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const NE*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " != ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<LT>([](const LT* op, IRPrinter* p) {
+.set_dispatch<LT>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const LT*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " < ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<LE>([](const LE* op, IRPrinter* p) {
+.set_dispatch<LE>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const LE*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " <= ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<GT>([](const GT* op, IRPrinter* p) {
+.set_dispatch<GT>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const GT*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " > ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<GE>([](const GE* op, IRPrinter* p) {
+.set_dispatch<GE>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const GE*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " >= ";
@@ -714,17 +732,20 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<FloorDiv>([](const FloorDiv* op, IRPrinter *p) {
+.set_dispatch<FloorDiv>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const FloorDiv*>(node.get());
   p->stream << "floordiv(" << op->a << ", " << op->b << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<FloorMod>([](const FloorMod* op, IRPrinter *p) {
+.set_dispatch<FloorMod>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const FloorMod*>(node.get());
   p->stream << "floormod(" << op->a << ", " << op->b << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<And>([](const And* op, IRPrinter* p) {
+.set_dispatch<And>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const And*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " && ";
@@ -733,7 +754,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Or>([](const Or* op, IRPrinter* p) {
+.set_dispatch<Or>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Or*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " || ";
@@ -742,13 +764,15 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Not>([](const Not* op, IRPrinter* p) {
+.set_dispatch<Not>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Not*>(node.get());
     p->stream << '!';
     p->Print(op->a);
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Select>([](const Select* op, IRPrinter* p) {
+.set_dispatch<Select>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Select*>(node.get());
     p->stream << "select(";
     p->Print(op->condition);
     p->stream << ", ";
@@ -759,7 +783,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Load>([](const Load* op, IRPrinter* p) {
+.set_dispatch<Load>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Load*>(node.get());
     p->stream << op->buffer_var << "[";
     p->Print(op->index);
     p->stream << "]";
@@ -770,7 +795,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Ramp>([](const Ramp* op, IRPrinter* p) {
+.set_dispatch<Ramp>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Ramp*>(node.get());
     p->stream << "ramp(";
     p->Print(op->base);
     p->stream << ", ";
@@ -779,14 +805,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Broadcast>([](const Broadcast* op, IRPrinter* p) {
+.set_dispatch<Broadcast>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Broadcast*>(node.get());
     p->stream << "x" << op->lanes << "(";
     p->Print(op->value);
     p->stream << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Call>([](const Call* op, IRPrinter* p) {
+.set_dispatch<Call>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Call*>(node.get());
     p->stream << op->name << "(";
     for (size_t i = 0; i < op->args.size(); ++i) {
       p->Print(op->args[i]);
@@ -798,7 +826,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Let>([](const Let* op, IRPrinter* p) {
+.set_dispatch<Let>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Let*>(node.get());
     p->stream << "(let " << op->var << " = ";
     p->Print(op->value);
     p->stream << " in ";
@@ -807,7 +836,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<LetStmt>([](const LetStmt* op, IRPrinter* p) {
+.set_dispatch<LetStmt>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const LetStmt*>(node.get());
     p->PrintIndent();
     p->stream << "let " << op->var << " = ";
     p->Print(op->value);
@@ -816,7 +846,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<AttrStmt>([](const AttrStmt* op, IRPrinter* p) {
+.set_dispatch<AttrStmt>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const AttrStmt*>(node.get());
     p->PrintIndent();
     p->stream << "// attr [";
     p->Print(op->node);
@@ -828,7 +859,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<AssertStmt>([](const AssertStmt* op, IRPrinter* p) {
+.set_dispatch<AssertStmt>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const AssertStmt*>(node.get());
     p->PrintIndent();
     p->stream << "assert(";
     p->Print(op->condition);
@@ -839,7 +871,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ProducerConsumer>([](const ProducerConsumer* op, IRPrinter* p) {
+.set_dispatch<ProducerConsumer>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const ProducerConsumer*>(node.get());
     if (op->is_producer) {
       p->PrintIndent();
       p->stream << "produce " << op->func->func_name() << " {\n";
@@ -872,7 +905,8 @@ std::ostream &operator<<(std::ostream& out, ForType type) { // NOLINT(*)
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<For>([](const For* op, IRPrinter* p) {
+.set_dispatch<For>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const For*>(node.get());
     p->PrintIndent();
     p->stream << op->for_type << " (" << op->loop_var << ", ";
     p->Print(op->min);
@@ -889,7 +923,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Store>([](const Store* op, IRPrinter* p) {
+.set_dispatch<Store>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Store*>(node.get());
     p->PrintIndent();
     p->stream << op->buffer_var << "[";
     p->Print(op->index);
@@ -903,7 +938,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Provide>([](const Provide* op, IRPrinter* p) {
+.set_dispatch<Provide>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Provide*>(node.get());
     p->PrintIndent();
     p->stream << op->func->func_name() << "(";
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -920,9 +956,10 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Allocate>([](const Allocate* op, IRPrinter* p) {
+.set_dispatch<Allocate>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Allocate*>(node.get());
     p->PrintIndent();
-    p->stream << "allocate " << op->buffer_var << "[" << op->type;
+    p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
     for (size_t i = 0; i < op->extents.size(); ++i) {
       p->stream << " * ";
       p->Print(op->extents[i]);
@@ -937,14 +974,16 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Free>([](const Free* op, IRPrinter* p) {
+.set_dispatch<Free>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Free*>(node.get());
     p->PrintIndent();
     p->stream << "free " << op->buffer_var;
     p->stream << '\n';
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Realize>([](const Realize* op, IRPrinter* p) {
+.set_dispatch<Realize>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Realize*>(node.get());
     p->PrintIndent();
     p->stream << "realize " << op->func->func_name() << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
@@ -974,7 +1013,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Prefetch>([](const Prefetch* op, IRPrinter* p) {
+.set_dispatch<Prefetch>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Prefetch*>(node.get());
     p->PrintIndent();
     p->stream << "prefetch " << op->func->func_name() << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
@@ -992,13 +1032,15 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Block>([](const Block* op, IRPrinter* p) {
+.set_dispatch<Block>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Block*>(node.get());
     p->Print(op->first);
     if (op->rest.defined()) p->Print(op->rest);
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IfThenElse>([](const IfThenElse* op, IRPrinter* p) {
+.set_dispatch<IfThenElse>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const IfThenElse*>(node.get());
     p->PrintIndent();
     while (true) {
       p->stream << "if (" << op->condition << ") {\n";
@@ -1028,7 +1070,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Evaluate>([](const Evaluate* op, IRPrinter* p) {
+.set_dispatch<Evaluate>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Evaluate*>(node.get());
     p->PrintIndent();
     p->Print(op->value);
     p->stream << "\n";
@@ -1045,7 +1088,8 @@ void PrintList(const Array<T> &exprs, IRPrinter* p) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Shuffle>([](const Shuffle* op, IRPrinter* p) {
+.set_dispatch<Shuffle>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Shuffle*>(node.get());
     p->stream << "shuffle(";
     PrintList(op->vectors, p);
     p->stream << ", ";
@@ -1055,7 +1099,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 // Container printer
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ArrayNode>([](const ArrayNode* op, IRPrinter* p) {
+.set_dispatch<ArrayNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const ArrayNode*>(node.get());
     p->stream << '[';
     for (size_t i = 0 ; i < op->data.size(); ++i) {
       if (i != 0) {
@@ -1067,7 +1112,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<MapNode>([](const MapNode* op, IRPrinter* p) {
+.set_dispatch<MapNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const MapNode*>(node.get());
     p->stream << '{';
     for (auto it = op->data.begin(); it != op->data.end(); ++it) {
       if (it != op->data.begin()) {
@@ -1081,7 +1127,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<StrMapNode>([](const StrMapNode* op, IRPrinter* p) {
+.set_dispatch<StrMapNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const StrMapNode*>(node.get());
     p->stream << '{';
     for (auto it = op->data.begin(); it != op->data.end(); ++it) {
       if (it != op->data.begin()) {
@@ -1094,7 +1141,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Reduce>([](const Reduce* op, IRPrinter* p) {
+.set_dispatch<Reduce>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const Reduce*>(node.get());
     p->stream << "reduce(combiner="
               << op->combiner;
     p->stream << ", source=" << op->source;
@@ -1105,7 +1153,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<CommReducerNode>([](const CommReducerNode* op, IRPrinter* p) {
+.set_dispatch<CommReducerNode>([](const ObjectRef& node, IRPrinter* p) {
+    auto* op = static_cast<const CommReducerNode*>(node.get());
     p->stream << "comm_reducer(result=" << op->result
               << ", lhs=" << op->lhs
               << ", rhs=" << op->rhs
@@ -1114,8 +1163,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<Any>([](const Any *op, IRPrinter *p) {
-  p->stream << "?";
+.set_dispatch<Any>([](const ObjectRef& node, IRPrinter* p) {
+    p->stream << "?";
 });
 
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
@@ -1150,6 +1199,8 @@ TVM_REGISTER_NODE_TYPE(Select);
 TVM_REGISTER_NODE_TYPE(Load);
 TVM_REGISTER_NODE_TYPE(Ramp);
 TVM_REGISTER_NODE_TYPE(Broadcast);
+TVM_REGISTER_NODE_TYPE(Shuffle);
+TVM_REGISTER_NODE_TYPE(Prefetch);
 TVM_REGISTER_NODE_TYPE(Call);
 TVM_REGISTER_NODE_TYPE(Let);
 TVM_REGISTER_NODE_TYPE(LetStmt);

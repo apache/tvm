@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Logics related to tensorize, used by ComputeOpNode.
  * \file tensorize.cc
  */
@@ -174,7 +173,7 @@ class TensorIntrinMatcher final : public IRMutator {
           args.push_back(op->args[i] - e.region[i]->min);
         }
         return Call::make(
-            op->type, e.tensor->op->name, args,
+            op->dtype, e.tensor->op->name, args,
             op->call_type, e.tensor->op, e.tensor->value_index);
       }
     }
@@ -342,12 +341,12 @@ void VerifyTensorizeBody(
     lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
     Expr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
     rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
-    if (lhs.type() != rhs.type()) {
+    if (lhs.dtype() != rhs.dtype()) {
       LOG(FATAL)
           << "Failed to match the data type with TensorIntrin "
           << intrin->name << "'s declaration "
-          << " provided=" << lhs.type()
-          << ", intrin=" << rhs.type();
+          << " provided=" << lhs.dtype()
+          << ", intrin=" << rhs.dtype();
     }
     CHECK(Equal(lhs, rhs))
         << "Failed to match the compute with TensorIntrin "
@@ -391,7 +390,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     }
     input_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -411,7 +410,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     Array<NodeRef> bind_spec{buffer, tensor};
     output_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
   }
   // Check variable remap
   std::unordered_map<const Variable*, Expr> vmap;
@@ -431,7 +430,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     IterVar target = intrin_compute->reduce_axis[i - start];
     auto it = out_dom.find(iv);
     CHECK(it != out_dom.end());
-    binder.Bind(target->dom->min, make_const(iv->dom->min.type(), 0),
+    binder.Bind(target->dom->min, make_const(iv->dom->min.dtype(), 0),
                 "tensir_intrin.reduction.min");
     binder.Bind(target->dom->extent, it->second->extent,
                 "tensir_intrin.reduction.extent");

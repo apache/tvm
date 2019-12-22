@@ -126,7 +126,7 @@ def test_concatenate():
     def before(dshape):
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
-        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(pooled, scale_h=2, scale_w=2, layout="NCHW")
         concat = relay.concatenate((upsampled, x), axis=1)
         out = relay.add(concat, relay.const(1, "float32"))
         return relay.Function(relay.analysis.free_vars(out), out)
@@ -138,7 +138,7 @@ def test_concatenate():
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
         p1 = relay.var("p1", shape=dshape)
-        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(p0, scale_h=2, scale_w=2, layout="NCHW")
         concat = relay.concatenate((upsampled, p1), axis=1)
         out = relay.add(concat, relay.const(1, "float32"))
         f1 = relay.Function([p0, p1], out)
@@ -164,7 +164,7 @@ def test_tuple_root():
     def before(dshape):
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
-        upsampled = relay.nn.upsampling(pooled, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(pooled, scale_h=2, scale_w=2, layout="NCHW")
         out = relay.Tuple((upsampled, x))
         return relay.Function(relay.analysis.free_vars(out), out)
 
@@ -174,7 +174,7 @@ def test_tuple_root():
         f0 = relay.Function([x], pooled)
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
-        upsampled = relay.nn.upsampling(p0, scale=2, layout="NCHW")
+        upsampled = relay.nn.upsampling(p0, scale_h=2, scale_w=2, layout="NCHW")
         f1 = relay.Function([p0], upsampled)
 
         x = relay.var("x", shape=dshape)

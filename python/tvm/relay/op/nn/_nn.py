@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -22,6 +22,9 @@ import topi
 from topi.util import get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
+from .._tensor import elemwise_shape_func
+from ....api import convert
+from ....hybrid import script
 
 # relu
 reg.register_schedule("nn.relu", schedule_injective)
@@ -139,7 +142,6 @@ def _find_conv2d_op(op):
             return op_
     return None
 
-
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -153,17 +155,24 @@ def compute_conv2d(attrs, inputs, out_type, target):
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
-    assert layout in ["NCHW", "NHWC", "NCHW4c"]
+    assert layout in ["NCHW", "NHWC", "NCHW4c", "HWCN"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
-        if kernel_layout == "HWOI":
+        # NHWC layout
+        if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
-        return weight_shape[0] * weight_shape[1]
-
+        # NCHW layout.
+        # in ARM CPU contrib_spatial_pack schedule, we will prepack weight layout
+        if len(weight_shape) == 4:
+            return weight_shape[0] * weight_shape[1]
+        else:
+            assert len(weight_shape) == 5
+            C, M, _, _, VC = weight_shape
+            return C * VC * M
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
@@ -192,11 +201,13 @@ def schedule_conv2d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NCHW4c":
+        elif groups == 1 and layout == "NCHW4c":
             return topi.generic.schedule_conv2d_nchw(outs)
-        if groups == 1 and layout == "NHWC":
+        elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        if groups != 1:
+        elif groups == 1 and layout == "HWCN":
+            return topi.generic.schedule_conv2d_hwcn(outs)
+        elif groups != 1:
             # collect in_channels to distinguish depthwise and group conv2d
             op = _find_conv2d_op(outs[0].op)
             assert op is not None
@@ -266,6 +277,48 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     return [out]
 
 
+@reg.register_compute("nn.conv3d")
+def compute_conv3d(attrs, inputs, out_type, target):
+    """Compute definition of conv3d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCDHW"]
+    (dilation_d, dilation_h, dilation_w) = dilation
+    if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if groups == 1:
+        out = topi.nn.conv3d(
+            inputs[0], inputs[1], strides, padding,
+            dilation, layout, out_dtype)
+    else:
+        raise ValueError("not support arbitrary group number for now")
+    return [out]
+
+
+@reg.register_schedule("nn.conv3d")
+def schedule_conv3d(attrs, outs, target):
+    """Schedule definition of conv3d"""
+    groups = attrs.groups
+    layout = attrs.data_layout
+
+    with target:
+        if groups == 1 and layout == "NCDHW":
+            return topi.generic.schedule_conv3d_ncdhw(outs)
+
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_schedule("nn.conv2d_transpose")
 def schedule_conv2d_transpose(attrs, outs, target):
     """Schedule definition of conv2d_transpose"""
@@ -273,7 +326,58 @@ def schedule_conv2d_transpose(attrs, outs, target):
         return topi.generic.schedule_conv2d_transpose_nchw(outs)
 
 
+@reg.register_legalize("nn.conv2d_transpose")
+def legalize_conv2d_transpose(attrs, inputs, types):
+    """Legalize conv2d_transpose op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current Transposed convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return topi.nn.conv2d_transpose_legalize(attrs, inputs, types)
+
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# conv1d_transpose
+@reg.register_compute("nn.conv1d_transpose")
+def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
+    """Compute definition of conv1d_transpose"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+    assert layout == "NCW", "conv1d_transpose ncw only supported"
+    assert dilation == (1,), "conv1d_transpose dilation is not supported"
+    assert groups == 1, "conv1d_transpose groups == 1 only supported"
+    out = topi.nn.conv1d_transpose_ncw(
+        inputs[0], inputs[1], strides, padding, out_dtype)
+    output_padding = get_const_tuple(attrs.output_padding)
+    out = topi.nn.pad(out,
+                      [0, 0, 0], [0, 0, output_padding[0]])
+    return [out]
+
+
+@reg.register_schedule("nn.conv1d_transpose")
+def schedule_conv1d_transpose(attrs, outs, target):
+    """Schedule definition of conv1d_transpose"""
+    with target:
+        return topi.generic.schedule_conv1d_transpose_ncw(outs)
+
+reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # bias_add
 reg.register_schedule("nn.bias_add", schedule_injective)
@@ -407,11 +511,12 @@ def schedule_upsampling(_, outs, target):
 
 @reg.register_compute("nn.upsampling")
 def compute_upsampling(attrs, inputs, out_dtype, target):
-    scale = attrs.scale
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
     layout = attrs.layout
     method = attrs.method
     align_corners = attrs.align_corners
-    return [topi.nn.upsampling(inputs[0], scale, layout, method, align_corners)]
+    return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -763,8 +868,178 @@ reg.register_pattern("nn.bitserial_dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
-
 @reg.register_compute("nn.cross_entropy")
 def compute_cross_entropy(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(topi.log(x) * y) / x.shape[0]]
+
+
+reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
+
+@reg.register_compute("nn.cross_entropy_with_logits")
+def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
+    x, y = inputs
+    return [-topi.sum(x * y) / x.shape[0]]
+
+# shape func
+@script
+def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):
+    out = output_tensor((dshape.shape[0],), "int64")
+    ic_chunk = dshape[1]
+    height = dshape[2]
+    width = dshape[3]
+    ic_bn = dshape[4]
+    kheight = kshape[2]
+    kwidth = kshape[3]
+    dilated_kh = (kheight - 1) * dilation[0] + 1
+    dilated_kw = (kwidth - 1) * dilation[1] + 1
+    kflatten = int64(1)
+    for i in const_range(kshape.shape[0]):
+        kflatten *= kshape[i]
+
+    oc = kflatten // (kheight * kwidth * ic_chunk * ic_bn)
+    oc_chunk = oc // oc_bn
+
+    out_height = (height + 2 * padding[0] - dilated_kh) // strides[0] + 1
+    out_width = (width + 2 * padding[1] - dilated_kw) // strides[1] + 1
+
+    out[0] = dshape[0]
+    out[1] = oc_chunk
+    out[2] = out_height
+    out[3] = out_width
+    out[4] = int64(oc_bn)
+    return out
+
+@reg.register_shape_func("nn.contrib_conv2d_NCHWc", False)
+def conv2d_NCHWc_shape_func(attrs, inputs, _):
+    """
+    Shape function for contrib_conv2d_NCHWc op.
+    """
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+    out_layout = attrs.out_layout
+    oc_bn = int(out_layout[4:-1])
+
+    return [_conv2d_NCHWc_shape_func(inputs[0], inputs[1],
+                                     convert(strides), convert(padding),
+                                     convert(dilation), convert(oc_bn))]
+
+@script
+def _pool2d_shape_func(data_shape, pool_size, strides,
+                       padding, height_axis, width_axis):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(data_shape.shape[0]):
+        if i == height_axis:
+            out[i] = (data_shape[i] + padding[0] + padding[2] - pool_size[0]) // strides[0] + 1
+        elif i == width_axis:
+            out[i] = (data_shape[i] + padding[1] + padding[3] - pool_size[1]) // strides[1] + 1
+        else:
+            out[i] = data_shape[i]
+
+    return out
+
+def pool2d_shape_func(attrs, inputs, _):
+    """
+    Shape function for pool2d op.
+    """
+    pool_size = get_const_tuple(attrs.pool_size)
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    layout = attrs.layout
+    height_axis = layout.index("H")
+    width_axis = layout.index("W")
+    if len(padding) == 1:
+        padding = [padding[0]] * 4
+    elif len(padding) == 2:
+        padding = [padding[0], padding[1], padding[0], padding[1]]
+
+    return [_pool2d_shape_func(inputs[0], convert(pool_size),
+                               convert(strides), convert(padding),
+                               convert(height_axis), convert(width_axis))]
+
+reg.register_shape_func("nn.max_pool2d", False, pool2d_shape_func)
+reg.register_shape_func("nn.avg_pool2d", False, pool2d_shape_func)
+
+@script
+def _global_pool2d_shape_func(data_shape, height_axis, width_axis):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        if i == height_axis or i == width_axis:
+            out[i] = int64(1)
+        else:
+            out[i] = data_shape[i]
+
+    return out
+
+def global_pool2d_shape_func(attrs, inputs, _):
+    """
+    Shape function for global pool2d op.
+    """
+    layout = attrs.layout
+    height_axis = width_axis = 1
+    for i, letter in enumerate(layout):
+        if letter == "H":
+            height_axis = i
+        if letter == "W":
+            width_axis = i
+    return [_global_pool2d_shape_func(inputs[0], convert(height_axis), convert(width_axis))]
+
+reg.register_shape_func("nn.global_max_pool2d", False, global_pool2d_shape_func)
+reg.register_shape_func("nn.global_avg_pool2d", False, global_pool2d_shape_func)
+
+@script
+def _batch_flatten_shape_func(data_shape):
+    out = output_tensor((2,), "int64")
+    out[0] = data_shape[0]
+    out[1] = int64(1)
+    for i in const_range(data_shape.shape[0] - 1):
+        out[1] *= data_shape[i + 1]
+
+    return out
+
+@reg.register_shape_func("nn.batch_flatten", False)
+def batch_flatten_shape_func(attrs, inputs, _):
+    """
+    Shape function for batch_flatten op.
+    """
+    return [_batch_flatten_shape_func(inputs[0])]
+
+@script
+def _dense_shape_func(data_shape, weight_shape):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0] - 1):
+        out[i] = data_shape[i]
+    out[out.shape[0] - 1] = weight_shape[0]
+
+    return out
+
+@reg.register_shape_func("nn.dense", False)
+def dense_shape_func(attrs, inputs, _):
+    """
+    Shape function for dense op.
+    """
+    ret = [_dense_shape_func(inputs[0], inputs[1])]
+    return ret
+
+@script
+def _pad_shape_func(data_shape, pad_width):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        out[i] = data_shape[i] + pad_width[i][0] + pad_width[i][1]
+
+    return out
+
+@reg.register_shape_func("nn.pad", False)
+def pad_shape_func(attrs, inputs, _):
+    """
+    Shape function for pad op.
+    """
+    pad_width = []
+    for pair in attrs.pad_width:
+        pad_width.append(get_const_tuple(pair))
+    return [_pad_shape_func(inputs[0], convert(pad_width))]
+
+reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
+reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
+reg.register_shape_func("nn.relu", False, elemwise_shape_func)

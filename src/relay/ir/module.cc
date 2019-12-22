@@ -35,13 +35,16 @@ using tvm::IRPrinter;
 using namespace runtime;
 
 Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
-                        tvm::Map<GlobalTypeVar, TypeData> global_type_defs) {
+                        tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
+                        std::unordered_set<std::string> imports
+                        ) {
   auto n = make_node<ModuleNode>();
   n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
   n->global_type_var_map_ = {};
   n->global_var_map_ = {};
   n->constructor_tag_map_ = {};
+  n->import_set_ = imports;
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -63,6 +66,10 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
 
 bool ModuleNode::ContainGlobalVar(const std::string& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
+}
+
+bool ModuleNode::ContainGlobalTypeVar(const std::string& name) const {
+  return global_type_var_map_.find(name) != global_type_var_map_.end();
 }
 
 GlobalVar ModuleNode::GetGlobalVar(const std::string& name) const {
@@ -236,11 +243,6 @@ TypeData ModuleNode::LookupDef(const std::string& name) const {
   return this->LookupDef(id);
 }
 
-bool ModuleNode::HasDef(const std::string& name) const {
-  auto it = global_type_var_map_.find(name);
-  return it != global_type_var_map_.end();
-}
-
 Constructor ModuleNode::LookupTag(const int32_t tag) {
   auto it = constructor_tag_map_.find(tag);
   CHECK(it != constructor_tag_map_.end())
@@ -283,9 +285,9 @@ Module ModuleNode::FromExpr(
 }
 
 void ModuleNode::Import(const std::string& path) {
-  LOG(INFO) << "Importing: " << path;
   if (this->import_set_.count(path) == 0) {
     this->import_set_.insert(path);
+    DLOG(INFO) << "Importing: " << path;
     std::fstream src_file(path, std::fstream::in);
     std::string file_contents {
       std::istreambuf_iterator<char>(src_file),
@@ -302,6 +304,10 @@ void ModuleNode::ImportFromStd(const std::string& path) {
   return this->Import(std_path + "/" + path);
 }
 
+std::unordered_set<std::string> ModuleNode::Imports() const {
+  return this->import_set_;
+}
+
 Module FromText(const std::string& source, const std::string& source_name) {
   auto* f = tvm::runtime::Registry::Get("relay.fromtext");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
@@ -312,7 +318,10 @@ Module FromText(const std::string& source, const std::string& source_name) {
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_API("relay._make.Module")
-.set_body_typed(ModuleNode::make);
+.set_body_typed<Module(tvm::Map<GlobalVar, Function>, tvm::Map<GlobalTypeVar, TypeData>)>(
+[](tvm::Map<GlobalVar, Function> funcs, tvm::Map<GlobalTypeVar, TypeData> types) {
+  return ModuleNode::make(funcs, types, {});
+});
 
 TVM_REGISTER_API("relay._module.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -326,7 +335,8 @@ TVM_REGISTER_API("relay._module.Module_Add")
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
-    mod_copy = transform::EtaExpand()(mod_copy);
+    mod_copy = transform::EtaExpand(
+      /* expand_constructor */ false, /* expand_global_var */ true)(mod_copy);
     auto func = mod_copy->Lookup(gv->name_hint);
     mod->Add(var, Downcast<Function>(func), update);
   } else {
@@ -404,9 +414,9 @@ TVM_REGISTER_API("relay._module.Module_ImportFromStd")
   mod->ImportFromStd(path);
 });;
 
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<ModuleNode>(
-  [](const ModuleNode *node, tvm::IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<ModuleNode>([](const ObjectRef& ref, IRPrinter* p) {
+    auto* node = static_cast<const ModuleNode*>(ref.get());
     p->stream << "ModuleNode( " << node->functions << ")";
 });
 

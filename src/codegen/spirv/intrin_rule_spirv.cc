@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,9 +18,9 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_spirv.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 #include <GLSL.std.450.h>
@@ -39,13 +39,13 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(UInt(32), id));
+  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
 
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
   *rv = ir::Call::make(
-      call->type, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
+      call->dtype, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_stack_vm.h
  * \brief Codegen into Simple Stack VM.
  */
@@ -109,7 +108,7 @@ class CodeGenStackVM
                   const Expr& a,
                   const Expr& b);
   // push cast;
-  void PushCast(Type dst, Type src);
+  void PushCast(DataType dst, DataType src);
   // overloadable functions
   // expression
   void VisitExpr_(const Variable* op) final;

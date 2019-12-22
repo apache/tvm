@@ -227,7 +227,8 @@ class RPCRunner(Runner):
 
     def get_build_kwargs(self):
         kwargs = {}
-        if 'cuda' in self.task.target.keys or 'opencl' in self.task.target.keys:
+        if 'cuda' in self.task.target.keys or 'opencl' in self.task.target.keys or \
+           'rocm' in self.task.target.keys:
             remote = request_remote(self.key, self.host, self.port)
             ctx = remote.context(str(self.task.target), 0)
             max_dims = ctx.max_thread_dimensions
@@ -345,7 +346,6 @@ class LocalRunner(RPCRunner):
 def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
-
     with target:
         s, args = task.instantiate(config)
 
@@ -582,7 +582,13 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
 @register_func
 def tvm_callback_cuda_compile(code):
     """use nvcc to generate ptx code for better optimization"""
-    ptx = nvcc.compile_cuda(code, target="ptx", arch=AutotvmGlobalScope.current.cuda_target_arch)
+    curr_cuda_target_arch = AutotvmGlobalScope.current.cuda_target_arch
+    # e.g., target arch could be [
+    #   "-gencode", "arch=compute_52,code=sm_52",
+    #   "-gencode", "arch=compute_70,code=sm_70"
+    # ]
+    target = "fatbin" if isinstance(curr_cuda_target_arch, list) else "ptx"
+    ptx = nvcc.compile_cuda(code, target=target, arch=AutotvmGlobalScope.current.cuda_target_arch)
     return ptx
 
 
@@ -591,8 +597,10 @@ def set_cuda_target_arch(arch):
 
     Parameters
     ----------
-    arch: str
+    arch: str or list
         The argument of nvcc -arch. (e.g. "sm_51", "sm_62")
+        it can also be a count of gencode arguments pass to nvcc command line,
+        e.g., ["-gencode", "arch=compute_52,code=sm_52", "-gencode", "arch=compute_70,code=sm_70"]
     """
     AutotvmGlobalScope.current.cuda_target_arch = arch
 

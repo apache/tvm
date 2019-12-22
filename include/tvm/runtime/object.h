@@ -23,6 +23,7 @@
 #ifndef TVM_RUNTIME_OBJECT_H_
 #define TVM_RUNTIME_OBJECT_H_
 
+#include <dmlc/logging.h>
 #include <type_traits>
 #include <string>
 #include <utility>
@@ -52,6 +53,7 @@ enum TypeIndex  {
   kVMTensor = 1,
   kVMClosure = 2,
   kVMADT = 3,
+  kRuntimeModule = 4,
   kStaticIndexEnd,
   /*! \brief Type index is allocated during runtime. */
   kDynamic = kStaticIndexEnd
@@ -189,7 +191,7 @@ class Object {
    * \param key The type key.
    * \return the result.
    */
-  TVM_DLL static uint32_t TypeKey2Index(const char* key);
+  TVM_DLL static uint32_t TypeKey2Index(const std::string& key);
 
 #if TVM_OBJECT_ATOMIC_REF_COUNTER
   using RefCounterType = std::atomic<int32_t>;
@@ -197,17 +199,23 @@ class Object {
   using RefCounterType = int32_t;
 #endif
 
-  // Object type properties
   static constexpr const char* _type_key = "Object";
+
+  static uint32_t _GetOrAllocRuntimeTypeIndex() {
+    return TypeIndex::kRoot;
+  }
+  static uint32_t RuntimeTypeIndex() {
+    return TypeIndex::kRoot;
+  }
+
+  // Default object type properties for sub-classes
   static constexpr bool _type_final = false;
   static constexpr uint32_t _type_child_slots = 0;
   static constexpr bool _type_child_slots_can_overflow = true;
-  static uint32_t _GetOrAllocRuntimeTypeIndex() {
-    return 0;
-  }
-  static uint32_t RuntimeTypeIndex() {
-    return 0;
-  }
+  // NOTE: the following field is not type index of Object
+  // but was intended to be used by sub-classes as default value.
+  // The type index of Object is TypeIndex::kRoot
+  static constexpr uint32_t _type_index = TypeIndex::kDynamic;
 
   // Default constructor and copy constructor
   Object() {}
@@ -262,13 +270,12 @@ class Object {
    * \return The allocated type index.
    */
   TVM_DLL static uint32_t GetOrAllocRuntimeTypeIndex(
-      const char* key,
+      const std::string& key,
       uint32_t static_tindex,
       uint32_t parent_tindex,
       uint32_t type_child_slots,
       bool type_child_slots_can_overflow);
 
- private:
   // reference counter related operations
   /*! \brief developer function, increases reference counter. */
   inline void IncRef();
@@ -277,6 +284,8 @@ class Object {
    * \note The deleter will be called when ref_counter_ becomes zero.
    */
   inline void DecRef();
+
+ private:
   /*!
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
@@ -294,7 +303,7 @@ class Object {
   template<typename>
   friend class ObjectPtr;
   friend class TVMRetValue;
-  friend class TVMObjectCAPI;
+  friend class ObjectInternal;
 };
 
 /*!
@@ -302,11 +311,11 @@ class Object {
  *
  *  It is always important to get a reference type
  *  if we want to return a value as reference or keep
- *  the node alive beyond the scope of the function.
+ *  the object alive beyond the scope of the function.
  *
- * \param ptr The node pointer
+ * \param ptr The object pointer
  * \tparam RefType The reference type
- * \tparam ObjectType The node type
+ * \tparam ObjectType The object type
  * \return The corresponding RefType
  */
 template <typename RefType, typename ObjectType>
@@ -478,6 +487,8 @@ class ObjectPtr {
   friend class TVMArgValue;
   template <typename RefType, typename ObjType>
   friend RefType GetRef(const ObjType* ptr);
+  template <typename BaseType, typename ObjType>
+  friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
 /*! \brief Base class of all object reference */
@@ -505,7 +516,7 @@ class ObjectRef {
   }
   /*!
    * \brief Comparator
-   * \param other Another node ref.
+   * \param other Another object ref.
    * \return the compare result.
    */
   bool operator!=(const ObjectRef& other) const {
@@ -527,7 +538,7 @@ class ObjectRef {
   const Object* get() const {
     return data_.get();
   }
-  /*! \return the internal node pointer */
+  /*! \return the internal object pointer */
   const Object* operator->() const {
     return get();
   }
@@ -587,6 +598,16 @@ class ObjectRef {
   friend SubRef Downcast(BaseRef ref);
 };
 
+/*!
+ * \brief Get an object ptr type from a raw object ptr.
+ *
+ * \param ptr The object pointer
+ * \tparam BaseType The reference type
+ * \tparam ObjectType The object type
+ * \return The corresponding RefType
+ */
+template <typename BaseType, typename ObjectType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 /*! \brief ObjectRef hash functor */
 struct ObjectHash {
@@ -621,8 +642,8 @@ struct ObjectEqual {
  */
 #define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)              \
   static const uint32_t RuntimeTypeIndex()  {                           \
-    if (_type_index != ::tvm::runtime::TypeIndex::kDynamic) {           \
-      return _type_index;                                               \
+    if (TypeName::_type_index != ::tvm::runtime::TypeIndex::kDynamic) { \
+      return TypeName::_type_index;                                     \
     }                                                                   \
     return _GetOrAllocRuntimeTypeIndex();                               \
   }                                                                     \
@@ -669,6 +690,16 @@ struct ObjectEqual {
   operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
+#define TVM_DEFINE_OBJECT_REF_METHODS_MUT(TypeName, ParentType, ObjectName) \
+  TypeName() {}                                                             \
+  explicit TypeName(                                                        \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)                  \
+      : ParentType(n) {}                                                    \
+  ObjectName* operator->() {                                    \
+    return static_cast<ObjectName*>(data_.get());                     \
+  }                                                                         \
+  operator bool() const { return data_ != nullptr; }                        \
+  using ContainerType = ObjectName;
 
 // Implementations details below
 // Object reference counting.
@@ -761,6 +792,13 @@ inline RefType GetRef(const ObjType* ptr) {
   static_assert(std::is_base_of<typename RefType::ContainerType, ObjType>::value,
                 "Can only cast to the ref of same container type");
   return RefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
+}
+
+template <typename BaseType, typename ObjType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr) {
+  static_assert(std::is_base_of<BaseType, ObjType>::value,
+                "Can only cast to the ref of same container type");
+  return ObjectPtr<BaseType>(static_cast<Object*>(ptr));
 }
 
 template <typename SubRef, typename BaseRef>

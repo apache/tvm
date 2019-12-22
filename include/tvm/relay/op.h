@@ -24,6 +24,8 @@
 #ifndef TVM_RELAY_OP_H_
 #define TVM_RELAY_OP_H_
 
+#include <dmlc/registry.h>
+
 #include <functional>
 #include <limits>
 #include <string>
@@ -82,7 +84,7 @@ class OpNode : public relay::ExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);
@@ -255,6 +257,12 @@ class OpRegistry {
   template <typename ValueType>
   inline OpRegistry& set_attr(const std::string& attr_name,  // NOLINT(*)
                               const ValueType& value, int plevel = 10);
+
+  /*!
+   * \brief Resets an attr of the registry.
+   * \param attr_name The name of the attribute.
+   */
+  inline void reset_attr(const std::string& attr_name);
 
   // set the name of the op to be the same as registry
   inline OpRegistry& set_name() {  // NOLINT(*)

@@ -22,68 +22,24 @@ Provides extra APIs for profiling vm execution.
 """
 from . import vm, _vm
 
-def compile(mod, target=None, target_host=None, params=None):
-    """
-    Parameters
-    ----------
-    mod : relay.Module
-        The Relay module to build.
-
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
-        For heterogeneous compilation, it is a dictionary indicating context
-        to target mapping. For homogeneous compilation, it is a build target.
-
-    target_host : str or :any:`tvm.target.Target`, optional
-        Host compilation target, if target is device.
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        to setup the dimensions and parameters correctly.
-        target_host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
-
-    params : dict of str to NDArray
-        Input parameters to the graph that do not change
-        during inference time. Used for constant folding.
-
-    Returns
-    -------
-    exec : Executable
-        The executable with profiling code.
-    """
-    compiler = VMCompilerProfiler()
-    target = compiler.update_target(target)
-    target_host = compiler.update_target_host(target, target_host)
-    if params:
-        compiler.set_params(params)
-    tophub_context = compiler.tophub_context(target)
-    with tophub_context:
-        compiler._compile(mod, target, target_host)
-    return vm.Executable(compiler._get_exec())
-
 def enabled():
     """Whether vm profiler is enabled."""
-    return hasattr(_vm, "_VMCompilerProfiler")
-
-class VMCompilerProfiler(vm.VMCompiler):
-    """Build Relay module to run on VM runtime."""
-    def __init__(self):
-        super().__init__()
-        self.mod = _vm._VMCompilerProfiler()
-        self._compile = self.mod["compile"]
-        self._get_exec = self.mod["get_executable"]
-        self._set_params_func = self.mod["set_params"]
+    return hasattr(_vm, "_VirtualMachineDebug")
 
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
     def __init__(self, mod):
-        super().__init__(mod)
+        super(VirtualMachineProfiler, self).__init__(mod)
         m = mod.module if isinstance(mod, vm.Executable) else mod
         self.mod = _vm._VirtualMachineDebug(m)
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
         self._get_stat = self.mod["get_stat"]
+        self._set_input = self.mod["set_input"]
+        self._reset = self.mod["reset"]
 
     def get_stat(self):
         return self._get_stat()
+
+    def reset(self):
+        self._reset()

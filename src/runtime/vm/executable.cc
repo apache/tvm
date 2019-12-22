@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/runtime/vm/executable.cc
  * \brief The implementation of a virtual machine executable APIs.
  */
@@ -31,6 +30,7 @@
 #include <algorithm>
 #include <memory>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -51,7 +51,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr);
 Instruction DeserializeInstruction(const VMInstructionSerializer& instr);
 
 PackedFunc Executable::GetFunction(const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   if (name == "get_lib") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetLib();
@@ -68,44 +68,76 @@ PackedFunc Executable::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->Save();
     });
+  } else if (name == "get_function_arity") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      *rv = this->GetFunctionArity(func_name);
+    });
+  } else if (name == "get_function_param_name") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      std::string func_name = args[0];
+      int index = args[1];
+      *rv = this->GetFunctionParameterName(func_name, index);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc(nullptr);
   }
 }
 
+int Executable::GetFunctionArity(std::string func_name) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return -1;
+  }
+  const auto& func = functions[it->second];
+  return func.params.size();
+}
+
+std::string Executable::GetFunctionParameterName(std::string func_name, uint32_t index) const {
+  auto it = global_map.find(func_name);
+  if (it == global_map.end()) {
+    LOG(ERROR) << "Cannot find function " << func_name << " in executable";
+    return "";
+  }
+  const auto& func = functions[it->second];
+  if (index > func.params.size()) {
+    LOG(ERROR) << "Invalid parameter index";
+    return "";
+  }
+  return func.params[index];
+}
+
 std::string Executable::GetBytecode() const {
   std::ostringstream oss;
 
-  for (const auto& func : functions) {
+  for (size_t i = 0; i < functions.size(); ++i) {
+    const auto& func = functions[i];
     // Print the header of the function format.
-    oss << "# func name, reg file size, param count, inst count:"
-        << std::endl;
-    oss << func.name << " "
-        << func.register_file_size << " "
-        << func.params.size() << " "
-        << func.instructions.size() << std::endl;
-
-    // Print pramams of a `VMFunction`.
-    oss << "# Parameters: "<< std::endl;
+    oss << "VM Function[" << i << "]: " << func.name << "(";
     for (const auto& param : func.params) {
-      oss << param << " ";
+      oss << param << ", ";
     }
-    oss << std::endl;
+    oss.seekp(-2, std::ios_base::end);
+    oss << ")" << std::endl;
+    oss << "# reg file size = " << func.register_file_size << std::endl;
+    oss << "# instruction count = " << func.instructions.size() << std::endl;
 
     // Print the instructions of a `VMFunction`.
     // The part after ";" is the instruction in text format.
-    oss << "hash, opcode, fields # inst(text):"<< std::endl;
-    for (const auto& instr : func.instructions) {
+    oss << "opcode, fields # inst(text):" << std::endl;
+    for (size_t idx = 0; idx < func.instructions.size(); ++idx) {
+      const auto& instr = func.instructions[idx];
       const auto& serialized_instr = SerializeInstruction(instr);
-      oss << std::hex << "0x" << serialized_instr.Hash() << " "
-          << std::dec << serialized_instr.opcode << " ";
+      oss << std::setw(2) << idx << ": " << serialized_instr.opcode << " ";
       for (auto it : serialized_instr.fields) {
         oss << it << " ";
       }
       oss << "  # " << instr;
       if (oss.str().back() != '\n') oss << std::endl;
     }
+    oss << std::endl;
   }
 
   return oss.str();
@@ -287,9 +319,13 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
     }
     case Opcode::AllocTensor: {
       // Number of fields = 5 + instr.alloc_tensor.ndim
+      fields.push_back(instr.alloc_tensor.storage);
+
       // Save `DLDataType` and the dst register.
       const auto& dtype = instr.alloc_tensor.dtype;
-      fields.assign({dtype.code, dtype.bits, dtype.lanes});
+      fields.push_back(dtype.code);
+      fields.push_back(dtype.bits);
+      fields.push_back(dtype.lanes);
 
       // The number of dimensions is not needed for constructing an
       // `AllocTensor` instruction as it equals to the length of the `shape`
@@ -305,10 +341,22 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       break;
     }
     case Opcode::AllocTensorReg: {
-      // Number of fields = 5
+      // Number of fields = 6
+      fields.push_back(instr.alloc_tensor_reg.storage);
       fields.push_back(instr.alloc_tensor_reg.shape_register);
       // Save `DLDataType` and the dst register.
-      const auto& dtype = instr.alloc_tensor.dtype;
+      const auto& dtype = instr.alloc_tensor_reg.dtype;
+      fields.push_back(dtype.code);
+      fields.push_back(dtype.bits);
+      fields.push_back(dtype.lanes);
+      fields.push_back(instr.dst);
+      break;
+    }
+    case Opcode::AllocStorage: {
+      fields.push_back(instr.alloc_storage.allocation_size);
+      fields.push_back(instr.alloc_storage.alignment);
+      // Save `DLDataType` and the dst register.
+      const auto& dtype = instr.alloc_storage.dtype_hint;
       fields.push_back(dtype.code);
       fields.push_back(dtype.bits);
       fields.push_back(dtype.lanes);
@@ -424,7 +472,7 @@ void LoadHeader(dmlc::Stream* strm) {
 }
 
 runtime::Module Executable::Load(const std::string& code, const runtime::Module lib) {
-  std::shared_ptr<Executable> exec = std::make_shared<Executable>();
+  auto exec = make_object<Executable>();
   exec->lib = lib;
   exec->code_ = code;
   dmlc::MemoryStringStream strm(&exec->code_);
@@ -521,35 +569,39 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       return Instruction::InvokePacked(packed_index, arity, output_size, args);
     }
     case Opcode::AllocTensor: {
-      // Number of fields = 5 + instr.alloc_tensor.ndim
-      DCHECK_GE(instr.fields.size(), 5U);
-      DCHECK_EQ(instr.fields.size(), 5U + static_cast<size_t>(instr.fields[3]));
+      // Number of fields = 6 + instr.alloc_tensor.ndim
+      DCHECK_GE(instr.fields.size(), 6U);
+      DCHECK_EQ(instr.fields.size(), 6U + static_cast<size_t>(instr.fields[4]));
 
-      DLDataType dtype;
-      dtype.code = instr.fields[0];
-      dtype.bits = instr.fields[1];
-      dtype.lanes = instr.fields[2];
-
-      Index ndim = instr.fields[3];
-      RegName dst = instr.fields[4];
-
-      std::vector<Index> shape = ExtractFields(instr.fields, 5, ndim);
-
-      return Instruction::AllocTensor(shape, dtype, dst);
-    }
-    case Opcode::AllocTensorReg: {
-      // Number of fields = 5
-      DCHECK_EQ(instr.fields.size(), 5U);
-      Index shape_register = instr.fields[0];
+      RegName storage_reg = instr.fields[0];
 
       DLDataType dtype;
       dtype.code = instr.fields[1];
       dtype.bits = instr.fields[2];
       dtype.lanes = instr.fields[3];
 
-      RegName dst = instr.fields[4];
+      Index ndim = instr.fields[4];
+      RegName dst = instr.fields[5];
 
-      return Instruction::AllocTensorReg(shape_register, dtype, dst);
+      std::vector<Index> shape = ExtractFields(instr.fields, 6, ndim);
+
+      return Instruction::AllocTensor(storage_reg, shape, dtype, dst);
+    }
+    case Opcode::AllocTensorReg: {
+      // Number of fields = 5
+      DCHECK_EQ(instr.fields.size(), 6U);
+
+      RegName storage_reg = instr.fields[0];
+      Index shape_register = instr.fields[1];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[2];
+      dtype.bits = instr.fields[3];
+      dtype.lanes = instr.fields[4];
+
+      RegName dst = instr.fields[5];
+
+      return Instruction::AllocTensorReg(storage_reg, shape_register, dtype, dst);
     }
     case Opcode::AllocADT: {
       // Number of fields = 3 + instr.num_fields
@@ -574,6 +626,24 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       std::vector<Index> free_vars = ExtractFields(instr.fields, 3, num_freevar);
 
       return Instruction::AllocClosure(clo_index, num_freevar, free_vars, dst);
+    }
+    case Opcode::AllocStorage: {
+      DCHECK_GE(instr.fields.size(), 6U);
+      Index allocation_size = instr.fields[0];
+      Index alignment = instr.fields[1];
+
+      DLDataType dtype;
+      dtype.code = instr.fields[2];
+      dtype.bits = instr.fields[3];
+      dtype.lanes = instr.fields[4];
+
+      RegName dst = instr.fields[5];
+
+      return Instruction::AllocStorage(
+        allocation_size,
+        alignment,
+        dtype,
+        dst);
     }
     case Opcode::If: {
       // Number of fields = 4

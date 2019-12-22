@@ -18,9 +18,11 @@
 """
 import numpy as np
 import tvm
+from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import ctx_list
+from tvm.contrib import util
 import topi.testing
 
 def run_infer_type(expr):
@@ -133,6 +135,46 @@ def test_conv2d_run():
             op_res1 = intrp1.evaluate(func)(data, kernel)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
+    def compile_test_conv2d_arm_cpu(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1),
+                        groups=1,
+                        dilation=(1, 1),
+                        **attrs):
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv2d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        mod = tvm.relay.Module()
+        mod["main"] = func
+
+        test_schedule='{"i": ["llvm -device=arm_cpu", "topi_nn_depthwise_conv2d_nchw", \
+                        [["TENSOR", [1, 512, 32, 32], "float32"], \
+                        ["TENSOR", [512, 1, 3, 3], "float32"], \
+                        [1, 1], [1, 1], [1, 1], "float32"], {}, \
+                        ["depthwise_conv2d_nchw", [1, 512, 32, 32, "float32"], \
+                        [512, 1, 3, 3, "float32"], [1, 1], [1, 1], [1, 1], "float32"], \
+                        {"i": 743640, "t": "contrib_spatial_pack", "c": null, \
+                        "e": [["tile_co", "sp", [32, 16]], ["tile_oh", "sp", [8, 1]], \
+                        ["tile_ow", "sp", [1, 8]], \
+                        ["reorder_0", "re", [0, 1, 2, 3, 4, 5, 8, 6, 7]], \
+                        ["reorder_1", "re", [0, 1, 2, 3, 6, 4, 5]], \
+                        ["ann_reduce", "an", ["unroll", "none"]], \
+                        ["ann_spatial", "an", ["unroll", "unroll", "vec"]], \
+                        ["data_pad_inline", "ot", 4], ["data_vec_inline", "ot", 1], \
+                        ["conv_inline", "ot", 0]]}], "r": [[0.0002933163], \
+                        0, 3.1976189613342285, 1570811630.6058347], "v": 0.1}'
+        temp = util.tempdir()
+        with open(temp.relpath("temp.log"), "w") as log_file:
+            log_file.write(test_schedule)
+        with autotvm.apply_history_best(temp.relpath("temp.log")):
+            with relay.build_config(opt_level=3):
+                print('Compiling...')
+                graph_json, mod, params = tvm.relay.build(mod, target="llvm -device=arm_cpu")
+
     # depthwise conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
@@ -141,8 +183,15 @@ def test_conv2d_run():
                     fref=lambda x, w: topi.testing.depthwise_conv2d_python_nchw(
                         x, w, (1, 1), "SAME"))
 
+    # depthwise conv2d for arm_cpu
+    dshape = (1, 512, 32, 32)
+    kshape = (512, 1, 3, 3)
+    compile_test_conv2d_arm_cpu("float32", "float32", 1, dshape, kshape,
+                                padding=(1, 1), channels=512, 
+                                groups=512, kernel_size=(3 ,3))
+
     # CUDA is disabled for 'direct' schedule:
-    # https://github.com/dmlc/tvm/pull/3070#issuecomment-486597553
+    # https://github.com/apache/incubator-tvm/pull/3070#issuecomment-486597553
     # group conv2d
     dshape = (1, 32, 18, 18)
     kshape = (32, 4, 3, 3)
@@ -174,6 +223,121 @@ def test_conv2d_run():
     run_test_conv2d("float32", "float32", 1, dshape, kshape,
                     padding=(1, 1), channels=10, kernel_size=(3 ,3), dilation=(3, 3))
 
+def test_conv2d_winograd():
+    class WinogradFallback(autotvm.FallbackContext):
+        def _query_inside(self, target, workload):
+            key = (target, workload)
+            if key in self.memory:
+                return self.memory[key]
+            cfg = autotvm.task.space.FallbackConfigEntity()
+            cfg.template_key = 'winograd'
+            cfg.is_fallback = False
+            cfg['tile_b'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_y'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_x'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
+            cfg['tile_rc'] = autotvm.task.space.SplitEntity([-1, 1])
+            cfg['auto_unroll_max_setp'] = autotvm.task.space.OtherOptionEntity(1500)
+            cfg['unroll_explicit'] = autotvm.task.space.OtherOptionEntity(1)
+            self.memory[key] = cfg
+            return cfg
+
+    def run_test_conv2d_cuda(dtype, out_dtype, scale, dshape, kshape,
+                             padding=(1, 1),
+                             groups=1,
+                             dilation=(1, 1),
+                             **attrs):
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
+        y = relay.nn.conv2d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        mod = relay.Module()
+        mod['main'] = func
+        mod = relay.transform.InferType()(mod)
+
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        ref_res = topi.testing.conv2d_nchw_python(
+            data.astype(out_dtype), kernel.astype(out_dtype), 1, padding,
+            groups=groups)
+
+        with WinogradFallback(), relay.build_config(opt_level=3):
+            for target, ctx in ctx_list():
+                if target != 'cuda':
+                    continue
+                params = {'w': tvm.nd.array(kernel)}
+                graph, lib, params = relay.build_module.build(mod, target=target, params=params)
+                module = tvm.contrib.graph_runtime.create(graph, lib, ctx)
+                module.set_input('x', tvm.nd.array(data))
+                module.set_input(**params)
+                module.run()
+                op_res1 = module.get_output(0)
+                tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-3, atol=1e-3)
+
+    # normal winograd: stride 1, padding 1, kernel 3x3
+    dshape = (1, 80, 73, 73)
+    kshape = (192, 80, 3, 3)
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(1, 1), channels=192, kernel_size=(3, 3))
+    # extended winograd: stride 1, padding N, kernel 3x3
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(0, 0), channels=192, kernel_size=(3, 3))
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(2, 2), channels=192, kernel_size=(3, 3))
+    # extended winograd: stride 1, padding N, kernel NxN
+    kshape = (192, 80, 7, 7)
+    run_test_conv2d_cuda("float32", "float32", 1, dshape, kshape,
+                         padding=(2, 2), channels=192, kernel_size=(7, 7))
+
+
+def test_conv3d_run():
+    def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1, 1),
+                        fref=None,
+                        groups=1,
+                        dilation=(1, 1, 1),
+                        except_targets=None,
+                        **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv3d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        if fref is None:
+            ref_res = topi.testing.conv3d_ncdhw_python(
+                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
+                groups=groups)
+        else:
+            ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
+
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    # normal conv3d
+    dshape = (1, 3, 5, 224, 224)
+    kshape = (10, 3, 3, 3, 3)
+    run_test_conv3d("float32", "float32", 1, dshape, kshape,
+            padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3))
+
 
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
@@ -192,8 +356,8 @@ def test_conv2d_transpose_infer_type():
         (10, 15, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, c, h, w = tvm.var("n"), 10, 10, 12
-    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    n, h, w, c = tvm.var("n"), 10, 10, 12
+    x = relay.var("x", relay.TensorType((n, h, w, c), "float32"))
     w = relay.var("w", relay.TensorType((12, 11, 5, 5), "float32"))
     y = relay.nn.conv2d_transpose(x, w,
                                   output_padding=(1, 1),
@@ -204,7 +368,7 @@ def test_conv2d_transpose_infer_type():
         (n, 15, 15, 11), "float32")
 
 
-def test_conv2d_transpose_run():
+def test_conv2d_transpose_nchw_run():
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
     oshape = (1, 10, 37, 37)
@@ -229,17 +393,66 @@ def test_conv2d_transpose_run():
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
+def test_conv2d_transpose_nhwc_run():
+    dshape_nhwc = (1, 18, 18, 3)
+    kshape_hwoi = (3, 3, 10, 3)
+    oshape_nhwc = (1, 37, 37, 10)
+    x = relay.var("x", shape=dshape_nhwc)
+    w = relay.var("w")
+    # kshape and kernel_layout should have swapped IO.
+    # kshape is HWOI and kernel_layout is HWIO
+    y = relay.nn.conv2d_transpose(x, w,
+                                  channels=10, kernel_size=(3, 3), strides=(2, 2),
+                                  padding=(1, 1), output_padding=(2, 2),
+                                  data_layout="NHWC", kernel_layout="HWIO")
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape_nhwc).astype(dtype)
+    kernel = np.random.uniform(size=kshape_hwoi).astype(dtype)
+    # use true kshape layout here - HWOI
+    c_np = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI', 2, 1)
+    d_np = np.zeros(shape=oshape_nhwc)
+    d_np[:,0:c_np.shape[1],0:c_np.shape[2],:] = c_np
+
+
+def test_conv1d_transpose_ncw_run():
+    dshape = (1, 3, 18)
+    kshape = (3, 10, 3)
+    oshape = (1, 10, 37)
+    x = relay.var("x", shape=dshape)
+    w = relay.var("w")
+    y = relay.nn.conv1d_transpose(x, w,
+                                  channels=10, kernel_size=(3,), strides=(2,),
+                                  padding=(1,), output_padding=(2,))
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape).astype(dtype)
+    kernel = np.random.uniform(size=kshape).astype(dtype)
+    c_np = topi.testing.conv1d_transpose_ncw_python(
+        data, kernel, 2, 1)
+    d_np = np.zeros(shape=oshape)
+    d_np[:,:,0:c_np.shape[2]] = c_np
+    ref_res = d_np
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(data, kernel)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
 
 def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    scale = tvm.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, h*2, w*2), "float32")
+    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+                                                "float32")
     n, c = tvm.var("n"), tvm.var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
-    y = relay.nn.upsampling(x, scale=2, layout="NCHW", method="bilinear")
+    y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
@@ -504,29 +717,31 @@ def test_batch_flatten():
 
 def _test_upsampling(layout, method, align_corners=False):
     n, c, h, w = tvm.var("n"), 16, 32, 32
-    scale = 2
+    scale_h = 2.0
+    scale_w = 2.0
     dtype = "float32"
     def get_shape():
         if layout == "NCHW":
-            return (c, h, w), (c, h*scale, w*scale)
+            return (c, h, w), (c, int(round(h*scale_h)), int(round(w*scale_w)))
         else:
-            return (h, w, c), (h*scale, w*scale, c)
+            return (h, w, c), (int(round(h*scale_h)), int(round(w*scale_w)), c)
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
-    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
-    y = relay.nn.upsampling(x, scale=scale, layout=layout,
+    y = relay.nn.upsampling(x, scale_h=scale_h, scale_w=scale_w, layout=layout,
                             method=method, align_corners=align_corners)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
-        ref = topi.testing.upsampling_python(data, (scale, scale), layout)
+        ref = topi.testing.upsampling_python(data, (scale_h, scale_w), layout)
     else:
-        ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
+        ref = topi.testing.bilinear_resize_python(data, (int(round(h*scale_h)),
+                                                  int(round(w*scale_w))), layout)
     for target, ctx in ctx_list():
         executor = relay.create_executor("graph", ctx=ctx, target=target)
         out = executor.evaluate(func)(data)
@@ -546,9 +761,11 @@ def test_conv2d_int8_intrinsics():
 
         n, h, w, ch, cw = 1, 64, 64, 3, 3
         if data_layout == 'NCHW':
-            x = relay.var("x", relay.TensorType((n, ic, h, w), input_dtype))
+            data_shape = (n, ic, h, w)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         elif data_layout == 'NHWC':
-            x = relay.var("x", relay.TensorType((n, h, w, ic), input_dtype))
+            data_shape = (n, h, w, ic)
+            x = relay.var("x", relay.TensorType(data_shape, input_dtype))
         else:
             raise ValueError('Not supported')
 
@@ -559,8 +776,8 @@ def test_conv2d_int8_intrinsics():
         else:
             raise ValueError('Not supported')
 
-        w = relay.var("w", relay.TensorType(kernel_shape, weight_dtype))
-        y = relay.nn.conv2d(x, w,
+        weight = relay.var("weight", relay.TensorType(kernel_shape, weight_dtype))
+        y = relay.nn.conv2d(x, weight,
                             kernel_size=(ch, cw),
                             channels=oc,
                             padding=(1, 1),
@@ -568,11 +785,13 @@ def test_conv2d_int8_intrinsics():
                             data_layout=data_layout,
                             kernel_layout=kernel_layout,
                             out_dtype=output_dtype)
-        func = relay.Function([x, w], y)
+        func = relay.Function([x, weight], y)
         wdata = np.random.rand(*kernel_shape) * 10
-        parameters = {"w": tvm.nd.array(wdata.astype(weight_dtype))}
+        parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
+
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(func, target, params=parameters)
+
         assembly = lib.get_source("asm")
         return assembly
 
@@ -589,58 +808,63 @@ def test_conv2d_int8_intrinsics():
     llvm_version = tvm.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
-            fast_int8_dtypes = ('uint8', 'int8', 'int32')
+            dtypes = ('uint8', 'int8', 'int32')
             # Sweep the input channels to check int8 robustness
             # Input channels should be a multiple of 4 internally.
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NCHW",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for ic in [1, 4, 6]:
-                asm = _compile(ic=ic, oc=32, target=target, data_layout="NHWC",
+                asm = _compile(ic=ic, oc=16, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
-
 
             # Sweep the output channels to check int8 robustness
             # Output channels should be a multiple of 16 internally.
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NCHW",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NCHW",
                                kernel_layout='OIHW',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             for oc in [4, 16, 20]:
-                asm = _compile(ic=16, oc=oc, target=target, data_layout="NHWC",
+                asm = _compile(ic=8, oc=oc, target=target, data_layout="NHWC",
                                kernel_layout='HWIO',
-                               dtypes=fast_int8_dtypes)
+                               dtypes=dtypes)
                 assert _has_fast_int8_instructions(asm, target)
 
             # Check that both non-divisible oc and ic work
             asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
             asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
-                           dtypes=fast_int8_dtypes)
+                           dtypes=dtypes)
             assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('int8', 'int8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+    # Check that int8 x int8 goes through legalization so that fast instructions can be picked up.
+    for target in targets:
+        if llvm_version >= 8:
+            dtypes = (('int8', 'int8', 'int32'))
+            # Check that both non-divisible oc and ic work
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NCHW", kernel_layout='OIHW',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
 
-            # Ensure that code is generated when datatypes are not HW supported.
-            dtypes = ('uint8', 'uint8', 'int32')
-            asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+            asm = _compile(ic=17, oc=29, target=target, data_layout="NHWC", kernel_layout='HWIO',
                            dtypes=dtypes)
-            # Check that intrinisic is not present in the assembly.
-            assert not _has_fast_int8_instructions(asm, target)
+            assert _has_fast_int8_instructions(asm, target)
+
+    # Ensure that code is generated when datatypes are not HW supported.
+    dtypes = ('uint8', 'uint8', 'int32')
+    asm = _compile(ic=16, oc=32, target=target, data_layout="NHWC", kernel_layout='HWIO',
+                   dtypes=dtypes)
+    # Check that intrinisic is not present in the assembly.
+    assert not _has_fast_int8_instructions(asm, target)
 
     # Check that a vectorized instruction is generated for older Intel
     # generations, because we default to NCHWc layout.
@@ -686,8 +910,12 @@ if __name__ == "__main__":
     test_pad_infer_type()
     test_pad_run()
     test_conv2d_transpose_infer_type()
-    test_conv2d_transpose_run()
+    test_conv2d_transpose_nchw_run()
+    test_conv2d_transpose_nhwc_run()
+    test_conv1d_transpose_ncw_run()
     test_conv2d_run()
+    test_conv2d_winograd()
+    test_conv3d_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()

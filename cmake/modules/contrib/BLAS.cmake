@@ -16,7 +16,7 @@
 # under the License.
 
 # Plugin rules for cblas
-file(GLOB CBLAS_CONTRIB_SRC src/contrib/cblas/*.cc)
+file(GLOB CBLAS_CONTRIB_SRC src/runtime/contrib/cblas/*.cc)
 
 if(USE_BLAS STREQUAL "openblas")
   find_library(BLAS_LIBRARY openblas)
@@ -54,4 +54,11 @@ elseif(USE_BLAS STREQUAL "none")
   # pass
 else()
   message(FATAL_ERROR "Invalid option: USE_BLAS=" ${USE_BLAS})
+endif()
+
+if(USE_MKLDNN STREQUAL "ON")
+  find_library(BLAS_LIBRARY_MKLDNN dnnl)
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${BLAS_LIBRARY_MKLDNN})
+  add_definitions(-DUSE_DNNL=1)
+  message(STATUS "Use MKLDNN library " ${BLAS_LIBRARY_MKLDNN})
 endif()

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file storage_sync.cc
  */
 #include <tvm/ir.h>
@@ -212,7 +211,7 @@ class ThreadSyncInserter : public IRMutator {
         barrier = MakeGlobalBarrier();
       } else {
         barrier = Evaluate::make(
-                Call::make(Int(32), intrinsic::tvm_storage_sync,
+                Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                            {StringImm::make(sync_scope_.to_string())},
                            Call::Intrinsic));
       }
@@ -263,6 +262,28 @@ class ThreadSyncInserter : public IRMutator {
     }
   }
 
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
+      Expr expr = IRMutator::Mutate_(op, e);
+      op = expr.as<Call>();
+      CHECK_EQ(op->args.size(), 5U);
+      const Variable* buffer_var = op->args[1].as<Variable>();
+      Var var(GetRef<Var>(buffer_var));
+      const IntImm* flag = op->args[4].as<IntImm>();
+      if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].read_count;
+      }
+      if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[var].write_count;
+      }
+      return expr;
+    } else {
+      return IRMutator::Mutate_(op, e);
+    }
+  }
+
  private:
   // RW statistics about data
   struct Entry {
@@ -282,7 +303,7 @@ class ThreadSyncInserter : public IRMutator {
     CHECK(op != nullptr);
     Array<Expr> pargs = {StringImm::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
+        Call::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -292,7 +313,7 @@ class ThreadSyncInserter : public IRMutator {
     }
     rw_stats_.clear();
     Stmt kinit = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
+        Call::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
     body = Block::make(kinit, body);
     body = AttrStmt::make(
         op->node, op->attr_key, op->value, body);
@@ -310,7 +331,7 @@ class ThreadSyncInserter : public IRMutator {
           num_blocks_ = (num_blocks_.defined() ?
                          attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
-          Expr cond = iv->var == make_zero(iv->var.type());
+          Expr cond = iv->var == make_zero(iv->var.dtype());
           is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
         }
       }
@@ -318,7 +339,7 @@ class ThreadSyncInserter : public IRMutator {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
     return Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_storage_sync,
+        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},
                    Call::Intrinsic));

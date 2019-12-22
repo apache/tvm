@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/qnn/util.cc
  * \brief Utility functions for QNN.
  */
@@ -76,11 +75,11 @@ std::pair<int32_t, int32_t> GetFixedPointMultiplierShift(
   return std::make_pair(significand, exponent);
 }
 
-Expr FixedPointMuliply(Expr tensor, double multiplier,
+Expr FixedPointMultiply(Expr tensor, double multiplier,
                    const Array<IndexExpr>& input_shape, const std::string& rounding) {
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
-  DataType hp_dtype = Int(64);
+  DataType hp_dtype = DataType::Int(64);
 
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;
@@ -121,6 +120,8 @@ Expr FixedPointMuliply(Expr tensor, double multiplier,
     auto zero_t = Zeros(input_shape, hp_dtype);
     round_scalar =
         Where(GreaterEqual(tensor, zero_t), pos_rounder_t, neg_rounder_t);
+  } else {
+    LOG(FATAL) << "Rounding mode " << rounding << " not supported.";
   }
   // Add the rounding scalar.
   tensor = Add(tensor, round_scalar);
