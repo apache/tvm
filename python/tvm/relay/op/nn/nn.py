@@ -2008,3 +2008,26 @@ def depth_to_space(data, block_size, layout='NCHW'):
                            in_height * block_size, in_width * block_size]
     """
     return _make.depth_to_space(data, block_size, layout)
+
+
+def space_to_depth(data, block_size, layout='NCHW'):
+    """Convert spatial blocks into channels.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with spatial dimensions divisible by block_size
+    
+    block_size : int
+        Size of blocks to decompose into channels.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel * block_size * block_size, 
+                           in_height / block_size, in_width / block_size]
+    """
+    return _make.space_to_depth(data, block_size, layout)

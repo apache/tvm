@@ -891,6 +891,17 @@ def compute_depth_to_space(attrs, inputs, out_dtype, target):
 reg.register_schedule("nn.depth_to_space", schedule_injective)
 reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
 
+
+@reg.register_compute("nn.space_to_depth")
+def compute_space_to_depth(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.space_to_depth", schedule_injective)
+reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
+
 # shape func
 @script
 def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):

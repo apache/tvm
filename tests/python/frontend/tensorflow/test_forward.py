@@ -2855,7 +2855,6 @@ if __name__ == '__main__':
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
-    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
