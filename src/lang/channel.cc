@@ -24,7 +24,7 @@
 
 namespace tvm {
 
-Channel ChannelNode::make(Var handle_var, Type dtype) {
+Channel ChannelNode::make(Var handle_var, DataType dtype) {
   auto n = make_node<ChannelNode>();
   n->handle_var = handle_var;
   n->dtype = dtype;

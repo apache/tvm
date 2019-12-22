@@ -46,37 +46,37 @@ namespace relay {
  *  during runtime.
  */
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == Float(64)) {                              \
+  if (type == DataType::Float(64)) {                              \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(32)) {                       \
+  } else if (type == DataType::Float(32)) {                       \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(16)) {                       \
+  } else if (type == DataType::Float(16)) {                       \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(64)) {                         \
+  } else if (type == DataType::Int(64)) {                         \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(32)) {                         \
+  } else if (type == DataType::Int(32)) {                         \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(16)) {                         \
+  } else if (type == DataType::Int(16)) {                         \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(8)) {                          \
+  } else if (type == DataType::Int(8)) {                          \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(64)) {                        \
+  } else if (type == DataType::UInt(64)) {                        \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(32)) {                        \
+  } else if (type == DataType::UInt(32)) {                        \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(16)) {                        \
+  } else if (type == DataType::UInt(16)) {                        \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(8)) {                         \
+  } else if (type == DataType::UInt(8)) {                         \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
@@ -208,9 +208,9 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
  */
 template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
-  runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
+  runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
-    if (dtype == Float(16)) {
+    if (dtype == DataType::Float(16)) {
       // convert to float16
       // storage is uint16_t
       *static_cast<DType*>(arr->data) =

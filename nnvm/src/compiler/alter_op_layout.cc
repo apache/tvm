@@ -46,7 +46,7 @@ tvm::Array<tvm::Tensor> GetTensorInfo(const IndexedGraph& idx_graph,
     tvm::Array<tvm::Expr> shape;
     for (int64_t x : shape_vec[idx_graph.entry_id(nid, i)]) {
       CHECK_LE(x, static_cast<int64_t>(std::numeric_limits<int>::max()));
-      shape.push_back(tvm::make_const(tvm::Int(32), x));
+      shape.push_back(tvm::make_const(tvm::DataType::Int(32), x));
     }
     vec.push_back(tvm::placeholder(
       shape, GetTVMType(dtype_vec[idx_graph.entry_id(nid, i)])));

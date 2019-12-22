@@ -34,14 +34,14 @@ namespace tvm {
 namespace ir {
 
 inline Expr BroadcastTo(Expr e, int lanes) {
-  if (e.type().lanes() == lanes) return e;
+  if (e.dtype().lanes() == lanes) return e;
   if (const Broadcast* op = e.as<Broadcast>()) {
     if (lanes % op->lanes == 0) {
       return Broadcast::make(op->value, lanes);
     }
   }
-  CHECK_EQ(e.type().lanes(), 1)
-      << "Cannot broadcast lane=" << e.type().lanes()
+  CHECK_EQ(e.dtype().lanes(), 1)
+      << "Cannot broadcast lane=" << e.dtype().lanes()
       << " to " << lanes;
   return Broadcast::make(e, lanes);
 }
@@ -63,7 +63,7 @@ class VecAllocAccess : public IRMutator {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Load>();
     if (op->buffer_var.get() == buf_) {
-      return Load::make(op->type, op->buffer_var,
+      return Load::make(op->dtype, op->buffer_var,
                         op->index * var_lanes_ + var_,
                         op->predicate);
     } else {
@@ -128,15 +128,15 @@ class Vectorizer : public IRMutator {
         b.same_as(op->b)) {
       return e;
     } else {
-      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       if (lanes != 1) {
         const Ramp* b_ramp = b.as<Ramp>();
         const Ramp* a_ramp = a.as<Ramp>();
-        if (a_ramp && b.type().lanes() == 1 && analyzer_.CanProve(b > 0)) {
+        if (a_ramp && b.dtype().lanes() == 1 && analyzer_.CanProve(b > 0)) {
           return Ramp::make(
               a_ramp->base * b, a_ramp->stride * b, a_ramp->lanes);
         }
-        if (b_ramp && a.type().lanes() == 1 && analyzer_.CanProve(a > 0)) {
+        if (b_ramp && a.dtype().lanes() == 1 && analyzer_.CanProve(a > 0)) {
           return Ramp::make(
               b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
         }
@@ -190,13 +190,13 @@ class Vectorizer : public IRMutator {
   Expr Mutate_(const Ramp* op, const Expr &e) final {
     Expr base = this->Mutate(op->base);
     Expr stride = this->Mutate(op->stride);
-    if (base.type().lanes() > 1 && stride.type().lanes() == 1) {
+    if (base.dtype().lanes() > 1 && stride.dtype().lanes() == 1) {
       const Ramp* base_ramp = base.as<Ramp>();
-      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.type(), op->lanes))) {
+      if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), op->lanes))) {
         return Ramp::make(base_ramp->base, stride, op->lanes * base_ramp->lanes);
       }
     }
-    int lanes = std::max(base.type().lanes(), stride.type().lanes());
+    int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
     base = BroadcastTo(base, lanes);
     stride = BroadcastTo(stride, lanes);
     Array<Expr> elems;
@@ -218,8 +218,8 @@ class Vectorizer : public IRMutator {
       return e;
     } else {
       int lanes = std::max(std::max(
-          cond.type().lanes(),
-          t.type().lanes()), f.type().lanes());
+          cond.dtype().lanes(),
+          t.dtype().lanes()), f.dtype().lanes());
       return Select::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
     }
   }
@@ -228,7 +228,7 @@ class Vectorizer : public IRMutator {
     if (value.same_as(op->value)) {
       return e;
     } else {
-      return Cast::make(op->type.with_lanes(value.type().lanes()), value);
+      return Cast::make(op->dtype.with_lanes(value.dtype().lanes()), value);
     }
   }
   // Variable
@@ -244,7 +244,7 @@ class Vectorizer : public IRMutator {
   // IfThenElse expr
   Expr MutateIfThenElseExpr_(const Call *op, const Expr& e) {
     Expr cond = this->Mutate(op->args[0]);
-    if (cond.type().is_vector())  {
+    if (cond.dtype().is_vector())  {
       need_scalarize_ = true;
       return e;
     }
@@ -255,11 +255,11 @@ class Vectorizer : public IRMutator {
         f.same_as(op->args[2])) {
       return e;
     } else {
-      int lanes = std::max(t.type().lanes(), f.type().lanes());
+      int lanes = std::max(t.dtype().lanes(), f.dtype().lanes());
       t = BroadcastTo(t, lanes);
       f = BroadcastTo(f, lanes);
       return Call::make(
-          op->type.with_lanes(lanes), op->name,
+          op->dtype.with_lanes(lanes), op->name,
           {cond, t, f}, op->call_type, op->func, op->value_index);
     }
   }
@@ -273,7 +273,7 @@ class Vectorizer : public IRMutator {
       Array<Expr> new_args;
       for (auto arg : op->args) {
         auto new_arg = this->Mutate(arg);
-        if (new_arg.type().is_vector()) {
+        if (new_arg.dtype().is_vector()) {
           need_scalarize_ = true;
           return e;
         }
@@ -283,7 +283,7 @@ class Vectorizer : public IRMutator {
         return e;
       } else {
         return Call::make(
-            op->type, op->name, new_args, op->call_type, op->func, op->value_index);
+            op->dtype, op->name, new_args, op->call_type, op->func, op->value_index);
       }
     } else {
       int lane = 0;
@@ -293,7 +293,7 @@ class Vectorizer : public IRMutator {
         return e;
       } else {
         return Call::make(
-            op->type.with_lanes(lane), op->name, new_args,
+            op->dtype.with_lanes(lane), op->name, new_args,
             op->call_type, op->func, op->value_index);
       }
     }
@@ -305,9 +305,9 @@ class Vectorizer : public IRMutator {
     if (index.same_as(op->index) && pred.same_as(op->predicate)) {
       return e;
     } else {
-      int lanes = std::max(index.type().lanes(), pred.type().lanes());
+      int lanes = std::max(index.dtype().lanes(), pred.dtype().lanes());
       return Load::make(
-          op->type.with_lanes(lanes),
+          op->dtype.with_lanes(lanes),
           op->buffer_var,
           BroadcastTo(index, lanes),
           BroadcastTo(pred, lanes));
@@ -317,8 +317,8 @@ class Vectorizer : public IRMutator {
   Expr Mutate_(const Let* op, const Expr& e) final {
     Expr value = this->Mutate(op->value);
     CHECK(!lets_.count(op->var.get())) << "not SSA";
-    if (value.type().lanes() != op->value.type().lanes()) {
-      Var v(op->var->name_hint, value.type());
+    if (value.dtype().lanes() != op->value.dtype().lanes()) {
+      Var v(op->var->name_hint, value.dtype());
       lets_[op->var.get()] = v;
       return Let::make(v, value, Mutate(op->body));
     } else {
@@ -334,7 +334,7 @@ class Vectorizer : public IRMutator {
   // Provide
   Stmt Mutate_(const Provide* op, const Stmt& s) final {
     Expr new_value = this->Mutate(op->value);
-    int lane = new_value.type().lanes();
+    int lane = new_value.dtype().lanes();
     Array<Expr> new_args = MutateArray(op->args, &lane);
     if (op->args.same_as(new_args) && op->value.same_as(new_value)) {
       return s;
@@ -351,8 +351,8 @@ class Vectorizer : public IRMutator {
     if (value.same_as(op->value) && index.same_as(op->index)) {
       return s;
     } else {
-      int lanes = std::max(value.type().lanes(), index.type().lanes());
-      lanes = std::max(lanes, pred.type().lanes());
+      int lanes = std::max(value.dtype().lanes(), index.dtype().lanes());
+      lanes = std::max(lanes, pred.dtype().lanes());
       return Store::make(op->buffer_var,
                          BroadcastTo(value, lanes),
                          BroadcastTo(index, lanes),
@@ -365,9 +365,9 @@ class Vectorizer : public IRMutator {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
     CHECK(is_zero(op->min));
-    CHECK(!op->extent.type().is_vector());
+    CHECK(!op->extent.dtype().is_vector());
     Expr extent = Mutate(op->extent);
-    if (extent.type().is_vector()) {
+    if (extent.dtype().is_vector()) {
       return Scalarize(s);
     }
     Stmt body = Mutate(op->body);
@@ -382,9 +382,9 @@ class Vectorizer : public IRMutator {
   }
   // IfThenElse
   Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
-    CHECK(!op->condition.type().is_vector());
+    CHECK(!op->condition.dtype().is_vector());
     Expr condition = this->Mutate(op->condition);
-    if (condition.type().is_vector()) {
+    if (condition.dtype().is_vector()) {
       return Scalarize(s);
     }
     Stmt then_case = this->Mutate(op->then_case);
@@ -412,14 +412,14 @@ class Vectorizer : public IRMutator {
       return Scalarize(s);
     }
     Expr condition = Mutate(op->condition);
-    if (condition.type().is_vector()) {
+    if (condition.dtype().is_vector()) {
       LOG(WARNING) << "Cannot handle vector extent in alloc ";
       return Scalarize(s);
     }
     Array<Expr> extents;
     for (size_t i = 0; i < op->extents.size(); i++) {
       Expr new_ext = Mutate(op->extents[i]);
-      if (new_ext.type().is_vector()) {
+      if (new_ext.dtype().is_vector()) {
         LOG(WARNING) << "Cannot handle vector extent in alloc ";
         return Scalarize(s);
       }
@@ -432,13 +432,13 @@ class Vectorizer : public IRMutator {
         op->buffer_var.get(), var_, var_lanes_).Mutate(op->body);
     body = Mutate(body);
     return Allocate::make(
-        op->buffer_var, op->type,
+        op->buffer_var, op->dtype,
         extents, condition, body,
         op->new_expr, op->free_function);
   }
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
-    Var idx(var_->name_hint + ".s", var_->type);
+    Var idx(var_->name_hint + ".s", var_->dtype);
     Map<Var, Expr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
     return For::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
@@ -469,11 +469,11 @@ class Vectorizer : public IRMutator {
       Expr new_elem = this->Mutate(old_elem);
       if (!new_elem.same_as(old_elem)) changed = true;
       new_arr[i] = new_elem;
-      lanes = std::max(lanes, new_elem.type().lanes());
+      lanes = std::max(lanes, new_elem.dtype().lanes());
     }
 
     for (size_t i = 0; i < arr.size(); ++i) {
-      if (new_arr[i].type().lanes() != lanes) {
+      if (new_arr[i].dtype().lanes() != lanes) {
         new_arr[i] = BroadcastTo(new_arr[i], lanes);
         changed = true;
       }
@@ -489,7 +489,7 @@ class Vectorizer : public IRMutator {
         b.same_as(op->b)) {
       return e;
     } else {
-      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
     }
   }
@@ -501,17 +501,17 @@ class Vectorizer : public IRMutator {
         b.same_as(op->b)) {
       return e;
     } else {
-      int lanes = std::max(a.type().lanes(), b.type().lanes());
+      int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       if (lanes != 1) {
         const Ramp* b_ramp = b.as<Ramp>();
         const Ramp* a_ramp = a.as<Ramp>();
-        if (a.type().lanes() == 1 && b_ramp) {
+        if (a.dtype().lanes() == 1 && b_ramp) {
           return Ramp::make(
               arith::Compute<T>(a, b_ramp->base),
-              arith::Compute<T>(make_zero(b_ramp->stride.type()), b_ramp->stride),
+              arith::Compute<T>(make_zero(b_ramp->stride.dtype()), b_ramp->stride),
               b_ramp->lanes);
         }
-        if (b.type().lanes() == 1 && a_ramp) {
+        if (b.dtype().lanes() == 1 && a_ramp) {
           return Ramp::make(
               arith::Compute<T>(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }

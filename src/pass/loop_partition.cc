@@ -181,7 +181,7 @@ class PartitionFinder : public IRVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const Variable* var = thread_axis->var.get();
-      IntSet dom = IntSet::range(Range(make_zero(op->value.type()), op->value));
+      IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       IRVisitor::Visit_(op);
@@ -351,12 +351,12 @@ class LoopPartitioner : public IRMutator {
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert({var.get(),
-        IntSet::interval(make_zero(var.type()), op->value - 1)});
+        IntSet::interval(make_zero(var.dtype()), op->value - 1)});
       res = IRMutator::Mutate_(op, stmt);
       relax_map_.erase(var.get());
     } else {
       hint_map_.insert({var.get(),
-        IntSet::interval(make_zero(var.type()), op->value - 1)});
+        IntSet::interval(make_zero(var.dtype()), op->value - 1)});
       res = IRMutator::Mutate_(op, stmt);
       hint_map_.erase(var.get());
     }
@@ -595,9 +595,9 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
 inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
-  if (analyzer_.CanProve(extent == make_const(Int(32), 1))) {
+  if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
-    return Substitute(body, {{Var{for_node->loop_var}, make_const(Int(32), 0)}});
+    return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     return For::make(for_node->loop_var, 0, extent,
                      for_node->for_type, for_node->device_api, body);

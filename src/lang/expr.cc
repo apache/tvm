@@ -29,70 +29,11 @@
 
 namespace tvm {
 
-// maximum and min values
-Expr DataType::max() const {
-  using namespace ir;
-  CHECK_EQ(lanes(), 1);
-  if (is_int()) {
-    if (bits() == 64) {
-      return IntImm::make(*this, std::numeric_limits<int64_t>::max());
-    } else if (bits() < 64) {
-      int64_t val = 1;
-      val = (val << (bits() - 1)) - 1;
-      return IntImm::make(*this, val);
-    }
-  } else if (is_uint()) {
-    if (bits() == 64) {
-      return UIntImm::make(*this, std::numeric_limits<uint64_t>::max());
-    } else if (bits() < 64) {
-      uint64_t val = 1;
-      val = (val << static_cast<uint64_t>(bits())) - 1;
-      return UIntImm::make(*this, val);
-    }
-  } else if (is_float()) {
-    if (bits() == 64) {
-      return FloatImm::make(*this, std::numeric_limits<double>::max());
-    } else if (bits() == 32) {
-      return FloatImm::make(*this, std::numeric_limits<float>::max());
-    } else if (bits() == 16) {
-      return FloatImm::make(*this, 65504.0);
-    }
-  }
-  LOG(FATAL) << "Cannot decide max_value for type" << *this;
-  return Expr();
-}
-
-Expr DataType::min() const {
-  using namespace ir;
-  CHECK_EQ(lanes(), 1);
-  if (is_int()) {
-    if (bits() == 64) {
-      return IntImm::make(*this, std::numeric_limits<int64_t>::lowest());
-    } else if (bits() < 64) {
-      int64_t val = 1;
-      val = -(val << (bits() - 1));
-      return IntImm::make(*this, val);
-    }
-  } else if (is_uint()) {
-    return UIntImm::make(*this, 0);
-  } else if (is_float()) {
-    if (bits() == 64) {
-      return FloatImm::make(*this, std::numeric_limits<double>::lowest());
-    } else if (bits() == 32) {
-      return FloatImm::make(*this, std::numeric_limits<float>::lowest());
-    } else if (bits() == 16) {
-      return FloatImm::make(*this, -65504.0);
-    }
-  }
-  LOG(FATAL) << "Cannot decide min_value for type" << *this;
-  return Expr();
-}
-
 Expr::Expr(int32_t value)
-    : Expr(IntImm::make(Int(32), value)) {}
+    : Expr(IntImm::make(DataType::Int(32), value)) {}
 
 Expr::Expr(float value)
-    : Expr(ir::FloatImm::make(Float(32), value)) {}
+    : Expr(ir::FloatImm::make(DataType::Float(32), value)) {}
 
 Expr::Expr(std::string str)
     : Expr(ir::StringImm::make(str)) {}
@@ -102,7 +43,7 @@ Var::Var(std::string name_hint, DataType t)
 
 Var Variable::make(DataType t, std::string name_hint) {
   NodePtr<Variable> node = make_node<Variable>();
-  node->type = t;
+  node->dtype = t;
   node->name_hint = std::move(name_hint);
   return Var(node);
 }
@@ -113,11 +54,11 @@ Range::Range(Expr begin, Expr end)
           is_zero(begin) ? end : (end - begin))) {
 }
 
-Integer IntImm::make(Type t, int64_t value) {
+Integer IntImm::make(DataType t, int64_t value) {
   CHECK(t.is_int() && t.is_scalar())
       << "ValueError: IntImm can only take scalar.";
   NodePtr<IntImm> node = make_node<IntImm>();
-  node->type = t;
+  node->dtype = t;
   node->value = value;
   return Integer(node);
 }
@@ -152,7 +93,7 @@ void Dump(const NodeRef& n) {
   std::cerr << n << "\n";
 }
 
-Var var(std::string name_hint, Type t) {
+Var var(std::string name_hint, DataType t) {
   return Var(name_hint, t);
 }
 
@@ -184,10 +125,10 @@ IRPrinter::FType& IRPrinter::vtable() {
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<IntImm>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const IntImm*>(node.get());
-    if (op->type == Int(32)) {
+    if (op->dtype == DataType::Int(32)) {
       p->stream << op->value;
     } else {
-      p->stream << "(" << op->type << ")" << op->value;
+      p->stream << "(" << op->dtype << ")" << op->value;
     }
   });
 

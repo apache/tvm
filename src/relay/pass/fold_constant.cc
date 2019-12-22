@@ -226,7 +226,7 @@ class ConstantFolder : public ExprMutator {
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
     runtime::NDArray value;
-    auto cdtype = Type2TVMType(Int(32));
+    DLDataType cdtype = DataType::Int(32);
     if (ishape.size() == 0) {
       value = runtime::NDArray::Empty({}, cdtype, ctx);
     } else {

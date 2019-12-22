@@ -209,7 +209,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     return in_shape;
   }
 
-  auto max_shape = make_const(Int(64), 1);
+  auto max_shape = make_const(DataType::Int(64), 1);
   bool is_dynamic_input = false;
   for (int64_t axis : r_axes) {
     if (in_shape[axis].as<IntImm>()) {
@@ -221,7 +221,8 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   }
 
   if (is_dynamic_input) {
-    CHECK(reporter->Assert(max_shape < make_const(Int(64), std::numeric_limits<int32_t>::max())))
+    CHECK(reporter->Assert(max_shape < make_const(
+        DataType::Int(64), std::numeric_limits<int32_t>::max())))
       << "The maximum possible index of reduced shape cannot be more than int32 max.";
   }
 
@@ -271,7 +272,7 @@ bool ArgReduceRel(const Array<Type>& types,
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, Int(32)));
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, DataType::Int(32)));
   return true;
 }
 

@@ -26,7 +26,7 @@
 
 TEST(Relay, SelfReference) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({}, ::tvm::Bool());
+  auto tensor_type = relay::TensorTypeNode::make({}, DataType::Bool());
   auto x = relay::VarNode::make("x", relay::Type());
   auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
 

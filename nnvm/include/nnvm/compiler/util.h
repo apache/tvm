@@ -41,7 +41,7 @@ namespace compiler {
 inline tvm::Array<tvm::Expr> ShapeToArray(TShape shape) {
   tvm::Array<tvm::Expr> result;
   for (auto i : shape) {
-    result.push_back(tvm::make_const(tvm::Int(32), i));
+    result.push_back(tvm::make_const(tvm::DataType::Int(32), i));
   }
   return result;
 }

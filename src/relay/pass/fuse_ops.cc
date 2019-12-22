@@ -207,14 +207,14 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const ConstantNode* op) final {
     this->AddNode(op);
     Node* node = graph_.node_map.at(op);
-    DataType dtype = TVMType2Type(op->data->dtype);
+    DataType dtype = DataType(op->data->dtype);
     // This rule must be consistent with code generator.
     bool is_simple_const = (
-        dtype == Int(32) ||
-        dtype == Int(64) ||
-        dtype == Float(32) ||
-        dtype == Float(64) ||
-        dtype == Bool());
+        dtype == DataType::Int(32) ||
+        dtype == DataType::Int(64) ||
+        dtype == DataType::Float(32) ||
+        dtype == DataType::Float(64) ||
+        dtype == DataType::Bool());
     if (op->is_scalar() && is_simple_const) {
       node->pattern = kElemWise;
     } else {

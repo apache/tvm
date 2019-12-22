@@ -34,8 +34,8 @@ TEST(BuildModule, Basic) {
   Array<Expr> shape;
   shape.push_back(n);
 
-  auto A = placeholder(shape, Float(32), "A");
-  auto B = placeholder(shape, Float(32), "B");
+  auto A = placeholder(shape, DataType::Float(32), "A");
+  auto B = placeholder(shape, DataType::Float(32), "B");
 
   auto C = compute(A->shape, [&A, &B](Expr i) {
     return A[i] + B[i];
@@ -90,15 +90,15 @@ TEST(BuildModule, Heterogeneous) {
   const int n = 4;
   Array<Expr> shape{n};
 
-  auto A = placeholder(shape, Float(32), "A");
-  auto B = placeholder(shape, Float(32), "B");
-  auto C = placeholder(shape, Float(32), "C");
+  auto A = placeholder(shape, DataType::Float(32), "A");
+  auto B = placeholder(shape, DataType::Float(32), "B");
+  auto C = placeholder(shape, DataType::Float(32), "C");
 
   auto elemwise_add = compute(A->shape, [&A, &B](Expr i) {
     return A[i] + B[i];
   }, "elemwise_add");
 
-  auto copy = placeholder(shape, Float(32), "__copy");
+  auto copy = placeholder(shape, DataType::Float(32), "__copy");
   auto elemwise_sub = compute(C->shape, [&copy, &C](Expr i) {
     return copy[i] - C[i];
   }, "elemwise_sub");

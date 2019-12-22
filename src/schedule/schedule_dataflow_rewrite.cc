@@ -104,7 +104,7 @@ Expr InjectPredicate(const Array<Expr>& predicates,
   }
   return Select::make(arith::ComputeReduce<ir::And>(predicates, Expr()),
                       body,
-                      make_zero(body.type()));
+                      make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -593,7 +593,7 @@ void InjectInline(ScheduleNode* sch) {
               for (size_t k = 0; k < new_body[j].size(); ++k) {
                 auto n = make_node<ir::Reduce>(*r);
                 n->value_index = static_cast<int>(k);
-                n->type = r->source[k].type();
+                n->dtype = r->source[k].dtype();
                 new_body[j].Set(k, Expr(n));
               }
             }

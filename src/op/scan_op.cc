@@ -53,7 +53,7 @@ Array<IterVar> ScanOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ScanOpNode::output_dtype(size_t i) const {
+DataType ScanOpNode::output_dtype(size_t i) const {
   return update[i]->dtype;
 }
 

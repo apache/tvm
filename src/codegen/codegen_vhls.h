@@ -35,7 +35,7 @@ namespace codegen {
 class CodeGenVivadoHLS final : public CodeGenC {
  public:
   void Init(bool output_ssa);
-  void PrintType(Type t, std::ostream& os);
+  void PrintType(DataType t, std::ostream& os);
   void AddFunction(LoweredFunc f);
   void PreFunctionBody(LoweredFunc f);
   void VisitExpr_(const Min *op, std::ostream& os);

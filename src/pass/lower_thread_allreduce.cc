@@ -83,7 +83,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
       stmt = AttrStmt::make(
           repl->buffer_var, attr::volatile_scope, 1, op->body);
       stmt = Allocate::make(
-          repl->buffer_var, repl->type,
+          repl->buffer_var, repl->dtype,
           repl->extents, repl->condition, stmt);
       stmt = AttrStmt::make(
           repl->buffer_var, attr::storage_scope,
@@ -125,14 +125,14 @@ class ThreadAllreduceBuilder final : public IRMutator {
     CHECK_EQ(size, size_of_args->value);
     Array<Expr> inits = combiner->identity_element;
     std::vector<Expr> values(size);
-    std::vector<Type> types(size);
+    std::vector<DataType> types(size);
     Expr cond  = call->args[size+1];
     for (size_t idx = 0; idx < size; ++idx) {
       values[idx] = call->args[1+idx];
       if (!is_one(cond)) {
         values[idx] = Select::make(cond, values[idx], inits[idx]);
       }
-      types[idx] = values[idx].type();
+      types[idx] = values[idx].dtype();
     }
     std::vector<const Variable*> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
@@ -197,7 +197,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     // previous iteration on the same buffer.
     seq.emplace_back(SyncThread("shared"));
     for (size_t idx = 0; idx < size; ++idx) {
-      shared_bufs[idx] = Var("red_buf"+std::to_string(idx), Handle());
+      shared_bufs[idx] = Var("red_buf"+std::to_string(idx), DataType::Handle());
       Expr pred = const_true(types[idx].lanes());
       seq.emplace_back(Store::make(
           shared_bufs[idx], values[idx],
@@ -212,7 +212,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
       Expr pred = const_true(types[idx].lanes());
       load_remap_[buffers[idx]] = Load::make(
         types[idx], shared_bufs[idx],
-        BufIndex(make_zero(reduce_index.type()), group_index, reduce_extent), pred);
+        BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
       alloc_remap_[buffers[idx]] = Allocate::make(
         shared_bufs[idx], types[idx],
         {Expr(group_extent), Expr(reduce_extent)},
@@ -222,7 +222,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
   }
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode *combiner,
-                        const std::vector<Type>& types,
+                        const std::vector<DataType>& types,
                         const Array<Var>& shared_bufs,
                         Expr reduce_index,
                         Expr group_index,
@@ -293,7 +293,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     int& total_extent = *out_total_extent;
     total_extent = 1;
     if (tvec.size() == 0) {
-      return make_zero(Int(32));
+      return make_zero(DataType::Int(32));
     }
 
     Expr ret;
@@ -311,7 +311,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
     return Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_storage_sync,
+        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync)},
                    Call::Intrinsic));
   }

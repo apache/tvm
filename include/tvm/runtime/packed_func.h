@@ -28,6 +28,11 @@
 #include <sstream>
 #endif
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/object.h>
 #include <functional>
 #include <tuple>
 #include <vector>
@@ -36,10 +41,7 @@
 #include <memory>
 #include <utility>
 #include <type_traits>
-#include "c_runtime_api.h"
-#include "module.h"
-#include "ndarray.h"
-#include "object.h"
+
 
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
@@ -49,7 +51,6 @@
 namespace tvm {
 // forward declarations
 class Integer;
-class DataType;
 class Expr;
 
 namespace runtime {
@@ -629,7 +630,7 @@ class TVMArgValue : public TVMPODValue_ {
            typename = typename std::enable_if<
            std::is_class<T>::value>::type>
   inline operator T() const;
-  inline operator tvm::DataType() const;
+  inline operator DataType() const;
   inline operator tvm::Expr() const;
   inline operator tvm::Integer() const;
 };
@@ -834,8 +835,8 @@ class TVMRetValue : public TVMPODValue_ {
   template<typename TObjectRef>
   inline TObjectRef AsObjectRef() const;
   // type related
-  inline operator tvm::DataType() const;
-  inline TVMRetValue& operator=(const tvm::DataType& other);
+  inline operator DataType() const;
+  inline TVMRetValue& operator=(const DataType& other);
 
  private:
   template<typename T>
@@ -1048,6 +1049,10 @@ inline TVMType String2TVMType(std::string s) {
   return t;
 }
 
+inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NOLINT(*)
+  return os << dtype.operator DLDataType();
+}
+
 inline TVMArgValue TVMArgs::operator[](int i) const {
   CHECK_LT(i, num_args)
       << "not enough argument passed, "
@@ -1198,7 +1203,7 @@ class TVMArgsSetter {
            typename = typename std::enable_if<
              extension_type_info<T>::code != 0>::type>
   inline void operator()(size_t i, const T& value) const;
-  inline void operator()(size_t i, const tvm::DataType& t) const;
+  inline void operator()(size_t i, const DataType& t) const;
 
  private:
   /*! \brief The values fields */
@@ -1360,6 +1365,24 @@ inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
                 "Need to have extesion code");
   type_codes_[i] = extension_type_info<T>::code;
   values_[i].v_handle = const_cast<T*>(&value);
+}
+
+// PackedFunc support
+inline TVMRetValue& TVMRetValue::operator=(const DataType& t) {
+  return this->operator=(t.operator DLDataType());
+}
+
+inline TVMRetValue::operator DataType() const {
+  return DataType(operator DLDataType());
+}
+
+inline TVMArgValue::operator DataType() const {
+  return DataType(operator DLDataType());
+}
+
+inline void TVMArgsSetter::operator()(
+    size_t i, const DataType& t) const {
+  this->operator()(i, t.operator DLDataType());
 }
 
 // extension type handling

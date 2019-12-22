@@ -255,7 +255,7 @@ class SchedulePostProc : public IRMutator {
       if (it->second.defined()) {
         Stmt ret = Realize::make(
             it->second->op, it->second->value_index,
-            op->type, op->bounds, op->condition, op->body);
+            op->dtype, op->bounds, op->condition, op->body);
         return this->Mutate(ret);
       } else {
         return this->Mutate(op->body);
@@ -285,7 +285,7 @@ class SchedulePostProc : public IRMutator {
       if (it != replace_buffer_.end()) {
         const Tensor& dst = it->second;
         Expr ret = Call::make(
-            op->type, dst->op->name, op->args,
+            op->dtype, dst->op->name, op->args,
             op->call_type, dst->op, dst->value_index);
         return this->Mutate(ret);
       }

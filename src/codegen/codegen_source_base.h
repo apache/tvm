@@ -79,7 +79,7 @@ class CodeGenSourceBase {
    * \param src The source expression
    * \param t The type of the expression.
    */
-  std::string SSAGetID(std::string src, Type t);
+  std::string SSAGetID(std::string src, DataType t);
   /*!
    * \brief get a unique name with the corresponding prefix
    * \param prefix The prefix of the name
@@ -103,7 +103,7 @@ class CodeGenSourceBase {
    * \param t The type of target.
    */
   virtual void PrintSSAAssign(
-      const std::string& target, const std::string& src, Type t) = 0;
+      const std::string& target, const std::string& src, DataType t) = 0;
 
   /*! \brief the declaration stream */
   std::ostringstream decl_stream;

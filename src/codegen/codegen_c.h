@@ -147,7 +147,7 @@ class CodeGenC :
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
+  virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;
@@ -157,51 +157,51 @@ class CodeGenC :
   virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
-      const std::string&op, Type op_type,
+      const std::string&op, DataType op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(Type t, const Variable* buffer, Expr base);
+  virtual std::string GetVecLoad(DataType t, const Variable* buffer, Expr base);
   // print vector store
   virtual void PrintVecStore(const Variable* buffer,
-                             Type t, Expr base,
+                             DataType t, Expr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
   virtual void PrintVecElemLoad(
-      const std::string& vec, Type t, int i, std::ostream& os);  // NOLINT(*)
+      const std::string& vec, DataType t, int i, std::ostream& os);  // NOLINT(*)
   // print store of single element.
   virtual void PrintVecElemStore(
-      const std::string& vec, Type t, int i, const std::string& value);
+      const std::string& vec, DataType t, int i, const std::string& value);
   // Get a cast type from to
-  virtual std::string CastFromTo(std::string value, Type from, Type target);
+  virtual std::string CastFromTo(std::string value, DataType from, DataType target);
 
  protected:
   // Print reference to struct location
   std::string GetStructRef(
-      Type t, const Expr& buffer, const Expr& index, int kind);
+      DataType t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(
-      Type t, const Variable* buffer, Expr index);
+      DataType t, const Variable* buffer, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool HandleTypeMatch(const Variable* buf_var, Type t) const;
+  bool HandleTypeMatch(const Variable* buf_var, DataType t) const;
   /*!
    * \brief Register the data type of buf_var
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void RegisterHandleType(const Variable* buf_var, Type t);
+  void RegisterHandleType(const Variable* buf_var, DataType t);
   // override
   void PrintSSAAssign(
-      const std::string& target, const std::string& src, Type t) final;
+      const std::string& target, const std::string& src, DataType t) final;
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
   /*! \brief the storage scope of allocation */
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, Type> handle_data_type_;
+  std::unordered_map<const Variable*, DataType> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 

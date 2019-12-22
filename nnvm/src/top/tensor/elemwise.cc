@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -482,7 +482,7 @@ NNVM_REGISTER_INIT_OP(full)
                     const Array<Tensor>& out_info) {
     const InitOpWithScalarParam& param = nnvm::get<InitOpWithScalarParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
-    Type dtype = GetTVMType(param.dtype);
+    DataType dtype = GetTVMType(param.dtype);
     Expr fill_value = tvm::make_const(dtype, param.fill_value);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
@@ -505,7 +505,7 @@ NNVM_REGISTER_INIT_OP(zeros)
                     const Array<Tensor>& out_info) {
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
-    Type dtype = GetTVMType(param.dtype);
+    DataType dtype = GetTVMType(param.dtype);
     Expr fill_value = tvm::make_const(dtype, 0);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
@@ -528,7 +528,7 @@ NNVM_REGISTER_INIT_OP(ones)
                     const Array<Tensor>& out_info) {
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
-    Type dtype = GetTVMType(param.dtype);
+    DataType dtype = GetTVMType(param.dtype);
     Expr fill_value = tvm::make_const(dtype, 1);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
@@ -950,8 +950,8 @@ Example::
                     const Array<Tensor>& out_info) {
     const ClipParam params = get<ClipParam>(attrs.parsed);
     return Array<Tensor>{
-      topi::clip(inputs[0], tvm::make_const(tvm::Float(32), params.a_min),
-                 tvm::make_const(tvm::Float(32), params.a_max)) };
+      topi::clip(inputs[0], tvm::make_const(tvm::DataType::Float(32), params.a_min),
+                 tvm::make_const(tvm::DataType::Float(32), params.a_max)) };
   })
 .add_argument("data", "NDArray-or-Symbol", "Input array.")
 .add_arguments(ClipParam::__FIELDS__())

@@ -70,9 +70,9 @@ Array<IterVar> BaseComputeOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ComputeOpNode::output_dtype(size_t idx) const {
+DataType ComputeOpNode::output_dtype(size_t idx) const {
   CHECK_LT(idx, num_outputs());
-  return body[idx].type();
+  return body[idx].dtype();
 }
 
 Array<Expr> BaseComputeOpNode::output_shape(size_t idx) const {
@@ -100,7 +100,7 @@ Tensor compute(Array<Expr> shape,
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
+        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -122,7 +122,7 @@ Array<Tensor> compute(Array<Expr> shape,
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
+        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -190,7 +190,7 @@ Operation ComputeOpNode::ReplaceInputs(
       for (size_t k = 0; k < this->body.size(); ++k) {
         auto n = make_node<ir::Reduce>(*r);
         n->value_index = static_cast<int>(k);
-        n->type = r->source[k].type();
+        n->dtype = r->source[k].dtype();
         arr.push_back(Expr(n));
       }
     } else {
@@ -229,7 +229,7 @@ void ComputeOpNode::PropBoundToInputs(
           IntSet arg_intset = EvalSet(call->args[i], dom_map);
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
-            Expr shape_i_min_value = make_zero(t->shape[i].type());
+            Expr shape_i_min_value = make_zero(t->shape[i].dtype());
             Expr shape_i_max_value = t->shape[i] - 1;
             Expr min_value = arg_interval->min_value;
             Expr max_value = arg_interval->max_value;
@@ -295,7 +295,7 @@ Stmt BaseComputeOpNode::BuildRealize(
                                attr->dim_align_offset};
           realize = ir::AttrStmt::make(
               t, ir::attr::buffer_dim_align,
-              Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
+              Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
               realize);
         }
       }

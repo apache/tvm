@@ -30,7 +30,7 @@ namespace tvm {
 namespace ir {
 
 TVM_REGISTER_API("_Var")
-.set_body_typed<VarExpr(std::string, Type)>([](std::string s, Type t) {
+.set_body_typed<VarExpr(std::string, DataType)>([](std::string s, DataType t) {
     return Variable::make(t, s);
   });
 
@@ -75,7 +75,7 @@ TVM_REGISTER_API("make.For")
 
 TVM_REGISTER_API("make.Load")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    Type t = args[0];
+    DataType t = args[0];
     if (args.size() == 3) {
       *ret = Load::make(t, args[1], args[2], const_true(t.lanes()));
     } else {
@@ -87,7 +87,7 @@ TVM_REGISTER_API("make.Store")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     Expr value = args[1];
     if (args.size() == 3) {
-      *ret = Store::make(args[0], value, args[2], const_true(value.type().lanes()));
+      *ret = Store::make(args[0], value, args[2], const_true(value.dtype().lanes()));
     } else {
       *ret = Store::make(args[0], value, args[2], args[3]);
     }
@@ -97,8 +97,8 @@ TVM_REGISTER_API("make.Realize")
 .set_body_typed(Realize::make);
 
 TVM_REGISTER_API("make.Call")
-.set_body_typed<Expr(Type, std::string, Array<Expr>, int, FunctionRef, int)>([](
-  Type type, std::string name,
+.set_body_typed<Expr(DataType, std::string, Array<Expr>, int, FunctionRef, int)>([](
+  DataType type, std::string name,
   Array<Expr> args, int call_type,
   FunctionRef func, int value_index
 ) {
@@ -166,8 +166,8 @@ TVM_REGISTER_API("make.Block")
 
 // has default args
 TVM_REGISTER_API("make.Allocate")
-  .set_body_typed<Stmt(VarExpr, Type, Array<Expr>, Expr, Stmt)>([](
-    VarExpr buffer_var, Type type, Array<Expr> extents, Expr condition, Stmt body
+  .set_body_typed<Stmt(VarExpr, DataType, Array<Expr>, Expr, Stmt)>([](
+    VarExpr buffer_var, DataType type, Array<Expr> extents, Expr condition, Stmt body
   ){
     return Allocate::make(buffer_var, type, extents, condition, body);
   });

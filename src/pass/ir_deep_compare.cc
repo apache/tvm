@@ -63,7 +63,7 @@ class IRDeepCompare :
     if (order_ != 0) return;
     if (n.same_as(other)) return;
     if (CompareValue(n->type_index(), other->type_index()) != 0) return;
-    if (CompareType(n.type(), other.type()) != 0) return;
+    if (CompareType(n.dtype(), other.dtype()) != 0) return;
     ExprComparator::VisitExpr(n, other);
   }
 
@@ -119,7 +119,7 @@ class IRDeepCompare :
     } else {
       if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
     }
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareArray(op->extents, rhs->extents) != 0) return;
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
@@ -166,7 +166,7 @@ class IRDeepCompare :
     const Realize* rhs = other.as<Realize>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareRegion(op->bounds, rhs->bounds) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
@@ -175,7 +175,7 @@ class IRDeepCompare :
     const Prefetch* rhs = other.as<Prefetch>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareRegion(op->bounds, rhs->bounds) != 0) return;
   }
 
@@ -369,7 +369,7 @@ class IRDeepCompare :
     return order_;
   }
 
-  int CompareType(const Type& lhs, const Type& rhs) {
+  int CompareType(const DataType& lhs, const DataType& rhs) {
     if (order_ != 0) return order_;
     if (lhs == rhs) return order_;
     if (CompareValue(lhs.code(), rhs.code()) != 0) return order_;

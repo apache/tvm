@@ -60,11 +60,11 @@ std::string simplify_name(std::string input) {
   }
 }
 
-Expr unpack_type_cast(const Expr &input, const Type &target_type) {
+Expr unpack_type_cast(const Expr &input, const DataType &target_type) {
   auto cast = input.as<Cast>();
   if (cast == nullptr) {
     return input;
-  } else if (cast->type == target_type) {
+  } else if (cast->dtype == target_type) {
     return cast->value;
   }
   return Expr();
@@ -123,7 +123,7 @@ class MMAMatcher: public IRVisitor {
     } else {
       BufferInfo bi;
       bi.name = key.GetName();
-      bi.dtype = op->type;
+      bi.dtype = op->dtype;
       buf_map_[key] = bi;
       Visit(op->body);
       buf_map_[key].released = true;
@@ -138,7 +138,7 @@ class MMAMatcher: public IRVisitor {
  private:
   struct BufferInfo {
     std::string name;
-    Type dtype;
+    DataType dtype;
     bool external{false};
     bool released{false};
     bool same_as(const BufferInfo &bi) {
@@ -185,8 +185,8 @@ class MMAMatcher: public IRVisitor {
     BufferInfo buffer_c;
     if (!check_local_buffer_(load_c, &buffer_c)
         || !buffer_c.same_as(store_buffer)
-        || !(buffer_c.dtype == Float(32) ||
-             buffer_c.dtype == Int(32))) {
+        || !(buffer_c.dtype == DataType::Float(32) ||
+             buffer_c.dtype == DataType::Int(32))) {
       return false;
     }
 
@@ -199,8 +199,8 @@ class MMAMatcher: public IRVisitor {
     auto load_a = load_a_expr.as<Call>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
-        || !(buffer_a.dtype == Float(16) ||
-             buffer_a.dtype == Int(8))) {
+        || !(buffer_a.dtype == DataType::Float(16) ||
+             buffer_a.dtype == DataType::Int(8))) {
       return false;
     }
 
@@ -208,8 +208,8 @@ class MMAMatcher: public IRVisitor {
     auto load_b = load_b_expr.as<Call>();
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
-        || !(buffer_b.dtype == Float(16) ||
-             buffer_b.dtype == Int(8))) {
+        || !(buffer_b.dtype == DataType::Float(16) ||
+             buffer_b.dtype == DataType::Int(8))) {
       return false;
     }
 
@@ -247,8 +247,8 @@ class BodyVisitor : public IRVisitor {
       return;
     }
     for (Expr source : op->source) {
-      auto mul_0 = unpack_type_cast(source, Float(32)).as<Mul>();
-      auto mul_1 = unpack_type_cast(source, Int(32)).as<Mul>();
+      auto mul_0 = unpack_type_cast(source, DataType::Float(32)).as<Mul>();
+      auto mul_1 = unpack_type_cast(source, DataType::Int(32)).as<Mul>();
       if (mul_0 == nullptr && mul_1 == nullptr) {
         continue;
       }
@@ -467,13 +467,13 @@ class BufferAnalyser : public IRVisitor {
       strides = bi.strides;
     } else {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
-        Expr stride = IntImm::make(Int(32), 1);
+        Expr stride = IntImm::make(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
           stride = Mul::make(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
-      strides.push_back(make_const(Int(32), 1));
+      strides.push_back(make_const(DataType::Int(32), 1));
     }
     strides_.insert(std::make_pair(key.GetName(), strides));
 
@@ -580,13 +580,13 @@ class BufferAnalyser : public IRVisitor {
         strides = bi.strides;
       } else {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
-          Expr stride = IntImm::make(Int(32), 1);
+          Expr stride = IntImm::make(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
             stride = Mul::make(stride, bi.shape[j]);
           }
           strides.push_back(stride);
         }
-        strides.push_back(make_const(Int(32), 1));
+        strides.push_back(make_const(DataType::Int(32), 1));
       }
       strides_.insert(std::make_pair(key.GetName(), strides));
 
@@ -631,12 +631,12 @@ class BufferAnalyser : public IRVisitor {
         std::vector<Expr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
         int first_dim = 0;
-        Expr stride = make_const(shape[first_dim].type(), 1);
+        Expr stride = make_const(shape[first_dim].dtype(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
-            Expr factor = make_const(stride.type(), avec[dim].align_factor);
-            Expr offset = make_const(stride.type(), avec[dim].align_offset);
+            Expr factor = make_const(stride.dtype(), avec[dim].align_factor);
+            Expr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + \
               indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
@@ -648,7 +648,7 @@ class BufferAnalyser : public IRVisitor {
       }
 
       bi.name = key.GetName();
-      bi.dtype = op->type;
+      bi.dtype = op->dtype;
       bi.strides = strides;
       bi.shape = shape;
 
@@ -693,7 +693,7 @@ class BufferAnalyser : public IRVisitor {
 
   struct BufferInfo {
     std::string name;
-    Type dtype;
+    DataType dtype;
     Array<Expr> strides;
     Array<Expr> shape;
     Region bounds;
@@ -770,7 +770,7 @@ class ThreadIdxMutator : public IRMutator {
     op = expr.as<Variable>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
-        Expr zero = IntImm::make(Int(32), 0);
+        Expr zero = IntImm::make(DataType::Int(32), 0);
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
@@ -827,7 +827,7 @@ class TensorCoreIRMutator : public IRMutator {
           op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
       return Realize::make(op->func, op->value_index,
-                           op->type, new_bounds,
+                           op->dtype, new_bounds,
                            op->condition, op->body);
     }
     return stmt;
@@ -878,7 +878,7 @@ class TensorCoreIRMutator : public IRMutator {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
           return Evaluate::make(
-                  Call::make(Handle(),
+                  Call::make(DataType::Handle(),
                         intrinsic::tvm_mma_sync,
                         {buffer->data, buffer->elem_offset,
                         buffer_a->data, buffer_a->elem_offset,
@@ -890,17 +890,17 @@ class TensorCoreIRMutator : public IRMutator {
       auto call_add_c =
         [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer &buffer) {
           return add_buffer_bind_scope_(cc, buffer_node_c,
-            TensorKey{cc->func, cc->value_index}, mma_sync_call, cc->type);
+            TensorKey{cc->func, cc->value_index}, mma_sync_call, cc->dtype);
         };
 
       auto call_add_b =
         [this, &cb, &buffer_node_b, &call_add_c](const Buffer &buffer) {
           return add_buffer_bind_scope_(cb, buffer_node_b,
-            TensorKey{cb->func, cb->value_index}, call_add_c, cb->type);
+            TensorKey{cb->func, cb->value_index}, call_add_c, cb->dtype);
         };
 
       return add_buffer_bind_scope_(ca, buffer_node_a,
-        TensorKey{ca->func, ca->value_index}, call_add_b, ca->type);
+        TensorKey{ca->func, ca->value_index}, call_add_b, ca->dtype);
     }
 
     auto it2 = frag_load_.find(op);
@@ -913,7 +913,7 @@ class TensorCoreIRMutator : public IRMutator {
         auto fill_fragment_call =
           [this, &op](const Buffer &buffer) {
             return Evaluate::make(
-                    Call::make(Handle(),
+                    Call::make(DataType::Handle(),
                               intrinsic::tvm_fill_fragment,
                               {buffer->data,
                               warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -924,7 +924,7 @@ class TensorCoreIRMutator : public IRMutator {
         NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
         return add_buffer_bind_scope_(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
-                                      fill_fragment_call, call->type);
+                                      fill_fragment_call, call->dtype);
       }
 
       const Call* value = op->value.as<Call>();
@@ -939,10 +939,10 @@ class TensorCoreIRMutator : public IRMutator {
       Expr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(Int(32), warp_threads_y_);
+      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       Expr mutated_value = thread_idx_mutator.Mutate(op->value);
-      Expr src = Call::make(value->type,
+      Expr src = Call::make(value->dtype,
                             "&",
                             {mutated_value},
                             Call::Extern);
@@ -963,7 +963,7 @@ class TensorCoreIRMutator : public IRMutator {
       auto load_matrix_call =
         [this, &src, &stride, &matrix_major](const Buffer &buffer) {
         return Evaluate::make(
-                Call::make(Handle(),
+                Call::make(DataType::Handle(),
                           intrinsic::tvm_load_matrix_sync,
                           {buffer->data,
                           warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -974,7 +974,7 @@ class TensorCoreIRMutator : public IRMutator {
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
-                                    load_matrix_call, call->type);
+                                    load_matrix_call, call->dtype);
     }
 
     auto it3 = frag_store_.find(op);
@@ -989,10 +989,10 @@ class TensorCoreIRMutator : public IRMutator {
 
       Expr dst = it3->second;
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(Int(32), warp_threads_y_);
+      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator.Mutate(dst);
-      dst = Call::make(Handle(),
+      dst = Call::make(DataType::Handle(),
                        "&",
                        {dst},
                        Call::Extern);
@@ -1002,7 +1002,7 @@ class TensorCoreIRMutator : public IRMutator {
       auto store_matrix_call =
         [this, &dst, &stride](const Buffer &buffer) {
           return Evaluate::make(
-                  Call::make(Handle(),
+                  Call::make(DataType::Handle(),
                             intrinsic::tvm_store_matrix_sync,
                             {buffer->data,
                             warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -1014,7 +1014,7 @@ class TensorCoreIRMutator : public IRMutator {
       NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
-                                    store_matrix_call, call->type);
+                                    store_matrix_call, call->dtype);
     }
 
     return stmt;
@@ -1032,7 +1032,7 @@ class TensorCoreIRMutator : public IRMutator {
           int ori_extent_value = ori_extent->value;
           scaled_extent_value = ori_extent_value / scale_factor;
         }
-        Expr scaled_extent = make_const(op->extent.type(), scaled_extent_value);
+        Expr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
         stmt = For::make(op->loop_var, op->min, scaled_extent, op->for_type,
           op->device_api, op->body);
       }
@@ -1046,27 +1046,27 @@ class TensorCoreIRMutator : public IRMutator {
       auto it2 = matrix_major_.find(name);
       CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
           << "Cannot find matrix info for " << name;
-      Expr size0 = make_const(Int(32), 16);
-      Expr size1 = make_const(Int(32), 16);
+      Expr size0 = make_const(DataType::Int(32), 16);
+      Expr size1 = make_const(DataType::Int(32), 16);
       if (it->second == "matrix_a" && it2->second == "col_major") {
-        size0 = make_const(Int(32), warp_tile_.k);
-        size1 = make_const(Int(32), warp_tile_.m);
+        size0 = make_const(DataType::Int(32), warp_tile_.k);
+        size1 = make_const(DataType::Int(32), warp_tile_.m);
       }
       if (it->second == "matrix_a" && it2->second == "row_major") {
-        size0 = make_const(Int(32), warp_tile_.m);
-        size1 = make_const(Int(32), warp_tile_.k);
+        size0 = make_const(DataType::Int(32), warp_tile_.m);
+        size1 = make_const(DataType::Int(32), warp_tile_.k);
       }
       if (it->second == "matrix_b" && it2->second == "row_major") {
-        size0 = make_const(Int(32), warp_tile_.k);
-        size1 = make_const(Int(32), warp_tile_.n);
+        size0 = make_const(DataType::Int(32), warp_tile_.k);
+        size1 = make_const(DataType::Int(32), warp_tile_.n);
       }
       if (it->second == "matrix_b" && it2->second == "col_major") {
-        size0 = make_const(Int(32), warp_tile_.n);
-        size1 = make_const(Int(32), warp_tile_.k);
+        size0 = make_const(DataType::Int(32), warp_tile_.n);
+        size1 = make_const(DataType::Int(32), warp_tile_.k);
       }
       if (it->second == "matrix_c") {
-        size0 = make_const(Int(32), warp_tile_.n);
-        size1 = make_const(Int(32), warp_tile_.m);
+        size0 = make_const(DataType::Int(32), warp_tile_.n);
+        size1 = make_const(DataType::Int(32), warp_tile_.m);
       }
       Array<Expr> tile_size = {size0, size1};
       return tile_size;
@@ -1094,15 +1094,15 @@ class TensorCoreIRMutator : public IRMutator {
 
     Array<Expr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      Expr stride = IntImm::make(Int(32), 1);
+      Expr stride = IntImm::make(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
         stride = Mul::make(stride, shape[j]);
       }
       strides.push_back(stride);
     }
-    strides.push_back(make_const(Int(32), 1));
+    strides.push_back(make_const(DataType::Int(32), 1));
 
-    Expr elem_offset = IntImm::make(Int(32), 0);
+    Expr elem_offset = IntImm::make(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = Add::make(
@@ -1113,7 +1113,7 @@ class TensorCoreIRMutator : public IRMutator {
     auto it2 = matrix_abc_.find(simplify_name(call->name));
     CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
-    buffer_node->data = Variable::make(Handle(), call->name);
+    buffer_node->data = Variable::make(DataType::Handle(), call->name);
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;
@@ -1136,7 +1136,7 @@ class TensorCoreIRMutator : public IRMutator {
       args.push_back(call->args[i]);
       args.push_back(shape[i]);
     }
-    auto tuple = Call::make(Handle(),
+    auto tuple = Call::make(DataType::Handle(),
                             intrinsic::tvm_tuple,
                             args,
                             Call::Intrinsic);

@@ -208,23 +208,6 @@ inline TObjectRef TVMRetValue::AsObjectRef() const {
   return TObjectRef(ObjectPtr<Object>(ptr));
 }
 
-// type related stuffs
-inline TVMRetValue& TVMRetValue::operator=(const DataType& t) {
-  return this->operator=(t.operator DLDataType());
-}
-
-inline TVMRetValue::operator tvm::DataType() const {
-  return DataType(operator DLDataType());
-}
-
-inline TVMArgValue::operator tvm::DataType() const {
-  return DataType(operator DLDataType());
-}
-
-inline void TVMArgsSetter::operator()(
-    size_t i, const DataType& t) const {
-  this->operator()(i, t.operator DLDataType());
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_PACKED_FUNC_EXT_H_

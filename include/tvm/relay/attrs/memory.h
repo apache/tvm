@@ -43,7 +43,7 @@ struct AllocTensorAttrs : public tvm::AttrsNode<AllocTensorAttrs> {
     TVM_ATTR_FIELD(dtype)
       .describe(
          "The dtype of the tensor to allocate.")
-      .set_default(Float(32, 1));
+      .set_default(DataType::Float(32, 1));
     TVM_ATTR_FIELD(const_shape)
       .describe(
          "The shape of constant used to aid in type inference.");

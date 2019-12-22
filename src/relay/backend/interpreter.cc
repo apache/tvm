@@ -357,9 +357,9 @@ class Interpreter :
           int64_t ndim = tv->data.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
-            shape_arr = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
+            shape_arr = NDArray::Empty({}, DataType::Int(64), cpu_ctx);
           } else {
-            shape_arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+            shape_arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
             int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
             for (auto j = 0; j < ndim; ++j) {
               data[j] = tv->data.Shape()[j];
@@ -409,7 +409,7 @@ class Interpreter :
         const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
         CHECK(rtype != nullptr);
         int64_t ndim = rtype->shape.size();
-        auto arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+        auto arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
         outputs[i] = arr;
         setter(arg_counter + i, arr);
     };
@@ -530,7 +530,7 @@ class Interpreter :
         CHECK(ivalue) << "expected concrete dimensions";
         shape.push_back(ivalue[0]);
       }
-      DLDataType dtype = Type2TVMType(rtype->dtype);
+      DLDataType dtype = rtype->dtype;
       auto out_tensor = TensorValueNode::make(
           NDArray::Empty(shape, dtype, context_));
       setter(num_inputs + i, out_tensor->data);
@@ -673,7 +673,7 @@ class Interpreter :
       cpu_ctx.device_type = kDLCPU;
       cpu_ctx.device_id = 0;
       NDArray cpu_array = bv->data.CopyTo(cpu_ctx);
-      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
+      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       // TODO(@jroesch, @MK): Refactor code into helper from DCE.
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return Eval(op->true_branch);

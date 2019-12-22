@@ -253,7 +253,7 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
       outer->var->name_hint + "." + inner->var->name_hint + ".fused";
 
   IterVar fused = IterVarNode::make(
-      Range(), Var(fused_name, outer->var.type()), iter_type);
+      Range(), Var(fused_name, outer->var.dtype()), iter_type);
 
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -289,7 +289,7 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     // insert at the outer most loop
     IterVar singleton = IterVarNode::make(
         Range::make_by_min_extent(0, 1),
-        Var("singleton", Int(32)), kDataPar);
+        Var("singleton", DataType::Int(32)), kDataPar);
     self->relations.push_back(SingletonNode::make(singleton));
     ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
     ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();

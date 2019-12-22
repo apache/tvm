@@ -93,7 +93,7 @@ class ChannelAccessIndexRewriter : public IRMutator {
     op = expr.as<Load>();
     if (read_access_ && buf_var_ == op->buffer_var.get()) {
       return Load::make(
-          op->type, op->buffer_var, ir::Simplify(op->index - min_),
+          op->dtype, op->buffer_var, ir::Simplify(op->index - min_),
           op->predicate);
     } else {
       return expr;

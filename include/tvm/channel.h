@@ -52,14 +52,14 @@ struct ChannelNode : public Node {
   /*! \brief Variable to channel handle */
   Var handle_var;
   /*! \brief default data type in read/write */
-  Type dtype;
+  DataType dtype;
   // visit all attributes
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("handle_var", &handle_var);
     v->Visit("dtype", &dtype);
   }
 
-  static Channel make(Var handle_var, Type dtype);
+  static Channel make(Var handle_var, DataType dtype);
   static constexpr const char* _type_key = "Channel";
 
   TVM_DECLARE_NODE_TYPE_INFO(ChannelNode, Node);

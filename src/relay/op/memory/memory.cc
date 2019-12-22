@@ -55,12 +55,12 @@ bool AllocStorageRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   auto size_type = types[0];
   auto tensor_type = size_type.as<TensorTypeNode>();
   CHECK(tensor_type != nullptr);
-  CHECK_EQ(tensor_type->dtype, Int(64));
+  CHECK_EQ(tensor_type->dtype, DataType::Int(64));
   CHECK_EQ(tensor_type->shape.size(), 0);
   auto align_type = types[1];
   auto align_ttype = align_type.as<TensorTypeNode>();
   CHECK(align_ttype != nullptr);
-  CHECK_EQ(align_ttype->dtype, Int(64));
+  CHECK_EQ(align_ttype->dtype, DataType::Int(64));
   CHECK_EQ(align_ttype->shape.size(), 0);
   auto mod = reporter->GetModule();
   CHECK(mod.defined());
@@ -309,13 +309,13 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);
-      shape_func_ins.push_back(TensorTypeNode::make(shape, Int(64)));
+      shape_func_ins.push_back(TensorTypeNode::make(shape, DataType::Int(64)));
     }
   }
 
   for (auto out_type : out_types) {
     auto rank_shape = RankShape(out_type->shape);
-    shape_func_outs.push_back(TensorTypeNode::make(rank_shape, Int(64)));
+    shape_func_outs.push_back(TensorTypeNode::make(rank_shape, DataType::Int(64)));
   }
 
   auto input_type = TupleTypeNode::make(shape_func_ins);

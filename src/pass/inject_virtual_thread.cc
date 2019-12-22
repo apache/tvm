@@ -222,7 +222,7 @@ class VTInjector : public IRMutator {
     }
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return Load::make(op->type, op->buffer_var,
+      return Load::make(op->dtype, op->buffer_var,
                         RewriteIndex(op->index, it->second),
                         op->predicate);
     } else {
@@ -233,7 +233,7 @@ class VTInjector : public IRMutator {
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
-      Type dtype = op->args[0].type();
+      DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return IRMutator::Mutate_(op, e);
@@ -241,10 +241,10 @@ class VTInjector : public IRMutator {
       Expr offset = Mutate(op->args[2]);
       Expr extent = Mutate(op->args[3]);
       Expr stride =
-          it->second / make_const(offset.type(), dtype.lanes());
+          it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
       return Call::make(
-          op->type, op->name,
+          op->dtype, op->name,
           {op->args[0], op->args[1], offset, extent, op->args[4]},
           op->call_type);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
@@ -395,9 +395,9 @@ class VTInjector : public IRMutator {
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
       Expr stride = arith::ComputeReduce<Mul>(
-          op->extents, Expr()) * op->type.lanes();
+          op->extents, Expr()) * op->dtype.lanes();
       Array<Expr> other;
-      other.push_back(make_const(op->extents[0].type(), num_threads_));
+      other.push_back(make_const(op->extents[0].dtype(), num_threads_));
       for (Expr e : extents) {
         other.push_back(e);
       }
@@ -417,7 +417,7 @@ class VTInjector : public IRMutator {
       return s;
     } else {
       return Allocate::make(
-          op->buffer_var, op->type,
+          op->buffer_var, op->dtype,
           extents, condition, body,
           op->new_expr, op->free_function);
     }
@@ -439,19 +439,19 @@ class VTInjector : public IRMutator {
     // only unroll if number of vthreads are small
     if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
-      Stmt blk = Substitute(stmt, {{var_, make_zero(var_.type())}});
+      Stmt blk = Substitute(stmt, {{var_, make_zero(var_.dtype())}});
       for (int i = 1; i < num_threads_; ++i) {
         blk = Block::make(
-            blk, Substitute(stmt, {{var_, make_const(var_.type(), i)}}));
+            blk, Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
       }
       return blk;
     } else {
       // insert a for loop
-      Var idx(var_->name_hint + ".s", var_->type);
+      Var idx(var_->name_hint + ".s", var_->dtype);
       Map<Var, Expr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
-      return For::make(idx, make_zero(idx.type()),
-                       make_const(idx.type(), num_threads_),
+      return For::make(idx, make_zero(idx.dtype()),
+                       make_const(idx.dtype(), num_threads_),
                        ForType::Serial, DeviceAPI::None, stmt);
     }
   }

@@ -72,16 +72,16 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   which is essentially a requantization of tensor Q' into tensor Q_c.
   */
 
-  auto lhs_shifted = Cast(lhs, Int(32));
-  auto rhs_shifted = Cast(rhs, Int(32));
+  auto lhs_shifted = Cast(lhs, DataType::Int(32));
+  auto rhs_shifted = Cast(rhs, DataType::Int(32));
 
   if (lhs_zero_point != 0) {
-    auto lhs_zp = MakeConstantScalar(Int(32), lhs_zero_point);
+    auto lhs_zp = MakeConstantScalar(DataType::Int(32), lhs_zero_point);
     lhs_shifted = Subtract(lhs_shifted, lhs_zp);
   }
 
   if (rhs_zero_point != 0) {
-    auto rhs_zp = MakeConstantScalar(Int(32), rhs_zero_point);
+    auto rhs_zp = MakeConstantScalar(DataType::Int(32), rhs_zero_point);
     rhs_shifted = Subtract(rhs_shifted, rhs_zp);
   }
 

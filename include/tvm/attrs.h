@@ -159,7 +159,7 @@ class AttrsEqual {
   bool operator()(const std::string& lhs, const std::string& rhs) const {
     return lhs == rhs;
   }
-  bool operator()(const Type& lhs, const Type& rhs) const {
+  bool operator()(const DataType& lhs, const DataType& rhs) const {
     return lhs == rhs;
   }
   // node comparator
@@ -506,8 +506,8 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   }
 }
 template<>
-inline void SetValue(Type* ptr, const TVMArgValue& val) {
-  *ptr = val.operator Type();
+inline void SetValue(DataType* ptr, const TVMArgValue& val) {
+  *ptr = val.operator DataType();
 }
 template<>
 inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
@@ -611,7 +611,7 @@ struct TypeName<uint64_t> {
 };
 
 template<>
-struct TypeName<Type> {
+struct TypeName<DataType> {
   static constexpr const char* value = "Type";
 };
 

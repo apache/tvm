@@ -211,7 +211,7 @@ class ThreadSyncInserter : public IRMutator {
         barrier = MakeGlobalBarrier();
       } else {
         barrier = Evaluate::make(
-                Call::make(Int(32), intrinsic::tvm_storage_sync,
+                Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                            {StringImm::make(sync_scope_.to_string())},
                            Call::Intrinsic));
       }
@@ -303,7 +303,7 @@ class ThreadSyncInserter : public IRMutator {
     CHECK(op != nullptr);
     Array<Expr> pargs = {StringImm::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
+        Call::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -313,7 +313,7 @@ class ThreadSyncInserter : public IRMutator {
     }
     rw_stats_.clear();
     Stmt kinit = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
+        Call::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
     body = Block::make(kinit, body);
     body = AttrStmt::make(
         op->node, op->attr_key, op->value, body);
@@ -331,7 +331,7 @@ class ThreadSyncInserter : public IRMutator {
           num_blocks_ = (num_blocks_.defined() ?
                          attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
-          Expr cond = iv->var == make_zero(iv->var.type());
+          Expr cond = iv->var == make_zero(iv->var.dtype());
           is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
         }
       }
@@ -339,7 +339,7 @@ class ThreadSyncInserter : public IRMutator {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
     return Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_storage_sync,
+        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},
                    Call::Intrinsic));

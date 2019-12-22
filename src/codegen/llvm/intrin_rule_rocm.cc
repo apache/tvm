@@ -36,8 +36,8 @@ inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   const Call* call = e.as<Call>();
   CHECK(call != nullptr);
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__ocml_" << call->name << "_f" << call->type.bits();
-  *rv = Call::make(call->type, intrinsic_name.str(), call->args,
+  intrinsic_name << "__ocml_" << call->name << "_f" << call->dtype.bits();
+  *rv = Call::make(call->dtype, intrinsic_name.str(), call->args,
                    Call::PureExtern);
 }
 

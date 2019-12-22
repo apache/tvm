@@ -83,7 +83,7 @@ class IRConvertSSA final : public IRMutator {
     const VarExpr& v = op->var;
     if (defined_.count(v.get())) {
       Expr value = IRMutator::Mutate(op->value);
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      VarExpr new_var = Variable::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Expr body = IRMutator::Mutate(op->body);
       scope_[v.get()].pop_back();
@@ -98,7 +98,7 @@ class IRConvertSSA final : public IRMutator {
     op = expr.as<Load>();
     if (scope_.count(op->buffer_var.get())) {
       return Load::make(
-          op->type, scope_[op->buffer_var.get()].back(),
+          op->dtype, scope_[op->buffer_var.get()].back(),
           op->index, op->predicate);
     } else {
       return expr;
@@ -119,7 +119,7 @@ class IRConvertSSA final : public IRMutator {
     const VarExpr& v = op->var;
     if (defined_.count(v.get())) {
       Expr value = IRMutator::Mutate(op->value);
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      VarExpr new_var = Variable::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt body = IRMutator::Mutate(op->body);
       scope_[v.get()].pop_back();
@@ -132,7 +132,7 @@ class IRConvertSSA final : public IRMutator {
   Stmt Mutate_(const For* op, const Stmt& s) final {
     const VarExpr& v = op->loop_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      VarExpr new_var = Variable::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = IRMutator::Mutate_(op, s);
       scope_[v.get()].pop_back();
@@ -147,13 +147,13 @@ class IRConvertSSA final : public IRMutator {
   Stmt Mutate_(const Allocate* op, const Stmt& s) final {
     const VarExpr& v = op->buffer_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      VarExpr new_var = Variable::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = IRMutator::Mutate_(op, s);
       scope_[v.get()].pop_back();
       op = stmt.as<Allocate>();
       return Allocate::make(
-          new_var, op->type, op->extents, op->condition,
+          new_var, op->dtype, op->extents, op->condition,
           op->body, op->new_expr, op->free_function);
     } else {
       defined_.insert(v.get());
