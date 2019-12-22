@@ -25,7 +25,7 @@ TEST(Pattern, Basic) {
   using namespace tvm::arith;
   Var x("x"), y("y"), z("z");
   arith::PVar<Expr> px, py, pz;
-  arith::PVar<Type> pt;
+  arith::PVar<DataType> pt;
   arith::PVar<int> planes;
 
   // arithmetics
@@ -99,13 +99,14 @@ TEST(Pattern, Basic) {
   }
   // cast pattern
   {
-    CHECK(!cast(PConst<Type>(Int(32)), px).Match(ir::Cast::make(Float(64), x)));
-    CHECK(cast(pt, px).Match(ir::Cast::make(Float(64), x)));
-    CHECK(pt.Eval() == Float(64));
+    CHECK(!cast(PConst<DataType>(
+        DataType::Int(32)), px).Match(ir::Cast::make(DataType::Float(64), x)));
+    CHECK(cast(pt, px).Match(ir::Cast::make(DataType::Float(64), x)));
+    CHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
     CHECK((cast(pt, px) - cast(pt, py)).Match(
-        ir::Cast::make(Float(64), x) - ir::Cast::make(Int(64), x)));
-    auto expr = ir::Cast::make(Int(32), ir::Cast::make(Float(64), x));
+        ir::Cast::make(DataType::Float(64), x) - ir::Cast::make(DataType::Int(64), x)));
+    auto expr = ir::Cast::make(DataType::Int(32), ir::Cast::make(DataType::Float(64), x));
     CHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern

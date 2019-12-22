@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -47,13 +47,13 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintStorageSync(const Call* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
-      const std::string&op, Type t,
+      const std::string&op, DataType t,
       Expr lhs, Expr rhs, std::ostream& os) final;  // NOLINT(*)
-  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
   void PrintVecElemLoad(
-      const std::string& vec, Type t, int i, std::ostream& os) final;  // NOLINT(*)
+      const std::string& vec, DataType t, int i, std::ostream& os) final;  // NOLINT(*)
   void PrintVecElemStore(
-      const std::string& vec, Type t, int i, const std::string& value) final;
+      const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
   void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
@@ -84,8 +84,10 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_map<const Variable*, std::string> fragment_shapes;
   std::unordered_map<const Variable*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(const std::string& scope, Type t, const Variable* variable, std::ostream& os);
-  int32_t GetWmmaFragmentSize(const std::string &scope, const Variable* variable, int32_t size);
+  void PrintWmmaScope(
+      const std::string& scope, DataType t, const Variable* variable, std::ostream& os);
+  int32_t GetWmmaFragmentSize(
+      const std::string &scope, const Variable* variable, int32_t size);
 };
 
 }  // namespace codegen

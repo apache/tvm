@@ -44,20 +44,20 @@ namespace tvm {
  */
 template<typename ValueType,
          typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
-inline Expr make_const(Type t, ValueType value);
+inline Expr make_const(DataType t, ValueType value);
 /*!
  * \brief Make a const zero expr.
  * \param t The target type.
  * \return the result expression.
  */
-inline Expr make_zero(Type t);
+inline Expr make_zero(DataType t);
 /*!
  * \brief Make a constant true expression.
  * \param lanes The number of lanes in the bool
  * \return The result expression.
  */
 inline Expr const_true(int lanes = 1) {
-  return make_const(UInt(1, lanes), 1);
+  return make_const(DataType::UInt(1, lanes), 1);
 }
 /*!
  * \brief Make a constant false expression.
@@ -65,7 +65,7 @@ inline Expr const_true(int lanes = 1) {
  * \return The result expression.
  */
 inline Expr const_false(int lanes = 1) {
-  return make_const(UInt(1, lanes), 0);
+  return make_const(DataType::UInt(1, lanes), 0);
 }
 /*!
  * \brief Get x as constant int expression.
@@ -140,6 +140,20 @@ inline bool is_zero(const Expr& x) {
 inline bool is_const(const Expr& x);
 
 /*!
+ * Query the maximum possible value of dtype.
+ * \param dtype The data type.
+ * \return the maximum possible value in this format.
+ */
+TVM_DLL Expr max_value(const DataType& dtype);
+
+/*!
+ * Query the minimum possible value of dtype.
+ * \param dtype The data type.
+ * \return the minimum possible value in this format.
+ */
+TVM_DLL Expr min_value(const DataType& dtype);
+
+/*!
  * \brief Check whether x is a constant power of two
  * If x is power of two, write the power to the shift.
  *
@@ -157,7 +171,7 @@ TVM_DLL bool is_const_power_of_two_integer(const Expr& x, int* shift);
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL Expr cast(const Type& t, Expr value);
+TVM_DLL Expr cast(const DataType& t, Expr value);
 /*!
  * \brief perform reinterpret cast value to type.
  *
@@ -166,7 +180,7 @@ TVM_DLL Expr cast(const Type& t, Expr value);
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL Expr reinterpret(const Type& t, Expr value);
+TVM_DLL Expr reinterpret(const DataType& t, Expr value);
 /*!
  * \brief add operator
  *
@@ -586,7 +600,7 @@ TVM_DLL Expr trunc(Expr x);
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
-    return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureIntrinsic); \
+    return ir::Call::make(x.dtype(), #OpName, {x}, ir::Call::PureIntrinsic); \
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -657,7 +671,7 @@ inline bool is_no_op(const Stmt& stmt) {
 }
 
 template<typename ValueType>
-inline Expr MakeConstScalar(Type t, ValueType value) {
+inline Expr MakeConstScalar(DataType t, ValueType value) {
   if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
   if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
   if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
@@ -672,7 +686,7 @@ inline Expr MakeConstScalar(Type t, ValueType value) {
 }
 
 template<typename ValueType, typename>
-inline Expr make_const(Type t, ValueType value) {
+inline Expr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
@@ -681,9 +695,9 @@ inline Expr make_const(Type t, ValueType value) {
   }
 }
 
-inline Expr make_zero(Type t) {
+inline Expr make_zero(DataType t) {
   if (t.is_handle()) {
-    return reinterpret(t, make_const(UInt(64), 0));
+    return reinterpret(t, make_const(DataType::UInt(64), 0));
   }
   return make_const(t, 0);
 }
@@ -703,13 +717,13 @@ inline Expr make_zero(Type t) {
     return Name(Expr(a), b);                                   \
   }                                                            \
   inline Expr Name(int a, const Expr& b) {                     \
-    return Name(make_const(b.type(), a), b);                   \
+    return Name(make_const(b.dtype(), a), b);                  \
   }                                                            \
   inline Expr Name(const Expr& a, int b) {                     \
-    return Name(a, make_const(a.type(), b));                   \
+    return Name(a, make_const(a.dtype(), b));                  \
   }                                                            \
   inline Expr Name(const Expr& a, double b) {                  \
-    return Name(a, make_const(Float(64), b));                  \
+    return Name(a, make_const(DataType::Float(64), b));                  \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                  \
@@ -722,10 +736,10 @@ inline Expr make_zero(Type t) {
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)                      \
   inline Expr Name(const Expr& a, int b) {                              \
-    return Name(a, make_const(a.type(), b));                            \
+    return Name(a, make_const(a.dtype(), b));                           \
   }                                                                     \
   inline Expr Name(int a, const Expr& b) {                              \
-    return Name(make_const(b.type(), a), b);                            \
+    return Name(make_const(b.dtype(), a), b);                           \
   }
 
 
