@@ -65,6 +65,7 @@ def test_basic():
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.body.body.first))
+    assert('if' in str(stmt.body.body.body.rest))
 
 def test_const_loop():
     n = 21

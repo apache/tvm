@@ -68,6 +68,43 @@ std::vector<const Object*> GetPath(Expr target, Expr expr) {
   return v.path_;
 }
 
+class BoundRemover : public IRMutator {
+ public:
+  Expr Do(Expr e) {
+    remove_bounded_ = true;
+    return Mutate(ir::Simplify(e));
+  }
+
+  Expr Undo(Expr e) {
+    CHECK(remove_bounded_) << "Call Do(expr) first.";
+    remove_bounded_ = false;
+    return Mutate(e);
+  }
+
+  Expr Mutate_(const Call* op, const Expr& e) final {
+    if (op->is_intrinsic(intrinsic::tvm_assert_bound) && remove_bounded_) {
+      // TODO: deal with recursive assert_bound
+      Expr value = op->args[0];
+      const Variable* var = value.as<Variable>();
+      CHECK(var) << "Invalid value in " << e << ". It should have been simplified.";
+      bounded_var_map_[var] = GetRef<Expr>(op);
+      return value;
+    }
+    return IRMutator::Mutate_(op, e);
+  }
+
+  Expr Mutate_(const Variable* op, const Expr& e) final {
+    if (!remove_bounded_ && bounded_var_map_.count(op)) {
+      return bounded_var_map_[op];
+    }
+    return e;
+  }
+
+ private:
+  bool remove_bounded_ = false;
+  std::unordered_map<const Variable*, Expr> bounded_var_map_;
+};
+
 enum CompareOp {kGreater, kLess, kEqual};
 
 // a visitor to deduce the bound of a variable from a expression
@@ -295,6 +332,16 @@ void BoundDeducer::Transform() {
 void BoundDeducer::Deduce() {
   Init();
   if (!success_) return;
+
+  // Any variable appears in both expr and result,
+  // they should not be eagerly simplified according to its bound
+  // e.g., i + n/4 >= n
+  // => i >= n - n/4
+  // Thus we remove assert_bound here and reset later.
+  BoundRemover ra, rb;
+  expr_ = ra.Do(expr_);
+  result_ = rb.Do(result_);
+
   Relax();
   if (!success_) return;
   // get the path
@@ -306,9 +353,13 @@ void BoundDeducer::Deduce() {
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   Visit(expr_);
+
+  expr_ = ra.Undo(expr_);
+  result_ = rb.Undo(result_);
 }
 
 void BoundDeducer::Relax() {
+
   IntSet a = EvalSet(expr_, relax_map_);
   IntSet b = EvalSet(result_, relax_map_);
   if (a.is_everything() || b.is_everything()) {

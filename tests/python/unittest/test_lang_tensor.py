@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from topi.nn.pooling import pool
+from util import check_assert_bound
 
 def test_tensor():
     m = tvm.var('m')
@@ -26,7 +27,10 @@ def test_tensor():
     T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
     print(T)
     print(T.op.body)
-    assert(tuple(T.shape) == (m, n, l))
+    assert(len(T.shape) == 3)
+    check_assert_bound(T.shape[0], m, 0, m)
+    check_assert_bound(T.shape[1], n, 0, n)
+    check_assert_bound(T.shape[2], l, 0, l)
     assert(isinstance(A.op, tvm.tensor.PlaceholderOp))
     assert(A == A)
     assert(T.op.output(0) == T)
@@ -182,7 +186,9 @@ def test_tensor_scan():
     res = tvm.scan(tvm.compute((1, n), lambda _, i: x[0, i]),
                    tvm.compute((m, n), lambda t, i: s[t-1, i] + x[t, i]),
                    s)
-    assert tuple(res.shape) == (m, n)
+    assert len(res.shape) == 2
+    check_assert_bound(res.shape[0], m, 0, m)
+    check_assert_bound(res.shape[1], n, 0, n)
 
 def test_scan_multi_out():
     m = tvm.var("m")

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from util import check_assert_bound
 
 def test_copy2d():
     m = tvm.var('m')
@@ -29,10 +30,12 @@ def test_copy2d():
     Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert dst.strides[0] == l
+        check_assert_bound(dst.strides[0], l, 0, l)
         assert dst.strides[1].value == 1
-        assert src.strides[0] == l
-        assert tuple(src.shape) == (m, l)
+        check_assert_bound(src.strides[0], l, 0, l)
+        assert len(src.shape) == 2
+        check_assert_bound(src.shape[0], m, 0, m)
+        check_assert_bound(src.shape[1], l, 0, l)
         return tvm.make.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 

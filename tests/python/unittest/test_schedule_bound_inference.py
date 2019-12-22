@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from util import check_assert_bound
 
 def test_bound1():
     m = tvm.var('m')
@@ -112,6 +113,7 @@ def test_bound_fusesplit1():
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     idxdiv = tvm.indexdiv
+    print(tvm.ir_pass.Simplify(bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)))
     assert(tvm.ir_pass.Simplify(
             bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)).value == 0)
 
@@ -179,7 +181,10 @@ def test_bound_scan():
     s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
     s_scan = tvm.scan(s_init, s_update, s_state)
 
-    assert tuple(s_scan.shape) == (m, n)
+    assert len(s_scan.shape) == 2
+    check_assert_bound(s_scan.shape[0], m, 0, m)
+    check_assert_bound(s_scan.shape[1], n, 0, n)
+
     s = tvm.create_schedule(s_scan.op)
     XX = s.cache_read(X, "local", s_update)
     xo, xi = s[s_update].split(s_update.op.axis[1], factor=4)
@@ -247,7 +252,7 @@ def test_bound_group_schedule():
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     assert bounds[x.op.axis[0]].extent.value == 1
-    assert bounds[x.op.axis[1]].extent == n
+    check_assert_bound(bounds[x.op.axis[1]].extent, n, 0, n)
 
 def test_bound_nest_group():
     m = tvm.var("m")
@@ -267,7 +272,7 @@ def test_bound_nest_group():
     assert bounds[x.op.axis[0]].extent.value == 1
     assert bounds[x.op.axis[1]].extent.value == 1
     assert bounds[x1.op.axis[0]].extent.value == 1
-    assert bounds[x1.op.axis[1]].extent == n
+    check_assert_bound(bounds[x1.op.axis[1]].extent, n, 0, n)
 
 
 def test_bound_nest_thread():
@@ -294,7 +299,7 @@ def test_bound_nest_thread():
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[A1.op.axis[0]].extent.value==1)
     assert(bounds[A2.op.axis[0]].extent.value==32)
-    assert(bounds[A3.op.axis[0]].extent == m)
+    check_assert_bound(bounds[A3.op.axis[0]].extent, m, 0, m)
 
 def test_gemm_bound():
     nn = 1024
