@@ -266,7 +266,7 @@ inline Tensor CommReduceIdx(const Tensor& data,
 using FCombine = std::function<Array<Expr>(Array<Var> lhs, Array<Var> rhs)>;
 
 /*! \brief An initializer function for a reduction */
-using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
+using FIdentity = std::function<Array<Expr>(std::vector<DataType> types)>;
 
 /*!
  * \brief Create a commutative reducer for a reduction
@@ -283,10 +283,10 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
   return [fcombine, fidentity, name]
   (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
     Array<Var> lhs, rhs;
-    std::vector<Type> dtypes;
+    std::vector<DataType> dtypes;
 
     for (size_t i = 0; i < exprs.size(); ++i) {
-      auto dtype = exprs[i].type();
+      auto dtype = exprs[i].dtype();
       dtypes.push_back(dtype);
       lhs.push_back(var(name + "_lhs_" + std::to_string(i), dtype));
       rhs.push_back(var(name + "_rhs_" + std::to_string(i), dtype));
@@ -476,10 +476,10 @@ inline Tensor argmin(const Tensor& data,
     result.push_back(tvm::ir::Select::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
-  auto fidentity = [](std::vector<Type> types) {
+  auto fidentity = [](std::vector<DataType> types) {
     Array<Expr> result;
     result.push_back(tvm::make_const(types[0], -1));  // idx
-    result.push_back(types[1].max());  // val
+    result.push_back(tvm::max_value(types[1]));  // val
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmin");
@@ -493,10 +493,10 @@ inline FCommReduce MakeArgmaxReducer() {
     result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
-  auto fidentity = [](std::vector<Type> types) {
+  auto fidentity = [](std::vector<DataType> types) {
     Array<Expr> result;
     result.push_back(tvm::make_const(types[0], -1));  // idx
-    result.push_back(types[1].min());  // val
+    result.push_back(tvm::min_value(types[1]));  // val
     return result;
   };
   return MakeCommReducer(fcombine, fidentity, "argmax");

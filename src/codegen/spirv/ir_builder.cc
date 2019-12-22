@@ -53,10 +53,10 @@ void IRBuilder::InitHeader() {
 
 void IRBuilder::InitPreDefs() {
   ext_glsl450_ = ExtInstImport("GLSL.std.450");
-  t_int32_ = DeclareType(Int(32));
-  t_uint32_ = DeclareType(UInt(32));
-  t_bool_ = DeclareType(UInt(1));
-  t_fp32_ = DeclareType(Float(32));
+  t_int32_ = DeclareType(DataType::Int(32));
+  t_uint32_ = DeclareType(DataType::UInt(32));
+  t_bool_ = DeclareType(DataType::UInt(1));
+  t_fp32_ = DeclareType(DataType::Float(32));
   const_i32_zero_ = IntImm(t_int32_, 0);
   // declare void, and void functions
   t_void_.id = id_counter_++;
@@ -66,14 +66,14 @@ void IRBuilder::InitPreDefs() {
       .AddSeq(t_void_func_, t_void_).Commit(&global_);
 }
 
-SType IRBuilder::GetSType(const Type& dtype) {
-  if (dtype == Int(32)) {
+SType IRBuilder::GetSType(const DataType& dtype) {
+  if (dtype == DataType::Int(32)) {
     return t_int32_;
-  } else if (dtype == UInt(1)) {
+  } else if (dtype == DataType::UInt(1)) {
     return t_bool_;
-  } else if (dtype == Float(32)) {
+  } else if (dtype == DataType::Float(32)) {
     return t_fp32_;
-  } else if (dtype == UInt(32)) {
+  } else if (dtype == DataType::UInt(32)) {
     return t_uint32_;
   }
   uint32_t type_key;
@@ -99,7 +99,7 @@ SType IRBuilder::GetPointerType(const SType& value_type,
   }
   SType t;
   t.id = id_counter_++;
-  t.type = Handle();
+  t.type = DataType::Handle();
   t.element_type_id = value_type.id;
   t.storage_class = storage_class;
   ib_.Begin(spv::OpTypePointer)
@@ -118,11 +118,11 @@ SType IRBuilder::GetStructArrayType(const SType& value_type,
 
   SType arr_type;
   arr_type.id = id_counter_++;
-  arr_type.type = Handle();
+  arr_type.type = DataType::Handle();
   arr_type.element_type_id = value_type.id;
 
   if (num_elems != 0) {
-    Value length = UIntImm(GetSType(UInt(32)), num_elems);
+    Value length = UIntImm(GetSType(DataType::UInt(32)), num_elems);
     ib_.Begin(spv::OpTypeArray)
         .AddSeq(arr_type, value_type, length).Commit(&global_);
   } else {
@@ -138,7 +138,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type,
   // declare struct of array
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = Handle();
+  struct_type.type = DataType::Handle();
   struct_type.element_type_id = value_type.id;
   ib_.Begin(spv::OpTypeStruct)
       .AddSeq(struct_type, arr_type).Commit(&global_);
@@ -183,7 +183,7 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
   } else {
     CHECK_EQ(dtype.type.bits(), 16);
     return Cast(dtype,
-                FloatImm(GetSType(Float(32)), value));
+                FloatImm(GetSType(DataType::Float(32)), value));
   }
 }
 
@@ -206,7 +206,7 @@ Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
   CHECK_EQ(push_const_.id, 0);
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = Handle();
+  struct_type.type = DataType::Handle();
   ib_.Begin(spv::OpTypeStruct).Add(struct_type);
   for (const SType& vtype : value_types) {
     ib_.Add(vtype);
@@ -218,7 +218,7 @@ Value IRBuilder::DeclarePushConstant(const std::vector<SType>& value_types) {
     ib_.Begin(spv::OpMemberDecorate)
         .AddSeq(struct_type, i, spv::DecorationOffset, offset)
         .Commit(&decorate_);
-    Type t = value_types[i].type;
+    DataType t = value_types[i].type;
     uint32_t nbits = t.bits() * t.lanes();
     CHECK_EQ(nbits % 8 , 0);
     offset += nbits / 8;
@@ -296,7 +296,7 @@ Value IRBuilder::Allocate(const SType& value_type,
 
 Value IRBuilder::GetWorkgroupID(uint32_t dim_index) {
   if (workgroup_id_.id == 0) {
-    SType vec3_type = this->GetSType(Int(32).with_lanes(3));
+    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
     SType ptr_type = this->GetPointerType(
         vec3_type, spv::StorageClassInput);
     workgroup_id_ = NewValue(ptr_type, kVectorPtr);
@@ -315,7 +315,7 @@ Value IRBuilder::GetWorkgroupID(uint32_t dim_index) {
 
 Value IRBuilder::GetLocalID(uint32_t dim_index) {
   if (local_id_.id == 0) {
-    SType vec3_type = this->GetSType(Int(32).with_lanes(3));
+    SType vec3_type = this->GetSType(DataType::Int(32).with_lanes(3));
     SType ptr_type = this->GetPointerType(vec3_type, spv::StorageClassInput);
     local_id_ = NewValue(ptr_type, kVectorPtr);
     ib_.Begin(spv::OpVariable)
@@ -339,7 +339,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   }
   CHECK_LE(dtype.type.bits(), 64);
   Value ret = NewValue(dtype, kConstant);
-  if (dtype.type == UInt(1)) {
+  if (dtype.type == DataType::UInt(1)) {
     // bool types.
     if (*pvalue) {
       ib_.Begin(spv::OpConstantTrue).AddSeq(ret);
@@ -367,7 +367,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   return ret;
 }
 
-SType IRBuilder::DeclareType(const Type& dtype) {
+SType IRBuilder::DeclareType(const DataType& dtype) {
   if (dtype.lanes() == 1) {
     SType t;
     t.id = id_counter_++;
@@ -426,7 +426,7 @@ Value IRBuilder::CallGLSL450(const SType& ret_type,
 
 Value IRBuilder::Concat(const std::vector<Value>& vec) {
   bool is_const = vec[0].flag == kConstant;
-  Type etype = vec[0].stype.type;
+  DataType etype = vec[0].stype.type;
   int lanes = etype.lanes();
   for (size_t i = 1; i < vec.size(); ++i) {
     CHECK_EQ(etype, vec[i].stype.type.element_of())
@@ -456,10 +456,10 @@ Value IRBuilder::Concat(const std::vector<Value>& vec) {
 Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   CHECK_NE(value.stype.id, 0U);
   if (value.stype.id == dst_type.id) return value;
-  const tvm::Type& from = value.stype.type;
-  const tvm::Type& to = dst_type.type;
+  const tvm::DataType& from = value.stype.type;
+  const tvm::DataType& to = dst_type.type;
   CHECK_EQ(from.lanes(), to.lanes());
-  if (from == Bool()) {
+  if (from == DataType::Bool()) {
     if (to.is_int()) {
       return Select(value, IntImm(dst_type, 1), IntImm(dst_type, 0));
     } else if (to.is_uint()) {
@@ -471,7 +471,7 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
       LOG(FATAL) << "cannot cast from " << from << " to " << to;
       return Value();
     }
-  } else if (to == Bool()) {
+  } else if (to == DataType::Bool()) {
     if (from.is_int()) {
       return NE(value, IntImm(value.stype, 0));
     } else if (to.is_uint()) {
@@ -558,7 +558,7 @@ Value IRBuilder::Mod(Value a, Value b) {
   Value IRBuilder::_OpName(Value a, Value b) {                                        \
     CHECK_EQ(a.stype.id, b.stype.id);                                                 \
     CHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
-    const auto& bool_type = this->GetSType(UInt(1).with_lanes(a.stype.type.lanes())); \
+    const auto& bool_type = this->GetSType(DataType::UInt(1).with_lanes(a.stype.type.lanes())); \
     if (a.stype.type.is_int()) {                                                      \
       return MakeValue(spv::OpS##_Op, bool_type, a, b);                               \
     } else if (a.stype.type.is_uint()) {                                              \
@@ -578,7 +578,7 @@ DEFINE_BUILDER_CMP_OP(GE, GreaterThanEqual);
   Value IRBuilder::_OpName(Value a, Value b) {                                        \
     CHECK_EQ(a.stype.id, b.stype.id);                                                 \
     CHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
-    const auto& bool_type = this->GetSType(UInt(1).with_lanes(a.stype.type.lanes())); \
+    const auto& bool_type = this->GetSType(DataType::UInt(1).with_lanes(a.stype.type.lanes())); \
     if (a.stype.type.is_int() || a.stype.type.is_uint()) {                            \
       return MakeValue(spv::OpI##_Op, bool_type, a, b);                               \
     } else {                                                                          \
@@ -592,7 +592,7 @@ DEFINE_BUILDER_CMP_UOP(NE, NotEqual);
 
 Value IRBuilder::Select(Value cond, Value a, Value b) {
   CHECK_EQ(a.stype.id, b.stype.id);
-  CHECK_EQ(cond.stype.type.element_of(), UInt(1));
+  CHECK_EQ(cond.stype.type.element_of(), DataType::UInt(1));
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 

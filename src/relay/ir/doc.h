@@ -112,11 +112,11 @@ Doc PrintNewLine(int indent = 0);
 template<typename T>
 Doc PrintConstScalar(DataType dtype, const T* data) {
   std::ostringstream os;
-  if (dtype == Int(32)) {
+  if (dtype == DataType::Int(32)) {
     os << data[0];
-  } else if (dtype == Float(32)) {
+  } else if (dtype == DataType::Float(32)) {
     os << data[0] << 'f';
-  } else if (dtype == Bool()) {
+  } else if (dtype == DataType::Bool()) {
     return PrintBool(data[0] != 0);
   } else {
     // todo(@M.K.) this is unsafe. fix.

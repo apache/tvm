@@ -179,7 +179,7 @@ Stmt IRMutator::Mutate_(const Allocate* op, const Stmt& s) {
     return s;
   } else {
     return Allocate::make(
-        op->buffer_var, op->type,
+        op->buffer_var, op->dtype,
         new_extents, condition, body,
         new_expr, op->free_function);
   }
@@ -247,7 +247,7 @@ Stmt IRMutator::Mutate_(const Realize* op, const Stmt& s) {
     return s;
   } else {
     return Realize::make(op->func, op->value_index,
-                         op->type, new_bounds,
+                         op->dtype, new_bounds,
                          condition, body);
   }
 }
@@ -273,7 +273,7 @@ Stmt IRMutator::Mutate_(const Prefetch* op, const Stmt& s) {
     return s;
   } else {
     return Prefetch::make(op->func, op->value_index,
-                          op->type, new_bounds);
+                          op->dtype, new_bounds);
   }
 }
 
@@ -358,7 +358,7 @@ Expr IRMutator::Mutate_(const Load* op, const Expr& e) {
   if (index.same_as(op->index) && pred.same_as(op->predicate)) {
     return e;
   } else {
-    return Load::make(op->type, op->buffer_var, index, pred);
+    return Load::make(op->dtype, op->buffer_var, index, pred);
   }
 }
 
@@ -378,7 +378,7 @@ Expr IRMutator::Mutate_(const Call* op, const Expr& e) {
   if (op->args.same_as(new_args)) {
     return e;
   } else {
-    return Call::make(op->type, op->name, new_args, op->call_type,
+    return Call::make(op->dtype, op->name, new_args, op->call_type,
                       op->func, op->value_index);
   }
 }
@@ -432,7 +432,7 @@ Expr IRMutator::Mutate_(const Cast* op, const Expr& e) {
   if (value.same_as(op->value)) {
     return e;
   } else {
-    return Cast::make(op->type, value);
+    return Cast::make(op->dtype, value);
   }
 }
 

@@ -631,11 +631,11 @@ NNVM_REGISTER_OP(pad)
       << "Illegal pad_width";
     Array<tvm::Expr> pad_before;
     for (size_t i = 0; i < pad_width.ndim(); ++i) {
-      pad_before.push_back(tvm::make_const(tvm::Int(32), pad_width[i][0]));
+      pad_before.push_back(tvm::make_const(tvm::DataType::Int(32), pad_width[i][0]));
     }
     Array<tvm::Expr> pad_after;
     for (size_t i = 0; i < pad_width.ndim(); ++i) {
-      pad_after.push_back(tvm::make_const(tvm::Int(32), pad_width[i][1]));
+      pad_after.push_back(tvm::make_const(tvm::DataType::Int(32), pad_width[i][1]));
     }
     return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
                           tvm::make_const(inputs[0]->dtype, param.pad_value)) };

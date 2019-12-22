@@ -17,23 +17,35 @@
  * under the License.
  */
 /*
- * \file tvm/dtype.h
- * \brief Data type used in IR.
+ * \file tvm/runtime/data_type.h
+ * \brief Primitive runtime data type.
  */
 // Acknowledgement: DataType structure design originates from Halide.
-#ifndef TVM_DTYPE_H_
-#define TVM_DTYPE_H_
+#ifndef TVM_RUNTIME_DATA_TYPE_H_
+#define TVM_RUNTIME_DATA_TYPE_H_
 
-#include "runtime/packed_func.h"
+#include <tvm/runtime/c_runtime_api.h>
+#include <dmlc/logging.h>
+#include <type_traits>
+
 
 namespace tvm {
-class Expr;
-
+namespace runtime {
 /*!
- * \brief Primitive data types in tvm.
+ * \brief Runtime primitive data type.
+ *
+ *  This class is a thin wrapper of DLDataType.
+ *  We also make use of DataType in compiler to store quick hint
  */
 class DataType {
  public:
+  /*! \brief Type code for the DataType. */
+  enum TypeCode {
+    kInt = kDLInt,
+    kUInt = kDLUInt,
+    kFloat = kDLFloat,
+    kHandle = TVMTypeCode::kHandle,
+  };
   /*! \brief default constructor */
   DataType() {}
   /*!
@@ -75,23 +87,23 @@ class DataType {
   }
   /*! \return whether type is a scalar type. */
   bool is_bool() const {
-    return code() == kDLUInt && bits() == 1;
+    return code() == DataType::kUInt && bits() == 1;
   }
   /*! \return whether type is a float type. */
   bool is_float() const {
-    return code() == kDLFloat;
+    return code() == DataType::kFloat;
   }
   /*! \return whether type is an int type. */
   bool is_int() const {
-    return code() == kDLInt;
+    return code() == DataType::kInt;
   }
   /*! \return whether type is an uint type. */
   bool is_uint() const {
-    return code() == kDLUInt;
+    return code() == DataType::kUInt;
   }
   /*! \return whether type is a handle type. */
   bool is_handle() const {
-    return code() == kHandle;
+    return code() == DataType::kHandle;
   }
   /*! \return whether type is a vector type. */
   bool is_vector() const {
@@ -120,106 +132,92 @@ class DataType {
   DataType element_of() const {
     return with_lanes(1);
   }
-  // operator overloadings
+  /*!
+   * \brief Equal comparator.
+   * \param other The data type to compre against.
+   * \return The comparison resilt.
+   */
   bool operator==(const DataType& other) const {
     return
         data_.code == other.data_.code &&
         data_.bits == other.data_.bits &&
         data_.lanes == other.data_.lanes;
   }
+  /*!
+   * \brief NotEqual comparator.
+   * \param other The data type to compre against.
+   * \return The comparison resilt.
+   */
   bool operator!=(const DataType& other) const {
     return !operator==(other);
   }
+  /*!
+   * \brief Converter to DLDataType
+   * \return the result.
+   */
   operator DLDataType () const {
     return data_;
   }
-  /*! \return the maximum possible value in this format. */
-  TVM_DLL Expr max() const;
-  /*! \return the minimum possible value in this format. */
-  TVM_DLL Expr min() const;
+
+  /*!
+   * \brief Construct an int type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes.
+   * \return The constructed data type.
+   */
+  static DataType Int(int bits, int lanes = 1) {
+    return DataType(kDLInt, bits, lanes);
+  }
+  /*!
+   * \brief Construct an uint type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType UInt(int bits, int lanes = 1) {
+    return DataType(kDLUInt, bits, lanes);
+  }
+  /*!
+   * \brief Construct an uint type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float(int bits, int lanes = 1) {
+    return DataType(kDLFloat, bits, lanes);
+  }
+  /*!
+   * \brief Construct a bool type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Bool(int lanes = 1) {
+    return DataType::UInt(1, lanes);
+  }
+  /*!
+   * \brief Construct a handle type.
+   * \param bits The number of bits in the type.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Handle(int bits = 64, int lanes = 1) {
+    return DataType(kHandle, bits, lanes);
+  }
+  /*!
+   * \brief Get the corresponding type of TVMShapeIndex.
+   * \return The type of TVM shape index.
+   */
+  static DataType ShapeIndex() {
+    if (std::is_signed<tvm_index_t>::value) {
+      return DataType::Int(sizeof(tvm_index_t) * 8);
+    } else {
+      return DataType::UInt(sizeof(tvm_index_t) * 8);
+    }
+  }
 
  private:
   DLDataType data_;
 };
-
-/*!
- * \brief Construct an int type.
- * \param bits The number of bits in the type.
- * \param lanes The number of lanes.
- * \return The constructed data type.
- */
-inline DataType Int(int bits, int lanes = 1) {
-  return DataType(kDLInt, bits, lanes);
-}
-
-/*!
- * \brief Construct an uint type.
- * \param bits The number of bits in the type.
- * \param lanes The number of lanes
- * \return The constructed data type.
- */
-inline DataType UInt(int bits, int lanes = 1) {
-  return DataType(kDLUInt, bits, lanes);
-}
-
-/*!
- * \brief Construct a bool type.
- * \param lanes The number of lanes
- * \return The constructed data type.
- */
-inline DataType Bool(int lanes = 1) {
-  return UInt(1, lanes);
-}
-
-/*!
- * \brief Construct an uint type.
- * \param bits The number of bits in the type.
- * \param lanes The number of lanes
- * \return The constructed data type.
- */
-inline DataType Float(int bits, int lanes = 1) {
-  return DataType(kDLFloat, bits, lanes);
-}
-
-/*!
- * \brief Construct a handle type.
- * \param bits The number of bits in the type.
- * \param lanes The number of lanes
- * \return The constructed data type.
- */
-inline DataType Handle(int bits = 64, int lanes = 1) {
-  return DataType(kHandle, bits, lanes);
-}
-
-/*!
- * \brief Get the corresponding type of TVMShapeIndex.
- * \return The type of TVM shape index.
- */
-inline DataType TVMShapeIndexType() {
-  if (std::is_signed<tvm_index_t>::value) {
-    return Int(sizeof(tvm_index_t) * 8);
-  } else {
-    return UInt(sizeof(tvm_index_t) * 8);
-  }
-}
-
-/*!
- * \brief Convert DLDataType to DataType.
- * \param t The original type.
- * \return The conversion result.
- */
-inline DataType TVMType2Type(DLDataType t) {
-  return DataType(t.code, t.bits, t.lanes);
-}
-
-/*!
- * \brief Convert DataType to DataType.
- * \param t The original type.
- * \return The conversion result.
- */
-inline DLDataType Type2TVMType(DataType t) {
-  return t.operator DLDataType();
-}
 
 /*!
  * \brief Get the number of bytes needed in a vector.
@@ -229,19 +227,15 @@ inline DLDataType Type2TVMType(DataType t) {
 inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
-  if (dtype == Bool()) return 1;
+  if (dtype == DataType::Bool()) return 1;
   CHECK_EQ(data_bits % 8, 0U)
       << "Need to load/store by multiple of bytes";
   return data_bits / 8;
 }
 
-// Overload print function.
-inline std::ostream& operator<<(std::ostream& os, DataType dtype) { // NOLINT(*)
-  using namespace tvm::runtime;
-  return os << dtype.operator DLDataType();
-}
+}  // namespace runtime
 
-// Backward compatibility
-using Type = DataType;
+using DataType = runtime::DataType;
+
 }  // namespace tvm
-#endif  //  TVM_DTYPE_H_
+#endif  //  TVM_RUNTIME_DATA_TYPE_H_

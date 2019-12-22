@@ -42,12 +42,14 @@ bool QuantizeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto input_dtype = data->dtype;
-  CHECK(input_dtype == Float(32))
+  CHECK(input_dtype == DataType::Float(32))
     << "Input type should be one of float32 but was " <<  input_dtype;
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   const Array<tvm::Expr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
-  CHECK(out_dtype == Int(8) || out_dtype == UInt(8) || out_dtype == Int(32))
+  CHECK(out_dtype == DataType::Int(8) ||
+        out_dtype == DataType::UInt(8) ||
+        out_dtype == DataType::Int(32))
     << "Output type should be one of [int8, unit8, int32] but was " << out_dtype;
   // assign output type
   reporter->Assign(types[1], TensorTypeNode::make(oshape, out_dtype));
@@ -71,12 +73,12 @@ Expr MakeQuantize(Expr data,
 Expr QuantizeLower(const Expr& input_tensor,
                    const QuantizeAttrs* attrs) {
   const auto out_dtype = attrs->out_dtype;
-  const auto output_zero_point = MakeConstantScalar(Float(32), attrs->output_zero_point);
-  const auto scale = MakeConstantScalar(Float(32), attrs->output_scale);
+  const auto output_zero_point = MakeConstantScalar(DataType::Float(32), attrs->output_zero_point);
+  const auto scale = MakeConstantScalar(DataType::Float(32), attrs->output_scale);
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
   auto scale_data = Divide(input_tensor, scale);
-  auto add_zero_point = Cast(Round(Add(scale_data, output_zero_point)), Int(32));
+  auto add_zero_point = Cast(Round(Add(scale_data, output_zero_point)), DataType::Int(32));
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
   auto clamp_out_dtype = Cast(clamped_output, out_dtype);
   return clamp_out_dtype;

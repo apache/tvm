@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -255,10 +255,10 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     feature_row.push_back(Array<Expr>{std::string("_itervar_"), var});
 
     Array<Expr> attr{std::string("_attr_"),
-                     FloatImm::make(Float(32), trans(fea.length)),
-                     IntImm::make(Int(32), fea.nest_level),
-                     FloatImm::make(Float(32), trans(fea.topdown_product)),
-                     FloatImm::make(Float(32), trans(fea.bottomup_product)),
+                     FloatImm::make(DataType::Float(32), trans(fea.length)),
+                     IntImm::make(DataType::Int(32), fea.nest_level),
+                     FloatImm::make(DataType::Float(32), trans(fea.topdown_product)),
+                     FloatImm::make(DataType::Float(32), trans(fea.bottomup_product)),
     };
     // one hot annotation
     for (int i = 0; i < kNum; i++) {
@@ -268,9 +268,9 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
 
     // arithmetic
     feature_row.push_back(Array<Expr>{std::string("_arith_"),
-                                      FloatImm::make(Float(32), trans(fea.add_ct)),
-                                      FloatImm::make(Float(32), trans(fea.mul_ct)),
-                                      FloatImm::make(Float(32), trans(fea.div_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.add_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.mul_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.div_ct)),
     });
 
     // touch map
@@ -282,12 +282,12 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     for (auto k : bufs) {
       TouchPattern &v = fea.touch_feature[k];
       feature_row.push_back(Array<Expr>{k,
-                                        FloatImm::make(Float(32), trans(v.stride)),
-                                        FloatImm::make(Float(32), trans(v.mod)),
-                                        FloatImm::make(Float(32), trans(v.count)),
-                                        FloatImm::make(Float(32), trans(v.reuse)),
-                                        FloatImm::make(Float(32), trans(v.thread_count)),
-                                        FloatImm::make(Float(32), trans(v.thread_reuse)),
+                                        FloatImm::make(DataType::Float(32), trans(v.stride)),
+                                        FloatImm::make(DataType::Float(32), trans(v.mod)),
+                                        FloatImm::make(DataType::Float(32), trans(v.count)),
+                                        FloatImm::make(DataType::Float(32), trans(v.reuse)),
+                                        FloatImm::make(DataType::Float(32), trans(v.thread_count)),
+                                        FloatImm::make(DataType::Float(32), trans(v.thread_reuse)),
       });
     }
 

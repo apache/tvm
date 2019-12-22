@@ -51,7 +51,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
                               const tvm::Tensor& data,
                               const tvm::Tensor& weight,
                               const tvm::Tensor& bias,
-                              const Type& out_dtype) {
+                              const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {

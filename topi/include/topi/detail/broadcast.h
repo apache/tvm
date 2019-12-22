@@ -119,7 +119,7 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
     // Only inject 0 here if we have not yet reached the dimension of I
     // (i.e. this must be a 1)
     if (!found && (ovars.size() - i) <= expected_dims) {
-      ivars.push_back(tvm::make_zero(ovars[i].type()));
+      ivars.push_back(tvm::make_zero(ovars[i].dtype()));
     }
   }
   CHECK(expected_dims == ivars.size());
