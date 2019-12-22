@@ -26,7 +26,7 @@ See [Installation](http://docs.tvm.ai/install/)
 TVM's relation to Other IR/DSL Projects
 ---------------------------------------
 There are usually two levels of abstractions of IR in the deep learning systems.
-NNVM, TensorFlow's XLA and Intel's ngraph uses computation graph representation.
+TensorFlow's XLA and Intel's ngraph uses computation graph representation.
 This representation is high level, and can be helpful to perform generic optimizations
 such as memory reuse, layout transformation and automatic differentiation.
 

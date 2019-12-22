@@ -69,9 +69,9 @@ def deserialize_args(args):
     return ret
 
 
-# Task extractor for nnvm graph, relay program
+# Task extractor for relay program
 class TaskExtractEnv:
-    """Global environment for extracting tuning tasks from nnvm graph"""
+    """Global environment for extracting tuning tasks from graph"""
     current = None
     registered = None
 
@@ -310,7 +310,7 @@ class TaskExtractEnv:
         Returns
         -------
         tasks: List of tuple(name, args)
-            A list of tasks extracted from the nnvm graph
+            A list of tasks extracted from the graph
         """
         return self.task_collection
 

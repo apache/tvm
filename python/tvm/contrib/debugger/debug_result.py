@@ -40,7 +40,7 @@ class DebugResult(object):
     Parameters
     ----------
     graph_json : str
-        The graph to be deployed in json format output by nnvm graph. Each operator (tvm_op)
+        The graph to be deployed in json format output by graph compiler. Each operator (tvm_op)
         in the graph will have a one to one mapping with the symbol in libmod which is used
         to construct a "PackedFunc" .
 
@@ -57,12 +57,12 @@ class DebugResult(object):
         self.dump_graph_json(graph_json)
 
     def _parse_graph(self, graph_json):
-        """Parse and extract the NNVM graph and update the nodes, shapes and dltype.
+        """Parse and extract the JSON graph and update the nodes, shapes and dltype.
 
         Parameters
         ----------
         graph_json : str or graph class
-           The graph to be deployed in json format output by nnvm graph.
+           The graph to be deployed in json format output by JSON graph.
         """
         json_obj = json.loads(graph_json)
         self._nodes_list = json_obj['nodes']
@@ -197,7 +197,7 @@ class DebugResult(object):
         Parameters
         ----------
         graph : json format
-            json formatted NNVM graph contain list of each node's
+            json formatted JSON graph contain list of each node's
             name, shape and type.
         """
         graph_dump_file_name = GRAPH_DUMP_FILE_NAME

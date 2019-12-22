@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:nnvm/python:vta/python:topi/python
+export PYTHONPATH=python:vta/python:topi/python
 
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc python/tvm/*/*/*/*.pyc
 rm -rf ~/.tvm

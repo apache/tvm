@@ -16,7 +16,7 @@
     under the License.
 
 =======================================
-**TVM Codebase Walkthrough by Example**
+TVM Codebase Walkthrough by Example
 =======================================
 
 Getting to know a new codebase can be a challenge. This is especially true for a codebase like that of TVM, where different components interact in non-obvious ways. In this guide, we try to illustrate the key elements that comprise a compilation pipeline with a simple example. For each important step, we show where in the codebase it is implemented. The purpose is to let new developers and interested users dive into the codebase more quickly.
@@ -28,16 +28,13 @@ Codebase Structure Overview
 At the root of the TVM repository, we have following subdirectories that together comprise a bulk of the codebase.
 
 - ``src`` - C++ code for operator compilation and deployment runtimes.
-- ``src/relay`` - Implementation of Relay, a new IR for deep learning framework superseding ``nnvm`` below.
+- ``src/relay`` - Implementation of Relay, a new functional IR for deep learning framework.
 - ``python`` - Python frontend that wraps C++ functions and objects implemented in ``src``.
 - ``topi`` - Compute definitions and backend schedules for standard neural network operators.
-- ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. After the introduction of Relay, it remains in the codebase for backward compatibility.
 
 Using standard Deep Learning terminology, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructure implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations of operators are in ``topi``, and they are coded in either C++ or Python.
 
-Relay is the new IR for deep networks that is intended to replace NNVM. If you have used NNVM, Relay provides equivalent or better functionality. In fact, Relay goes beyond a traditional way of thinking deep networks in terms of computational graphs. But for the purpose of this document, we can think of Relay as a traditional computational graph framework. You can read more about Relay `here <https://docs.tvm.ai/dev/relay_intro.html>`_.
-
-When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compiler.build(...)`` for the older API), the following sequence of actions happens for each node in the graph:
+When a user invokes graph compilation by ``relay.build(...)``, the following sequence of actions happens for each node in the graph:
 
 - Look up an operator implementation by querying the operator registry
 - Generate a compute expression and a schedule for the operator

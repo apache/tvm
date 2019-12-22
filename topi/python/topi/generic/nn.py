@@ -159,7 +159,7 @@ def schedule_conv2d_winograd_weight_transform(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    # Typically this is computed in nnvm PreCompute pass
+    # Typically this is computed in PreCompute pass
     # so we make a schedule here for cpu llvm
     s = tvm.create_schedule([x.op for x in outs])
     output = outs[0]
@@ -205,7 +205,7 @@ def schedule_conv2d_winograd_nnpack_weight_transform(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    # Typically this is computed in nnvm PreCompute pass
+    # Typically this is computed in PreCompute pass
     s = tvm.create_schedule([x.op for x in outs])
     return s
 
