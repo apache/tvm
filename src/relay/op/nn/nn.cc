@@ -980,9 +980,9 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
       << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, indexdiv(data->shape[1], (block_size * block_size)));
-  oshape.Set(2, data->shape[2] * block_size);
-  oshape.Set(3, data->shape[3] * block_size);
+  oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
+  oshape.Set(2, oshape[2] * block_size);
+  oshape.Set(3, oshape[3] * block_size);
 
   // Assign output type
   reporter->Assign(types[1],
