@@ -145,6 +145,15 @@ set(USE_RANDOM OFF)
 # Whether use NNPack
 set(USE_NNPACK OFF)
 
+# Possible values:
+# - ON: enable tflite with cmake's find search
+# - OFF: disable tflite
+# - /path/to/libtensorflow-lite.a: use specific path to tensorflow lite library 
+set(USE_TFLITE OFF)
+
+# /path/to/tensorflow: tensorflow root path when use tflite library
+set(USE_TENSORFLOW_PATH none)
+
 # Whether use CuDNN
 set(USE_CUDNN OFF)
 
@@ -162,6 +171,9 @@ set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
 set(USE_SORT ON)
+
+# Whether use MKL-DNN (DNNL) codegen
+set(USE_DNNL_CODEGEN OFF)
 
 # Build ANTLR parser for Relay text format
 # Possible values:

@@ -117,7 +117,7 @@ GraphFunc GraphLower(Graph graph,
  * \param type the tvm type
  * \return corresponding DLDataType
  */
-int GetTypeFlag(tvm::Type type);
+int GetTypeFlag(tvm::DataType type);
 
 /*!
  * \brief Get TVM Type from type flag
@@ -125,7 +125,7 @@ int GetTypeFlag(tvm::Type type);
  * \param type_flag the type flag
  * \return corresponding TVM type
  */
-tvm::Type GetTVMType(int type_flag);
+tvm::DataType GetTVMType(int type_flag);
 
 }  // namespace compiler
 }  // namespace nnvm

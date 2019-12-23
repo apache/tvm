@@ -41,7 +41,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
         .describe("name of the field");
     TVM_ATTR_FIELD(expr)
         .describe("expression field")
-        .set_default(make_const(Int(32), 1));
+        .set_default(make_const(DataType::Int(32), 1));
     TVM_ATTR_FIELD(learning_rate)
         .describe("learning_rate")
         .set_default(0.1);

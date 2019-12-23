@@ -440,7 +440,7 @@ named!(
     )
 );
 
-/// Loads a param dict saved using `nnvm.compiler.save_param_dict`.
+/// Loads a param dict saved using `relay.save_param_dict`.
 pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>, GraphFormatError> {
     if let Ok((remaining_bytes, param_dict)) = parse_param_dict(bytes) {
         if remaining_bytes.len() == 0 {

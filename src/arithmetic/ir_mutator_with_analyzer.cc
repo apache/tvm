@@ -140,7 +140,7 @@ Mutate_(const Call* op, const Expr& self) {
         false_value.same_as(op->args[2])) {
       return self;
     } else {
-      return Call::make(op->type, op->name,
+      return Call::make(op->dtype, op->name,
                         {cond, true_value, false_value},
                         op->call_type);
     }

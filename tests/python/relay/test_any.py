@@ -193,6 +193,25 @@ def test_any_take():
     verify_any_take(any_dims(2), any_dims(3), None, (4, 5), (2, 3, 4))
     verify_any_take(any_dims(2), any_dims(4), -1, (4, 5), (2, 3, 4, 5))
 
+def verify_any_tile(dshape, reps, np_dshape, np_reps):
+    mod = relay.Module()
+    x = relay.var("x", shape=dshape, dtype="float32")
+    y = relay.tile(x, reps=reps)
+    mod["main"] = relay.Function([x], y)
+    x_data = np.random.uniform(size=np_dshape).astype("float32")
+    ref_res = np.tile(x_data, reps=np_reps)
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        res = ex.evaluate()(x_data)
+        tvm.testing.assert_allclose(res.asnumpy(), ref_res, rtol=1e-5)
+
+def test_any_tile():
+    verify_any_tile(any_dims(3), (3, 2, 1), (2, 3, 4), (3, 2, 1))
+    verify_any_tile(any_dims(3), (1, 2), (2, 3, 4), (1, 2))
+    verify_any_tile(any_dims(2), (3, 2, 1), (2, 3), (3, 2, 1))
+    verify_any_tile(any_dims(3), (1,), (2, 3, 4), (1,))
+
 def test_any_shape_of():
     x = relay.var('x', shape=any_dims(2), dtype='float32')
     y = relay.shape_of(x)
@@ -586,6 +605,7 @@ if __name__ == "__main__":
     test_any_concat()
     test_any_reshape()
     test_any_take()
+    test_any_tile()
     test_any_shape_of()
     test_any_reduce()
     test_any_layout_transform()

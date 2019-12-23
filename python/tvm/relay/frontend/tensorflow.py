@@ -122,6 +122,70 @@ def _elemwise(name):
         return get_relay_op(name)(*inputs)
     return _impl
 
+def _pool3d(name):
+    def _impl(inputs, attr, params):
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        flip_layout = False
+
+        input_shape = attr['_input_shapes'][inputs[0]]
+
+        if attr['data_format'] == 'NDHWC':
+            attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2], attr['ksize'][3])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2], attr['strides'][3])
+        elif attr['data_format'] == 'NCDHW':
+            attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3], attr['ksize'][4])
+            attr['strides'] = (attr['strides'][2], attr['strides'][3], attr['strides'][4])
+        else:
+            msg = 'Value {} of attribute "data_format" of operator Pooling ' \
+                  'is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
+        if attr['data_format'] == "NDHWC":
+            input_shape = [attr['_input_shapes'][inputs[0]][i] for i in (0, 4, 1, 2, 3)]
+            inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
+            attr['data_format'] = "NCDHW"
+            attr['_input_shapes'][inputs[0]] = input_shape
+            flip_layout = True
+
+        attr['padding'] = attr['padding'].decode("utf-8")
+
+        if attr['padding'] == 'VALID':
+            attr['padding'] = [0, 0, 0, 0, 0, 0]
+        elif attr['padding'] == 'SAME':
+            stride_d, stride_h, stride_w = attr['strides']
+            kernel_d, kernel_h, kernel_w = attr['kernel_shape']
+            if attr['data_format'] == 'NDHWC':
+                in_d = input_shape[1]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
+            else:
+                in_d = input_shape[2]
+                in_h = input_shape[3]
+                in_w = input_shape[4]
+            pad_d = _get_pad_pair(in_d, kernel_d, stride_d)
+            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+
+            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
+        else:
+            msg = 'Value {} in attribute "padding" of operator Pooling is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
+
+        if name == "avg_pool":
+            attr['count_include_pad'] = False
+        attr['ceil_mode'] = False
+        out = AttrCvt(
+            op_name=name,
+            transforms={
+                'kernel_shape': 'pool_size',
+                'data_format': 'layout'},
+            ignores=['ksize'])(inputs, attr)
+        if flip_layout:
+            out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
+        return out
+
+    return _impl
+
 def _pooling(name):
     def _impl(inputs, attr, params):
 
@@ -416,9 +480,11 @@ def _expand_dims():
                        extras={'axis': int(axis), 'num_newaxis': 1})(inputs, attr)
     return _impl
 
-def _resize_bilinear():
+def _resize(method):
     def _impl(inputs, attr, params):
-        size = attr['_output_shapes'][0][1:3]
+        output_shape0 = attr['_output_shapes'][0]
+        # Dynamic size models might have _output_shapes attr equal to [None] here
+        size = output_shape0[1:3] if output_shape0 is not None else [-1, -1]
         # Important that the size is defined. If an axis is not, we need to infer what
         # the shape should be.
         if -1 in size:
@@ -429,24 +495,9 @@ def _resize_bilinear():
         attr['layout'] = 'NHWC'
 
         # Ignore the new attributes from TF2.0, for now.
-        return AttrCvt(op_name="resize",
+        return AttrCvt(op_name='resize',
                        ignores=['Tdim', 'half_pixel_centers'],
-                       extras={'method': "bilinear"})(inputs, attr)
-    return _impl
-
-def _resize_nearest_neighbor():
-    def _impl(inputs, attr, params):
-        size = attr['_output_shapes'][0][1:3]
-        if -1 in size:
-            size = _infer_value(inputs[1], params).asnumpy().reshape([-1]).tolist()
-        attr['size'] = size
-        inputs.pop(1)
-        # NHWC
-        attr['layout'] = 'NHWC'
-
-        return AttrCvt(op_name="resize",
-                       ignores=['Tdim'],
-                       extras={'method': "nearest_neighbor"})(inputs, attr)
+                       extras={'method': method})(inputs, attr)
     return _impl
 
 def _check_numerics():
@@ -1422,6 +1473,7 @@ _convert_map = {
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
     'AvgPool'                           : _pooling('avg_pool'),
+    'AvgPool3D'                         : _pool3d('avg_pool3d'),
     'BatchMatMul'                       : _batch_matmul(),
     'BatchMatMulV2'                     : _batch_matmul(),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
@@ -1473,6 +1525,7 @@ _convert_map = {
     'MatMul'                            : _matmul(),
     'Max'                               : _reduce('max'),
     'MaxPool'                           : _pooling('max_pool'),
+    'MaxPool3D'                         : _pool3d('max_pool3d'),
     'Maximum'                           : _elemwise('maximum'),
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
@@ -1503,9 +1556,9 @@ _convert_map = {
     'Relu'                              : AttrCvt('relu'),
     'Relu6'                             : _relu6(),
     'Reshape'                           : _reshape(),
-    'ResizeBilinear'                    : _resize_bilinear(),
-    'ResizeBicubic'                     : _resize_bilinear(),
-    'ResizeNearestNeighbor'             : _resize_nearest_neighbor(),
+    'ResizeBilinear'                    : _resize('bilinear'),
+    'ResizeBicubic'                     : _resize('bilinear'),
+    'ResizeNearestNeighbor'             : _resize('nearest_neighbor'),
     'ReverseV2'                         : _reverse_v2(),
     'RightShift'                        : AttrCvt('right_shift'),
     'Round'                             : AttrCvt('round'),

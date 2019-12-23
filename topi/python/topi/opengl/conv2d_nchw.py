@@ -49,7 +49,7 @@ def schedule_conv2d_nchw(outs):
         s[data].opengl()
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

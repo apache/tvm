@@ -46,11 +46,11 @@ class UIntImm : public ExprNode {
   uint64_t value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, uint64_t value);
+  TVM_DLL static Expr make(DataType t, uint64_t value);
 
   static constexpr const char* _type_key = "UIntImm";
   TVM_DECLARE_NODE_TYPE_INFO(UIntImm, ExprNode);
@@ -63,11 +63,11 @@ class FloatImm : public ExprNode {
   double value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, double value);
+  TVM_DLL static Expr make(DataType t, double value);
 
   static constexpr const char* _type_key = "FloatImm";
   TVM_DECLARE_NODE_TYPE_INFO(FloatImm, ExprNode);
@@ -80,7 +80,7 @@ class StringImm : public ExprNode {
   std::string value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
@@ -100,11 +100,11 @@ class Cast : public ExprNode {
   Expr value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, Expr v);
+  TVM_DLL static Expr make(DataType t, Expr v);
 
   static constexpr const char* _type_key = "Cast";
   TVM_DECLARE_NODE_TYPE_INFO(Cast, ExprNode);
@@ -123,7 +123,7 @@ class BinaryOpNode : public ExprNode {
   Expr b;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->type));
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -131,9 +131,9 @@ class BinaryOpNode : public ExprNode {
   static Expr make(Expr a, Expr b) {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.type() == b.type()) << "TypeError: mismatched types\n";
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
     NodePtr<T> node = make_node<T>();
-    node->type = a.type();
+    node->dtype = a.dtype();
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
@@ -215,7 +215,7 @@ class CmpOpNode : public ExprNode {
   Expr b;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->type));
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -223,9 +223,9 @@ class CmpOpNode : public ExprNode {
   static Expr make(Expr a, Expr b) {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.type() == b.type()) << "TypeError: mismatched types\n";
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
     NodePtr<T> node = make_node<T>();
-    node->type = Bool(a.type().lanes());
+    node->dtype = DataType::Bool(a.dtype().lanes());
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
@@ -279,7 +279,7 @@ class And : public ExprNode {
   Expr b;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->type));
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -299,7 +299,7 @@ class Or : public ExprNode {
   Expr b;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -317,7 +317,7 @@ class Not : public ExprNode {
   Expr a;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("a", &a);
   }
 
@@ -344,7 +344,7 @@ class Select : public ExprNode {
   Expr false_value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("condition", &condition);
     v->Visit("true_value", &true_value);
     v->Visit("false_value", &false_value);
@@ -381,13 +381,13 @@ class Load : public ExprNode {
   Expr predicate;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("buffer_var", &buffer_var);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
   }
 
-  TVM_DLL static Expr make(Type type, Var buffer_var, Expr index, Expr predicate);
+  TVM_DLL static Expr make(DataType dtype, Var buffer_var, Expr index, Expr predicate);
 
   static constexpr const char* _type_key = "Load";
   TVM_DECLARE_NODE_TYPE_INFO(Load, ExprNode);
@@ -412,7 +412,7 @@ class Ramp : public ExprNode {
   int lanes;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("base", &base);
     v->Visit("stride", &stride);
     v->Visit("lanes", &lanes);
@@ -429,11 +429,11 @@ class Broadcast : public ExprNode {
  public:
   /*! \brief The base value. */
   Expr value;
-  /*! \brief The numerb of lanes. */
+  /*! \brief The number of lanes. */
   int lanes;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
     v->Visit("lanes", &lanes);
   }
@@ -457,7 +457,7 @@ class Let : public ExprNode {
   Expr body;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -523,7 +523,7 @@ class Call : public ExprNode {
   int value_index{0};
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("call_type", &call_type);
@@ -531,7 +531,7 @@ class Call : public ExprNode {
     v->Visit("value_index", &value_index);
   }
 
-  TVM_DLL static Expr make(Type type,
+  TVM_DLL static Expr make(DataType dtype,
                            std::string name,
                            Array<Expr> args,
                            CallType call_type,
@@ -695,7 +695,7 @@ class Reduce : public ExprNode {
                            int value_index);
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
@@ -713,7 +713,7 @@ class Any : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return Variable::make(Int(32), "any_dim");
+    return Variable::make(DataType::Int(32), "any_dim");
   }
 
   TVM_DLL static Expr make();
@@ -840,7 +840,7 @@ class ProducerConsumer : public StmtNode {
  *  Equivalent to ((DType*)buffer_var)[index] = value.
  *  where DType is the type specified by type().element_of().
  *
- *  For example, if type = float32x3, then the load will corresponds to
+ *  For example, if type = float32x3, then the store will corresponds to
  *
  * \code
  *
@@ -917,7 +917,7 @@ class Allocate : public StmtNode {
   /*! \brief The buffer variable. */
   Var buffer_var;
   /*! \brief The type of the buffer. */
-  DataType type;
+  DataType dtype;
   /*! \brief The extents of the buffer. */
   Array<Expr> extents;
   /*! \brief Only allocate buffer when condition is satisfied. */
@@ -931,14 +931,14 @@ class Allocate : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
   }
 
   TVM_DLL static Stmt make(Var buffer_var,
-                           DataType type,
+                           DataType dtype,
                            Array<Expr> extents,
                            Expr condition,
                            Stmt body,
@@ -993,7 +993,7 @@ class Realize : public StmtNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index;
   /*! \brief The data type of the array. */
-  DataType type;
+  DataType dtype;
   /*! \brief Bounds to be realized. */
   Region bounds;
   /*! \brief Only realize if condition holds. */
@@ -1004,7 +1004,7 @@ class Realize : public StmtNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
@@ -1012,7 +1012,7 @@ class Realize : public StmtNode {
 
   TVM_DLL static Stmt make(FunctionRef func,
                            int value_index,
-                           DataType type,
+                           DataType dtype,
                            Region bounds,
                            Expr condition,
                            Stmt body);
@@ -1165,20 +1165,20 @@ class Prefetch : public StmtNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index;
   /*! \brief The data type of the array. */
-  DataType type;
+  DataType dtype;
   /*! \brief Bounds to be prefetched. */
   Region bounds;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
-    v->Visit("type", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("bounds", &bounds);
   }
 
   TVM_DLL static Stmt make(FunctionRef func,
                            int value_index,
-                           DataType type,
+                           DataType dtype,
                            Region bounds);
 
   static constexpr const char* _type_key = "Prefetch";
@@ -1630,7 +1630,7 @@ constexpr const char* tvm_assert_bound = "tvm_assert_bound";
  * \param dtype The data type
  * \return Expr a expression with dtype.
  */
-inline Expr TypeAnnotation(Type dtype) {
+inline Expr TypeAnnotation(DataType dtype) {
   return ir::Call::make(dtype,
                         "type_annotation", {},
                         ir::Call::PureIntrinsic);

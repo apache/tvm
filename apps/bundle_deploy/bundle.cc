@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,7 +26,9 @@ extern unsigned int build_graph_json_len;
 extern unsigned char build_params_bin[];
 extern unsigned int build_params_bin_len;
 
-#define TVM_BUNDLE_FUNCTION __attribute__((visibility("default"))) extern "C"
+#define TVM_BUNDLE_FUNCTION __attribute__((visibility("default")))
+
+extern "C" {
 
 TVM_BUNDLE_FUNCTION void *tvm_runtime_create() {
   const std::string json_data(&build_graph_json[0],
@@ -63,4 +65,5 @@ TVM_BUNDLE_FUNCTION void tvm_runtime_get_output(void *handle, int index,
                                                 void *tensor) {
   reinterpret_cast<tvm::runtime::Module *>(handle)->GetFunction("get_output")(
       index, reinterpret_cast<DLTensor *>(tensor));
+}
 }

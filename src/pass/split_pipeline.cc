@@ -116,7 +116,7 @@ class MarkChannelAccess : public IRMutator {
     int32_t csize = op->constant_allocation_size();
     Expr alloc_size;
     if (csize > 0) {
-      alloc_size = IntImm::make(Int(32), csize);
+      alloc_size = IntImm::make(DataType::Int(32), csize);
     } else {
       alloc_size = op->extents[0];
       for (size_t i = 1; i < op->extents.size(); ++i) {
@@ -183,17 +183,17 @@ class StageSplitter : public IRMutator {
     std::ostringstream cname;
     cname << "fifo." << temp_fifo_count_++;
     // Create FIFO channel for load.
-    Channel ch = ChannelNode::make(Var(cname.str(), Handle()), op->type);
+    Channel ch = ChannelNode::make(Var(cname.str(), DataType::Handle()), op->dtype);
     Expr index = Mutate(op->index);
     Stmt provide = Store::make(
         ch->handle_var,
-        Load::make(op->type, op->buffer_var, index, op->predicate),
+        Load::make(op->dtype, op->buffer_var, index, op->predicate),
         0, op->predicate);
     Stmt temp = nest_.back(); nest_.pop_back();
     stages_.emplace_back(BuildStage(provide, ch));
     nest_.push_back(temp);
     fifo_map_[ch->handle_var.get()] = ch;
-    return Load::make(op->type, ch->handle_var, 0, op->predicate);
+    return Load::make(op->dtype, ch->handle_var, 0, op->predicate);
   }
 
   Stmt Split(Stmt stmt, const ProducerConsumer* env) {
@@ -246,7 +246,7 @@ class StageSplitter : public IRMutator {
       } else if (s.as<Block>()) {
       } else if (const Allocate* op = s.as<Allocate>()) {
         nest.emplace_back(Allocate::make(
-            op->buffer_var, op->type, op->extents,
+            op->buffer_var, op->dtype, op->extents,
             op->condition, no_op, op->new_expr, op->free_function));
         MarkChannel(op);
       } else {
@@ -256,11 +256,11 @@ class StageSplitter : public IRMutator {
     body = Substitute(MergeNest(nest, body), subst);
     return AttrStmt::make(
         target, ir::attr::pipeline_stage_scope,
-        make_const(Int(32), stage_index), body);
+        make_const(DataType::Int(32), stage_index), body);
   }
   void MarkChannel(const Allocate* op) {
     if (!cmap_.count(op->buffer_var.get())) {
-      Channel ch = ChannelNode::make(Var(op->buffer_var), op->type);
+      Channel ch = ChannelNode::make(Var(op->buffer_var), op->dtype);
       cmap_[op->buffer_var.get()] = ch;
     }
   }

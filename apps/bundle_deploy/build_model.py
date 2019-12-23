@@ -18,8 +18,7 @@
 
 import argparse
 import os
-import nnvm.compiler
-import nnvm.testing
+from tvm import relay
 import tvm
 import logging
 
@@ -34,22 +33,24 @@ def main():
     dshape = (1, 3, 224, 224)
     from mxnet.gluon.model_zoo.vision import get_model
     block = get_model('mobilenet0.25', pretrained=True)
-    net, params = nnvm.frontend.from_mxnet(block)
-    net = nnvm.sym.softmax(net)
+    shape_dict = {'data': dshape}
+    mod, params = relay.frontend.from_mxnet(block, shape_dict)
+    func = mod["main"]
+    func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
 
-    with nnvm.compiler.build_config(opt_level=3):
-        graph, lib, params = nnvm.compiler.build(
-            net, 'llvm --system-lib', shape={'data': dshape}, params=params)
-    print(graph.symbol().debug_str())
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(
+            func, 'llvm --system-lib', params=params)
+
     build_dir = os.path.abspath(opts.out_dir)
     if not os.path.isdir(build_dir):
         os.makedirs(build_dir)
 
     lib.save(os.path.join(build_dir, 'model.o'))
     with open(os.path.join(build_dir, 'graph.json'), 'w') as f_graph_json:
-        f_graph_json.write(graph.json())
+        f_graph_json.write(graph)
     with open(os.path.join(build_dir, 'params.bin'), 'wb') as f_params:
-        f_params.write(nnvm.compiler.save_param_dict(params))
+        f_params.write(relay.save_param_dict(params))
 
 
 if __name__ == '__main__':

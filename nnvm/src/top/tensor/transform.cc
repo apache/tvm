@@ -477,7 +477,7 @@ NNVM_REGISTER_OP(cast)
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const CastParam& param = nnvm::get<CastParam>(attrs.parsed);
-    Type dtype = GetTVMType(param.dtype);
+    DataType dtype = GetTVMType(param.dtype);
     return Array<Tensor>{ topi::cast(inputs[0], dtype) };
 })
 .set_support_level(1);
@@ -1261,8 +1261,8 @@ NNVM_REGISTER_OP(slice_like)
     Array<Expr> target_shape = inputs[1]->shape;
     Array<Expr> begin_idx, end_idx, strides;
     for (size_t i = 0; i < src_shape.size(); ++i) {
-      begin_idx.push_back(make_const(tvm::Int(32), 0));
-      strides.push_back(make_const(tvm::Int(32), 1));
+      begin_idx.push_back(make_const(tvm::DataType::Int(32), 0));
+      strides.push_back(make_const(tvm::DataType::Int(32), 1));
     }
     end_idx = Array<Expr>(src_shape);
     if (param.axis.ndim() == 0) {

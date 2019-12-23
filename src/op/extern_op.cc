@@ -46,7 +46,7 @@ Array<IterVar> ExternOpNode::root_iter_vars() const {
   return {};
 }
 
-Type ExternOpNode::output_dtype(size_t i) const {
+DataType ExternOpNode::output_dtype(size_t i) const {
   return output_placeholders[i]->dtype;
 }
 
@@ -122,7 +122,7 @@ void ExternOpNode::PropBoundToInputs(
     for (size_t i = 0; i < t->shape.size(); ++i) {
       dom.data[i].emplace_back(IntSet::range(
           Range::make_by_min_extent(
-              make_const(t->shape[i].type(), 0), t->shape[i])));
+              make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
@@ -145,7 +145,7 @@ Stmt ExternOpNode::BuildRealize(
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(
-              make_const(t->shape[i].type(), 0), t->shape[i]));
+              make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
     realize_body = ir::Realize::make(
         t->op, t->value_index, t->dtype,
@@ -159,19 +159,19 @@ Stmt ExternOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmt::make(make_zero(Int(32)), attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmt::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<NodeRef> bind_spec;
     Array<Expr> tuple;
     bind_spec.push_back(buffer);
     bind_spec.push_back(tensor);
     for (size_t k = 0; k < buffer->shape.size(); ++k) {
-      tuple.push_back(make_const(buffer->shape[k].type(), 0));
+      tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
       tuple.push_back(buffer->shape[k]);
     }
     ret = AttrStmt::make(
         bind_spec, attr::buffer_bind_scope,
-        Call::make(Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
+        Call::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

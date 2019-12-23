@@ -478,19 +478,19 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
-    inputs : nnvm.symbol or tvm.relay.Expr
+    inputs : tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
     F: symbol
-        The context, can be either nnvm.sym or relay.op
+        The context, can be either relay.op
 
     Note
     ----
     Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
     """
     copy_inputs = [s for s in inputs]
 

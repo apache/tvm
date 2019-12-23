@@ -20,6 +20,7 @@
 from __future__ import absolute_import as _abs
 
 from .conv2d import *
+from .conv3d import *
 from .deformable_conv2d import *
 from .depthwise_conv2d import *
 from .elemwise import *
@@ -30,6 +31,7 @@ from .mapping import *
 from .pooling import *
 from .softmax import *
 from .conv2d_transpose import *
+from .conv1d_transpose import *
 from .bnn import *
 from .upsampling import *
 from .local_response_norm import *

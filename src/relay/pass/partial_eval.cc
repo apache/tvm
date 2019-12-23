@@ -670,7 +670,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic c = VisitExpr(op->cond, ll);
     if (c->pstatic.defined()) {
       NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
-      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
+      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return VisitExpr(op->true_branch, ll);
       } else {
@@ -763,10 +763,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       if (auto* st = ps->pstatic.as<STensorNode>()) {
         if (st->data.Shape().empty()) {
           NDArray cpu_array = st->data.CopyTo(CPUContext());
-          DataType dtype = TVMType2Type(cpu_array->dtype);
-          if (dtype == Int(32)) {
+          DataType dtype = DataType(cpu_array->dtype);
+          if (dtype == DataType::Int(32)) {
             return std::max<int32_t>(0, *static_cast<const int32_t*>(cpu_array->data));
-          } else if (dtype == Int(64)) {
+          } else if (dtype == DataType::Int(64)) {
             return std::max<int64_t>(0, *static_cast<const int64_t*>(cpu_array->data));
           }
         }
