@@ -635,7 +635,7 @@ Expr assert_bound(Expr value, Expr lower, Expr upper) {
   Expr lb = lower.defined() ? lower : value;
   Expr ub = upper.defined() ? upper : value;
   return ir::Call::make(
-      value.type(),
+      value.dtype(),
       ir::intrinsic::tvm_assert_bound,
       {value, lb, ub},
       ir::Call::PureIntrinsic);
