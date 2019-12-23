@@ -734,7 +734,7 @@ def test_forward_batch_norm():
         gamma = np.random.uniform(size=(shape[axis])).astype("float32")
         beta = np.random.uniform(size=(shape[axis])).astype("float32")
         moving_mean = np.random.uniform(size=(shape[axis])).astype("float32")
-        moving_var = np.random.uniform(size=(shape[axis])).astype("float32")
+        moving_var = np.abs(np.random.uniform(size=(shape[axis])).astype("float32")) + 0.5
         ref_res = mx.nd.BatchNorm(mx.nd.array(x), mx.nd.array(gamma), mx.nd.array(beta),
                                   mx.nd.array(moving_mean), mx.nd.array(moving_var),
                                   axis=axis, use_global_stats=True, fix_gamma=fix_gamma)
