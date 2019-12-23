@@ -83,7 +83,6 @@ class BoundRemover : public IRMutator {
 
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->is_intrinsic(intrinsic::tvm_assert_bound) && remove_bounded_) {
-      // TODO: deal with recursive assert_bound
       Expr value = op->args[0];
       const Variable* var = value.as<Variable>();
       CHECK(var) << "Invalid value in " << e << ". It should have been simplified.";
@@ -359,7 +358,6 @@ void BoundDeducer::Deduce() {
 }
 
 void BoundDeducer::Relax() {
-
   IntSet a = EvalSet(expr_, relax_map_);
   IntSet b = EvalSet(result_, relax_map_);
   if (a.is_everything() || b.is_everything()) {
