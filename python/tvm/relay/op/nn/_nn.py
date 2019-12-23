@@ -886,7 +886,8 @@ def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
 def compute_depth_to_space(attrs, inputs, out_dtype, target):
     block_size = attrs.block_size
     layout = attrs.layout
-    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout)]
+    mode = attrs.mode
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
 
 reg.register_schedule("nn.depth_to_space", schedule_injective)
 reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)

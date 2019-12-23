@@ -539,7 +539,8 @@ class DepthToSpace(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-        return _op.nn.depth_to_space(inputs[0], block_size)
+        mode = attr.get("mode", "DCR")
+        return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
 class SpaceToDepth(OnnxOpConverter):

@@ -23,7 +23,7 @@ import topi.testing
 from common import get_all_backend
 
 
-def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, layout='NCHW'):
+def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, layout='NCHW', mode='DCR'):
     out_channel = int(in_channel / (block_size * block_size))
     out_height = int(in_height * block_size)
     out_width = int(in_width * block_size)
@@ -41,10 +41,10 @@ def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, la
     dtype = A.dtype
     a_np = np.random.uniform(size=in_shape).astype(dtype)
 
-    B = topi.nn.depth_to_space(A, block_size=block_size, layout=layout)
+    B = topi.nn.depth_to_space(A, block_size=block_size, layout=layout, mode=mode)
     if layout == 'NHWC':
         a_np = np.transpose(a_np, axes=[0, 3, 1, 2])
-    b_np = topi.testing.depth_to_space_python(a_np, block_size)
+    b_np = topi.testing.depth_to_space_python(a_np, block_size, mode=mode)
     if layout == 'NHWC':
         a_np = np.transpose(a_np, axes=[0, 2, 3, 1])
         b_np = np.transpose(b_np, axes=[0, 2, 3, 1])
@@ -69,16 +69,17 @@ def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, la
 
 def test_depth_to_space():
     for layout in ['NCHW', 'NHWC']:
-        # Simplest possible case
-        verify_depth_to_space(2, 1, 4, 1, 1, layout=layout)
-        # Average input size
-        verify_depth_to_space(2, 1, 32, 32, 32, layout=layout)
-        # Large block size
-        verify_depth_to_space(8, 1, 256, 32, 32, layout=layout)
-        # Large batch size
-        verify_depth_to_space(4, 8, 32, 32, 32, layout=layout)
-        # Large input size
-        verify_depth_to_space(4, 8, 32, 128, 128, layout=layout)
+        for mode in ['DCR', 'CDR']:
+            # Simplest possible case
+            verify_depth_to_space(2, 1, 4, 1, 1, layout=layout, mode=mode)
+            # Average input size
+            verify_depth_to_space(2, 1, 32, 32, 32, layout=layout, mode=mode)
+            # Large block size
+            verify_depth_to_space(8, 1, 256, 32, 32, layout=layout, mode=mode)
+            # Large batch size
+            verify_depth_to_space(4, 8, 32, 32, 32, layout=layout, mode=mode)
+            # Large input size
+            verify_depth_to_space(4, 8, 32, 128, 128, layout=layout, mode=mode)
 
 
 if __name__ == "__main__":

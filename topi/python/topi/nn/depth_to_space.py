@@ -21,7 +21,7 @@ import tvm
 from .. import tag
 
 
-def depth_to_space(data, block_size, layout='NCHW'):
+def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
     """Perform depth to space transformation on the data
 
     Parameters
@@ -34,6 +34,11 @@ def depth_to_space(data, block_size, layout='NCHW'):
 
     layout : string
         Either NCHW or NHWC, indicating data layout.
+
+    mode : string
+        Either DCR or CDR, indicates how channels should be accessed.
+        In DCR, channels are interwoven in the Tensorflow style while
+        in CDR channels are accessed sequentially as in Pytorch.
 
     Returns
     -------
@@ -65,7 +70,10 @@ def depth_to_space(data, block_size, layout='NCHW'):
         block_y = tvm.truncdiv(y, block_size)
         idx_x = tvm.truncmod(x, block_size)
         idx_y = tvm.truncmod(y, block_size)
-        channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
+        if mode == "DCR":
+            channel_idx = channel_factor * ((block_size * idx_y) + idx_x) + c
+        else:
+            channel_idx = (c * block_size * block_size) + ((block_size * idx_y) + idx_x)
 
         if layout == 'NCHW':
             output = data(n, channel_idx, block_y, block_x)

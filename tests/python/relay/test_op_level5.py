@@ -574,7 +574,7 @@ def test_deformable_conv2d():
 
 
 def test_depth_to_space():
-    def verify_depth_to_space(dshape, block_size, layout):
+    def verify_depth_to_space(dshape, block_size, layout, mode):
         if layout == "NHWC":
             out_shape = [dshape[0], dshape[1] * block_size, dshape[2] * block_size, dshape[3] / (block_size * block_size)]
         else:
@@ -583,13 +583,13 @@ def test_depth_to_space():
         x_data = np.random.uniform(size=dshape).astype("float32")
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 3, 1, 2])
-        ref_res = topi.testing.depth_to_space_python(x_data, block_size)
+        ref_res = topi.testing.depth_to_space_python(x_data, block_size, mode=mode)
         if layout == "NHWC":
             x_data = np.transpose(x_data, axes=[0, 2, 3, 1])
             ref_res = np.transpose(ref_res, axes=[0, 2, 3, 1])
 
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.nn.depth_to_space(x, block_size, layout)
+        z = relay.nn.depth_to_space(x, block_size, layout, mode)
         assert "block_size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -601,7 +601,8 @@ def test_depth_to_space():
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
     for layout in ["NHWC", "NCHW"]:
-        verify_depth_to_space((1, 4, 4, 4), 2, layout)
+        for mode in ["DCR", "CDR"]:
+            verify_depth_to_space((1, 4, 4, 4), 2, layout, mode)
 
 
 def test_space_to_depth():

@@ -994,10 +994,11 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
 // Positional relay function to create DepthToSpace operator
 // used by frontend FFI
-Expr MakeDepthToSpace(Expr data, int block_size, std::string layout) {
+Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string mode) {
   auto attrs = make_node<SubPixelAttrs>();
   attrs->block_size = block_size;
   attrs->layout = std::move(layout);
+  attrs->mode = std::move(mode);
   static const Op& op = Op::Get("nn.depth_to_space");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
