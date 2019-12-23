@@ -1414,8 +1414,6 @@ class GraphProto(object):
                 self._num_param += 1
                 # We should convert scalar integers to int32, to normalize.
                 array = self._parse_array(t_proto)
-                if len(array.shape) == 0 and array.dtype == 'int64':
-                    array = _nd.array(array.asnumpy().astype('int32'))
                 self._params[node.output[0]] = array
                 self._nodes[node.output[0]] = new_var(
                     node.output[0],

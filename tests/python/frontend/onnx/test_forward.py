@@ -1826,6 +1826,24 @@ def test_convtranspose():
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
 
 
+def test_unsqueeze_constant():
+    from torch.nn import Linear, Sequential, Module
+    class Flatten(Module):
+        def forward(self, input):
+            return input.view(input.size(0), -1)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile() as fp:
+        file_name = fp.name
+        input_size = (1, 16, 32, 32)
+        dummy_input = torch.randn(*input_size)
+        layer = Sequential(Flatten(), Linear(16 * 32 * 32, 64))
+        torch.onnx.export(layer, dummy_input, file_name, export_params=True)
+
+        onnx_model = onnx.load(file_name)
+        relay.frontend.from_onnx(onnx_model, {'0': input_size})
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1882,3 +1900,4 @@ if __name__ == '__main__':
     test_space_to_depth()
     test_conv()
     test_convtranspose()
+    test_unsqueeze_constant()
