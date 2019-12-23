@@ -424,7 +424,12 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExpr_(const FloorDiv* op) final {
-    return VisitBinaryExpr_(op);
+    IntervalSet a = this->Eval(op->a);
+    IntervalSet b = this->Eval(op->b);
+    if (MatchPoint(a, op->a) && (b->min_value.same_as(op->b) || b->max_value.same_as(op->b))) {
+      return IntervalSet::SinglePoint(GetRef<Expr>(op));
+    }
+    return Combine<FloorDiv>(analyzer_, a, b);
   }
 
   IntervalSet VisitExpr_(const FloorMod* op) final {

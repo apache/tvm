@@ -113,20 +113,21 @@ def test_bound_fusesplit1():
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     idxdiv = tvm.indexdiv
-    print(tvm.ir_pass.Simplify(bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)))
     assert(tvm.ir_pass.Simplify(
-            bounds[A1.op.axis[0]].min - idxdiv(xo * split1, l)).value == 0)
+            tvm.ir_pass._RemoveIntrinExpr(bounds[A1.op.axis[0]].min) - idxdiv(xo * split1, l)).value == 0)
 
     expected_extent = (idxdiv((xo + 1) * split1 - 1, l) - idxdiv(xo * split1, l) + 1)
+    actual_extent = tvm.ir_pass._RemoveIntrinExpr(bounds[A1.op.axis[0]].extent)
     for i in range(1, 6):
         for j in range(1, 6):
             for k in range(1, 6):
                 vars = tvm.convert({split1: tvm.const(i, "int32"), l: tvm.const(j, "int32"), xo.var: tvm.const(k, "int32")})
-                comp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value
+                comp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(actual_extent, vars)).value
                 exp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expected_extent, vars)).value
                 assert(comp_ext == exp_ext)
 
-    assert(tvm.ir_pass.Simplify(bounds[A1.op.axis[1]].extent - l).value == 0)
+    l_extent = tvm.ir_pass._RemoveIntrinExpr(bounds[A1.op.axis[1]].extent)
+    assert(tvm.ir_pass.Simplify(l_extent - l).value == 0)
 
 def test_bound_fusesplit2():
     m = tvm.var("m")

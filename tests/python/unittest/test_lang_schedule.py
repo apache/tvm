@@ -17,6 +17,7 @@
 import pytest
 import tvm
 import pickle as pkl
+from util import check_assert_bound
 
 def test_schedule_create():
     m = tvm.var('m')
@@ -164,7 +165,8 @@ def test_rfactor():
     # normal schedule
     s = tvm.create_schedule(B.op)
     BF = s.rfactor(B, k1)
-    assert(tuple(BF.shape) == (n, n))
+    assert(BF.shape[0] == n)
+    check_assert_bound(BF.shape[1], n, 0, n)
     assert(set(BF.op.body[0].axis) == set([k2]))
     assert(s[B].op.body[0].axis[0].dom.extent == n)
     assert(len(s[B].all_iter_vars) == 2)
@@ -174,7 +176,7 @@ def test_rfactor():
     xo, xi = s[B].split(B.op.axis[0], factor=8)
     BF = s.rfactor(B, ki)
     assert(BF.shape[0].value == 4)
-    assert(BF.shape[1] == n)
+    check_assert_bound(BF.shape[1], n, 0, n)
     assert(BF.op.body[0].axis[0] ==  k2)
     assert(BF.op.body[0].axis[1].var ==  ko.var)
     assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
@@ -183,7 +185,7 @@ def test_rfactor():
     ko, ki = s[B].split(k1, factor=4)
     xo, xi = s[B].split(B.op.axis[0], factor=8)
     BF = s.rfactor(B, ki, 1)
-    assert(n == BF.shape[0])
+    check_assert_bound(BF.shape[0], n, 0, n)
     assert(BF.shape[1].value == 4)
     assert(BF.op.body[0].axis[0] ==  k2)
     assert(BF.op.body[0].axis[1].var ==  ko.var)
@@ -222,7 +224,7 @@ def test_tensor_intrin_scalar_params():
 
     def intrin_func(ins, outs, sp):
         assert(isinstance(ins[0], tvm.schedule.Buffer))
-        assert(ins[0].shape[0] == n)
+        check_assert_bound(ins[0].shape[0], n, 0, n)
         assert(sp[0] == v)
         assert(sp[1] == w)
         return tvm.call_packed("hw_func", ins[0].data, outs[0].data, sp[0], sp[1])
@@ -232,7 +234,7 @@ def test_tensor_intrin_scalar_params():
     assert intrin.op == z.op
     assert intrin.reduce_init is None
     assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
-    assert(intrin.buffers[0].shape[0] == n)
+    check_assert_bound(intrin.buffers[0].shape[0], n, 0, n)
     assert tuple(intrin.scalar_params) == tuple((v, w))
 
     A = tvm.placeholder((10,10), name='A')

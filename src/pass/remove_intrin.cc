@@ -44,6 +44,10 @@ Stmt RemoveIntrinStmt(Stmt stmt) {
   return IntrinRemover().Mutate(stmt);
 }
 
+Expr RemoveIntrinExpr(Expr expr) {
+  return IntrinRemover().Mutate(expr);
+}
+
 LoweredFunc RemoveIntrin(LoweredFunc f) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = RemoveIntrinStmt(n->body);
@@ -54,6 +58,9 @@ LoweredFunc RemoveIntrin(LoweredFunc f) {
 // Register the api only for test purposes
 TVM_REGISTER_API("ir_pass._RemoveIntrinStmt")
 .set_body_typed(RemoveIntrinStmt);
+
+TVM_REGISTER_API("ir_pass._RemoveIntrinExpr")
+.set_body_typed(RemoveIntrinExpr);
 
 }  // namespace ir
 }  // namespace tvm
