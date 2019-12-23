@@ -169,11 +169,6 @@ endif(USE_VM_PROFILER)
 file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
-if(NOT MSVC)
-  file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
-  list(APPEND COMPILER_SRCS ${COMPILER_VERILOG_SRCS})
-endif()
-
 file(GLOB_RECURSE NNVM_COMPILER_SRCS
     nnvm/src/c_api/*.cc
     nnvm/src/core/*.cc
