@@ -102,7 +102,6 @@ ALLOW_SPECIFIC_FILE = {
     # sgx file
     "apps/sgx/enclave/sgx-deps.diff",
     # html for demo purposes
-    "nnvm/tutorials/web/resnet.html",
     "tests/webgl/test_static_webgl_library.html",
     "web/example_rpc.html",
     # images are normally not allowed

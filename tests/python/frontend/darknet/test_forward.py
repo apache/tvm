@@ -251,7 +251,7 @@ def test_forward_dense_batchnorm():
     layer = LIB.make_connected_layer(1, 12, 2, 1, 1, 0)
     for i in range(5):
         layer.rolling_mean[i] = np.random.rand(1)
-        layer.rolling_variance[i] = np.random.rand(1)
+        layer.rolling_variance[i] = np.random.rand(1) + 0.5
         layer.scales[i] = np.random.rand(1)
     net.layers[0] = layer
     net.w = net.h = 2
@@ -285,7 +285,7 @@ def test_forward_conv_batch_norm():
     layer = LIB.make_convolutional_layer(1, 224, 224, 3, 32, 1, 3, 2, 0, 1, 1, 0, 0, 0)
     for i in range(32):
         layer.rolling_mean[i] = np.random.rand(1)
-        layer.rolling_variance[i] = np.random.rand(1)
+        layer.rolling_variance[i] = np.random.rand(1) + 0.5
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
