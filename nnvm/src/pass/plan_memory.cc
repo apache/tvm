@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,14 +25,13 @@
 #include <nnvm/pass.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/op_attr_types.h>
-#include <nnvm/top/tensor.h>
 #include <memory>
 #include "graph_algorithm.h"
 
 namespace nnvm {
 namespace pass {
 namespace {
-  using namespace nnvm::top;
+
 // Return bytes of data flag.
 static int GetDTypeSize(int type_flag) {
   switch (type_flag) {
