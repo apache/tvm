@@ -471,7 +471,7 @@ def _test_pool2d(opfunc, reffunc):
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5))
+    ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5))
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
@@ -530,6 +530,34 @@ def test_pool2d():
     _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
+
+
+def test_pool3d():
+
+    def _test_pool3d(opfunc):
+        n, c, d, h, w = tvm.var("n"), 10, 5, 224, 224
+        x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
+        y = opfunc(x, pool_size=(1, 1, 1))
+        assert "pool_size=" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, 10, 5, 224, 224), "float32")
+        # test execution
+        dtype = "float32"
+        dshape = (1, 3, 32, 32, 32)
+        x = relay.var("x", shape=dshape)
+        pool_type = 'max' if 'max' in str(opfunc) else 'avg'
+        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0, 0, 0, 0))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = topi.testing.pool3d_ncdhw_python(data, (2, 2, 2), (2, 2, 2),
+                                                   (0, 0, 0, 0, 0, 0), (1, 3, 16, 16, 16), pool_type, False)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_pool3d(relay.nn.max_pool3d)
+    _test_pool3d(relay.nn.avg_pool3d)
 
 
 def test_avg_pool2d_no_count_pad():
@@ -900,6 +928,7 @@ def test_bitpack_infer_type():
 
 if __name__ == "__main__":
     test_pool2d()
+    test_pool3d()
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
