@@ -122,6 +122,70 @@ def _elemwise(name):
         return get_relay_op(name)(*inputs)
     return _impl
 
+def _pool3d(name):
+    def _impl(inputs, attr, params):
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        flip_layout = False
+
+        input_shape = attr['_input_shapes'][inputs[0]]
+
+        if attr['data_format'] == 'NDHWC':
+            attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2], attr['ksize'][3])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2], attr['strides'][3])
+        elif attr['data_format'] == 'NCDHW':
+            attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3], attr['ksize'][4])
+            attr['strides'] = (attr['strides'][2], attr['strides'][3], attr['strides'][4])
+        else:
+            msg = 'Value {} of attribute "data_format" of operator Pooling ' \
+                  'is not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
+        if attr['data_format'] == "NDHWC":
+            input_shape = [attr['_input_shapes'][inputs[0]][i] for i in (0, 4, 1, 2, 3)]
+            inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
+            attr['data_format'] = "NCDHW"
+            attr['_input_shapes'][inputs[0]] = input_shape
+            flip_layout = True
+
+        attr['padding'] = attr['padding'].decode("utf-8")
+
+        if attr['padding'] == 'VALID':
+            attr['padding'] = [0, 0, 0, 0, 0, 0]
+        elif attr['padding'] == 'SAME':
+            stride_d, stride_h, stride_w = attr['strides']
+            kernel_d, kernel_h, kernel_w = attr['kernel_shape']
+            if attr['data_format'] == 'NDHWC':
+                in_d = input_shape[1]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
+            else:
+                in_d = input_shape[2]
+                in_h = input_shape[3]
+                in_w = input_shape[4]
+            pad_d = _get_pad_pair(in_d, kernel_d, stride_d)
+            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+
+            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
+        else:
+            msg = 'Value {} in attribute "padding" of operator Pooling is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
+
+        if name == "avg_pool":
+            attr['count_include_pad'] = False
+        attr['ceil_mode'] = False
+        out = AttrCvt(
+            op_name=name,
+            transforms={
+                'kernel_shape': 'pool_size',
+                'data_format': 'layout'},
+            ignores=['ksize'])(inputs, attr)
+        if flip_layout:
+            out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
+        return out
+
+    return _impl
+
 def _pooling(name):
     def _impl(inputs, attr, params):
 
@@ -1409,6 +1473,7 @@ _convert_map = {
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
     'AvgPool'                           : _pooling('avg_pool'),
+    'AvgPool3D'                         : _pool3d('avg_pool3d'),
     'BatchMatMul'                       : _batch_matmul(),
     'BatchMatMulV2'                     : _batch_matmul(),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
@@ -1460,6 +1525,7 @@ _convert_map = {
     'MatMul'                            : _matmul(),
     'Max'                               : _reduce('max'),
     'MaxPool'                           : _pooling('max_pool'),
+    'MaxPool3D'                         : _pool3d('max_pool3d'),
     'Maximum'                           : _elemwise('maximum'),
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
