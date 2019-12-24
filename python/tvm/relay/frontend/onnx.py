@@ -540,34 +540,7 @@ class DepthToSpace(OnnxOpConverter):
 
         block_size = int(attr['blocksize'])
         mode = attr.get("mode", "DCR")
-
-        # handle NCHW layout
-        indata = infer_value_simulated(inputs[0], params)
-        in_n, in_c, in_h, in_w = indata.shape
-
-        # reshape to proper output
-        new_c = int(in_c / (block_size * block_size))
-        new_h = in_h * block_size
-        new_w = in_w * block_size
-        newshape = (in_n, new_c, new_h, new_w)
-
-        if mode == "DCR":
-            # expand input to larger dimension.
-            expanded = _op.reshape(inputs[0],
-                                   newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
-            # reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
-
-        else:  # CRD mode
-            # expand input to larger dimension.
-            expanded = _op.reshape(inputs[0],
-                                   newshape=(in_n, new_c, block_size, block_size, in_h, in_w))
-            # reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 1, 4, 2, 5, 3))
-
-        return AttrCvt(op_name="reshape",
-                       extras={'newshape': newshape},
-                       ignores=['mode', 'blocksize'])([transposed], attr)
+        return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
 class SpaceToDepth(OnnxOpConverter):
@@ -578,26 +551,7 @@ class SpaceToDepth(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-
-        # handle NCHW layout
-        indata = infer_value_simulated(inputs[0], params)
-        in_n, in_c, in_h, in_w = indata.shape
-
-        # reshape to proper output
-        new_c = in_c * (block_size * block_size)
-        new_h = int(in_h / block_size)
-        new_w = int(in_w / block_size)
-        newshape = (in_n, new_c, new_h, new_w)
-
-        # expand input to larger dimension.
-        expanded = _op.reshape(inputs[0],
-                               newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
-        # reorder to expand spatial blocks.
-        transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
-
-        return AttrCvt(op_name="reshape",
-                       extras={'newshape': newshape},
-                       ignores=['blocksize'])([transposed], attr)
+        return _op.nn.space_to_depth(inputs[0], block_size)
 
 
 class Concat(OnnxOpConverter):
