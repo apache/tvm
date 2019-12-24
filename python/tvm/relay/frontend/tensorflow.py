@@ -728,76 +728,18 @@ def _reshape():
 
 def _depth_to_space():
     def _impl(inputs, attr, params):
-        # Need to handle data layouts differently.
-        input_shape = attr['_input_shapes'][inputs[0]]
         block_size = int(attr['block_size'])
-        if attr['data_format'].decode("utf-8") == 'NHWC':
-            in_n, in_h, in_w, in_c = input_shape
-            new_c = int(in_c / (block_size * block_size))
-
-            # First expand input to larger dimension.
-            expanded = _op.reshape(
-                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
-            # Now reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
-            # Finally reshape to proper output.
-            new_h = in_h * block_size
-            new_w = in_w * block_size
-            newshape = (in_n, new_h, new_w, new_c)
-
-        else: # Handle NCHW layout
-            in_n, in_c, in_h, in_w = input_shape
-            new_c = int(in_c / (block_size * block_size))
-
-            expanded = _op.reshape(
-                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
-            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
-            new_h = in_h * block_size
-            new_w = in_w * block_size
-            newshape = (in_n, new_c, new_h, new_w)
-
-        return AttrCvt(
-            op_name="reshape",
-            extras={'newshape': newshape},
-            ignores=['data_format', 'block_size'])([transposed], attr)
+        layout = attr['data_format'].decode("utf-8")
+        return _op.nn.depth_to_space(inputs[0], block_size, layout)
 
     return _impl
 
 
 def _space_to_depth():
     def _impl(inputs, attr, params):
-        # Need to handle data layouts differently.
-        input_shape = attr['_input_shapes'][inputs[0]]
         block_size = int(attr['block_size'])
-        if attr['data_format'].decode("utf-8") == 'NHWC':
-            in_n, in_h, in_w, in_c = input_shape
-            new_h = int(in_h / block_size)
-            new_w = int(in_w / block_size)
-
-            # First expand input to larger dimension.
-            expanded = _op.reshape(
-                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
-            # Now reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
-            # Finally reshape to proper output.
-            new_c = in_c * block_size * block_size
-            newshape = (in_n, new_h, new_w, new_c)
-
-        else:  # Handle NCHW layout
-            in_n, in_c, in_h, in_w = input_shape
-            new_h = int(in_h / block_size)
-            new_w = int(in_w / block_size)
-
-            expanded = _op.reshape(
-                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
-            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
-            new_c = int(in_c * block_size * block_size)
-            newshape = (in_n, new_c, new_h, new_w)
-
-        return AttrCvt(
-            op_name="reshape",
-            extras={'newshape': newshape},
-            ignores=['data_format', 'block_size'])([transposed], attr)
+        layout = attr['data_format'].decode("utf-8")
+        return _op.nn.space_to_depth(inputs[0], block_size, layout)
 
     return _impl
 

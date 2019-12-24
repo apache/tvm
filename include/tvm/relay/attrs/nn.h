@@ -821,6 +821,26 @@ struct DeformableConv2DAttrs : public tvm::AttrsNode<DeformableConv2DAttrs> {
   }
 };
 
+/*! \brief Attributes used in subpixel operators */
+struct SubPixelAttrs : public tvm::AttrsNode<SubPixelAttrs> {
+  int block_size;
+  std::string layout;
+  std::string mode;
+
+  TVM_DECLARE_ATTRS(SubPixelAttrs, "relay.attrs.SubPixelAttrs") {
+    TVM_ATTR_FIELD(block_size)
+        .describe("The size of subpixel blocks to compose or decompose.")
+        .set_default(1);
+    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
+        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+        "dimensions respectively.");
+    TVM_ATTR_FIELD(mode).set_default("DCR").describe(
+        "Indicates order in which channels are accessed. Must be one of"
+        "DCR or CDR.");
+  }
+};  // struct SubPixelAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_
