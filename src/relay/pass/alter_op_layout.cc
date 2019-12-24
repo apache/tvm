@@ -161,6 +161,9 @@ std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
     const Array<Layout>& old_in_layouts,
     const Array<Array<IndexExpr> > &old_in_shapes) {
   static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
+  if (!call->op.as<OpNode>()) {
+    return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
+  }
 
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {

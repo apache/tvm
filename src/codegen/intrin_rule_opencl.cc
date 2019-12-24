@@ -66,7 +66,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fmod")
 // There is no warp shuffle instruction in standard OpenCL
 // When shuffle is used, we assume it is intel's shuffle extension
 struct IntelShuffle {
-  std::string operator()(Type t, std::string name) const {
+  std::string operator()(DataType t, std::string name) const {
     return "intel_sub_group_shuffle";
   }
 };

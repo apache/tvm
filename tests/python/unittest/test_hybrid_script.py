@@ -789,6 +789,37 @@ def test_capture():
     func, ins, outs = run_and_check(add_something, [a])
     run_and_check(func, ins, outs=outs)
 
+def test_array_inputs():
+    @script
+    def sum_array(inputs):
+        out = output_tensor((10,), inputs[0].dtype)
+        n = len(inputs)
+        for i in range(10):
+            for j in const_range(n):
+                out[i] += inputs[j][i]
+        return out
+    n = 5
+    inputs = []
+    for i in range(n):
+        inputs.append(tvm.placeholder((10,), name='t%s' % i, dtype='float32'))
+    
+    out = sum_array(tvm.convert(inputs))
+    assert len(out.op.inputs) == n
+
+    sch = tvm.create_schedule(out.op)
+    mod = tvm.build(sch, inputs + [out], target='llvm')
+    assert mod
+
+    input_nd = []
+    out_ref = numpy.zeros((10,))
+    for _ in range(n):
+        arr = numpy.random.uniform(size=(10,)).astype('float32')
+        input_nd.append(tvm.nd.array(arr))
+        out_ref += arr
+    out_nd = tvm.nd.array(numpy.zeros((10,), 'float32'))
+    mod(*input_nd, out_nd)
+    tvm.testing.assert_allclose(out_nd.asnumpy(), out_ref)
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
@@ -807,5 +838,6 @@ if __name__ == "__main__":
     test_const_range()
     test_schedule()
     test_capture()
+    test_array_inputs()
     # TODO:
     # test_inplace()

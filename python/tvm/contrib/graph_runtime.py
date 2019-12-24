@@ -27,7 +27,7 @@ def create(graph_json_str, libmod, ctx):
     Parameters
     ----------
     graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
+        The graph to be deployed in json format output by json graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
     libmod : tvm.Module
@@ -51,11 +51,10 @@ def create(graph_json_str, libmod, ctx):
     ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
 
     if num_rpc_ctx == len(ctx):
-        hmod = rpc_base._ModuleHandle(libmod)
-        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
+        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.create")
+    else:
+        fcreate = get_global_func("tvm.graph_runtime.create")
 
-    fcreate = get_global_func("tvm.graph_runtime.create")
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 def get_device_ctx(libmod, ctx):

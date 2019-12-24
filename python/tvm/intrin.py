@@ -575,7 +575,7 @@ def register_intrin_rule(target, intrin, f=None, override=False):
         The name of codegen target.
 
     intrin : str
-        The name of the instrinsic.
+        The name of the intrinsic.
 
     f : function, optional
         The function to be registered.

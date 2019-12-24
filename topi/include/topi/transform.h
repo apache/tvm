@@ -210,7 +210,7 @@ inline Tensor reshape(const Tensor& x,
   Array<Expr> newshape_int32;
 
   for (const auto &ele : newshape) {
-    newshape_int32.push_back(cast(Int(32), ele));
+    newshape_int32.push_back(cast(DataType::Int(32), ele));
   }
   return compute(
     newshape_int32, [&](const Array<Var>& indices) {
@@ -560,8 +560,8 @@ inline Tensor strided_slice(const Tensor& x,
       << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
       << "] is invalid for axis=" << i;
 
-    begin_expr.push_back(make_const(begin[0].type(), begin_i));
-    strides_expr.push_back(make_const((strides.size() != 0 ? strides[0].type() : begin[0].type()),
+    begin_expr.push_back(make_const(begin[0].dtype(), begin_i));
+    strides_expr.push_back(make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
                                      stride_vec[i]));
     out_shape.push_back(slice_size);
   }
@@ -980,7 +980,7 @@ inline Tensor gather_nd(const Tensor& data,
     out_shape.push_back(data->shape[i]);
   }
   if (out_shape.size() == 0) {
-    out_shape.push_back(make_const(Int(32), 1));
+    out_shape.push_back(make_const(DataType::Int(32), 1));
   }
   return compute(
         out_shape, [&](const Array<Var>& out_index) {
@@ -991,12 +991,12 @@ inline Tensor gather_nd(const Tensor& data,
           }
           Array<Expr> real_indices;
           for (size_t i = 0; i < indices_dim0; ++i) {
-            indices_position.Set(0, make_const(Int(32), i));
+            indices_position.Set(0, make_const(DataType::Int(32), i));
             if (indices->dtype.is_int()) {
               real_indices.push_back(indices(indices_position));
             } else {
               real_indices.push_back(
-                  tvm::cast(tvm::Int(32), indices(indices_position)));
+                  tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
             }
           }
           for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
@@ -1155,11 +1155,11 @@ inline Tensor tensordot(const Tensor& A,
 inline Tensor arange(const Expr& start,
                      const Expr& stop,
                      const Expr& step,
-                     Type dtype,
+                     DataType dtype,
                      std::string name = "T_arange",
                      std::string tag = kInjective) {
-  Expr num_elem = tvm::cast(tvm::Int(32), tvm::ceil(
-      tvm::cast(tvm::Float(32), stop - start) / step));
+  Expr num_elem = tvm::cast(tvm::DataType::Int(32), tvm::ceil(
+      tvm::cast(tvm::DataType::Float(32), stop - start) / step));
   Array<Expr> shape;
   return compute({num_elem}, [&](const Array<Var>& indices) {
     return tvm::cast(dtype, start + step * indices[0]);
@@ -1213,7 +1213,7 @@ inline Tensor layout_transform(const Tensor& src,
  * \return Tensor of input shape.
  */
 inline Tensor shape(const Tensor& src,
-                    Type dtype,
+                    DataType dtype,
                     const std::string name = "T_shape",
                     const std::string tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
@@ -1237,7 +1237,7 @@ inline Tensor shape(const Tensor& src,
  * \return Tensor of input shape.
  */
 inline Tensor ndarray_size(const Tensor& src,
-                           const Type& dtype,
+                           const DataType& dtype,
                            const std::string& name = "ndarray_size",
                            const std::string& tag = kInjective) {
   int ndim = static_cast<int>(src->shape.size());
@@ -1269,7 +1269,7 @@ inline Tensor one_hot(const Tensor& indices,
                       const Expr off_value,
                       int depth,
                       int axis,
-                      const Type& dtype,
+                      const DataType& dtype,
                       const std::string name = "T_one_hot",
                       const std::string tag = kInjective) {
   Array<Expr> oshape;

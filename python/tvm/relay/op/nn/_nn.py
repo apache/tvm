@@ -142,7 +142,6 @@ def _find_conv2d_op(op):
             return op_
     return None
 
-
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -278,6 +277,48 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     return [out]
 
 
+@reg.register_compute("nn.conv3d")
+def compute_conv3d(attrs, inputs, out_type, target):
+    """Compute definition of conv3d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCDHW"]
+    (dilation_d, dilation_h, dilation_w) = dilation
+    if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if groups == 1:
+        out = topi.nn.conv3d(
+            inputs[0], inputs[1], strides, padding,
+            dilation, layout, out_dtype)
+    else:
+        raise ValueError("not support arbitrary group number for now")
+    return [out]
+
+
+@reg.register_schedule("nn.conv3d")
+def schedule_conv3d(attrs, outs, target):
+    """Schedule definition of conv3d"""
+    groups = attrs.groups
+    layout = attrs.data_layout
+
+    with target:
+        if groups == 1 and layout == "NCDHW":
+            return topi.generic.schedule_conv3d_ncdhw(outs)
+
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 @reg.register_schedule("nn.conv2d_transpose")
 def schedule_conv2d_transpose(attrs, outs, target):
     """Schedule definition of conv2d_transpose"""
@@ -307,6 +348,37 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# conv1d_transpose
+@reg.register_compute("nn.conv1d_transpose")
+def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
+    """Compute definition of conv1d_transpose"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+    assert layout == "NCW", "conv1d_transpose ncw only supported"
+    assert dilation == (1,), "conv1d_transpose dilation is not supported"
+    assert groups == 1, "conv1d_transpose groups == 1 only supported"
+    out = topi.nn.conv1d_transpose_ncw(
+        inputs[0], inputs[1], strides, padding, out_dtype)
+    output_padding = get_const_tuple(attrs.output_padding)
+    out = topi.nn.pad(out,
+                      [0, 0, 0], [0, 0, output_padding[0]])
+    return [out]
+
+
+@reg.register_schedule("nn.conv1d_transpose")
+def schedule_conv1d_transpose(attrs, outs, target):
+    """Schedule definition of conv1d_transpose"""
+    with target:
+        return topi.generic.schedule_conv1d_transpose_ncw(outs)
+
+reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
 # bias_add
 reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
@@ -324,6 +396,18 @@ def schedule_max_pool2d(attrs, outs, target):
 reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# max_pool3d
+@reg.register_schedule("nn.max_pool3d")
+def schedule_max_pool3d(attrs, outs, target):
+    """Schedule definition of max_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # avg_pool2d
 @reg.register_schedule("nn.avg_pool2d")
 def schedule_avg_pool2d(attrs, outs, target):
@@ -332,8 +416,19 @@ def schedule_avg_pool2d(attrs, outs, target):
     with target:
         return topi.generic.schedule_pool(outs, layout)
 
-
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool3d
+@reg.register_schedule("nn.avg_pool3d")
+def schedule_avg_pool3d(attrs, outs, target):
+    """Schedule definition of avg_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # max_pool2d_grad
@@ -808,6 +903,28 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
+
+
+@reg.register_compute("nn.depth_to_space")
+def compute_depth_to_space(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    mode = attrs.mode
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
+
+reg.register_schedule("nn.depth_to_space", schedule_injective)
+reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.space_to_depth")
+def compute_space_to_depth(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.space_to_depth", schedule_injective)
+reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
 
 # shape func
 @script

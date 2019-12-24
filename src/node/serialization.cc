@@ -39,11 +39,11 @@
 namespace tvm {
 
 inline std::string Type2String(const DataType& t) {
-  return runtime::TVMType2String(Type2TVMType(t));
+  return runtime::TVMType2String(t);
 }
 
-inline Type String2Type(std::string s) {
-  return TVMType2Type(runtime::String2TVMType(s));
+inline DataType String2Type(std::string s) {
+  return DataType(runtime::String2TVMType(s));
 }
 
 // indexer to index all the nodes
@@ -167,7 +167,11 @@ class JSONAttrGetter : public AttrVisitor {
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   void Visit(const char* key, double* value) final {
-    node_->attrs[key] = std::to_string(*value);
+    std::ostringstream s;
+    // Type <double> have approximately 16 decimal digits
+    s.precision(16);
+    s << (*value);
+    node_->attrs[key] = s.str();
   }
   void Visit(const char* key, int64_t* value) final {
     node_->attrs[key] = std::to_string(*value);

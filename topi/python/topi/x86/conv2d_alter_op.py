@@ -39,7 +39,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     out_dtype = attrs["out_dtype"]
-    layout_name = 'layout' if F.__name__ == 'nnvm.symbol' else 'data_layout'
+    layout_name = 'data_layout'
     data_layout = attrs[layout_name]
     kh, kw = attrs.get_int_tuple("kernel_size")
 
@@ -109,9 +109,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
         dispatch_ctx.update(target, new_workload, cfg)
-        if F.__name__ == 'nnvm.symbol':
-            logging.warning("Use native layout for depthwise convolution on NNVM.")
-            return None
+
         return F.nn.contrib_depthwise_conv2d_nchwc(*copy_inputs, **new_attrs)
 
     if _is_int8_hw_support(data_dtype, kernel_dtype):
@@ -153,9 +151,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
                                                       out_dtype],
                                                      conv2d_NCHWc_int8)
         dispatch_ctx.update(target, new_workload, cfg)
-        if F.__name__ == 'nnvm.symbol':
-            logging.warning("Use native layout for int8 convolution on NNVM.")
-            return None
         return F.nn.contrib_conv2d_nchwc_int8(*copy_inputs, **new_attrs)
 
     # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
@@ -168,8 +163,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
          new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
     dispatch_ctx.update(target, new_workload, cfg)
 
-    if F.__name__ == 'nnvm.symbol':
-        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
     return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 

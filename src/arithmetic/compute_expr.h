@@ -56,7 +56,7 @@ inline Expr ComputeReduce(
     const Array<Expr>& values, Expr empty_value);
 
 inline bool GetConst(Expr e, int64_t* out) {
-  if (e.type().is_vector()) return false;
+  if (e.dtype().is_vector()) return false;
   const int64_t* v = as_const_int(e);
   if (v) {
     *out = *v; return true;

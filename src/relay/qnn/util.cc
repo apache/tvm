@@ -79,7 +79,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier,
                    const Array<IndexExpr>& input_shape, const std::string& rounding) {
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
-  DataType hp_dtype = Int(64);
+  DataType hp_dtype = DataType::Int(64);
 
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;

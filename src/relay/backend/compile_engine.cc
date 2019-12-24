@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/tags.h>
@@ -85,7 +86,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
     if (pval != nullptr) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
-      res.push_back(ir::IntImm::make(Int(32), *pval));
+      res.push_back(ir::IntImm::make(DataType::Int(32), *pval));
     } else if (val->IsInstance<ir::Any>()) {
       res.push_back(val.as<ir::Any>()->ToVar());
     } else {
@@ -186,17 +187,17 @@ class ScheduleGetter :
   Array<Tensor> VisitExpr_(const ConstantNode* op) final {
     CHECK(op->is_scalar());
     void* data = op->data->data;
-    DataType dtype = TVMType2Type(op->data->dtype);
+    DataType dtype = DataType(op->data->dtype);
     Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-        if (dtype == Int(32)) {
+        if (dtype == DataType::Int(32)) {
           return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-        } else if (dtype == Int(64)) {
+        } else if (dtype == DataType::Int(64)) {
           return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-        } else if (dtype == Float(32)) {
+        } else if (dtype == DataType::Float(32)) {
           return make_const(dtype, static_cast<const float*>(data)[0]);
-        } else if (dtype == Float(64)) {
+        } else if (dtype == DataType::Float(64)) {
           return make_const(dtype, static_cast<const double*>(data)[0]);
-        } else if (dtype == Bool()) {
+        } else if (dtype == DataType::Bool()) {
           return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
         } else {
           LOG(FATAL) << "not handled";
@@ -355,7 +356,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
         if (ndim > 0) {
           sshape.push_back(tvm::Integer(ndim));
         }
-        tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64));
+        tvm::Tensor shape_tensor = tvm::placeholder(sshape, DataType::Int(64));
         shape_inputs.push_back(shape_tensor);
       };
 
@@ -391,7 +392,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     // set inputs
     for (auto param : prim_func->params) {
       int state = param_states_[param];
-      cache_node->shape_func_param_states.push_back(IntImm::make(Int(32), state));
+      cache_node->shape_func_param_states.push_back(IntImm::make(DataType::Int(32), state));
       if (state & kNeedInputData) {
         for (auto t : param_data_[param]) {
           cache_node->inputs.push_back(t);
@@ -461,17 +462,17 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     bool data_dependant = data_dependants_.back();
     if (data_dependant) {
       void* data = op->data->data;
-      DataType dtype = TVMType2Type(op->data->dtype);
+      DataType dtype = DataType(op->data->dtype);
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-          if (dtype == Int(32)) {
+          if (dtype == DataType::Int(32)) {
             return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-          } else if (dtype == Int(64)) {
+          } else if (dtype == DataType::Int(64)) {
             return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-          } else if (dtype == Float(32)) {
+          } else if (dtype == DataType::Float(32)) {
             return make_const(dtype, static_cast<const float*>(data)[0]);
-          } else if (dtype == Float(64)) {
+          } else if (dtype == DataType::Float(64)) {
             return make_const(dtype, static_cast<const double*>(data)[0]);
-          } else if (dtype == Bool()) {
+          } else if (dtype == DataType::Bool()) {
             return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
           } else {
             LOG(FATAL) << "not handled";
@@ -482,7 +483,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       return {value};
     } else {
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-          return make_const(Int(64), 0);
+          return make_const(DataType::Int(64), 0);
       }, "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
@@ -524,7 +525,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     auto ret_type = call_node->checked_type();
     Array<IndexExpr> out_ndims;
     if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
-      out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+      out_ndims.push_back(IntImm::make(DataType::Int(32), ttype->shape.size()));
     } else {
       auto rtype = ret_type.as<TupleTypeNode>();
       // TODO(@icemelon): Allow recursive tuple
@@ -532,7 +533,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         auto ttype = rtype->fields[i].as<TensorTypeNode>();
         CHECK(ttype);
-        out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+        out_ndims.push_back(IntImm::make(DataType::Int(32), ttype->shape.size()));
       }
     }
     // Call shape function
@@ -608,6 +609,46 @@ class CompileEngineImpl : public CompileEngineNode {
     return LowerShapeFuncInternal(key)->cached_func;
   }
 
+  Array<tvm::runtime::Module> LowerExternalFunctions() {
+    std::unordered_map<std::string, relay::Module> ext_mods;
+    std::vector<CCacheKey> cached_ext_funcs;
+    for (const auto& it : cache_) {
+      auto src_func = it.first->source_func;
+      CHECK(src_func.defined());
+      if (!src_func->UseDefaultCompiler()) {
+        auto compiler = FunctionGetAttr(src_func, attr::kCompiler);
+        const tvm::ir::StringImm* code_gen = compiler.as<tvm::ir::StringImm>();
+        CHECK(code_gen) << "No external codegen is set";
+        if (ext_mods.find(code_gen->value) == ext_mods.end()) {
+          ext_mods[code_gen->value] = relay::ModuleNode::make({}, {});
+        }
+        auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
+        const tvm::ir::StringImm* symbol_name = ext_symbol.as<tvm::ir::StringImm>();
+        CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
+        auto gv = GlobalVarNode::make(symbol_name->value);
+        ext_mods[code_gen->value]->Add(gv, src_func);
+        cached_ext_funcs.push_back(it.first);
+      }
+    }
+
+    Array<tvm::runtime::Module> ret;
+    for (const auto& it : ext_mods) {
+      std::string ext_name = "relay.ext." + it.first;
+      auto pf = tvm::runtime::Registry::Get(ext_name);
+      CHECK(pf) << "Failed to find the codegen tool for " << ext_name << "\n";
+      runtime::Module ext_mod = (*pf)(it.second);
+      CHECK(ext_mod.defined()) << "No external runtime is generated.";
+      ret.push_back(ext_mod);
+    }
+
+    // No need to cache external functions as we collected them all to create
+    // external runtime modules.
+    for (const auto& it : cached_ext_funcs) {
+      cache_.erase(it);
+    }
+    return ret;
+  }
+
   void Clear() final {
     cache_.clear();
   }
@@ -647,6 +688,18 @@ class CompileEngineImpl : public CompileEngineNode {
       value = CCacheValue(make_node<CCacheValueNode>());
       value->use_count = 0;
       cache_[key] = value;
+    }
+    // No need to lower external functions for now. We will invoke the external
+    // codegen tool once and lower all functions together.
+    if (!key->source_func->UseDefaultCompiler()) {
+      auto cache_node = make_node<CachedFuncNode>();
+      const auto name_node =
+          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::ir::StringImm>();
+      CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
+      cache_node->func_name = name_node->value;
+      cache_node->target = tvm::target::ext_dev();
+      value->cached_func = CachedFunc(cache_node);
+      return value;
     }
     // Enforce use the target.
     With<Target> target_scope(key->target);
@@ -759,42 +812,46 @@ const CompileEngine& CompileEngine::Global() {
   return *inst;
 }
 
-
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
 .set_body_typed<CCacheKey(Function, Target)>(CCacheKeyNode::make);
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
 .set_body_typed<CompileEngine()>([]() {
-    return CompileEngine::Global();
-  });
+  return CompileEngine::Global();
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear")
 .set_body_typed<void(const CompileEngine&)>([](CompileEngine self) {
-    self->Clear();
-  });
+  self->Clear();
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
 .set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
     [](CompileEngine self, CCacheKey key) {
-      return self->Lower(key);
-    });
+  return self->Lower(key);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
 .set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
     [](CompileEngine self, CCacheKey key) {
-      return self->LowerShapeFunc(key);
-    });
+  return self->LowerShapeFunc(key);
+});
+
+TVM_REGISTER_GLOBAL("relay.backend._CompileLowerExternalFunctions")
+.set_body_typed<void(const CompileEngine&)>([](CompileEngine self) {
+  return self->LowerExternalFunctions();
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
 .set_body_typed<PackedFunc(CompileEngine, CCacheKey)>(
     [](CompileEngine self, CCacheKey key) {
-      return self->JIT(key);
-    });
+  return self->JIT(key);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems")
 .set_body_typed<Array<NodeRef>(CompileEngine)>(
     [](CompileEngine self){
-      return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
-    });
+  return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
+});
 }  // namespace relay
 }  // namespace tvm

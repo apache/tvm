@@ -294,6 +294,51 @@ def test_conv2d_winograd():
                          padding=(2, 2), channels=192, kernel_size=(7, 7))
 
 
+def test_conv3d_run():
+    def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1, 1),
+                        fref=None,
+                        groups=1,
+                        dilation=(1, 1, 1),
+                        except_targets=None,
+                        **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv3d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        if fref is None:
+            ref_res = topi.testing.conv3d_ncdhw_python(
+                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding,
+                groups=groups)
+        else:
+            ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
+
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    # normal conv3d
+    dshape = (1, 3, 5, 224, 224)
+    kshape = (10, 3, 3, 3, 3)
+    run_test_conv3d("float32", "float32", 1, dshape, kshape,
+            padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3))
+
+
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
     n, c, h, w = tvm.var("n"), 10, 10, 12
@@ -368,6 +413,25 @@ def test_conv2d_transpose_nhwc_run():
     c_np = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI', 2, 1)
     d_np = np.zeros(shape=oshape_nhwc)
     d_np[:,0:c_np.shape[1],0:c_np.shape[2],:] = c_np
+
+
+def test_conv1d_transpose_ncw_run():
+    dshape = (1, 3, 18)
+    kshape = (3, 10, 3)
+    oshape = (1, 10, 37)
+    x = relay.var("x", shape=dshape)
+    w = relay.var("w")
+    y = relay.nn.conv1d_transpose(x, w,
+                                  channels=10, kernel_size=(3,), strides=(2,),
+                                  padding=(1,), output_padding=(2,))
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape).astype(dtype)
+    kernel = np.random.uniform(size=kshape).astype(dtype)
+    c_np = topi.testing.conv1d_transpose_ncw_python(
+        data, kernel, 2, 1)
+    d_np = np.zeros(shape=oshape)
+    d_np[:,:,0:c_np.shape[2]] = c_np
     ref_res = d_np
 
     for target, ctx in ctx_list():
@@ -407,7 +471,7 @@ def _test_pool2d(opfunc, reffunc):
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5))
+    ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5))
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
@@ -466,6 +530,34 @@ def test_pool2d():
     _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
+
+
+def test_pool3d():
+
+    def _test_pool3d(opfunc):
+        n, c, d, h, w = tvm.var("n"), 10, 5, 224, 224
+        x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
+        y = opfunc(x, pool_size=(1, 1, 1))
+        assert "pool_size=" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, 10, 5, 224, 224), "float32")
+        # test execution
+        dtype = "float32"
+        dshape = (1, 3, 32, 32, 32)
+        x = relay.var("x", shape=dshape)
+        pool_type = 'max' if 'max' in str(opfunc) else 'avg'
+        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0, 0, 0, 0))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = topi.testing.pool3d_ncdhw_python(data, (2, 2, 2), (2, 2, 2),
+                                                   (0, 0, 0, 0, 0, 0), (1, 3, 16, 16, 16), pool_type, False)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_pool3d(relay.nn.max_pool3d)
+    _test_pool3d(relay.nn.avg_pool3d)
 
 
 def test_avg_pool2d_no_count_pad():
@@ -836,6 +928,7 @@ def test_bitpack_infer_type():
 
 if __name__ == "__main__":
     test_pool2d()
+    test_pool3d()
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
@@ -848,8 +941,10 @@ if __name__ == "__main__":
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_nchw_run()
     test_conv2d_transpose_nhwc_run()
+    test_conv1d_transpose_ncw_run()
     test_conv2d_run()
     test_conv2d_winograd()
+    test_conv3d_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()

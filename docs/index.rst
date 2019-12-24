@@ -45,7 +45,6 @@ Developer Guide
    :maxdepth: 2
 
    dev/index
-   nnvm_top
 
 Frontends
 ----------------

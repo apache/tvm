@@ -48,7 +48,6 @@ test:
   imports:
     - tvm
     - topi
-    - nnvm
   requires:
     - pytest
     - scipy

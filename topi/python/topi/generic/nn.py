@@ -159,7 +159,7 @@ def schedule_conv2d_winograd_weight_transform(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    # Typically this is computed in nnvm PreCompute pass
+    # Typically this is computed in PreCompute pass
     # so we make a schedule here for cpu llvm
     s = tvm.create_schedule([x.op for x in outs])
     output = outs[0]
@@ -205,7 +205,7 @@ def schedule_conv2d_winograd_nnpack_weight_transform(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    # Typically this is computed in nnvm PreCompute pass
+    # Typically this is computed in PreCompute pass
     s = tvm.create_schedule([x.op for x in outs])
     return s
 
@@ -226,6 +226,24 @@ def schedule_conv2d_winograd_nnpack_without_weight_transform(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv3d_ncdhw(outs):
+    """Schedule for conv3d_ncdhw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
@@ -233,6 +251,24 @@ def schedule_conv2d_transpose_nchw(outs):
     ----------
     outs: Array of Tensor
         The computation graph description of conv2d_transpose_nchw
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv1d_transpose_ncw(outs):
+    """Schedule for conv1d_transpose_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+        The computation graph description of conv2d_transpose_ncw
         in the format of an array of tensors.
 
     Returns

@@ -852,8 +852,8 @@ bool ArgWhereRel(const Array<Type>& types,
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
   result_shape.push_back(Any::make());
-  result_shape.push_back(IntImm::make(Int(32), input_rank));
-  reporter->Assign(types[1], TensorTypeNode::make(result_shape, Int(32)));
+  result_shape.push_back(IntImm::make(DataType::Int(32), input_rank));
+  reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
   return true;
 }
 
@@ -1216,8 +1216,11 @@ bool ArangeRel(const Array<Type>& types,
   }
 }
 
-inline Tensor DynamicArange(const tvm::Tensor& start, const tvm::Tensor& stop,
-                            const tvm::Tensor& step, tvm::Type dtype, std::string name = "tensor",
+inline Tensor DynamicArange(const tvm::Tensor& start,
+                            const tvm::Tensor& stop,
+                            const tvm::Tensor& step,
+                            tvm::DataType dtype,
+                            std::string name = "tensor",
                             std::string tag = topi::kInjective) {
   tvm::Expr num_elem = tvm::Var("num_elem");
   return tvm::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
@@ -1393,28 +1396,39 @@ bool TileRel(const Array<Type>& types,
   reps_shape.reserve(tndim);
   if (ndim == rndim) {
     for (size_t i = 0; i < tndim; ++i) {
-        data_shape.emplace_back(data->shape[i]);
-        reps_shape.emplace_back(reps[i]);
+      data_shape.emplace_back(data->shape[i]);
+      reps_shape.emplace_back(reps[i]);
     }
   } else if (ndim > rndim) {
-    for (size_t i = 0; i < ndim; ++i)
-        data_shape.emplace_back(data->shape[i]);
-    for (size_t i = 0; i < (ndim - rndim); ++i)
-        reps_shape.emplace_back(1);
-    for (size_t i = 0; i < rndim; ++i)
-        reps_shape.emplace_back(reps[i]);
+    for (size_t i = 0; i < ndim; ++i) {
+      data_shape.emplace_back(data->shape[i]);
+    }
+    for (size_t i = 0; i < (ndim - rndim); ++i) {
+      reps_shape.emplace_back(1);
+    }
+    for (size_t i = 0; i < rndim; ++i) {
+      reps_shape.emplace_back(reps[i]);
+    }
   } else {
-    for (size_t i = 0; i < rndim; ++i)
-        reps_shape.emplace_back(reps[i]);
-    for (size_t i = 0; i < (rndim - ndim); ++i)
-        data_shape.emplace_back(1);
-    for (size_t i = 0; i < ndim; ++i)
-        data_shape.emplace_back(data->shape[i]);
+    for (size_t i = 0; i < rndim; ++i) {
+      reps_shape.emplace_back(reps[i]);
+    }
+    for (size_t i = 0; i < (rndim - ndim); ++i) {
+      data_shape.emplace_back(1);
+    }
+    for (size_t i = 0; i < ndim; ++i) {
+      data_shape.emplace_back(data->shape[i]);
+    }
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(tndim);
   for (size_t i = 0; i < tndim; ++i) {
-    oshape.emplace_back(data_shape[i] * reps_shape[i]);
+    // Save Any if it is dynamic shape
+    if (!data_shape[i].as<IntImm>()) {
+      oshape.emplace_back(Any::make());
+    } else {
+      oshape.emplace_back(data_shape[i] * reps_shape[i]);
+    }
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
@@ -1922,7 +1936,7 @@ bool StridedSliceRel(const Array<Type>& types,
       slice_range = end_v - begin_v;
       step = stride_v;
     }
-    oshape[i] = make_const(dshape[i].type(), (slice_range + step - 1) / step);
+    oshape[i] = make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
@@ -2049,6 +2063,54 @@ Examples::
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
+// strided_set
+bool StridedSetRel(const Array<Type>& types,
+                   int num_inputs,
+                   const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 6);
+  reporter->Assign(types[5], types[0]);
+  return true;
+}
+
+Expr MakeStridedSet(Expr data,
+                    Expr v,
+                    Expr begin,
+                    Expr end,
+                    Expr strides) {
+  static const Op& op = Op::Get("strided_set");
+  return CallNode::make(op, {data, v, begin, end, strides}, {});
+}
+
+TVM_REGISTER_API("relay.op._make.strided_set")
+.set_body_typed(MakeStridedSet);
+
+
+RELAY_REGISTER_OP("strided_set")
+  .describe(R"code(Strided set of an array.
+Example::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  v = [[ 11., 22., 33.]
+       [ 44., 55., 66.]]
+
+  strided_set(x, v, begin=[0, 1], end=[2, 4], stride=[1, 1]) = \
+      [[  1.,  11.,  22.,  33.],
+       [  2.,  44.,  55.,  66.],
+       [  3.,   6.,   9.,  12.]]
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(5)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("v", "Tensor", "The data to set.")
+.add_argument("begin", "Tensor", "Indices for the start of the slice.")
+.add_argument("end", "Tensor", "Indices indicating the end of the slice.")
+.add_argument("strides", "Tensor", "The strides values.")
+.set_support_level(4)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.add_type_rel("StridedSet", StridedSetRel);
 
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
@@ -2075,7 +2137,7 @@ bool SplitRel(const Array<Type>& types,
 
   if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
     CHECK(reporter->Assert(indexmod(data->shape[axis],
-                                    sections->value) == make_zero(Int(64))))
+                                    sections->value) == make_zero(DataType::Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
@@ -2087,7 +2149,7 @@ bool SplitRel(const Array<Type>& types,
     reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
-    auto begin = IndexExpr(make_zero(Int(32)));
+    auto begin = IndexExpr(make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
@@ -2139,7 +2201,7 @@ Expr MakeSplit(Expr data,
 TVM_REGISTER_API("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
-      *rv = MakeSplit(args[0], make_const(Int(64), int64_t(args[1])), args[2]);
+      *rv = MakeSplit(args[0], make_const(DataType::Int(64), int64_t(args[1])), args[2]);
     } else {
       *rv = MakeSplit(args[0], args[1], args[2]);
     }

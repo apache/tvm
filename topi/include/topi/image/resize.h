@@ -54,17 +54,17 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
                                  const Expr max_y, const Expr max_x) {
   auto in_y = indices[2];
   auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
+  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
 
-  auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
+  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
   auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
   auto y_lerp = in_y - yf;
 
   auto in_x = indices[3];
   auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
+  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-  auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
+  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
   auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
   auto x_lerp = in_x - xf;
 
@@ -97,8 +97,8 @@ inline Tensor resize_nearest_neighbor_nhwc(const Tensor& input,
                                            std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
   return compute(
@@ -132,8 +132,8 @@ inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -166,8 +166,8 @@ inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[4]);
 
   return compute(
@@ -233,11 +233,11 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
                                    std::string tag = kInjective) {
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
-  Expr cone = make_const(Int(32), 1);
+  Expr cone = make_const(DataType::Int(32), 1);
 
   auto in_height = as_const_int(input->shape[1]);
   auto in_width = as_const_int(input->shape[2]);
@@ -248,14 +248,14 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
   Expr x_ratio;
 
   if (!align_corners) {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width) /
                                      static_cast<float>(*out_width)));
   } else {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height - 1) /
                                      static_cast<float>(*out_height - 1)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width - 1) /
                                      static_cast<float>(*out_width - 1)));
   }
 
@@ -266,17 +266,17 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
     out_shape, [&](const Array<Var>& indices) {
     auto in_y = indices[1] * y_ratio;
     auto yf = tvm::floor(in_y);
-    auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
+    auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
 
-    auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
+    auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
     auto y1 = tvm::if_then_else((yc > other_y), other_y, yc);
     auto y_lerp  = in_y - yf;
 
     auto in_x = indices[2] * x_ratio;
     auto xf = tvm::floor(in_x);
-    auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
+    auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-    auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
+    auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
     auto x1 = tvm::if_then_else((xc > other_x), other_x, xc);
     auto x_lerp  = in_x - xf;
 
@@ -311,10 +311,10 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   Array<Expr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
 
-  Expr cone = make_const(Int(32), 1);
+  Expr cone = make_const(DataType::Int(32), 1);
 
   auto in_height = as_const_int(input->shape[2]);
   auto in_width = as_const_int(input->shape[3]);
@@ -325,14 +325,14 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   Expr x_ratio;
 
   if (!align_corners) {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width) /
                                      static_cast<float>(*out_width)));
   } else {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height - 1) /
                                      static_cast<float>(*out_height - 1)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width - 1) /
                                      static_cast<float>(*out_width - 1)));
   }
 
