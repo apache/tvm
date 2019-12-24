@@ -16,12 +16,15 @@
 # under the License.
 
 """Maps object type to its constructor"""
-from ..node_generic import _set_class_node_base
-
-OBJECT_TYPE = []
+cdef list OBJECT_TYPE = []
 
 def _register_object(int index, object cls):
     """register object class"""
+    if issubclass(cls, NDArrayBase):
+        _register_ndarray(index, cls)
+        return
+
+    global OBJECT_TYPE
     while len(OBJECT_TYPE) <= index:
         OBJECT_TYPE.append(None)
     OBJECT_TYPE[index] = cls
@@ -31,14 +34,13 @@ cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE
     global _CLASS_NODE
     cdef unsigned tindex
-    cdef list object_type
     cdef object cls
     cdef object handle
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
     CALL(TVMObjectGetTypeIndex(chandle, &tindex))
-    if tindex < len(object_type):
-        cls = object_type[tindex]
+    if tindex < len(OBJECT_TYPE):
+        cls = OBJECT_TYPE[tindex]
         if cls is not None:
             obj = cls.__new__(cls)
         else:
@@ -99,6 +101,3 @@ cdef class ObjectBase:
             (<FunctionBase>fconstructor).chandle,
             kObjectHandle, args, &chandle)
         self.chandle = chandle
-
-
-_set_class_node_base(ObjectBase)
