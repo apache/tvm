@@ -66,7 +66,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.module.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
-        if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+        if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
             print("skip because extern function is not available")
             return
         ctx = tvm.gpu(0)

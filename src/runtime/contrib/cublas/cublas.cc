@@ -221,9 +221,9 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue *ret, cublasLtHandle_t hdl) {
   int32_t alpha = args.size() > 5 ? args[5] : 1;
   int32_t beta = args.size() > 6 ? args[6] : 0;
   cublasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL;
-  auto A_data = reinterpret_cast<void *>(static_cast<char *>(A->data) + A->byte_offset);
-  auto B_data = reinterpret_cast<void *>(static_cast<char *>(B->data) + B->byte_offset);
-  auto C_data = reinterpret_cast<void *>(static_cast<char *>(C->data) + C->byte_offset);
+  auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
+  auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
+  auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
 
   cublasOperation_t opTranspose = CUBLAS_OP_T;
   cublasLtOrder_t order_COL32 = CUBLASLT_ORDER_COL32;
@@ -434,8 +434,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     }
 });
 
+#if CUDART_VERSION >= 10010
 TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
     DLTensor* A = args[0];
 
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
@@ -445,17 +446,16 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
     int version;
     CHECK_CUBLAS_ERROR(cublasGetVersion(entry_ptr->handle, &version));
     if (TypeMatch(A->dtype, kDLInt, 8) && version >= 10100) {
-      #if CUDART_VERSION >= 10010
       cublasLtHandle_t ltHandle;
       CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
       CallLtIgemm(args, ret, ltHandle);
       CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
-      #endif  // CUDART_VERSION >= 10010
     } else {
       LOG(FATAL) << "Cublas version needs to be equal or larger than 10.1, but currently is "
       << version;
     }
 });
+#endif  // CUDART_VERSION >= 10010
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
