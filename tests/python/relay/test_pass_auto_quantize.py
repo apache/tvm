@@ -77,7 +77,7 @@ def test_calibrate_memory_bound():
 
 
 if __name__ == "__main__":
-    # test_mul_rewrite()
-    # test_calibrate_target(False)
-    # test_calibrate_target(True)
+    test_mul_rewrite()
+    test_calibrate_target(False)
+    test_calibrate_target(True)
     test_calibrate_memory_bound()

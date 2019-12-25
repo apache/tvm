@@ -52,7 +52,6 @@ def _kl_scale(mod, dataset, split_by=-1):
 
     scales = []
     split_by = num_outputs if split_by == -1 else split_by
-    print("split_by:", split_by)
     import time
     t1 = time.time()
     for i in range(0, num_outputs, split_by):
@@ -61,7 +60,7 @@ def _kl_scale(mod, dataset, split_by=-1):
             runtime.set_input(**batch)
             runtime.run()
             for j in range(i, min(i+split_by, num_outputs)):
-                outputs[j-i].append(runtime.get_output(i).asnumpy())
+                outputs[j-i].append(runtime.get_output(j).asnumpy())
         samples = [np.concatenate(output).reshape(-1) for output in outputs]
 
         with mp.Pool() as pool:
@@ -91,13 +90,13 @@ def _kl_scale(mod, dataset, split_by=-1):
             print(scales2)
             np.save("scales2.npy", scales2)
 
-    def fun(_):
+    def func(_):
         scale = scales[func.scale_idx]
-        fun.scale_idx += 1
+        func.scale_idx += 1
         return scale
-    fun.scale_idx = 0
+    func.scale_idx = 0
 
-    return fun
+    return func
 
 
 def _set_params(mod, input_scale_func, weight_scale_func):
