@@ -299,20 +299,6 @@ class NDArrayBase(_NDArrayBase):
         raise ValueError("Unsupported target type %s" % str(type(target)))
 
 
-def free_extension_handle(handle, type_code):
-    """Free c++ extension type handle
-
-    Parameters
-    ----------
-    handle : ctypes.c_void_p
-        The handle to the extension type.
-
-    type_code : int
-         The tyoe code
-    """
-    check_call(_LIB.TVMExtTypeFree(handle, ctypes.c_int(type_code)))
-
-
 def register_extension(cls, fcreate=None):
     """Register a extension class to TVM.
 
