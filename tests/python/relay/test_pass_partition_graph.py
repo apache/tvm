@@ -252,6 +252,57 @@ def test_extern_ccompiler_single_op():
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
+def test_extern_ccompiler_default_ops():
+    def expected():
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([x0, y0], add)
+        func = func.set_attribute("Primitive", tvm.expr.IntImm("int32", 1))
+        func = func.set_attribute("Compiler",
+                                  tvm.expr.StringImm("ccompiler"))
+        func = func.set_attribute("ExternalSymbol",
+                                  tvm.expr.StringImm("ccompiler_0"))
+        add_call = relay.Call(func, [x, y])
+        # Function that uses default compiler. Ops are fused in this function.
+        p0 = relay.var("p0", shape=(8, 8))
+        log = relay.log(p0)
+        exp = relay.exp(p0)
+        concat = relay.concatenate([log, exp], axis=0)
+        fused_func = relay.Function([p0], concat)
+        fused_func = fused_func.set_attribute("Primitive",
+                                              tvm.expr.IntImm("int32", 1))
+        fused_call = relay.Call(fused_func, [add_call])
+        main = relay.Function([x, y], fused_call)
+        mod = relay.Module()
+        mod["main"] = main
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    exp = relay.exp(add)
+    concat = relay.concatenate([log, exp], axis=0)
+    f = relay.Function([x, y], concat)
+    mod = relay.Module()
+    mod["main"] = f
+    mod = relay.build_extern_compiler(mod, "ccompiler")
+
+    fused_mod = relay.transform.FuseOps(2)(mod)
+    expected_mod = expected()
+    assert relay.alpha_equal(fused_mod, expected_mod)
+
+    x_data = np.random.rand(8, 8).astype('float32')
+    y_data = np.random.rand(8, 8).astype('float32')
+    np_add = x_data + y_data
+    res = np.concatenate([np.log(np_add), np.exp(np_add)])
+    check_result(mod, {"x": x_data, "y": y_data}, (16, 8), res)
+
+
 def test_extern_ccompiler():
     x = relay.var('x', shape=(2, 2))
     y = relay.var('y', shape=(2, 2))
@@ -334,6 +385,7 @@ def test_extern_dnnl_mobilenet():
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
+    test_extern_ccompiler_default_ops()
     test_extern_ccompiler()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
