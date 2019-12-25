@@ -387,7 +387,6 @@ inline std::string TVMType2String(TVMType t);
 #define TVM_CHECK_TYPE_CODE(CODE, T)                           \
   CHECK_EQ(CODE, T) << " expected "                            \
   << TypeCode2Str(T) << " but get " << TypeCode2Str(CODE)      \
-
 /*!
  * \brief Type traits to mark if a class is tvm extension type.
  *
@@ -402,34 +401,6 @@ inline std::string TVMType2String(TVMType t);
 template<typename T>
 struct extension_type_info {
   static const int code = 0;
-};
-
-/*!
- * \brief Runtime function table about extension type.
- */
-class ExtTypeVTable {
- public:
-  /*! \brief function to be called to delete a handle */
-  void (*destroy)(void* handle);
-  /*! \brief function to be called when clone a handle */
-  void* (*clone)(void* handle);
-  /*!
-   * \brief Register type
-   * \tparam T The type to be register.
-   * \return The registered vtable.
-   */
-  template <typename T>
-  static inline ExtTypeVTable* Register_();
-  /*!
-   * \brief Get a vtable based on type code.
-   * \param type_code The type code
-   * \return The registered vtable.
-   */
-  TVM_DLL static ExtTypeVTable* Get(int type_code);
-
- private:
-  // Internal registration function.
-  TVM_DLL static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
 };
 
 /*!
@@ -517,11 +488,6 @@ class TVMPODValue_ {
     auto *container = static_cast<NDArray::Container*>(value_.v_handle);
     CHECK_EQ(container->array_type_code_, array_type_info<TNDArray>::code);
     return TNDArray(container);
-  }
-  template<typename TExtension>
-  const TExtension& AsExtension() const {
-    CHECK_LT(type_code_, kExtEnd);
-    return static_cast<TExtension*>(value_.v_handle)[0];
   }
   template<typename TObjectRef,
            typename = typename std::enable_if<
@@ -867,20 +833,8 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       default: {
-        if (other.type_code() < kExtBegin) {
-          SwitchToPOD(other.type_code());
-          value_ = other.value_;
-        } else {
-#if TVM_RUNTIME_HEADER_ONLY
-          LOG(FATAL) << "Header only mode do not support ext type";
-#else
-          this->Clear();
-          type_code_ = other.type_code();
-          value_.v_handle =
-              (*(ExtTypeVTable::Get(other.type_code())->clone))(
-                  other.value().v_handle);
-#endif
-        }
+        SwitchToPOD(other.type_code());
+        value_ = other.value_;
         break;
       }
     }
@@ -930,13 +884,6 @@ class TVMRetValue : public TVMPODValue_ {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
-    }
-    if (type_code_ > kExtBegin) {
-#if TVM_RUNTIME_HEADER_ONLY
-          LOG(FATAL) << "Header only mode do not support ext type";
-#else
-      (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
-#endif
     }
     type_code_ = kNull;
   }
@@ -1317,23 +1264,16 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 
 // extension and node type handling
 namespace detail {
-template<typename T, typename TSrc, bool is_ext, bool is_nd>
+template<typename T, typename TSrc, bool is_nd>
 struct TVMValueCast {
   static T Apply(const TSrc* self) {
-    static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
+    static_assert(!is_nd, "The default case accepts only non-extensions");
     return self->template AsObjectRef<T>();
   }
 };
 
 template<typename T, typename TSrc>
-struct TVMValueCast<T, TSrc, true, false> {
-  static T Apply(const TSrc* self) {
-    return self->template AsExtension<T>();
-  }
-};
-
-template<typename T, typename TSrc>
-struct TVMValueCast<T, TSrc, false, true> {
+struct TVMValueCast<T, TSrc, true> {
   static T Apply(const TSrc* self) {
     return self->template AsNDArray<T>();
   }
@@ -1345,7 +1285,6 @@ template<typename T, typename>
 inline TVMArgValue::operator T() const {
   return detail::
       TVMValueCast<T, TVMArgValue,
-                   (extension_type_info<T>::code != 0),
                    (array_type_info<T>::code > 0)>
       ::Apply(this);
 }
@@ -1354,17 +1293,8 @@ template<typename T, typename>
 inline TVMRetValue::operator T() const {
   return detail::
       TVMValueCast<T, TVMRetValue,
-                   (extension_type_info<T>::code != 0),
                    (array_type_info<T>::code > 0)>
       ::Apply(this);
-}
-
-template<typename T, typename>
-inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
-  static_assert(extension_type_info<T>::code != 0,
-                "Need to have extesion code");
-  type_codes_[i] = extension_type_info<T>::code;
-  values_[i].v_handle = const_cast<T*>(&value);
 }
 
 // PackedFunc support
@@ -1383,28 +1313,6 @@ inline TVMArgValue::operator DataType() const {
 inline void TVMArgsSetter::operator()(
     size_t i, const DataType& t) const {
   this->operator()(i, t.operator DLDataType());
-}
-
-// extension type handling
-template<typename T>
-struct ExtTypeInfo {
-  static void destroy(void* handle) {
-    delete static_cast<T*>(handle);
-  }
-  static void* clone(void* handle) {
-    return new T(*static_cast<T*>(handle));
-  }
-};
-
-template<typename T>
-inline ExtTypeVTable* ExtTypeVTable::Register_() {
-  const int code = extension_type_info<T>::code;
-  static_assert(code != 0,
-                "require extension_type_info traits to be declared with non-zero code");
-  ExtTypeVTable vt;
-  vt.clone = ExtTypeInfo<T>::clone;
-  vt.destroy = ExtTypeInfo<T>::destroy;
-  return ExtTypeVTable::RegisterInternal(code, vt);
 }
 
 inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
