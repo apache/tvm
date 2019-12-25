@@ -53,11 +53,18 @@ def collect_stats(mod, dataset):
     logging.info("collecting statistics for calibration...")
     func = mod['main']
     func = _quantize.CreateStatsCollector(func)
-    target = tvm.target.current_target() or 'llvm'
+
+    if tvm.target.current_target():
+        target = tvm.target.current_target()
+        ctx = tvm.context(target.target_name)
+    else:
+        target = 'llvm'
+        ctx = tvm.context(target)
+
     with _transform.build_config(opt_level=3):
         graph, lib, params = _build_module.build(func, target=target)
     outputs = []
-    runtime = graph_runtime.create(graph, lib, tvm.context(target))
+    runtime = graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
 
     num_outputs = runtime.get_num_outputs()
