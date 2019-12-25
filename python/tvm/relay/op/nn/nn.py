@@ -425,6 +425,51 @@ def max_pool2d(data,
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
+def max_pool3d(data,
+               pool_size=(1, 1, 1),
+               strides=(1, 1, 1),
+               padding=(0, 0, 0),
+               layout="NCDHW",
+               ceil_mode=False):
+    r"""3D maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.max_pool3d(data, pool_size, strides, padding,
+                            layout, ceil_mode)
+
 def avg_pool2d(data,
                pool_size=(1, 1),
                strides=(1, 1),
@@ -480,6 +525,55 @@ def avg_pool2d(data,
         The computed result.
     """
     return _make.avg_pool2d(data, pool_size, strides, padding,
+                            layout, ceil_mode, count_include_pad)
+
+def avg_pool3d(data,
+               pool_size=(1, 1, 1),
+               strides=(1, 1, 1),
+               padding=(0, 0, 0),
+               layout="NCDHW",
+               ceil_mode=False,
+               count_include_pad=False):
+    r"""3D average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depthm height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
 def max_pool2d_grad(out_grad,
@@ -1985,3 +2079,53 @@ def cross_entropy_with_logits(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy_with_logits(predictions, targets)
+
+
+def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
+    """Convert channels into spatial blocks.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with channels divisible by block_size**2
+
+    block_size : int
+        Size of blocks to convert channels into.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    mode : string
+        One of DCR or CDR, indicates which order channels
+        are accessed in.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel / block_size * block_size,
+                           in_height * block_size, in_width * block_size]
+    """
+    return _make.depth_to_space(data, block_size, layout, mode)
+
+
+def space_to_depth(data, block_size, layout='NCHW'):
+    """Convert spatial blocks into channels.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with spatial dimensions divisible by block_size
+
+    block_size : int
+        Size of blocks to decompose into channels.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel * block_size * block_size,
+                           in_height / block_size, in_width / block_size]
+    """
+    return _make.space_to_depth(data, block_size, layout)
