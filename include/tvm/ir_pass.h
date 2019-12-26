@@ -237,21 +237,6 @@ bool VerifyCompactBuffer(Stmt stmt);
 Stmt RemoveNoOp(Stmt stmt);
 
 /*!
- * \brief Split statement into pipeine stages.
- * \param stmt The stmt to be splitted
- * \param split_load Whether split load into its own stage.
- * \return Transformed stmt.
- */
-Stmt SplitPipeline(Stmt stmt, bool split_load);
-
-/*!
- * \brief Narrow channel access to smaller range.
- * \param stmt The stmt to do access rewriting.
- * \return Transformed stmt.
- */
-Stmt NarrowChannelAccess(Stmt stmt);
-
-/*!
  * \brief unroll the constant loop marked by unroll.
  * This pass also automatically attach pragma unroll tag to loops which meets the standard.
  *

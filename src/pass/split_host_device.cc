@@ -23,7 +23,6 @@
  */
 #include <tvm/ir.h>
 #include <tvm/lowered_func.h>
-#include <tvm/channel.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/runtime/module.h>
@@ -54,13 +53,6 @@ class IRUseDefAnalysis : public IRMutator {
       Stmt body = this->Mutate(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) return s;
       return AttrStmt::make(op->node, op->attr_key, value, body);
-    } else if (op->attr_key == attr::channel_write_scope ||
-               op->attr_key == attr::channel_read_scope) {
-      Channel ch = Downcast<Channel>(op->node);
-      if (!use_count_.count(ch->handle_var.get())) {
-        this->HandleDef(ch->handle_var.get());
-      }
-      return IRMutator::Mutate_(op, s);
     } else {
       return IRMutator::Mutate_(op, s);
     }
