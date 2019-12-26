@@ -33,7 +33,7 @@
 #include <vector>
 #include <string>
 #include "../type_relations.h"
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../op_common.h"
 #include "nn.h"
 

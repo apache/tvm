@@ -36,7 +36,7 @@
 #include <vector>
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../../pass/pattern_util.h"
 #include "transform.h"
 
