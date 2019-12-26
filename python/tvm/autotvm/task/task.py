@@ -193,11 +193,7 @@ def create(func_name, args, target, target_host=None, template_key=None):
     with ctx:
         with target:
             sch, _ = func(*args)
-            try:
-                # getattr will throw here on Windows, as of an Oct 2019 commit
-                ret.config_space.code_hash = getattr(sch, 'code_hash', None)
-            except: # pylint: disable=bare-except
-                ret.config_space.code_hash = None
+            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
 
     ret.workload = ctx.workload
     ret.flop = ret.config_space.flop or compute_flop(sch)
