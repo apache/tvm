@@ -24,7 +24,8 @@ import tvm
 from tvm import autotvm
 import tvm.contrib.nnpack
 
-from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform, \
+from ..generic import schedule_conv2d_nchw, schedule_conv2d_nhwc, \
+                      schedule_conv2d_winograd_without_weight_transform, \
                       schedule_conv2d_winograd_nnpack_without_weight_transform
 from ..util import traverse_inline, get_const_tuple
 from ..nn import dilate, pad, conv2d, conv2d_alter_layout, \
@@ -34,7 +35,9 @@ from ..nn import dilate, pad, conv2d, conv2d_alter_layout, \
 from ..nn.util import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
 from .conv2d_spatial_pack import conv2d_spatial_pack_nchw, \
-                                 schedule_conv2d_spatial_pack_nchw
+                                 conv2d_spatial_pack_nhwc, \
+                                 schedule_conv2d_spatial_pack_nchw, \
+                                 schedule_conv2d_spatial_pack_nhwc
 
 logger = logging.getLogger('topi')
 
@@ -78,6 +81,9 @@ def conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     if layout == 'NCHW':
         return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
                                         dilation, out_dtype, num_tile=2)
+    elif layout == 'NHWC':
+        return conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding,
+                                        dilation, out_dtype)
     else:
         raise ValueError("Unsupported layout {}".format(layout))
 
@@ -135,6 +141,34 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+@autotvm.register_topi_schedule(schedule_conv2d_nhwc, 'arm_cpu', ['direct'])
+def schedule_conv2d_nhwc_arm_cpu(cfg, outs):
+    """TOPI schedule callback for conv2d
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    outs: Array of Tensor
+        The computation graph description of conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d.
+    """
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if 'spatial_conv_output_NHWC' in op.tag:
+            schedule_conv2d_spatial_pack_nhwc(cfg, s, op, outs[0])
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['winograd'])
 def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
