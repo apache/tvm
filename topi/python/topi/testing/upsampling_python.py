@@ -75,7 +75,7 @@ def upsampling3d_python(data, scale, layout='NCDHW'):
 
     ishape = data.shape
     if layout == 'NCDHW':
-        oshape = (ishape[0], ishape[1], 
+        oshape = (ishape[0], ishape[1],
                   int(round(ishape[2]*scale[0])),
                   int(round(ishape[3]*scale[1])),
                   int(round(ishape[4]*scale[2])))
@@ -85,7 +85,7 @@ def upsampling3d_python(data, scale, layout='NCDHW'):
                 output_np[b, c, :, :, :] = upsample3d_nearest(data[b, c, :, :, :], scale)
         return output_np
     if layout == 'NDHWC':
-        oshape = (ishape[0], 
+        oshape = (ishape[0],
                   int(round(ishape[1]*scale[0])),
                   int(round(ishape[2]*scale[1])),
                   int(round(ishape[3]*scale[2])), ishape[4])

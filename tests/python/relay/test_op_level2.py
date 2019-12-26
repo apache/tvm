@@ -461,7 +461,7 @@ def test_upsampling3d_infer_type():
     scale = tvm.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
-    
+
     "method=\"TRILINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
@@ -800,7 +800,7 @@ def test_upsampling():
     _test_upsampling("NHWC", "bilinear", True)
 
 def _test_upsampling3d(layout, method, align_corners=False):
-    n, c, d, h, w = tvm.var("n"), 8, 16, 16, 16 
+    n, c, d, h, w = tvm.var("n"), 8, 16, 16, 16
     scale_d = 2.0
     scale_h = 2.0
     scale_w = 2.0

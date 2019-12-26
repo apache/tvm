@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals, too-many-nested-blocks
 """Trilinear 3D Scale in python"""
 import math
 import numpy as np
@@ -56,18 +56,18 @@ def trilinear_resize3d_python(data_in, out_size, layout, align_corners=True):
                         y0 = math.floor(in_y)
                         y1 = min(math.ceil(in_y), h - 1)
                         y_lerp = in_y - y0
-              
+
                         y0 = int(y0)
                         y1 = int(y1)
-              
+
                         in_x = k * width_scale
                         x0 = math.floor(in_x)
                         x1 = min(math.ceil(in_x), w - 1)
                         x_lerp = in_x - x0
-              
+
                         x0 = int(x0)
                         x1 = int(x1)
-              
+
                         if layout == 'NDHWC':
                             A0 = data_in[b][z0][y0][x0][i]
                             B0 = data_in[b][z0][y0][x1][i]
@@ -86,16 +86,16 @@ def trilinear_resize3d_python(data_in, out_size, layout, align_corners=True):
                             B1 = data_in[b][i][z1][y0][x1]
                             C1 = data_in[b][i][z1][y1][x0]
                             D1 = data_in[b][i][z1][y1][x1]
-             
+
                         A = A0 + (A1 - A0) * z_lerp
                         B = B0 + (B1 - B0) * z_lerp
                         C = C0 + (C1 - C0) * z_lerp
                         D = D0 + (D1 - D0) * z_lerp
                         top = A + (B - A) * x_lerp
                         bottom = C + (D - C) * x_lerp
-              
+
                         pixel = np.float32(top + (bottom - top) * y_lerp)
-              
+
                         if layout == 'NDHWC':
                             data_out[b][m][j][k][i] = pixel
                         else:

@@ -87,18 +87,18 @@ def test_upsampling():
     verify_upsampling(1, 64, 22, 32,  3.0, 3.0, layout="NHWC", method="bilinear")
 
 def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_d, scale_h, scale_w,
-                      layout='NCDHW', method="nearest_neighbor"):
+                        layout='NCDHW', method="nearest_neighbor"):
     if layout == 'NCDHW':
         A = tvm.placeholder((batch, in_channel, in_depth, in_height, in_width), name='A')
         dtype = A.dtype
         out_shape = (batch, in_channel, int(round(in_depth*scale_d)), int(round(in_height*scale_h)),
-            int(round(in_width*scale_w)))
+                     int(round(in_width*scale_w)))
         a_np = np.random.uniform(size=(batch, in_channel, in_depth, in_height, in_width)).astype(dtype)
     elif layout == 'NDHWC':
         A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
         dtype = A.dtype
         out_shape = (batch, int(round(in_depth*scale_d)), int(round(in_height*scale_h)),
-            int(round(in_width*scale_w)), in_channel)
+                     int(round(in_width*scale_w)), in_channel)
         a_np = np.random.uniform(size=(batch, in_depth, in_height, in_width, in_channel)).astype(dtype)
     else:
         raise NotImplementedError(
