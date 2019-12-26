@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 #include <vector>
+#include <cstdint>
 #include "library_module.h"
 
 namespace tvm {
@@ -108,9 +109,11 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
 /*!
  * \brief Load and append module blob to module list
  * \param mblob The module blob.
- * \param module_list The module list to append to
+ * \param lib The library.
+ *
+ * \return Root Module.
  */
-void ImportModuleBlob(const char* mblob, std::vector<Module>* mlist) {
+runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
 #ifndef _LIBCPP_SGX_CONFIG
   CHECK(mblob != nullptr);
   uint64_t nbytes = 0;
@@ -123,20 +126,56 @@ void ImportModuleBlob(const char* mblob, std::vector<Module>* mlist) {
   dmlc::Stream* stream = &fs;
   uint64_t size;
   CHECK(stream->Read(&size));
+  std::vector<Module> modules;
+  std::vector<uint64_t> import_tree_row_ptr;
+  std::vector<uint64_t> import_tree_child_indices;
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
     CHECK(stream->Read(&tkey));
-    if (tkey == "c") continue;
-    std::string fkey = "module.loadbinary_" + tkey;
-    const PackedFunc* f = Registry::Get(fkey);
-    CHECK(f != nullptr)
+    // Currently, _lib is for DSOModule, but we
+    // don't have loadbinary function for it currently
+    if (tkey == "_lib") {
+      auto dso_module = Module(make_object<LibraryModuleNode>(lib));
+      modules.emplace_back(dso_module);
+    } else if (tkey == "_import_tree") {
+      CHECK(stream->Read(&import_tree_row_ptr));
+      CHECK(stream->Read(&import_tree_child_indices));
+    } else {
+      std::string fkey = "module.loadbinary_" + tkey;
+      const PackedFunc* f = Registry::Get(fkey);
+      CHECK(f != nullptr)
         << "Loader of " << tkey << "("
         << fkey << ") is not presented.";
-    Module m = (*f)(static_cast<void*>(stream));
-    mlist->push_back(m);
+      Module m = (*f)(static_cast<void*>(stream));
+      modules.emplace_back(m);
+    }
   }
+  // if we are using old dll, we don't have import tree
+  // so that we can't reconstruct module relationship using import tree
+  if (import_tree_row_ptr.empty()) {
+    auto n = make_object<LibraryModuleNode>(lib);
+    auto module_import_addr = ModuleInternal::GetImportsAddr(n.operator->());
+    for (const auto& m : modules) {
+      module_import_addr->emplace_back(m);
+    }
+    return Module(n);
+  } else {
+    for (size_t i = 0; i < modules.size(); ++i) {
+      for (size_t j = import_tree_row_ptr[i]; j < import_tree_row_ptr[i + 1]; ++j) {
+        auto module_import_addr = ModuleInternal::GetImportsAddr(modules[i].operator->());
+        auto child_index = import_tree_child_indices[j];
+        CHECK(child_index < modules.size());
+        module_import_addr->emplace_back(modules[child_index]);
+      }
+    }
+  }
+  CHECK(!modules.empty());
+  // invariance: root module is always at location 0.
+  // The module order is collected via DFS
+  return modules[0];
 #else
   LOG(FATAL) << "SGX does not support ImportModuleBlob";
+  return Module();
 #endif
 }
 
@@ -149,17 +188,20 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib) {
   const char* dev_mblob =
       reinterpret_cast<const char*>(
           lib->GetSymbol(runtime::symbol::tvm_dev_mblob));
+  Module root_mod;
   if (dev_mblob != nullptr) {
-    ImportModuleBlob(
-        dev_mblob, ModuleInternal::GetImportsAddr(n.operator->()));
+    root_mod = ProcessModuleBlob(dev_mblob, lib);
+  } else {
+    // Only have one single DSO Module
+    root_mod = Module(n);
   }
 
-  Module root_mod = Module(n);
-  // allow lookup of symbol from root(so all symbols are visible).
+  // allow lookup of symbol from root (so all symbols are visible).
   if (auto *ctx_addr =
       reinterpret_cast<void**>(lib->GetSymbol(runtime::symbol::tvm_module_ctx))) {
     *ctx_addr = root_mod.operator->();
   }
+
   return root_mod;
 }
 }  // namespace runtime

@@ -34,6 +34,4 @@ In this part of documentation, we share the rationale for the specific choices m
    virtual_machine
    codebase_walkthrough
    inferbound
-   nnvm_json_spec
-   nnvm_overview
    benchmark

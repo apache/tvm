@@ -27,7 +27,7 @@ def create(graph_json_str, libmod, ctx):
     Parameters
     ----------
     graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
+        The graph to be deployed in json format output by json graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
     libmod : tvm.Module

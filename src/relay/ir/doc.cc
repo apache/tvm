@@ -108,7 +108,7 @@ Doc PrintBool(bool value) {
 }
 
 Doc PrintDType(DataType dtype) {
-  return Doc(runtime::TVMType2String(Type2TVMType(dtype)));
+  return Doc(runtime::TVMType2String(dtype));
 }
 
 Doc PrintString(const std::string& value) {

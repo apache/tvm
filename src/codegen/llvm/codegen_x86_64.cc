@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -74,8 +74,8 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const Cast* op) {
   // LLVM does not automatically generate the correct instruction sequences for
   // half -> float conversion (i.e. using AVX2/AVX-512 vectorized variants of
   // vcvtph2ps), so we explicitly generate them ourselves.
-  const auto from = op->value.type();
-  const auto to = op->type;
+  const auto from = op->value.dtype();
+  const auto to = op->dtype;
   if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
     CHECK_EQ(from.lanes(), to.lanes());
     CHECK_NOTNULL(target_machine_);
@@ -85,21 +85,25 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const Cast* op) {
 
     if (from.lanes() >= 16 && has_avx512) {
       return CallVectorIntrin(
-          ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16, LLVMType(Float(32, from.lanes())),
+          ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
+          LLVMType(DataType::Float(32, from.lanes())),
           {
-              MakeValue(ir::Call::make(Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
-                                       ir::Call::PureIntrinsic)),
-              MakeValue(ir::Broadcast::make(ir::FloatImm::make(Float(32), 0), from.lanes())),
-              /*mask=*/MakeValue(ir::IntImm::make(Int(16), -1)),
-              /*rounding-mode=*/MakeValue(ir::IntImm::make(Int(32), 4)),
+            MakeValue(ir::Call::make(
+                DataType::Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
+                ir::Call::PureIntrinsic)),
+                MakeValue(
+                    ir::Broadcast::make(ir::FloatImm::make(DataType::Float(32), 0), from.lanes())),
+                /*mask=*/MakeValue(ir::IntImm::make(DataType::Int(16), -1)),
+                /*rounding-mode=*/MakeValue(ir::IntImm::make(DataType::Int(32), 4)),
           });
     }
 
     if (from.lanes() >= 8 && has_f16c) {
       return CallVectorIntrin(
-          ::llvm::Intrinsic::x86_vcvtph2ps_256, 8, LLVMType(Float(32, from.lanes())),
-          {MakeValue(ir::Call::make(Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
-                                    ir::Call::PureIntrinsic))});
+          ::llvm::Intrinsic::x86_vcvtph2ps_256, 8, LLVMType(DataType::Float(32, from.lanes())),
+          {MakeValue(ir::Call::make(
+              DataType::Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
+              ir::Call::PureIntrinsic))});
     }
   }
 

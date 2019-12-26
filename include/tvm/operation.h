@@ -75,7 +75,7 @@ class OperationNode : public ir::FunctionBaseNode {
    * \param i The output index.
    * \return type of i-th output.
    */
-  virtual Type output_dtype(size_t i) const = 0;
+  virtual DataType output_dtype(size_t i) const = 0;
   /*!
    * \brief Get shape of i-th output tensor.
    * \param i The output index.
@@ -160,11 +160,11 @@ class PlaceholderOpNode : public OperationNode {
   /*! \brief The shape of the input */
   Array<Expr> shape;
   /*! \brief The data type of the input. */
-  Type dtype;
+  DataType dtype;
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -197,7 +197,7 @@ class PlaceholderOpNode : public OperationNode {
   }
   static Operation make(std::string name,
                         Array<Expr> shape,
-                        Type dtype);
+                        DataType dtype);
 
   static constexpr const char* _type_key = "PlaceholderOp";
   TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
@@ -243,7 +243,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   ComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -296,7 +296,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   TensorComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -370,7 +370,7 @@ class ScanOpNode : public OperationNode {
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -437,7 +437,7 @@ class ExternOpNode : public OperationNode {
   // override functions
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -505,7 +505,7 @@ class HybridOpNode : public OperationNode {
   // override functions
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -562,7 +562,7 @@ using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
  * \param name The name of the Tensor.
  */
 TVM_DLL Tensor placeholder(Array<Expr> shape,
-                           Type dtype = Float(32),
+                           DataType dtype = DataType::Float(32),
                            std::string name = "placeholder");
 
 /*!

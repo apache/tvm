@@ -39,7 +39,7 @@ class CodeGenCHost final : public CodeGenC {
   void AddFunction(LoweredFunc f);
   std::string Finish();
 
-  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
+  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
 
   // overload visitor functions
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)

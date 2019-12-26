@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,16 +30,11 @@
 #include <tvm/runtime/device_api.h>
 
 namespace tvm_ext {
-using IntVector = std::vector<int>;
 class NDSubClass;
 }  // namespace tvm_ext
 
 namespace tvm {
 namespace runtime {
-template<>
-struct extension_type_info<tvm_ext::IntVector> {
-  static const int code = 17;
-};
 template<>
 struct array_type_info<tvm_ext::NDSubClass> {
   static const int code = 1;
@@ -104,24 +99,47 @@ class NDSubClass : public tvm::runtime::NDArray {
     return self->addtional_info_;
   }
 };
+
+
+/*!
+ * \brief Introduce additional extension data structures
+ *        by sub-classing TVM's object system.
+ */
+class IntVectorObj : public Object {
+ public:
+  std::vector<int> vec;
+
+  static constexpr const char* _type_key = "tvm_ext.IntVector";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntVectorObj, Object);
+};
+
+/*!
+ * \brief Int vector reference class.
+ */
+class IntVector : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(IntVector, ObjectRef, IntVectorObj);
+};
+
+TVM_REGISTER_OBJECT_TYPE(IntVectorObj);
+
 }  // namespace tvm_ext
 
 namespace tvm_ext {
 
-TVM_REGISTER_EXT_TYPE(IntVector);
-
 TVM_REGISTER_GLOBAL("tvm_ext.ivec_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    IntVector vec;
+    auto n = tvm::runtime::make_object<IntVectorObj>();
     for (int i = 0; i < args.size(); ++i) {
-      vec.push_back(args[i].operator int());
+      n->vec.push_back(args[i].operator int());
     }
-    *rv = vec;
+    *rv = IntVector(n);
   });
 
 TVM_REGISTER_GLOBAL("tvm_ext.ivec_get")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    *rv = args[0].AsExtension<IntVector>()[args[1].operator int()];
+    IntVector p = args[0];
+    *rv = p->vec[args[1].operator int()];
   });
 
 

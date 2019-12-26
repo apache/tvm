@@ -46,11 +46,11 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnConv2DAttrs>();
   CHECK(param != nullptr) << "QnnConv2DAttrs cannot be nullptr.";
-  CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
+  CHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for input but was " << data->dtype;
-  CHECK(weight->dtype == Int(8) || weight->dtype == UInt(8))
+  CHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected qnn conv2d type(int8, uint8) for weight but was " << weight->dtype;
-  CHECK(param->out_dtype == Int(16) || param->out_dtype == Int(32))
+  CHECK(param->out_dtype == DataType::Int(16) || param->out_dtype == DataType::Int(32))
       << "Expected qnn conv2d type(int32, int16) for output but was " << param->out_dtype;
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
   return Conv2DRel<QnnConv2DAttrs>(types, num_inputs, attrs, reporter);
@@ -130,17 +130,17 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const QnnConv
  */
 Expr Conv2DFallBack(const Expr& data, const Expr& weight, const QnnConv2DAttrs* param) {
   // Upcast the zero point to Int16.
-  auto zp_data = MakeConstantScalar(Int(16), param->input_zero_point);
-  auto zp_kernel = MakeConstantScalar(Int(16), param->kernel_zero_point);
+  auto zp_data = MakeConstantScalar(DataType::Int(16), param->input_zero_point);
+  auto zp_kernel = MakeConstantScalar(DataType::Int(16), param->kernel_zero_point);
 
-  auto shifted_data = Cast(data, Int(16));
+  auto shifted_data = Cast(data, DataType::Int(16));
   if (param->input_zero_point != 0) {
-    shifted_data = Subtract(Cast(data, Int(16)), zp_data);
+    shifted_data = Subtract(Cast(data, DataType::Int(16)), zp_data);
   }
 
-  auto shifted_kernel = Cast(weight, Int(16));
+  auto shifted_kernel = Cast(weight, DataType::Int(16));
   if (param->kernel_zero_point != 0) {
-    shifted_kernel = Subtract(Cast(weight, Int(16)), zp_kernel);
+    shifted_kernel = Subtract(Cast(weight, DataType::Int(16)), zp_kernel);
   }
 
   return Conv2D(shifted_data, shifted_kernel, param->strides, param->padding, param->dilation,
@@ -200,9 +200,9 @@ Expr Conv2DPadInput(const Expr& data, const QnnConv2DAttrs* param) {
 Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* param, int kernel_h,
                                int kernel_w, int channel_multiplier) {
   // Constant Expr for the kernel zero point.
-  auto zp_kernel = MakeConstantScalar(Int(32), param->kernel_zero_point);
+  auto zp_kernel = MakeConstantScalar(DataType::Int(32), param->kernel_zero_point);
 
-  auto casted_t2 = Cast(padded_data, Int(32));
+  auto casted_t2 = Cast(padded_data, DataType::Int(32));
 
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
   // Since, this is integer division (floor), we can first multiply the data by the pool_size and
@@ -210,7 +210,8 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* pa
   // pool_size is 1x1, we don't need avg_pool2d.
   auto reduced_t2 = casted_t2;
   if (kernel_h * kernel_w != 1) {
-    auto scaled_hw_t2 = Multiply(casted_t2, MakeConstantScalar(Int(32), kernel_h * kernel_w));
+    auto scaled_hw_t2 = Multiply(
+        casted_t2, MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w));
     Array<IndexExpr> padding({0, 0});
     reduced_t2 =
         AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, padding, param->data_layout,
@@ -256,7 +257,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* pa
 Expr DepthwiseConv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, int out_channels,
                               int channel_multiplier) {
   // Constant expr for input zero point.
-  auto zp_data = MakeConstantScalar(Int(32), param->input_zero_point);
+  auto zp_data = MakeConstantScalar(DataType::Int(32), param->input_zero_point);
 
   // Find which dimensions are R, S.
   Array<Integer> axes_t3;
@@ -270,7 +271,7 @@ Expr DepthwiseConv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, i
   } else {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
   }
-  auto reduced_t3 = Sum(Cast(weight, Int(32)), axes_t3, false, false);
+  auto reduced_t3 = Sum(Cast(weight, DataType::Int(32)), axes_t3, false, false);
 
   // Find the newshape depending on NCHW/NHWC layout.
   Array<Integer> newshape;
@@ -301,7 +302,7 @@ Expr DepthwiseConv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, i
  */
 Expr DepthwiseConv2DFourthTerm(const QnnConv2DAttrs* param, int kernel_h, int kernel_w) {
   int scalar_term4 = param->input_zero_point * param->kernel_zero_point * kernel_h * kernel_w;
-  return MakeConstantScalar(Int(32), scalar_term4);
+  return MakeConstantScalar(DataType::Int(32), scalar_term4);
 }
 
 /*
@@ -341,9 +342,9 @@ Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const QnnConv2
 Expr Conv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* param, int kernel_h,
                       int kernel_w, int out_channels) {
   // Constant Expr for the kernel zero point.
-  auto zp_kernel = MakeConstantScalar(Int(32), param->kernel_zero_point);
+  auto zp_kernel = MakeConstantScalar(DataType::Int(32), param->kernel_zero_point);
 
-  auto casted_t2 = Cast(padded_data, Int(32));
+  auto casted_t2 = Cast(padded_data, DataType::Int(32));
 
   // We can reduce the H and W axis by using avg_pool2d. However, avg_pool2d averages the sum.
   // Since, this is integer division (floor), we can first multiply the data by the pool_size and
@@ -365,9 +366,13 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* param, int 
   // If the pool_size is 1x1, we don't need avg_pool2d.
   auto reduced_t2 = reduced_c_t2;
   if (kernel_h * kernel_w != 1) {
-    reduced_c_t2 = Multiply(reduced_c_t2, MakeConstantScalar(Int(32), kernel_h * kernel_w));
+    reduced_c_t2 = Multiply(
+        reduced_c_t2, MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w));
     reduced_t2 =
-        AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, padding, param->data_layout,
+        AvgPool2D(reduced_c_t2,
+                  param->kernel_size,
+                  param->strides,
+                  padding, param->data_layout,
                   false,   // ceil_mode
                   false);  // count_include_pad
   }
@@ -395,7 +400,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const QnnConv2DAttrs* param, int 
  */
 Expr Conv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, int out_channels) {
   // Constant expr for input zero point.
-  auto zp_data = MakeConstantScalar(Int(32), param->input_zero_point);
+  auto zp_data = MakeConstantScalar(DataType::Int(32), param->input_zero_point);
 
   // Find which dimensions are C, R, S.
   Array<Integer> axes_t3;
@@ -409,7 +414,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, int out_ch
   } else {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
   }
-  auto reduced_t3 = Sum(Cast(weight, Int(32)), axes_t3, false, false);
+  auto reduced_t3 = Sum(Cast(weight, DataType::Int(32)), axes_t3, false, false);
 
   // Find the newshape depending on NCHW/NHWC layout.
   Array<Integer> newshape;
@@ -443,7 +448,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const QnnConv2DAttrs* param, int out_ch
 Expr Conv2DFourthTerm(const QnnConv2DAttrs* param, int in_channels, int kernel_h, int kernel_w) {
   int scalar_term4 =
       param->input_zero_point * param->kernel_zero_point * in_channels * kernel_h * kernel_w;
-  return MakeConstantScalar(Int(32), scalar_term4);
+  return MakeConstantScalar(DataType::Int(32), scalar_term4);
 }
 
 /*

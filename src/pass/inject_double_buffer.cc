@@ -100,10 +100,10 @@ class DoubleBufferInjector : public IRMutator {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       it->second.stride = arith::ComputeReduce<Mul>(
-          op->extents, Expr()) * op->type.lanes();
+          op->extents, Expr()) * op->dtype.lanes();
       Stmt stmt = IRMutator::Mutate_(op, s);
       op = stmt.as<Allocate>();
-      Array<Expr> new_extents{make_const(op->extents[0].type(), 2)};
+      Array<Expr> new_extents{make_const(op->extents[0].dtype(), 2)};
       for (Expr e : op->extents) {
         new_extents.push_back(e);
       }
@@ -114,7 +114,7 @@ class DoubleBufferInjector : public IRMutator {
           StringImm::make(it->second.scope),
           Evaluate::make(0)));
       alloc_nest.emplace_back(Allocate::make(
-          op->buffer_var, op->type, new_extents, op->condition,
+          op->buffer_var, op->dtype, new_extents, op->condition,
           Evaluate::make(0)));
       return op->body;
     } else {
@@ -135,15 +135,15 @@ class DoubleBufferInjector : public IRMutator {
         CHECK(is_zero(old_loop->min));
         Expr zero = old_loop->min;
         Expr new_ext =
-            old_loop->extent - make_const(old_loop->loop_var.type(), 1);
-        Expr factor = make_const(new_ext.type(), split_loop_);
+            old_loop->extent - make_const(old_loop->loop_var.dtype(), 1);
+        Expr factor = make_const(new_ext.dtype(), split_loop_);
         Expr outer_ext = new_ext / factor;
         Expr tail_base = outer_ext * factor;
-        Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.type());
+        Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.dtype());
         std::unordered_map<const Variable*, Expr> vmap;
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
-          vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.type(), i);
+          vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.dtype(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
         Stmt loop = For::make(
@@ -153,7 +153,7 @@ class DoubleBufferInjector : public IRMutator {
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite().Mutate(old_loop->body);
         for (int32_t i = 0; i < split_loop_; ++i) {
-          Expr idx = tail_base + make_const(tail_base.type(), i);
+          Expr idx = tail_base + make_const(tail_base.dtype(), i);
           vmap[old_loop->loop_var.get()] = idx;
           tail_seq.emplace_back(
               IfThenElse::make(idx < old_loop->extent,
@@ -196,7 +196,7 @@ class DoubleBufferInjector : public IRMutator {
       const StorageEntry& e = it->second;
       CHECK(e.stride.defined());
       CHECK(e.switch_read_var.defined());
-      return Load::make(op->type,
+      return Load::make(op->dtype,
                         op->buffer_var,
                         e.switch_read_var * e.stride + op->index,
                         op->predicate);
@@ -222,12 +222,12 @@ class DoubleBufferInjector : public IRMutator {
     }
     StorageEntry& e = it->second;
     e.loop = loop_nest_.back();
-    Expr zero = make_const(e.loop->loop_var.type(), 0);
-    Expr one = make_const(e.loop->loop_var.type(), 1);
-    Expr two = make_const(e.loop->loop_var.type(), 2);
+    Expr zero = make_const(e.loop->loop_var.dtype(), 0);
+    Expr one = make_const(e.loop->loop_var.dtype(), 1);
+    Expr two = make_const(e.loop->loop_var.dtype(), 2);
     Expr loop_shift = e.loop->loop_var + one;
     e.switch_write_var = Var(e.loop->loop_var->name_hint + ".db",
-                             e.loop->loop_var.type());
+                             e.loop->loop_var.dtype());
     e.switch_read_var = indexmod(e.loop->loop_var, two);
     in_double_buffer_scope_ = true;
     Stmt body = Mutate(op->body);

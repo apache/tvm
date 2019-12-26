@@ -59,7 +59,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   GetUniqueName("_");
   // add to alloc buffer type.
   for (const auto& kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.type());
+    RegisterHandleType(kv.first.get(), kv.second.dtype());
   }
 
   // Allocate argument names. Store in `var_idmap_`.
@@ -93,7 +93,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
       auto type_it = this->handle_data_type_.find(arg.get());
       CHECK(type_it != this->handle_data_type_.cend()) << "Cannot find type.";
-      auto type = Type2TVMType(type_it->second);
+      DLDataType type = type_it->second;
       CHECK_EQ(type.lanes, 1) << "Vector type not supported.";
 
       switch (type.code) {
@@ -129,7 +129,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
       // Format: "uniform {type} {name};"
 
       auto arg_name = GetVarID(arg.get());
-      auto type = arg.get()->type;
+      auto type = arg.get()->dtype;
 
       this->decl_stream << "uniform ";
       PrintType(type, this->decl_stream);
@@ -207,7 +207,7 @@ std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
 // Print a reference expression to a buffer.
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
-    Type t, const Variable* buffer, Expr index) {
+    DataType t, const Variable* buffer, Expr index) {
   CHECK_EQ(t.lanes(), 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
@@ -221,7 +221,7 @@ std::string CodeGenOpenGL::GetBufferRef(
   }
 }
 
-void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
+void CodeGenOpenGL::PrintType(DataType t, std::ostream& os) {
   switch (t.code()) {
     case kDLInt:
       CHECK_EQ(t.bits(), 32) << "Only support 32-bit int.";
@@ -243,17 +243,17 @@ void CodeGenOpenGL::PrintType(Type t, std::ostream& os) {
 // Codegen for immediate values
 
 void CodeGenOpenGL::VisitExpr_(const IntImm* op, std::ostream& os) {
-  CHECK_EQ(op->type, Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
+  CHECK_EQ(op->dtype, DataType::Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
 void CodeGenOpenGL::VisitExpr_(const UIntImm* op, std::ostream& os) {
-  CHECK_EQ(op->type, UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
+  CHECK_EQ(op->dtype, DataType::UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
 void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
-  CHECK_EQ(op->type, Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
+  CHECK_EQ(op->dtype, DataType::Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
   CodeGenC::VisitExpr_(op, os);
 }
 
@@ -273,7 +273,7 @@ void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
   auto value = call->args[1];
 
   // Doesn't support store to vector.
-  auto type = value.type();
+  auto type = value.dtype();
   CHECK_EQ(type.lanes(), 1)
     << "Vectorized store not implemented, type = " << type;
 

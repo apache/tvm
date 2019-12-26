@@ -115,7 +115,7 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   if (it != import_cache_.end()) return it->second.get();
   PackedFunc pf;
   for (Module& m : this->imports_) {
-    pf = m.GetFunction(name, false);
+    pf = m.GetFunction(name, true);
     if (pf != nullptr) break;
   }
   if (pf == nullptr) {
@@ -149,8 +149,6 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "codegen.build_stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
-  } else if (target == "vpi" || target == "verilog") {
-    f_name = "device_api.vpi";
   } else if (target == "micro_dev") {
     f_name = "device_api.micro_dev";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {

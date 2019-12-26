@@ -45,11 +45,11 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (data == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<QnnDenseAttrs>();
   CHECK(param != nullptr) << "QnnDenseAttrs cannot be nullptr.";
-  CHECK(data->dtype == Int(8) || data->dtype == UInt(8))
+  CHECK(data->dtype == DataType::Int(8) || data->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for input but was " << data->dtype;
-  CHECK(weight->dtype == Int(8) || weight->dtype == UInt(8))
+  CHECK(weight->dtype == DataType::Int(8) || weight->dtype == DataType::UInt(8))
       << "Expected quantized dense type(int8, uint8) for weight but was " << weight->dtype;
-  CHECK(param->out_dtype == Int(32))
+  CHECK(param->out_dtype == DataType::Int(32))
       << "Expected quantized dense type(int32) for output but was " << param->out_dtype;
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
   return DenseRel<QnnDenseAttrs>(types, num_inputs, attrs, reporter);
@@ -78,17 +78,17 @@ Expr DenseFirstTerm(const Expr& quantized_data, const Expr& quantized_kernel,
 
 Expr DenseSecondTerm(const Expr& quantized_data, const Expr& zp_kernel) {
   Array<Integer> axes = {1};
-  return Multiply(zp_kernel, Sum(Cast(quantized_data, Int(32)), axes, true, false));
+  return Multiply(zp_kernel, Sum(Cast(quantized_data, DataType::Int(32)), axes, true, false));
 }
 
 Expr DenseThirdTerm(const Expr& quantized_kernel, const Expr& zp_data) {
   Array<Integer> axes = {1};
-  return Multiply(zp_data, Sum(Cast(quantized_kernel, Int(32)), axes, false, false));
+  return Multiply(zp_data, Sum(Cast(quantized_kernel, DataType::Int(32)), axes, false, false));
 }
 
 Expr DenseFourthTerm(const QnnDenseAttrs* attrs, int reduction_dim_size) {
   int32_t scalar_term = attrs->input_zero_point * attrs->kernel_zero_point * reduction_dim_size;
-  return MakeConstantScalar(Int(32), scalar_term);
+  return MakeConstantScalar(DataType::Int(32), scalar_term);
 }
 
 /*
@@ -133,8 +133,8 @@ Expr QnnDenseCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const int reduction_dim_size = get_const_int(in_shape[1]);
 
   const auto* qnn_dense_attrs = attrs.as<QnnDenseAttrs>();
-  auto zp_kernel = MakeConstantScalar(Int(32), qnn_dense_attrs->kernel_zero_point);
-  auto zp_data = MakeConstantScalar(Int(32), qnn_dense_attrs->input_zero_point);
+  auto zp_kernel = MakeConstantScalar(DataType::Int(32), qnn_dense_attrs->kernel_zero_point);
+  auto zp_data = MakeConstantScalar(DataType::Int(32), qnn_dense_attrs->input_zero_point);
 
   // Get all the terms as described in the comments.
   auto term1 = DenseFirstTerm(quantized_data, quantized_kernel, qnn_dense_attrs);

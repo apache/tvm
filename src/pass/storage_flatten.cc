@@ -137,7 +137,7 @@ class StorageFlattener : public IRMutator {
         << "Read a buffer that is already out of scope";
     if (is_opengl_) {
       return Evaluate::make(Call::make(
-          Type(),
+          DataType(),
           Call::glsl_texture_store,
           {e.buffer->data, op->value},
           Call::Intrinsic));
@@ -190,12 +190,12 @@ class StorageFlattener : public IRMutator {
 
       // use small alignment for small arrays
       int32_t const_size = Allocate::constant_allocation_size(shape);
-      int align = GetTempAllocaAlignment(op->type, const_size);
+      int align = GetTempAllocaAlignment(op->dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
         if (info.defined()) {
-          align = (info->max_simd_bits + op->type.bits() - 1) / op->type.bits();
-          CHECK_LE(const_size * op->type.bits(), info->max_num_bits)
+          align = (info->max_simd_bits + op->dtype.bits() - 1) / op->dtype.bits();
+          CHECK_LE(const_size * op->dtype.bits(), info->max_num_bits)
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
@@ -204,12 +204,12 @@ class StorageFlattener : public IRMutator {
         std::vector<Expr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
         int first_dim = 0;
-        Expr stride = make_const(shape[first_dim].type(), 1);
+        Expr stride = make_const(shape[first_dim].dtype(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
-            Expr factor = make_const(stride.type(), avec[dim].align_factor);
-            Expr offset = make_const(stride.type(), avec[dim].align_offset);
+            Expr factor = make_const(stride.dtype(), avec[dim].align_factor);
+            Expr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
@@ -220,8 +220,8 @@ class StorageFlattener : public IRMutator {
       }
 
       e.buffer = BufferNode::make(
-          Var(key.GetName(), Handle()),
-          op->type, shape, strides, Expr(),
+          Var(key.GetName(), DataType::Handle()),
+          op->dtype, shape, strides, Expr(),
           key.GetName(), skey.to_string(),
           align, 0, kDefault);
 
@@ -230,26 +230,26 @@ class StorageFlattener : public IRMutator {
       buf_map_[key].released = true;
       Stmt ret;
 
-      Type storage_type = e.buffer->dtype;
+      DataType storage_type = e.buffer->dtype;
       // specially handle bool, lower its storage
-      // type to be Int(8)(byte)
-      if (storage_type == Bool()) {
-        storage_type = Int(8);
+      // type to beDataType::Int(8)(byte)
+      if (storage_type == DataType::Bool()) {
+        storage_type = DataType::Int(8);
       }
       if (strides.size() != 0) {
         int first_dim = 0;
         ret = Allocate::make(
             e.buffer->data, storage_type,
             {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
-            make_const(Bool(e.buffer->dtype.lanes()), true), body);
+            make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       } else {
         shape = e.buffer->shape;
         if (shape.size() == 0) {
-          shape.push_back(make_const(Int(32), 1));
+          shape.push_back(make_const(DataType::Int(32), 1));
         }
         ret = Allocate::make(
             e.buffer->data, storage_type, shape,
-            make_const(Bool(e.buffer->dtype.lanes()), true), body);
+            make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
       ret = AttrStmt::make(
           e.buffer->data, attr::storage_scope,
@@ -271,7 +271,7 @@ class StorageFlattener : public IRMutator {
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
       VarExpr buf_var = Downcast<VarExpr>(it->second);
-      return Load::make(op->type, buf_var, op->index, op->predicate);
+      return Load::make(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
@@ -342,10 +342,12 @@ class StorageFlattener : public IRMutator {
       args.push_back(op->bounds[i]->min);
     }
     auto &func_name = op->func->func_name();
-    vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(starts), Int(32)));
+    vars.push_back(VarExpr(
+        "prefetch." + func_name + "." + std::to_string(starts), DataType::Int(32)));
     args.push_back(op->bounds[starts]->min + stride * vars.back());
     for (int i = starts - 1; i >= 0; --i) {
-      vars.push_back(VarExpr("prefetch." + func_name + "." + std::to_string(i), Int(32)));
+      vars.push_back(VarExpr(
+          "prefetch." + func_name + "." + std::to_string(i), DataType::Int(32)));
       args.push_back(vars.back() + op->bounds[i]->min);
     }
     for (int i = starts; i >= 0; --i) {
@@ -354,8 +356,8 @@ class StorageFlattener : public IRMutator {
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        Expr address = Call::make(Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
-        Expr prefetch = Call::make(op->type, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
+        Expr address = Call::make(DataType::Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
+        Expr prefetch = Call::make(op->dtype, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
         stmt = Evaluate::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
@@ -484,7 +486,7 @@ class StorageFlattener : public IRMutator {
       return false;
 
     for (size_t i = 0; i < shape.size(); ++i) {
-      if (!shape[i].defined() || !shape[i].type().is_scalar() ||
+      if (!shape[i].defined() || !shape[i].dtype().is_scalar() ||
           is_negative_const(shape[i])) {
         return false;
       }
@@ -492,12 +494,12 @@ class StorageFlattener : public IRMutator {
     return true;
   }
 
-  Expr MakeBound(const Type &type, const Array<Expr> &shape) {
+  Expr MakeBound(const DataType &type, const Array<Expr> &shape) {
     // We have already checked the shape size to be greater then 0.
-    Expr bound = Mul::make(make_const(shape[0].type(), type.lanes()), shape[0]);
+    Expr bound = Mul::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
     for (size_t i = 1; i < shape.size(); ++i) {
       bound = Mul::make(
-          bound, Mul::make(make_const(bound.type(), type.lanes()), shape[i]));
+          bound, Mul::make(make_const(bound.dtype(), type.lanes()), shape[i]));
     }
     return bound;
   }

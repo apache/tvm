@@ -334,12 +334,12 @@ Target DefaultTargetHost(Target target) {
 }
 
 Buffer BufferWithOffsetAlignment(Array<Expr> shape,
-                                 Type dtype,
+                                 DataType dtype,
                                  std::string name,
                                  int data_alignment,
                                  int offset_factor,
                                  bool compact) {
-  auto data = Var(name, Handle());
+  auto data = Var(name, DataType::Handle());
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -353,7 +353,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
 
   Expr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].type());
+    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
   } else {
     elem_offset = Expr();
   }

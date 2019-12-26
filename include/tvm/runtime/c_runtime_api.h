@@ -235,14 +235,6 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
                               TVMFunctionHandle *out);
 
 /*!
- * \brief Free front-end extension type resource.
- * \param handle The extension handle.
- * \param type_code The type of of the extension type.
- * \return 0 when success, -1 when failure happens
- */
-TVM_DLL int TVMExtTypeFree(void* handle, int type_code);
-
-/*!
  * \brief Free the Module
  * \param mod The module to be freed.
  *

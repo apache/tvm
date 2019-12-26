@@ -32,7 +32,7 @@ import java.lang.reflect.Method;
 public class GraphRuntime {
   /**
    * Create a runtime executor module given a graph and module.
-   * @param graphJson The graph deployed in json format output by nnvm graph.
+   * @param graphJson The graph deployed in json format output by compiler.
    * @param libmod The module of the corresponding function.
    * @param ctx The local or remote context to deploy the module.
    * @return Runtime graph module that can be used to execute the graph.

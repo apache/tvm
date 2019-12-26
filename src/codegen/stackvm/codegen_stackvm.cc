@@ -100,12 +100,12 @@ int CodeGenStackVM::GetVarID(const Variable* v) const {
 
 void CodeGenStackVM::VisitExpr_(const Load* op) {
   this->Push(op->buffer_var);
-  StackVM::OpCode code = StackVM::GetLoad(Type2TVMType(op->type));
+  StackVM::OpCode code = StackVM::GetLoad(op->dtype);
   if (const IntImm* index = op->index.as<IntImm>()) {
     this->PushOp(code, index->value);
   } else {
     this->Push(op->index);
-    this->PushOp(StackVM::PUSH_I64, op->type.element_of().bytes());
+    this->PushOp(StackVM::PUSH_I64, op->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
     this->PushOp(code, 0);
@@ -114,13 +114,13 @@ void CodeGenStackVM::VisitExpr_(const Load* op) {
 
 void CodeGenStackVM::VisitStmt_(const Store* op) {
   this->Push(op->buffer_var);
-  StackVM::OpCode code = StackVM::GetStore(Type2TVMType(op->value.type()));
+  StackVM::OpCode code = StackVM::GetStore(op->value.dtype());
   if (const IntImm* index = op->index.as<IntImm>()) {
     this->Push(op->value);
     this->PushOp(code, index->value);
   } else {
     this->Push(op->index);
-    this->PushOp(StackVM::PUSH_I64, op->value.type().element_of().bytes());
+    this->PushOp(StackVM::PUSH_I64, op->value.dtype().element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
     this->Push(op->value);
@@ -147,7 +147,7 @@ void CodeGenStackVM::VisitExpr_(const Call* op) {
     CHECK(op->args.size() == 1 && l);
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
     this->Push(l->index);
-    this->PushOp(StackVM::PUSH_I64, l->type.element_of().bytes());
+    this->PushOp(StackVM::PUSH_I64, l->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
   } else if (op->is_intrinsic(Call::reinterpret)) {
@@ -248,7 +248,7 @@ void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
                                 const Expr& b) {
   this->Push(a);
   this->Push(b);
-  Type t = a.type();
+  DataType t = a.dtype();
   if (t.is_int()) {
     this->PushOp(op_int64);
   } else if (t.is_uint()) {
@@ -258,7 +258,7 @@ void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
   }
 }
 
-void CodeGenStackVM::PushCast(Type dst, Type src) {
+void CodeGenStackVM::PushCast(DataType dst, DataType src) {
   if (dst.is_int()) {
     if (src.is_int() || src.is_uint()) return;
   } else if (dst.is_uint()) {
@@ -297,7 +297,7 @@ void CodeGenStackVM::VisitExpr_(const Variable *op) {
 
 void CodeGenStackVM::VisitExpr_(const Cast *op) {
   this->Push(op->value);
-  PushCast(op->type, op->value.type());
+  PushCast(op->dtype, op->value.dtype());
 }
 
 void CodeGenStackVM::VisitExpr_(const Add *op) {

@@ -28,7 +28,7 @@ namespace codegen {
 namespace intrin {
 // Add float suffix to the intrinsics, CUDA fast math.
 struct CUDAMath {
-  std::string operator()(Type t, std::string name) const {
+  std::string operator()(DataType t, std::string name) const {
     if (t.lanes() == 1) {
       if (t.is_float()) {
         switch (t.bits()) {
@@ -44,7 +44,7 @@ struct CUDAMath {
 };
 
 struct CUDAFastMath : public CUDAMath {
-  std::string operator()(Type t, std::string name) const {
+  std::string operator()(DataType t, std::string name) const {
     if (t.lanes() == 1 && t.is_float() && t.bits() == 32) {
       return "__" + name + 'f';
     } else {
@@ -55,7 +55,7 @@ struct CUDAFastMath : public CUDAMath {
 };
 
 struct CUDAPopcount {
-  std::string operator()(Type t, std::string name) const {
+  std::string operator()(DataType t, std::string name) const {
     if (t.lanes() == 1 && t.is_uint()) {
       switch (t.bits()) {
         case 32: return "__popc";
@@ -68,7 +68,7 @@ struct CUDAPopcount {
 };
 
 struct CUDAShuffle {
-  std::string operator()(Type t, std::string name) const {
+  std::string operator()(DataType t, std::string name) const {
     return "__shfl";
   }
 };

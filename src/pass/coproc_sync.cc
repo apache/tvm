@@ -198,7 +198,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
 
   std::vector<Stmt> GetSync(std::string sync_name) {
     return {Evaluate::make(Call::make(
-        Int(32),
+        DataType::Int(32),
         sync_name,
         {}, Call::Intrinsic))};
   }
@@ -345,7 +345,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     Expr min = r->min;
     Expr extent = r->extent;
     return Evaluate::make(Call::make(
-        Int(32), func,
+        DataType::Int(32), func,
         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, Call::Intrinsic));
   }
   // Write barrier name
@@ -588,14 +588,14 @@ class CoProcInstDepDetector : public IRVisitor {
 
   Stmt MakePush(int from, int to) {
     return Evaluate::make(Call::make(
-        Int(32), sync_push_name_,
-        {make_const(Int(32), from), make_const(Int(32), to)},
+        DataType::Int(32), sync_push_name_,
+        {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         Call::Intrinsic));
   }
   Stmt MakePop(int from, int to) {
     return Evaluate::make(Call::make(
-        Int(32), sync_pop_name_,
-        {make_const(Int(32), from), make_const(Int(32), to)},
+        DataType::Int(32), sync_pop_name_,
+        {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         Call::Intrinsic));
   }
   // sync states.

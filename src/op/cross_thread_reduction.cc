@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -57,14 +57,14 @@ Stmt MakeCrossThreadReduction(
     cond = cond && v;
   }
   Array<Expr> freduce_args;
-  freduce_args.push_back(make_const(UInt(32), static_cast<uint32_t>(size)));
+  freduce_args.push_back(make_const(DataType::UInt(32), static_cast<uint32_t>(size)));
   for (size_t i = 0; i < size; ++i) {
     freduce_args.push_back(reduces[0]->source[i]);
   }
   freduce_args.push_back(cond);
   std::vector<Var> res_handles(size);
   for (size_t idx = 0; idx < size; ++idx) {
-    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), Handle());
+    res_handles[idx] = Var("reduce_temp" + std::to_string(idx), DataType::Handle());
     freduce_args.push_back(res_handles[idx]);
   }
 
@@ -85,17 +85,17 @@ Stmt MakeCrossThreadReduction(
   }
 
   Stmt reduce_body = Evaluate::make(Call::make(
-      Handle(),
+      DataType::Handle(),
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, Call::Intrinsic));
   reduce_body = AttrStmt::make(
       reduces[0]->combiner,
       attr::reduce_scope,
-      make_zero(Handle()),
+      make_zero(DataType::Handle()),
       reduce_body);
   std::vector<Stmt> assigns(size);
   for (size_t idx = 0; idx < size; ++idx) {
-    Type t = reduces[idx]->type;
+    DataType t = reduces[idx]->dtype;
     assigns[idx] = Provide::make(
       stage->op, idx,
       Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
@@ -106,7 +106,7 @@ Stmt MakeCrossThreadReduction(
   Stmt body = Block::make(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
     body = Allocate::make(
-      res_handles[idx - 1], reduces[idx - 1]->type, {1}, const_true(), body);
+      res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
     body = AttrStmt::make(
       res_handles[idx - 1], attr::storage_scope, StringImm::make("local"), body);
   }

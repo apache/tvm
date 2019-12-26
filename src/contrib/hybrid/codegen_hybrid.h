@@ -138,7 +138,7 @@ class CodeGenHybrid :
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
+  virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
 
  private:
   /*! \brief The current indent of the code dump. */

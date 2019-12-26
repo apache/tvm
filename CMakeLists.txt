@@ -125,9 +125,8 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "nnvm/src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h"
-                                "nnvm/src/*.h" "nnvm/include/*.h")
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
+FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
@@ -176,18 +175,6 @@ endif(USE_VM_PROFILER)
 file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
-if(NOT MSVC)
-  file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
-  list(APPEND COMPILER_SRCS ${COMPILER_VERILOG_SRCS})
-endif()
-
-file(GLOB_RECURSE NNVM_COMPILER_SRCS
-    nnvm/src/c_api/*.cc
-    nnvm/src/core/*.cc
-    nnvm/src/pass/*.cc
-    nnvm/src/compiler/*.cc
-    nnvm/src/top/*.cc
-    )
 
 file(GLOB TOPI_SRCS
     topi/src/*.cc
@@ -304,7 +291,6 @@ if(NOT USE_SGX STREQUAL "OFF")
   add_dependencies(tvm_runtime sgx_edl tvm_t)
   install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
 endif()
-add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 
 if(USE_THREADS)
   message(STATUS "Build with thread support...")
@@ -314,13 +300,11 @@ if(USE_THREADS)
   target_link_libraries(tvm Threads::Threads)
   target_link_libraries(tvm_topi Threads::Threads)
   target_link_libraries(tvm_runtime Threads::Threads)
-  target_link_libraries(nnvm_compiler Threads::Threads)
 endif(USE_THREADS)
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
-target_link_libraries(nnvm_compiler tvm)
 
 if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
@@ -330,7 +314,6 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(tvm ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_topi ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_link_libraries(tvm_runtime ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(nnvm_compiler ${HIDE_SYMBOLS_LINKER_FLAGS})
 endif()
 
 # Related headers
@@ -340,10 +323,7 @@ target_include_directories(
 target_include_directories(
   tvm_topi
   PUBLIC "topi/include")
-target_include_directories(
-  nnvm_compiler
-  PUBLIC "nnvm/include"
-  PUBLIC "topi/include")
+
 
 # Tests
 set(TEST_EXECS "")
@@ -382,7 +362,6 @@ add_custom_target(runtime DEPENDS tvm_runtime)
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_topi DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
-install(TARGETS nnvm_compiler DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(
@@ -405,11 +384,6 @@ if (INSTALL_DEV)
     FILES_MATCHING
     PATTERN "*.h"
     )
-  install(
-    DIRECTORY "nnvm/include/." DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-    )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
@@ -426,5 +400,4 @@ if(MSVC)
   set_property(TARGET nnvm_compiler PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(nnvm_compiler PRIVATE -DNNVM_EXPORTS)
 endif()

@@ -76,7 +76,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     op = ret.as<FloorDiv>();
     if (op == nullptr) return ret;
     int shift;
-    const DataType& dtype = op->type;
+    const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
@@ -97,7 +97,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         // condition on b >= 0.
         // truncmod(a, b) < 0 will implies ceildiv,
         // So we need to correct these cases.
-        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
+        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
@@ -123,7 +123,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
-    const DataType& dtype = op->type;
+    const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
@@ -144,7 +144,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         // mod(a, b) < 0 will imply we are doing ceildiv,
         // So we need to correct these cases.
         Expr rmod = truncmod(op->a, op->b);
-        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
+        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
           // (rmod >> shift) & b
           // -> (rmod >= 0 ? 0: -1) & b
           // -> rmod >= 0 ? 0 : b
@@ -207,23 +207,23 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
       if (const Cast* cast = bcast->value.as<Cast>()) {
         auto should_swap = [&]() {
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
-          if (cast->type.bits() == cast->value.type().bits() * 2) {
+          if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
             return true;
           }
           // Check both operands are integer-like.
-          if (!cast->type.is_uint() && !cast->type.is_int()) {
+          if (!cast->dtype.is_uint() && !cast->dtype.is_int()) {
             return false;
           }
-          if (!cast->value.type().is_uint() && !cast->value.type().is_int()) {
+          if (!cast->value.dtype().is_uint() && !cast->value.dtype().is_int()) {
             return false;
           }
           // If both are integer-like, swap if we have a widening cast.
-          return cast->type.bits() > cast->value.type().bits();
+          return cast->dtype.bits() > cast->value.dtype().bits();
         };
 
         if (should_swap()) {
           Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
-          return Cast::make(bcast->type, new_bcast);
+          return Cast::make(bcast->dtype, new_bcast);
         }
       }
     }
@@ -236,9 +236,9 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     Expr lhs = SwapBroadcastCast(a);
     Expr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && op->type.is_float()) {
+    if (fma_ != nullptr && op->dtype.is_float()) {
       Expr r = (*fma_)(Call::make(
-          op->type, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
+          op->dtype, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
       if (r.defined()) return this->Mutate(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {

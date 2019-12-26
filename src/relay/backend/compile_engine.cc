@@ -86,7 +86,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
     if (pval != nullptr) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
-      res.push_back(ir::IntImm::make(Int(32), *pval));
+      res.push_back(ir::IntImm::make(DataType::Int(32), *pval));
     } else if (val->IsInstance<ir::Any>()) {
       res.push_back(val.as<ir::Any>()->ToVar());
     } else {
@@ -187,17 +187,17 @@ class ScheduleGetter :
   Array<Tensor> VisitExpr_(const ConstantNode* op) final {
     CHECK(op->is_scalar());
     void* data = op->data->data;
-    DataType dtype = TVMType2Type(op->data->dtype);
+    DataType dtype = DataType(op->data->dtype);
     Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-        if (dtype == Int(32)) {
+        if (dtype == DataType::Int(32)) {
           return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-        } else if (dtype == Int(64)) {
+        } else if (dtype == DataType::Int(64)) {
           return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-        } else if (dtype == Float(32)) {
+        } else if (dtype == DataType::Float(32)) {
           return make_const(dtype, static_cast<const float*>(data)[0]);
-        } else if (dtype == Float(64)) {
+        } else if (dtype == DataType::Float(64)) {
           return make_const(dtype, static_cast<const double*>(data)[0]);
-        } else if (dtype == Bool()) {
+        } else if (dtype == DataType::Bool()) {
           return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
         } else {
           LOG(FATAL) << "not handled";
@@ -356,7 +356,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
         if (ndim > 0) {
           sshape.push_back(tvm::Integer(ndim));
         }
-        tvm::Tensor shape_tensor = tvm::placeholder(sshape, Int(64));
+        tvm::Tensor shape_tensor = tvm::placeholder(sshape, DataType::Int(64));
         shape_inputs.push_back(shape_tensor);
       };
 
@@ -392,7 +392,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     // set inputs
     for (auto param : prim_func->params) {
       int state = param_states_[param];
-      cache_node->shape_func_param_states.push_back(IntImm::make(Int(32), state));
+      cache_node->shape_func_param_states.push_back(IntImm::make(DataType::Int(32), state));
       if (state & kNeedInputData) {
         for (auto t : param_data_[param]) {
           cache_node->inputs.push_back(t);
@@ -462,17 +462,17 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     bool data_dependant = data_dependants_.back();
     if (data_dependant) {
       void* data = op->data->data;
-      DataType dtype = TVMType2Type(op->data->dtype);
+      DataType dtype = DataType(op->data->dtype);
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-          if (dtype == Int(32)) {
+          if (dtype == DataType::Int(32)) {
             return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-          } else if (dtype == Int(64)) {
+          } else if (dtype == DataType::Int(64)) {
             return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-          } else if (dtype == Float(32)) {
+          } else if (dtype == DataType::Float(32)) {
             return make_const(dtype, static_cast<const float*>(data)[0]);
-          } else if (dtype == Float(64)) {
+          } else if (dtype == DataType::Float(64)) {
             return make_const(dtype, static_cast<const double*>(data)[0]);
-          } else if (dtype == Bool()) {
+          } else if (dtype == DataType::Bool()) {
             return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
           } else {
             LOG(FATAL) << "not handled";
@@ -483,7 +483,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       return {value};
     } else {
       Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
-          return make_const(Int(64), 0);
+          return make_const(DataType::Int(64), 0);
       }, "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
@@ -525,7 +525,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     auto ret_type = call_node->checked_type();
     Array<IndexExpr> out_ndims;
     if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
-      out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+      out_ndims.push_back(IntImm::make(DataType::Int(32), ttype->shape.size()));
     } else {
       auto rtype = ret_type.as<TupleTypeNode>();
       // TODO(@icemelon): Allow recursive tuple
@@ -533,7 +533,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         auto ttype = rtype->fields[i].as<TensorTypeNode>();
         CHECK(ttype);
-        out_ndims.push_back(IntImm::make(Int(32), ttype->shape.size()));
+        out_ndims.push_back(IntImm::make(DataType::Int(32), ttype->shape.size()));
       }
     }
     // Call shape function

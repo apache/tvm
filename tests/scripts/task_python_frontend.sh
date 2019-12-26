@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=nnvm/python:python:topi/python
+export PYTHONPATH=python:topi/python
 # to avoid openblas threading error
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1

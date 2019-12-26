@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import testing
@@ -45,5 +46,28 @@ def test_mul_rewrite():
 
     quantize_and_build(act * pool)
 
+
+def get_calibration_dataset(input_name):
+    dataset = []
+    for i in range(5):
+        data = np.random.uniform(size=(1, 3, 224, 224))
+        dataset.append({input_name: data})
+    return dataset
+
+
+def test_calibrate_target(create_target=False):
+    mod, params = testing.resnet.get_workload(num_layers=18)
+    dataset = get_calibration_dataset("data")
+    with relay.quantize.qconfig(calibrate_mode="kl_divergence"):
+        if create_target:
+            with tvm.target.create("llvm"):
+                relay.quantize.quantize(mod, params, dataset)
+        else:
+            # current_target = None
+            relay.quantize.quantize(mod, params, dataset)
+
+
 if __name__ == "__main__":
     test_mul_rewrite()
+    test_calibrate_target(False)
+    test_calibrate_target(True)

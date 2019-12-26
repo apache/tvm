@@ -66,9 +66,19 @@ void* VirtualMemoryManager::GetAddr(uint64_t phy_addr) {
 vta_phy_addr_t VirtualMemoryManager::GetPhyAddr(void* buf) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = pmap_.find(buf);
-  CHECK(it != pmap_.end());
+  uint64_t offset = 0;
+  if (it == pmap_.end()) {
+    for (it = pmap_.begin(); it != pmap_.end(); it++) {
+      uint64_t bytes = it->second->num_pages << kPageBits;
+      if ((buf >= it->first) && (buf < static_cast<char*>(it->first) + bytes)) {
+        offset = static_cast<char*>(buf) - static_cast<char*>(it->first);
+        break;
+      }
+    }
+    CHECK(it != pmap_.end());
+  }
   Page* p = it->second.get();
-  return (p->ptable_begin + 1) << kPageBits;
+  return ((p->ptable_begin + 1) << kPageBits) + offset;
 }
 
 /*!

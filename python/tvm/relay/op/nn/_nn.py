@@ -396,6 +396,18 @@ def schedule_max_pool2d(attrs, outs, target):
 reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# max_pool3d
+@reg.register_schedule("nn.max_pool3d")
+def schedule_max_pool3d(attrs, outs, target):
+    """Schedule definition of max_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # avg_pool2d
 @reg.register_schedule("nn.avg_pool2d")
 def schedule_avg_pool2d(attrs, outs, target):
@@ -404,8 +416,19 @@ def schedule_avg_pool2d(attrs, outs, target):
     with target:
         return topi.generic.schedule_pool(outs, layout)
 
-
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool3d
+@reg.register_schedule("nn.avg_pool3d")
+def schedule_avg_pool3d(attrs, outs, target):
+    """Schedule definition of avg_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # max_pool2d_grad
@@ -880,6 +903,28 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
+
+
+@reg.register_compute("nn.depth_to_space")
+def compute_depth_to_space(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    mode = attrs.mode
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
+
+reg.register_schedule("nn.depth_to_space", schedule_injective)
+reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.space_to_depth")
+def compute_space_to_depth(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.space_to_depth", schedule_injective)
+reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
 
 # shape func
 @script

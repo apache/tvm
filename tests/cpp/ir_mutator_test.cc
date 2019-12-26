@@ -48,7 +48,7 @@ TVM_STATIC_IR_FUNCTOR(IRVar2Const, vtable_expr)
 .set_dispatch<Variable>([](const ObjectRef& ref, const Expr &e, IRMutator* m) {
     IRVar2Const* vm = static_cast<IRVar2Const*>(m);
     if (e.same_as(vm->var)) {
-      return Expr(IntImm::make(Int(32), vm->int_val));
+      return Expr(IntImm::make(DataType::Int(32), vm->int_val));
     } else {
       return e;
     }
