@@ -95,6 +95,18 @@ Expr CreateStatsCollector(const Expr& expr) {
 TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
 .set_body_typed(CreateStatsCollector);
 
+
+TVM_REGISTER_API("relay._quantize.FindScaleByKL")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  int64_t* hist_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
+  float* hist_edge_ptr = static_cast<float*>(static_cast<void*>(args[1]));
+  int num_bins = args[2];
+  int num_quantized_bins = args[3];
+  std::vector<int64_t> hist(hist_ptr, hist_ptr + num_bins);
+  std::vector<float> hist_edge(hist_edge_ptr, hist_edge_ptr + num_bins + 1);
+  ret[0] = 0.5;
+});
+
 }  // namespace quantize
 }  // namespace relay
 }  // namespace tvm
