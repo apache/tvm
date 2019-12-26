@@ -23,10 +23,10 @@
  *
  * \brief Create profile graph and calibrate on dataset
  */
-#include <numeric>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
+#include <numeric>
 #include "./quantize.h"
 
 namespace tvm {
@@ -36,7 +36,7 @@ namespace quantize {
 // KL divergence minimization code is adapted from MXNet.
 // The original one is in incubator-mxnet/src/operator/quantization/calibrate.cc
 static std::vector<float> SmoothDistribution(const std::vector<float>& p,
-					     const float eps = 0.0001) {
+                                             const float eps = 0.0001) {
   std::vector<size_t> is_zeros(p.size());
   std::vector<size_t> is_nonzeros(p.size());
   {
@@ -49,7 +49,6 @@ static std::vector<float> SmoothDistribution(const std::vector<float>& p,
     std::generate(is_nonzeros.begin(), is_nonzeros.end(),
                   [&it]() { return static_cast<size_t>(*(it++) != 0.f); });
   }
-
   size_t n_zeros = std::accumulate(is_zeros.begin(), is_zeros.end(), 0);
   size_t n_nonzeros = p.size() - n_zeros;
   if (!n_nonzeros) {
@@ -74,7 +73,6 @@ static float ComputeEntropy(std::vector<float>* p_ptr, std::vector<float>* q_ptr
   for (auto& it : p) {
     it = it / p_sum;
   }
-
   for (auto& it : q) {
     it = it / q_sum;
   }
@@ -88,8 +86,7 @@ static float ComputeEntropy(std::vector<float>* p_ptr, std::vector<float>* q_ptr
 
 float MinimizeKL(const std::vector<int64_t>& hist,
                  const std::vector<float>& hist_edges,
-                 int num_bins,
-                 int num_quantized_bins) {
+                 int num_bins, int num_quantized_bins) {
   const int zero_bin_idx = num_bins / 2;
   const int num_half_quantized_bins = num_quantized_bins / 2;
   std::vector<float> thresholds(num_bins / 2 + 1 - num_quantized_bins / 2, 0.f);
@@ -146,10 +143,9 @@ float MinimizeKL(const std::vector<int64_t>& hist,
     } else {
       divergence[i - num_half_quantized_bins] = ComputeEntropy(&p, &q);
     }
-
   }
   auto min_divergence_idx = std::distance(divergence.begin(),
-					  std::min_element(divergence.begin(), divergence.end()));
+                                          std::min_element(divergence.begin(), divergence.end()));
   return thresholds[min_divergence_idx];;
 }
 
