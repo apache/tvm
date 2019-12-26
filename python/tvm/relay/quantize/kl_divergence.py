@@ -22,7 +22,8 @@ import numpy as np
 from . import _quantize
 
 
-def _find_scale_by_kl(arr, quantized_dtype='int8', num_bins=8001, num_quantized_bins=255):
+def _find_scale_by_kl(arr, quantized_dtype='int8',
+                      num_bins=8001, num_quantized_bins=255):
     """Given a tensor, find the optimal threshold for quantizing it.
     The reference distribution is `q`, and the candidate distribution is `p`.
     `q` is a truncated version of the original distribution.

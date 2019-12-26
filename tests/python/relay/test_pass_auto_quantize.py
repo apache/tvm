@@ -72,7 +72,8 @@ def test_calibrate_memory_bound():
     dataset = get_calibration_dataset("data")
     import multiprocessing
     num_cpu = multiprocessing.cpu_count()
-    with relay.quantize.qconfig(calibrate_mode="kl_divergence", calibrate_split_by=num_cpu):
+    with relay.quantize.qconfig(calibrate_mode="kl_divergence",
+                                calibrate_chunk_by=num_cpu):
         relay.quantize.quantize(mod, params, dataset)
 
 

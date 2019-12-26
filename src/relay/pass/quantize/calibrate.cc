@@ -64,21 +64,14 @@ static std::vector<float> SmoothDistribution(const std::vector<float>& p,
   return ret;
 }
 
-static float ComputeEntropy(std::vector<float>* p_ptr, std::vector<float>* q_ptr) {
-  std::vector<float>& p = *p_ptr;
-  std::vector<float>& q = *q_ptr;
-  CHECK_EQ(p.size(), q.size());
-  float p_sum = std::accumulate(p.begin(), p.end(), 0.f);
-  float q_sum = std::accumulate(q.begin(), q.end(), 0.f);
-  for (auto& it : p) {
-    it = it / p_sum;
-  }
-  for (auto& it : q) {
-    it = it / q_sum;
-  }
+static float ComputeEntropy(float* p, float* q, size_t size) {
+  float p_sum = std::accumulate(p, p+size, 0.f);
+  float q_sum = std::accumulate(q, q+size, 0.f);
   float ret = 0;
-  for (size_t i = 0; i < p.size(); i++) {
+  for (size_t i = 0; i < size; i++) {
     CHECK(p[i] > 0 && q[i] > 0);
+    p[i] /= p_sum;
+    q[i] /= q_sum;
     if (p[i] && q[i]) ret += p[i] * std::log(p[i] / q[i]);
   }
   return ret;
@@ -98,7 +91,7 @@ float MinimizeKL(const std::vector<int64_t>& hist,
     thresholds[i - num_half_quantized_bins] = hist_edges[p_bin_idx_stop];
 
     std::vector<int> sliced_nd_hist(p_bin_idx_stop - p_bin_idx_start);
-    std::vector<float> p(p_bin_idx_stop - p_bin_idx_start);
+    std::vector<float> p(sliced_nd_hist.size());
     p[0] = 0;
     p.back() = 0;
     for (int j = 0; j < num_bins; j++) {
@@ -141,7 +134,7 @@ float MinimizeKL(const std::vector<int64_t>& hist,
     if (!q.size()) {
       divergence[i - num_half_quantized_bins] = std::numeric_limits<float>::infinity();
     } else {
-      divergence[i - num_half_quantized_bins] = ComputeEntropy(&p, &q);
+      divergence[i - num_half_quantized_bins] = ComputeEntropy(p.data(), q.data(), p.size());
     }
   }
   auto min_divergence_idx = std::distance(divergence.begin(),
