@@ -148,8 +148,8 @@ float MinimizeKL(const std::vector<int64_t>& hist,
     }
 
   }
-  auto min_divergence_idx = std::distance(std::min_element(divergence.begin(), divergence.end()),
-					  divergence.begin());
+  auto min_divergence_idx = std::distance(divergence.begin(),
+					  std::min_element(divergence.begin(), divergence.end()));
   return thresholds[min_divergence_idx];;
 }
 

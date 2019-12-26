@@ -27,7 +27,6 @@ import ctypes
 from . import _quantize
 
 def _get_pointer(arr, ctypes_type):
-    print(arr.dtype)
     ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes_type))
     return ctypes.cast(ptr, ctypes.c_void_p)
 
@@ -74,18 +73,17 @@ def _find_scale_by_kl(arr, quantized_dtype='int8', num_bins=8001, num_quantized_
         num_quantized_bins = num_quantized_bins * 2 + 1
 
     hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-th, th))
-    print("arr.shape, hist.shape, hist_edges.shape:", arr.shape, hist.shape, hist_edges.shape)
     hist_ptr = _get_pointer(hist, ctypes.c_int64)
     hist_edges_ptr = _get_pointer(hist_edges, ctypes.c_float)
-    print(hist[:10])
-    print(hist_edges[:10])
-    th = _quantize.FindScaleByKL(hist_ptr, hist_edges_ptr,
+    import time
+    t1 = time.time()
+    th_cpp = _quantize.FindScaleByKL(hist_ptr, hist_edges_ptr,
                                  num_bins, num_quantized_bins)
-    print("thres from c++:", th)
+    elapsed_cpp = time.time() - t1
+
     zero_bin_idx = num_bins // 2
     num_half_quantized_bins = num_quantized_bins // 2
 
-    import time
     t1 = time.time()
     thresholds = np.zeros(num_bins // 2 + 1 - num_quantized_bins // 2)
     divergence = np.zeros_like(thresholds)
@@ -141,5 +139,8 @@ def _find_scale_by_kl(arr, quantized_dtype='int8', num_bins=8001, num_quantized_
 
     min_divergence_idx = np.argmin(divergence)
     opt_th = thresholds[min_divergence_idx]
-    print("KL elapsed:", time.time() - t1)
+    print("py elapsed:", time.time() - t1)
+    print("cpp elapsed:", elapsed_cpp)
+    print("py thres:", opt_th)
+    print("cpp thres:", th_cpp)
     return opt_th

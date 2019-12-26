@@ -71,7 +71,7 @@ def _kl_scale(mod, dataset, split_by=-1):
     print(scales)
     np.save("scales1.npy", scales)
 
-    if True:
+    if False:
         t1 = time.time()
         outputs = [[] for i in range(num_outputs)]
         for batch in dataset:
