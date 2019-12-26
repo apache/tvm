@@ -87,9 +87,9 @@ static float ComputeEntropy(std::vector<float>* p_ptr, std::vector<float>* q_ptr
 }
 
 float MinimizeKL(const std::vector<int64_t>& hist,
-		 const std::vector<float>& hist_edges,
-		 int num_bins,
-		 int num_quantized_bins) {
+                 const std::vector<float>& hist_edges,
+                 int num_bins,
+                 int num_quantized_bins) {
   const int zero_bin_idx = num_bins / 2;
   const int num_half_quantized_bins = num_quantized_bins / 2;
   std::vector<float> thresholds(num_bins / 2 + 1 - num_quantized_bins / 2, 0.f);
