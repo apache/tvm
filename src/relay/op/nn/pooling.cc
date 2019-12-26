@@ -27,7 +27,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn/pooling.h>
 #include <vector>
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
