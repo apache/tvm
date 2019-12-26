@@ -52,8 +52,6 @@ def _kl_scale(mod, dataset, split_by=-1):
 
     scales = []
     split_by = num_outputs if split_by == -1 else split_by
-    import time
-    t1 = time.time()
     for i in range(0, num_outputs, split_by):
         outputs = [[] for i in range(min(split_by, num_outputs - i))]
         for batch in dataset:
@@ -66,29 +64,6 @@ def _kl_scale(mod, dataset, split_by=-1):
         with mp.Pool() as pool:
             logging.info("finding threshold with kl for calibration...")
             scales += list(pool.map(_find_scale_by_kl, samples))
-
-    print("Elapsed:", time.time() - t1)
-    print(scales)
-    np.save("scales1.npy", scales)
-
-    if False:
-        t1 = time.time()
-        outputs = [[] for i in range(num_outputs)]
-        for batch in dataset:
-            runtime.set_input(**batch)
-            runtime.run()
-            for i in range(num_outputs):
-                output = runtime.get_output(i).asnumpy()
-                outputs[i].append(output)
-        for i in range(num_outputs):
-            outputs[i] = np.concatenate(outputs[i]).reshape(-1)
-
-        with mp.Pool() as pool:
-            logging.info("finding threshold with kl for calibration...")
-            scales2 = list(pool.map(_find_scale_by_kl, outputs))
-            print("Elapsed:", time.time() - t1)
-            print(scales2)
-            np.save("scales2.npy", scales2)
 
     def func(_):
         scale = scales[func.scale_idx]

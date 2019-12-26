@@ -217,7 +217,7 @@ TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
 .set_body_typed(CreateStatsCollector);
 
 
-TVM_REGISTER_API("relay._quantize.FindScaleByKL")
+TVM_REGISTER_API("relay._quantize.FindScaleByKLMinimization")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   int64_t* hist_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
   float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));
