@@ -46,37 +46,28 @@ def trilinear_resize3d_python(data_in, out_size, layout,
     def _lerp(A, B, t):
         return A * (1.0 - t) + B * t
 
+    def _in_coord(new_coord, scale, shape, mode):
+        if mode == "half_pixel":
+            in_coord = (new_coord + 0.5) * scale - 0.5
+        else:
+            in_coord = new_coord * scale
+        coord0 = int(math.floor(in_coord))
+        coord1 = max(min(coord0 + 1, shape - 1), 0)
+        coord0 = max(coord0, 0)
+        coord_lerp = in_coord - math.floor(in_coord)
+        return coord0, coord1, coord_lerp
+
     for b in range(batch):
         for i in range(channel):
             for m in range(new_d):
                 for j in range(new_h):
                     for k in range(new_w):
-                        if coordinate_transformation_mode == "half_pixel":
-                            in_z = (m + 0.5) * depth_scale - 0.5
-                        else:
-                            in_z = m * depth_scale
-                        z0 = int(math.floor(in_z))
-                        z1 = max(min(z0 + 1, d - 1), 0)
-                        z0 = max(z0, 0)
-                        z_lerp = in_z - math.floor(in_z)
-
-                        if coordinate_transformation_mode == "half_pixel":
-                            in_y = (j + 0.5) * height_scale - 0.5
-                        else:
-                            in_y = j * height_scale
-                        y0 = int(math.floor(in_y))
-                        y1 = max(min(y0 + 1, h - 1), 0)
-                        y0 = max(y0, 0)
-                        y_lerp = in_y - math.floor(in_y)
-
-                        if coordinate_transformation_mode == "half_pixel":
-                            in_x = (k + 0.5) * width_scale - 0.5
-                        else:
-                            in_x = k * width_scale
-                        x0 = int(math.floor(in_x))
-                        x1 = max(min(x0 + 1, w - 1), 0)
-                        x0 = max(x0, 0)
-                        x_lerp = in_x - math.floor(in_x)
+                        z0, z1, z_lerp = _in_coord(m, depth_scale, d,\
+                                                   coordinate_transformation_mode)
+                        y0, y1, y_lerp = _in_coord(j, height_scale, h,\
+                                                   coordinate_transformation_mode)
+                        x0, x1, x_lerp = _in_coord(k, width_scale, w,\
+                                                   coordinate_transformation_mode)
 
                         if layout == 'NDHWC':
                             A0 = data_in[b][z0][y0][x0][i]
