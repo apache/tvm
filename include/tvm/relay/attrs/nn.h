@@ -589,6 +589,39 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   }
 };
 
+/*! \brief Attributes for upsampling3d operator */
+struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
+  double scale_d;
+  double scale_h;
+  double scale_w;
+  std::string layout;
+  std::string method;
+  std::string coordinate_transformation_mode;
+
+  TVM_DECLARE_ATTRS(UpSampling3DAttrs, "relay.attrs.UpSampling3DAttrs") {
+    TVM_ATTR_FIELD(scale_d)
+        .describe("The upsampling factor for depth");
+    TVM_ATTR_FIELD(scale_h)
+        .describe("The upsampling factor for height");
+    TVM_ATTR_FIELD(scale_w)
+        .describe("The upsampling factor for width");
+    TVM_ATTR_FIELD(layout).set_default("NCDHW")
+        .describe("Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
+                  "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                  "dimensions respectively. Upsampling is applied on the 'D', 'H' and"
+                  "'W' dimensions.");
+    TVM_ATTR_FIELD(method).set_default("nearest_neighbor")
+        .describe("Specify the mode to use for scaling."
+                  "nearest_neighbor -  Nearest Neighbor"
+                  "trilinear - Trilinear Interpolation");
+    TVM_ATTR_FIELD(coordinate_transformation_mode).set_default("half_pixel")
+        .describe("Describes how to transform the coordinate in the resized tensor"
+                  "to the coordinate in the original tensor."
+                  "Refer to the ONNX Resize operator specification for details"
+                  "Available options are half_pixel, align_corners and asymmetric");
+  }
+};
+
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   double pad_value;

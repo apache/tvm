@@ -64,6 +64,10 @@ class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
 
 @register_relay_attr_node
+class UpSampling3DAttrs(Attrs):
+    """Attributes for nn.upsampling3d"""
+
+@register_relay_attr_node
 class PadAttrs(Attrs):
     """Attributes for nn.pad"""
 

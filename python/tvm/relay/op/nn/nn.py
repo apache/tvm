@@ -771,6 +771,58 @@ def upsampling(data,
     return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
 
 
+def upsampling3d(data,
+                 scale_d=1,
+                 scale_h=1,
+                 scale_w=1,
+                 layout="NCDHW",
+                 method="nearest_neighbor",
+                 coordinate_transformation_mode="half_pixel"):
+    """3D Upsampling.
+
+    This operator takes data as input and does 3D scaling to the given scale factor.
+    In the default case, where the data_layout is `NCDHW`
+    with data of shape (n, c, d, h, w)
+    out will have a shape (n, c, d*scale_d, h*scale_h, w*scale_w)
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be one of ("trilinear", "nearest_neighbor")
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    scale_d : tvm.relay.Expr
+        The scale factor for depth upsampling.
+
+    scale_h : tvm.relay.Expr
+        The scale factor for height upsampling.
+
+    scale_w : tvm.relay.Expr
+        The scale factor for width upsampling.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method to used [nearest_neighbor, trilinear].
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
+                              coordinate_transformation_mode)
+
+
 def batch_flatten(data):
     """BatchFlatten.
 
