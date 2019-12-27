@@ -443,17 +443,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
 
     TryEnableTensorCore(entry_ptr->handle);
 
-    int version;
-    CHECK_CUBLAS_ERROR(cublasGetVersion(entry_ptr->handle, &version));
-    if (TypeMatch(A->dtype, kDLInt, 8) && version >= 10100) {
-      cublasLtHandle_t ltHandle;
-      CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-      CallLtIgemm(args, ret, ltHandle);
-      CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
-    } else {
-      LOG(FATAL) << "Cublas version needs to be equal or larger than 10.1, but currently is "
-      << version;
-    }
+    CHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+    cublasLtHandle_t ltHandle;
+    CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
+    CallLtIgemm(args, ret, ltHandle);
+    CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
 });
 #endif  // CUDART_VERSION >= 10010
 
