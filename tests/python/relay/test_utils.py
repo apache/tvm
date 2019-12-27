@@ -17,6 +17,7 @@
 
 from tvm import relay
 from tvm.expr import IntImm
+from tvm.api import convert
 
 def verify_dispatch_function(name, low, high, extra_arg, input_shape):
     end = 2048
@@ -40,6 +41,10 @@ def verify_dispatch_function(name, low, high, extra_arg, input_shape):
         func = relay.utils.uniform_dispatcher(low, high, extra_arg)
         out = func(input_shape)
         for iname, ishape in input_shape.items():
+            tmp = {}
+            for k, v in out[iname].items():
+                tmp[k.value] = v
+            out[iname].update(tmp)
             for i, dim in enumerate(ishape):
                 if not isinstance(dim, (int, IntImm)):
                     assert out[iname][i] == buckets, "%s vs %s" % (out[iname][i], buckets)
@@ -61,6 +66,10 @@ def verify_dispatch_function(name, low, high, extra_arg, input_shape):
         func = relay.utils.exp_dispatcher(low, high, extra_arg)
         out = func(input_shape)
         for iname, ishape in input_shape.items():
+            tmp = {}
+            for k, v in out[iname].items():
+                tmp[k.value] = v
+            out[iname].update(tmp)
             for i, dim in enumerate(ishape):
                 if not isinstance(dim, (int, IntImm)):
                     assert out[iname][i] == buckets, "%s vs %s" % (out[iname][i], buckets)

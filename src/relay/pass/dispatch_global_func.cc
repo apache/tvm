@@ -19,7 +19,7 @@
 
 /*!
  * \file dispatch_global_func.cc
- * 
+ *
  * \brief API for dispatch global function with dynamic input shape.
  */
 
