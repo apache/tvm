@@ -42,3 +42,5 @@ from .batch_matmul import *
 from .sparse import *
 from .pad import *
 from .fifo_buffer import *
+from .depth_to_space import *
+from .space_to_depth import *

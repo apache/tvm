@@ -27,7 +27,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../op_common.h"
 #include "convolution.h"
 
@@ -670,7 +670,7 @@ TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
 .describe(R"code(Weight transformation of winograd fast convolution algorithm.
 
-Separate this into another nnvm symbol in order to enable Precompute Pass to compute the
+Separate this into another operator in order to enable Precompute Pass to compute the
 weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])

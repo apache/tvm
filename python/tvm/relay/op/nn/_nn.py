@@ -251,6 +251,47 @@ def legalize_conv2d(attrs, inputs, types):
     """
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
+
+@reg.register_convert_op_layout("nn.conv2d")
+def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+    """Convert Layout pass registration for conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layout : str
+        The desired layout
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+
+    from tvm import relay
+    data_layout = attrs['data_layout']
+    kernel_layout = attrs['kernel_layout']
+    data, weight = inputs
+    assert desired_layout == 'NCHW', \
+            "Currently only transformation to NCHW layout is supported."
+    if desired_layout == 'NCHW':
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = desired_layout
+        new_attrs['kernel_layout'] = 'OIHW'
+
+        if data_layout == 'NHWC' and kernel_layout == 'HWIO':
+            # Convert (NHWC, HWIO) to (NCHW, OIHW)
+            return relay.nn.conv2d(data, weight, **new_attrs)
+        if data_layout == 'NHWC' and kernel_layout == 'HWOI':
+            # Convert (NHWC, HWOI) to (NCHW, OIHW). Depthwise conv2d.
+            return relay.nn.conv2d(data, weight, **new_attrs)
+    return None
+
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -540,6 +581,25 @@ def compute_upsampling(attrs, inputs, out_dtype, target):
     method = attrs.method
     align_corners = attrs.align_corners
     return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
+
+# upsampling3d
+reg.register_schedule("nn.upsampling3d", reg.schedule_injective)
+
+def schedule_upsampling3d(_, outs, target):
+    """Schedule definition of upsampling3d"""
+    with target:
+        return topi.generic.schedule_injective(outs)
+
+@reg.register_compute("nn.upsampling3d")
+def compute_upsampling3d(attrs, inputs, out_dtype, target):
+    scale_d = attrs.scale_d
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
+    layout = attrs.layout
+    method = attrs.method
+    coordinate_transformation_mode = attrs.coordinate_transformation_mode
+    return [topi.nn.upsampling3d(inputs[0], scale_d, scale_h, scale_w, layout, method,\
+        coordinate_transformation_mode)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -903,6 +963,28 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
+
+
+@reg.register_compute("nn.depth_to_space")
+def compute_depth_to_space(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    mode = attrs.mode
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
+
+reg.register_schedule("nn.depth_to_space", schedule_injective)
+reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.space_to_depth")
+def compute_space_to_depth(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.space_to_depth", schedule_injective)
+reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
 
 # shape func
 @script

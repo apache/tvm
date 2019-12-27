@@ -178,56 +178,6 @@ TEST(TypedPackedFunc, HighOrder) {
   CHECK_EQ(f1(3), 4);
 }
 
-// new namespoace
-namespace test {
-// register int vector as extension type
-using IntVector = std::vector<int>;
-}  // namespace test
-
-namespace tvm {
-namespace runtime {
-
-template<>
-struct extension_type_info<test::IntVector> {
-  static const int code = kExtBegin + 1;
-};
-}  // runtime
-}  // tvm
-
-// do registration, this need to be in cc file
-TVM_REGISTER_EXT_TYPE(test::IntVector);
-
-TEST(PackedFunc, ExtensionType) {
-  using namespace tvm;
-  using namespace tvm::runtime;
-  // note: class are copy by value.
-  test::IntVector vec{1, 2, 4};
-
-  auto copy_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      // copy by value
-      const test::IntVector& v = args[0].AsExtension<test::IntVector>();
-      CHECK(&v == &vec);
-      test::IntVector v2 = args[0];
-      CHECK_EQ(v2.size(), 3U);
-      CHECK_EQ(v[2], 4);
-      // return copy by value
-      *rv = v2;
-    });
-
-  auto pass_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      // copy by value
-      *rv = args[0];
-    });
-
-  test::IntVector vret1 = copy_vec(vec);
-  test::IntVector vret2 = pass_vec(copy_vec(vec));
-  CHECK_EQ(vret1.size(), 3U);
-  CHECK_EQ(vret2.size(), 3U);
-  CHECK_EQ(vret1[2], 4);
-  CHECK_EQ(vret2[2], 4);
-}
-
-
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

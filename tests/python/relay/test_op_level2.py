@@ -456,6 +456,22 @@ def test_upsampling_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
+def test_upsampling3d_infer_type():
+    n, c, d, h, w = tvm.var("n"), tvm.var("c"), tvm.var("d"), tvm.var("h"), tvm.var("w")
+    scale = tvm.const(2.0, "float64")
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
+    y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
+
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(h*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+                                                "float32")
+    n, c = tvm.var("n"), tvm.var("c")
+    x = relay.var("x", relay.TensorType((n, c, 100, 100, 200), "float32"))
+    y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, 200, 200, 400), "float32")
 
 def _test_pool2d(opfunc, reffunc):
     n, c, h, w = tvm.var("n"), 10, 224, 224
@@ -782,6 +798,50 @@ def test_upsampling():
     _test_upsampling("NHWC", "nearest_neighbor")
     _test_upsampling("NHWC", "bilinear", True)
 
+def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixel"):
+    n, c, d, h, w = tvm.var("n"), 8, 16, 16, 16
+    scale_d = 2.0
+    scale_h = 2.0
+    scale_w = 2.0
+    dtype = "float32"
+    def get_shape():
+        if layout == "NCDHW":
+            return (c, d, h, w), (c, int(round(d*scale_d)), int(round(h*scale_h)),\
+                                  int(round(w*scale_w)))
+        else:
+            return (d, h, w, c), (int(round(d*scale_d)), int(round(h*scale_h)),\
+                                  int(round(w*scale_w)), c)
+    ishape, oshape = get_shape()
+    x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
+    y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
+                              layout=layout, method=method,\
+                              coordinate_transformation_mode=coordinate_transformation_mode)
+
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
+    dshape = (1,) + ishape
+    x = relay.var("x", shape=dshape)
+    y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
+                            layout=layout, method=method,\
+                            coordinate_transformation_mode=coordinate_transformation_mode)
+    func = relay.Function([x], y)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    if method == "nearest_neighbor":
+        ref = topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
+    else:
+        ref = topi.testing.trilinear_resize3d_python(data, (int(round(d*scale_d)),\
+                                                     int(round(h*scale_h)),\
+                                                     int(round(w*scale_w))), layout)
+    for target, ctx in ctx_list():
+        executor = relay.create_executor("graph", ctx=ctx, target=target)
+        out = executor.evaluate(func)(data)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+
+def test_upsampling3d():
+    _test_upsampling3d("NCDHW", "nearest_neighbor")
+    _test_upsampling3d("NCDHW", "trilinear", "align_corners")
+    _test_upsampling3d("NDHWC", "nearest_neighbor")
+    _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 def test_conv2d_int8_intrinsics():
     def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
@@ -935,6 +995,7 @@ if __name__ == "__main__":
     test_conv2d_infer_type()
     test_bitpack_infer_type()
     test_upsampling_infer_type()
+    test_upsampling3d_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
     test_pad_run()
@@ -948,4 +1009,5 @@ if __name__ == "__main__":
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
+    test_upsampling3d()
     test_conv2d_int8_intrinsics()

@@ -182,12 +182,15 @@ class TaskExtractEnv:
             args = deserialize_args(args)
             A, W = args[:2]
             layout = args[-2]
-            assert layout == 'NCHW' or layout == 'HWCN', "only support NCHW/HWCN currently"
             C = topi.nn.conv2d(*args, **kwargs)
             if layout == 'NCHW':
                 s = topi.generic.schedule_conv2d_nchw([C])
-            else:
+            elif layout == 'HWCN':
                 s = topi.generic.schedule_conv2d_hwcn([C])
+            elif layout == 'NHWC':
+                s = topi.generic.schedule_conv2d_nhwc([C])
+            else:
+                raise ValueError("Unsupported layout {}".format(layout))
             return s, [A, W, C]
 
         @register("topi_nn_depthwise_conv2d_nchw")

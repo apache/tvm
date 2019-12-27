@@ -311,15 +311,6 @@ class Registry {
   TVM_STR_CONCAT(TVM_FUNC_REG_VAR_DEF, __COUNTER__) =            \
       ::tvm::runtime::Registry::Register(OpName)
 
-/*!
- * \brief Macro to register extension type.
- *  This must be registered in a cc file
- *  after the trait extension_type_info is defined.
- */
-#define TVM_REGISTER_EXT_TYPE(T)                                 \
-  TVM_STR_CONCAT(TVM_TYPE_REG_VAR_DEF, __COUNTER__) =            \
-      ::tvm::runtime::ExtTypeVTable::Register_<T>()
-
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_REGISTRY_H_

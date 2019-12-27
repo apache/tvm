@@ -29,6 +29,7 @@
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -132,6 +133,22 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
        const Array<Expr>& args,
        const Array<Tensor>& tinfos)>;
 
+/*!
+ * \brief Convert the layout of operators or replace the
+ *  operator with other expressions. This function will be invoked
+ *  in ConvertLayout pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos An array of placeholders, use for getting the inferred shape
+ *               and dtype of the inputs.
+ * \param desired_layout The desired layout.
+ * \return new_expr The modified expression.
+ */
+using FTVMConvertOpLayout = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args,
+       const Array<Tensor>& tinfos,
+       const std::string& desired_layout)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.

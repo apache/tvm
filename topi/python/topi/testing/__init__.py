@@ -31,8 +31,9 @@ from .deformable_conv2d_nchw_python import deformable_conv2d_nchw_python
 from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
 from .dilate_python import dilate_python
 from .softmax_python import softmax_python, log_softmax_python
-from .upsampling_python import upsampling_python
+from .upsampling_python import upsampling_python, upsampling3d_python
 from .bilinear_resize_python import bilinear_resize_python
+from .trilinear_resize3d_python import trilinear_resize3d_python
 from .reorg_python import reorg_python
 from .roi_align_python import roi_align_nchw_python
 from .roi_pool_python import roi_pool_nchw_python
@@ -46,3 +47,5 @@ from .sequence_mask_python import sequence_mask
 from .pool3d_python import pool3d_ncdhw_python
 from .pool_grad_python import pool_grad_nchw
 from .one_hot import one_hot
+from .depth_to_space import depth_to_space_python
+from .space_to_depth import space_to_depth_python
