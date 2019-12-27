@@ -160,7 +160,7 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   return NDArray(data);
 }
 
-void NDArray::CopyFromTo(DLTensor* from,
+void NDArray::CopyFromTo(const DLTensor* from,
                          DLTensor* to,
                          TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);

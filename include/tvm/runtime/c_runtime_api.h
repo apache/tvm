@@ -136,7 +136,7 @@ typedef DLDataType TVMType;
 typedef DLContext TVMContext;
 
 /*!
- * \brief The tensor array stucture to TVM API.
+ * \brief The tensor array structure to TVM API.
  */
 typedef DLTensor TVMArray;
 
