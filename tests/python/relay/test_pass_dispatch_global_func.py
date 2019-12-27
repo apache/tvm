@@ -20,12 +20,16 @@ from tvm.relay import testing
 
 
 def verify_graph_dispatcher(mod, input_shape, dispatch_func):
-    updated_mod = relay.transform.dispatch_global_func(mod, "main", input_shape, dispatch_func)
+    updated_mod = relay.transform.add_dispatch_func(mod, "main", input_shape, dispatch_func)
     buckets = dispatch_func(input_shape)
 
     num_buckets = 0
     for val in buckets.values():
-        num_buckets += len(val.values())
+        for buckets in val.values():
+            if num_buckets == 0:
+                num_buckets = len(buckets)
+            else:
+                num_buckets *= len(buckets)
 
     num_main_copies = 0
     for global_var in updated_mod.get_global_vars():

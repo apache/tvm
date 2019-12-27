@@ -1033,7 +1033,7 @@ class ChangeBatch:
                     return var
         return ChangeBatchMutator().visit(func)
 
-def dispatch_global_func(mod, func_name, input_shape, dispatch_func):
+def add_dispatch_func(mod, func_name, input_shape, dispatch_func):
     """Dispatch a global function in module with symbolic input shape.
 
     Parameters
@@ -1068,4 +1068,4 @@ def dispatch_global_func(mod, func_name, input_shape, dispatch_func):
     result: tvm.relay.Module
         Module with updated global function.
     """
-    return _transform.dispatch_global_func(mod, func_name, input_shape, dispatch_func)
+    return _transform.add_dispatch_func(mod, func_name, input_shape, dispatch_func)

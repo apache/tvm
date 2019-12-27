@@ -111,7 +111,7 @@ struct ObjectTypeChecker<Map<K, V> > {
     }
     return true;
   }
-  static void PrintName(std::ostringstream& os) { // NOLINT(*)
+  static void PrintName(std::ostream& os) { // NOLINT(*)
     os << "Map[";
     ObjectTypeChecker<K>::PrintName(os);
     os << ',';

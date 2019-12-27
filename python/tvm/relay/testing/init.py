@@ -160,6 +160,13 @@ def create_workload(net, initializer=None, seed=0):
     for k, v in shape_dict.items():
         if k == "data":
             continue
+        is_symbolic = False
+        for dim in v.shape:
+            if not isinstance(dim, tvm.expr.IntImm):
+                is_symbolic = True
+                break
+        if is_symbolic:
+            continue
         init_value = np.zeros(v.concrete_shape).astype(v.dtype)
         initializer(k, init_value)
         params[k] = tvm.nd.array(init_value, ctx=tvm.cpu(0))

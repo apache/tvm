@@ -18,12 +18,13 @@
 """Predefined dispatching functions for dynamic input shape."""
 
 from tvm.expr import IntImm
+from tvm.api import convert
 
 def uniform_dispatcher(low=1, high=256, step=16):
     """Uniformly dispatch dynamic input shape.
 
-    Always start splitting from 1 and end at high.
-    Generated bucket will be truncated with respect to low and high.
+    We first split between [1, high). Then generated buckets
+    by truncating with respect to low and high.
 
     An extra bucket [high, -1] will be added to indicate
     the last bucket from high to positive infinite.
@@ -71,7 +72,7 @@ def uniform_dispatcher(low=1, high=256, step=16):
             for i, axis in enumerate(shape):
                 if not isinstance(axis, (int, IntImm)):
                     num_sym_axes += 1
-                    bucket_dict[i] = bucket
+                    bucket_dict[convert(i)] = bucket
             buckets[input_name] = bucket_dict
 
         return buckets
@@ -81,8 +82,8 @@ def uniform_dispatcher(low=1, high=256, step=16):
 def exp_dispatcher(low=1, high=256, base=2):
     """Dispatch dynamic input shape with [pow(n), pow(n+1)).
 
-    Always start splitting from 1 and end at high.
-    Generated bucket will be truncated with respect to low and high.
+    We first split between [1, high). Then generated buckets
+    by truncating with respect to low and high.
 
     An extra bucket [high, -1] will be added to indicate
     the last bucket from high to positive infinite.
@@ -133,7 +134,7 @@ def exp_dispatcher(low=1, high=256, base=2):
             for i, axis in enumerate(shape):
                 if not isinstance(axis, (int, IntImm)):
                     num_sym_axes += 1
-                    bucket_dict[i] = bucket
+                    bucket_dict[convert(i)] = bucket
             buckets[input_name] = bucket_dict
 
         return buckets
