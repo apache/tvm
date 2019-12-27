@@ -22,9 +22,10 @@ from tvm.hybrid.runtime import HYBRID_GLOBALS
 @pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
+        val = tvm.ir_pass._RemoveIntrinExpr(val)
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
-        assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm))
+        assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm)), val
         return val.value
 
     ctx = tvm.context(target, 0)
@@ -180,7 +181,7 @@ def test_fanout():
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
     assert ir.min.value == 0
-    assert tvm.ir_pass.Equal(ir.extent, n - 3)
+    assert tvm.ir_pass.Equal(tvm.ir_pass._RemoveIntrinExpr(ir.extent), n - 3)
     #Check loopbody
     ibody = ir.body
     assert isinstance(ibody, tvm.stmt.AttrStmt)

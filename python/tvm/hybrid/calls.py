@@ -159,3 +159,15 @@ def max_num_threads(func_id, args):
         _internal_assert(isinstance(args[0], _expr.UIntImm), "In tvm bool should be uint")
         res = _tgt.current_target(args[0].value).max_num_threads
     return _api.convert(res)
+
+def tvm_assert_bound(func_id, args):
+    n = args.__len__()
+    _internal_assert(func_id == "tvm_assert_bound", "This function cannot be directly invoked!")
+    _internal_assert(n >= 1, "At least 1 argument should be provided.")
+    _internal_assert(n <= 3, "Accept at most 3 arguments.")
+    if n == 1:
+        return _make._OpAssertBound(args[0], None, None)
+    elif n == 2:
+        return _make._OpAssertBound(args[0], args[1], None)
+    return _make._OpAssertBound(*args)
+

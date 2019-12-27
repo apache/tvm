@@ -110,36 +110,59 @@ def max_num_threads(allow_none=True):
     return target.current_target(allow_none).max_num_threads
 
 
+def tvm_assert_bound(value, lb=None, ub=None):
+    """
+    Provide lower bound and upper bound for the value.
+    For now we simply return the value
+
+    Parameters
+    ----------
+    value: Expr
+        The bounded value
+    lb: Expr
+        lower bound (inclusive)
+    ub: Expr
+        upper bound (inclusive)
+
+    Returns
+    -------
+    res: Expr
+        same as value
+    """
+    return value
+
+
 HYBRID_GLOBALS = {
-    'unroll'         : range,
-    'vectorize'      : range,
-    'parallel'       : range,
-    'const_range'    : range,
-    'bind'           : bind,
-    'allocate'       : allocate,
-    'output_tensor'  : allocate,
-    'sqrt'           : numpy.sqrt,
-    'rsqrt'          : rsqrt,
-    'log'            : numpy.log,
-    'tanh'           : numpy.tanh,
-    'power'          : numpy.power,
-    'exp'            : numpy.exp,
-    'sigmoid'        : sigmoid,
-    'popcount'       : popcount,
-    'likely'         : lambda cond: cond,
-    'uint8'          : numpy.uint8,
-    'uint16'         : numpy.uint16,
-    'uint32'         : numpy.uint32,
-    'uint64'         : numpy.uint64,
-    'int8'           : numpy.int8,
-    'int16'          : numpy.int16,
-    'int32'          : numpy.int32,
-    'int64'          : numpy.int64,
-    'float16'        : numpy.float16,
-    'float32'        : numpy.float32,
-    'float64'        : numpy.float64,
-    'ceil_div'       : lambda a, b: (a + b - 1) // b,
-    'max_num_threads': max_num_threads
+    'unroll'           : range,
+    'vectorize'        : range,
+    'parallel'         : range,
+    'const_range'      : range,
+    'bind'             : bind,
+    'allocate'         : allocate,
+    'output_tensor'    : allocate,
+    'sqrt'             : numpy.sqrt,
+    'rsqrt'            : rsqrt,
+    'log'              : numpy.log,
+    'tanh'             : numpy.tanh,
+    'power'            : numpy.power,
+    'exp'              : numpy.exp,
+    'sigmoid'          : sigmoid,
+    'popcount'         : popcount,
+    'likely'           : lambda cond: cond,
+    'uint8'            : numpy.uint8,
+    'uint16'           : numpy.uint16,
+    'uint32'           : numpy.uint32,
+    'uint64'           : numpy.uint64,
+    'int8'             : numpy.int8,
+    'int16'            : numpy.int16,
+    'int32'            : numpy.int32,
+    'int64'            : numpy.int64,
+    'float16'          : numpy.float16,
+    'float32'          : numpy.float32,
+    'float64'          : numpy.float64,
+    'ceil_div'         : lambda a, b: (a + b - 1) // b,
+    'max_num_threads'  : max_num_threads,
+    'tvm_assert_bound' : tvm_assert_bound
 }
 
 

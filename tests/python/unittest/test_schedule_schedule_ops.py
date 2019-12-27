@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 import numpy as np
+from util import check_assert_bound
 
 def test_schedule0():
     m = tvm.var('m')
@@ -67,7 +68,10 @@ def test_schedule_scan():
     s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + x[t, i])
     res = tvm.scan(s_init, s_update, s_state)
 
-    assert tuple(res.shape) == (m, n)
+    assert len(res.shape) == 2
+    check_assert_bound(res.shape[0], m, 0, m)
+    check_assert_bound(res.shape[1], n, 0, n)
+
     s = tvm.create_schedule(res.op)
     s = s.normalize()
     ir = tvm.lower(s, [s_state], simple_mode=True)

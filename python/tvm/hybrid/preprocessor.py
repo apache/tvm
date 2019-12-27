@@ -63,7 +63,7 @@ class PyVariableUsage(ast.NodeVisitor):
         _internal_assert(func_id in list(HYBRID_GLOBALS.keys()) + \
                          ['range', 'max', 'min', 'len'] + \
                          list(self.symbols.keys()), \
-                         "Function call id not in intrinsics' list")
+                         "Function call id " + func_id + " not in intrinsics' list")
         for elem in node.args:
             self.visit(elem)
 
