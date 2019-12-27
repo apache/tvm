@@ -417,6 +417,26 @@ def test_any_global_pool2d():
     verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any(), 4),
                       "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 1, 1, 4))
 
+def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.split(data, indices_or_sections, axis)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        for ret, ref_ret in zip(result, ref_out_shape):
+            assert ret.asnumpy().shape == ref_ret, \
+                "Shape mismatch: expect %s but got %s." % (str(ref_ret), str(ret.asnumpy().shape))
+
+def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
+    verify_any_split((relay.Any(), 4), 2, 0, (2, 4), [(1, 4), (1, 4)])
+    verify_any_split((relay.Any(), 4), 3, 0, (12, 4), [(4, 4), (4, 4), (4, 4)])
+    verify_any_split((relay.Any(), 4), (1, 4, 8), 0, (12, 4), [(1, 4), (3, 4), (4, 4)])
+
 def test_any_batch_flatten():
     mod = relay.Module()
     dtype = "float32"

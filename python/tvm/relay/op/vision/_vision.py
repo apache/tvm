@@ -22,6 +22,7 @@ import topi
 from topi.util import get_const_int, get_const_float, get_float_tuple
 from .. import op as reg
 from ..op import OpPattern
+from ....hybrid import script
 
 
 @reg.register_schedule("vision.multibox_prior")
@@ -119,3 +120,46 @@ def compute_nms(attrs, inputs, _, target):
 
 
 reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
+
+@script
+def _get_valid_counts_shape_func(data_shape):
+    valid_counts_shape = output_tensor((1,), "int64")
+    out_tensor_shape = output_tensor((data_shape.shape[0],), "int64")
+    out_indices_shape = output_tensor((2,), "int64")
+
+    valid_counts_shape[0] = data_shape[0]
+    for i in const_range(data_shape.shape[0]):
+        out_tensor_shape[i] = data_shape[i]
+    out_indices_shape[0] = data_shape[0]
+    out_indices_shape[1] = data_shape[1]
+
+    return valid_counts_shape, out_tensor_shape, out_indices_shape
+
+@reg.register_shape_func("vision.get_valid_counts", False)
+def get_valid_counts_shape_func(attrs, inputs, _):
+    """
+    Shape function for get_valid_counts op.
+    """
+    return _get_valid_counts_shape_func(inputs[0])
+
+@script
+def _nms_shape_func(data_shape):
+    out_shape = output_tensor((2,), "int64")
+    count_shape = output_tensor((2,), "int64")
+
+    out_shape[0] = data_shape[0]
+    out_shape[1] = data_shape[1]
+    count_shape[0] = data_shape[0]
+    count_shape[1] = int64(1)
+    return out_shape, count_shape
+
+@reg.register_shape_func("vision.non_max_suppression", False)
+def nms_shape_func(attrs, inputs, _):
+    """
+    Shape function for nms op.
+    """
+    if attrs.return_indices:
+        return _nms_shape_func(inputs[0])
+    else:
+        return [inputs[0]]
+
