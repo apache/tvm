@@ -156,7 +156,7 @@ class RedisDatabase(Database):
         Examples
         --------
         get records for a target
-        >>> db.filter(lambda inp, resulst: "cuda" in inp.target.keys)
+        >>> db.filter(lambda inp, results: "cuda" in inp.target.keys)
         get records with errors
         >>> db.filter(lambda inp, results: any(r.error_no != 0 for r in results))
         """
