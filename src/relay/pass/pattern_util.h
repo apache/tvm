@@ -200,6 +200,28 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
 }
 
 /*!
+ * \brief Is single value tensor (scalar).
+ * \param expr The expr.
+ * \return True if single value tensor.
+ */
+inline bool IsScalar(const Expr& expr) {
+  if (auto tensor_type = expr->checked_type().as<TensorTypeNode>()) {
+    for (auto dim_index_expr : tensor_type->shape) {
+      if (auto dim_index = dim_index_expr.as<IntImm>()) {
+        if (dim_index->value != 1) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
+/*!
  * \brief Create a Constant with a scalar
  *
  * \param dtype The data type.
