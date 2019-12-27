@@ -77,6 +77,7 @@ This level enables typical convnet models.
    tvm.relay.nn.global_max_pool2d
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
+   tvm.relay.nn.upsampling3d
    tvm.relay.nn.batch_flatten
    tvm.relay.nn.pad
    tvm.relay.nn.lrn
@@ -254,6 +255,7 @@ Level 2 Definitions
 .. autofunction:: tvm.relay.nn.global_max_pool2d
 .. autofunction:: tvm.relay.nn.global_avg_pool2d
 .. autofunction:: tvm.relay.nn.upsampling
+.. autofunction:: tvm.relay.nn.upsampling3d
 .. autofunction:: tvm.relay.nn.batch_flatten
 .. autofunction:: tvm.relay.nn.pad
 .. autofunction:: tvm.relay.nn.lrn
