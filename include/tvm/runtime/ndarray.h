@@ -118,7 +118,7 @@ class NDArray {
    * \note The copy may happen asynchrously if it involves a GPU context.
    *       TVMSynchronize is necessary.
    */
-  inline void CopyFrom(DLTensor* other);
+  inline void CopyFrom(const DLTensor* other);
   inline void CopyFrom(const NDArray& other);
   /*!
    * \brief Copy data content into another array.
@@ -188,7 +188,7 @@ class NDArray {
    * \param stream The stream used in copy.
    */
   TVM_DLL static void CopyFromTo(
-      DLTensor* from, DLTensor* to, TVMStreamHandle stream = nullptr);
+      const DLTensor* from, DLTensor* to, TVMStreamHandle stream = nullptr);
 
   TVM_DLL std::vector<int64_t> Shape() const;
 
@@ -228,7 +228,7 @@ struct array_type_info<NDArray> {
  * \param strm The outpu stream
  * \param tensor The tensor to be saved.
  */
-inline bool SaveDLTensor(dmlc::Stream* strm, DLTensor* tensor);
+inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
 
 /*!
  * \brief Reference counted Container object used to back NDArray.
@@ -369,7 +369,7 @@ inline size_t GetDataSize(const DLTensor& arr) {
   return size;
 }
 
-inline void NDArray::CopyFrom(DLTensor* other) {
+inline void NDArray::CopyFrom(const DLTensor* other) {
   CHECK(data_ != nullptr);
   CopyFromTo(other, &(data_->dl_tensor));
 }
@@ -413,7 +413,7 @@ inline const DLTensor* NDArray::operator->() const {
 constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
 
 inline bool SaveDLTensor(dmlc::Stream* strm,
-                         DLTensor* tensor) {
+                         const DLTensor* tensor) {
   uint64_t header = kTVMNDArrayMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
@@ -451,7 +451,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm,
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
     CHECK_EQ(TVMArrayCopyToBytes(
-        tensor, dmlc::BeginPtr(bytes), data_byte_size), 0)
+        const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size), 0)
         << TVMGetLastError();
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
@@ -462,7 +462,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm,
 }
 
 inline void NDArray::Save(dmlc::Stream* strm) const {
-  SaveDLTensor(strm, const_cast<DLTensor*>(operator->()));
+  SaveDLTensor(strm, operator->());
 }
 
 inline bool NDArray::Load(dmlc::Stream* strm) {
