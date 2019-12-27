@@ -334,9 +334,14 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
     def _trilinear(*indices):
         n, c, z, y, x, cc = _get_indices(*indices)
 
-        in_z = z_ratio * z
-        in_y = y_ratio * y
-        in_x = x_ratio * x
+        if coordinate_transformation_mode == "half_pixel":
+            in_z = z_ratio * (z + 0.5) - 0.5
+            in_y = y_ratio * (y + 0.5) - 0.5
+            in_x = x_ratio * (x + 0.5) - 0.5
+        else:
+            in_z = z_ratio * z
+            in_y = y_ratio * y
+            in_x = x_ratio * x
 
         zint = tvm.floor(in_z).astype('int32')
         zfract = in_z - tvm.floor(in_z)
