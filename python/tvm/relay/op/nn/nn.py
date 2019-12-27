@@ -806,7 +806,7 @@ def upsampling3d(data,
         Layout of the input.
 
     method : str, optional
-        Scale method to used [nearest_neighbor, bilinear, bicubic].
+        Scale method to used [nearest_neighbor, trilinear].
 
     coordinate_transformation_mode: string, optional
         Describes how to transform the coordinate in the resized tensor

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals, too-many-nested-blocks
-"""Trilinear 3D Scale in python"""
+"""Trilinear 3D resize in python"""
 import math
 import numpy as np
 
