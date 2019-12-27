@@ -110,7 +110,7 @@ def max_num_threads(allow_none=True):
     return target.current_target(allow_none).max_num_threads
 
 
-def tvm_assert_bound(value, lb=None, ub=None):
+def tvm_assert_bound(value, lower=None, upper=None): #pylint: disable=unused-argument
     """
     Provide lower bound and upper bound for the value.
     For now we simply return the value
@@ -119,9 +119,9 @@ def tvm_assert_bound(value, lb=None, ub=None):
     ----------
     value: Expr
         The bounded value
-    lb: Expr
+    lower: Expr
         lower bound (inclusive)
-    ub: Expr
+    upper: Expr
         upper bound (inclusive)
 
     Returns

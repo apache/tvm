@@ -170,4 +170,3 @@ def tvm_assert_bound(func_id, args):
     elif n == 2:
         return _make._OpAssertBound(args[0], args[1], None)
     return _make._OpAssertBound(*args)
-
