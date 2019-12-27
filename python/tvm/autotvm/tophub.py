@@ -223,7 +223,7 @@ def load_reference_log(backend, model, workload_name, template_key):
                 if model == inp.target.model:
                     find = True
                     break
-            # if device model is not find, use the device model with the most tuned worklaods
+            # if device model is not find, use the device model with the most tuned workloads
             if not find and counts:
                 model = max(counts.items(), key=lambda k: k[1])[0]
 
