@@ -50,6 +50,7 @@ Expr RemoveIntrinExpr(Expr expr) {
 
 LoweredFunc RemoveIntrin(LoweredFunc f) {
   auto n = make_node<LoweredFuncNode>(*f.operator->());
+  LOG(INFO) << n->body;
   n->body = RemoveIntrinStmt(n->body);
   return LoweredFunc(n);
 }
