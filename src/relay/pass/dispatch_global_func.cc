@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file dispatch_global_func.cc
+ * 
  * \brief API for dispatch global function with dynamic input shape.
  */
 
