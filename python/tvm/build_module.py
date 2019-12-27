@@ -292,9 +292,16 @@ def get_binds(args, compact=False, binds=None):
     binds = {} if binds is None else binds.copy()
     cfg = current_build_config()
     arg_list = []
+
+    def is_var(idx):
+        if isinstance(idx, expr.Var) or \
+                (isinstance(idx, expr.Call) and idx.name == "tvm_assert_bound"):
+            return True
+        return False
+
     for x in args:
         if isinstance(x, tensor.Tensor):
-            any_dim = any(isinstance(i, expr.Var) for i in x.shape)
+            any_dim = any(is_var(i) for i in x.shape)
             buffer_type = "auto_broadcast" if any_dim and not compact else ""
             if x not in binds:
                 buf = api.decl_buffer(x.shape,
