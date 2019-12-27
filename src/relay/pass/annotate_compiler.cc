@@ -45,7 +45,7 @@ class AnnotateCompilerWrapper : public ExprMutator {
     Call call = Downcast<Call>(new_e);
     static auto fannotate = Op::GetAttr<FTVMAnnotateCompiler>("FTVMAnnotateCompiler");
     Op op = Downcast<Op>(call->op);
-    CHECK(op.operator->());
+    CHECK(op.defined());
 
     if (fannotate.count(op)) {
       bool external = fannotate[op](call->attrs, call->args, compiler_);
@@ -66,7 +66,7 @@ class AnnotateCompilerWrapper : public ExprMutator {
         return end;
       }
     } else {
-      LOG(WARNING) << op.operator->()->name << " in " << compiler_ << " is not registered";
+      LOG(WARNING) << op->name << " in " << compiler_ << " is not registered";
     }
     return new_e;
   }

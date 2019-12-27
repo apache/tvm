@@ -18,7 +18,7 @@
  */
 
 /*
- * \file src/relay/pass/partition.cc
+ * \file src/relay/pass/partition_graph.cc
  *
  * \brief Partition an input function into multiple functions according based
  * on the inserted annotation nodes (i.e. compiler_begin and compiler_end).
@@ -45,6 +45,11 @@ namespace tvm {
 namespace relay {
 namespace partitioning {
 
+// Cache compiler_begin and compiler_end annotation ops for equivalence check to
+// reduce registry lookup overhead.
+static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
+static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
+
 /*!
  * \brief The subgraph properties for partitioning.
  */
@@ -66,12 +71,12 @@ struct Subgraph {
 class AnnotationChecker : public ExprVisitor {
  public:
   bool Check() {
-    if (!this->found_start && !this->found_end) {
+    if (!found_start_ && !found_end_) {
       LOG(WARNING) << "No compiler annotation found";
-    } else if (!this->found_start) {
+    } else if (!found_start_) {
       LOG(ERROR) << "compiler_begin annotation is missing";
       return false;
-    } else if (!this->found_end) {
+    } else if (!found_end_) {
       LOG(ERROR) << "compiler_end annotation is missing";
       return false;
     }
@@ -82,16 +87,16 @@ class AnnotationChecker : public ExprVisitor {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return;
-    } else if (GetRef<Op>(op_node) == Op::Get("annotation.compiler_begin")) {
-      this->found_start = true;
-    } else if (GetRef<Op>(op_node) == Op::Get("annotation.compiler_end")) {
-      this->found_end = true;
+    } else if (call->op == compiler_begin_op) {
+      found_start_ = true;
+    } else if (call->op == compiler_end_op) {
+      found_end_ = true;
     }
   }
 
  private:
-  bool found_start = false;
-  bool found_end = false;
+  bool found_start_{false};
+  bool found_end_{false};
 };
 
 /*! \brief This class partitions the expr labeled with begin and end annoations
@@ -104,7 +109,7 @@ class AnnotationChecker : public ExprVisitor {
  */
 class Partitioner : public ExprMutator {
  public:
-  Subgraph* GetSubgraph(const Expr node) {
+  std::shared_ptr<Subgraph> GetSubgraph(const Expr node) {
     for (auto candidate : this->subgraphs_) {
       if (candidate->nodes.find(node) != candidate->nodes.end()) {
         return candidate;
@@ -113,7 +118,8 @@ class Partitioner : public ExprMutator {
     return nullptr;
   }
 
-  void MergeSubgraph(Subgraph* subgraph1, Subgraph* subgraph2) {
+  void MergeSubgraph(std::shared_ptr<Subgraph> subgraph1,
+                     std::shared_ptr<Subgraph> subgraph2) {
     if (subgraph1 == subgraph2) {
       return;
     }
@@ -126,7 +132,7 @@ class Partitioner : public ExprMutator {
     this->subgraphs_.erase(subgraph2);
   }
 
-  void AddToSubgraph(Subgraph* subgraph, const Expr expr) {
+  void AddToSubgraph(std::shared_ptr<Subgraph> subgraph, const Expr expr) {
     auto subgraph2 = GetSubgraph(expr);
     if (subgraph2) {
       MergeSubgraph(subgraph, subgraph2);
@@ -147,7 +153,7 @@ class Partitioner : public ExprMutator {
         }
       }
       return ExprMutator::VisitExpr_(call);
-    } else if (GetRef<Op>(op_node) == Op::Get("annotation.compiler_begin")) {
+    } else if (call->op == compiler_begin_op) {
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
@@ -168,29 +174,31 @@ class Partitioner : public ExprMutator {
       subgraph->args.push_back({var, input_expr});
       return std::move(var);
     } else {
-      CHECK(GetRef<Op>(op_node) == Op::Get("annotation.compiler_end"));
+      CHECK_EQ(call->op, compiler_end_op);
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
 
-      // Check if the argument is already belonged to an exist subgraph
+      // Check if the argument already belongs to an exist subgraph
       auto subgraph = GetSubgraph(call->args[0]);
       if (!subgraph) {
-        auto ret = this->subgraphs_.emplace(new Subgraph());
+        auto ret = this->subgraphs_.emplace(std::make_shared<Subgraph>());
         subgraph = *ret.first;
         subgraph->nodes.insert(call->args[0]);
         subgraph->id = this->subgraph_id_++;
       }
       subgraph->nodes.insert(GetRef<Call>(call));
 
-      // Traverse towarding to subgraph inputs.
+      // Traverse subgraph inputs.
       auto input = VisitExpr(call->args[0]);
       Array<Var> params;
       Array<Expr> args;
 
       // The subgraph may be merged so we need to update it again.
       subgraph = GetSubgraph(GetRef<Call>(call));
+      CHECK(subgraph);
+
       for (auto pair : subgraph->args) {
         params.push_back(pair.first);
         args.push_back(pair.second);
@@ -323,7 +331,7 @@ class Partitioner : public ExprMutator {
  private:
   int var_id_{0};
   int subgraph_id_{0};
-  std::unordered_set<Subgraph*> subgraphs_;
+  std::unordered_set<std::shared_ptr<Subgraph>> subgraphs_;
 };
 
 /*!

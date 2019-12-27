@@ -61,12 +61,12 @@ struct CastHintAttrs : public tvm::AttrsNode<CastHintAttrs> {
  * \brief Options for the operators used to annotate a compiler.
  */
 struct CompilerAttrs : public tvm::AttrsNode<CompilerAttrs> {
-  /*! \brief The 3rd party compiler for code generation. */
+  /*! \brief A 3rd party compiler for code generation. */
   std::string compiler;
 
   TVM_DECLARE_ATTRS(CompilerAttrs, "relay.attrs.CompilerAttrs") {
     TVM_ATTR_FIELD(compiler)
-      .describe("The 3rd compiler used for code generation.");
+      .describe("A 3rd compiler used for code generation.");
   }
 };
 

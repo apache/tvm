@@ -242,8 +242,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // Finally if the operator position is not a call node we will
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
-    const OpNode* opnode = call->op.as<OpNode>();
-    if (opnode != nullptr && call->op != Op::Get("nn.batch_norm")) {
+    if (const OpNode* opnode = call->op.as<OpNode>()) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
     } else {
       this->Update(call->op, node, kOpaque);

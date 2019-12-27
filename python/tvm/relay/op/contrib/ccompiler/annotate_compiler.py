@@ -18,11 +18,6 @@
 """C/C++ compiler supported operators."""
 from __future__ import absolute_import
 
-def conv2d(attrs, args):
-    """Check if the external C source codegen should be used.
-    """
-    return False
-
 def subtract(attrs, args):
     """Check if the external C source codegen should be used.
     """
