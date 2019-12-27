@@ -51,7 +51,7 @@ class XGBoostCostModel(CostModel):
                                 'itervar' is more accurate but 'knob' is much faster.
                                 There are some constraints on 'itervar', if you meet
                                 problems with feature extraction when using 'itervar',
-                                you can swith to 'knob'.
+                                you can switch to 'knob'.
 
         For cross-shape tuning (e.g. many convolutions with different shapes),
                                'itervar' and 'curve' has better transferability,
