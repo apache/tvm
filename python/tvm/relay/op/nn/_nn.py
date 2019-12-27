@@ -582,6 +582,25 @@ def compute_upsampling(attrs, inputs, out_dtype, target):
     align_corners = attrs.align_corners
     return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
 
+# upsampling3d
+reg.register_schedule("nn.upsampling3d", reg.schedule_injective)
+
+def schedule_upsampling3d(_, outs, target):
+    """Schedule definition of upsampling3d"""
+    with target:
+        return topi.generic.schedule_injective(outs)
+
+@reg.register_compute("nn.upsampling3d")
+def compute_upsampling3d(attrs, inputs, out_dtype, target):
+    scale_d = attrs.scale_d
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
+    layout = attrs.layout
+    method = attrs.method
+    coordinate_transformation_mode = attrs.coordinate_transformation_mode
+    return [topi.nn.upsampling3d(inputs[0], scale_d, scale_h, scale_w, layout, method,\
+        coordinate_transformation_mode)]
+
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
 

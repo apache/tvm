@@ -53,3 +53,45 @@ def upsampling_python(data, scale, layout='NCHW'):
                 output_np[b, :, :, c] = upsample_nearest(data[b, :, :, c], scale)
         return output_np
     raise ValueError("not support this layout {} yet".format(layout))
+
+def upsample3d_nearest(arr, scale):
+    """ Populate the array by scale factor"""
+    d, h, w = arr.shape
+    out_d = int(round(d * scale[0]))
+    out_h = int(round(h * scale[1]))
+    out_w = int(round(w * scale[2]))
+    out = np.empty((out_d, out_h, out_w))
+    for z in range(out_d):
+        for y in range(out_h):
+            for x in range(out_w):
+                in_z = math.floor(z / scale[0])
+                in_y = math.floor(y / scale[1])
+                in_x = math.floor(x / scale[2])
+                out[z, y, x] = arr[in_z, in_y, in_x]
+    return out
+
+def upsampling3d_python(data, scale, layout='NCDHW'):
+    """ Python version of 3D scaling using nearest neighbour """
+
+    ishape = data.shape
+    if layout == 'NCDHW':
+        oshape = (ishape[0], ishape[1],
+                  int(round(ishape[2]*scale[0])),
+                  int(round(ishape[3]*scale[1])),
+                  int(round(ishape[4]*scale[2])))
+        output_np = np.zeros(oshape, dtype=data.dtype)
+        for b in range(oshape[0]):
+            for c in range(oshape[1]):
+                output_np[b, c, :, :, :] = upsample3d_nearest(data[b, c, :, :, :], scale)
+        return output_np
+    if layout == 'NDHWC':
+        oshape = (ishape[0],
+                  int(round(ishape[1]*scale[0])),
+                  int(round(ishape[2]*scale[1])),
+                  int(round(ishape[3]*scale[2])), ishape[4])
+        output_np = np.zeros(oshape, dtype=data.dtype)
+        for b in range(oshape[0]):
+            for c in range(oshape[4]):
+                output_np[b, :, :, :, c] = upsample3d_nearest(data[b, :, :, :, c], scale)
+        return output_np
+    raise ValueError("not support this layout {} yet".format(layout))

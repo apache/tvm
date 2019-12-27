@@ -119,6 +119,11 @@ class TransformMemorizer : public NodeRef {
     Expr input_expr = raw;
     Layout new_src_layout = src_layout;
     if (src_layout.ndim_primal() < dst_layout.ndim_primal()) {
+      // If scalar, then no need of layout transformation as scalar can be broadcasted easily even
+      // if the other operand has a transformed layout.
+      if (IsScalar(input_expr)) {
+        return raw;
+      }
       int num_new_axis = dst_layout.ndim_primal() - src_layout.ndim_primal();
       new_src_layout = src_layout.ExpandPrimal(dst_layout);
       input_expr = MakeExpandDims(input_expr, 0, num_new_axis);
