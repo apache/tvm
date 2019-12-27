@@ -211,13 +211,13 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
 
     return tvm.compute(output_shape, compute_func, name='resize', tag=tag.INJECTIVE)
 
-def resize3d(data, size, layout="NCDHW", method="nearest_neighbor", align_corners=True,\
-             out_dtype=None):
+def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
+             coordinate_transformation_mode="align_corners", out_dtype=None):
     """Perform resize operation on the data.
 
     Parameters
     ----------
-    inputs : tvm.Tensor
+    inputs: tvm.Tensor
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
@@ -228,8 +228,11 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor", align_corner
     layout: string, optional
         "NCDHW", "NDHWC", or "NCDHWc".
 
-    align_corners: Boolean, optional
-        To preserve the values at the corner pixels.
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
 
     method: {"trilinear", "nearest_neighbor"}
         Method to be used for resizing.
@@ -258,14 +261,17 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor", align_corner
         in_n, in_c, in_d, in_h, in_w, in_cc = data.shape
         output_shape = [in_n, in_c, size[0], size[1], size[2], in_cc]
 
-    if align_corners:
+    if coordinate_transformation_mode == "align_corners":
         z_ratio = (in_d - 1).astype('float') / (size[0] - 1)
         y_ratio = (in_h - 1).astype('float') / (size[1] - 1)
         x_ratio = (in_w - 1).astype('float') / (size[2] - 1)
-    else:
+    elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
         z_ratio = (in_d).astype('float') / (size[0])
         y_ratio = (in_h).astype('float') / (size[1])
         x_ratio = (in_w).astype('float') / (size[2])
+    else:
+        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+            coordinate_transformation_mode))
 
     def _get_pixel(n, c, z, y, x, cc):
         z = tvm.max(tvm.min(z, in_d - 1), 0)
@@ -305,16 +311,19 @@ def resize3d(data, size, layout="NCDHW", method="nearest_neighbor", align_corner
         in_y = y_ratio * y
         in_x = x_ratio * x
 
-        if align_corners:
+        if coordinate_transformation_mode == "align_corners":
             zint = tvm.round(in_z).astype('int32')
             yint = tvm.round(in_y).astype('int32')
             xint = tvm.round(in_x).astype('int32')
-        else:
+        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
             # Add epsilon to floor to prevent gpu rounding errors.
             epsilon = 1e-5
             zint = tvm.floor(in_z + epsilon).astype('int32')
             yint = tvm.floor(in_y + epsilon).astype('int32')
             xint = tvm.floor(in_x + epsilon).astype('int32')
+        else:
+            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+                coordinate_transformation_mode))
 
         return _cast_output(_get_pixel(n, c, zint, yint, xint, cc))
 

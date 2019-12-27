@@ -66,7 +66,7 @@ def upsampling(data, scale_h, scale_w, layout="NCHW", method='nearest_neighbor',
 
 
 def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='nearest_neighbor',
-                 align_corners=False):
+                 coordinate_transformation_mode="half_pixel"):
     """Perform upsampling on the data.
        Nearest neighbor and bilinear upsampling are supported.
 
@@ -92,6 +92,12 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
     method : {"trilinear", "nearest_neighbor"}
         Method to be used for upsampling.
 
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
     Returns
     -------
     output : tvm.Tensor
@@ -110,5 +116,5 @@ def upsampling3d(data, scale_d, scale_h, scale_w, layout="NCDHW", method='neares
 
     else:
         raise ValueError("not support this layout {} yet".format(layout))
-    return topi.image.resize3d(data, out_shape, layout=layout,
-                               method=method, align_corners=align_corners)
+    return topi.image.resize3d(data, out_shape, layout=layout, method=method,
+                               coordinate_transformation_mode=coordinate_transformation_mode)

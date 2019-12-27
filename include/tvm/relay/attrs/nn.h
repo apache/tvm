@@ -596,7 +596,7 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
   double scale_w;
   std::string layout;
   std::string method;
-  bool align_corners;
+  std::string coordinate_transformation_mode;
 
   TVM_DECLARE_ATTRS(UpSampling3DAttrs, "relay.attrs.UpSampling3DAttrs") {
     TVM_ATTR_FIELD(scale_d)
@@ -614,8 +614,11 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
         .describe("Specify the mode to use for scaling."
                   "nearest_neighbor -  Nearest Neighbor"
                   "trilinear - Trilinear Interpolation");
-    TVM_ATTR_FIELD(align_corners).set_default(false)
-        .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(coordinate_transformation_mode).set_default("half_pixel")
+        .describe("Describes how to transform the coordinate in the resized tensor"
+                  "to the coordinate in the original tensor."
+                  "Refer to the ONNX Resize operator specification for details"
+                  "Available options are half_pixel, align_corners and asymmetric");
   }
 };
 

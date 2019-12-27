@@ -19,7 +19,8 @@
 import math
 import numpy as np
 
-def trilinear_resize3d_python(data_in, out_size, layout, align_corners=True):
+def trilinear_resize3d_python(data_in, out_size, layout,
+                              coordinate_transformation_mode="align_corners"):
     """ Trilinear 3d scaling using python"""
     (new_d, new_h, new_w) = out_size
 
@@ -30,14 +31,17 @@ def trilinear_resize3d_python(data_in, out_size, layout, align_corners=True):
         (batch, channel, d, h, w) = data_in.shape
         data_out = np.ones((batch, channel, new_d, new_h, new_w))
 
-    if align_corners:
+    if coordinate_transformation_mode == "align_corners":
         depth_scale = np.float32(d-1) / np.float32(out_size[0]-1)
         height_scale = np.float32(h-1) / np.float32(out_size[1]-1)
         width_scale = np.float32(w-1) / np.float32(out_size[2]-1)
-    else:
+    elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
         depth_scale = np.float32(d) / np.float32(out_size[0])
         height_scale = np.float32(h) / np.float32(out_size[1])
         width_scale = np.float32(w) / np.float32(out_size[2])
+    else:
+        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+            coordinate_transformation_mode))
 
     for b in range(batch):
         for i in range(channel):

@@ -556,9 +556,9 @@ def compute_upsampling3d(attrs, inputs, out_dtype, target):
     scale_w = attrs.scale_w
     layout = attrs.layout
     method = attrs.method
-    align_corners = attrs.align_corners
+    coordinate_transformation_mode = attrs.coordinate_transformation_mode
     return [topi.nn.upsampling3d(inputs[0], scale_d, scale_h, scale_w, layout, method,\
-        align_corners)]
+        coordinate_transformation_mode)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)

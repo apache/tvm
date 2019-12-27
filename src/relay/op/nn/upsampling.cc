@@ -181,14 +181,14 @@ Expr MakeUpSampling3D(Expr data,
                       double scale_w,
                       std::string layout,
                       std::string method,
-                      bool align_corners) {
+                      std::string coordinate_transformation_mode) {
   auto attrs = make_node<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->scale_d = scale_d;
   attrs->scale_h = scale_h;
   attrs->scale_w = scale_w;
-  attrs->align_corners = align_corners;
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   static const Op& op = Op::Get("nn.upsampling3d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }

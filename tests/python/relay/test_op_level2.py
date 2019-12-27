@@ -462,7 +462,6 @@ def test_upsampling3d_infer_type():
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
 
-    "method=\"TRILINEAR\"" in y.astext()
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
                                                 tvm.expr.Cast("int32", tvm.round(h*scale)),
@@ -799,7 +798,7 @@ def test_upsampling():
     _test_upsampling("NHWC", "nearest_neighbor")
     _test_upsampling("NHWC", "bilinear", True)
 
-def _test_upsampling3d(layout, method, align_corners=False):
+def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixel"):
     n, c, d, h, w = tvm.var("n"), 8, 16, 16, 16
     scale_d = 2.0
     scale_h = 2.0
@@ -815,13 +814,16 @@ def _test_upsampling3d(layout, method, align_corners=False):
     ishape, oshape = get_shape()
     x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
     y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
-                              layout=layout, method=method, align_corners=align_corners)
+                              layout=layout, method=method,\
+                              coordinate_transformation_mode=coordinate_transformation_mode)
+
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
     dshape = (1,) + ishape
     x = relay.var("x", shape=dshape)
     y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
-                            layout=layout, method=method, align_corners=align_corners)
+                            layout=layout, method=method,\
+                            coordinate_transformation_mode=coordinate_transformation_mode)
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
     if method == "nearest_neighbor":
@@ -837,9 +839,9 @@ def _test_upsampling3d(layout, method, align_corners=False):
 
 def test_upsampling3d():
     _test_upsampling3d("NCDHW", "nearest_neighbor")
-    _test_upsampling3d("NCDHW", "trilinear", True)
+    _test_upsampling3d("NCDHW", "trilinear", "align_corners")
     _test_upsampling3d("NDHWC", "nearest_neighbor")
-    _test_upsampling3d("NDHWC", "trilinear", True)
+    _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 def test_conv2d_int8_intrinsics():
     def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):

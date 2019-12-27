@@ -104,11 +104,13 @@ def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
 
-    B = topi.nn.upsampling3d(A, scale_d, scale_h, scale_w, layout=layout, method=method, align_corners=False)
+    B = topi.nn.upsampling3d(A, scale_d, scale_h, scale_w, layout=layout, method=method,
+                             coordinate_transformation_mode="half_pixel")
 
     if method == "trilinear":
         out_size = (int(round(in_depth*scale_d)), int(round(in_height*scale_h)), int(round(in_width*scale_w)))
-        b_np = topi.testing.trilinear_resize3d_python(a_np, out_size, layout, align_corners=False)
+        b_np = topi.testing.trilinear_resize3d_python(a_np, out_size, layout,
+                                                      coordinate_transformation_mode="half_pixel")
     else:
         b_np = topi.testing.upsampling3d_python(a_np, (scale_d, scale_h, scale_w), layout)
 
@@ -146,7 +148,7 @@ def test_upsampling3d():
     verify_upsampling3d(2, 2, 32, 32, 32, 3.0, 3.0, 3.0, method="trilinear")
     verify_upsampling3d(1, 2, 11, 16, 6, 1.954545497894287, 2.0, 1.5, method="trilinear")
 
-    # trilinear - NHWC
+    # trilinear - NDHWC
     verify_upsampling3d(2, 2, 16, 16, 16, 2.0, 2.0, 2.0, layout="NDHWC", method="trilinear")
     verify_upsampling3d(2, 2, 32, 32, 32, 3.0, 3.0, 3.0, layout="NDHWC", method="trilinear")
     verify_upsampling3d(1, 2, 11, 16, 6, 1.954545497894287, 2.0, 1.5, layout="NDHWC", method="trilinear")
