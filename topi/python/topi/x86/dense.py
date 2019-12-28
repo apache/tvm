@@ -24,7 +24,7 @@ from tvm.contrib import cblas
 
 from .util import get_fp32_len
 from .. import generic, tag, nn
-from ..util import traverse_inline, get_const_tuple
+from ..util import traverse_inline, get_const_tuple, is_var
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
@@ -40,7 +40,7 @@ def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
     # Always use dense_nopack for dynamic input.
     # This is a temporary for CV models.
     # TODO(kevinthesun): use kernel dispatcher instead.
-    if isinstance(M, tvm.expr.Var):
+    if is_var(M):
         return _declaration_dense_nopack(cfg, data, weight, bias, out_dtype)
 
     # For small batch sizes, don't pack weight into cache-friendly layout
@@ -59,9 +59,9 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape) # batch, in_dim
     N, _ = get_const_tuple(weight.shape) # out_dim
     # create tuning space
-    cfg.define_split("tile_y", 32 if isinstance(M, tvm.expr.Var) else M, num_outputs=3)
-    cfg.define_split("tile_x", 32 if isinstance(N, tvm.expr.Var) else N, num_outputs=3)
-    cfg.define_split("tile_k", 32 if isinstance(K, tvm.expr.Var) else K, num_outputs=2)
+    cfg.define_split("tile_y", 32 if is_var(M) else M, num_outputs=3)
+    cfg.define_split("tile_x", 32 if is_var(N) else N, num_outputs=3)
+    cfg.define_split("tile_k", 32 if is_var(K) else K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_pack_config(cfg, M, N, K)
 
@@ -93,9 +93,9 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     # create tuning space
-    cfg.define_split("tile_y", 32 if isinstance(M, tvm.expr.Var) else M, num_outputs=2)
-    cfg.define_split("tile_x", 32 if isinstance(N, tvm.expr.Var) else N, num_outputs=2)
-    cfg.define_split("tile_k", 32 if isinstance(K, tvm.expr.Var) else K, num_outputs=2)
+    cfg.define_split("tile_y", 32 if is_var(M) else M, num_outputs=2)
+    cfg.define_split("tile_x", 32 if is_var(N) else N, num_outputs=2)
+    cfg.define_split("tile_k", 32 if is_var(K) else K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_nopack_config(cfg, M, N, K)
 
@@ -218,11 +218,11 @@ def _schedule_dense_nopack_template(cfg, s, C):
 
 def _default_dense_pack_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
-    if isinstance(M, tvm.expr.Var):
+    if is_var(M):
         M = 16
-    if isinstance(N, tvm.expr.Var):
+    if is_var(N):
         N = 16
-    if isinstance(K, tvm.expr.Var):
+    if is_var(K):
         K = 16
 
     vec_width = get_fp32_len()
@@ -255,11 +255,11 @@ def _default_dense_pack_config(cfg, M, N, K):
 
 def _default_dense_nopack_config(cfg, M, N, K):
     # Generate default schedule for dynamic shape.
-    if isinstance(M, tvm.expr.Var):
+    if is_var(M):
         M = 16
-    if isinstance(N, tvm.expr.Var):
+    if is_var(N):
         N = 16
-    if isinstance(K, tvm.expr.Var):
+    if is_var(K):
         K = 16
 
     vec_width = get_fp32_len()
