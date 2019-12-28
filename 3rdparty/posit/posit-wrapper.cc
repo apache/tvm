@@ -15,46 +15,46 @@ TVM_DLL uint32_t PositToUint32(sw::unum::posit<32, 2> in) {
   return static_cast<uint32_t>(in.get().to_ullong());
 }
 
-TVM_DLL extern "C" float Posit32es2ToFloat(uint32_t in) {
+extern "C" TVM_DLL float Posit32es2ToFloat(uint32_t in) {
   return Uint32ToPosit(in).operator float();
 }
 
-TVM_DLL extern "C" uint32_t FloatToPosit32es2(float in) {
+extern "C" TVM_DLL uint32_t FloatToPosit32es2(float in) {
   auto posit = sw::unum::posit<32, 2>(in);
   return PositToUint32(posit);
 }
 
 // TODO(gus) how wide should the input be?
-TVM_DLL extern "C" uint32_t IntToPosit32es2(int in) {
+extern "C" TVM_DLL uint32_t IntToPosit32es2(int in) {
   return PositToUint32(sw::unum::posit<32, 2>(in));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Add(uint32_t a, uint32_t b) {
+extern "C" TVM_DLL uint32_t Posit32es2Add(uint32_t a, uint32_t b) {
   return PositToUint32(Uint32ToPosit(a) + Uint32ToPosit(b));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Sub(uint32_t a, uint32_t b) {
+extern "C" TVM_DLL uint32_t Posit32es2Sub(uint32_t a, uint32_t b) {
   return PositToUint32(Uint32ToPosit(a) - Uint32ToPosit(b));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Mul(uint32_t a, uint32_t b) {
+extern "C" TVM_DLL uint32_t Posit32es2Mul(uint32_t a, uint32_t b) {
   return PositToUint32(Uint32ToPosit(a) * Uint32ToPosit(b));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Div(uint32_t a, uint32_t b) {
+extern "C" TVM_DLL uint32_t Posit32es2Div(uint32_t a, uint32_t b) {
   return PositToUint32(Uint32ToPosit(a) / Uint32ToPosit(b));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Max(uint32_t a, uint32_t b) {
+extern "C" TVM_DLL uint32_t Posit32es2Max(uint32_t a, uint32_t b) {
   auto a_p = Uint32ToPosit(a);
   auto b_p = Uint32ToPosit(b);
   return PositToUint32(a_p > b_p ? a_p : b_p);
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Sqrt(uint32_t a) {
+extern "C" TVM_DLL uint32_t Posit32es2Sqrt(uint32_t a) {
   return PositToUint32(sw::unum::sqrt(Uint32ToPosit(a)));
 }
 
-TVM_DLL extern "C" uint32_t Posit32es2Exp(uint32_t a) {
+extern "C" TVM_DLL uint32_t Posit32es2Exp(uint32_t a) {
   return PositToUint32(sw::unum::exp(Uint32ToPosit(a)));
 }
