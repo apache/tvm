@@ -107,6 +107,8 @@ def test_any_full():
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
     y = relay.var('y', shape=(1, 2), dtype="float32")
+    xx = x - relay.expr.const(3.0)
+    yy = y * relay.expr.const(5.0)
     z = relay.op.concatenate([x, y], axis=0)
     mod = relay.module.Module()
     mod["main"] = relay.Function([x, y], z)
