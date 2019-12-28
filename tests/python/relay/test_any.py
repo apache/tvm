@@ -422,9 +422,9 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.split(data, indices_or_sections, axis)
-    mod["main"] = relay.Function([data], y)
+    mod["main"] = relay.Function([data], y.astuple())
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
-    for kind in ["debug", "vm"]:
+    for kind in ["vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data_np)
         for ret, ref_ret in zip(result, ref_out_shape):
@@ -433,9 +433,7 @@ def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, r
 
 def test_any_split():
     verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
-    verify_any_split((relay.Any(), 4), 2, 0, (2, 4), [(1, 4), (1, 4)])
-    verify_any_split((relay.Any(), 4), 3, 0, (12, 4), [(4, 4), (4, 4), (4, 4)])
-    verify_any_split((relay.Any(), 4), (1, 4, 8), 0, (12, 4), [(1, 4), (3, 4), (4, 4)])
+    verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
 
 def test_any_batch_flatten():
     mod = relay.Module()
@@ -626,6 +624,7 @@ if __name__ == "__main__":
     test_any_reshape()
     test_any_take()
     test_any_tile()
+    test_any_split()
     test_any_shape_of()
     test_any_reduce()
     test_any_layout_transform()

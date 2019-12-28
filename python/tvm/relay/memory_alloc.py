@@ -180,26 +180,36 @@ class ManifestAllocPass(ExprMutator):
             #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()
 
             if is_dynamic:
-                assert isinstance(ret_type, ty.TensorType)
                 shape_func_ins = []
                 engine = compile_engine.get()
                 cfunc = engine.lower_shape_func(call.op, self.target_host)
                 input_states = cfunc.shape_func_param_states
 
                 is_inputs = []
+                input_pos = 0
                 for i, (arg, state) in enumerate(zip(new_args, input_states)):
                     state = int(state)
                     # Pass Shapes
                     if state == 2:
-                        sh_of = self.visit(self.shape_of(arg))
-                        shape_func_ins.append(
-                            scope.let("in_shape_{0}".format(i), sh_of))
+                        if isinstance(arg.type_annotation, ty.TupleType):
+                            for j in range(len(arg.type_annotation.fields)):
+                                let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), expr.TupleGetItem(arg, j))
+                                sh_of = self.visit(self.shape_of(let_in_arg))
+                                shape_func_ins.append(
+                                        scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                            input_pos += len(arg.type_annotation.fields)
+                        else:
+                            sh_of = self.visit(self.shape_of(arg))
+                            shape_func_ins.append(
+                                scope.let("in_shape_{0}".format(input_pos), sh_of))
+                            input_pos += 1
                         is_inputs.append(0)
                     # Pass Inputs
                     elif state == 1:
                         new_arg = self.visit(arg)
                         shape_func_ins.append(
-                            scope.let("in_shape_{0}".format(i), new_arg))
+                            scope.let("in_shape_{0}".format(input_pos), new_arg))
+                        input_pos += 1
                         is_inputs.append(1)
                     # TODO(@jroesch): handle 3rd case
                     else:
@@ -220,7 +230,11 @@ class ManifestAllocPass(ExprMutator):
                 scope.let("shape_func", shape_call)
 
                 out_types = []
-                out_types.append(call.checked_type)
+                if isinstance(ret_type, ty.TensorType):
+                    out_types.append(ret_type)
+                else:
+                   for ts_ty in ret_type.fields:
+                       out_types.append(ts_ty)
 
                 storages = []
                 for out_shape, out_type in zip(out_shapes, out_types):
@@ -242,9 +256,10 @@ class ManifestAllocPass(ExprMutator):
                     alloc = scope.let("out_{i}".format(i=i), alloc)
                     outs.append(alloc)
 
-                invoke = self.invoke_tvm(call.op, ins, expr.Tuple(outs))
+                tuple_outs = expr.Tuple(outs)
+                invoke = self.invoke_tvm(call.op, ins, tuple_outs)
                 scope.let("", invoke)
-                return outs[0]
+                return outs[0] if len(outs) == 1 else tuple_outs
             else:
                 view = LinearizeRetType(ret_type)
                 out_tys = view.unpack()

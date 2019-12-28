@@ -540,13 +540,15 @@ def _split_shape_func(data_shape, index, indices_or_sections, axis):
             else:
                 out[i] = data_shape[i]
     else:
-        start = 0
+        start = int64(0)
         if index > 0:
-            start = indices_or_sections[index - 1]
-        end = indices_or_sections[index]
+            start = int64(indices_or_sections[index - 1])
+        end = data_shape[axis]
+        if index < len(indices_or_sections):
+            end = int64(indices_or_sections[index])
         for i in const_range(data_shape.shape[0]):
             if i == axis:
-                out[i] = int64(end - start)
+                out[i] = end - start
             else:
                 out[i] = data_shape[i]
     return out
@@ -556,14 +558,14 @@ def split_shape_func(attrs, inputs, _):
     """
     Shape function for split op.
     """
-    if isinstance(attrs.indices_or_sections, (list, tuple)):
-        indices_or_sections = get_const_tuple(attrs.indices_or_sections)
-    else:
+    if isinstance(attrs.indices_or_sections, (int, tvm.expr.IntImm)):
         indices_or_sections = get_const_int(attrs.indices_or_sections)
+    else:
+        indices_or_sections = get_const_tuple(attrs.indices_or_sections)
 
     axis = get_const_int(attrs.axis)
 
-    num_out = indices_or_sections if isinstance(indices_or_sections, int) else len(indices_or_sections)
+    num_out = indices_or_sections if isinstance(indices_or_sections, int) else len(indices_or_sections) + 1
     if isinstance(indices_or_sections, int):
         indices_or_sections = [indices_or_sections]
     return [_split_shape_func(inputs[0],
