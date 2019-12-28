@@ -103,8 +103,13 @@ def get_pad_tuple(padding, kernel):
     """
     # compute the padding size
     if isinstance(padding, (tuple, list)):
-        pad_h = padding[0] * 2
-        pad_w = padding[1] * 2
+        if len(padding) == 2:
+            pad_h = padding[0] * 2
+            pad_w = padding[1] * 2
+        elif len(padding) == 4:
+            return  padding[0], padding[1], padding[2], padding[3]
+        else:
+            raise ValueError("Size of padding can only be 2 or 4")
     elif isinstance(padding, int):
         pad_h = pad_w = padding * 2
     elif padding == "VALID":
