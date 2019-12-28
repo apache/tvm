@@ -193,10 +193,11 @@ class ManifestAllocPass(ExprMutator):
                     if state == 2:
                         if isinstance(arg.type_annotation, ty.TupleType):
                             for j in range(len(arg.type_annotation.fields)):
-                                let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), expr.TupleGetItem(arg, j))
+                                let_in_arg = scope.let("in_arg_{0}".format(input_pos + j),
+                                                       expr.TupleGetItem(arg, j))
                                 sh_of = self.visit(self.shape_of(let_in_arg))
                                 shape_func_ins.append(
-                                        scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                                    scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                             input_pos += len(arg.type_annotation.fields)
                         else:
                             sh_of = self.visit(self.shape_of(arg))
@@ -233,8 +234,8 @@ class ManifestAllocPass(ExprMutator):
                 if isinstance(ret_type, ty.TensorType):
                     out_types.append(ret_type)
                 else:
-                   for ts_ty in ret_type.fields:
-                       out_types.append(ts_ty)
+                    for ts_ty in ret_type.fields:
+                        out_types.append(ts_ty)
 
                 storages = []
                 for out_shape, out_type in zip(out_shapes, out_types):
