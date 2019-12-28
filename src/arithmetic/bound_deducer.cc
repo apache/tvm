@@ -72,13 +72,13 @@ class BoundRemover : public IRMutator {
  public:
   Expr Do(Expr e) {
     remove_bounded_ = true;
-    return Mutate(ir::Simplify(e));
+    return IRMutator::Mutate(ir::Simplify(e));
   }
 
   Expr Undo(Expr e) {
     CHECK(remove_bounded_) << "Call Do(expr) first.";
     remove_bounded_ = false;
-    return Mutate(e);
+    return IRMutator::Mutate(e);
   }
 
   Expr Mutate_(const Call* op, const Expr& e) final {
@@ -120,7 +120,7 @@ class BoundDeducer: public IRVisitor {
 
   void Visit(const NodeRef& e) final {
     if (!success_) return;
-    if (e.get() == path_[iter_++]) {
+    if (iter_ < path_.size() && e.get() == path_[iter_++]) {
       IRVisitor::Visit(e);
     } else {
       success_ = false;
