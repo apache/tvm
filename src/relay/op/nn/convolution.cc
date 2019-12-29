@@ -249,10 +249,22 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   }
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+  auto pad_h = param->padding[0];
+  auto pad_w = param->padding[1];
+  if (param->padding.size() == 2) {
+    pad_h *= 2;
+    pad_w *= 2;
+  } else if (param->padding.size() == 4) {
+    pad_h += param->padding[2];
+    pad_w += param->padding[3];
+  } else {
+    CHECK_EQ(param->padding.size(), 4) << " Padding should be 2 or 4, but got "
+        << param->padding.size();
+  }
   oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
-                 2 * param->padding[0] + param->output_padding[0]));
+                 pad_h + param->output_padding[0]));
   oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
-                 2 * param->padding[1] + param->output_padding[1]));
+                 pad_w + param->output_padding[1]));
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {

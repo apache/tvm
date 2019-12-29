@@ -197,6 +197,8 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
                     do_fallback = False
                 elif (kh, kw) == (1, 1):
                     do_fallback = True
+                elif (stride_h, stride_w) == (2, 2):
+                    do_fallback = False
                 elif (kh, kw) == (stride_h, stride_w):
                     do_fallback = False
 
