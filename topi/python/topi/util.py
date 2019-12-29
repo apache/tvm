@@ -143,12 +143,12 @@ def equal_const_int(expr, value):
     return expr.value == value
 
 
-def is_var(input):
+def is_var(expr):
     """Check whether the input is tvm.expr.Var or tvm_assert_bound intrinsic.
 
     Parameters
     ----------
-    input : tvm.Expr
+    expr : tvm.Expr
         The input expression.
 
     Returns
@@ -157,8 +157,8 @@ def is_var(input):
         Whether it is tvm.expr.Var or
         tvm_assert_bound intrinsic (which provides the boundary information of a Var).
     """
-    return isinstance(input, tvm.expr.Var) \
-           or (isinstance(input, tvm.expr.Call) and input.name == "tvm_assert_bound")
+    return isinstance(expr, tvm.expr.Var) \
+           or (isinstance(expr, tvm.expr.Call) and expr.name == "tvm_assert_bound")
 
 
 def get_const_tuple(in_tuple):
