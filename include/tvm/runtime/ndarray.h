@@ -160,7 +160,7 @@ class NDArray : public ObjectRef {
   /*!
    * \brief Construct NDArray's Data field from array handle in FFI.
    * \param handle The array handle.
-   * \return The constructed NDArray.
+   * \return The corresponding ObjectPtr to the constructed container object.
    *
    * \note We keep a special calling convention for NDArray by passing
    *       ContainerBase pointer in FFI.
@@ -221,7 +221,7 @@ class NDArray::ContainerBase {
 };
 
 /*!
- * \brief Object container class taht backs NDArray.
+ * \brief Object container class that backs NDArray.
  * \note do not use this function directly, use NDArray.
  */
 class NDArray::Container :
@@ -280,8 +280,6 @@ class NDArray::Container :
 };
 
 // implementations of inline functions
-// the usages of functions are documented in place.a
-
 /*!
  * \brief return the size of data the DLTensor hold, in term of number of bytes
  *

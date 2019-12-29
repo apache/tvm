@@ -39,14 +39,11 @@ namespace tvm_ext {
  * To use this extension, an external library should
  *
  * 1) Inherit TVM's NDArray and NDArray container,
- *    and define the trait `array_type_info` for this class.
  *
- * 2) Define a constructor in the inherited class that accepts
- *    a pointer to TVM's Container, which is nullable.
+ * 2) Follow the new object protocol to define new NDArray as a reference class.
  *
- * 3) On Python frontend, inherit `tvm.nd.NDArrayBase`,
- *    define the class attribute `_array_type_code` consistent to
- *    the C++ type trait, and register the subclass using `tvm.register_extension`.
+ * 3) On Python frontend, inherit `tvm.nd.NDArray`,
+ *    register the type using tvm.register_object
  */
 class NDSubClass : public tvm::runtime::NDArray {
  public:
