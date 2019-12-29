@@ -147,7 +147,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     // Record the external symbol for runtime lookup.
     auto sid = GetExtSymbol(func);
 
-    auto builder = CodegenC(sid);
+    CodegenC builder(sid);
     builder.VisitExpr(func->body);
     code_stream_ << builder.JIT();
   }
