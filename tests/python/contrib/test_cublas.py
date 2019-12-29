@@ -17,6 +17,7 @@
 import tvm
 import numpy as np
 from tvm.contrib import cublas
+from tvm.contrib import cublaslt
 
 def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     n = 1024
@@ -42,6 +43,64 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         f(a, b, c)
         tvm.testing.assert_allclose(
             c.asnumpy(), np.dot(a.asnumpy().astype(C.dtype), b.asnumpy().astype(C.dtype)), rtol=rtol)
+    verify()
+
+def roundoff(v, d):
+    return int(np.floor((v + d - 1) / d) * d)
+
+def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
+    n = 1024
+    l = 1024
+    m = 1024
+    L = roundoff(l, 32)
+    N = roundoff(n, 8)
+    N_out = roundoff(n, 32)
+
+    A = tvm.placeholder((N, L), name='A', dtype=in_dtype)
+    B = tvm.placeholder((m, L), name='B', dtype=in_dtype)
+    # C has CUBLASLT_ORDER_COL32 layout, thus a different shape
+    C = cublaslt.matmul(A, B, False, True, m, N_out, dtype=out_dtype)
+    s = tvm.create_schedule(C.op)
+
+    def verify(target="cuda"):
+        if not tvm.module.enabled(target):
+            print("skip because %s is not enabled..." % target)
+            return
+        if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
+            print("skip because extern function is not available")
+            return
+        ctx = tvm.gpu(0)
+        f = tvm.build(s, [A, B, C], target)
+        a_old = np.random.uniform(0, 128, size=(n, l))
+        b_old = np.random.uniform(0, 128, size=(l, m))
+
+        # Transform a to become CUBLASLT_ORDER_COL4_4R2_8C layout
+        a_new = np.hstack((a_old.astype(A.dtype), np.zeros([n, L-l])))
+        a_new = np.vstack((a_new.astype(A.dtype), np.zeros([N-n, L])))
+        a_even = np.vsplit(a_new[::2], N / 8)
+        a_odd = np.vsplit(a_new[1::2], N / 8)
+        a_new = [None]*(len(a_even) + len(a_odd))
+        a_new[::2] = a_even
+        a_new[1::2] = a_odd
+        a_new = np.vstack(a_new)
+        a_new = np.vstack(np.vstack(np.vstack(np.hsplit(i, 8)).reshape([4, 32]) for i in np.vsplit(j, N/4)) for j in np.hsplit(a_new, L/32))
+        a_new = a_new.reshape([N, L])
+        # Transform b to become CUBLASLT_ORDER_COL32 layout
+        b_new = np.vstack(np.hsplit(np.hstack((b_old.T.astype(B.dtype), np.zeros([m, L - l]))), L / 32))
+        b_new = b_new.reshape([m, L])
+
+        a = tvm.nd.array(a_new.astype(A.dtype), ctx)
+        b = tvm.nd.array(b_new.astype(B.dtype), ctx)
+        c = tvm.nd.array(np.zeros((m, N_out), dtype=C.dtype), ctx)
+        f(a, b, c)
+        # Transform output c from layout CUBLASLT_ORDER_COL32 to row major layout
+        c_out = c.asnumpy()
+        c_out = c_out.reshape([int(m * N_out / 32), 32])
+        c_out = np.hstack(np.vsplit(c_out, int(N_out / 32)))
+        c_out = c_out[:, :n]
+        c_out = c_out.T
+        tvm.testing.assert_allclose(
+            c_out, np.dot(a_old.astype(C.dtype), b_old.astype(C.dtype)), rtol=rtol)
     verify()
 
 def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
@@ -73,10 +132,13 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
     verify()
 
 def test_matmul_add():
-    verify_matmul_add('float', 'float')
+    verify_matmul_add('float', 'float', rtol=1e-3)
     verify_matmul_add('float16', 'float')
     verify_matmul_add('float16', 'float16', rtol=1e-2)
     verify_matmul_add('int8', 'int32')
+
+def test_matmul_add_igemm():
+    verify_matmul_add_igemm('int8', 'int32')
 
 def test_batch_matmul():
     verify_batch_matmul('float', 'float')
@@ -86,4 +148,5 @@ def test_batch_matmul():
 if __name__ == "__main__":
     test_matmul_add()
     test_batch_matmul()
+    test_matmul_add_igemm()
 
