@@ -617,6 +617,34 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
+Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<Array<IndexExpr>>& old_in_shapes) {
+  BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
+    const auto& bn_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(bn_dim);
+    param->axis = new_index;
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+  // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
+  Layout c_layout = Layout("C");
+
+  return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
+                              {ret, c_layout, c_layout}};
+}
+
 bool BatchNormRel(const Array<Type>& types,
                   int num_inputs,
                   const Attrs& attrs,
@@ -708,6 +736,7 @@ axis to be the last item in the input shape.
 .add_argument("beta", "Tensor", "The beta offset factor.")
 .add_argument("moving_mean", "Tensor", "Running mean of input.")
 .add_argument("moving_var", "Tensor", "Running variance of input.")
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", BatchNormInferCorrectLayout)
 .set_support_level(1)
 .add_type_rel("BatchNorm", BatchNormRel);
 
