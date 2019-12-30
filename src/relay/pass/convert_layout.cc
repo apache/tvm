@@ -134,7 +134,7 @@ Pass ConvertLayout(const std::string& desired_layout) {
       };
   return CreateFunctionPass(
       pass_func, 3, "ConvertLayout",
-      {ir::StringImm::make("InferType"), ir::StringImm::make("SimplifyInference"),
+      {ir::StringImm::make("InferType"),
        ir::StringImm::make("CanonicalizeOps")});
 }
 
