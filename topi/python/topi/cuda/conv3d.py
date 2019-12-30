@@ -21,6 +21,7 @@ from tvm import autotvm
 from tvm.contrib import cudnn
 
 from .. import nn, generic
+from ..nn.util import get_pad_tuple3d
 from ..util import get_const_tuple, traverse_inline
 
 from .conv3d_direct import schedule_direct_3d_cuda
@@ -44,8 +45,10 @@ def conv3d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCDHW', o
     strides : int or a list/tuple of three ints
         stride size, or [stride_depth, stride_height, stride_width]
 
-    padding : int or a list/tuple of three ints
-        padding size, or [pad_depth, pad_height, pad_width]
+    padding : int or a list/tuple of 3 or 6 ints
+        padding size, or
+        [pad_depth, pad_height, pad_width] for 3 ints, or
+        [pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right] for 6 ints
 
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
@@ -77,25 +80,27 @@ def conv3d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCDHW', o
         # handle dilation
         stride_d, stride_h, stride_w = (strides, strides, strides) if isinstance(strides, int) \
             else strides
-        pad_d, pad_h, pad_w = (padding, padding, padding) if isinstance(padding, int) else padding
+        if isinstance(padding, (list, tuple)) and len(padding) > 3:
+            raise ValueError("Cudnn doesn't support asymmetric padding.")
+        pf, pt, pl, pk, pb, pr = get_pad_tuple3d(padding, (KD, KH, KW))
         dilation_d, dilation_h, dilation_w = (dilation, dilation, dilation) if \
             isinstance(dilation, int) else dilation
 
-        OD = (D + 2 * pad_d - KD) // stride_d + 1
-        OH = (H + 2 * pad_h - KH) // stride_h + 1
-        OW = (W + 2 * pad_w - KW) // stride_w + 1
-        cfg.add_flop(2 * N * OD * OH * OW * CO * CI * ((DH - 1) * dilation_d + 1) *\
+        OD = (D + pf + pk - KD) // stride_d + 1
+        OH = (H + pt + pb - KH) // stride_h + 1
+        OW = (W + pl + pr - KW) // stride_w + 1
+        cfg.add_flop(2 * N * OD * OH * OW * CO * CI * ((KD - 1) * dilation_d + 1) *\
                     ((KH - 1) * dilation_h + 1) * ((KW - 1) * dilation_w + 1))
 
         return cudnn.conv_forward(data,
                                   kernel,
-                                  [pad_d, pad_h, pad_w],
+                                  [pf, pt, pl],  # cudnn padding pt, pl on both sides of input
                                   [stride_d, stride_h, stride_w],
                                   [dilation_d, dilation_h, dilation_w],
                                   conv_mode=1,
                                   tensor_format=tensor_format,
                                   algo=-1,         # let CUDNN choose the best algo
-                                  conv_dtype=dtype)
+                                  conv_dtype=data.dtype)
 
     if layout == 'NCDHW':
         return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
@@ -130,6 +135,40 @@ def schedule_conv3d_ncdhw_cuda(cfg, outs):
 
     def _callback(op):
         if op.tag == 'conv3d_ncdhw':
+            schedule_direct_3d_cuda(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_schedule(generic.schedule_conv3d_ndhwc, ["cuda", "gpu"],
+                                ["direct"])
+def schedule_conv3d_ndhwc_cuda(cfg, outs):
+    """TOPI schedule callback of conv3d for cuda gpu
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    outs: Array of Tensor
+        The computation graph description of conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d.
+    """
+    target = tvm.target.current_target()
+    if 'cudnn' in target.libs:
+        return generic.schedule_extern(outs)
+
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == 'conv3d_ndhwc':
             schedule_direct_3d_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)

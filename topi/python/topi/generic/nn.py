@@ -242,6 +242,22 @@ def schedule_conv3d_ncdhw(outs):
     """
     return _default_schedule(outs, False)
 
+@tvm.target.generic_func
+def schedule_conv3d_ndhwc(outs):
+    """Schedule for conv3d_ndhwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv3d_ndhwc
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
 
 @tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
