@@ -35,16 +35,16 @@ try:
     if sys.version_info >= (3, 0):
         from ._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy3.core import NDArrayBase as _NDArrayBase
-        from ._cy3.core import _reg_extension, _reg_ndarray
+        from ._cy3.core import _reg_extension
     else:
         from ._cy2.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy2.core import NDArrayBase as _NDArrayBase
-        from ._cy2.core import _reg_extension, _reg_ndarray
+        from ._cy2.core import _reg_extension
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
     from ._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
-    from ._ctypes.ndarray import _reg_extension, _reg_ndarray
+    from ._ctypes.ndarray import _reg_extension
 
 
 def context(dev_type, dev_id=0):
@@ -348,13 +348,8 @@ def register_extension(cls, fcreate=None):
            def _tvm_handle(self):
                return self.handle.value
     """
-    if issubclass(cls, _NDArrayBase):
-        assert fcreate is not None
-        assert hasattr(cls, "_array_type_code")
-        _reg_ndarray(cls, fcreate)
-    else:
-        assert hasattr(cls, "_tvm_tcode")
-        if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
-            raise ValueError("Cannot register create when extension tcode is same as buildin")
-        _reg_extension(cls, fcreate)
+    assert hasattr(cls, "_tvm_tcode")
+    if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
+        raise ValueError("Cannot register create when extension tcode is same as buildin")
+    _reg_extension(cls, fcreate)
     return cls

@@ -67,7 +67,7 @@ TVM_REGISTER_API("_Array")
     }
     auto node = make_node<ArrayNode>();
     node->data = std::move(data);
-    *ret = runtime::ObjectRef(node);
+    *ret = Array<ObjectRef>(node);
   });
 
 TVM_REGISTER_API("_ArrayGetItem")
@@ -100,28 +100,28 @@ TVM_REGISTER_API("_Map")
       for (int i = 0; i < args.num_args; i += 2) {
         CHECK(args[i].type_code() == kStr)
             << "key of str map need to be str";
-        CHECK(args[i + 1].type_code() == kObjectHandle)
+        CHECK(args[i + 1].IsObjectRef<ObjectRef>())
             << "value of the map to be NodeRef";
         data.emplace(std::make_pair(args[i].operator std::string(),
                                     args[i + 1].operator ObjectRef()));
       }
       auto node = make_node<StrMapNode>();
       node->data = std::move(data);
-      *ret = node;
+      *ret = Map<ObjectRef, ObjectRef>(node);
     } else {
       // Container node.
       MapNode::ContainerType data;
       for (int i = 0; i < args.num_args; i += 2) {
-        CHECK(args[i].type_code() == kObjectHandle)
-            << "key of str map need to be str";
-        CHECK(args[i + 1].type_code() == kObjectHandle)
+        CHECK(args[i].IsObjectRef<ObjectRef>())
+            << "key of str map need to be object";
+        CHECK(args[i + 1].IsObjectRef<ObjectRef>())
             << "value of map to be NodeRef";
         data.emplace(std::make_pair(args[i].operator ObjectRef(),
                                     args[i + 1].operator ObjectRef()));
       }
       auto node = make_node<MapNode>();
       node->data = std::move(data);
-      *ret = node;
+      *ret = Map<ObjectRef, ObjectRef>(node);
     }
   });
 
@@ -191,7 +191,7 @@ TVM_REGISTER_API("_MapItems")
         rkvs->data.push_back(kv.first);
         rkvs->data.push_back(kv.second);
       }
-      *ret = rkvs;
+      *ret = Array<ObjectRef>(rkvs);
     } else {
       auto* n = static_cast<const StrMapNode*>(ptr);
       auto rkvs = make_node<ArrayNode>();
@@ -199,7 +199,7 @@ TVM_REGISTER_API("_MapItems")
         rkvs->data.push_back(ir::StringImm::make(kv.first));
         rkvs->data.push_back(kv.second);
       }
-      *ret = rkvs;
+      *ret = Array<ObjectRef>(rkvs);
     }
   });
 

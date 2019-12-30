@@ -23,14 +23,14 @@
 #ifndef TVM_NODE_CONTAINER_H_
 #define TVM_NODE_CONTAINER_H_
 
+#include <tvm/node/node.h>
+
 #include <type_traits>
 #include <vector>
 #include <initializer_list>
 #include <unordered_map>
 #include <utility>
 #include <string>
-#include "node.h"
-#include "memory.h"
 
 namespace tvm {
 

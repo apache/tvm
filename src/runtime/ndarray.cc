@@ -27,8 +27,12 @@
 #include <tvm/runtime/device_api.h>
 #include "runtime_base.h"
 
-// deleter for arrays used by DLPack exporter
-extern "C" void NDArrayDLPackDeleter(DLManagedTensor* tensor);
+extern "C" {
+// C-mangled dlpack deleter.
+static void TVMNDArrayDLPackDeleter(DLManagedTensor* tensor);
+// helper function to get NDArray's type index, only used by ctypes.
+TVM_DLL int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex);
+}
 
 namespace tvm {
 namespace runtime {
@@ -53,8 +57,8 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 
 struct NDArray::Internal {
   // Default deleter for the container
-  static void DefaultDeleter(NDArray::Container* ptr) {
-    using tvm::runtime::NDArray;
+  static void DefaultDeleter(Object* ptr_obj) {
+    auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
       static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
     } else if (ptr->dl_tensor.data != nullptr) {
@@ -68,7 +72,8 @@ struct NDArray::Internal {
   // that are not allocated inside of TVM.
   // This enables us to create NDArray from memory allocated by other
   // frameworks that are DLPack compatible
-  static void DLPackDeleter(NDArray::Container* ptr) {
+  static void DLPackDeleter(Object* ptr_obj) {
+    auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     DLManagedTensor* tensor = static_cast<DLManagedTensor*>(ptr->manager_ctx);
     if (tensor->deleter != nullptr) {
       (*tensor->deleter)(tensor);
@@ -81,12 +86,13 @@ struct NDArray::Internal {
                         DLDataType dtype,
                         DLContext ctx) {
     VerifyDataType(dtype);
-    // critical zone
+
+    // critical zone: construct header
     NDArray::Container* data = new NDArray::Container();
-    data->deleter = DefaultDeleter;
-    NDArray ret(data);
-    ret.data_ = data;
+    data->SetDeleter(DefaultDeleter);
+
     // RAII now in effect
+    NDArray ret(GetObjectPtr<Object>(data));
     // setup shape
     data->shape_ = std::move(shape);
     data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
@@ -98,45 +104,57 @@ struct NDArray::Internal {
     return ret;
   }
   // Implementation of API function
-  static DLTensor* MoveAsDLTensor(NDArray arr) {
-    DLTensor* tensor = const_cast<DLTensor*>(arr.operator->());
-    CHECK(reinterpret_cast<DLTensor*>(arr.data_) == tensor);
-    arr.data_ = nullptr;
-    return tensor;
+  static DLTensor* MoveToFFIHandle(NDArray arr) {
+    DLTensor* handle = NDArray::FFIGetHandle(arr);
+    ObjectRef::FFIClearAfterMove(&arr);
+    return handle;
+  }
+  static void FFIDecRef(TVMArrayHandle tensor) {
+    NDArray::FFIDecRef(tensor);
   }
   // Container to DLManagedTensor
+  static DLManagedTensor* ToDLPack(TVMArrayHandle handle) {
+    auto* from = static_cast<NDArray::Container*>(
+        reinterpret_cast<NDArray::ContainerBase*>(handle));
+    return ToDLPack(from);
+  }
+
   static DLManagedTensor* ToDLPack(NDArray::Container* from) {
     CHECK(from != nullptr);
     DLManagedTensor* ret = new DLManagedTensor();
     ret->dl_tensor = from->dl_tensor;
     ret->manager_ctx = from;
     from->IncRef();
-    ret->deleter = NDArrayDLPackDeleter;
+    ret->deleter = TVMNDArrayDLPackDeleter;
     return ret;
+  }
+  // Delete dlpack object.
+  static void NDArrayDLPackDeleter(DLManagedTensor* tensor) {
+    static_cast<NDArray::Container*>(tensor->manager_ctx)->DecRef();
+    delete tensor;
   }
 };
 
-NDArray NDArray::CreateView(std::vector<int64_t> shape,
-                            DLDataType dtype) {
+NDArray NDArray::CreateView(std::vector<int64_t> shape, DLDataType dtype) {
   CHECK(data_ != nullptr);
-  CHECK(data_->dl_tensor.strides == nullptr)
+  CHECK(get_mutable()->dl_tensor.strides == nullptr)
       << "Can only create view for compact tensor";
-  NDArray ret = Internal::Create(shape, dtype, data_->dl_tensor.ctx);
-  ret.data_->dl_tensor.byte_offset =
-      this->data_->dl_tensor.byte_offset;
-  size_t curr_size = GetDataSize(this->data_->dl_tensor);
-  size_t view_size = GetDataSize(ret.data_->dl_tensor);
+  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.ctx);
+  ret.get_mutable()->dl_tensor.byte_offset =
+      this->get_mutable()->dl_tensor.byte_offset;
+  size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
+  size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
   CHECK_LE(view_size, curr_size)
       << "Tries to create a view that has bigger memory than current one";
   // increase ref count
-  this->data_->IncRef();
-  ret.data_->manager_ctx = this->data_;
-  ret.data_->dl_tensor.data = this->data_->dl_tensor.data;
+  get_mutable()->IncRef();
+  ret.get_mutable()->manager_ctx = get_mutable();
+  ret.get_mutable()->dl_tensor.data = get_mutable()->dl_tensor.data;
   return ret;
 }
 
 DLManagedTensor* NDArray::ToDLPack() const {
-  return Internal::ToDLPack(data_);
+  return Internal::ToDLPack(get_mutable());
 }
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
@@ -144,9 +162,9 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
                        DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
-  size_t size = GetDataSize(ret.data_->dl_tensor);
-  size_t alignment = GetDataAlignment(ret.data_->dl_tensor);
-  ret.data_->dl_tensor.data =
+  size_t size = GetDataSize(ret.get_mutable()->dl_tensor);
+  size_t alignment = GetDataAlignment(ret.get_mutable()->dl_tensor);
+  ret.get_mutable()->dl_tensor.data =
       DeviceAPI::Get(ret->ctx)->AllocDataSpace(
           ret->ctx, size, alignment, ret->dtype);
   return ret;
@@ -154,10 +172,12 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
 
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   NDArray::Container* data = new NDArray::Container();
-  data->deleter = Internal::DLPackDeleter;
+  // construct header
+  data->SetDeleter(Internal::DLPackDeleter);
+  // fill up content.
   data->manager_ctx = tensor;
   data->dl_tensor = tensor->dl_tensor;
-  return NDArray(data);
+  return NDArray(GetObjectPtr<Object>(data));
 }
 
 void NDArray::CopyFromTo(const DLTensor* from,
@@ -184,17 +204,24 @@ void NDArray::CopyFromTo(const DLTensor* from,
 }
 
 std::vector<int64_t> NDArray::Shape() const {
-  return data_->shape_;
+  return get_mutable()->shape_;
 }
+
+TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
 
 }  // namespace runtime
 }  // namespace tvm
 
 using namespace tvm::runtime;
 
-void NDArrayDLPackDeleter(DLManagedTensor* tensor) {
-  static_cast<NDArray::Container*>(tensor->manager_ctx)->DecRef();
-  delete tensor;
+void TVMNDArrayDLPackDeleter(DLManagedTensor* tensor) {
+  NDArray::Internal::NDArrayDLPackDeleter(tensor);
+}
+
+int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex) {
+  API_BEGIN();
+  *out_tindex = TVMArrayHandleToObjectHandle(handle)->type_index();
+  API_END();
 }
 
 int TVMArrayAlloc(const tvm_index_t* shape,
@@ -213,14 +240,14 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   DLContext ctx;
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
-  *out = NDArray::Internal::MoveAsDLTensor(
+  *out = NDArray::Internal::MoveToFFIHandle(
       NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
   API_END();
 }
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();
-  reinterpret_cast<NDArray::Container*>(handle)->DecRef();
+  NDArray::Internal::FFIDecRef(handle);
   API_END();
 }
 
@@ -235,14 +262,14 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
 int TVMArrayFromDLPack(DLManagedTensor* from,
                        TVMArrayHandle* out) {
   API_BEGIN();
-  *out = NDArray::Internal::MoveAsDLTensor(NDArray::FromDLPack(from));
+  *out = NDArray::Internal::MoveToFFIHandle(NDArray::FromDLPack(from));
   API_END();
 }
 
 int TVMArrayToDLPack(TVMArrayHandle from,
                      DLManagedTensor** out) {
   API_BEGIN();
-  *out = NDArray::Internal::ToDLPack(reinterpret_cast<NDArray::Container*>(from));
+  *out = NDArray::Internal::ToDLPack(from);
   API_END();
 }
 

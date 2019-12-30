@@ -22,6 +22,7 @@ from __future__ import absolute_import
 import sys
 import ctypes
 from .base import _LIB, check_call, py_str, c_str, string_types, _FFI_MODE
+from .node_generic import _set_class_objects
 
 IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 
@@ -32,15 +33,21 @@ try:
     if sys.version_info >= (3, 0):
         from ._cy3.core import _set_class_function, _set_class_module
         from ._cy3.core import FunctionBase as _FunctionBase
+        from ._cy3.core import NDArrayBase as _NDArrayBase
+        from ._cy3.core import ObjectBase as _ObjectBase
         from ._cy3.core import convert_to_tvm_func
     else:
         from ._cy2.core import _set_class_function, _set_class_module
         from ._cy2.core import FunctionBase as _FunctionBase
+        from ._cy2.core import NDArrayBase as _NDArrayBase
+        from ._cy2.core import ObjectBase as _ObjectBase
         from ._cy2.core import convert_to_tvm_func
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
     from ._ctypes.function import _set_class_function, _set_class_module
     from ._ctypes.function import FunctionBase as _FunctionBase
+    from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
+    from ._ctypes.object import ObjectBase as _ObjectBase
     from ._ctypes.function import convert_to_tvm_func
 
 FunctionHandle = ctypes.c_void_p
@@ -325,3 +332,4 @@ def _init_api_prefix(module_name, prefix):
         setattr(target_module, ff.__name__, ff)
 
 _set_class_function(Function)
+_set_class_objects((_ObjectBase, _NDArrayBase, ModuleBase))
