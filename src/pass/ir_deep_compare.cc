@@ -185,6 +185,15 @@ class IRDeepCompare :
     if (CompareStmt(op->rest, rhs->rest) != 0) return;
   }
 
+
+  void VisitStmt_(const SeqStmtNode* op, const Stmt& other) final {
+    const SeqStmtNode* rhs = other.as<SeqStmtNode>();
+    if (CompareValue(op->size(), rhs->size()) != 0) return;
+    for (size_t i = 0; i < op->size(); ++i) {
+      if (CompareStmt(op->seq[i], rhs->seq[i]) != 0) return;
+    }
+  }
+
   void VisitStmt_(const Evaluate* op, const Stmt& other) final {
     const Evaluate* rhs = other.as<Evaluate>();
     CompareExpr(op->value, rhs->value);

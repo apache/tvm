@@ -63,6 +63,12 @@ TVM_REGISTER_GLOBAL("make._cast")
 TVM_REGISTER_GLOBAL("make._range_by_min_extent")
 .set_body_typed(Range::make_by_min_extent);
 
+
+TVM_REGISTER_GLOBAL("make.SeqStmt")
+.set_body_typed([](Array<Stmt> seq) {
+  return SeqStmt(std::move(seq));
+});
+
 TVM_REGISTER_GLOBAL("make.For")
 .set_body_typed([](
   VarExpr loop_var, Expr min, Expr extent,

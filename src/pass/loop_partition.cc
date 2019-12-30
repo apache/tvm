@@ -116,6 +116,18 @@ class CandidateSelector final : public StmtExprVisitor {
     no_split_ = no_split_ || temp;
   }
 
+  void VisitStmt_(const SeqStmtNode* op) final {
+    bool init_no_split = no_split_;
+    for (Stmt stmt : op->seq) {
+      // erase the no split state of before visiting the next one.
+      bool temp = init_no_split;
+      std::swap(temp, no_split_);
+      this->VisitStmt(stmt);
+      // restore the no split flag.
+      no_split_ = no_split_ || temp;
+    }
+  }
+
   void VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(Call::likely)) {
       in_likely_ = true;

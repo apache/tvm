@@ -214,6 +214,12 @@ void StmtVisitor::VisitStmt_(const Block* op) {
   this->VisitStmt(op->rest);
 }
 
+void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
+  VisitArray(op->seq, [this](const Stmt& s) {
+      this->VisitStmt(s);
+    });
+}
+
 void StmtVisitor::VisitStmt_(const Evaluate* op) {
   this->VisitExpr(op->value);
 }
@@ -501,6 +507,63 @@ Stmt StmtMutator::VisitStmt_(const Block* op) {
     n->first = std::move(first);
     n->rest = std::move(rest);
     return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
+  Array<Stmt> seq = Internal::Mutate(this, op->seq);
+  if (seq.same_as(op->seq)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->seq = std::move(seq);
+    return Stmt(n);
+  }
+}
+
+// advanced visit function for seqstmt.
+Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op,
+                                bool flatten_before_visit,
+                                std::function<Stmt(const Stmt&)> fmutate) {
+  if (flatten_before_visit) {
+    // Pass 1, check if we need to flatten.
+    bool need_flatten = false;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      Stmt tmp = (*op)[i];
+      if (tmp.as<SeqStmtNode>()) need_flatten = true;
+    }
+    flatten_before_visit = need_flatten;
+  }
+  // function to run the visit.
+  auto frunvisit = [&](const SeqStmtNode* op) {
+    Array<Stmt> seq =
+        fmutate != nullptr ?
+        MutateArray(op->seq, fmutate, allow_copy_on_write_) :
+        Internal::Mutate(this, op->seq);
+    if (seq.same_as(op->seq)) {
+      return GetRef<Stmt>(op);
+    } else {
+      auto n = CopyOnWrite(op);
+      n->seq = std::move(seq);
+      return Stmt(n);
+    }
+  };
+  if (flatten_before_visit) {
+    Array<Stmt> seq;
+    SeqStmt::Flattener flattener(&seq);
+    flattener(0, op->seq);
+    // NOTE: If copy on write is allowed
+    // the assignment to seq below will
+    // destruct the original seq.
+    //
+    // Such destruction removes duplicated reference
+    // count to children and still enables COW for
+    // child Stmt.
+    ObjectPtr<SeqStmtNode> n = CopyOnWrite(op);
+    n->seq = std::move(seq);
+    return frunvisit(n.operator->());
+  } else {
+    return frunvisit(op);
   }
 }
 

@@ -645,6 +645,12 @@ void CodeGenSPIRV::VisitStmt_(const Block* op) {
   }
 }
 
+void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    this->VisitStmt(stmt);
+  }
+}
+
 void CodeGenSPIRV::VisitStmt_(const Evaluate* op) {
   MakeValue(op->value);
 }

@@ -1221,6 +1221,12 @@ void CodeGenLLVM::VisitStmt_(const Block* op) {
   }
 }
 
+void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    this->VisitStmt(stmt);
+  }
+}
+
 void CodeGenLLVM::VisitStmt_(const Evaluate* op) {
   MakeValue(op->value);
 }

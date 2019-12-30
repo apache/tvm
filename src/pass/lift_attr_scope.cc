@@ -88,6 +88,10 @@ class AttrScopeLifter : public StmtMutator {
     return MergeSeq(seq);
   }
 
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    return StmtMutator::VisitSeqStmt_(op, true);
+  }
+
   Stmt VisitStmt_(const IfThenElse* op) final {
     if (!op->else_case.defined()) {
       return StmtMutator::VisitStmt_(op);

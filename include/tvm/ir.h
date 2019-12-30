@@ -1022,6 +1022,104 @@ class Realize : public StmtNode {
 };
 
 /*!
+ * \brief The container of seq statement.
+ *        Represent a sequence of statements.
+ */
+class SeqStmtNode : public StmtNode {
+ public:
+  /*! \brief internal sequence content. */
+  Array<Stmt> seq;
+
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return seq.size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return seq[index];
+  }
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("seq", &seq);
+  }
+
+  static constexpr const char* _type_key = "SeqStmt";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
+};
+
+/*! \brief Sequence statement. */
+class SeqStmt : public Stmt {
+ public:
+  /*!
+   * \brief Construct SeqStmt.
+   * \param seq The sequence.
+   */
+  TVM_DLL explicit SeqStmt(Array<Stmt> seq);
+
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return operator->()->size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return (*(operator->()))[index];
+  }
+  /*!
+   * \brief Construct a flattened sequence statement.
+   *
+   * \note This function can return the element if there
+   *       is only one element in the sequence.
+   * \param seq_args The list of arguments to be flattened.
+   * \tparam Args arguments
+   * \return The constructed statement
+   */
+  template<typename ...Args>
+  static Stmt Flatten(Args&&... seq_args) {
+    Array<Stmt> seq;
+    runtime::detail::for_each(
+        Flattener(&seq), std::forward<Args>(seq_args)...);
+    if (seq.size() == 1) return seq[0];
+    return SeqStmt(seq);
+  }
+  /*! \brief Helper class to flatten sequence of arguments into Array. */
+  class Flattener {
+   public:
+    explicit Flattener(Array<Stmt>* seq)
+        : seq_(seq) {}
+
+    void operator()(size_t i, const Stmt& stmt) const {
+      if (auto* op = stmt.as<SeqStmtNode>()) {
+        operator()(0, op->seq);
+      } else if (auto* op = stmt.as<ProducerConsumer>()) {
+        if (!op->is_producer) {
+          operator()(0, op->body);
+        } else {
+          seq_->push_back(stmt);
+        }
+      } else {
+        seq_->push_back(stmt);
+      }
+    }
+
+    template<typename T>
+    void operator()(size_t i, const T& seq) const {
+      for (auto v : seq) {
+        this->operator()(0, v);
+      }
+    }
+
+   private:
+    Array<Stmt>* seq_;
+  };
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
+};
+
+/*!
  * \brief A sequence of statements.
  */
 class Block : public StmtNode {

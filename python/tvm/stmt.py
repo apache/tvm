@@ -306,6 +306,26 @@ class Block(Stmt):
 
 
 @register_node
+class SeqStmt(Stmt):
+    """Sequence of statements.
+
+    Parameters
+    ----------
+    seq : List[Stmt]
+        The statements
+    """
+    def __init__(self, seq):
+        self.__init_handle_by_constructor__(
+            _make.SeqStmt, seq)
+
+    def __getitem__(self, i):
+        return self.seq[i]
+
+    def __len__(self):
+        return len(self.seq)
+
+
+@register_node
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -375,13 +395,16 @@ def stmt_seq(*args):
     stmt : Stmt
         The combined statement.
     """
+    return SeqStmt(args)
+
+    """
     ret = None
     for value in args:
         if not isinstance(value, Stmt):
             value = Evaluate(value)
         ret = value if ret is None else Block(ret, value)
     return ret if ret else Evaluate(0)
-
+    """
 
 def stmt_list(stmt):
     """Make list of stmt from blocks.
@@ -395,7 +418,12 @@ def stmt_list(stmt):
     stmt_list : list of Stmt
          The unpacked list of statements
     """
-    if isinstance(stmt, Block):
+    if isinstance(stmt, SeqStmt):
+        res = []
+        for x in stmt:
+            res += stmt_list(x)
+        return res
+    elif isinstance(stmt, Block):
         return stmt_list(stmt.first) + stmt_list(stmt.rest)
     if isinstance(stmt, ProducerConsumer):
         return stmt_list(stmt.body)

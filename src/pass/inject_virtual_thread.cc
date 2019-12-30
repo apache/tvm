@@ -371,6 +371,18 @@ class VTInjector : public StmtExprMutator {
       return Block::make(first, rest);
     }
   }
+  // Seq
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    CHECK_EQ(max_loop_depth_, 0);
+    auto fmutate = [this](const Stmt& s) {
+      int temp = max_loop_depth_;
+      max_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      max_loop_depth_ = std::max(max_loop_depth_, temp);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
+  }
   // Allocate
   Stmt VisitStmt_(const Allocate* op) final {
     if (op->new_expr.defined() && !vt_loop_injected_) {

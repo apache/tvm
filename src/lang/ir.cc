@@ -504,6 +504,12 @@ Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bo
   return Stmt(node);
 }
 
+SeqStmt::SeqStmt(Array<Stmt> seq) {
+  auto node = make_object<SeqStmtNode>();
+  node->seq = std::move(seq);
+  data_ = std::move(node);
+}
+
 Stmt Block::make(Stmt first, Stmt rest) {
   CHECK(first.defined());
   CHECK(rest.defined());
@@ -1039,6 +1045,14 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<SeqStmtNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SeqStmtNode*>(node.get());
+    for (Stmt stmt : op->seq) {
+      p->Print(stmt);
+    }
+  });
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<IfThenElse>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IfThenElse*>(node.get());
     p->PrintIndent();
@@ -1213,6 +1227,7 @@ TVM_REGISTER_NODE_TYPE(Allocate);
 TVM_REGISTER_NODE_TYPE(Free);
 TVM_REGISTER_NODE_TYPE(Realize);
 TVM_REGISTER_NODE_TYPE(Block);
+TVM_REGISTER_NODE_TYPE(SeqStmtNode);
 TVM_REGISTER_NODE_TYPE(IfThenElse);
 TVM_REGISTER_NODE_TYPE(Evaluate);
 

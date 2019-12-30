@@ -142,6 +142,23 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    auto fmutate = [this](const Stmt& s) {
+      int step_count = step_count_;
+      int unroll_depth = unroll_depth_;
+      int normal_loop_depth = normal_loop_depth_;
+      step_count_ = 0;
+      unroll_depth_ = 0;
+      normal_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      step_count_ += step_count;
+      normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
+      unroll_depth_ = std::max(unroll_depth_, unroll_depth);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
+  }
+
   Stmt Unroll(const For* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
