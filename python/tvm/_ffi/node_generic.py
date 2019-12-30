@@ -23,11 +23,11 @@ from .. import _api_internal
 from .base import string_types
 
 # Node base class
-_CLASS_NODE_BASE = None
+_CLASS_OBJECTS = None
 
-def _set_class_node_base(cls):
-    global _CLASS_NODE_BASE
-    _CLASS_NODE_BASE = cls
+def _set_class_objects(cls):
+    global _CLASS_OBJECTS
+    _CLASS_OBJECTS = cls
 
 
 def _scalar_type_inference(value):
@@ -67,7 +67,7 @@ def convert_to_node(value):
     node : Node
         The corresponding node value.
     """
-    if isinstance(value, _CLASS_NODE_BASE):
+    if isinstance(value, _CLASS_OBJECTS):
         return value
     if isinstance(value, bool):
         return const(value, 'uint1x1')
@@ -81,7 +81,7 @@ def convert_to_node(value):
     if isinstance(value, dict):
         vlist = []
         for item in value.items():
-            if (not isinstance(item[0], _CLASS_NODE_BASE) and
+            if (not isinstance(item[0], _CLASS_OBJECTS) and
                     not isinstance(item[0], string_types)):
                 raise ValueError("key of map must already been a container type")
             vlist.append(item[0])
