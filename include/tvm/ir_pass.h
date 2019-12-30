@@ -208,6 +208,22 @@ Stmt StorageFlatten(Stmt stmt,
                     bool create_bound_attribute = false);
 
 /*!
+ * \brief Flatten the multi-dimensional read/write
+ *  to single dimensional Load/Store
+ *
+ * \param expr The expr to be transformed.
+ * \param extern_buffer Map specifies external
+ *    buffer assignment of input and outputs.
+ * \param cache_line_size The size of CPU cache line.
+ * \param create_bound_attribute Whether to create bound attributes.
+ * \return Transformed expr.
+ */
+Expr StorageFlattenExpr(Expr expr, 
+                    Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size,
+                    bool create_bound_attributes = false);      
+
+/*!
  * \brief Try to modify the AST to support TensorCore
  *
  * \param stmt The stmt to be trasnformed.
