@@ -43,9 +43,9 @@
 #ifndef TVM_RUNTIME_REGISTRY_H_
 #define TVM_RUNTIME_REGISTRY_H_
 
+#include <tvm/runtime/packed_func.h>
 #include <string>
 #include <vector>
-#include "packed_func.h"
 
 namespace tvm {
 namespace runtime {
@@ -283,21 +283,8 @@ class Registry {
   friend struct Manager;
 };
 
-/*! \brief helper macro to supress unused warning */
-#if defined(__GNUC__)
-#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
-#else
-#define TVM_ATTRIBUTE_UNUSED
-#endif
-
-#define TVM_STR_CONCAT_(__x, __y) __x##__y
-#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
-
 #define TVM_FUNC_REG_VAR_DEF                                            \
   static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::Registry& __mk_ ## TVM
-
-#define TVM_TYPE_REG_VAR_DEF                                            \
-  static TVM_ATTRIBUTE_UNUSED ::tvm::runtime::ExtTypeVTable* __mk_ ## TVMT
 
 /*!
  * \brief Register a function globally.

@@ -24,11 +24,13 @@
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/serializer.h>
+
 #include <atomic>
 #include <vector>
 #include <utility>
-#include "c_runtime_api.h"
-#include "serializer.h"
 
 namespace tvm {
 namespace runtime {
@@ -37,72 +39,23 @@ namespace runtime {
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
  */
-class NDArray {
+class NDArray : public ObjectRef {
  public:
-  // internal container type
+  /*! \brief ContainerBase used to back the TVMArrayHandle */
+  class ContainerBase;
+  /*! \brief NDArray internal container type */
   class Container;
+  /*! \brief Container type for Object system. */
+  using ContainerType = Container;
   /*! \brief default constructor */
   NDArray() {}
   /*!
-   * \brief cosntruct a NDArray that refers to data
-   * \param data The data this NDArray refers to
+   * \brief constructor.
+   * \param data ObjectPtr to the data container.
    */
-  explicit inline NDArray(Container* data);
-  /*!
-   * \brief copy constructor.
-   *
-   * It does not make a copy, but the reference count of the input NDArray is incremented
-   *
-   * \param other NDArray that shares internal data with the input NDArray.
-   */
-  inline NDArray(const NDArray& other);  // NOLINT(*)
-  /*!
-   * \brief move constructor
-   * \param other The value to be moved
-   */
-  NDArray(NDArray&& other) // NOLINT(*)
-      : data_(other.data_) {
-    other.data_ = nullptr;
-  }
-  /*! \brief destructor */
-  ~NDArray() {
-    this->reset();
-  }
-  /*!
-   * \brief Swap this array with another NDArray
-   * \param other The other NDArray
-   */
-  void swap(NDArray& other) {  // NOLINT(*)
-    std::swap(data_, other.data_);
-  }
-  /*!
-   * \brief copy assignmemt
-   * \param other The value to be assigned.
-   * \return reference to self.
-   */
-  NDArray& operator=(const NDArray& other) {  // NOLINT(*)
-    // copy-and-swap idiom
-    NDArray(other).swap(*this);  // NOLINT(*)
-    return *this;
-  }
-  /*!
-   * \brief move assignmemt
-   * \param other The value to be assigned.
-   * \return reference to self.
-   */
-  NDArray& operator=(NDArray&& other) {  // NOLINT(*)
-    // copy-and-swap idiom
-    NDArray(std::move(other)).swap(*this); // NOLINT(*)
-    return *this;
-  }
-  /*! \return If NDArray is defined */
-  bool defined() const {
-    return data_ != nullptr;
-  }
-  /*! \return If both NDArray reference the same container */
-  bool same_as(const NDArray& other) const {
-    return data_ == other.data_;
-  }
+  explicit NDArray(ObjectPtr<Object> data)
+      : ObjectRef(data) {}
+
   /*! \brief reset the content of NDArray to be nullptr */
   inline void reset();
   /*!
@@ -191,36 +144,40 @@ class NDArray {
       const DLTensor* from, DLTensor* to, TVMStreamHandle stream = nullptr);
 
   TVM_DLL std::vector<int64_t> Shape() const;
-
   // internal namespace
   struct Internal;
+
  protected:
-  /*! \brief Internal Data content */
-  Container* data_{nullptr};
-  // enable internal functions
-  friend struct Internal;
   friend class TVMPODValue_;
-  friend class TVMArgValue;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
-};
-
-/*!
- * \brief The type trait indicates subclass of TVM's NDArray.
- *  For irrelavant classes, code = -1.
- *  For TVM NDArray itself, code = 0.
- *  All subclasses of NDArray should override code > 0.
- */
-template<typename T>
-struct array_type_info {
-  /*! \brief the value of the traits */
-  static const int code = -1;
-};
-
-// Overrides the type trait for tvm's NDArray.
-template<>
-struct array_type_info<NDArray> {
-  static const int code = 0;
+  /*!
+   * \brief Get mutable internal container pointer.
+   * \return a mutable container pointer.
+   */
+  inline Container* get_mutable() const;
+  // Helper functions for FFI handling.
+  /*!
+   * \brief Construct NDArray's Data field from array handle in FFI.
+   * \param handle The array handle.
+   * \return The corresponding ObjectPtr to the constructed container object.
+   *
+   * \note We keep a special calling convention for NDArray by passing
+   *       ContainerBase pointer in FFI.
+   *       As a result, the argument is compatible to DLTensor*.
+   */
+  inline static ObjectPtr<Object> FFIDataFromHandle(TVMArrayHandle handle);
+  /*!
+   * \brief DecRef resource managed by an FFI array handle.
+   * \param handle The array handle.
+   */
+  inline static void FFIDecRef(TVMArrayHandle handle);
+  /*!
+   * \brief Get FFI Array handle from ndarray.
+   * \param nd The object with ndarray type.
+   * \return The result array handle.
+   */
+  inline static TVMArrayHandle FFIGetHandle(const ObjectRef& nd);
 };
 
 /*!
@@ -231,19 +188,14 @@ struct array_type_info<NDArray> {
 inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
 
 /*!
- * \brief Reference counted Container object used to back NDArray.
+ * \brief The container base structure
+ *        contains all the fields except for the Object header.
  *
- *  This object is DLTensor compatible:
- *    the pointer to the NDArrayContainer can be directly
- *    interpreted as a DLTensor*
- *
- * \note do not use this function directly, use NDArray.
+ * \note We explicitly declare this structure in order to pass
+ *       PackedFunc argument using ContainerBase*.
  */
-class NDArray::Container {
+class NDArray::ContainerBase {
  public:
-  // NOTE: the first part of this structure is the same as
-  // DLManagedTensor, note that, however, the deleter
-  // is only called when the reference counter goes to 0
   /*!
    * \brief The corresponding dl_tensor field.
    * \note it is important that the first field is DLTensor
@@ -259,42 +211,27 @@ class NDArray::Container {
    *  (e.g. reference to original memory when creating views).
    */
   void* manager_ctx{nullptr};
-  /*!
-   * \brief Customized deleter
-   *
-   * \note The customized deleter is helpful to enable
-   *  different ways of memory allocator that are not
-   *  currently defined by the system.
-   */
-  void (*deleter)(Container* self) = nullptr;
 
  protected:
-  friend class NDArray;
-  friend class TVMPODValue_;
-  friend class TVMArgValue;
-  friend class TVMRetValue;
-  friend class RPCWrappedFunc;
-  /*!
-   * \brief Type flag used to indicate subclass.
-   *  Default value 0 means normal NDArray::Conatainer.
-   *
-   *  We can extend a more specialized NDArray::Container
-   *  and use the array_type_code_ to indicate
-   *  the specific array subclass.
-   */
-  int32_t array_type_code_{0};
-  /*! \brief The internal reference counter */
-  std::atomic<int> ref_counter_{0};
-
   /*!
    * \brief The shape container,
    *  can be used used for shape data.
    */
   std::vector<int64_t> shape_;
+};
 
+/*!
+ * \brief Object container class that backs NDArray.
+ * \note do not use this function directly, use NDArray.
+ */
+class NDArray::Container :
+      public Object,
+      public NDArray::ContainerBase {
  public:
   /*! \brief default constructor */
   Container() {
+    // Initialize the type index.
+    type_index_ = Container::RuntimeTypeIndex();
     dl_tensor.data = nullptr;
     dl_tensor.ndim = 0;
     dl_tensor.shape = nullptr;
@@ -306,6 +243,8 @@ class NDArray::Container {
             std::vector<int64_t> shape,
             DLDataType dtype,
             DLContext ctx) {
+    // Initialize the type index.
+    type_index_ = Container::RuntimeTypeIndex();
     dl_tensor.data = data;
     shape_ = std::move(shape);
     dl_tensor.ndim = static_cast<int>(shape_.size());
@@ -315,49 +254,36 @@ class NDArray::Container {
     dl_tensor.byte_offset = 0;
     dl_tensor.ctx = ctx;
   }
+  /*!
+   * \brief Set the deleter field.
+   * \param deleter The deleter.
+   */
+  void SetDeleter(FDeleter deleter) {
+    deleter_ = deleter;
+  }
 
-  /*! \brief developer function, increases reference counter */
-  void IncRef() {
-    ref_counter_.fetch_add(1, std::memory_order_relaxed);
-  }
-  /*! \brief developer function, decrease reference counter */
-  void DecRef() {
-    if (ref_counter_.fetch_sub(1, std::memory_order_release) == 1) {
-      std::atomic_thread_fence(std::memory_order_acquire);
-      if (this->deleter != nullptr) {
-        (*this->deleter)(this);
-      }
-    }
-  }
+  // Expose DecRef and IncRef as public function
+  // NOTE: they are only for developer purposes only.
+  using Object::DecRef;
+  using Object::IncRef;
+
+  // Information for object protocol.
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const uint32_t _type_child_slots = 0;
+  static constexpr const uint32_t _type_child_slots_can_overflow = true;
+  static constexpr const char* _type_key = "NDArray";
+  TVM_DECLARE_BASE_OBJECT_INFO(NDArray::Container, Object);
+
+ protected:
+  friend class RPCWrappedFunc;
+  friend class NDArray;
 };
 
 // implementations of inline functions
-// the usages of functions are documented in place.
-inline NDArray::NDArray(Container* data)
-  : data_(data) {
-  if (data != nullptr) {
-    data_->IncRef();
-  }
-}
-
-inline NDArray::NDArray(const NDArray& other)
-  : data_(other.data_) {
-  if (data_ != nullptr) {
-    data_->IncRef();
-  }
-}
-
-inline void NDArray::reset() {
-  if (data_ != nullptr) {
-    data_->DecRef();
-    data_ = nullptr;
-  }
-}
-
-/*! \brief return the size of data the DLTensor hold, in term of number of bytes
+/*!
+ * \brief return the size of data the DLTensor hold, in term of number of bytes
  *
  *  \param arr the input DLTensor
- *
  *  \return number of  bytes of data in the DLTensor.
  */
 inline size_t GetDataSize(const DLTensor& arr) {
@@ -371,24 +297,24 @@ inline size_t GetDataSize(const DLTensor& arr) {
 
 inline void NDArray::CopyFrom(const DLTensor* other) {
   CHECK(data_ != nullptr);
-  CopyFromTo(other, &(data_->dl_tensor));
+  CopyFromTo(other, &(get_mutable()->dl_tensor));
 }
 
 inline void NDArray::CopyFrom(const NDArray& other) {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
-  CopyFromTo(&(other.data_->dl_tensor), &(data_->dl_tensor));
+  CopyFromTo(&(other.get_mutable()->dl_tensor), &(get_mutable()->dl_tensor));
 }
 
 inline void NDArray::CopyTo(DLTensor* other) const {
   CHECK(data_ != nullptr);
-  CopyFromTo(&(data_->dl_tensor), other);
+  CopyFromTo(&(get_mutable()->dl_tensor), other);
 }
 
 inline void NDArray::CopyTo(const NDArray& other) const {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
-  CopyFromTo(&(data_->dl_tensor), &(other.data_->dl_tensor));
+  CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
 }
 
 inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
@@ -401,12 +327,39 @@ inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
 }
 
 inline int NDArray::use_count() const {
-  if (data_ == nullptr) return 0;
-  return data_->ref_counter_.load(std::memory_order_relaxed);
+  return data_.use_count();
 }
 
 inline const DLTensor* NDArray::operator->() const {
-  return &(data_->dl_tensor);
+  return &(get_mutable()->dl_tensor);
+}
+
+inline NDArray::Container* NDArray::get_mutable() const {
+  return static_cast<NDArray::Container*>(data_.get());
+}
+
+inline ObjectPtr<Object> NDArray::FFIDataFromHandle(TVMArrayHandle handle) {
+  return GetObjectPtr<Object>(static_cast<NDArray::Container*>(
+      reinterpret_cast<NDArray::ContainerBase*>(handle)));
+}
+
+inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
+  // NOTE: it is necessary to cast to container then to base
+  //       so that the FFI handle uses the ContainerBase address.
+  return reinterpret_cast<TVMArrayHandle>(
+          static_cast<NDArray::ContainerBase*>(
+              static_cast<NDArray::Container*>(
+                  const_cast<Object*>(nd.get()))));
+}
+
+inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
+  static_cast<NDArray::Container*>(
+      reinterpret_cast<NDArray::ContainerBase*>(handle))->DecRef();
+}
+
+inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
+  return static_cast<NDArray::Container*>(
+      reinterpret_cast<NDArray::ContainerBase*>(handle));
 }
 
 /*! \brief Magic number for NDArray file */

@@ -85,7 +85,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
     Parameters
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the actual graph functions.
 
     ctx : TVMContext
         The context this module is under.
@@ -188,7 +188,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 out_tensor = array(out_tensor)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
-    def debug_get_output(self, node, out):
+    def debug_get_output(self, node, out=None):
         """Run graph up to node and get the output to out
 
         Parameters
@@ -199,12 +199,11 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         out : NDArray
             The output array container
         """
-        ret = None
         if isinstance(node, str):
             output_tensors = self.debug_datum.get_output_tensors()
             try:
-                ret = output_tensors[node]
-            except:
+                out = output_tensors[node]
+            except KeyError:
                 node_list = output_tensors.keys()
                 raise RuntimeError(
                     "Node "
@@ -215,10 +214,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 )
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list
-            ret = output_tensors[node]
+            out = output_tensors[node]
         else:
             raise RuntimeError("Require node index or name only.")
-        return ret
+        return out
 
     def run(self, **input_dict):
         """Run forward execution of the graph with debug
@@ -243,7 +242,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
-
 
     def exit(self):
         """Exits the dump folder and all its contents"""

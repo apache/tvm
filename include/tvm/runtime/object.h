@@ -24,10 +24,11 @@
 #define TVM_RUNTIME_OBJECT_H_
 
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <type_traits>
 #include <string>
 #include <utility>
-#include "c_runtime_api.h"
+
 
 /*!
  * \brief Whether or not use atomic reference counter.
@@ -581,6 +582,14 @@ class ObjectRef {
     return T(std::move(ref.data_));
   }
   /*!
+   * \brief Clear the object ref data field without DecRef
+   *        after we successfully moved the field.
+   * \param ref The reference data.
+   */
+  static void FFIClearAfterMove(ObjectRef* ref) {
+    ref->data_.data_ = nullptr;
+  }
+  /*!
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
    * \note only used for internal dev purpose.
    * \tparam ObjectType The corresponding object type.
@@ -648,7 +657,7 @@ struct ObjectEqual {
     return _GetOrAllocRuntimeTypeIndex();                               \
   }                                                                     \
   static const uint32_t _GetOrAllocRuntimeTypeIndex()  {                \
-    static uint32_t tidx = GetOrAllocRuntimeTypeIndex(                  \
+    static uint32_t tidx = Object::GetOrAllocRuntimeTypeIndex(          \
         TypeName::_type_key,                                            \
         TypeName::_type_index,                                          \
         ParentType::_GetOrAllocRuntimeTypeIndex(),                      \
@@ -668,6 +677,19 @@ struct ObjectEqual {
   TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                    \
 
 
+/*! \brief helper macro to supress unused warning */
+#if defined(__GNUC__)
+#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define TVM_ATTRIBUTE_UNUSED
+#endif
+
+#define TVM_STR_CONCAT_(__x, __y) __x##__y
+#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
+
+#define TVM_OBJECT_REG_VAR_DEF                              \
+  static TVM_ATTRIBUTE_UNUSED uint32_t __make_Object_tid
+
 /*!
  * \brief Helper macro to register the object type to runtime.
  *  Makes sure that the runtime type table is correctly populated.
@@ -675,7 +697,7 @@ struct ObjectEqual {
  *  Use this macro in the cc file for each terminal class.
  */
 #define TVM_REGISTER_OBJECT_TYPE(TypeName)                              \
-  static DMLC_ATTRIBUTE_UNUSED uint32_t __make_Object_tidx ## _ ## TypeName ## __ = \
+  TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) =                 \
       TypeName::_GetOrAllocRuntimeTypeIndex()
 
 
@@ -691,14 +713,14 @@ struct ObjectEqual {
   using ContainerType = ObjectName;
 
 #define TVM_DEFINE_OBJECT_REF_METHODS_MUT(TypeName, ParentType, ObjectName) \
-  TypeName() {}                                                             \
-  explicit TypeName(                                                        \
-      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)                  \
-      : ParentType(n) {}                                                    \
-  ObjectName* operator->() {                                    \
-    return static_cast<ObjectName*>(data_.get());                     \
-  }                                                                         \
-  operator bool() const { return data_ != nullptr; }                        \
+  TypeName() {}                                                         \
+  explicit TypeName(                                                    \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
+      : ParentType(n) {}                                                \
+  ObjectName* operator->() {                                            \
+    return static_cast<ObjectName*>(data_.get());                       \
+  }                                                                     \
+  operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
 // Implementations details below
