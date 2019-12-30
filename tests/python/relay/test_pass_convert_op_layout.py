@@ -349,6 +349,54 @@ def test_scalar_convert_layout():
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_conv_bn_convert_layout():
+    """ Check that layout transforms are propagated through bn. """
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(3, 3, 64, 64))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout='NHWC', kernel_layout='HWIO')
+
+        dtype = "float32"
+        beta = relay.var("beta", relay.TensorType((64,), dtype))
+        gamma = relay.var("gamma", relay.TensorType((64,), dtype))
+        moving_mean = relay.var("moving_mean", relay.TensorType((64,), dtype))
+        moving_var = relay.var("moving_var", relay.TensorType((64,), dtype))
+
+        y = relay.nn.batch_norm(y, gamma, beta, moving_mean, moving_var, axis=3)
+        y = relay.nn.relu(y[0])
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(3, 3, 64, 64))
+        x = relay.layout_transform(x, 'NHWC', 'NCHW')
+        w = relay.layout_transform(w, 'HWIO', 'OIHW')
+        y = relay.nn.conv2d(x, w,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1))
+
+        dtype = "float32"
+        beta = relay.var("beta", relay.TensorType((64,), dtype))
+        gamma = relay.var("gamma", relay.TensorType((64,), dtype))
+        moving_mean = relay.var("moving_mean", relay.TensorType((64,), dtype))
+        moving_var = relay.var("moving_var", relay.TensorType((64,), dtype))
+
+        y = relay.nn.batch_norm(y, gamma, beta, moving_mean, moving_var, axis=1)
+        y = relay.nn.relu(y[0])
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_no_convert_layout()
     test_conv_convert_layout()
@@ -358,3 +406,4 @@ if __name__ == "__main__":
     test_bn_convert_layout()
     test_resnet_convert_layout()
     test_scalar_convert_layout()
+    test_conv_bn_convert_layout()
