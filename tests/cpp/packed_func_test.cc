@@ -22,6 +22,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/ir.h>
 
 TEST(PackedFunc, Basic) {
@@ -176,6 +177,69 @@ TEST(TypedPackedFunc, HighOrder) {
   // call the type erased version.
   Int1Func f1 = ftyped.packed()(Int2Func(add), 1);
   CHECK_EQ(f1(3), 4);
+}
+
+
+TEST(PackedFunc, ObjectConversion) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  TVMRetValue rv;
+  auto x = NDArray::Empty(
+      {}, String2TVMType("float32"),
+      TVMContext{kDLCPU, 0});
+  // assign null
+  rv = ObjectRef();
+  CHECK_EQ(rv.type_code(), kNull);
+
+  // Can assign NDArray to ret type
+  rv = x;
+  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  // Even if we assign base type it still shows as NDArray
+  rv = ObjectRef(x);
+  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  // Check convert back
+  CHECK(rv.operator NDArray().same_as(x));
+  CHECK(rv.operator ObjectRef().same_as(x));
+  CHECK(!rv.IsObjectRef<Expr>());
+
+  auto pf1 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args[0].type_code(), kNDArrayContainer);
+      CHECK(args[0].operator NDArray().same_as(x));
+      CHECK(args[0].operator ObjectRef().same_as(x));
+      CHECK(args[1].operator ObjectRef().get() == nullptr);
+      CHECK(args[1].operator NDArray().get() == nullptr);
+      CHECK(args[1].operator Module().get() == nullptr);
+      CHECK(args[1].operator Array<NDArray>().get() == nullptr);
+      CHECK(!args[0].IsObjectRef<Expr>());
+    });
+  pf1(x, ObjectRef());
+  pf1(ObjectRef(x), NDArray());
+
+  // testcases for modules
+  auto* pf = tvm::runtime::Registry::Get("module.source_module_create");
+  CHECK(pf != nullptr);
+  Module m = (*pf)("", "xyz");
+  rv = m;
+  CHECK_EQ(rv.type_code(), kModuleHandle);
+  // Even if we assign base type it still shows as NDArray
+  rv = ObjectRef(m);
+  CHECK_EQ(rv.type_code(), kModuleHandle);
+  // Check convert back
+  CHECK(rv.operator Module().same_as(m));
+  CHECK(rv.operator ObjectRef().same_as(m));
+  CHECK(!rv.IsObjectRef<NDArray>());
+
+  auto pf2 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args[0].type_code(), kModuleHandle);
+      CHECK(args[0].operator Module().same_as(m));
+      CHECK(args[0].operator ObjectRef().same_as(m));
+      CHECK(args[1].operator ObjectRef().get() == nullptr);
+      CHECK(args[1].operator NDArray().get() == nullptr);
+      CHECK(args[1].operator Module().get() == nullptr);
+      CHECK(!args[0].IsObjectRef<Expr>());
+    });
+  pf2(m, ObjectRef());
+  pf2(ObjectRef(m), Module());
 }
 
 int main(int argc, char ** argv) {

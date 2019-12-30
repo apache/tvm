@@ -32,7 +32,7 @@ def gen_engine_header():
         #include <vector>
         class Engine {
         };
-    
+
         #endif
         '''
     header_file = header_file_dir_path.relpath("gcc_engine.h")
@@ -45,7 +45,7 @@ def generate_engine_module():
         #include <tvm/runtime/c_runtime_api.h>
         #include <dlpack/dlpack.h>
         #include "gcc_engine.h"
-    
+
         extern "C" void gcc_1_(float* gcc_input4, float* gcc_input5,
                 float* gcc_input6, float* gcc_input7, float* out) {
             Engine engine;

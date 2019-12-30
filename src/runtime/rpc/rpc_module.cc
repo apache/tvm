@@ -59,7 +59,8 @@ class RPCWrappedFunc {
                             const TVMArgValue& arg);
 
   // deleter of RPC remote array
-  static void RemoteNDArrayDeleter(NDArray::Container* ptr) {
+  static void RemoteNDArrayDeleter(Object* obj) {
+    auto* ptr = static_cast<NDArray::Container*>(obj);
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
     space->sess->CallRemote(RPCCode::kNDArrayFree, ptr->manager_ctx);
     delete space;
@@ -71,12 +72,12 @@ class RPCWrappedFunc {
                                    void* nd_handle) {
     NDArray::Container* data = new NDArray::Container();
     data->manager_ctx = nd_handle;
-    data->deleter = RemoteNDArrayDeleter;
+    data->SetDeleter(RemoteNDArrayDeleter);
     RemoteSpace* space = new RemoteSpace();
     space->sess = sess;
     space->data = tensor->data;
     data->dl_tensor.data = space;
-    NDArray ret(data);
+    NDArray ret(GetObjectPtr<Object>(data));
     // RAII now in effect
     data->shape_ = std::vector<int64_t>(
         tensor->shape, tensor->shape + tensor->ndim);
