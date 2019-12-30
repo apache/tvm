@@ -22,7 +22,6 @@ import topi
 from topi.util import get_const_int, get_const_float, get_float_tuple
 from .. import op as reg
 from ..op import OpPattern
-from ....hybrid import script
 
 
 @reg.register_schedule("vision.multibox_prior")
@@ -120,4 +119,3 @@ def compute_nms(attrs, inputs, _, target):
 
 
 reg.register_pattern("vision.non_max_suppression", OpPattern.OPAQUE)
-

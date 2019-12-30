@@ -565,7 +565,8 @@ def split_shape_func(attrs, inputs, _):
 
     axis = get_const_int(attrs.axis)
 
-    num_out = indices_or_sections if isinstance(indices_or_sections, int) else len(indices_or_sections) + 1
+    num_out = indices_or_sections if isinstance(indices_or_sections, int) \
+        else len(indices_or_sections) + 1
     if isinstance(indices_or_sections, int):
         indices_or_sections = [indices_or_sections]
     return [_split_shape_func(inputs[0],

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return,invalid-name,len-as-condition
+# pylint: disable=no-else-return,invalid-name,len-as-condition,too-many-nested-blocks
 """
 A pass for manifesting explicit memory allocations.
 """
