@@ -296,6 +296,7 @@ def get_binds(args, compact=False, binds=None):
         if isinstance(x, tensor.Tensor):
             any_dim = any(isinstance(i, expr.Var) for i in x.shape)
             buffer_type = "auto_broadcast" if any_dim and not compact else ""
+            buf = None
             if x not in binds:
                 buf = api.decl_buffer(x.shape,
                                       dtype=x.dtype,
@@ -304,9 +305,29 @@ def get_binds(args, compact=False, binds=None):
                                       offset_factor=cfg.offset_factor,
                                       buffer_type=buffer_type)
                 binds[x] = buf
-                arg_list.append(buf)
             else:
-                arg_list.append(binds[x])
+                buf = binds[x]
+            shape = []
+            for shape_expr in buf.shape:
+                flat_expr = ir_pass.StorageFlattenExpr(shape_expr,binds, 64, cfg.instrument_bound_checkers)
+                shape.append(flat_expr)
+            strides = []
+            for stride in buf.strides:
+                flat_stride = ir_pass.StorageFlattenExpr(stride,binds, 64, cfg.instrument_bound_checkers)
+                strides.append(flat_stride)
+            elem_offset = ir_pass.StorageFlattenExpr(buf.elem_offset,binds, 64, cfg.instrument_bound_checkers)
+            new_buf = api.decl_buffer(shape,
+                                      dtype=buf.dtype,
+                                      name=buf.name,
+                                      data=buf.data,
+                                      strides=strides,
+                                      elem_offset=elem_offset,
+                                      scope=buf.scope,
+                                      data_alignment=cfg.data_alignment,
+                                      offset_factor=cfg.offset_factor,
+                                      buffer_type=buffer_type)
+            binds[x] = new_buf
+            arg_list.append(new_buf)
         elif isinstance(x, schedule.Buffer):
             arg_list.append(x)
         elif isinstance(x, expr.Var):
@@ -314,6 +335,7 @@ def get_binds(args, compact=False, binds=None):
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     return binds, arg_list
+
 
 
 def form_body(sch):
