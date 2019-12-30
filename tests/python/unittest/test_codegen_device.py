@@ -50,6 +50,7 @@ def test_add_pipeline():
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
     # lower the floordiv(use stackvm rules so it works for all targets)
     fsplits = [tvm.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
+    fsplits = [tvm.ir_pass.RemoveIntrin(x) for x in fsplits]
     fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
