@@ -61,6 +61,37 @@ TEST(BuildModule, Basic) {
   CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali");
 }
 
+TEST(BuildModule, PlaceholderOutputShape){
+  using namespace tvm;
+
+  Array<Expr> shape;
+  shape.push_back(1);
+  shape.push_back(1);
+
+  auto n = placeholder(shape,DataType::Int(32),"dynamic_extent");
+
+  Array<Expr> compute_shape;
+  compute_shape.push_back(n[0][0]);
+  compute_shape.push_back(n[0][0]);
+  
+  auto C = compute(compute_shape, [&n](Expr i, Expr j) {
+    return i + j;
+  }, "C");
+
+  auto s = create_schedule({ C->op });
+
+  auto cAxis = C->op.as<ComputeOpNode>()->axis;
+  
+  auto args = Array<Tensor>({ n, C });
+  std::unordered_map<Tensor, Buffer> binds;
+
+  auto config = BuildConfig::Create();
+  auto target = target::llvm();
+
+  auto lowered = lower(s, args, "func", binds, config);
+  auto module = build(lowered, target, Target(), config);
+}
+
 TEST(BuildModule, Heterogeneous) {
   /* The testing network is like following, where the element-wise add and sub
    * ops are allocated to GPU and CPU, respectively:
