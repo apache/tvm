@@ -94,8 +94,17 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
     }
   });
 
-TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
-.set_body_typed
+TVM_REGISTER_API("ir_pass.StorageFlattenExpr")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+     if (args.size() <= 3) {
+      *ret = StorageFlattenExpr(args[0], args[1], args[2]);
+    } else {
+      *ret = StorageFlattenExpr(args[0], args[1], args[2], args[3]);
+    } 
+  });
+
+TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
+.set_body_typed<Stmt(const Stmt&, const Schedule&, const Map<Tensor, Buffer>&)>
   ([](const Stmt& stmt, const Schedule& schedule, const Map<Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });

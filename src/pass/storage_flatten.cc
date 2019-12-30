@@ -58,6 +58,11 @@ class StorageFlattener : public StmtExprMutator {
       BufferEntry e;
       e.buffer = kv.second;
       e.external = true;
+      Array<Range> bounds;
+      for(const auto it : e.bounds){
+        bounds.push_back(Range::make_by_min_extent(this->Mutate(it->min),this->Mutate(it->extent)));
+      }
+      e.bounds = bounds;
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = e;
     }
     cache_line_size_ = cache_line_size;
@@ -169,7 +174,7 @@ class StorageFlattener : public StmtExprMutator {
       e.bounds = op->bounds;
       Array<Expr> shape;
       for (auto r : e.bounds) {
-        shape.push_back(r->extent);
+        shape.push_back(this->Mutate(r->extent));
       }
       // deduce current storage scope.
       auto it = storage_scope_.find(op->func.get());
@@ -535,6 +540,16 @@ Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
       StorageFlattener(extern_buffer, cache_line_size,
                        create_bound_attributes, &bounded_analyzer)(std::move(stmt));
   return stmt;
+}
+
+Expr StorageFlattenExpr(Expr expr, Map<Tensor, Buffer> extern_buffer,
+                    int cache_line_size, bool create_bound_attributes) {
+  IRVisitorWithAnalyzer bounded_analyzer;
+  bounded_analyzer.Visit(expr);
+  expr =
+      StorageFlattener(extern_buffer, cache_line_size,
+          create_bound_attributes, &bounded_analyzer).Mutate(expr);
+  return expr;
 }
 
 }  // namespace ir
