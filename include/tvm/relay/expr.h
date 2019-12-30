@@ -67,10 +67,13 @@ class ExprNode : public RelayNode {
   inline const TTypeNode* type_as() const;
 
   static constexpr const char* _type_key = "relay.Expr";
-  TVM_DECLARE_BASE_NODE_INFO(ExprNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(ExprNode, RelayNode);
 };
 
-RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
+class Expr : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Expr, ObjectRef, ExprNode);
+};
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
@@ -104,10 +107,13 @@ class ConstantNode : public ExprNode {
   TVM_DLL static Constant make(runtime::NDArray data);
 
   static constexpr const char* _type_key = "relay.Constant";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstantNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Constant, ConstantNode, Expr);
+class Constant : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
+};
 
 /*! \brief Tuple of multiple Exprs */
 class Tuple;
@@ -126,10 +132,13 @@ class TupleNode : public ExprNode {
   TVM_DLL static Tuple make(tvm::Array<relay::Expr> fields);
 
   static constexpr const char* _type_key = "relay.Tuple";
-  TVM_DECLARE_NODE_TYPE_INFO(TupleNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
+class Tuple : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
+};
 
 /*!
  * \brief Local variables used in the let expression.
@@ -179,10 +188,13 @@ class VarNode : public ExprNode {
                           Type type_annotation);
 
   static constexpr const char* _type_key = "relay.Var";
-  TVM_DECLARE_NODE_TYPE_INFO(VarNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Var, VarNode, Expr);
+class Var : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
+};
 
 /*!
  * \brief Global variable that leaves in the top-level module.
@@ -206,10 +218,13 @@ class GlobalVarNode : public ExprNode {
   TVM_DLL static GlobalVar make(std::string name_hint);
 
   static constexpr const char* _type_key = "relay.GlobalVar";
-  TVM_DECLARE_NODE_TYPE_INFO(GlobalVarNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(GlobalVar, GlobalVarNode, Expr);
+class GlobalVar : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, Expr, GlobalVarNode);
+};
 
 /*!
  * \brief Function (subgraph in computational graph)
@@ -297,14 +312,19 @@ class FunctionNode : public ExprNode {
   tvm::Map<Var, Constant> GetParams() const;
 
   static constexpr const char* _type_key = "relay.Function";
-  TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
+class Function : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+};
 
 
-TVM_DLL NodeRef FunctionGetAttr(const Function& func, const std::string& key);
-TVM_DLL Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data);
+TVM_DLL ObjectRef FunctionGetAttr(const Function& func, const std::string& key);
+TVM_DLL Function FunctionSetAttr(const Function& func,
+                                 const std::string& key,
+                                 const ObjectRef& data);
 
 /*!
  * \brief Call corresponds to operator invocation.
@@ -363,10 +383,13 @@ class CallNode : public ExprNode {
                            Array<Type> type_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
-  TVM_DECLARE_NODE_TYPE_INFO(CallNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Call, CallNode, Expr);
+class Call : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
+};
 
 /*!
  * \brief Let binding that binds a local var and optionally a type annotation.
@@ -401,10 +424,13 @@ class LetNode : public ExprNode {
   TVM_DLL static Let make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "relay.Let";
-  TVM_DECLARE_NODE_TYPE_INFO(LetNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
+class Let : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Let, Expr, LetNode);
+};
 
 /*!
  * \brief Condition expression
@@ -439,10 +465,13 @@ class IfNode : public ExprNode {
   TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
 
   static constexpr const char* _type_key = "relay.If";
-  TVM_DECLARE_NODE_TYPE_INFO(IfNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
+class If : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+};
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItem;
@@ -463,10 +492,13 @@ class TupleGetItemNode : public ExprNode {
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
   static constexpr const char* _type_key = "relay.TupleGetItem";
-  TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
+class TupleGetItem : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, Expr, TupleGetItemNode);
+};
 
 /*! \brief Create a new Reference out of initial value. */
 class RefCreate;
@@ -484,10 +516,13 @@ class RefCreateNode : public ExprNode {
   TVM_DLL static RefCreate make(Expr value);
 
   static constexpr const char* _type_key = "relay.RefCreate";
-  TVM_DECLARE_NODE_TYPE_INFO(RefCreateNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefCreateNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefCreate, RefCreateNode, Expr);
+class RefCreate : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, Expr, RefCreateNode);
+};
 
 /*! \brief Get value out of Reference. */
 class RefRead;
@@ -505,10 +540,13 @@ class RefReadNode : public ExprNode {
   TVM_DLL static RefRead make(Expr ref);
 
   static constexpr const char* _type_key = "relay.RefRead";
-  TVM_DECLARE_NODE_TYPE_INFO(RefReadNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefReadNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
+class RefRead : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefRead, Expr, RefReadNode);
+};
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
 class RefWriteNode : public ExprNode {
@@ -528,10 +566,13 @@ class RefWriteNode : public ExprNode {
   TVM_DLL static RefWrite make(Expr ref, Expr value);
 
   static constexpr const char* _type_key = "relay.RefWrite";
-  TVM_DECLARE_NODE_TYPE_INFO(RefWriteNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefWriteNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
+class RefWrite : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, Expr, RefWriteNode);
+};
 
 /*!
  * \brief Base class of the temporary expression.
@@ -554,10 +595,13 @@ class TempExprNode : public ExprNode {
   virtual Expr Realize() const = 0;
 
   static constexpr const char* _type_key = "relay.TempExpr";
-  TVM_DECLARE_BASE_NODE_INFO(TempExprNode, ExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(TempExprNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
+class TempExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TempExpr, Expr, TempExprNode);
+};
 
 // implementataions
 inline const Type& ExprNode::checked_type() const {
@@ -583,7 +627,7 @@ inline const TTypeNode* ExprNode::type_as() const {
 }
 
 /*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
-std::string PrettyPrint(const NodeRef& node);
+std::string PrettyPrint(const ObjectRef& node);
 
 /*!
  * \brief Render the node as a string in the Relay text format.
@@ -593,7 +637,7 @@ std::string PrettyPrint(const NodeRef& node);
  *        additional comment block to an expr.
  * \return The text representation.
  */
-std::string AsText(const NodeRef& node,
+std::string AsText(const ObjectRef& node,
                    bool show_meta_data = true,
                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 

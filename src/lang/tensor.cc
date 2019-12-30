@@ -47,7 +47,7 @@ Expr Tensor::operator()(Array<Expr> indices) const {
 }
 
 Tensor Operation::output(size_t i) const {
-  auto node = make_node<TensorNode>();
+  auto node = make_object<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
@@ -59,7 +59,7 @@ Tensor TensorNode::make(Array<Expr> shape,
                         DataType dtype,
                         Operation op,
                         int value_index) {
-  auto n = make_node<TensorNode>();
+  auto n = make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
@@ -87,7 +87,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
                                     Stmt body,
                                     Stmt reduce_init,
                                     Stmt reduce_update) {
-  auto n = make_node<TensorIntrinNode>();
+  auto n = make_object<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
   n->inputs = std::move(inputs);
@@ -115,7 +115,7 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
                                             Array<Region> regions,
                                             Array<IterVar> reduce_axis,
                                             Array<Expr> scalar_inputs) {
-  auto n = make_node<TensorIntrinCallNode>();
+  auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);

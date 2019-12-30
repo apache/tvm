@@ -38,7 +38,7 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
                         tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
                         std::unordered_set<std::string> imports
                         ) {
-  auto n = make_node<ModuleNode>();
+  auto n = make_object<ModuleNode>();
   n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
   n->global_type_var_map_ = {};
@@ -327,14 +327,14 @@ TVM_REGISTER_API("relay._module.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Module mod = args[0];
   GlobalVar var = args[1];
-  NodeRef val = args[2];
+  ObjectRef val = args[2];
   bool update = args[3];
   CHECK(val->IsInstance<ExprNode>());
   if (val->IsInstance<FunctionNode>()) {
     mod->Add(var, Downcast<Function>(val), update);
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
-    auto mod_copy = Module(make_node<ModuleNode>(*mod.operator->()));
+    auto mod_copy = Module(make_object<ModuleNode>(*mod.operator->()));
     mod_copy = transform::EtaExpand(
       /* expand_constructor */ false, /* expand_global_var */ true)(mod_copy);
     auto func = mod_copy->Lookup(gv->name_hint);

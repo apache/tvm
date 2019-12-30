@@ -34,7 +34,7 @@ namespace tvm {
  * \brief Memory information of special memory region.
  *  Use MemoryInfo as its container type
  */
-struct MemoryInfoNode : public Node {
+struct MemoryInfoNode : public Object {
   /*! \brief The addressable unit */
   int unit_bits;
   /*! \brief Maximum number of bits supported in the memory */
@@ -55,11 +55,14 @@ struct MemoryInfoNode : public Node {
   }
 
   static constexpr const char* _type_key = "MemoryInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(MemoryInfoNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MemoryInfoNode, Object);
 };
 
 /*! \brief Defines memory info */
-TVM_DEFINE_NODE_REF(MemoryInfo, MemoryInfoNode);
+class MemoryInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(MemoryInfo, ObjectRef, MemoryInfoNode);
+};
 
 /*!
  * \brief get memory info given scope

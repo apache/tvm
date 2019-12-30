@@ -69,7 +69,7 @@ class TypeSolver {
    * \param constraint The constraint to be added.
    * \param location The location at which the constraint was incurred.
    */
-  void AddConstraint(const TypeConstraint& constraint, const NodeRef& lcoation);
+  void AddConstraint(const TypeConstraint& constraint, const ObjectRef& lcoation);
   /*!
    * \brief Resolve type to the solution type in the solver.
    * \param type The type to be resolved.
@@ -87,13 +87,13 @@ class TypeSolver {
    * \param rhs The right operand
    * \param location The location at which the unification problem arose.
    */
-  Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
+  Type Unify(const Type& lhs, const Type& rhs, const ObjectRef& location);
   /*!
    * \brief Report an error at the provided location.
    * \param err The error to report.
    * \param loc The location at which to report the error.
    */
-  void ReportError(const Error& err, const NodeRef& location);
+  void ReportError(const Error& err, const ObjectRef& location);
 
  private:
   class OccursChecker;
@@ -155,7 +155,7 @@ class TypeSolver {
     /*! \brief list types to this relation */
     LinkedList<TypeNode*> type_list;
     /*! \brief The location this type relation originated from. */
-    NodeRef location;
+    ObjectRef location;
   };
 
   /*! \brief A simple union find between shapes. */
@@ -167,7 +167,7 @@ class TypeSolver {
   /*! \brief Number of resolved relations */
   size_t num_resolved_rels_{0};
   /*! \brief map from types to type nodes. */
-  std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
+  std::unordered_map<Type, TypeNode*, ObjectHash, ObjectEqual> tmap_;
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/

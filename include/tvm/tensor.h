@@ -46,11 +46,11 @@ class OperationNode;
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public NodeRef {
+class Tensor : public ObjectRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Tensor(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -158,7 +158,7 @@ class Operation : public ir::FunctionRef {
 };
 
 /*! \brief Node to represent a tensor */
-class TensorNode : public Node {
+class TensorNode : public Object {
  public:
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
@@ -183,7 +183,7 @@ class TensorNode : public Node {
                              int value_index);
 
   static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, Object);
 };
 
 
@@ -250,13 +250,13 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::Operation> : public ::tvm::NodeHash {
+struct hash<::tvm::Operation> : public ::tvm::ObjectHash {
 };
 
 template <>
 struct hash<::tvm::Tensor> {
   std::size_t operator()(const ::tvm::Tensor& k) const {
-    ::tvm::NodeHash hasher;
+    ::tvm::ObjectHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);
     } else{

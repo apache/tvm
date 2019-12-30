@@ -28,7 +28,7 @@ namespace tvm {
 namespace relay {
 
 PatternWildcard PatternWildcardNode::make() {
-  NodePtr<PatternWildcardNode> n = make_node<PatternWildcardNode>();
+  ObjectPtr<PatternWildcardNode> n = make_object<PatternWildcardNode>();
   return PatternWildcard(n);
 }
 
@@ -43,7 +43,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 PatternVar PatternVarNode::make(tvm::relay::Var var) {
-  NodePtr<PatternVarNode> n = make_node<PatternVarNode>();
+  ObjectPtr<PatternVarNode> n = make_object<PatternVarNode>();
   n->var = std::move(var);
   return PatternVar(n);
 }
@@ -61,7 +61,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 PatternConstructor PatternConstructorNode::make(Constructor constructor,
                                                 tvm::Array<Pattern> patterns) {
-  NodePtr<PatternConstructorNode> n = make_node<PatternConstructorNode>();
+  ObjectPtr<PatternConstructorNode> n = make_object<PatternConstructorNode>();
   n->constructor = std::move(constructor);
   n->patterns = std::move(patterns);
   return PatternConstructor(n);
@@ -80,7 +80,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 PatternTuple PatternTupleNode::make(tvm::Array<Pattern> patterns) {
-  NodePtr<PatternTupleNode> n = make_node<PatternTupleNode>();
+  ObjectPtr<PatternTupleNode> n = make_object<PatternTupleNode>();
   n->patterns = std::move(patterns);
   return PatternTuple(n);
 }
@@ -99,7 +99,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 Constructor ConstructorNode::make(std::string name_hint,
                                   tvm::Array<Type> inputs,
                                   GlobalTypeVar belong_to) {
-  NodePtr<ConstructorNode> n = make_node<ConstructorNode>();
+  ObjectPtr<ConstructorNode> n = make_object<ConstructorNode>();
   n->name_hint = std::move(name_hint);
   n->inputs = std::move(inputs);
   n->belong_to = std::move(belong_to);
@@ -121,7 +121,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 TypeData TypeDataNode::make(GlobalTypeVar header,
                             tvm::Array<TypeVar> type_vars,
                             tvm::Array<Constructor> constructors) {
-  NodePtr<TypeDataNode> n = make_node<TypeDataNode>();
+  ObjectPtr<TypeDataNode> n = make_object<TypeDataNode>();
   n->header = std::move(header);
   n->type_vars = std::move(type_vars);
   n->constructors = std::move(constructors);
@@ -141,7 +141,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 Clause ClauseNode::make(Pattern lhs, Expr rhs) {
-  NodePtr<ClauseNode> n = make_node<ClauseNode>();
+  ObjectPtr<ClauseNode> n = make_object<ClauseNode>();
   n->lhs = std::move(lhs);
   n->rhs = std::move(rhs);
   return Clause(n);
@@ -160,7 +160,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 Match MatchNode::make(Expr data, tvm::Array<Clause> clauses, bool complete) {
-  NodePtr<MatchNode> n = make_node<MatchNode>();
+  ObjectPtr<MatchNode> n = make_object<MatchNode>();
   n->data = std::move(data);
   n->clauses = std::move(clauses);
   n->complete = complete;

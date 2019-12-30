@@ -106,7 +106,7 @@ class OpNode : public relay::ExprNode {
   }
 
   static constexpr const char* _type_key = "relay.Op";
-  TVM_DECLARE_NODE_TYPE_INFO(OpNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, ExprNode);
 
  private:
   // friend class
@@ -431,7 +431,7 @@ inline OpRegistry& OpRegistry::describe(
 inline OpRegistry& OpRegistry::add_argument(const std::string& name,
                                             const std::string& type,
                                             const std::string& description) {
-  auto n = make_node<AttrFieldInfoNode>();
+  auto n = make_object<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;

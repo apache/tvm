@@ -86,7 +86,7 @@ bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Expr MakeBitPack(Expr data, int bits, int pack_axis, int bit_axis, DataType pack_type,
                  std::string name) {
-  auto attrs = make_node<BitPackAttrs>();
+  auto attrs = make_object<BitPackAttrs>();
   attrs->bits = bits;
   attrs->pack_axis = pack_axis;
   attrs->bit_axis = bit_axis;
@@ -151,7 +151,7 @@ Expr MakeBinaryConv2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<In
                       IndexExpr channels, Array<IndexExpr> kernel_size, int activation_bits,
                       int weight_bits, std::string data_layout, std::string kernel_layout,
                       DataType pack_dtype, DataType out_dtype, bool unipolar) {
-  auto attrs = make_node<BinaryConv2DAttrs>();
+  auto attrs = make_object<BinaryConv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->channels = std::move(channels);
@@ -224,7 +224,7 @@ bool BinaryDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 // Positional relay function to create bitserial dense operator used by frontend FFI.
 Expr MakeBinaryDense(Expr data, Expr weight, IndexExpr units, int data_bits, int weight_bits,
                      DataType pack_dtype, DataType out_dtype, bool unipolar) {
-  auto attrs = make_node<BinaryDenseAttrs>();
+  auto attrs = make_object<BinaryDenseAttrs>();
   attrs->units = units;
   attrs->data_bits = data_bits;
   attrs->weight_bits = weight_bits;

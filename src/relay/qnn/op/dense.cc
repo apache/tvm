@@ -60,7 +60,7 @@ Expr MakeQuantizedDense(Expr data, Expr weight, int32_t input_zero_point,
                         int32_t kernel_zero_point,  double input_scale,
                         double kernel_scale, IndexExpr units,
                         DataType out_dtype) {
-  auto attrs = make_node<QnnDenseAttrs>();
+  auto attrs = make_object<QnnDenseAttrs>();
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
   attrs->input_zero_point = input_zero_point;

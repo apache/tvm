@@ -62,7 +62,7 @@ bool YoloReorgRel(const Array<Type>& types,
 
 Expr MakeYoloReorg(Expr data,
                    Integer stride) {
-  auto attrs = make_node<YoloReorgAttrs>();
+  auto attrs = make_object<YoloReorgAttrs>();
   attrs->stride = stride;
   static const Op& op = Op::Get("vision.yolo_reorg");
   return CallNode::make(op, {data}, Attrs(attrs), {});

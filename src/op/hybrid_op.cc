@@ -63,14 +63,14 @@ Array<Expr> HybridOpNode::output_shape(size_t i) const {
 
 Operation HybridOpNode::make(std::string name,
                              std::string tag,
-                             Map<std::string, NodeRef> attrs,
+                             Map<std::string, ObjectRef> attrs,
                              Array<Tensor> inputs,
                              Array<Tensor> outputs,
                              Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, NodeRef>();
+    attrs = Map<std::string, ObjectRef>();
   }
-  auto n = make_node<HybridOpNode>();
+  auto n = make_object<HybridOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -91,7 +91,7 @@ Array<Tensor> HybridOpNode::InputTensors() const {
   }
   std::unordered_set<Tensor> visited;
   Array<Tensor> curr_inputs;
-  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const NodeRef& n) {
+  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
       const ir::Call *call = n.as<ir::Call>();
       if (call != nullptr && call->func.defined()) {
         Tensor t = Downcast<Operation>(call->func).output(call->value_index);
@@ -108,7 +108,7 @@ Operation HybridOpNode::ReplaceInputs(
     const Operation &self,
     const std::unordered_map<Tensor, Tensor> &rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = make_node<HybridOpNode>(*this);
+  auto n = make_object<HybridOpNode>(*this);
   n->body = op::ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
@@ -185,7 +185,7 @@ Stmt HybridOpNode::BuildProvide(
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);
   }
-  auto n = make_node<HybridOpNode>(*this);
+  auto n = make_object<HybridOpNode>(*this);
   /* This is a story little bit complicated.
    * The following two lines of codes replace output tensors' usage.
    * This is the simplest way I (@were) can come up with to glue
@@ -369,7 +369,8 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
       expected = IterVarTypeToForType(attr->iter_type);
     }
 
-    PostOrderVisit(stmt, [&found, &var, &attr, &expected, &need_change](const NodeRef &node) {
+    PostOrderVisit(stmt,
+    [&found, &var, &attr, &expected, &need_change](const ObjectRef& node) {
       if (const For *op = node.as<For>()) {
         if (op->loop_var.get() == var) {
           ++found;
@@ -390,7 +391,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                     const std::unordered_map<IterVar, Range> &dom_map,
                     const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
   std::vector<const Variable*> current_order;
-  PostOrderVisit(stmt, [&current_order](const NodeRef &node) {
+  PostOrderVisit(stmt, [&current_order](const ObjectRef& node) {
     if (const For *op = node.as<For>())
       current_order.push_back(op->loop_var.get());
   });
@@ -466,7 +467,7 @@ Stmt ApplySchedule(const Stage &stage,
 std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   // TODO(@were): Write a comprehensive pass to analyze iter var types
   std::vector<IterVar> res_;
-  PostOrderVisit(stmt, [&res_](const NodeRef &node) {
+  PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
     if (const For *op = node.as<For>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::make_by_min_extent(op->min, op->extent);

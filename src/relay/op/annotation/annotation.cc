@@ -41,7 +41,7 @@ TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
 
 TVM_REGISTER_API("relay.op.annotation._make.on_device")
 .set_body_typed<Expr(Expr, int)>([](Expr data, int device_type) {
-  auto attrs = make_node<OnDeviceAttrs>();
+  auto attrs = make_object<OnDeviceAttrs>();
   attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -87,7 +87,7 @@ TVM_ADD_FILELINE)
 TVM_REGISTER_NODE_TYPE(CastHintAttrs);
 
 Expr CastHint(Expr data, DataType dtype) {
-  auto attrs = make_node<CastHintAttrs>();
+  auto attrs = make_object<CastHintAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("annotation.cast_hint");
   return CallNode::make(op, {data}, Attrs{attrs}, {});

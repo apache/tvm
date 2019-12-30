@@ -47,9 +47,9 @@ class GraphOpNode;
 using IntegerArray = Array<Integer>;
 using ShapeVector = std::vector<std::vector<int64_t> >;
 using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
-using GraphNodePtr = std::shared_ptr<GraphNode>;
-using GraphInputNodePtr = std::shared_ptr<GraphInputNode>;
-using GraphOpNodePtr = std::shared_ptr<GraphOpNode>;
+using GraphObjectPtr = std::shared_ptr<GraphNode>;
+using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
+using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
 using TargetsMap = std::unordered_map<int, Target>;
 
 /*! \brief Lowered outputs */
@@ -255,7 +255,7 @@ class GraphRuntimeCodegen
    * \param expr
    * \return std::vector<_NodeRef>
    */
-  std::vector<GraphNodeRef> AddNode(GraphNodePtr node, Expr expr) {
+  std::vector<GraphNodeRef> AddNode(GraphObjectPtr node, Expr expr) {
     auto checked_type = expr->checked_type();
     size_t count = storage_device_map_.count(expr);
     CHECK_GT(count, 0) << "Expr is not existing in storage plan";
@@ -319,7 +319,7 @@ class GraphRuntimeCodegen
   }
 
   /*! \brief Visitors */
-  std::unordered_map<Expr, std::vector<GraphNodeRef>, NodeHash, NodeEqual> visitor_cache_;
+  std::unordered_map<Expr, std::vector<GraphNodeRef>, ObjectHash, ObjectEqual> visitor_cache_;
 
   std::vector<GraphNodeRef> VisitExpr(const Expr& expr) override {
     if (visitor_cache_.count(expr)) return visitor_cache_.at(expr);
@@ -587,13 +587,13 @@ class GraphRuntimeCodegen
 
  protected:
   /*! \brief nodes */
-  std::vector<GraphNodePtr> nodes_;
+  std::vector<GraphObjectPtr> nodes_;
   /*! \brief output of graph */
   std::vector<GraphNodeRef> heads_;
   /*! \brief mod */
   runtime::Module* mod_;
   /*! \brief variable map */
-  std::unordered_map<const Node*, std::vector<GraphNodeRef>> var_map_;
+  std::unordered_map<const Object*, std::vector<GraphNodeRef>> var_map_;
   /*! \brief target device */
   TargetsMap targets_;
   /*! \brief params */
@@ -601,7 +601,7 @@ class GraphRuntimeCodegen
   /*! \brief plan memory of device result */
   Map<Expr, Array<IntegerArray>> storage_device_map_;
   /*! \brief lowered funcs */
-  std::unordered_map<std::string, std::unordered_set<LoweredFunc, NodeHash, NodeEqual>>
+  std::unordered_map<std::string, std::unordered_set<LoweredFunc, ObjectHash, ObjectEqual>>
       lowered_funcs_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
