@@ -176,8 +176,8 @@ class HostDeviceSplitter : public IRMutator {
       handle_data_type_[kv.first.get()] = kv.second;
     }
     name_ = f->name;
-    NodePtr<LoweredFuncNode> n =
-        make_node<LoweredFuncNode>(*f.operator->());
+    ObjectPtr<LoweredFuncNode> n =
+        make_object<LoweredFuncNode>(*f.operator->());
     n->body = this->Mutate(f->body);
     n->func_type = kHostFunc;
     Array<LoweredFunc> ret{LoweredFunc(n)};
@@ -191,7 +191,7 @@ class HostDeviceSplitter : public IRMutator {
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
     os << name_ << "_kernel" << device_funcs_.size();
-    NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
+    ObjectPtr<LoweredFuncNode> n = make_object<LoweredFuncNode>();
     // isolate the device function.
     IRUseDefAnalysis m;
     m.visit_thread_extent_ = false;

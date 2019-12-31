@@ -67,7 +67,7 @@ const Op& Op::Get(const std::string& name) {
 
 OpRegistry::OpRegistry() {
   OpManager* mgr = OpManager::Global();
-  NodePtr<OpNode> n = make_node<OpNode>();
+  ObjectPtr<OpNode> n = make_object<OpNode>();
   n->index_ = mgr->op_counter++;
   op_ = Op(n);
 }
@@ -205,17 +205,17 @@ TVM_REGISTER_API("relay.op._Register")
   });
 
 // helper to get internal dev function in objectref.
-struct Op2NodePtr : public ObjectRef {
-  static NodePtr<Node> Get(const Op& op) {
-    return GetDataPtr<Node>(op);
+struct Op2ObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const Op& op) {
+    return GetDataPtr<Object>(op);
   }
 };
 
-NodePtr<Node> CreateOp(const std::string& name) {
+ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
   CHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return Op2NodePtr::Get(op);
+  return Op2ObjectPtr::Get(op);
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode)

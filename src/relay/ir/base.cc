@@ -33,11 +33,11 @@ using namespace tvm::runtime;
 ObjectPtr<Object> GetSourceNameNode(const std::string& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
-  static std::unordered_map<std::string, NodePtr<SourceNameNode> > source_map;
+  static std::unordered_map<std::string, ObjectPtr<SourceNameNode> > source_map;
 
   auto sn = source_map.find(name);
   if (sn == source_map.end()) {
-    NodePtr<SourceNameNode> n = make_node<SourceNameNode>();
+    ObjectPtr<SourceNameNode> n = make_object<SourceNameNode>();
     source_map[name] = n;
     n->name = std::move(name);
     return n;
@@ -66,7 +66,7 @@ TVM_REGISTER_NODE_TYPE(SourceNameNode)
   });
 
 Span SpanNode::make(SourceName source, int lineno, int col_offset) {
-  auto n = make_node<SpanNode>();
+  auto n = make_object<SpanNode>();
   n->source = std::move(source);
   n->lineno = lineno;
   n->col_offset = col_offset;
@@ -88,7 +88,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(IdNode);
 
 TVM_REGISTER_API("relay._base.set_span")
-.set_body_typed<void(NodeRef, Span)>([](NodeRef node_ref, Span sp) {
+.set_body_typed<void(ObjectRef, Span)>([](ObjectRef node_ref, Span sp) {
     auto rn = node_ref.as<RelayNode>();
     CHECK(rn);
     rn->span = sp;

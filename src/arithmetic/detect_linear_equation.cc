@@ -106,7 +106,7 @@ class LinearEqDetector
     }
     return ret;
   }
-  LinearEqEntry VisitExprDefault_(const Node* op, const Expr& e) final {
+  LinearEqEntry VisitExprDefault_(const Object* op, const Expr& e) final {
     if (fail_) return LinearEqEntry();
     if (ExprUseVar(e, var_)) {
       fail_ = true;
@@ -171,7 +171,7 @@ bool DetectClipBound(
     std::unordered_map<const Variable*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
-  auto fvisit = [&bmap, &flag, &var](const NodeRef& n) {
+  auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
     if (const Variable* v = n.as<Variable>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
