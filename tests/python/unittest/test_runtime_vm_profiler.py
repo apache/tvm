@@ -35,6 +35,7 @@ def test_basic():
     data = np.random.rand(1, 3, 224, 224).astype('float32')
     res = vm.invoke("main", [data])
     print("\n{}".format(vm.get_stat()))
+    print("\n{}".format(vm.get_stat(False)))
 
 if __name__ == "__main__":
     test_basic()
