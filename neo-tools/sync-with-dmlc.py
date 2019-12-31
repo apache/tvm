@@ -58,7 +58,7 @@ def main():
 
     # Add dmlc/tvm to remote 'upstream' if not
     repo = Repo()
-    add_remote(repo, 'upstream', 'git@github.com:dmlc/tvm.git')
+    add_remote(repo, 'upstream', 'https://github.com/apache/incubator-tvm.git')
 
     # Fetch 'upstream' remote
     logging.info("Fetching remote upstrean")
