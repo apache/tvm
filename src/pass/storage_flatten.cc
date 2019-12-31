@@ -59,8 +59,9 @@ class StorageFlattener : public StmtExprMutator {
       e.buffer = kv.second;
       e.external = true;
       Array<Range> bounds;
-      for(const auto it : e.bounds){
-        bounds.push_back(Range::make_by_min_extent(this->Mutate(it->min),this->Mutate(it->extent)));
+      for (const auto it : e.bounds) {
+        bounds.push_back(Range::make_by_min_extent(this->Mutate(it->min),
+          this->Mutate(it->extent)));
       }
       e.bounds = bounds;
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = e;
@@ -542,7 +543,7 @@ Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
   return stmt;
 }
 
-Expr StorageFlattenExpr(Expr expr, Map<Tensor, Buffer> extern_buffer,
+Expr StorageFlatten(Expr expr, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
   IRVisitorWithAnalyzer bounded_analyzer;
   bounded_analyzer.Visit(expr);

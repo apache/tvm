@@ -87,20 +87,19 @@ TVM_REGISTER_GLOBAL("ir_pass.Equal")
 
 TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args.size() <= 3) {
-      *ret = StorageFlatten(args[0], args[1], args[2]);
+    if (args[0].IsObjectRef<Stmt>()) {
+      if (args.size() <= 3) {
+        *ret = StorageFlatten(args[0].operator Stmt(), args[1], args[2]);
+      } else {
+        *ret = StorageFlatten(args[0].operator Stmt(), args[1], args[2], args[3]);
+      }
     } else {
-      *ret = StorageFlatten(args[0], args[1], args[2], args[3]);
+      if (args.size() <= 3) {
+        *ret = StorageFlatten(args[0].operator Expr(), args[1], args[2]);
+      } else {
+        *ret = StorageFlatten(args[0].operator Expr(), args[1], args[2], args[3]);
+      }
     }
-  });
-
-TVM_REGISTER_API("ir_pass.StorageFlattenExpr")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-     if (args.size() <= 3) {
-      *ret = StorageFlattenExpr(args[0], args[1], args[2]);
-    } else {
-      *ret = StorageFlattenExpr(args[0], args[1], args[2], args[3]);
-    } 
   });
 
 TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
