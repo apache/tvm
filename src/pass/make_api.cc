@@ -42,7 +42,7 @@ inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
 
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
-                    Array<NodeRef> api_args,
+                    Array<ObjectRef> api_args,
                     int num_unpacked_args,
                     bool is_restricted) {
   const Stmt nop = Evaluate::make(0);
@@ -168,7 +168,7 @@ LoweredFunc MakeAPI(Stmt body,
                         buf_arg.second, buf_arg.second->name_hint);
   }
 
-  NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
+  ObjectPtr<LoweredFuncNode> n = make_object<LoweredFuncNode>();
   n->name = name;
   n->args = args;
   n->handle_data_type = binder.def_handle_dtype();
@@ -266,7 +266,7 @@ class DeviceTypeBinder: public IRMutator {
 
 LoweredFunc BindDeviceType(LoweredFunc f,
                            int device_type) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = DeviceTypeBinder(device_type).Mutate(n->body);
   return LoweredFunc(n);
 }

@@ -60,7 +60,7 @@ Expr MakeQuantize(Expr data,
                   double output_scale,
                   int32_t output_zero_point,
                   DataType out_dtype) {
-  auto attrs = make_node<QuantizeAttrs>();
+  auto attrs = make_object<QuantizeAttrs>();
   attrs->output_scale = output_scale;
   attrs->output_zero_point = output_zero_point;
   attrs->out_dtype = std::move(out_dtype);

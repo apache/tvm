@@ -49,7 +49,7 @@ class AlphaEqualHandler:
    * \param rhs The right hand operand.
    * \return The comparison result.
    */
-  bool Equal(const NodeRef& lhs, const NodeRef& rhs) {
+  bool Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
     if (lhs->IsInstance<TypeNode>()) {
@@ -88,7 +88,7 @@ class AlphaEqualHandler:
    * \param rhs The right hand operand.
    * \return The comparison result.
    */
-  bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
+  bool AttrEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
     auto compute = [&]() {
       if (&lhs == &rhs) return true;
       if (auto lhsd = lhs.as<DictAttrsNode>()) {
@@ -127,7 +127,7 @@ class AlphaEqualHandler:
     return Compare(compute(), lhs, rhs);
   }
 
-  bool Compare(bool result, const NodeRef& lhs, const NodeRef& rhs) {
+  bool Compare(bool result, const ObjectRef& lhs, const ObjectRef& rhs) {
     if (assert_mode_) {
       CHECK(result) << "\n" << AsText(lhs, true) << "\nis not equal to:\n" << AsText(rhs, true);
     }
@@ -180,7 +180,7 @@ class AlphaEqualHandler:
    * \param rhs The right hand operand.
    * \return The compare result.
    */
-  bool LeafNodeEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
+  bool LeafObjectEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
     if (lhs.same_as(rhs)) return true;
     auto it = equal_map_.find(lhs);
     if (it != equal_map_.end()) {
@@ -197,7 +197,7 @@ class AlphaEqualHandler:
   }
   using AttrsEqualHandler::VisitAttr_;
   bool VisitAttr_(const Variable* lhs, const ObjectRef& other) final {
-    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+    return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 
   // Type equality
@@ -211,13 +211,13 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const IncompleteTypeNode* lhs, const Type& other) final {
-    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+    return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 
   bool VisitType_(const TypeVarNode* lhs, const Type& other) final {
     if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
       if (lhs->kind != rhs->kind) return false;
-      return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+      return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
     } else {
       return false;
     }
@@ -290,7 +290,7 @@ class AlphaEqualHandler:
   }
 
   bool VisitType_(const GlobalTypeVarNode* lhs, const Type& other) final {
-    return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+    return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 
   bool VisitType_(const TypeCallNode* lhs, const Type& other) final {
@@ -366,7 +366,7 @@ class AlphaEqualHandler:
     if (const VarNode* rhs = other.as<VarNode>()) {
       if (lhs->name_hint() != rhs->name_hint()) return false;
       if (!TypeEqual(lhs->type_annotation, rhs->type_annotation)) return false;
-      return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+      return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
     } else {
       return false;
     }
@@ -600,23 +600,23 @@ bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
 
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._make._alpha_equal")
-.set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+.set_body_typed<bool(ObjectRef, ObjectRef)>([](ObjectRef a, ObjectRef b) {
   return AlphaEqualHandler(false, false).Equal(a, b);
 });
 
 TVM_REGISTER_API("relay._make._assert_alpha_equal")
-.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+.set_body_typed<void(ObjectRef, ObjectRef)>([](ObjectRef a, ObjectRef b) {
   bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
   CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
 TVM_REGISTER_API("relay._make._graph_equal")
-.set_body_typed<bool(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+.set_body_typed<bool(ObjectRef, ObjectRef)>([](ObjectRef a, ObjectRef b) {
   return AlphaEqualHandler(true, false).Equal(a, b);
 });
 
 TVM_REGISTER_API("relay._make._assert_graph_equal")
-.set_body_typed<void(NodeRef, NodeRef)>([](NodeRef a, NodeRef b) {
+.set_body_typed<void(ObjectRef, ObjectRef)>([](ObjectRef a, ObjectRef b) {
   bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
   CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";
 });

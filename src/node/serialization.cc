@@ -79,7 +79,7 @@ class NodeIndexer : public AttrVisitor {
   // make index of all the children of node
   void MakeIndex(Object* node) {
     if (node == nullptr) return;
-    CHECK(node->IsInstance<Node>());
+    CHECK(node->IsInstance<Object>());
 
     if (node_index_.count(node)) return;
     CHECK_EQ(node_index_.size(), node_list_.size());

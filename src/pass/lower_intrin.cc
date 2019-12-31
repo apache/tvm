@@ -282,7 +282,7 @@ Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
 
 LoweredFunc
 LowerIntrin(LoweredFunc f, const std::string& target) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = LowerIntrinStmt(n->body, target);
   return LoweredFunc(n);
 }

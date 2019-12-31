@@ -59,7 +59,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
   /*! \brief record the touch hist of statment. */
   struct StmtEntry {
     // The statment
-    const Node* stmt;
+    const Object* stmt;
     // The index in the linear_seq_ to point to end of the nested scope.
     // This is only set to non-zero if stmt is a nested scope.
     // if offset > 0, means this is the begin, the end entry is current_index + offset
@@ -236,7 +236,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
 //
 class InplaceOpVerifier : public IRVisitor {
  public:
-  bool Check(const Node* stmt,
+  bool Check(const Object* stmt,
              const Variable* dst,
              const Variable* src) {
     dst_ = dst;
@@ -258,7 +258,7 @@ class InplaceOpVerifier : public IRVisitor {
 
   using IRVisitor::Visit_;
 
-  void Visit(const NodeRef& e) final {
+  void Visit(const ObjectRef& e) final {
     if (!result_) return;
     IRVisitor::Visit(e);
   }
@@ -471,7 +471,7 @@ class StoragePlanRewriter : public IRMutator {
     // The scope that this alloc attaches after
     // For shared/local memory it is beginning of the thread extent.
     // for global memory it is nullptr, means beginning of everything.
-    const Node* attach_scope_{nullptr};
+    const Object* attach_scope_{nullptr};
     // The constant size of the buffer in bits, only used if it is constant
     uint64_t const_nbits{0};
     // The storage scope.
@@ -695,7 +695,7 @@ class StoragePlanRewriter : public IRMutator {
       }
     }
   }
-  void PlanNewScope(const Node* op) {
+  void PlanNewScope(const Object* op) {
     if (thread_scope_ != nullptr) {
       CHECK(thread_scope_ == op);
       // erase all memory atatched to this scope.
@@ -808,7 +808,7 @@ class StoragePlanRewriter : public IRMutator {
   }
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const Allocate* op,
-                         const Node* attach_scope,
+                         const Object* attach_scope,
                          const StorageScope& scope,
                          size_t const_nbits) {
     CHECK(op != nullptr);
@@ -824,7 +824,7 @@ class StoragePlanRewriter : public IRMutator {
   }
 
   StorageEntry* FindAlloc(const Allocate* op,
-                          const Node* attach_scope,
+                          const Object* attach_scope,
                           const StorageScope& scope) {
     CHECK(op != nullptr);
     // skip plan for local variable,
@@ -908,17 +908,17 @@ class StoragePlanRewriter : public IRMutator {
     }
   }
   // thread scope.
-  const Node* thread_scope_{nullptr};
+  const Object* thread_scope_{nullptr};
   // whether enable inplace detection.
   bool detect_inplace_{false};
   // Locations of free ops.
-  std::unordered_map<const Node*, EventEntry> event_map_;
+  std::unordered_map<const Object*, EventEntry> event_map_;
   // constant size free map.
   std::multimap<uint64_t, StorageEntry*> const_free_map_;
   // symbolic free list, for non constant items.
   std::list<StorageEntry*> sym_free_list_;
   // The allocation attach map
-  std::unordered_map<const Node*, std::vector<StorageEntry*> > attach_map_;
+  std::unordered_map<const Object*, std::vector<StorageEntry*> > attach_map_;
   // The allocation assign map
   std::unordered_map<const Variable*, StorageEntry*> alloc_map_;
   // The allocations
@@ -987,7 +987,7 @@ class VectorAllocRewriter : public IRMutator {
 
 
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   VectorAllocRewriter rewriter;
   n->body = rewriter.Mutate(n->body);
   for (Var arg : f->args) {

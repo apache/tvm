@@ -71,7 +71,7 @@ class StorageAccessVisitor : public IRVisitor {
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
     /*! \brief The statement */
-    const Node* stmt;
+    const Object* stmt;
     /*! \brief access patterns in the statement */
     std::vector<AccessEntry> access;
   };

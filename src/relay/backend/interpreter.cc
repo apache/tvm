@@ -45,7 +45,7 @@ inline const PackedFunc& GetPackedFunc(const std::string& name) {
 
 /* Value Implementation */
 Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
-  NodePtr<ClosureNode> n = make_node<ClosureNode>();
+  ObjectPtr<ClosureNode> n = make_object<ClosureNode>();
   n->env = std::move(env);
   n->func = std::move(func);
   return Closure(n);
@@ -64,7 +64,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 // TODO(@jroesch): this doesn't support mutual letrec
 /* Value Implementation */
 RecClosure RecClosureNode::make(Closure clos, Var bind) {
-  NodePtr<RecClosureNode> n = make_node<RecClosureNode>();
+  ObjectPtr<RecClosureNode> n = make_object<RecClosureNode>();
   n->clos = std::move(clos);
   n->bind = std::move(bind);
   return RecClosure(n);
@@ -80,7 +80,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TupleValue TupleValueNode::make(tvm::Array<Value> value) {
-  NodePtr<TupleValueNode> n = make_node<TupleValueNode>();
+  ObjectPtr<TupleValueNode> n = make_object<TupleValueNode>();
   n->fields = value;
   return TupleValue(n);
 }
@@ -95,7 +95,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TensorValue TensorValueNode::make(runtime::NDArray data) {
-  NodePtr<TensorValueNode> n = make_node<TensorValueNode>();
+  ObjectPtr<TensorValueNode> n = make_object<TensorValueNode>();
   n->data = std::move(data);
   return TensorValue(n);
 }
@@ -112,7 +112,7 @@ TVM_REGISTER_API("relay._make.TensorValue")
 .set_body_typed(TensorValueNode::make);
 
 RefValue RefValueNode::make(Value value) {
-  NodePtr<RefValueNode> n = make_node<RefValueNode>();
+  ObjectPtr<RefValueNode> n = make_object<RefValueNode>();
   n->value = value;
   return RefValue(n);
 }
@@ -131,7 +131,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 ConstructorValue ConstructorValueNode::make(int32_t tag,
                                             tvm::Array<Value> fields,
                                             Constructor constructor) {
-  NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
+  ObjectPtr<ConstructorValueNode> n = make_object<ConstructorValueNode>();
   n->tag = tag;
   n->fields = fields;
   n->constructor = constructor;
@@ -204,7 +204,7 @@ struct Stack {
 class InterpreterState;
 
 /*! \brief A container capturing the state of the interpreter. */
-class InterpreterStateNode : public Node {
+class InterpreterStateNode : public Object {
  public:
   using Frame = tvm::Map<Var, Value>;
   using Stack = tvm::Array<Frame>;
@@ -223,13 +223,16 @@ class InterpreterStateNode : public Node {
   static InterpreterState make(Expr current_expr, Stack stack);
 
   static constexpr const char* _type_key = "relay.InterpreterState";
-  TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterStateNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(InterpreterState, InterpreterStateNode, NodeRef);
+class InterpreterState : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterState, ObjectRef, InterpreterStateNode);
+};
 
 InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
-  NodePtr<InterpreterStateNode> n = make_node<InterpreterStateNode>();
+  ObjectPtr<InterpreterStateNode> n = make_object<InterpreterStateNode>();
   n->current_expr = std::move(current_expr);
   n->stack = std::move(stack);
   return InterpreterState(n);

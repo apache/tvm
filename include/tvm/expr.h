@@ -38,20 +38,20 @@
 namespace tvm {
 
 /*! \brief Base node of all expressions. */
-class ExprNode : public Node {
+class ExprNode : public Object {
  public:
   /*! \brief The data type of the expression. */
   DataType dtype;
 
   static constexpr const char* _type_key = "Expr";
-  TVM_DECLARE_BASE_NODE_INFO(ExprNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(ExprNode, Object);
 };
 
 /*! \brief Container of all expressions. */
-class Expr : public NodeRef {
+class Expr : public ObjectRef {
  public:
   Expr() {}
-  explicit Expr(ObjectPtr<Object> ptr) : NodeRef(ptr) {}
+  explicit Expr(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
@@ -78,16 +78,16 @@ class Expr : public NodeRef {
 };
 
 /*! \brief Base node of all statements. */
-class StmtNode : public Node {
+class StmtNode : public Object {
  public:
   static constexpr const char* _type_key = "Stmt";
-  TVM_DECLARE_BASE_NODE_INFO(StmtNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
 };
 
 /*! \brief Container of all statements */
-class Stmt : public NodeRef {
+class Stmt : public ObjectRef {
  public:
-  TVM_DEFINE_NODE_REF_METHODS(Stmt, NodeRef, StmtNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Stmt, ObjectRef, StmtNode);
 };
 
 class Var;
@@ -118,7 +118,7 @@ class Variable : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_NODE_TYPE_INFO(Variable, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Variable, ExprNode);
 };
 
 /*! \brief a named variable in TVM */
@@ -156,8 +156,8 @@ class Var : public Expr {
 // Backward compatibility, will be removed later.
 using VarExpr = Var;
 using BaseExprNode = ExprNode;
-using ExprHash = NodeHash;
-using ExprEqual = NodeEqual;
+using ExprHash = ObjectHash;
+using ExprEqual = ObjectEqual;
 
 class Integer;
 /*! \brief ExprNode: constant integer. */
@@ -174,7 +174,7 @@ class IntImm : public ExprNode {
   TVM_DLL static Integer make(DataType t, int64_t value);
 
   static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_NODE_TYPE_INFO(IntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntImm, ExprNode);
 };
 
 /*!
@@ -222,7 +222,7 @@ class Integer : public Expr {
 };
 
 /*! \brief range over one dimension */
-class RangeNode : public Node {
+class RangeNode : public Object {
  public:
   /*! \brief beginning of the node */
   Expr min;
@@ -238,11 +238,11 @@ class RangeNode : public Node {
   }
 
   static constexpr const char* _type_key = "Range";
-  TVM_DECLARE_NODE_TYPE_INFO(RangeNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 
 /*! \brief Range constainer  */
-class Range : public NodeRef {
+class Range : public ObjectRef {
  public:
   /*!
    * \brief constructor by begin and end
@@ -261,7 +261,7 @@ class Range : public NodeRef {
    */
   static Range make_by_min_extent(Expr min, Expr extent);
   // declare range.
-  TVM_DEFINE_NODE_REF_METHODS(Range, NodeRef, RangeNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
 
 /*! \brief container class of iteration variable. */
@@ -343,12 +343,12 @@ enum IterVarType : int {
  * \brief Iteration Variable,
  *  represents an iteration over an integer interval.
  */
-class IterVar : public NodeRef {
+class IterVar : public ObjectRef {
  public:
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IterVar(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -384,14 +384,14 @@ using Domain = Array<Range>;
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
  */
-TVM_DLL void Dump(const NodeRef& node);
+TVM_DLL void Dump(const ObjectRef& node);
 
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
  */
-class IterVarNode : public Node {
+class IterVarNode : public Object {
  public:
   /*!
    * \brief the domain of iteration, if known, can be None
@@ -420,7 +420,7 @@ class IterVarNode : public Node {
                               std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
-  TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
 };
 
 // inline implementations
@@ -490,17 +490,22 @@ class IRPrinter {
   using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
   TVM_DLL static FType& vtable();
 };
+}  // namespace tvm
 
-// default print function for all nodes
+namespace tvm {
+namespace runtime {
+// default print function for all objects
+// provide in the runtime namespace as this is where objectref originally comes from.
 inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
   IRPrinter(os).Print(n);
   return os;
 }
+}  // namespace runtime
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::IterVar> : public ::tvm::NodeHash {
+struct hash<::tvm::IterVar> : public ::tvm::ObjectHash {
 };
 }
 #endif  // TVM_EXPR_H_

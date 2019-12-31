@@ -56,7 +56,7 @@ class CanonicalExprNode : public BaseExprNode {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
-  TVM_DECLARE_BASE_NODE_INFO(CanonicalExprNode, BaseExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, BaseExprNode);
 };
 
 enum DivMode {
@@ -147,10 +147,14 @@ class SplitExprNode : public CanonicalExprNode {
   /*! \brief positive infty */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static constexpr const char* _type_key = "arith.SplitExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(SplitExprNode, CanonicalExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SplitExprNode, CanonicalExprNode);
 };
 
-TVM_DEFINE_COW_NODE_REF(SplitExpr, Expr, SplitExprNode);
+class SplitExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SplitExpr, Expr, SplitExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SplitExprNode);
+};
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
@@ -272,7 +276,7 @@ class SumExprNode : public CanonicalExprNode {
   void AddToSelf(const SumExpr& other, int64_t scale);
 
   static constexpr const char* _type_key = "arith.SumExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(SumExprNode, CanonicalExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SumExprNode, CanonicalExprNode);
 
  private:
   /*!
@@ -405,7 +409,11 @@ class SumExprNode : public CanonicalExprNode {
   }
 };
 
-TVM_DEFINE_COW_NODE_REF(SumExpr, Expr, SumExprNode);
+class SumExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SumExpr, Expr, SumExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SumExprNode);
+};
 
 void SumExprNode::AddToSelf(const SumExpr& other, int64_t scale) {
   // NOTE: it is rare to have a balanced long expression,
@@ -507,7 +515,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
-    NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
+    ObjectPtr<SplitExprNode> n = make_object<SplitExprNode>();
     n->dtype = expr.dtype();
     n->index = std::move(expr);
     n->div_mode = kTruncDiv;
@@ -544,7 +552,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       return GetRef<SumExpr>(op);
     }
-    NodePtr<SumExprNode> n = make_node<SumExprNode>();
+    ObjectPtr<SumExprNode> n = make_object<SumExprNode>();
     n->dtype = expr.dtype();
     if (const auto* op = expr.as<IntImm>()) {
       n->base = op->value;
@@ -655,8 +663,8 @@ SeparateDivisibleParts(const SumExprNode* psum,
                        int64_t coeff,
                        SumExpr* out_divisible,
                        SumExpr* out_non_divisible) {
-  auto divisible = make_node<SumExprNode>();
-  auto non_divisible = make_node<SumExprNode>();
+  auto divisible = make_object<SumExprNode>();
+  auto non_divisible = make_object<SumExprNode>();
   divisible->dtype = psum->dtype;
   non_divisible->dtype = psum->dtype;
 

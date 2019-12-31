@@ -87,7 +87,7 @@ class TVM_DLL IRVisitor {
   /*!
    * \brief recursively visit an IR node
    */
-  virtual void Visit(const NodeRef& node) {
+  virtual void Visit(const ObjectRef& node) {
     static const FVisit& f = vtable();
     if (node.defined()) f(node, this);
   }
@@ -152,7 +152,7 @@ class TVM_DLL IRVisitor {
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
-TVM_DLL void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
+TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
 
 }  // namespace ir
 }  // namespace tvm

@@ -137,7 +137,7 @@ class Storage : public ObjectRef {
  public:
   explicit Storage(Buffer buffer);
 
-  TVM_DEFINE_OBJECT_REF_METHODS_MUT(Storage, ObjectRef, StorageObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace vm

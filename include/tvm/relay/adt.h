@@ -38,7 +38,7 @@ namespace relay {
 class PatternNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Pattern";
-  TVM_DECLARE_BASE_NODE_INFO(PatternNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(PatternNode, Object);
 };
 
 /*!
@@ -49,10 +49,10 @@ class PatternNode : public RelayNode {
  *
  * ADT pattern matching thus takes a list of values and binds to the first that accepts the value.
  */
-class Pattern : public NodeRef {
+class Pattern : public ObjectRef {
  public:
   Pattern() {}
-  explicit Pattern(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
+  explicit Pattern(ObjectPtr<tvm::Object> p) : ObjectRef(p) {}
 
   using ContainerType = PatternNode;
 };
@@ -71,10 +71,13 @@ class PatternWildcardNode : public PatternNode {
   }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternWildcardNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternWildcardNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternWildcard, PatternWildcardNode, Pattern);
+class PatternWildcard : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternWildcard, Pattern, PatternWildcardNode);
+};
 
 /*! \brief A var pattern. Accept all input and bind to a var. */
 class PatternVar;
@@ -94,10 +97,13 @@ class PatternVarNode : public PatternNode {
   }
 
   static constexpr const char* _type_key = "relay.PatternVar";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternVarNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternVar, PatternVarNode, Pattern);
+class PatternVar : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternVar, Pattern, PatternVarNode);
+};
 
 /*!
  * \brief ADT constructor.
@@ -132,10 +138,13 @@ class ConstructorNode : public ExprNode {
   }
 
   static constexpr const char* _type_key = "relay.Constructor";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstructorNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Constructor, ConstructorNode, Expr);
+class Constructor : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Constructor, Expr, ConstructorNode);
+};
 
 /*! \brief A constructor pattern. Matches a value with the given constructor, binds recursively. */
 class PatternConstructor;
@@ -158,10 +167,13 @@ class PatternConstructorNode : public PatternNode {
   }
 
   static constexpr const char* _type_key = "relay.PatternConstructor";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternConstructorNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternConstructorNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
+class PatternConstructor : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternConstructor, Pattern, PatternConstructorNode);
+};
 
 /*! \brief A tuple pattern. Matches a tuple, binds recursively. */
 class PatternTuple;
@@ -181,10 +193,13 @@ class PatternTupleNode : public PatternNode {
   }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternTupleNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternTupleNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternTuple, PatternTupleNode, Pattern);
+class PatternTuple : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternTuple, Pattern, PatternTupleNode);
+};
 
 /*!
  * \brief Stores all data for an Algebraic Data Type (ADT).
@@ -225,15 +240,18 @@ class TypeDataNode : public TypeNode {
                                tvm::Array<Constructor> constructors);
 
   static constexpr const char* _type_key = "relay.TypeData";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeDataNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeDataNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeData, TypeDataNode, Type);
+class TypeData : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeData, Type, TypeDataNode);
+};
 
 /*! \brief A clause in a match expression. */
 class Clause;
 /*! \brief Clause container node. */
-class ClauseNode : public Node {
+class ClauseNode : public Object {
  public:
   /*! \brief The pattern the clause matches. */
   Pattern lhs;
@@ -248,10 +266,13 @@ class ClauseNode : public Node {
   TVM_DLL static Clause make(Pattern lhs, Expr rhs);
 
   static constexpr const char* _type_key = "relay.Clause";
-  TVM_DECLARE_NODE_TYPE_INFO(ClauseNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(Clause, ClauseNode, NodeRef);
+class Clause : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
+};
 
 /*! \brief ADT pattern matching exression. */
 class Match;
@@ -280,10 +301,13 @@ class MatchNode : public ExprNode {
   TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
 
   static constexpr const char* _type_key = "relay.Match";
-  TVM_DECLARE_NODE_TYPE_INFO(MatchNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MatchNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Match, MatchNode, Expr);
+class Match : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Match, Expr, MatchNode);
+};
 
 }  // namespace relay
 }  // namespace tvm

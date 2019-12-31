@@ -62,7 +62,7 @@ class QConfig;
 /*!
 * \brief Container for build configuration options
 */
-class QConfigNode : public Node {
+class QConfigNode : public Object {
  public:
   int nbit_input = 8;
   int nbit_weight = 8;
@@ -73,10 +73,10 @@ class QConfigNode : public Node {
   std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
   std::string weight_scale = "power2";
-  Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
+  Array<Expr> skip_conv_layers = Array<Expr>(ObjectPtr<Object>(nullptr));
   bool do_simulation = false;
   bool round_for_shift = true;
-  Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
+  Array<Expr> debug_enabled_ops = Array<Expr>(ObjectPtr<Object>(nullptr));
   std::string rounding = "UPWARD";
 
   void VisitAttrs(AttrVisitor* v) {
@@ -97,16 +97,16 @@ class QConfigNode : public Node {
   }
 
   static constexpr const char* _type_key = "relay.quantize.QConfig";
-  TVM_DECLARE_NODE_TYPE_INFO(QConfigNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QConfigNode, Object);
 };
 
 /*!
 * \brief Container for build configuration options
 */
-class QConfig : public NodeRef {
+class QConfig : public ObjectRef {
  public:
   QConfig() {}
-  explicit QConfig(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit QConfig(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   const QConfigNode* operator->() const {
     return static_cast<const QConfigNode*>(get());

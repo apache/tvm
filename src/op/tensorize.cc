@@ -379,7 +379,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   for (size_t i = 0; i < intrin->inputs.size(); ++i) {
     Tensor tensor = inputs[i];
     Buffer buffer = intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
     auto it = in_region.find(tensor);
     CHECK(it != in_region.end());
     const Array<Range>& region = it->second;
@@ -407,7 +407,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   for (size_t i = intrin->inputs.size(); i < intrin->buffers.size(); ++i) {
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
     output_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
         Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
@@ -507,7 +507,7 @@ TVM_REGISTER_API("test.op.InferTensorizeRegion")
                          stage,
                          as_unordered_map(dmap),
                          &out_dom, &in_region);
-    *ret = Array<NodeRef>{Map<IterVar, Range>(out_dom),
+    *ret = Array<ObjectRef>{Map<IterVar, Range>(out_dom),
                           Map<Tensor, Array<Range> >(in_region)};
   });
 

@@ -90,7 +90,7 @@ struct ResolvedTypeInfo {
   Type checked_type;
   // Only allocated when the expression is a call.
 
-  Array<Type> type_args = Array<Type>(NodePtr<Node>(nullptr));
+  Array<Type> type_args = Array<Type>(ObjectPtr<Object>(nullptr));
 };
 
 //
@@ -128,7 +128,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   // map from expression to checked type
   // type inferencer will populate it up
-  std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
+  std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual> type_map_;
 
   // The solver used by the inferencer.
   TypeSolver solver_;
@@ -138,7 +138,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
   // Perform unification on two types and report the error at the expression
   // or the span of the expression.
-  Type Unify(const Type& t1, const Type& t2, const NodeRef& expr) {
+  Type Unify(const Type& t1, const Type& t2, const ObjectRef& expr) {
     try {
       return solver_.Unify(t1, t2, expr);
     } catch (const dmlc::Error &e) {
@@ -168,7 +168,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     return ret;
   }
 
-  void ReportFatalError(const NodeRef& expr, const Error& err) {
+  void ReportFatalError(const ObjectRef& expr, const Error& err) {
     CHECK(this->current_func_.defined());
     this->err_reporter.ReportAt(this->current_func_, expr, err);
     this->err_reporter.RenderErrors(this->mod_);
@@ -215,7 +215,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
     Type tuple_type = GetType(op->tuple);
     Type rtype = IncompleteTypeNode::make(Kind::kType);
-    auto attrs = make_node<TupleGetItemAttrs>();
+    auto attrs = make_object<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelationNode::make(
         tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)), GetRef<TupleGetItem>(op));
@@ -235,7 +235,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
     Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
-    Type unified = Unify(t, expected, GetRef<NodeRef>(con));
+    Type unified = Unify(t, expected, GetRef<ObjectRef>(con));
 
     auto* tc = unified.as<TypeCallNode>();
     if (!tc) {
@@ -250,7 +250,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
                                              << "the number of type vars in the type data: "
                                              << td->type_vars.size() << " != " << tc->args.size()));
     }
-    std::unordered_map<TypeVar, Type, NodeHash, NodeEqual> type_var_map_;
+    std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> type_var_map_;
     for (size_t i = 0; i < td->type_vars.size(); ++i) {
       type_var_map_[td->type_vars[i]] = tc->args[i];
     }
@@ -274,7 +274,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
     Type expected = TupleTypeNode::make(unknown_args);
-    Type unified = Unify(t, expected, GetRef<NodeRef>(tup));
+    Type unified = Unify(t, expected, GetRef<ObjectRef>(tup));
 
     auto* tt = unified.as<TupleTypeNode>();
     if (!tt) {
@@ -372,7 +372,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type PrimitiveCall(const FuncTypeNode* op,
                      Array<Type> arg_types,
                      const Attrs& attrs,
-                     const NodeRef& loc) {
+                     const ObjectRef& loc) {
     if (op->type_params.size() != arg_types.size() + 1) return Type();
     if (op->type_constraints.size() != 1) return Type();
     const TypeRelationNode* rel = op->type_constraints[0].as<TypeRelationNode>();
@@ -594,7 +594,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
 class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
  public:
-  Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap,
+  Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual>& tmap,
            TypeSolver* solver)
     : tmap_(tmap), solver_(solver) {
   }
@@ -723,7 +723,7 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
       // Copy on write optimization
       // If new_e is an old expression,
       // we make a copy mutating an existing reference.
-      NodePtr<ExprNode> ptr = make_node<T>(*new_e.as<T>());
+      ObjectPtr<ExprNode> ptr = make_object<T>(*new_e.as<T>());
       new_e = Expr(ptr);
       new_call = (
           std::is_base_of<CallNode, T>::value ?
@@ -763,8 +763,8 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   }
 
  private:
-  std::unordered_map<Var, Var, NodeHash, NodeEqual> vmap_;
-  const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap_;
+  std::unordered_map<Var, Var, ObjectHash, ObjectEqual> vmap_;
+  const std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual>& tmap_;
   TypeSolver* solver_;
   // whether attach the checked type as type_annotation
   // if original type anntation is missing.
@@ -814,7 +814,7 @@ Function InferType(const Function& func,
                    const Module& mod,
                    const GlobalVar& var) {
   CHECK(mod.defined()) << "internal error: module must be set for type inference";
-  Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
+  Function func_copy = Function(make_object<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
   mod->AddUnchecked(var, func_copy);
   Expr func_ret = TypeInferencer(mod, var).Infer(func_copy);

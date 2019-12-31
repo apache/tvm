@@ -56,7 +56,7 @@ bool DequantizeRel(const Array<Type>& types,
 Expr MakeDequantize(Expr data,
                     double input_scale,
                     int32_t input_zero_point) {
-  auto attrs = make_node<DequantizeAttrs>();
+  auto attrs = make_object<DequantizeAttrs>();
   attrs->input_scale = input_scale;
   attrs->input_zero_point = input_zero_point;
   // real_value = scale * (quantized_value - zero_point)

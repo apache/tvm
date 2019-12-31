@@ -29,9 +29,9 @@ namespace ir {
 // visitor to implement apply
 class IRApplyVisit : public IRVisitor {
  public:
-  explicit IRApplyVisit(std::function<void(const NodeRef&)> f) : f_(f) {}
+  explicit IRApplyVisit(std::function<void(const ObjectRef&)> f) : f_(f) {}
 
-  void Visit(const NodeRef& node) final {
+  void Visit(const ObjectRef& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
     IRVisitor::Visit(node);
@@ -39,11 +39,11 @@ class IRApplyVisit : public IRVisitor {
   }
 
  private:
-  std::function<void(const NodeRef&)> f_;
-  std::unordered_set<const Node*> visited_;
+  std::function<void(const ObjectRef&)> f_;
+  std::unordered_set<const Object*> visited_;
 };
 
-void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit) {
+void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit) {
   IRApplyVisit(fvisit).Visit(node);
 }
 

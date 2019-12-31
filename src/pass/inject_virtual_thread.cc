@@ -37,7 +37,7 @@ class ExprTouched final : public IRVisitor {
                        bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
 
-  void Visit(const NodeRef& n) final {
+  void Visit(const ObjectRef& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
     IRVisitor::Visit(n);

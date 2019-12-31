@@ -90,8 +90,8 @@ Tensor compute(Array<Expr> shape,
                FCompute fcompute,
                std::string name,
                std::string tag,
-               Map<std::string, NodeRef> attrs) {
-  auto op_node = make_node<ComputeOpNode>();
+               Map<std::string, ObjectRef> attrs) {
+  auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -112,8 +112,8 @@ Array<Tensor> compute(Array<Expr> shape,
                       FBatchCompute fcompute,
                       std::string name,
                       std::string tag,
-                      Map<std::string, NodeRef> attrs) {
-  auto op_node = make_node<ComputeOpNode>();
+                      Map<std::string, ObjectRef> attrs) {
+  auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -136,13 +136,13 @@ Array<Tensor> compute(Array<Expr> shape,
 
 Operation ComputeOpNode::make(std::string name,
                               std::string tag,
-                              Map<std::string, NodeRef> attrs,
+                              Map<std::string, ObjectRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, NodeRef>();
+    attrs = Map<std::string, ObjectRef>();
   }
-  auto n = make_node<ComputeOpNode>();
+  auto n = make_object<ComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -161,7 +161,7 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
-    ir::PostOrderVisit(e, [&ret, &visited](const NodeRef& n) {
+    ir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
         const ir::Call *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
           Tensor t = Downcast<Operation>(call->func).output(call->value_index);
@@ -188,7 +188,7 @@ Operation ComputeOpNode::ReplaceInputs(
     if (!new_reduce.same_as(this->body[0])) {
       const ir::Reduce* r = new_reduce.as<ir::Reduce>();
       for (size_t k = 0; k < this->body.size(); ++k) {
-        auto n = make_node<ir::Reduce>(*r);
+        auto n = make_object<ir::Reduce>(*r);
         n->value_index = static_cast<int>(k);
         n->dtype = r->source[k].dtype();
         arr.push_back(Expr(n));
@@ -215,7 +215,7 @@ void ComputeOpNode::PropBoundToInputs(
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
-  auto fvisit = [&dom_map, out_dom_map, analyzer](const NodeRef& n) {
+  auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
     auto *call = n.as<ir::Call>();
     if (call != nullptr && call->func.defined()) {
       Tensor t = Downcast<Operation>(call->func).output(call->value_index);
@@ -574,7 +574,7 @@ class ComputeVerifier final : protected ir::IRVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void Visit(const NodeRef& n) final {
+  void Visit(const ObjectRef& n) final {
     ++level_;
     ir::IRVisitor::Visit(n);
     --level_;

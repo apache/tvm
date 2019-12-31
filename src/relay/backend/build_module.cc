@@ -256,7 +256,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay::Function func,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     std::unordered_map<std::string, relay::Var> name_dict;
-    std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+    std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
     for (auto arg : func->params) {
       const auto &name = arg->name_hint();
       if (name_dict.count(name)) {
@@ -266,7 +266,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       }
     }
 
-    std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+    std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
     for (auto &kv : params) {
       if (name_dict.count(kv.first) == 0) {
         continue;

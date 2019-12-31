@@ -30,7 +30,7 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 TensorType TensorTypeNode::make(Array<IndexExpr> shape, DataType dtype) {
-  NodePtr<TensorTypeNode> n = make_node<TensorTypeNode>();
+  ObjectPtr<TensorTypeNode> n = make_object<TensorTypeNode>();
   n->shape = std::move(shape);
   n->dtype = std::move(dtype);
   return TensorType(n);
@@ -64,7 +64,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TypeVar TypeVarNode::make(std::string name, Kind kind) {
-  NodePtr<TypeVarNode> n = make_node<TypeVarNode>();
+  ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
   n->var = tvm::Var(name);
   n->kind = std::move(kind);
   return TypeVar(n);
@@ -85,7 +85,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 GlobalTypeVar GlobalTypeVarNode::make(std::string name, Kind kind) {
-  NodePtr<GlobalTypeVarNode> n = make_node<GlobalTypeVarNode>();
+  ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
   n->var = tvm::Var(name);
   n->kind = std::move(kind);
   return GlobalTypeVar(n);
@@ -106,7 +106,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TypeCall TypeCallNode::make(Type func, tvm::Array<Type> args) {
-  NodePtr<TypeCallNode> n = make_node<TypeCallNode>();
+  ObjectPtr<TypeCallNode> n = make_object<TypeCallNode>();
   n->func = std::move(func);
   n->args = std::move(args);
   return TypeCall(n);
@@ -125,7 +125,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 IncompleteType IncompleteTypeNode::make(Kind kind) {
-  auto n = make_node<IncompleteTypeNode>();
+  auto n = make_object<IncompleteTypeNode>();
   n->kind = std::move(kind);
   return IncompleteType(n);
 }
@@ -147,7 +147,7 @@ FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
                             Type ret_type,
                             tvm::Array<TypeVar> type_params,
                             tvm::Array<TypeConstraint> type_constraints) {
-  NodePtr<FuncTypeNode> n = make_node<FuncTypeNode>();
+  ObjectPtr<FuncTypeNode> n = make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
@@ -172,7 +172,7 @@ TypeRelation TypeRelationNode::make(TypeRelationFn func,
                                     Array<Type> args,
                                     int num_inputs,
                                     Attrs attrs) {
-  NodePtr<TypeRelationNode> n = make_node<TypeRelationNode>();
+  ObjectPtr<TypeRelationNode> n = make_object<TypeRelationNode>();
   n->func = std::move(func);
   n->args = std::move(args);
   n->num_inputs = num_inputs;
@@ -194,7 +194,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TupleType TupleTypeNode::make(Array<Type> fields) {
-  NodePtr<TupleTypeNode> n = make_node<TupleTypeNode>();
+  ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
   n->fields = std::move(fields);
   return TupleType(n);
 }
@@ -211,7 +211,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 RefType RefTypeNode::make(Type value) {
-  NodePtr<RefTypeNode> n = make_node<RefTypeNode>();
+  ObjectPtr<RefTypeNode> n = make_object<RefTypeNode>();
   n->value = std::move(value);
   return RefType(n);
 }

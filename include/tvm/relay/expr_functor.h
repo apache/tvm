@@ -116,7 +116,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const RefWriteNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ConstructorNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MatchNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExprDefault_(const Node* op, Args...) {
+  virtual R VisitExprDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
@@ -177,7 +177,7 @@ class ExprVisitor
 
  protected:
   // Internal visiting counter
-  std::unordered_map<const Node*, size_t> visit_counter_;
+  std::unordered_map<const Object*, size_t> visit_counter_;
 };
 
 /*!
@@ -227,7 +227,7 @@ class ExprMutator
 
  protected:
   /*! \brief Internal map used for memoization. */
-  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo_;
 };
 
 /*!

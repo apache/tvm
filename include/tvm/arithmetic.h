@@ -55,7 +55,7 @@ class Analyzer;
  *
  *  set = [min_value, max_value]
  */
-class ConstIntBoundNode : public Node {
+class ConstIntBoundNode : public Object {
  public:
   int64_t min_value;
   int64_t max_value;
@@ -74,14 +74,14 @@ class ConstIntBoundNode : public Node {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr const char* _type_key = "arith.ConstIntBound";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstIntBoundNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstIntBoundNode, Object);
 };
 
 /*!
  * \brief reference class to ConstIntBoundNode
  * \sa ConstIntBoundNode
  */
-class ConstIntBound : public NodeRef {
+class ConstIntBound : public ObjectRef {
  public:
   /*!
    * \brief constructor by fields.
@@ -92,7 +92,7 @@ class ConstIntBound : public NodeRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_DEFINE_NODE_REF_METHODS(ConstIntBound, NodeRef, ConstIntBoundNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ConstIntBound, ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -155,7 +155,7 @@ class ConstIntBoundAnalyzer {
  *  This is useful to decide if the index is dividable by certain value.
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
-class ModularSetNode : public Node {
+class ModularSetNode : public Object {
  public:
   /*! \brief linear co-efficient */
   int64_t coeff;
@@ -168,18 +168,18 @@ class ModularSetNode : public Node {
   }
 
   static constexpr const char* _type_key = "arith.ModularSet";
-  TVM_DECLARE_NODE_TYPE_INFO(ModularSetNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModularSetNode, Object);
 };
 
 /*!
  * \brief reference of ModularSetNode
  * \sa ModularSetNode
  */
-class ModularSet : public NodeRef {
+class ModularSet : public ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_DEFINE_NODE_REF_METHODS(ModularSet, NodeRef, ModularSetNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ModularSet, ObjectRef, ModularSetNode);
 };
 
 /*!
@@ -349,20 +349,20 @@ enum SignType {
 /*!
  * \brief Base class of all IntSet containers.
  */
-struct IntSetNode : public Node {
+struct IntSetNode : public Object {
   static constexpr const char* _type_key = "IntSet";
-  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
 };
 
 /*!
  * \brief Integer set class, represent a set of integers in one dimension.
  */
-class IntSet : public NodeRef {
+class IntSet : public ObjectRef {
  public:
   /*! \brief constructor */
   IntSet() {}
   // constructor from not container.
-  explicit IntSet(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IntSet(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -598,7 +598,7 @@ IntSet EvalSet(Range r,
                const std::unordered_map<const Variable*, IntSet>& dom_map);
 
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<Expr, IntSet, NodeHash, NodeEqual>;
+using ExprIntSetMap = std::unordered_map<Expr, IntSet, ObjectHash, ObjectEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.

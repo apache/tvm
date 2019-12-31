@@ -75,7 +75,7 @@ class IntervalSetNode : public IntSetNode {
   }
 
   static constexpr const char* _type_key = "arith.IntervalSet";
-  TVM_DECLARE_NODE_TYPE_INFO(IntervalSetNode, IntSetNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntervalSetNode, IntSetNode);
 };
 
 /*!
@@ -116,8 +116,8 @@ class IntervalSet : public IntSet {
     return IntervalSet(pos_inf(), neg_inf());
   }
 
-  TVM_DEFINE_NODE_REF_COW(IntervalSetNode);
-  TVM_DEFINE_NODE_REF_METHODS(IntervalSet, IntSet, IntervalSetNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IntervalSetNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(IntervalSet, IntSet, IntervalSetNode);
 };
 
 /*!

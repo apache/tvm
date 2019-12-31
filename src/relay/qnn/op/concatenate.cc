@@ -39,7 +39,7 @@ TVM_REGISTER_NODE_TYPE(QnnConcatenateAttrs);
 Expr MakeQnnConcatenate(Expr data, Array<tvm::Expr> input_scales,
                         Array<tvm::Expr> input_zero_points, double output_scale,
                         int32_t output_zero_point, int axis) {
-  auto attrs = make_node<QnnConcatenateAttrs>();
+  auto attrs = make_object<QnnConcatenateAttrs>();
   attrs->input_scales = std::move(input_scales);
   attrs->input_zero_points = std::move(input_zero_points);
   attrs->output_scale = output_scale;

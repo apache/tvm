@@ -73,7 +73,7 @@ Expr MakeResize(Expr data,
                 std::string method,
                 bool align_corners,
                 DataType out_dtype) {
-  auto attrs = make_node<ResizeAttrs>();
+  auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);

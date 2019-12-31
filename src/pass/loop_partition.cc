@@ -37,10 +37,10 @@ using arith::IntSet;
 using arith::DeduceBound;
 using arith::Intersect;
 
-using PartitionKey = std::pair<const Node*, bool>;
+using PartitionKey = std::pair<const Object*, bool>;
 struct PartitionKeyHash {
   std::size_t operator()(PartitionKey const& k) const noexcept {
-    std::size_t h1 = std::hash<const Node*>{}(k.first);
+    std::size_t h1 = std::hash<const Object*>{}(k.first);
     std::size_t h2 = std::hash<bool>{}(k.second);
     return h1 ^ h2;
   }
@@ -53,7 +53,7 @@ using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash>;
 
 bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
   bool success = false;
-  PostOrderVisit(expr, [&vars, &success](const NodeRef& node) {
+  PostOrderVisit(expr, [&vars, &success](const ObjectRef& node) {
     if (const Variable* v = node.as<Variable>()) {
       if (vars.count(v)) {
         success = true;
@@ -138,7 +138,7 @@ class CandidateSelector final : public IRVisitor {
     }
   }
 
-  std::unordered_set<const Node*> candidates;
+  std::unordered_set<const Object*> candidates;
 
  private:
   bool in_likely_{false};
@@ -257,7 +257,7 @@ class PartitionFinder : public IRVisitor {
 // Replace the set of conditions given by ps with cond_value (true or false)
 class ConditionEliminator : public IRMutator {
  public:
-  explicit ConditionEliminator(const std::unordered_set<const Node*>& ps, bool cond_value = true)
+  explicit ConditionEliminator(const std::unordered_set<const Object*>& ps, bool cond_value = true)
     : ps_(ps), cond_value_(cond_value) {}
 
   using IRMutator::Mutate;
@@ -269,7 +269,7 @@ class ConditionEliminator : public IRMutator {
   }
 
  private:
-  std::unordered_set<const Node*> ps_;
+  std::unordered_set<const Object*> ps_;
   bool cond_value_;
 };
 
@@ -277,7 +277,7 @@ class ConditionEliminator : public IRMutator {
 // Insert the partition branch at the innermost thread scope
 class ThreadPartitionInserter : public IRMutator {
  public:
-  explicit ThreadPartitionInserter(const std::unordered_set<const Node*>& ps,
+  explicit ThreadPartitionInserter(const std::unordered_set<const Object*>& ps,
     Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
@@ -299,7 +299,7 @@ class ThreadPartitionInserter : public IRMutator {
   }
 
  private:
-  const std::unordered_set<const Node*>& ps_;
+  const std::unordered_set<const Object*>& ps_;
   Expr cond_;
   bool innermost_thread_scope_;
 };
@@ -364,15 +364,15 @@ class LoopPartitioner : public IRMutator {
   }
 
  private:
-  Stmt TryPartition(const Node* op, const Stmt& stmt, VarExpr var,
+  Stmt TryPartition(const Object* op, const Stmt& stmt, VarExpr var,
       Expr min, Expr max, Stmt body, bool partition_thread_scope);
 
-  std::pair<IntSet, std::unordered_set<const Node*>>
+  std::pair<IntSet, std::unordered_set<const Object*>>
   GetIntervalAndCondset(const Partition &partitions,
                         const arith::IntervalSet &for_interval,
                         bool cond_value);
 
-  inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
+  inline Stmt MakeFor(const Object* op, Expr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
   std::unordered_map<const Variable*, IntSet> hint_map_;
@@ -383,12 +383,12 @@ class LoopPartitioner : public IRMutator {
 
 // Returns an interval (in the first component) in which all the conditions
 // given in the second component provably have value given by cond_value
-std::pair<IntSet, std::unordered_set<const Node*>>
+std::pair<IntSet, std::unordered_set<const Object*>>
 LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
                                        const arith::IntervalSet &for_interval,
                                        bool cond_value) {
   Array<IntSet> sets;
-  std::unordered_set<const Node*> cond_set;
+  std::unordered_set<const Object*> cond_set;
 
   for (const auto &kv : partitions) {
     if (kv.first.second == cond_value) {
@@ -461,7 +461,7 @@ Stmt AppendStmts(const Stmt& a, const Stmt& b) {
  * which will eventually be simplified to empty code. And because only one loop was generated
  * from loop 2 we stop recursing.
  */
-Stmt LoopPartitioner::TryPartition(const Node* node,
+Stmt LoopPartitioner::TryPartition(const Object* node,
                                    const Stmt& stmt,
                                    VarExpr var,
                                    Expr min,
@@ -481,7 +481,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   arith::IntervalSet for_interval(min, max);
   bool cond_value;
   IntSet middle_interval;
-  std::unordered_set<const Node*> cond_set;
+  std::unordered_set<const Object*> cond_set;
   // find an interval in which all conditions on var are true
   std::tie(middle_interval, cond_set) =
           GetIntervalAndCondset(finder.partitions, for_interval, true);
@@ -592,7 +592,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   return s;
 }
 
-inline Stmt LoopPartitioner::MakeFor(const Node *node, Expr extent, Stmt body) {
+inline Stmt LoopPartitioner::MakeFor(const Object *node, Expr extent, Stmt body) {
   const For *for_node = static_cast<const For*>(node);
   CHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {

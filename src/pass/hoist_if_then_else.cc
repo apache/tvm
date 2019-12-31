@@ -35,8 +35,8 @@
 namespace tvm {
 namespace ir {
 
-using HoistMap = std::unordered_map<const Node*, std::vector<Stmt>>;
-using VarMap = std::unordered_map<const Node*, std::unordered_set<const Node*>>;
+using HoistMap = std::unordered_map<const Object*, std::vector<Stmt>>;
+using VarMap = std::unordered_map<const Object*, std::unordered_set<const Object*>>;
 
 /*
  * This pass tries to hoist IfThenElse stmt out of For loop if condition is loop invariant.
@@ -124,12 +124,12 @@ class IfThenElseHoist {
 // Check whether a given IfThenElse stmt is the first one appearing
 // in a For stmt.
 bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
-  std::vector<const Node*> if_node_list;
+  std::vector<const Object*> if_node_list;
   const For* for_node = for_stmt.as<For>();
   CHECK(for_node);
   CHECK(if_stmt.as<IfThenElse>());
 
-  PostOrderVisit(for_node->body, [&](const NodeRef& node) {
+  PostOrderVisit(for_node->body, [&](const ObjectRef& node) {
     if (node.as<IfThenElse>()) {
       if_node_list.push_back(node.get());
     }
@@ -141,12 +141,12 @@ bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
 // With this function we only need to visit and mutate top level For node
 // in the main VisitAndMutate function.
 Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
-  const Node* top_for_node;
+  const Object* top_for_node;
   const For* parent_for_node = parent_for_stmt.as<For>();
   CHECK(parent_for_node);
   CHECK(new_if_stmt.as<IfThenElse>());
 
-  PostOrderVisit(parent_for_node->body, [&](const NodeRef& node) {
+  PostOrderVisit(parent_for_node->body, [&](const ObjectRef& node) {
     if (node.as<For>()) {
       top_for_node = node.get();
     }
@@ -154,7 +154,7 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
 
   PackedFunc replace_target_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const NodeRef& current_for = args[0];
+      const ObjectRef& current_for = args[0];
       if (current_for.get() == top_for_node) {
         *ret = new_if_stmt;
       }
@@ -173,7 +173,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
   PackedFunc replace_then_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const NodeRef& node  = args[0];
+      const ObjectRef& node  = args[0];
       if (node == if_stmt) {
         *ret = node.as<IfThenElse>()->then_case;
       }
@@ -181,7 +181,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
   PackedFunc replace_else_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const NodeRef& node  = args[0];
+      const ObjectRef& node  = args[0];
       if (node == if_stmt) {
         *ret = node.as<IfThenElse>()->else_case;
       }
@@ -199,13 +199,13 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
 // Locate all For nodes and capture child IfThenElse nodes.
 void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
-  PostOrderVisit(stmt, [&](const NodeRef& node){
+  PostOrderVisit(stmt, [&](const ObjectRef& node){
     const For* for_node = node.as<For>();
     if (!for_node) return;
 
     std::queue<Stmt> tracker;
     tracker.push(for_node->body);
-    Stmt for_stmt = Downcast<Stmt, NodeRef>(node);
+    Stmt for_stmt = Downcast<Stmt, ObjectRef>(node);
     for2if_map_.insert({for_stmt.get(), std::vector<Stmt>()});
     while (!tracker.empty()) {
       Stmt head = tracker.front();
@@ -227,9 +227,9 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
 
         // Record condition variables.
         if (!cond_var_map_.count(head.get())) {
-          std::unordered_set<const Node*> new_var_set;
+          std::unordered_set<const Object*> new_var_set;
           cond_var_map_.insert({head.get(), new_var_set});
-          PostOrderVisit(if_node->condition, [&](const NodeRef& cond_node) {
+          PostOrderVisit(if_node->condition, [&](const ObjectRef& cond_node) {
             if (cond_node.as<Variable>()) {
               cond_var_map_[head.get()].insert(cond_node.get());
             }
@@ -239,15 +239,15 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
         continue;
       }
     }
-    ordered_for_list_.emplace_back(Downcast<Stmt, NodeRef>(node));
+    ordered_for_list_.emplace_back(Downcast<Stmt, ObjectRef>(node));
   });
 }
 
 // For each IfThenElse node, find the highest For node which
 // meets loop invariant condition.
 void IfThenElseHoist::LocateTopFor() {
-  std::unordered_map<const Node*, Stmt> if_position_map;
-  std::unordered_set<const Node*> top_for_var_set;
+  std::unordered_map<const Object*, Stmt> if_position_map;
+  std::unordered_set<const Object*> top_for_var_set;
 
   // Create IfThenElse -> For map.
   for (const Stmt& for_stmt : ordered_for_list_) {
@@ -256,7 +256,7 @@ void IfThenElseHoist::LocateTopFor() {
     CHECK(for_node);
     top_for_var_map_.insert({for_node->loop_var.get(), if_list});
     for (const Stmt& if_stmt : if_list) {
-      const Node* if_node = if_stmt.get();
+      const Object* if_node = if_stmt.get();
       if2for_map_[if_node].push_back(for_stmt);
     }
   }
@@ -264,7 +264,7 @@ void IfThenElseHoist::LocateTopFor() {
   // Locate the highest For node which is loop invariant.
   for (const auto& item : if2for_map_) {
     Stmt top_for;
-    const Node* if_stmt = item.first;
+    const Object* if_stmt = item.first;
     std::vector<Stmt> for_list = item.second;
     for (size_t i = 0; i < for_list.size(); ++i) {
       const Stmt& for_stmt = for_list.at(i);
@@ -291,9 +291,9 @@ void IfThenElseHoist::LocateTopFor() {
     top_for_var_set.insert(item.second.as<For>()->loop_var.get());
   }
 
-  std::vector<const Node*> removed_for_var_list;
+  std::vector<const Object*> removed_for_var_list;
   for (const auto& item : top_for_var_map_) {
-    const Node* top_for_var = item.first;
+    const Object* top_for_var = item.first;
     std::vector<Stmt> if_list = item.second;
     if (!top_for_var_set.count(top_for_var)) {
       removed_for_var_list.push_back(top_for_var);
@@ -307,7 +307,7 @@ void IfThenElseHoist::LocateTopFor() {
       top_for_var_map_[top_for_var] = actual_if_list;
     }
   }
-  for (const Node* top_for_var : removed_for_var_list) {
+  for (const Object* top_for_var : removed_for_var_list) {
     top_for_var_map_.erase(top_for_var);
   }
 }
@@ -374,7 +374,7 @@ Stmt IfThenElseHoist::HoistIf(const Stmt& if_stmt) {
 Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
   PackedFunc replace_top_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
-      const NodeRef& current_for = args[0];
+      const ObjectRef& current_for = args[0];
       const For* for_node = current_for.as<For>();
       if (!for_node) return;
 

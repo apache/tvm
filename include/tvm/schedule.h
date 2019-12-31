@@ -53,10 +53,10 @@ enum AttachType : int {
 };
 
 /*! \brief Stage, contains scheduling for a stage of computation. */
-class Stage : public NodeRef {
+class Stage : public ObjectRef {
  public:
   Stage() {}
-  explicit Stage(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Stage(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
@@ -277,10 +277,10 @@ class Stage : public NodeRef {
  *  For operations and all the operations they depend on.
  *  The schedule per Operation is named as stage.
  */
-class Schedule : public NodeRef {
+class Schedule : public ObjectRef {
  public:
   Schedule() {}
-  explicit Schedule(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Schedule(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
@@ -400,10 +400,10 @@ class Schedule : public NodeRef {
  * \brief The schedule relation between IterVars
  *  can be Split, Fuse.
  */
-class IterVarRelation : public NodeRef {
+class IterVarRelation : public ObjectRef {
  public:
   IterVarRelation() {}
-  explicit IterVarRelation(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IterVarRelation(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -414,10 +414,10 @@ class IterVarRelation : public NodeRef {
 /*!
  * \brief Additional scheduable attributes about IterVar.
  */
-class IterVarAttr : public NodeRef {
+class IterVarAttr : public ObjectRef {
  public:
   IterVarAttr() {}
-  explicit IterVarAttr(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IterVarAttr(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -440,7 +440,7 @@ class IterVarAttr : public NodeRef {
  *
  *  The group stage node can be attached to IterVars as in normal stage.
  */
-class StageNode : public Node {
+class StageNode : public Object {
  public:
   /*!
    * \brief The operation of stage, can be different from original op.
@@ -515,11 +515,11 @@ class StageNode : public Node {
   }
 
   static constexpr const char* _type_key = "Stage";
-  TVM_DECLARE_NODE_TYPE_INFO(StageNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StageNode, Object);
 };
 
 /*! \brief node container for schedule */
-class ScheduleNode : public Node {
+class ScheduleNode : public Object {
  public:
   /*! \brief The output operations in original data flow graph */
   Array<Operation> outputs;
@@ -538,7 +538,7 @@ class ScheduleNode : public Node {
    * \brief Internal stage map to map internal ops to stages.
    *  This is created on demand and can be invalidated.
    */
-  std::unordered_map<const Node*, Stage> op2stage_cache_;
+  std::unordered_map<const Object*, Stage> op2stage_cache_;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("outputs", &outputs);
@@ -576,7 +576,7 @@ class ScheduleNode : public Node {
   TVM_DLL static Schedule make(Array<Operation> ops);
 
   static constexpr const char* _type_key = "Schedule";
-  TVM_DECLARE_NODE_TYPE_INFO(ScheduleNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleNode, Object);
 };
 
 /*!
@@ -589,7 +589,7 @@ inline Schedule create_schedule(Array<Operation> ops) {
 }
 
 /*! \brief node container for IterVar attr */
-class IterVarAttrNode : public Node {
+class IterVarAttrNode : public Object {
  public:
   /*! \brief The iteration type. */
   IterVarType iter_type{kDataPar};
@@ -630,14 +630,14 @@ class IterVarAttrNode : public Node {
   }
 
   static constexpr const char* _type_key = "IterVarAttr";
-  TVM_DECLARE_NODE_TYPE_INFO(IterVarAttrNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarAttrNode, Object);
 };
 
 /*! \brief base node of iteration var */
-class IterVarRelationNode : public Node {
+class IterVarRelationNode : public Object {
  public:
   static constexpr const char* _type_key = "IterVarRelation";
-  TVM_DECLARE_BASE_NODE_INFO(IterVarRelationNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(IterVarRelationNode, Object);
 };
 
 /*!
@@ -672,7 +672,7 @@ class SplitNode : public IterVarRelationNode {
                               Expr nparts);
 
   static constexpr const char* _type_key = "Split";
-  TVM_DECLARE_NODE_TYPE_INFO(SplitNode, IterVarRelationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SplitNode, IterVarRelationNode);
 };
 
 /*!
@@ -697,7 +697,7 @@ class FuseNode : public IterVarRelationNode {
       IterVar outer, IterVar inner, IterVar fused);
 
   static constexpr const char* _type_key = "Fuse";
-  TVM_DECLARE_NODE_TYPE_INFO(FuseNode, IterVarRelationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FuseNode, IterVarRelationNode);
 };
 
 /*!
@@ -720,7 +720,7 @@ class RebaseNode : public IterVarRelationNode {
   static IterVarRelation make(IterVar parent, IterVar rebased);
 
   static constexpr const char* _type_key = "Rebase";
-  TVM_DECLARE_NODE_TYPE_INFO(RebaseNode, IterVarRelationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RebaseNode, IterVarRelationNode);
 };
 
 
@@ -739,7 +739,7 @@ class SingletonNode : public IterVarRelationNode {
   static IterVarRelation make(IterVar iter);
 
   static constexpr const char* _type_key = "Singleton";
-  TVM_DECLARE_NODE_TYPE_INFO(SingletonNode, IterVarRelationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SingletonNode, IterVarRelationNode);
 };
 
 

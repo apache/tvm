@@ -408,7 +408,7 @@ void CodeGenHybrid::PrintIndent() {
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
   if (binds_.count(v))
     return binds_[v];
-  auto key = std::make_pair(static_cast<const Node*>(v), 0);
+  auto key = std::make_pair(static_cast<const Object*>(v), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
   }
@@ -472,7 +472,7 @@ void CodeGenHybrid::ReserveKeywords() {
 }
 
 void CodeGenHybrid::DumpStmt(const Stmt &stmt,
-                             const Array<NodeRef> &inputs,
+                             const Array<ObjectRef> &inputs,
                              const Array<Tensor> &outputs,
                              const std::string &name) {
   ReserveKeywords();

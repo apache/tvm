@@ -46,7 +46,7 @@ struct CallTracer : ExprVisitor {
   std::unordered_set<std::string> called_funcs_;
 
   // Record the expressions that are being visited
-  std::unordered_set<Expr, NodeHash, NodeEqual> visiting_;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
 
   explicit CallTracer(const Module& module)
     : module_{module},
@@ -96,7 +96,7 @@ struct CallTracer : ExprVisitor {
  *
  * \param module The Relay module.
  * \param entry_funcs The set of functions that can be entry function.
- * 
+ *
  * \return The module with dead functions removed.
  */
 Module RemoveUnusedFunctions(const Module& module,

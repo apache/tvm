@@ -280,7 +280,7 @@ class RewriteAnnotation : public ExprMutator {
    * \return The created call node.
    */
   Call CreateDeviceCopy(const Expr& src, int src_dev_type, int dst_dev_type) {
-    auto attrs = make_node<DeviceCopyAttrs>();
+    auto attrs = make_object<DeviceCopyAttrs>();
     attrs->src_dev_type = src_dev_type;
     attrs->dst_dev_type = dst_dev_type;
     static const Op& op = Op::Get("device_copy");

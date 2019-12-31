@@ -50,10 +50,13 @@ class QPartitionExprNode : public TempExprNode {
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QPartitionExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QPartitionExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QPartitionExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QPartitionExpr, QPartitionExprNode, TempExpr);
+class QPartitionExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QPartitionExpr, TempExpr, QPartitionExprNode);
+};
 
 
 Expr QPartitionExprNode::Realize() const {
@@ -64,7 +67,7 @@ Expr QPartitionExprNode::Realize() const {
 }
 
 QPartitionExpr QPartitionExprNode::make(Expr expr) {
-  auto rnode = make_node<QPartitionExprNode>();
+  auto rnode = make_object<QPartitionExprNode>();
   rnode->expr = expr;
   return QPartitionExpr(rnode);
 }

@@ -63,7 +63,7 @@
  * so we have to deduplicate them.
  *
  * 4: In the generated code, as it call TypeSubst, multiple VarNode might have same Id.
- * While it is permitted, most pass use NodeHash for Var,
+ * While it is permitted, most pass use ObjectHash for Var,
  * and having multiple VarNode for same Id break them.
  * Thus we remap them to a single Id for now.
  *
@@ -110,7 +110,7 @@ using namespace runtime;
  */
 struct VarHash {
   size_t operator()(const Var& v) const {
-    return NodeHash()(v->vid);
+    return ObjectHash()(v->vid);
   }
 };
 
@@ -130,13 +130,13 @@ Expr PostProcess(const Expr&);
 class StaticNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Static";
-  TVM_DECLARE_BASE_NODE_INFO(StaticNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(StaticNode, RelayNode);
 };
 
-class Static : public NodeRef {
+class Static : public ObjectRef {
  public:
   Static() {}
-  explicit Static(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Static(ObjectPtr<Object> n) : ObjectRef(n) {}
   const StaticNode* operator->() const {
     return static_cast<const StaticNode*>(get());
   }
@@ -146,7 +146,7 @@ class Static : public NodeRef {
 
 using Time = size_t;
 
-struct PStaticNode : Node {
+struct PStaticNode : Object {
   static Time time() {
     static Time time_ = 0;
     Time ret = time_;
@@ -160,35 +160,44 @@ struct PStaticNode : Node {
     pstatic(pstatic), dynamic(dynamic), created_time(time()) { }
   explicit PStaticNode(const Expr& dynamic) : PStaticNode(Static(), dynamic) { }
   static constexpr const char* _type_key = "relay.PStatic";
-  TVM_DECLARE_NODE_TYPE_INFO(PStaticNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PStaticNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(PStatic, PStaticNode, NodeRef);
+class PStatic : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PStatic, ObjectRef, PStaticNode);
+};
 
 struct STupleNode : StaticNode {
   std::vector<PStatic> fields;
   explicit STupleNode(const std::vector<PStatic>& fields) : fields(fields) { }
   static constexpr const char* _type_key = "relay.STuple";
-  TVM_DECLARE_NODE_TYPE_INFO(STupleNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(STupleNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(STuple, STupleNode, Static);
+class STuple : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(STuple, Static, STupleNode);
+};
 
 Static MkSTuple(const std::vector<PStatic>& fields) {
-  return Static(make_node<STupleNode>(fields));
+  return Static(make_object<STupleNode>(fields));
 }
 
 struct STensorNode : StaticNode {
   runtime::NDArray data;
   explicit STensorNode(const NDArray& data) : data(data) { }
   static constexpr const char* _type_key = "relay.STensor";
-  TVM_DECLARE_NODE_TYPE_INFO(STensorNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(STensorNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(STensor, STensorNode, Static);
+class STensor : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(STensor, Static, STensorNode);
+};
 
 Static MkSTensor(const NDArray& data) {
-  return Static(make_node<STensorNode>(data));
+  return Static(make_object<STensorNode>(data));
 }
 
 struct SConstructorNode : StaticNode {
@@ -197,25 +206,31 @@ struct SConstructorNode : StaticNode {
   SConstructorNode(const Constructor& constructor, const std::vector<PStatic>& fields) :
     constructor(constructor), fields(fields) { }
   static constexpr const char* _type_key = "relay.SConstructor";
-  TVM_DECLARE_NODE_TYPE_INFO(SConstructorNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SConstructorNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SConstructor, SConstructorNode, Static);
+class SConstructor : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SConstructor, Static, SConstructorNode);
+};
 
 Static MkSConstructor(const Constructor& constructor, const std::vector<PStatic>& fields) {
-  return Static(make_node<SConstructorNode>(constructor, fields));
+  return Static(make_object<SConstructorNode>(constructor, fields));
 }
 
 struct SRefNode : StaticNode {
   static constexpr const char* _type_key = "relay.SRef";
   // we will use the address as the guid for hashing
-  TVM_DECLARE_NODE_TYPE_INFO(SRefNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SRefNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SRef, SRefNode, Static);
+class SRef : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SRef, Static, SRefNode);
+};
 
 Static MkSRef() {
-  return Static(make_node<SRefNode>());
+  return Static(make_object<SRefNode>());
 }
 
 using Func = std::function<PStatic(const PStatic&,
@@ -228,13 +243,16 @@ struct SFuncNode : StaticNode {
   Func func;
   explicit SFuncNode(const Func& func) : func(func) { }
   static constexpr const char* _type_key = "relay.SFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(SFuncNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SFuncNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SFunc, SFuncNode, Static);
+class SFunc : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SFunc, Static, SFuncNode);
+};
 
 Static MkSFunc(const Func& func) {
-  return Static(make_node<SFuncNode>(func));
+  return Static(make_object<SFuncNode>(func));
 }
 
 
@@ -246,10 +264,10 @@ class FuelNode;
  * Every time we recurse, we do a meet and require that progress must be made.
  * This ensures we do not recurse infinitely in the Partial Evaluator.
  */
-class Fuel : public NodeRef {
+class Fuel : public ObjectRef {
  public:
   Fuel() {}
-  explicit Fuel(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Fuel(ObjectPtr<Object> n) : ObjectRef(n) {}
   const FuelNode* operator->() const;
 
   using ContainerType = FuelNode;
@@ -279,7 +297,7 @@ class FuelNode : public RelayNode {
     return std::get<0>(ret);
   }
   static constexpr const char* _type_key = "relay.Fuel";
-  TVM_DECLARE_BASE_NODE_INFO(FuelNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(FuelNode, RelayNode);
 };
 
 const FuelNode* Fuel::operator->() const {
@@ -301,13 +319,16 @@ struct FSeqNode : FuelNode {
   }
   explicit FSeqNode(const std::vector<Fuel>& fuels) : fuels(fuels) { }
   static constexpr const char* _type_key = "relay.FSeq";
-  TVM_DECLARE_NODE_TYPE_INFO(FSeqNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FSeqNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FSeq, FSeqNode, Fuel);
+class FSeq : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FSeq, Fuel, FSeqNode);
+};
 
 Fuel MkFSeq(const std::vector<Fuel>& fuels) {
-  return Fuel(make_node<FSeqNode>(fuels));
+  return Fuel(make_object<FSeqNode>(fuels));
 }
 
 Fuel MkFTime(Time time);
@@ -321,13 +342,16 @@ struct FTimeNode : FuelNode {
   }
   explicit FTimeNode(Time time) : time(time) { }
   static constexpr const char* _type_key = "relay.FTime";
-  TVM_DECLARE_NODE_TYPE_INFO(FTimeNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTimeNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTime, FTimeNode, Fuel);
+class FTime : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTime, Fuel, FTimeNode);
+};
 
 Fuel MkFTime(Time time) {
-  return Fuel(make_node<FTimeNode>(time));
+  return Fuel(make_object<FTimeNode>(time));
 }
 
 Fuel MkFTValue(size_t tvalue);
@@ -342,13 +366,16 @@ struct FTValueNode : FuelNode {
   }
   explicit FTValueNode(size_t tvalue) : tvalue(tvalue) { }
   static constexpr const char* _type_key = "relay.FTValue";
-  TVM_DECLARE_NODE_TYPE_INFO(FTValueNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTValueNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTValue, FTValueNode, Fuel);
+class FTValue : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTValue, Fuel, FTValueNode);
+};
 
 Fuel MkFTValue(size_t tvalue) {
-  return Fuel(make_node<FTValueNode>(tvalue));
+  return Fuel(make_object<FTValueNode>(tvalue));
 }
 
 /*! \brief Initially every element has Fuel of FTop. It is the largest element.
@@ -361,13 +388,16 @@ struct FTopNode : FuelNode {
     return std::make_tuple(f, !f.as<FTopNode>());
   }
   static constexpr const char* _type_key = "relay.FTop";
-  TVM_DECLARE_NODE_TYPE_INFO(FTopNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTopNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTop, FTopNode, Fuel);
+class FTop : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTop, Fuel, FTopNode);
+};
 
 Fuel MkFTop() {
-  return Fuel(make_node<FTopNode>());
+  return Fuel(make_object<FTopNode>());
 }
 
 /*!
@@ -500,11 +530,11 @@ class Store {
 
 PStatic HasStatic(const Static& stat, const Expr& dynamic) {
   CHECK(stat.defined());
-  return PStatic(make_node<PStaticNode>(stat, dynamic));
+  return PStatic(make_object<PStaticNode>(stat, dynamic));
 }
 
 PStatic NoStatic(const Expr& dynamic) {
-  return PStatic(make_node<PStaticNode>(dynamic));
+  return PStatic(make_object<PStaticNode>(dynamic));
 }
 
 enum struct MatchStatus {
@@ -559,6 +589,7 @@ struct WithFuncIdAttrs : public tvm::AttrsNode<WithFuncIdAttrs> {
 
 TVM_REGISTER_NODE_TYPE(WithFuncIdAttrs);
 
+
 RELAY_REGISTER_OP("annotation.with_funcid")
 .describe(R"code(Annotate a function with a funcid.)code"
 TVM_ADD_FILELINE)
@@ -569,7 +600,7 @@ TVM_ADD_FILELINE)
 static const Op& with_funcid_op = Op::Get("annotation.with_funcid");
 
 Expr MkWithFuncId(const Expr& expr, FuncId fid) {
-  auto attrs = make_node<WithFuncIdAttrs>();
+  auto attrs = make_object<WithFuncIdAttrs>();
   attrs->fid = fid;
   return CallNode::make(with_funcid_op, {expr}, Attrs(attrs), {});
 }
@@ -1147,7 +1178,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
  private:
   Environment env_;
   Module mod_;
-  std::unordered_map<GlobalVar, PStatic, NodeHash, NodeEqual> gv_map_;
+  std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
    *  Each FunctionId maps to a class of semantically equivalent function (ignoring type),
@@ -1161,7 +1192,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  when we PE inside the Function body.
    *  Termination is guaranteed because Fuel is finitely descending - there can only be so many meet.
    */
-  std::unordered_map<Function, FuncId, NodeHash, NodeEqual> func_map_;
+  std::unordered_map<Function, FuncId, ObjectHash, ObjectEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   DLContext context_ = CPUContext();

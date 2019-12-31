@@ -65,7 +65,7 @@ namespace tvm {
  */
 #define TVM_DECLARE_ATTRS(ClassName, TypeKey)                   \
   static constexpr const char* _type_key = TypeKey;             \
-  TVM_DECLARE_NODE_TYPE_INFO(ClassName, ::tvm::BaseAttrsNode)   \
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode)   \
   template<typename FVisit>                                     \
   void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
 
@@ -83,9 +83,9 @@ namespace tvm {
  * \tparam TNodeRef the type to be created.
  * \return A instance that will represent None.
  */
-template<typename TNodeRef>
-inline TNodeRef NullValue() {
-  return TNodeRef(NodePtr<Node>(nullptr));
+template<typename TObjectRef>
+inline TObjectRef NullValue() {
+  return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 
 template<>
@@ -106,7 +106,7 @@ struct AttrError : public dmlc::Error {
 /*!
  * \brief Information about attribute fields in string representations.
  */
-class AttrFieldInfoNode : public Node {
+class AttrFieldInfoNode : public Object {
  public:
   /*! \brief name of the field */
   std::string name;
@@ -121,11 +121,14 @@ class AttrFieldInfoNode : public Node {
     v->Visit("description", &description);
   }
   static constexpr const char* _type_key = "AttrFieldInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(AttrFieldInfoNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
 /*! \brief AttrFieldInfo */
-TVM_DEFINE_NODE_REF(AttrFieldInfo, AttrFieldInfoNode);
+class AttrFieldInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
+};
 
 class AttrsHashHandler;
 class AttrsEqualHandler;
@@ -217,7 +220,7 @@ class AttrsHash {
  *       subclass AttrsNode instead.
  * \sa AttrsNode
  */
-class BaseAttrsNode : public Node {
+class BaseAttrsNode : public Object {
  public:
   using TVMArgs = runtime::TVMArgs;
   using TVMRetValue = runtime::TVMRetValue;
@@ -271,16 +274,16 @@ class BaseAttrsNode : public Node {
   TVM_DLL virtual size_t ContentHash(AttrsHash hasher) const = 0;
 
   static constexpr const char* _type_key = "Attrs";
-  TVM_DECLARE_BASE_NODE_INFO(BaseAttrsNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
 /*! \brief Base attribute container for all attributes */
-class Attrs : public NodeRef {
+class Attrs : public ObjectRef {
  public:
   // normal constructor
   Attrs() {}
   // construct from shared ptr.
-  explicit Attrs(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Attrs(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*! \return The attribute node */
   const BaseAttrsNode* operator->() const {
@@ -305,13 +308,13 @@ class Attrs : public NodeRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<std::string, NodeRef> dict;
+  Map<std::string, ObjectRef> dict;
   /*!
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    * \return The dict attributes.
    */
-  TVM_DLL static Attrs make(Map<std::string, NodeRef> dict);
+  TVM_DLL static Attrs make(Map<std::string, ObjectRef> dict);
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
@@ -321,7 +324,7 @@ class DictAttrsNode : public BaseAttrsNode {
   size_t ContentHash(AttrsHash hasher) const final;
   // type info
   static constexpr const char* _type_key = "DictAttrs";
-  TVM_DECLARE_NODE_TYPE_INFO(DictAttrsNode, BaseAttrsNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
 
@@ -639,7 +642,7 @@ class AttrDocEntry {
  public:
   using TSelf = AttrDocEntry;
 
-  explicit AttrDocEntry(NodePtr<AttrFieldInfoNode> info)
+  explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info)
       : info_(info) {
   }
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
@@ -663,15 +666,15 @@ class AttrDocEntry {
   }
 
  private:
-  NodePtr<AttrFieldInfoNode> info_;
+  ObjectPtr<AttrFieldInfoNode> info_;
 };
 
 class AttrDocVisitor {
  public:
   template<typename T>
   AttrDocEntry operator()(const char* key, T* v) {
-    NodePtr<AttrFieldInfoNode> info
-        = make_node<AttrFieldInfoNode>();
+    ObjectPtr<AttrFieldInfoNode> info
+        = make_object<AttrFieldInfoNode>();
     info->name = key;
     info->type_info = TypeName<T>::value;
     fields_.push_back(AttrFieldInfo(info));

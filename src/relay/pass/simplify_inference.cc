@@ -173,7 +173,7 @@ class InferenceSimplifier : public ExprMutator {
   const Op& dropout_op_;
   const Op& instance_norm_op_;
   const Op& layer_norm_op_;
-  std::unordered_map<Expr, Type, NodeHash, NodeEqual> ty_map_;
+  std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
 
 Expr SimplifyInference(const Expr& e) {

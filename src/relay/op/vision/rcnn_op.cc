@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -51,7 +51,7 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
                   int sample_ratio, std::string layout) {
-  auto attrs = make_node<ROIAlignAttrs>();
+  auto attrs = make_object<ROIAlignAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
   attrs->sample_ratio = sample_ratio;
@@ -102,7 +102,7 @@ bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
                  std::string layout) {
-  auto attrs = make_node<ROIPoolAttrs>();
+  auto attrs = make_object<ROIPoolAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
   attrs->layout = layout;
@@ -163,7 +163,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
                   Array<IndexExpr> ratios, int feature_stride, double threshold,
                   int rpn_pre_nms_top_n, int rpn_post_nms_top_n, int rpn_min_size,
                   bool iou_loss) {
-  auto attrs = make_node<ProposalAttrs>();
+  auto attrs = make_object<ProposalAttrs>();
   attrs->scales = scales;
   attrs->ratios = ratios;
   attrs->feature_stride = feature_stride;

@@ -37,7 +37,7 @@ Expr SymbolicLimits::pos_inf_ = Var("pos_inf", DataType::Handle());
 Expr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 
 IntervalSet::IntervalSet(Expr min_value, Expr max_value) {
-  auto node = make_node<IntervalSetNode>();
+  auto node = make_object<IntervalSetNode>();
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
   data_ = std::move(node);
@@ -505,7 +505,7 @@ class IntervalSetEvaluator :
     return Union(analyzer_, false_set, true_set);
   }
 
-  IntervalSet VisitExprDefault_(const Node* op) final {
+  IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
   }

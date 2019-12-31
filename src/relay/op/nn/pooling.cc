@@ -63,7 +63,7 @@ Expr MakeMaxPool(Expr data,
                  std::string layout,
                  bool ceil_mode,
                  std::string op_name) {
-  auto attrs = make_node<T>();
+  auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -82,7 +82,7 @@ Expr MakeAvgPool(Expr data,
                  bool ceil_mode,
                  bool count_include_pad,
                  std::string op_name) {
-  auto attrs = make_node<T>();
+  auto attrs = make_object<T>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -359,7 +359,7 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
 
 Expr MakeGlobalAvgPool2D(Expr data,
                          std::string layout) {
-  auto attrs = make_node<GlobalPool2DAttrs>();
+  auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_avg_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -391,7 +391,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
 // GlobalMaxPool
 Expr MakeGlobalMaxPool2D(Expr data,
                          std::string layout) {
-  auto attrs = make_node<GlobalPool2DAttrs>();
+  auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_max_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -511,7 +511,7 @@ Array<Tensor> AdaptivePool2DCompute(const Attrs& attrs,
 Expr MakeAdaptiveAvgPool2D(Expr data,
                            Array<IndexExpr> output_size,
                            std::string layout) {
-  auto attrs = make_node<AdaptivePool2DAttrs>();
+  auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("contrib.adaptive_avg_pool2d");
@@ -550,7 +550,7 @@ RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
 Expr MakeAdaptiveMaxPool2D(Expr data,
                            Array<IndexExpr> output_size,
                            std::string layout) {
-  auto attrs = make_node<AdaptivePool2DAttrs>();
+  auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("contrib.adaptive_max_pool2d");
@@ -647,7 +647,7 @@ Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
 // MaxPool2DGrad
 Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
     Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode) {
-  auto attrs = make_node<MaxPool2DAttrs>();
+  auto attrs = make_object<MaxPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -695,7 +695,7 @@ RELAY_REGISTER_OP("nn.max_pool2d_grad")
 Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
     Array<IndexExpr> strides, Array<IndexExpr> padding, std::string layout, bool ceil_mode,
     bool count_include_pad) {
-  auto attrs = make_node<AvgPool2DAttrs>();
+  auto attrs = make_object<AvgPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);

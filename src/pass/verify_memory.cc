@@ -64,7 +64,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void Visit(const NodeRef &n) final {
+  void Visit(const ObjectRef &n) final {
     if (Failed()) return;
     IRVisitor::Visit(n);
   }

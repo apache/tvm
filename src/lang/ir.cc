@@ -34,7 +34,7 @@ namespace ir {
 Expr UIntImm::make(DataType t, uint64_t value) {
   CHECK(t.is_uint() && t.lanes() == 1)
       << "ValueError: UIntImm can only take scalar";
-  NodePtr<UIntImm> node = make_node<UIntImm>();
+  ObjectPtr<UIntImm> node = make_object<UIntImm>();
   node->dtype = t;
   node->value = value;
   return Expr(node);
@@ -43,14 +43,14 @@ Expr UIntImm::make(DataType t, uint64_t value) {
 Expr FloatImm::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
-  NodePtr<FloatImm> node = make_node<FloatImm>();
+  ObjectPtr<FloatImm> node = make_object<FloatImm>();
   node->dtype = t;
   node->value = value;
   return Expr(node);
 }
 
 Expr StringImm::make(std::string value) {
-  NodePtr<StringImm> node = make_node<StringImm>();
+  ObjectPtr<StringImm> node = make_object<StringImm>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
   return Expr(node);
@@ -59,7 +59,7 @@ Expr StringImm::make(std::string value) {
 Expr Cast::make(DataType t, Expr value) {
   CHECK(value.defined());
   CHECK_EQ(t.lanes(), value.dtype().lanes());
-  NodePtr<Cast> node = make_node<Cast>();
+  ObjectPtr<Cast> node = make_object<Cast>();
   node->dtype = t;
   node->value = std::move(value);
   return Expr(node);
@@ -72,7 +72,7 @@ Expr And::make(Expr a, Expr b) {
   CHECK(b.dtype().is_bool());
   CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  NodePtr<And> node = make_node<And>();
+  ObjectPtr<And> node = make_object<And>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
@@ -86,7 +86,7 @@ Expr Or::make(Expr a, Expr b) {
   CHECK(b.dtype().is_bool());
   CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  NodePtr<Or> node = make_node<Or>();
+  ObjectPtr<Or> node = make_object<Or>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
@@ -97,7 +97,7 @@ Expr Not::make(Expr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(a.dtype().is_bool());
 
-  NodePtr<Not> node = make_node<Not>();
+  ObjectPtr<Not> node = make_object<Not>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   return Expr(node);
@@ -111,7 +111,7 @@ Expr Select::make(Expr condition, Expr true_value, Expr false_value) {
   CHECK_EQ(condition.dtype().lanes(), true_value.dtype().lanes());
   CHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
 
-  NodePtr<Select> node = make_node<Select>();
+  ObjectPtr<Select> node = make_object<Select>();
   node->dtype = true_value.dtype();
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
@@ -126,7 +126,7 @@ Expr Load::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
   CHECK_EQ(dtype.lanes(), index.dtype().lanes());
   CHECK_EQ(dtype.lanes(), predicate.dtype().lanes());
 
-  NodePtr<Load> node = make_node<Load>();
+  ObjectPtr<Load> node = make_object<Load>();
   node->dtype = dtype;
   node->buffer_var = std::move(buffer_var);
   node->index = std::move(index);
@@ -143,7 +143,7 @@ Expr Ramp::make(Expr base, Expr stride, int lanes) {
   CHECK_GT(lanes, 1);
   CHECK_EQ(stride.dtype(), base.dtype());
 
-  NodePtr<Ramp> node = make_node<Ramp>();
+  ObjectPtr<Ramp> node = make_object<Ramp>();
   node->dtype = base.dtype().with_lanes(lanes);
   node->base = base;
   node->stride = stride;
@@ -156,7 +156,7 @@ Expr Broadcast::make(Expr value, int lanes) {
   CHECK(value.dtype().is_scalar());
   CHECK_GT(lanes, 1);
 
-  NodePtr<Broadcast> node = make_node<Broadcast>();
+  ObjectPtr<Broadcast> node = make_object<Broadcast>();
   node->dtype = value.dtype().with_lanes(lanes);
   node->value = std::move(value);
   node->lanes = lanes;
@@ -168,7 +168,7 @@ Expr Let::make(Var var, Expr value, Expr body) {
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
 
-  NodePtr<Let> node = make_node<Let>();
+  ObjectPtr<Let> node = make_object<Let>();
   node->dtype = body.dtype();
   node->var = std::move(var);
   node->value = std::move(value);
@@ -208,7 +208,7 @@ Expr Call::make(DataType dtype,
     }
   }
 
-  NodePtr<Call> node = make_node<Call>();
+  ObjectPtr<Call> node = make_object<Call>();
   node->dtype = dtype;
   node->name = std::move(name);
   node->args = std::move(args);
@@ -232,7 +232,7 @@ Expr Shuffle::make(Array<Expr> vectors,
   }
   CHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
-  NodePtr<Shuffle> node = make_node<Shuffle>();
+  ObjectPtr<Shuffle> node = make_object<Shuffle>();
   node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
@@ -262,7 +262,7 @@ CommReducer CommReducerNode::make(Array<Var> lhs,
                                   Array<Var> rhs,
                                   Array<Expr> result,
                                   Array<Expr> identity_element) {
-  auto node = make_node<CommReducerNode>();
+  auto node = make_object<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;
   node->result = result;
@@ -293,7 +293,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   if (!condition.defined()) {
     condition = const_true();
   }
-  auto n = make_node<Reduce>();
+  auto n = make_object<Reduce>();
   CHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
@@ -308,7 +308,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
 }
 
 Expr Any::make() {
-  auto n = make_node<Any>();
+  auto n = make_object<Any>();
   return Expr(n);
 }
 
@@ -317,18 +317,18 @@ Stmt LetStmt::make(Var var, Expr value, Stmt body) {
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
 
-  NodePtr<LetStmt> node = make_node<LetStmt>();
+  ObjectPtr<LetStmt> node = make_object<LetStmt>();
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
   return Stmt(node);
 }
 
-Stmt AttrStmt::make(NodeRef node,
+Stmt AttrStmt::make(ObjectRef node,
                     std::string attr_key,
                     Expr value,
                     Stmt body) {
-  auto n = make_node<AttrStmt>();
+  auto n = make_object<AttrStmt>();
   n->node = node;
   n->attr_key = std::move(attr_key);
   n->value = std::move(value);
@@ -343,7 +343,7 @@ Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
       << "TypeError: AssertStmt message must be an int or string:"
       << message << "\n";
 
-  NodePtr<AssertStmt> node = make_node<AssertStmt>();
+  ObjectPtr<AssertStmt> node = make_object<AssertStmt>();
   node->condition = std::move(condition);
   node->message = std::move(message);
   node->body = std::move(body);
@@ -353,7 +353,7 @@ Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
 Stmt ProducerConsumer::make(FunctionRef func, bool is_producer, Stmt body) {
   CHECK(body.defined());
 
-  NodePtr<ProducerConsumer> node = make_node<ProducerConsumer>();
+  ObjectPtr<ProducerConsumer> node = make_object<ProducerConsumer>();
   node->func = std::move(func);
   node->is_producer = is_producer;
   node->body = std::move(body);
@@ -373,7 +373,7 @@ Stmt For::make(Var loop_var,
   CHECK(loop_var.dtype().is_scalar());
   CHECK(body.defined());
 
-  NodePtr<For> node = make_node<For>();
+  ObjectPtr<For> node = make_object<For>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
   node->extent = std::move(extent);
@@ -390,7 +390,7 @@ Stmt Store::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   CHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
   CHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
 
-  NodePtr<Store> node = make_node<Store>();
+  ObjectPtr<Store> node = make_object<Store>();
   node->buffer_var = std::move(buffer_var);
   node->value = std::move(value);
   node->index = std::move(index);
@@ -407,7 +407,7 @@ Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> ar
     CHECK(args[i].defined()) << "Provide to undefined location\n";
   }
 
-  NodePtr<Provide> node = make_node<Provide>();
+  ObjectPtr<Provide> node = make_object<Provide>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->value = std::move(value);
@@ -430,7 +430,7 @@ Stmt Allocate::make(Var buffer_var,
     CHECK(condition.defined());
     CHECK(condition.dtype().is_bool());
 
-    NodePtr<Allocate> node = make_node<Allocate>();
+    ObjectPtr<Allocate> node = make_object<Allocate>();
     node->buffer_var = std::move(buffer_var);
     node->dtype = dtype;
     node->extents = std::move(extents);
@@ -457,7 +457,7 @@ int32_t Allocate::constant_allocation_size(const Array<Expr>& extents) {
 }
 
 Stmt Free::make(Var buffer_var) {
-  NodePtr<Free> node = make_node<Free>();
+  ObjectPtr<Free> node = make_object<Free>();
   node->buffer_var = buffer_var;
   return Stmt(node);
 }
@@ -478,7 +478,7 @@ Stmt Realize::make(FunctionRef func,
   CHECK(condition.defined());
   CHECK(condition.dtype().is_bool());
 
-  NodePtr<Realize> node = make_node<Realize>();
+  ObjectPtr<Realize> node = make_object<Realize>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->dtype = dtype;
@@ -496,7 +496,7 @@ Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bo
     CHECK(bounds[i]->extent.dtype().is_scalar());
   }
 
-  NodePtr<Prefetch> node = make_node<Prefetch>();
+  ObjectPtr<Prefetch> node = make_object<Prefetch>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->dtype = dtype;
@@ -507,7 +507,7 @@ Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bo
 Stmt Block::make(Stmt first, Stmt rest) {
   CHECK(first.defined());
   CHECK(rest.defined());
-  NodePtr<Block> node = make_node<Block>();
+  ObjectPtr<Block> node = make_object<Block>();
 
   // canonicalize.
   if (const Block* b = first.as<Block>()) {
@@ -536,7 +536,7 @@ Stmt IfThenElse::make(Expr condition, Stmt then_case, Stmt else_case) {
   CHECK(then_case.defined());
   // else_case may be null.
 
-  NodePtr<IfThenElse> node = make_node<IfThenElse>();
+  ObjectPtr<IfThenElse> node = make_object<IfThenElse>();
   node->condition = std::move(condition);
   node->then_case = std::move(then_case);
   node->else_case = std::move(else_case);
@@ -546,7 +546,7 @@ Stmt IfThenElse::make(Expr condition, Stmt then_case, Stmt else_case) {
 Stmt Evaluate::make(Expr value) {
   CHECK(value.defined());
 
-  NodePtr<Evaluate> node = make_node<Evaluate>();
+  ObjectPtr<Evaluate> node = make_object<Evaluate>();
   node->value = std::move(value);
   return Stmt(node);
 }

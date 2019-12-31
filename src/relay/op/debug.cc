@@ -55,7 +55,7 @@ RELAY_REGISTER_OP("debug")
 .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
 Expr MakeDebug(Expr expr, std::string name) {
-  auto dattrs = make_node<DebugAttrs>();
+  auto dattrs = make_object<DebugAttrs>();
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
   } else {

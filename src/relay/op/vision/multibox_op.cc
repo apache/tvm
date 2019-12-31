@@ -60,7 +60,7 @@ Expr MakeMultiBoxPrior(Expr data,
                        Array<IndexExpr> steps,
                        Array<IndexExpr> offsets,
                        bool clip) {
-  auto attrs = make_node<MultiBoxPriorAttrs>();
+  auto attrs = make_object<MultiBoxPriorAttrs>();
   attrs->sizes = std::move(sizes);
   attrs->ratios = std::move(ratios);
   attrs->steps = std::move(steps);
@@ -135,7 +135,7 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
                               bool clip,
                               double threshold,
                               Array<IndexExpr> variances) {
-  auto attrs = make_node<MultiBoxTransformLocAttrs>();
+  auto attrs = make_object<MultiBoxTransformLocAttrs>();
   attrs->clip = std::move(clip);
   attrs->threshold = std::move(threshold);
   attrs->variances = std::move(variances);

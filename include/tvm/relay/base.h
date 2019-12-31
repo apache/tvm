@@ -54,51 +54,9 @@ namespace relay {
 }
 
 /*!
- * \brief We always used NodeRef for referencing nodes.
- *
- *  By default, NodeRef is a std::shared_ptr of node
- */
-using NodeRef = tvm::NodeRef;
-
-/*!
- * \brief Content data type.
- */
-using DataType = ::tvm::DataType;
-
-/*!
  * \brief Symbolic expression for tensor shape.
  */
 using IndexExpr = ::tvm::Expr;
-
-/*!
- * \brief Hash function for nodes.
- * e.g. std::unordered_map<Expr, Value, NodeHash, NodeEqual>
- */
-using NodeHash = ::tvm::NodeHash;
-/*!
- * \brief Equality check function for nodes.
- */
-using NodeEqual = ::tvm::NodeEqual;
-
-/*!
- * \brief Macro to make it easy to define node ref type given node
- * \param TypeName The name of the reference type.
- * \param NodeName The internal container name.
- * \param NodeRefBase The base type.
- */
-#define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)          \
-  class TypeName : public NodeRefBase {                                 \
-   public:                                                              \
-    TypeName() {}                                                       \
-    explicit TypeName(::tvm::ObjectPtr<::tvm::Object> n)                \
-        : NodeRefBase(n) {                                              \
-    }                                                                   \
-    const NodeName* operator->() const {                                \
-      return static_cast<const NodeName*>(get());                       \
-    }                                                                   \
-    operator bool() { return this->defined(); }                         \
-    using ContainerType = NodeName;                                     \
-  };
 
 /*!
  * \brief The source name in the Span
@@ -108,7 +66,7 @@ class SourceName;
 /*!
  * \brief The name of a source fragment.
  */
-class SourceNameNode : public Node {
+class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
   std::string name;
@@ -116,20 +74,20 @@ class SourceNameNode : public Node {
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relay.SourceName";
-  TVM_DECLARE_NODE_TYPE_INFO(SourceNameNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
 
 /*!
  * \brief The source name of a file span.
  * \sa SourceNameNode, Span
  */
-class SourceName : public NodeRef {
+class SourceName : public ObjectRef {
  public:
   /*! \brief default constructor  */
   SourceName() {}
 
   /*! \brief constructor from node pointer */
-  explicit SourceName(NodePtr<Node> n) : NodeRef(n) {}
+  explicit SourceName(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -157,7 +115,7 @@ class Span;
 /*!
  * \brief Stores locations in frontend source that generated a node.
  */
-class SpanNode : public Node {
+class SpanNode : public Object {
  public:
   /*! \brief The source name */
   SourceName source;
@@ -175,22 +133,25 @@ class SpanNode : public Node {
   TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
 
   static constexpr const char* _type_key = "relay.Span";
-  TVM_DECLARE_NODE_TYPE_INFO(SpanNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(Span, SpanNode, NodeRef);
+class Span : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
+};
 
 /*!
  * \brief This is the base node container of all relay structures.
  */
-class RelayNode : public Node {
+class RelayNode : public Object {
  public:
   /*! \brief The location of the program in a SourceFragment can be null,
    * check with span.defined() */
   mutable Span span;
 
   static constexpr const char* _type_key = "relay.Node";
-  TVM_DECLARE_BASE_NODE_INFO(RelayNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(RelayNode, Object);
 };
 
 /*!
@@ -201,7 +162,7 @@ class RelayNode : public Node {
  *
  * \note Do not create Id directly, they are created in Var.
  */
-class IdNode : public Node {
+class IdNode : public Object {
  public:
   /*!
    * \brief The name of the variable,
@@ -215,10 +176,13 @@ class IdNode : public Node {
   }
 
   static constexpr const char* _type_key = "relay.Id";
-  TVM_DECLARE_NODE_TYPE_INFO(IdNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(Id, IdNode, NodeRef);
+class Id : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
+};
 
 
 struct Module;

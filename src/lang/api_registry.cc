@@ -33,7 +33,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto* f = runtime::Registry::Get(name);
   CHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
-  NodePtr<EnvFuncNode> n = make_node<EnvFuncNode>();
+  ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;

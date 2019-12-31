@@ -59,7 +59,7 @@ Operation TensorComputeOpNode::make(std::string name,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
                                     Array<Expr> scalar_inputs) {
-  auto n = make_node<TensorComputeOpNode>();
+  auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->axis = std::move(axis);
@@ -80,8 +80,8 @@ Operation TensorComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = make_node<TensorComputeOpNode>(*this);
-  auto intrin = make_node<TensorIntrinNode>(*(this->intrin.operator->()));
+  auto n = make_object<TensorComputeOpNode>(*this);
+  auto intrin = make_object<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = op::ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {
     intrin->reduce_init = op::ReplaceTensor(this->intrin->reduce_init, rmap);
@@ -146,7 +146,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     Tensor tensor = inputs[i];
     Region region = this->input_regions[i];
     Buffer buffer = this->intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
 
     Array<Expr> tuple;
     for (size_t i = 0; i < region.size(); ++i) {
@@ -162,7 +162,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   for (int i = 0; i < this->num_outputs(); ++i) {
     Tensor tensor = stage->op.output(i);
     Buffer buffer = this->intrin->buffers[num_inputs + i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
 
     Array<Expr> tuple;
     for (size_t i = 0; i < this->axis.size(); ++i) {

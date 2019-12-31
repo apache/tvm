@@ -164,7 +164,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 // used by frontend FFI.
 Expr MakeRequantize(Expr data, double input_scale, int32_t input_zero_point, double output_scale,
                     int32_t output_zero_point, std::string rounding, DataType out_dtype) {
-  auto attrs = make_node<RequantizeAttrs>();
+  auto attrs = make_object<RequantizeAttrs>();
   attrs->input_scale = std::move(input_scale);
   attrs->input_zero_point = std::move(input_zero_point);
   attrs->output_scale = std::move(output_scale);

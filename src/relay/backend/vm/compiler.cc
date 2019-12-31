@@ -112,7 +112,7 @@ struct ConditionNode {
   virtual ~ConditionNode() {}
 };
 
-using ConditionNodePtr = std::shared_ptr<ConditionNode>;
+using ConditionObjectPtr = std::shared_ptr<ConditionNode>;
 
 /*!
  * \brief A var binding condition
@@ -144,15 +144,15 @@ struct TagCompare : ConditionNode {
   ~TagCompare() {}
 };
 
-using TreeNodePtr = typename relay::TreeNode<ConditionNodePtr>::pointer;
-using TreeLeafNode = relay::TreeLeafNode<ConditionNodePtr>;
-using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionNodePtr>;
-using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
+using TreeObjectPtr = typename relay::TreeNode<ConditionObjectPtr>::pointer;
+using TreeLeafNode = relay::TreeLeafNode<ConditionObjectPtr>;
+using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionObjectPtr>;
+using TreeBranchNode = relay::TreeBranchNode<ConditionObjectPtr>;
 
-TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
+TreeObjectPtr BuildDecisionTreeFromPattern(MatchValuePtr data,
                                          Pattern pattern,
-                                         TreeNodePtr then_branch,
-                                         TreeNodePtr else_branch) {
+                                         TreeObjectPtr then_branch,
+                                         TreeObjectPtr else_branch) {
   if (pattern.as<PatternWildcardNode>()) {
     // We ignore wildcard binding since it's not producing new vars
     return then_branch;
@@ -185,16 +185,16 @@ TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
   }
 }
 
-TreeNodePtr BuildDecisionTreeFromClause(MatchValuePtr data,
+TreeObjectPtr BuildDecisionTreeFromClause(MatchValuePtr data,
                                         Clause clause,
-                                        TreeNodePtr else_branch) {
+                                        TreeObjectPtr else_branch) {
   return BuildDecisionTreeFromPattern(data, clause->lhs,
                                       TreeLeafNode::Make(clause->rhs), else_branch);
 }
 
-TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> clauses) {
+TreeObjectPtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> clauses) {
   // When nothing matches, the VM throws fatal error
-  TreeNodePtr else_branch = TreeLeafFatalNode::Make();
+  TreeObjectPtr else_branch = TreeLeafFatalNode::Make();
   // Start from the last clause
   for (auto it = clauses.rbegin(); it != clauses.rend(); ++it) {
     else_branch = BuildDecisionTreeFromClause(data, *it, else_branch);
@@ -674,7 +674,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
   }
 
-  void CompileTreeNode(TreeNodePtr tree) {
+  void CompileTreeNode(TreeObjectPtr tree) {
     if (std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
       auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree);
       VisitExpr(node->body);
@@ -731,13 +731,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
  protected:
   /*! \brief Store the expression a variable points to. */
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> expr_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> expr_map_;
   /*! \brief Instructions in the VMFunction. */
   std::vector<Instruction> instructions_;
   /*! \brief Parameter names of the function. */
   std::vector<std::string> params_;
   /*! \brief Map from var to register number. */
-  std::unordered_map<Var, RegName, NodeHash, NodeEqual> var_register_map_;
+  std::unordered_map<Var, RegName, ObjectHash, ObjectEqual> var_register_map_;
   /*! \brief Last used register number. */
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
@@ -786,7 +786,7 @@ relay::Function VMCompiler::BindParamsByName(
     relay::Function func,
     const std::unordered_map<std::string, runtime::NDArray>& params) {
   std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
   for (auto arg : func->params) {
     const auto &name = arg->name_hint();
     if (name_dict.count(name)) {
@@ -795,7 +795,7 @@ relay::Function VMCompiler::BindParamsByName(
       name_dict[name] = arg;
     }
   }
-  std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
   for (auto &kv : params) {
     if (name_dict.count(kv.first) == 0) {
       continue;

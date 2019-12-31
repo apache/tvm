@@ -47,7 +47,7 @@ struct GraphContext {
   /*! \brief The bind map */
   std::unordered_map<IterVar, IterVar> bind_map;
   /*! \brief map from op to stage */
-  std::unordered_map<const Node*, Stage> op2stage_;
+  std::unordered_map<const Object*, Stage> op2stage_;
 };
 
 bool NeedRelax(const IterVar& iv,

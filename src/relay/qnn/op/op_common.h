@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -50,7 +50,7 @@ namespace qnn {
     .set_body_typed<Expr(Expr, Expr, double, int32_t, double, int32_t, double, int32_t)>(  \
         [](Expr lhs, Expr rhs, double lhs_scale, int32_t lhs_zero_point, double rhs_scale, \
            int32_t rhs_zero_point, double output_scale, int32_t output_zero_point) {       \
-          auto attrs = make_node<QnnBinaryOpAttrs>();                                      \
+          auto attrs = make_object<QnnBinaryOpAttrs>();                                      \
           attrs->lhs_scale = lhs_scale;                                                    \
           attrs->lhs_zero_point = lhs_zero_point;                                          \
           attrs->rhs_scale = rhs_scale;                                                    \

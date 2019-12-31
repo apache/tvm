@@ -220,8 +220,8 @@ TEST(Map, Iterator) {
   using namespace tvm;
   Expr a = 1, b = 2;
   Map<Expr, Expr> map1{{a, b}};
-  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(),
-                                                           map1.end());
+  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>
+      map2(map1.begin(), map1.end());
   CHECK(map2[a].as<IntImm>()->value == 2);
 }
 

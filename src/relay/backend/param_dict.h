@@ -40,7 +40,7 @@ constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 /*!
  * \brief Wrapper node for naming `NDArray`s.
  */
-struct NamedNDArrayNode : public ::tvm::Node {
+struct NamedNDArrayNode : public ::tvm::Object {
   std::string name;
   tvm::runtime::NDArray array;
 
@@ -50,11 +50,13 @@ struct NamedNDArrayNode : public ::tvm::Node {
   }
 
   static constexpr const char* _type_key = "NamedNDArray";
-  TVM_DECLARE_NODE_TYPE_INFO(NamedNDArrayNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(NamedNDArrayNode, Object);
 };
 
-TVM_DEFINE_NODE_REF(NamedNDArray, NamedNDArrayNode);
-
+class NamedNDArray : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(NamedNDArray, ObjectRef, NamedNDArrayNode);
+};
 }  // namespace relay
 }  // namespace tvm
 

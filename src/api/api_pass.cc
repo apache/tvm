@@ -100,12 +100,13 @@ TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
   });
 
 TVM_REGISTER_API("ir_pass.AttrsEqual")
-.set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
+.set_body_typed<bool(const ObjectRef&, const ObjectRef&)>(
+  [](const ObjectRef& lhs, const ObjectRef& rhs) {
     return AttrsEqual()(lhs, rhs);
   });
 
 TVM_REGISTER_API("ir_pass.AttrsHash")
-.set_body_typed<int64_t(const NodeRef&)>([](const NodeRef &node) {
+.set_body_typed<int64_t(const ObjectRef&)>([](const ObjectRef &node) {
     return AttrsHash()(node);
   });
 
@@ -118,7 +119,7 @@ TVM_REGISTER_API("ir_pass.ExprUseVar")
 TVM_REGISTER_API("ir_pass.PostOrderVisit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
-    ir::PostOrderVisit(args[0], [f](const NodeRef& n) {
+    ir::PostOrderVisit(args[0], [f](const ObjectRef& n) {
         f(n);
       });
   });
@@ -126,7 +127,7 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
 TVM_REGISTER_API("ir_pass.LowerStorageAccess")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   LoweredFunc f = args[0];
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = LowerStorageAccessInfo(f->body);
   *ret = LoweredFunc(n);
 });

@@ -54,7 +54,7 @@ class AttrScopeLifter : public IRMutator {
       Stmt body = AttrStmt::make(
           attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
-      attr_node_ = NodeRef();
+      attr_node_ = ObjectRef();
       attr_value_ = Expr();
       return Allocate::make(
         op->buffer_var, op->dtype,
@@ -93,7 +93,7 @@ class AttrScopeLifter : public IRMutator {
       return IRMutator::Mutate_(op, s);
     }
     Stmt then_case = this->Mutate(op->then_case);
-    NodeRef first_node;
+    ObjectRef first_node;
     Expr first_value;
     std::swap(first_node, attr_node_);
     std::swap(first_value, attr_value_);
@@ -119,7 +119,7 @@ class AttrScopeLifter : public IRMutator {
         else_case = AttrStmt::make(
             attr_node_, attr_key_, attr_value_, else_case);
         // undefine them
-        attr_node_ = NodeRef();
+        attr_node_ = ObjectRef();
         attr_value_ = Expr();
       }
       if (then_case.same_as(op->then_case) &&
@@ -149,11 +149,11 @@ class AttrScopeLifter : public IRMutator {
 
   std::vector<Stmt> MutateSeq(const std::vector<Stmt>& seq) {
     std::vector<Stmt> res_seq;
-    NodeRef curr_node;
+    ObjectRef curr_node;
     Expr curr_value;
     Stmt curr_stmt;
     for (const Stmt & stmt : seq) {
-      attr_node_ = NodeRef();
+      attr_node_ = ObjectRef();
       attr_value_ = Expr();
       Stmt rest = this->Mutate(stmt);
       if (attr_node_.defined() &&
@@ -188,7 +188,7 @@ class AttrScopeLifter : public IRMutator {
       }
       res_seq.push_back(curr_stmt);
       // reset
-      attr_node_ = NodeRef();
+      attr_node_ = ObjectRef();
       attr_value_ = Expr();
     }
     return res_seq;
@@ -209,7 +209,7 @@ class AttrScopeLifter : public IRMutator {
   }
 
   std::string attr_key_;
-  NodeRef attr_node_;
+  ObjectRef attr_node_;
   Expr attr_value_;
 };
 

@@ -45,7 +45,7 @@ enum ShapeFuncParamState {
 };
 
 /*! \brief Node container to represent a cached function. */
-struct CachedFuncNode : public Node {
+struct CachedFuncNode : public Object {
   /* \brief compiled target */
   tvm::Target target;
   /*! \brief Function name */
@@ -69,15 +69,17 @@ struct CachedFuncNode : public Node {
   }
 
   static constexpr const char* _type_key = "relay.CachedFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(CachedFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CachedFuncNode, Object);
 };
 
-TVM_DEFINE_NODE_REF(CachedFunc, CachedFuncNode);
-
+class CachedFunc : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(CachedFunc, ObjectRef, CachedFuncNode);
+};
 
 class CCacheKey;
 /*! \brief Compile cache key */
-class CCacheKeyNode : public Node {
+class CCacheKeyNode : public Object {
  public:
   /*! \brief The source function to be lowered. */
   Function source_func;
@@ -106,7 +108,7 @@ class CCacheKeyNode : public Node {
                                 Target target);
 
   static constexpr const char* _type_key = "relay.CCacheKey";
-  TVM_DECLARE_NODE_TYPE_INFO(CCacheKeyNode, tvm::Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CCacheKeyNode, tvm::Object);
 
  private:
   /*!
@@ -116,10 +118,10 @@ class CCacheKeyNode : public Node {
 };
 
 /*! \brief cache entry used in compile engine */
-class CCacheKey : public NodeRef {
+class CCacheKey : public ObjectRef {
  public:
   CCacheKey() {}
-  explicit CCacheKey(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit CCacheKey(ObjectPtr<Object> n) : ObjectRef(n) {}
   const CCacheKeyNode* operator->() const {
     return static_cast<const CCacheKeyNode*>(get());
   }
@@ -132,7 +134,7 @@ class CCacheKey : public NodeRef {
 };
 
 /*! \brief Node container for compile cache. */
-class CCacheValueNode : public Node {
+class CCacheValueNode : public Object {
  public:
   /*! \brief The corresponding function */
   CachedFunc cached_func;
@@ -146,14 +148,14 @@ class CCacheValueNode : public Node {
     v->Visit("use_count", &use_count);
   }
   static constexpr const char* _type_key = "relay.CCacheValue";
-  TVM_DECLARE_NODE_TYPE_INFO(CCacheValueNode, tvm::Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CCacheValueNode, tvm::Object);
 };
 
 /*! \brief cache entry used in compile engine */
-class CCacheValue : public NodeRef {
+class CCacheValue : public ObjectRef {
  public:
   CCacheValue() {}
-  explicit CCacheValue(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit CCacheValue(ObjectPtr<Object> n) : ObjectRef(n) {}
   CCacheValueNode* operator->() {
     return static_cast<CCacheValueNode*>(get_mutable());
   }
@@ -167,7 +169,7 @@ class CCacheValue : public NodeRef {
  * \brief Backend compilation engine for
  *        low level code generation.
  */
-class CompileEngineNode : public Node {
+class CompileEngineNode : public Object {
  public:
   /*!
    * \brief Get lowered result.
@@ -200,14 +202,14 @@ class CompileEngineNode : public Node {
   void VisitAttrs(AttrVisitor*) {}
 
   static constexpr const char* _type_key = "relay.CompileEngine";
-  TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CompileEngineNode, Object);
 };
 
 /*! \brief cache entry used in compile engine */
-class CompileEngine : public NodeRef {
+class CompileEngine : public ObjectRef {
  public:
   CompileEngine() {}
-  explicit CompileEngine(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit CompileEngine(ObjectPtr<Object> n) : ObjectRef(n) {}
   CompileEngineNode* operator->() {
     return static_cast<CompileEngineNode*>(get_mutable());
   }

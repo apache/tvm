@@ -37,7 +37,7 @@ void RelayErrorStream::Raise() const {
 }
 
 template<typename T, typename U>
-using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
+using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
 
 void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
   // First we pick an error reporting strategy for each error.
@@ -46,7 +46,7 @@ void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
     CHECK(!err.sp.defined()) << "attempting to use spanned errors, currently not supported";
   }
 
-  NodeMap<GlobalVar, NodeMap<NodeRef, std::string>> error_maps;
+  NodeMap<GlobalVar, NodeMap<ObjectRef, std::string>> error_maps;
 
   // Set control mode in order to produce colors;
   if (use_color) {
@@ -132,7 +132,7 @@ void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
   LOG(FATAL) << annotated_prog.str() << std::endl;
 }
 
-void ErrorReporter::ReportAt(const GlobalVar& global, const NodeRef& node, const Error& err) {
+void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node, const Error& err) {
   size_t index_to_insert = this->errors_.size();
   this->errors_.push_back(err);
   auto it = this->node_to_error_.find(node);

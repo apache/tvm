@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -46,10 +46,10 @@ using Branch = std::vector<const CallNode*>;
 using Group = std::vector<Branch>;
 using FIsSupportedOp = std::function<bool (const CallNode* n)>;
 using FAreCompatibleOps = std::function<bool (const CallNode* a, const CallNode* b)>;
-using ExprSubstMap = std::unordered_map<Expr, Expr, NodeHash, NodeEqual>;
+using ExprSubstMap = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>;
 
 /*
- * Class to find parallel branches starting with op that are 
+ * Class to find parallel branches starting with op that are
  * grouped if they are able to be combined. They are eligible to
  * be combined if they have the same input data.
  * Op can be followed by zero or more elemwise or broadcast ops,
@@ -91,22 +91,22 @@ class BranchGroupFinder : private ExprVisitor {
   const Op& cached_op_;
 
   /* \brief function to return true if op is eligible to be combined,
-   *         false otherwise 
+   *         false otherwise
    */
   FIsSupportedOp fis_supported_op_;
 
   /* \brief function to return true if two parallel ops are eligible
-   *         to be combined, false otherwise 
+   *         to be combined, false otherwise
    */
   FAreCompatibleOps fare_compatible_ops_;
 
   /* \brief ops that are on the first (logically, leftmost) branch
    *         of parallel ops and are eligible to be combined
    */
-  std::unordered_set<Expr, NodeHash, NodeEqual> op_roots_;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> op_roots_;
 
   /* \brief map of Expr to CallNodes that follow it  */
-  std::unordered_map<Expr, std::vector<const CallNode*>, NodeHash, NodeEqual> children_map_;
+  std::unordered_map<Expr, std::vector<const CallNode*>, ObjectHash, ObjectEqual> children_map_;
 
   /*
    * \brief Creates new branch from op and its children that have

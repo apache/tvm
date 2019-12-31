@@ -35,7 +35,7 @@ namespace relay {
 
 template<typename T>
 struct InsertionSet {
-  std::unordered_set<T, NodeHash, NodeEqual> set;
+  std::unordered_set<T, ObjectHash, ObjectEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {
@@ -279,7 +279,7 @@ TVM_REGISTER_API("relay._analysis.free_vars")
 
 TVM_REGISTER_API("relay._analysis.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       if (x.as<ExprNode>()) {
         *ret = BoundVars(Downcast<Expr>(x));
       } else {
@@ -292,7 +292,7 @@ TVM_REGISTER_API("relay._analysis.all_vars")
 
 TVM_REGISTER_API("relay._analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    NodeRef x = args[0];
+    ObjectRef x = args[0];
     Module mod = args[1];
     if (x.as<TypeNode>()) {
       *ret = FreeTypeVars(Downcast<Type>(x), mod);
@@ -303,7 +303,7 @@ TVM_REGISTER_API("relay._analysis.free_type_vars")
 
 TVM_REGISTER_API("relay._analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       Module mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = BoundTypeVars(Downcast<Type>(x), mod);
@@ -314,7 +314,7 @@ TVM_REGISTER_API("relay._analysis.bound_type_vars")
 
 TVM_REGISTER_API("relay._analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       Module mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = AllTypeVars(Downcast<Type>(x), mod);
@@ -328,11 +328,11 @@ TVM_REGISTER_API("relay._analysis.all_type_vars")
  * \param body The body expression.
  * \return The reference count mapping.
  */
-std::unordered_map<const Node*, size_t>
+std::unordered_map<const Object*, size_t>
 GetExprRefCount(const Expr& body) {
   class ExprRefCounter : private ExprVisitor {
    public:
-    std::unordered_map<const Node*, size_t>
+    std::unordered_map<const Object*, size_t>
     Get(const Expr& body) {
       this->VisitExpr(body);
       return std::move(this->visit_counter_);

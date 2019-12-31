@@ -39,7 +39,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       : sync_scope_(sync_scope) {}
 
     // The syncs inserted before each statement
-  std::unordered_set<const Node*> syncs_inserted_;
+  std::unordered_set<const Object*> syncs_inserted_;
 
  protected:
   bool Enabled(const Variable* buf,
@@ -200,7 +200,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 class ThreadSyncInserter : public IRMutator {
  public:
   ThreadSyncInserter(StorageScope sync_scope,
-                     const std::unordered_set<const Node*>& syncs)
+                     const std::unordered_set<const Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
   Stmt Mutate(Stmt stmt) final {
@@ -346,11 +346,11 @@ class ThreadSyncInserter : public IRMutator {
   }
   // data structure.
   StorageScope sync_scope_;
-  const std::unordered_set<const Node*>& syncs_;
+  const std::unordered_set<const Object*>& syncs_;
   // The storage scope of each buffer
   std::unordered_map<const Variable*, StorageScope> storage_scope_;
   // The read write statistics of storage
-  std::unordered_map<VarExpr, Entry, NodeHash, NodeEqual> rw_stats_;
+  std::unordered_map<VarExpr, Entry, ObjectHash, ObjectEqual> rw_stats_;
   // The statistics for global barrier
   bool in_thread_env_{false};
   // memorized results
@@ -369,7 +369,7 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
 
 LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
   CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = ThreadSync(f->body, storage_scope);
   return LoweredFunc(n);
 }

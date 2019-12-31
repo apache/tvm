@@ -757,7 +757,7 @@ inline PackedFunc WrapSchedule(FTVMScheduleBuilder builder) {
   return PackedFunc([builder](TVMArgs args, TVMRetValue* ret) {
     auto target = Target::Current(false);
     Array<Tensor> outs;
-    NodeRef argNodeRef = args[0];
+    ObjectRef argNodeRef = args[0];
     if (argNodeRef->type_index() == outs->type_index()) {
       outs = args[0];
     } else {

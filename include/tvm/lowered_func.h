@@ -131,7 +131,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
   }
 
   static constexpr const char* _type_key = "LoweredFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(LoweredFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoweredFuncNode, Object);
 };
 
 // Implementations of inline functions
@@ -143,7 +143,7 @@ inline const LoweredFuncNode* LoweredFunc::operator->() const {
 
 namespace std {
 template <>
-struct hash<::tvm::LoweredFunc> : public tvm::NodeHash {
+struct hash<::tvm::LoweredFunc> : public tvm::ObjectHash {
 };
 }
 

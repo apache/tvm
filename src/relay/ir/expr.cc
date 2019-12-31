@@ -30,7 +30,7 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 Constant ConstantNode::make(runtime::NDArray data) {
-  NodePtr<ConstantNode> n = make_node<ConstantNode>();
+  ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
   return Constant(n);
 }
@@ -63,7 +63,7 @@ TensorType ConstantNode::tensor_type() const {
 }
 
 Tuple TupleNode::make(tvm::Array<relay::Expr> fields) {
-  NodePtr<TupleNode> n = make_node<TupleNode>();
+  ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
   return Tuple(n);
 }
@@ -81,14 +81,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 
 Var VarNode::make(Id vid, Type type_annotation) {
-  NodePtr<VarNode> n = make_node<VarNode>();
+  ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
   return Var(n);
 }
 
 Var VarNode::make(std::string name_hint, Type type_annotation) {
-  NodePtr<IdNode> n = make_node<IdNode>();
+  ObjectPtr<IdNode> n = make_object<IdNode>();
   n->name_hint = std::move(name_hint);
   return VarNode::make(Id(n), type_annotation);
 }
@@ -110,7 +110,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 GlobalVar GlobalVarNode::make(std::string name_hint) {
-  NodePtr<GlobalVarNode> n = make_node<GlobalVarNode>();
+  ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   return GlobalVar(n);
 }
@@ -132,7 +132,7 @@ Function FunctionNode::make(tvm::Array<Var> params,
                             Type ret_type,
                             tvm::Array<TypeVar> type_params,
                             tvm::Attrs attrs) {
-  NodePtr<FunctionNode> n = make_node<FunctionNode>();
+  ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   CHECK(params.defined());
   CHECK(type_params.defined());
   n->params = std::move(params);
@@ -157,7 +157,7 @@ FuncType FunctionNode::func_type_annotation() const {
 }
 
 bool FunctionNode::IsPrimitive() const {
-  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
+  ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
   const ir::IntImm* pval = res.as<ir::IntImm>();
   return pval && pval->value != 0;
 }
@@ -183,13 +183,13 @@ TVM_REGISTER_API("relay._expr.FunctionGetParams")
 });
 
 bool FunctionNode::UseDefaultCompiler() const {
-  NodeRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
+  ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
   const ir::StringImm* pval = res.as<ir::StringImm>();
   return pval == nullptr || pval->value == "default";
 }
 
-NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
-  if (!func->attrs.defined()) { return NodeRef(); }
+ObjectRef FunctionGetAttr(const Function& func, const std::string& key) {
+  if (!func->attrs.defined()) { return ObjectRef(); }
 
   const DictAttrsNode* dict_attrs = func->attrs.as<DictAttrsNode>();
   CHECK(dict_attrs);
@@ -197,19 +197,19 @@ NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
   if (it != dict_attrs->dict.end()) {
     return (*it).second;
   } else {
-    return NodeRef();
+    return ObjectRef();
   }
 }
 
-Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data) {
+Function FunctionSetAttr(const Function& func, const std::string& key, const ObjectRef& data) {
   const DictAttrsNode* dattrs = func->attrs.as<DictAttrsNode>();
   Attrs func_attrs;
   if (dattrs) {
-    Map<std::string, NodeRef> dict = dattrs->dict;
+    Map<std::string, ObjectRef> dict = dattrs->dict;
     dict.Set(key, data);
     func_attrs = DictAttrsNode::make(dict);
   } else {
-    Map<std::string, NodeRef> dict = {{key, data}};
+    Map<std::string, ObjectRef> dict = {{key, data}};
     func_attrs = DictAttrsNode::make(dict);
   }
 
@@ -236,7 +236,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
                     Array<Type> type_args) {
-  NodePtr<CallNode> n = make_node<CallNode>();
+  ObjectPtr<CallNode> n = make_object<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
@@ -257,7 +257,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 Let LetNode::make(Var var, Expr value, Expr body) {
-  NodePtr<LetNode> n = make_node<LetNode>();
+  ObjectPtr<LetNode> n = make_object<LetNode>();
   n->var = std::move(var);
   n->value = std::move(value);
   n->body = std::move(body);
@@ -277,7 +277,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
-  NodePtr<IfNode> n = make_node<IfNode>();
+  ObjectPtr<IfNode> n = make_object<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
@@ -297,7 +297,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 TupleGetItem TupleGetItemNode::make(Expr tuple, int index) {
-  NodePtr<TupleGetItemNode> n = make_node<TupleGetItemNode>();
+  ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
   n->index = index;
   return TupleGetItem(n);
@@ -315,7 +315,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 RefCreate RefCreateNode::make(Expr value) {
-  NodePtr<RefCreateNode> n = make_node<RefCreateNode>();
+  ObjectPtr<RefCreateNode> n = make_object<RefCreateNode>();
   n->value = std::move(value);
   return RefCreate(n);
 }
@@ -332,7 +332,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 RefRead RefReadNode::make(Expr ref) {
-  NodePtr<RefReadNode> n = make_node<RefReadNode>();
+  ObjectPtr<RefReadNode> n = make_object<RefReadNode>();
   n->ref = std::move(ref);
   return RefRead(n);
 }
@@ -349,7 +349,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 RefWrite RefWriteNode::make(Expr ref, Expr value) {
-  NodePtr<RefWriteNode> n = make_node<RefWriteNode>();
+  ObjectPtr<RefWriteNode> n = make_object<RefWriteNode>();
   n->ref = std::move(ref);
   n->value = std::move(value);
   return RefWrite(n);
@@ -372,8 +372,8 @@ TVM_REGISTER_API("relay._expr.TempExprRealize")
 });
 
 TVM_REGISTER_API("relay._expr.FunctionSetAttr")
-.set_body_typed<Function(Function, std::string, NodeRef)>(
-  [](Function func, std::string name, NodeRef ref) {
+.set_body_typed<Function(Function, std::string, ObjectRef)>(
+  [](Function func, std::string name, ObjectRef ref) {
     return FunctionSetAttr(func, name, ref);
 });
 

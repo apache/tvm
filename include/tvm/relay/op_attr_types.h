@@ -180,7 +180,7 @@ using FTVMLegalize = runtime::TypedPackedFunc<
 using FForwardRewrite = runtime::TypedPackedFunc<
   Expr(const Call& ref_call,
        const Array<Expr>& new_args,
-       const NodeRef& ctx)>;
+       const ObjectRef& ctx)>;
 
 /*!
  * \brief Gradient for a specific op.

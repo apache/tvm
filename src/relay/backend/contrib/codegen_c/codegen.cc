@@ -152,7 +152,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
     code_stream_ << builder.JIT();
   }
 
-  runtime::Module CreateCSourceModule(const NodeRef& ref) override {
+  runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <iostream>\n";
@@ -170,7 +170,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
           out[i] = a[i] p_OP_ b[i];                           \
         }                                                     \
       }
-    
+
     #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
       extern "C" void p_ID_(float* a, float* b, float* out) {     \
         for (int64_t i = 0; i < p_DIM1_; ++i) {                   \
@@ -214,7 +214,7 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
  * CUDA, etc, under TVM, so the generated code could be packed in a runtime
  * module. This module simplifies code serialization and invocation.
  */
-runtime::Module CCompiler(const NodeRef& ref) {
+runtime::Module CCompiler(const ObjectRef& ref) {
   CSourceCodegen csource;
   return csource.CreateCSourceModule(ref);
 }

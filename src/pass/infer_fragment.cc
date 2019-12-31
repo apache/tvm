@@ -214,7 +214,7 @@ Stmt InferFragment(Stmt stmt) {
 
 LoweredFunc InferFragment(LoweredFunc f) {
   CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = InferFragment(f->body);
   return LoweredFunc(n);
 }

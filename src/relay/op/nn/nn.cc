@@ -72,7 +72,7 @@ bool BiasAddRel(const Array<Type>& types,
 Expr MakeBiasAdd(Expr data,
                  Expr bias,
                  int axis) {
-  auto attrs = make_node<BiasAddAttrs>();
+  auto attrs = make_object<BiasAddAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.bias_add");
   return CallNode::make(op, {data, bias}, Attrs(attrs), {});
@@ -104,7 +104,7 @@ RELAY_REGISTER_OP("nn.bias_add")
 TVM_REGISTER_NODE_TYPE(FIFOBufferAttrs);
 
 Expr MakeFIFOBuffer(Expr input, Expr buffer, int axis) {
-  auto attrs = make_node<FIFOBufferAttrs>();
+  auto attrs = make_object<FIFOBufferAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.fifo_buffer");
   return CallNode::make(op, {input, buffer}, Attrs(attrs), {});
@@ -175,7 +175,7 @@ Expr MakeDense(Expr data,
                Expr weight,
                IndexExpr units,
                DataType out_dtype) {
-  auto attrs = make_node<DenseAttrs>();
+  auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
@@ -208,7 +208,7 @@ TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 // Positional relay function to create leaky relu operator used by frontend FFI.
 Expr MakeLeakyRelu(Expr data,
                    double alpha) {
-  auto attrs = make_node<LeakyReluAttrs>();
+  auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("nn.leaky_relu");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -288,7 +288,7 @@ Array<Array<Layout> > PReluInferCorrectLayout(
 Expr MakePRelu(Expr data,
                Expr alpha,
                int axis) {
-  auto attrs = make_node<PReluAttrs>();
+  auto attrs = make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.prelu");
   return CallNode::make(op, {data, alpha}, Attrs(attrs), {});
@@ -327,7 +327,7 @@ TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
 .set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
-  auto attrs = make_node<SoftmaxAttrs>();
+  auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.softmax");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -362,7 +362,7 @@ RELAY_REGISTER_OP("nn.softmax")
 // relay.nn.log_softmax
 TVM_REGISTER_API("relay.op.nn._make.log_softmax")
 .set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
-  auto attrs = make_node<SoftmaxAttrs>();
+  auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.log_softmax");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -504,7 +504,7 @@ Expr MakeLRN(Expr data,
              double alpha,
              double beta,
              double bias) {
-  auto attrs = make_node<LRNAttrs>();
+  auto attrs = make_object<LRNAttrs>();
   attrs->size = size;
   attrs->axis = axis;
   attrs->alpha = alpha;
@@ -545,7 +545,7 @@ TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
 Expr MakeL2Normalize(Expr data,
                      double eps,
                      Array<Integer> axis) {
-  auto attrs = make_node<L2NormalizeAttrs>();
+  auto attrs = make_object<L2NormalizeAttrs>();
   attrs->eps = eps;
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("nn.l2_normalize");
@@ -591,7 +591,7 @@ bool DropoutRel(const Array<Type>& types,
 }
 
 Expr MakeDropout(Expr data, double rate) {
-  auto attrs = make_node<DropoutAttrs>();
+  auto attrs = make_object<DropoutAttrs>();
   attrs->rate = rate;
   static const Op& op = Op::Get("nn.dropout");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -680,7 +680,7 @@ bool BatchNormRel(const Array<Type>& types,
 
 Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,
                    int axis, double epsilon, bool center, bool scale) {
-  auto attrs = make_node<BatchNormAttrs>();
+  auto attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -763,7 +763,7 @@ bool InstanceNormRel(const Array<Type>& types,
 
 Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
                       bool center, bool scale) {
-  auto attrs = make_node<InstanceNormAttrs>();
+  auto attrs = make_object<InstanceNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -833,7 +833,7 @@ bool LayerNormRel(const Array<Type>& types,
 
 Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
                    bool center, bool scale) {
-  auto attrs = make_node<LayerNormAttrs>();
+  auto attrs = make_object<LayerNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -1024,7 +1024,7 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 // Positional relay function to create DepthToSpace operator
 // used by frontend FFI
 Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string mode) {
-  auto attrs = make_node<SubPixelAttrs>();
+  auto attrs = make_object<SubPixelAttrs>();
   attrs->block_size = block_size;
   attrs->layout = std::move(layout);
   attrs->mode = std::move(mode);
@@ -1082,7 +1082,7 @@ bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 // Positional relay function to create SpaceToDepth operator
 // used by frontend FFI
 Expr MakeSpaceToDepth(Expr data, int block_size, std::string layout) {
-  auto attrs = make_node<SubPixelAttrs>();
+  auto attrs = make_object<SubPixelAttrs>();
   attrs->block_size = block_size;
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.space_to_depth");

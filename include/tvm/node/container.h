@@ -35,7 +35,7 @@
 namespace tvm {
 
 /*! \brief array node content in array */
-class ArrayNode : public Node {
+class ArrayNode : public Object {
  public:
   /*! \brief the data content */
   std::vector<ObjectRef> data;
@@ -44,11 +44,11 @@ class ArrayNode : public Node {
   }
 
   static constexpr const char* _type_key = "Array";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Object);
 };
 
 /*! \brief map node content */
-class MapNode : public Node {
+class MapNode : public Object {
  public:
   void VisitAttrs(AttrVisitor* visitor) {
   }
@@ -63,12 +63,12 @@ class MapNode : public Node {
   ContainerType data;
 
   static constexpr const char* _type_key = "Map";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Object);
 };
 
 
 /*! \brief specialized map node with string as key */
-class StrMapNode : public Node {
+class StrMapNode : public Object {
  public:
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<std::string, ObjectRef>;
@@ -80,7 +80,7 @@ class StrMapNode : public Node {
   ContainerType data;
 
   static constexpr const char* _type_key = "StrMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StrMapNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StrMapNode, Object);
 };
 
 /*!
@@ -138,13 +138,13 @@ class IterAdapter {
  */
 template<typename T,
          typename = typename std::enable_if<std::is_base_of<ObjectRef, T>::value>::type >
-class Array : public NodeRef {
+class Array : public ObjectRef {
  public:
   /*!
    * \brief default constructor
    */
   Array() {
-    data_ = make_node<ArrayNode>();
+    data_ = make_object<ArrayNode>();
   }
   /*!
    * \brief move constructor
@@ -164,7 +164,7 @@ class Array : public NodeRef {
    * \brief constructor from pointer
    * \param n the container pointer
    */
-  explicit Array(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Array(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief constructor from iterator
    * \param begin begin of iterator
@@ -195,7 +195,7 @@ class Array : public NodeRef {
    * \param val The init value
    */
   explicit Array(size_t n, const T& val) {
-    auto tmp_node = make_node<ArrayNode>();
+    auto tmp_node = make_object<ArrayNode>();
     for (size_t i = 0; i < n; ++i) {
       tmp_node->data.push_back(val);
     }
@@ -227,7 +227,7 @@ class Array : public NodeRef {
    */
   template<typename IterType>
   void assign(IterType begin, IterType end) {
-    auto n = make_node<ArrayNode>();
+    auto n = make_object<ArrayNode>();
     for (IterType it = begin; it != end; ++it) {
       n->data.push_back(T(*it));
     }
@@ -257,7 +257,7 @@ class Array : public NodeRef {
    */
   inline ArrayNode* CopyOnWrite() {
     if (data_.get() == nullptr || !data_.unique())  {
-      NodePtr<ArrayNode> n = make_node<ArrayNode>();
+      ObjectPtr<ArrayNode> n = make_object<ArrayNode>();
       n->data = static_cast<ArrayNode*>(data_.get())->data;
       ObjectPtr<Object>(std::move(n)).swap(data_);
     }
@@ -333,13 +333,13 @@ template<typename K,
            std::is_base_of<ObjectRef, K>::value ||
            std::is_base_of<std::string, K>::value >::type,
          typename = typename std::enable_if<std::is_base_of<ObjectRef, V>::value>::type>
-class Map : public NodeRef {
+class Map : public ObjectRef {
  public:
   /*!
    * \brief default constructor
    */
   Map() {
-    data_ = make_node<MapNode>();
+    data_ = make_object<MapNode>();
   }
   /*!
    * \brief move constructor
@@ -352,13 +352,13 @@ class Map : public NodeRef {
    * \brief copy constructor
    * \param other source
    */
-  Map(const Map<K, V> &other) : NodeRef(other.data_) { // NOLINT(*)
+  Map(const Map<K, V> &other) : ObjectRef(other.data_) { // NOLINT(*)
   }
   /*!
    * \brief constructor from pointer
    * \param n the container pointer
    */
-  explicit Map(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Map(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief constructor from iterator
    * \param begin begin of iterator
@@ -410,7 +410,7 @@ class Map : public NodeRef {
    */
   template<typename IterType>
   void assign(IterType begin, IterType end) {
-    NodePtr<MapNode> n = make_node<MapNode>();
+    ObjectPtr<MapNode> n = make_object<MapNode>();
     for (IterType i = begin; i != end; ++i) {
       n->data.emplace(std::make_pair(i->first, i->second));
     }
@@ -454,7 +454,7 @@ class Map : public NodeRef {
    */
   inline MapNode* CopyOnWrite() {
     if (data_.get() == nullptr || !data_.unique())  {
-      NodePtr<MapNode> n = make_node<MapNode>();
+      ObjectPtr<MapNode> n = make_object<MapNode>();
       n->data = static_cast<const MapNode*>(data_.get())->data;
       ObjectPtr<Object>(std::move(n)).swap(data_);
     }
@@ -507,18 +507,18 @@ class Map : public NodeRef {
 
 // specialize of string map
 template<typename V, typename T1, typename T2>
-class Map<std::string, V, T1, T2> : public NodeRef {
+class Map<std::string, V, T1, T2> : public ObjectRef {
  public:
   // for code reuse
   Map() {
-    data_ = make_node<StrMapNode>();
+    data_ = make_object<StrMapNode>();
   }
   Map(Map<std::string, V> && other) {  // NOLINT(*)
     data_ = std::move(other.data_);
   }
-  Map(const Map<std::string, V> &other) : NodeRef(other.data_) { // NOLINT(*)
+  Map(const Map<std::string, V> &other) : ObjectRef(other.data_) { // NOLINT(*)
   }
-  explicit Map(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Map(ObjectPtr<Object> n) : ObjectRef(n) {}
   template<typename IterType>
   Map(IterType begin, IterType end) {
     assign(begin, end);
@@ -541,7 +541,7 @@ class Map<std::string, V, T1, T2> : public NodeRef {
   }
   template<typename IterType>
   void assign(IterType begin, IterType end) {
-    auto n = make_node<StrMapNode>();
+    auto n = make_object<StrMapNode>();
     for (IterType i = begin; i != end; ++i) {
       n->data.emplace(std::make_pair(i->first, i->second));
     }
@@ -565,7 +565,7 @@ class Map<std::string, V, T1, T2> : public NodeRef {
   }
   inline StrMapNode* CopyOnWrite() {
     if (data_.get() == nullptr || !data_.unique())  {
-      NodePtr<StrMapNode> n = make_node<StrMapNode>();
+      ObjectPtr<StrMapNode> n = make_object<StrMapNode>();
       n->data = static_cast<const StrMapNode*>(data_.get())->data;
       ObjectPtr<Object>(std::move(n)).swap(data_);
     }

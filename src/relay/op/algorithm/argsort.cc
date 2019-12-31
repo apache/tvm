@@ -51,7 +51,7 @@ Expr MakeArgsort(Expr data,
                  int axis,
                  bool is_ascend,
                  DataType dtype) {
-  auto attrs = make_node<ArgsortAttrs>();
+  auto attrs = make_object<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
   attrs->dtype = dtype;

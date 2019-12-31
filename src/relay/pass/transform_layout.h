@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,15 +41,16 @@ namespace relay {
 /*!
  * \brief Memorizes layout transformations to reuse.
  */
-class TransformMemorizerNode : public Node {
+class TransformMemorizerNode : public Object {
  public:
   /*! \brief The key for the memorizer map is (Expr, src_layout, dst_layout). */
-  using TransformKey = std::tuple<const Node*, std::string, std::string>;
+  using TransformKey = std::tuple<const Object*, std::string, std::string>;
 
   struct key_hash : public std::function<std::size_t(TransformKey)> {
     std::size_t operator()(const TransformKey& k) const {
       return dmlc::HashCombine<std::string>(
-          dmlc::HashCombine<std::string>(std::hash<const Node*>()(std::get<0>(k)), std::get<1>(k)),
+          dmlc::HashCombine<std::string>(
+              std::hash<const Object*>()(std::get<0>(k)), std::get<1>(k)),
           (std::get<2>(k)));
     }
   };
@@ -58,16 +59,16 @@ class TransformMemorizerNode : public Node {
   std::unordered_map<TransformKey, Expr, key_hash> memo;
 
   static constexpr const char* _type_key = "relay.alter_op_layout.TransformMemorizerNode";
-  TVM_DECLARE_NODE_TYPE_INFO(TransformMemorizerNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TransformMemorizerNode, Object);
 };
 
 /*!
  * \brief Container that transforms the layouts and memorizes them.
  */
-class TransformMemorizer : public NodeRef {
+class TransformMemorizer : public ObjectRef {
  public:
   TransformMemorizer() {}
-  explicit TransformMemorizer(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit TransformMemorizer(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   TransformMemorizerNode* operator->() {
     return static_cast<TransformMemorizerNode*>(get_mutable());
@@ -85,7 +86,7 @@ class TransformMemorizer : public NodeRef {
       return raw;
     }
 
-    std::tuple<const Node*, std::string, std::string> key =
+    std::tuple<const Object*, std::string, std::string> key =
         std::make_tuple<>(raw.get(), src_layout.name(), dst_layout.name());
     auto& memo = operator->()->memo;
 
@@ -179,7 +180,7 @@ class LayoutAlternatedExprNode : public TempExprNode {
   }
 
   static constexpr const char* _type_key = "relay.alter_op_layout.LayoutAlternatedExprNode";
-  TVM_DECLARE_NODE_TYPE_INFO(LayoutAlternatedExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LayoutAlternatedExprNode, TempExprNode);
 };
 
 /*!
@@ -187,10 +188,10 @@ class LayoutAlternatedExprNode : public TempExprNode {
  * \tparam TransformMemorizerT The derived TransformMemorizer type.
  */
 template <class TransformMemorizerT>
-class LayoutAlternatedExpr : public NodeRef {
+class LayoutAlternatedExpr : public ObjectRef {
  public:
   LayoutAlternatedExpr() {}
-  explicit LayoutAlternatedExpr(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit LayoutAlternatedExpr(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   LayoutAlternatedExprNode<TransformMemorizerT>* operator->() {
     return static_cast<LayoutAlternatedExprNode<TransformMemorizerT>*>(get_mutable());
@@ -219,7 +220,7 @@ class LayoutAlternatedExpr : public NodeRef {
  *       - Transform the original call to reuse the new layouts using TransformMemorizer.
  */
 template <class TransformMemorizerT>
-Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const NodeRef& ctx) {
+Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   std::vector<LayoutAlternatedExpr<TransformMemorizerT>> inputs;
   std::vector<Expr> normal_new_args;
   Array<Array<IndexExpr>> input_shapes;
@@ -239,7 +240,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Nod
       inputs.push_back(GetRef<LayoutAlternatedExpr<TransformMemorizerT>>(inp));
       return inp->value;
     } else {
-      auto inode = make_node<LayoutAlternatedExprNode<TransformMemorizerT>>();
+      auto inode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
       inode->value = arg;
       inode->memorizer = memorizer;
       inputs.push_back(LayoutAlternatedExpr<TransformMemorizerT>(inode));
@@ -342,7 +343,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Nod
     Expr tuple_output = CallNode::make(new_call->op, transformed_args, new_call->attrs);
     Array<Expr> fields;
     for (size_t i = 0; i < new_out.size(); ++i) {
-      auto rnode = make_node<LayoutAlternatedExprNode<TransformMemorizerT>>();
+      auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
       rnode->value = TupleGetItemNode::make(tuple_output, i);
       rnode->old_layout = old_out[i];
       rnode->new_layout = new_out[i];
@@ -351,7 +352,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Nod
     }
     return TupleNode::make(fields);
   } else {
-    auto rnode = make_node<LayoutAlternatedExprNode<TransformMemorizerT>>();
+    auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
     CHECK_EQ(new_out.size(), 1);
     rnode->value = CallNode::make(new_call->op, transformed_args, new_call->attrs);
     rnode->old_layout = old_out[0];

@@ -38,7 +38,7 @@ Stmt SkipAssert(Stmt stmt) {
 }
 
 LoweredFunc SkipAssert(LoweredFunc f) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = SkipAssert(f->body);
   return LoweredFunc(n);
 }

@@ -115,15 +115,15 @@ inline TVMPODValue_::operator tvm::Expr() const {
   Object* ptr = static_cast<Object*>(value_.v_handle);
 
   if (ptr->IsInstance<IterVarNode>()) {
-    return IterVar(ObjectPtr<Node>(ptr))->var;
+    return IterVar(ObjectPtr<Object>(ptr))->var;
   }
   if (ptr->IsInstance<TensorNode>()) {
-    return Tensor(ObjectPtr<Node>(ptr))();
+    return Tensor(ObjectPtr<Object>(ptr))();
   }
   CHECK(ObjectTypeChecker<Expr>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
       << " but get " << ptr->GetTypeKey();
-  return Expr(ObjectPtr<Node>(ptr));
+  return Expr(ObjectPtr<Object>(ptr));
 }
 
 inline TVMPODValue_::operator tvm::Integer() const {
@@ -138,7 +138,7 @@ inline TVMPODValue_::operator tvm::Integer() const {
   CHECK(ObjectTypeChecker<Integer>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
       << " but get " << ptr->GetTypeKey();
-  return Integer(ObjectPtr<Node>(ptr));
+  return Integer(ObjectPtr<Object>(ptr));
 }
 }  // namespace runtime
 }  // namespace tvm

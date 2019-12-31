@@ -53,7 +53,7 @@ namespace vm {
  */
 struct PrimitiveInliner : ExprMutator {
   Module module_;
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> var_map;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
 
   explicit PrimitiveInliner(const Module& module) : module_(module) {}
 

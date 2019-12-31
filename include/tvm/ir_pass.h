@@ -418,7 +418,7 @@ Stmt HoistIfThenElse(Stmt stmt);
  */
 LoweredFunc MakeAPI(Stmt body,
                     std::string name,
-                    Array<NodeRef> api_args,
+                    Array<ObjectRef> api_args,
                     int num_unpacked_args,
                     bool is_restricted);
 
