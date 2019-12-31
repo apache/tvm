@@ -26,7 +26,7 @@ In this develop guide, we demonstrate how a hardware vendor can easily implement
 
 **1. You want to generate C code.**
 
-If your hardware already has a well-optimized library, such as Intel CBLAS/MKL to CPU and NVIDIA CUBLAS to GPU, then this is what you are looking for. We will demonstrate how to implement a C code generation for your hardware in the following section. Fortunately C code generation is fully compatible with TVM runtime module, so the only task you have is implementing a codegen.
+If your hardware already has a well-optimized C/C++ library, such as Intel CBLAS/MKL to CPU and NVIDIA CUBLAS to GPU, then this is what you are looking for. Fortunately, C source code module is fully compatible with TVM runtime module, which means the generated code could be compiled by any C/C++ compiler with proper compilation flags, so the only task you have is to implement a codegen that generates C code for subgraphs and a C source module to integrate into TVM runtime module. We will demonstrate how to implement a C code generator for your hardware in the following section.
 
 **2. You want to generate any other graph representations.**
 
@@ -65,11 +65,11 @@ With the two macros, we can generate binary operators for 1-D and 2-D tensors. F
 
        gcc_input0
            |
-          add --- gcc_input1
+          add <-- gcc_input1
            |
-        subtract --- gcc_input2
+        subtract <-- gcc_input2
            |
-        multiply --- gcc_input3
+        multiply <-- gcc_input3
            |
           out
 
@@ -118,7 +118,7 @@ Our goal is to generate the following compilable code to execute the subgraph:
     }
 
     // Note 3
-    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
+    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
       if (nargs != 5) {
         printf("Expect 5 args, but get %d", nargs);
         return 1;
@@ -140,7 +140,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 2** is a function to execute the subgraph by allocating intermediate buffers and invoking corresponding functions.
 
-* **Note 3** is a TVM runtime compatible wrapper function with unified arguments. It accepts and unpacks the packed data ``TVMValue``, and invokes the corresponding function to execute the subgraph. Due to the unified function arguments, the TVM runtime can directly invoke ``json_rt_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
+* **Note 3** is a TVM runtime compatible wrapper function with unified arguments. It accepts and unpacks the packed data ``TVMValue``, and invokes the corresponding function to execute the subgraph. Due to the unified function arguments, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
 In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under ``src/relay/backend/contrib/codegen_c/codegen.cc``. Feel free to check this file for a complete implementation.
 
@@ -155,7 +155,7 @@ Specifically, we are going to implement two classes in this file and here is the
          ----------------------------------------      ------------------------
             generated C source runtime module              generated C code
 
-When TVM backend finds a function (subgraph) in a Relay graph is annotated with the registered compiler tag (``ccompiler`` in this example), TVM backend invokes ``CSourceCodegen`` and passes the subgraph. ``CSourceCodegen``'s member function ``CreateCSourceModule`` will 1) generate C code for the subgraph, and 2) wrap the generated C code to a C source runtime module for TVM backend to compile and deploy. In particular, the C code generation is transparent to ``CodegenC`` class because it provides many useful utilities to ease the code generation implementation. The following sections will implementation these two classes in bottom-up order.
+When TVM backend finds a function (subgraph) in a Relay graph is annotated with the registered compiler tag (``ccompiler`` in this example), TVM backend invokes ``CSourceCodegen`` and passes the subgraph. ``CSourceCodegen``'s member function ``CreateCSourceModule`` will 1) generate C code for the subgraph, and 2) wrap the generated C code to a C source runtime module for TVM backend to compile and deploy. In particular, the C code generation is transparent to ``CodegenC`` class because it provides many useful utilities to ease the code generation implementation. The following sections will implement these two classes in bottom-up order.
 
 Implement CodegenC
 ==================
@@ -206,12 +206,12 @@ In ``src/relay/backend/contrib/codegen_c/codegen.cc``, we first create a codegen
         std::vector<std::pair<std::string, int>> out_;        
     }
 
-The ``CodegenC`` class inherits two classes: ``ExprVisitor`` provides abilities to traverse subgraphs and collects the required information and generate subgraph functions such as ``gcc_0_``; ``CodegenCBase`` provides abilities and utilities to generate wrapper functions such as ``json_rt_0`` in the above example. As can be seen, we only need to implement three functions in this codegen class to make it work.
+The ``CodegenC`` class inherits two classes: ``ExprVisitor`` provides abilities to traverse subgraphs and collects the required information and generate subgraph functions such as ``gcc_0_``; ``CodegenCBase`` provides abilities and utilities to generate wrapper functions such as ``gcc_0`` in the above example. As can be seen, we only need to implement three functions in this codegen class to make it work.
 
 Code Generation for Operators
 -----------------------------
 
-We first implement ``VisitExpr_(const CallNode* call)``. This function visits all call nodes when traversing the subgraph. Each call node contains an operator that we want to offload to your hardware. As a result, we need to generate the corresponding C code with correct operators and topological order. We implement this function step-by-step as follows.
+We first implement ``VisitExpr_(const CallNode* call)``. This function visits all call nodes when traversing the subgraph. Each call node contains an operator that we want to offload to your hardware. As a result, we need to generate the corresponding C code with correct operators in topological order. We implement this function step-by-step as follows.
 
 **1. Generate the function declaration**
 
@@ -327,14 +327,14 @@ After we have allocated the output buffer, we can now close the function call st
 
 **4. Update output buffer**
 
-To let the next node, which accepts the output of current call node as its input, know which buffer should it take, we need to update the class variable ``out_`` before leaving this visit function:
+To let the next node, which accepts the output of the current call node as its input, know which buffer should it take, we need to update the class variable ``out_`` before leaving this visit function:
 
 .. code-block:: c++
 
     out_.clear();
     out_.push_back({out, out_size});
 
-Congratulations! we have finished the most difficult function in this class. In the next two sections, we just need to make up some miner missing parts in this function.
+Congratulations! we have finished the most difficult function in this class. In the next two sections, we just need to make up some minor missing parts in this function.
 
 Code Generation for Input Variables
 -----------------------------------
@@ -356,7 +356,23 @@ Note that in this example we assume the subgraph we are offloading has only call
 Code Emitting
 -------------
 
-The final part in this codegen class is a ``JIT`` function that emits the compilable C code. Remember, in addition to the subgraph function we generated in the previous sections, we also need a wrapper function (``json_rt_0``) with a unified argument for TVM runtime to invoke and pass data. Fortunately, the base class we inherited already provides an implementation, ``JitImpl``, to generate such functions. The only thing we need to do is passing all subgraph function code we generated to ``JitImpl``:
+The final part in this codegen class is a ``JIT`` function that emits a C function for the subgraph and uses the C code we just generated as the function body. Remember, in addition to the subgraph function we generated in the previous sections, we also need a wrapper function with a unified argument for TVM runtime to invoke and pass data. Fortunately, the base class we inherited already provides an implementation, ``JitImpl``, to generate the function. For example, we can invoke ``JitImpl`` as follows:
+
+.. code-block:: c++
+
+  JitImpl("gcc_0" /* Subgraph symbol (ID) */,
+          {"gcc_input0", "gcc_input1", "gcc_input2", "gcc_input3"} /* Input arguments */,
+          {"float *buf_0 = (float*)malloc(4 * 20)", ...} /* Buffer allocations */,
+          {"gcc_0_2(gcc_input0, gcc_input1, buf_0);"} /* Function body */,
+          {"out"} /* Output */);
+
+The above call will generate two functions:
+
+1. The subgraph function ``gcc_0_`` (with one more underline at the end of the function name) with all C code we generated to execute a subgaph.
+
+2. The wrapper function ``gcc_0`` with TVM unified function arguments that unpacks TVM packed tensors and invokes ``gcc_0_``.
+
+Accordingly, the only thing we need in ``JIT`` implementation is passing all subgraph function code we generated to ``JitImpl``:
 
 .. code-block:: c++
 
@@ -382,17 +398,17 @@ Again, let's create a class skeleton and implement required functions. Note that
     // Pass a subgraph function, and generate the C code.
     void GenCFunc(const Function& func) { ; }
 
-    // Use GetFunc to generate the C code and wrap it as a C source module.
+    // Use GenCFunc to generate the C code and wrap it as a C source module.
     runtime::Module CreateCSourceModule(const NodeRef& ref) override { ; }
 
    private:
     std::ostringstream code_stream_;
   };
 
-Implement GetFunc
------------------
+Implement GenCFunc
+------------------
 
-``GetFunc`` simply uses the ``CodegenC`` we just implemented to traverse a Relay function (subgraph) and obtains the generated C code. The builtin function ``GetExtSymbol`` retrieves a unique symbol name in the Relay function and we could use it as the C function name directly.
+``GenCFunc`` simply uses the ``CodegenC`` we just implemented to traverse a Relay function (subgraph) and obtains the generated C code. The builtin function ``GetExtSymbol`` retrieves a unique symbol name (e.g., ``gcc_0``) in the Relay function and we **must** use it as the C function name, because this symbol is going to be used for DSO runtime lookup.
 
 .. code-block:: c++
 
@@ -432,7 +448,7 @@ This function creates a runtime module for the external library. In this example
           out[i] = a[i] p_OP_ b[i];                           \
         }                                                     \
       }
-    
+
     #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
       extern "C" void p_ID_(float* a, float* b, float* out) {     \
         for (int64_t i = 0; i < p_DIM1_; ++i) {                   \
