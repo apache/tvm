@@ -42,7 +42,7 @@ class VariablePathFinder: public IRVisitor {
  public:
   explicit VariablePathFinder(Expr target) : target_(target) {}
 
-  void Visit(const NodeRef& node) final {
+  void Visit(const ObjectRef& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
@@ -82,7 +82,7 @@ class BoundDeducer: public IRVisitor {
 
   void Deduce();
 
-  void Visit(const NodeRef& e) final {
+  void Visit(const ObjectRef& e) final {
     if (!success_) return;
     if (e.get() == path_[iter_++]) {
       IRVisitor::Visit(e);
@@ -202,7 +202,7 @@ class BoundDeduceInputChecker: public IRVisitor {
     return target_count == 1;
   }
 
-  void Visit(const NodeRef& e) final {
+  void Visit(const ObjectRef& e) final {
     if (e.same_as(deducer_->target_)) ++target_count;
     IRVisitor::Visit(e);
   }

@@ -117,8 +117,8 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  */
 Expr ConvertLayout(const Expr& expr, const std::string& desired_layout) {
   ConvertTransformMemorizer transformMemorizer(
-      make_node<ConvertTransformMemorizerNode>(desired_layout));
-  auto fcontext = [&](const Call& call) -> NodeRef { return transformMemorizer; };
+      make_object<ConvertTransformMemorizerNode>(desired_layout));
+  auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<ConvertTransformMemorizer>, fcontext);
 }

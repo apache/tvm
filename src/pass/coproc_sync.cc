@@ -104,7 +104,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   // Write synchronization to be inserted before or after stmt.
-  std::unordered_map<const Node*, std::vector<Stmt> > sync_;
+  std::unordered_map<const Object*, std::vector<Stmt> > sync_;
 
  protected:
   bool Enabled(const Variable* buf,
@@ -229,8 +229,8 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     PlanWriteBarrier(scope_.back(), nullptr);
   }
 
-  std::unordered_map<const Node*, std::vector<Stmt> > barrier_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > barrier_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > barrier_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > barrier_after_;
 
  protected:
   bool Enabled(const Variable* buf,
@@ -458,14 +458,14 @@ class CoProcInstDepDetector : public IRVisitor {
 
   // insert before is stored in reverse order
   // the first element is closest to the node.
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_after_;
 
  private:
   // state in the sync entry
   struct SyncState {
     // The statement of the state.
-    const Node* node{nullptr};
+    const Object* node{nullptr};
     // Set of all possible contexts in the entering moment.
     std::unordered_set<int> enter_ctx;
     // Set of all possible contexts in the exit moment.
@@ -679,8 +679,8 @@ class CoProcSyncInserter : public IRMutator {
  private:
   // insert before is stored in reverse order
   // the first element is closest to the node.
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_after_;
 };
 
 

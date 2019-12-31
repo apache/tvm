@@ -338,7 +338,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
 LoweredFunc
 LowerThreadAllreduce(LoweredFunc f, int warp_size) {
   CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = ThreadAllreduceBuilder(warp_size).Mutate(n->body);
   return LoweredFunc(n);
 }

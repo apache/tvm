@@ -254,7 +254,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
    *
    * \return The runtime module that contains C source code.
    */
-  runtime::Module CreateCSourceModule(const NodeRef& ref) override {
+  runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     // Create headers
     code_stream_ << "#include <cstdint>\n";
     code_stream_ << "#include <cstdlib>\n";
@@ -298,7 +298,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  * \brief The external compiler/codegen tool. It takes a Relay expression/module and
  * compile it into a runtime module.
  */
-runtime::Module DNNLCompiler(const NodeRef& ref) {
+runtime::Module DNNLCompiler(const ObjectRef& ref) {
   DNNLModuleCodegen dnnl;
   return dnnl.CreateCSourceModule(ref);
 }

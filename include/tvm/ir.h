@@ -53,7 +53,7 @@ class UIntImm : public ExprNode {
   TVM_DLL static Expr make(DataType t, uint64_t value);
 
   static constexpr const char* _type_key = "UIntImm";
-  TVM_DECLARE_NODE_TYPE_INFO(UIntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImm, ExprNode);
 };
 
 /*! \brief Floating point constants. */
@@ -70,7 +70,7 @@ class FloatImm : public ExprNode {
   TVM_DLL static Expr make(DataType t, double value);
 
   static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_NODE_TYPE_INFO(FloatImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImm, ExprNode);
 };
 
 /*! \brief String constants, only used in asserts. */
@@ -87,7 +87,7 @@ class StringImm : public ExprNode {
   TVM_DLL Expr static make(std::string value);
 
   static constexpr const char* _type_key = "StringImm";
-  TVM_DECLARE_NODE_TYPE_INFO(StringImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StringImm, ExprNode);
 };
 
 /*!
@@ -107,7 +107,7 @@ class Cast : public ExprNode {
   TVM_DLL static Expr make(DataType t, Expr v);
 
   static constexpr const char* _type_key = "Cast";
-  TVM_DECLARE_NODE_TYPE_INFO(Cast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Cast, ExprNode);
 };
 
 /*!
@@ -132,14 +132,14 @@ class BinaryOpNode : public ExprNode {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
-    NodePtr<T> node = make_node<T>();
+    ObjectPtr<T> node = make_object<T>();
     node->dtype = a.dtype();
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
   }
 
-  TVM_DECLARE_NODE_TYPE_INFO(T, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(T, ExprNode);
 };
 
 /*! \brief a + b */
@@ -224,14 +224,14 @@ class CmpOpNode : public ExprNode {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
     CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
-    NodePtr<T> node = make_node<T>();
+    ObjectPtr<T> node = make_object<T>();
     node->dtype = DataType::Bool(a.dtype().lanes());
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
   }
 
-  TVM_DECLARE_NODE_TYPE_INFO(T, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(T, ExprNode);
 };
 
 /*! \brief a == b */
@@ -287,7 +287,7 @@ class And : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "And";
-  TVM_DECLARE_NODE_TYPE_INFO(And, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(And, ExprNode);
 };
 
 /*! \brief a || b */
@@ -307,7 +307,7 @@ class Or : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "Or";
-  TVM_DECLARE_NODE_TYPE_INFO(Or, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Or, ExprNode);
 };
 
 /*! \brief !a */
@@ -324,7 +324,7 @@ class Not : public ExprNode {
   TVM_DLL static Expr make(Expr a);
 
   static constexpr const char* _type_key = "Not";
-  TVM_DECLARE_NODE_TYPE_INFO(Not, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Not, ExprNode);
 };
 
 /*!
@@ -353,7 +353,7 @@ class Select : public ExprNode {
   TVM_DLL static Expr make(Expr condition, Expr true_value, Expr false_value);
 
   static constexpr const char* _type_key = "Select";
-  TVM_DECLARE_NODE_TYPE_INFO(Select, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Select, ExprNode);
 };
 
 /*!
@@ -390,7 +390,7 @@ class Load : public ExprNode {
   TVM_DLL static Expr make(DataType dtype, Var buffer_var, Expr index, Expr predicate);
 
   static constexpr const char* _type_key = "Load";
-  TVM_DECLARE_NODE_TYPE_INFO(Load, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Load, ExprNode);
 };
 
 /*!
@@ -421,7 +421,7 @@ class Ramp : public ExprNode {
   TVM_DLL static Expr make(Expr base, Expr stride, int lanes);
 
   static constexpr const char* _type_key = "Ramp";
-  TVM_DECLARE_NODE_TYPE_INFO(Ramp, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Ramp, ExprNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
@@ -441,7 +441,7 @@ class Broadcast : public ExprNode {
   TVM_DLL static Expr make(Expr value, int lanes);
 
   static constexpr const char* _type_key = "Broadcast";
-  TVM_DECLARE_NODE_TYPE_INFO(Broadcast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Broadcast, ExprNode);
 };
 
 /*!
@@ -466,7 +466,7 @@ class Let : public ExprNode {
   TVM_DLL static Expr make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "Let";
-  TVM_DECLARE_NODE_TYPE_INFO(Let, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Let, ExprNode);
 };
 
 // Call node, represent a function call or a multi-dimensional array load.
@@ -477,7 +477,7 @@ class Let : public ExprNode {
 // We should move most information into function itself and remove name.
 
 /*! \brief Base node of internal functions. */
-class FunctionBaseNode : public Node {
+class FunctionBaseNode : public Object {
  public:
   /*! \return the name of the function */
   virtual const std::string& func_name() const = 0;
@@ -486,9 +486,9 @@ class FunctionBaseNode : public Node {
 };
 
 /*! \brief reference to a function */
-class FunctionRef : public NodeRef {
+class FunctionRef : public ObjectRef {
  public:
-  TVM_DEFINE_NODE_REF_METHODS(FunctionRef, NodeRef, FunctionBaseNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionRef, ObjectRef, FunctionBaseNode);
 };
 
 /*!
@@ -560,7 +560,7 @@ class Call : public ExprNode {
   bool is_vectorizable() const;
 
   static constexpr const char* _type_key = "Call";
-  TVM_DECLARE_NODE_TYPE_INFO(Call, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Call, ExprNode);
 
   // Build-in intrinsics
   static constexpr const char* reinterpret = "reinterpret";
@@ -602,16 +602,16 @@ class Shuffle : public ExprNode {
   TVM_DLL static Expr make_extract_element(Expr vector, int index);
 
   static constexpr const char* _type_key = "Shuffle";
-  TVM_DECLARE_NODE_TYPE_INFO(Shuffle, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Shuffle, ExprNode);
 };
 
 // Reduce operator
 class CommReducerNode;
 
-class CommReducer : public NodeRef {
+class CommReducer : public ObjectRef {
  public:
   CommReducer() {}
-  explicit CommReducer(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CommReducer(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -630,7 +630,7 @@ class CommReducer : public NodeRef {
  * \brief A commutative reducer node to represent a commutative
  *  binary operator with identity element
  */
-class CommReducerNode : public Node {
+class CommReducerNode : public Object {
  public:
   /*! \brief The left argument of reducer */
   Array<Var> lhs;
@@ -660,7 +660,7 @@ class CommReducerNode : public Node {
   }
 
   static constexpr const char* _type_key = "CommReducer";
-  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
 };
 
 inline const CommReducerNode* CommReducer::get() const {
@@ -704,7 +704,7 @@ class Reduce : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Reduce";
-  TVM_DECLARE_NODE_TYPE_INFO(Reduce, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Reduce, ExprNode);
 };
 
 /*! \brief Any shape. */
@@ -719,7 +719,7 @@ class Any : public ExprNode {
   TVM_DLL static Expr make();
 
   static constexpr const char* _type_key = "Any";
-  TVM_DECLARE_NODE_TYPE_INFO(Any, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Any, ExprNode);
 };
 
 // Statements
@@ -744,7 +744,7 @@ class LetStmt : public StmtNode {
   TVM_DLL static Stmt make(Var var, Expr value, Stmt body);
 
   static constexpr const char* _type_key = "LetStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(LetStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmt, StmtNode);
 };
 
 /*!
@@ -760,7 +760,7 @@ class LetStmt : public StmtNode {
 class AttrStmt : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
-  NodeRef node;
+  ObjectRef node;
   /*! \brief the type key of the attribute */
   std::string attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
@@ -775,13 +775,13 @@ class AttrStmt : public StmtNode {
     v->Visit("body", &body);
   }
 
-  TVM_DLL static Stmt make(NodeRef node,
+  TVM_DLL static Stmt make(ObjectRef node,
                            std::string type_key,
                            Expr value,
                            Stmt body);
 
   static constexpr const char* _type_key = "AttrStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(AttrStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmt, StmtNode);
 };
 
 /*!
@@ -808,7 +808,7 @@ class AssertStmt : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Expr message, Stmt body);
 
   static constexpr const char* _type_key = "AssertStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(AssertStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmt, StmtNode);
 };
 
 // TODO(tvm-team): consider consolidate with AttrStmt.
@@ -831,7 +831,7 @@ class ProducerConsumer : public StmtNode {
   TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
 
   static constexpr const char* _type_key = "ProducerConsumer";
-  TVM_DECLARE_NODE_TYPE_INFO(ProducerConsumer, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumer, StmtNode);
 };
 
 /*!
@@ -876,7 +876,7 @@ class Store : public StmtNode {
                            Expr predicate);
 
   static constexpr const char* _type_key = "Store";
-  TVM_DECLARE_NODE_TYPE_INFO(Store, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Store, StmtNode);
 };
 
 /*!
@@ -906,7 +906,7 @@ class Provide : public StmtNode {
                            Array<Expr> args);
 
   static constexpr const char* _type_key = "Provide";
-  TVM_DECLARE_NODE_TYPE_INFO(Provide, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Provide, StmtNode);
 };
 
 /*!
@@ -963,7 +963,7 @@ class Allocate : public StmtNode {
       const Array<Expr>& extents);
 
   static constexpr const char* _type_key = "Allocate";
-  TVM_DECLARE_NODE_TYPE_INFO(Allocate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Allocate, StmtNode);
 };
 
 /*! \brief Free the resources in the buffer before the scope ends. */
@@ -979,7 +979,7 @@ class Free : public StmtNode {
   TVM_DLL static Stmt make(Var buffer_var);
 
   static constexpr const char* _type_key = "Free";
-  TVM_DECLARE_NODE_TYPE_INFO(Free, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Free, StmtNode);
 };
 
 /*!
@@ -1018,7 +1018,7 @@ class Realize : public StmtNode {
                            Stmt body);
 
   static constexpr const char* _type_key = "Realize";
-  TVM_DECLARE_NODE_TYPE_INFO(Realize, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Realize, StmtNode);
 };
 
 /*!
@@ -1040,7 +1040,7 @@ class Block : public StmtNode {
   TVM_DLL static Stmt make(const std::vector<Stmt> &stmts);
 
   static constexpr const char* _type_key = "Block";
-  TVM_DECLARE_NODE_TYPE_INFO(Block, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Block, StmtNode);
 };
 
 /*!
@@ -1064,7 +1064,7 @@ class IfThenElse : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Stmt then_case, Stmt else_case = Stmt());
 
   static constexpr const char* _type_key = "IfThenElse";
-  TVM_DECLARE_NODE_TYPE_INFO(IfThenElse, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElse, StmtNode);
 };
 
 /*!
@@ -1085,7 +1085,7 @@ class Evaluate : public StmtNode {
   TVM_DLL static Stmt make(Expr v);
 
   static constexpr const char* _type_key = "Evaluate";
-  TVM_DECLARE_NODE_TYPE_INFO(Evaluate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Evaluate, StmtNode);
 };
 
 /*! \brief Additional annotation of for loop. */
@@ -1152,7 +1152,7 @@ class For : public StmtNode {
   }
 
   static constexpr const char* _type_key = "For";
-  TVM_DECLARE_NODE_TYPE_INFO(For, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(For, StmtNode);
 };
 
 /*!
@@ -1182,7 +1182,7 @@ class Prefetch : public StmtNode {
                            Region bounds);
 
   static constexpr const char* _type_key = "Prefetch";
-  TVM_DECLARE_NODE_TYPE_INFO(Prefetch, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Prefetch, StmtNode);
 };
 
 /*!
@@ -1636,7 +1636,7 @@ namespace std {
 template <>
 struct hash<::tvm::ir::TensorKey> {
   std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
-    size_t lhs = ::tvm::NodeHash()(k.f);
+    size_t lhs = ::tvm::ObjectHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;

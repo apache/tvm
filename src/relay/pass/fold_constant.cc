@@ -52,7 +52,7 @@ class ConstantChecker : private ExprVisitor {
   }
 
  private:
-  std::unordered_map<Expr, bool, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, bool, ObjectHash, ObjectEqual> memo_;
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;
@@ -266,7 +266,7 @@ class ConstantFolder : public ExprMutator {
     }
 
     // Cast the constant into correct dtype
-    auto cast_attrs = make_node<CastAttrs>();
+    auto cast_attrs = make_object<CastAttrs>();
     cast_attrs->dtype = param->dtype;
     Expr ret = CallNode::make(cast_op_, { shape }, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);

@@ -33,7 +33,7 @@ namespace {
 // find first occurance location in leaf
 template<typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
-  const Node* n = v.get();
+  const Object* n = v.get();
   for (size_t i = 0; i < array_node->data.size(); ++i) {
     if (array_node->data[i].get() == n) return i;
   }
@@ -88,7 +88,7 @@ void Split(StageNode* self,
 }  // namespace
 
 Stage::Stage(Operation op) {
-  auto n = make_node<StageNode>();
+  auto n = make_object<StageNode>();
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
@@ -182,16 +182,16 @@ Stage& Stage::bind(IterVar ivar, IterVar thread_ivar) {   // NOLINT(*)
   FindLeafVar(all_vars, leaf_vars, ivar);
 
   auto it = self->iter_var_attrs.find(ivar);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
     if (n->bind_thread.defined() &&
         !n->bind_thread.same_as(thread_ivar)) {
       LOG(WARNING) << "Axis " << ivar
                    << " is already bind to another thread " << n->bind_thread;
     }
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   n->bind_thread = thread_ivar;
   self->iter_var_attrs.Set(ivar, IterVarAttr(n));
@@ -353,11 +353,11 @@ inline void UpdateIterVarAttr(StageNode* self,
     FindLeafVar(all_vars, leaf_vars, var);
   }
   auto it = self->iter_var_attrs.find(var);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   fupdate(n.get());
   self->iter_var_attrs.Set(var, IterVarAttr(n));
@@ -422,11 +422,11 @@ Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   FindLeafVar(all_vars, leaf_vars, var);
   auto it = self->iter_var_attrs.find(var);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
@@ -493,16 +493,16 @@ Stage& Stage::opengl() {
 }
 
 Stage CopyStage(const Stage& s) {
-  NodePtr<StageNode> n =
-      make_node<StageNode>(*s.operator->());
+  ObjectPtr<StageNode> n =
+      make_object<StageNode>(*s.operator->());
   return Stage(n);
 }
 
 Schedule Schedule::copy() const {
   // map of stages.
   const ScheduleNode* self = operator->();
-  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
-  NodePtr<ScheduleNode> n = make_node<ScheduleNode>();
+  std::unordered_map<Stage, Stage, ObjectHash, ObjectEqual> smap;
+  ObjectPtr<ScheduleNode> n = make_object<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
   for (Stage s : self->stages) {
@@ -605,7 +605,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
     int count{0};
   };
   // Map of group->touched counter
-  std::unordered_map<Stage, Entry, NodeHash, NodeEqual> counter;
+  std::unordered_map<Stage, Entry, ObjectHash, ObjectEqual> counter;
   // The parent group;
   Stage parent_group;
   // Detect common parent and child.
@@ -624,7 +624,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
     }
   }
   // Create the new group stage.
-  Stage gstage(make_node<StageNode>());
+  Stage gstage(make_object<StageNode>());
   gstage->group = parent_group;
   if (parent_group.defined()) {
     ++parent_group->num_child_stages;
@@ -716,7 +716,7 @@ bool ScheduleNode::Contain(const Operation& op) const {
 }
 
 Schedule ScheduleNode::make(Array<Operation> ops) {
-  auto n = make_node<ScheduleNode>();
+  auto n = make_object<ScheduleNode>();
   Schedule sch(n);
   n->outputs = ops;
   auto g = schedule::CreateReadGraph(n->outputs);
@@ -759,7 +759,7 @@ IterVarRelation SplitNode::make(IterVar parent,
                                 IterVar inner,
                                 Expr factor,
                                 Expr nparts) {
-  auto n = make_node<SplitNode>();
+  auto n = make_object<SplitNode>();
   n->parent = parent;
   n->outer = outer;
   n->inner = inner;
@@ -770,7 +770,7 @@ IterVarRelation SplitNode::make(IterVar parent,
 
 IterVarRelation FuseNode::make(
     IterVar outer, IterVar inner, IterVar fused) {
-  auto n = make_node<FuseNode>();
+  auto n = make_object<FuseNode>();
   n->outer = outer;
   n->inner = inner;
   n->fused = fused;
@@ -778,14 +778,14 @@ IterVarRelation FuseNode::make(
 }
 
 IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
-  auto n = make_node<RebaseNode>();
+  auto n = make_object<RebaseNode>();
   n->parent = parent;
   n->rebased = rebased;
   return IterVarRelation(n);
 }
 
 IterVarRelation SingletonNode::make(IterVar iter) {
-  auto n = make_node<SingletonNode>();
+  auto n = make_object<SingletonNode>();
   n->iter = iter;
   return IterVarRelation(n);
 }

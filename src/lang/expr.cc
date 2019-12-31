@@ -42,14 +42,14 @@ Var::Var(std::string name_hint, DataType t)
     : Var(Variable::make(t, name_hint)) {}
 
 Var Variable::make(DataType t, std::string name_hint) {
-  NodePtr<Variable> node = make_node<Variable>();
+  ObjectPtr<Variable> node = make_object<Variable>();
   node->dtype = t;
   node->name_hint = std::move(name_hint);
   return Var(node);
 }
 
 Range::Range(Expr begin, Expr end)
-    : Range(make_node<RangeNode>(
+    : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
@@ -57,21 +57,21 @@ Range::Range(Expr begin, Expr end)
 Integer IntImm::make(DataType t, int64_t value) {
   CHECK(t.is_int() && t.is_scalar())
       << "ValueError: IntImm can only take scalar.";
-  NodePtr<IntImm> node = make_node<IntImm>();
+  ObjectPtr<IntImm> node = make_object<IntImm>();
   node->dtype = t;
   node->value = value;
   return Integer(node);
 }
 
 Range Range::make_by_min_extent(Expr min, Expr extent) {
-  return Range(make_node<RangeNode>(min, extent));
+  return Range(make_object<RangeNode>(min, extent));
 }
 
 IterVar IterVarNode::make(Range dom,
                           Var var,
                           IterVarType t,
                           std::string thread_tag) {
-  NodePtr<IterVarNode> n = make_node<IterVarNode>();
+  ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   n->dom = dom;
   n->var = var;
   n->iter_type = t;
@@ -89,7 +89,7 @@ IterVar reduce_axis(Range dom, std::string name) {
       dom, Var(name), kCommReduce);
 }
 
-void Dump(const NodeRef& n) {
+void Dump(const ObjectRef& n) {
   std::cerr << n << "\n";
 }
 

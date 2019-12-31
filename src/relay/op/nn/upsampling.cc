@@ -102,7 +102,7 @@ Expr MakeUpSampling(Expr data,
                     std::string layout,
                     std::string method,
                     bool align_corners) {
-  auto attrs = make_node<UpSamplingAttrs>();
+  auto attrs = make_object<UpSamplingAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->scale_h = scale_h;
@@ -182,7 +182,7 @@ Expr MakeUpSampling3D(Expr data,
                       std::string layout,
                       std::string method,
                       std::string coordinate_transformation_mode) {
-  auto attrs = make_node<UpSampling3DAttrs>();
+  auto attrs = make_object<UpSampling3DAttrs>();
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
   attrs->scale_d = scale_d;

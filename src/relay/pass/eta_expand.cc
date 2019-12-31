@@ -49,7 +49,7 @@ class TypeVarReplacer : public TypeMutator {
 
  private:
   /*! \brief variable replacement map to remap old type vars to fresh ones */
-  std::unordered_map<TypeVar, TypeVar, NodeHash, NodeEqual> replace_map_;
+  std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> replace_map_;
 };
 
 /*!

@@ -52,7 +52,7 @@ using namespace tvm::runtime::vm;
 using namespace relay::transform;
 
 template <typename T, typename U>
-using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
+using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
 using TagMap = NodeMap<tvm::relay::Constructor, Index>;
 using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
 using GlobalMap = NodeMap<GlobalVar, Index>;
@@ -76,7 +76,7 @@ struct VMCompilerContext {
   // List of cached functions
   std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
-  std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
+  std::unordered_map<LoweredFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
 };
 
 

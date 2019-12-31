@@ -56,7 +56,7 @@ class StatsCollector : private ExprMutator {
     if (new_call->op == simulated_quantize_op_) {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
       // rewrite the annotation
-      auto new_attrs = make_node<SimulatedQuantizeAttrs>();
+      auto new_attrs = make_object<SimulatedQuantizeAttrs>();
       const Expr& quantize_input = new_call->args[0];  // expression being quantized
       auto placeholder = MakeConstantScalar(DataType::Float(32), 0.);  // unused argument
       Array<Expr> new_args{quantize_input, placeholder, placeholder, placeholder};

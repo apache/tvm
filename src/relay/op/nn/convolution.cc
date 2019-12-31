@@ -66,7 +66,7 @@ Expr MakeConv2D(Expr data,
                 std::string kernel_layout,
                 std::string out_layout,
                 DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -124,7 +124,7 @@ Expr MakeConv3D(Expr data,
                 std::string kernel_layout,
                 std::string out_layout,
                 DataType out_dtype) {
-  auto attrs = make_node<Conv3DAttrs>();
+  auto attrs = make_object<Conv3DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -289,7 +289,7 @@ Expr MakeConv2DTranspose(Expr data,
                          std::string out_layout,
                          Array<IndexExpr> output_padding,
                          DataType out_dtype) {
-  auto attrs = make_node<Conv2DTransposeAttrs>();
+  auto attrs = make_object<Conv2DTransposeAttrs>();
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->strides = std::move(strides);
@@ -448,7 +448,7 @@ Expr MakeConv1DTranspose(Expr data,
                          std::string out_layout,
                          Array<IndexExpr> output_padding,
                          DataType out_dtype) {
-  auto attrs = make_node<Conv1DTransposeAttrs>();
+  auto attrs = make_object<Conv1DTransposeAttrs>();
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->strides = std::move(strides);
@@ -595,7 +595,7 @@ Expr MakeConv2DWinograd(Expr data,
                         std::string kernel_layout,
                         std::string out_layout,
                         DataType out_dtype) {
-  auto attrs = make_node<Conv2DWinogradAttrs>();
+  auto attrs = make_object<Conv2DWinogradAttrs>();
   attrs->tile_size = tile_size;
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -668,7 +668,7 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
 
 Expr MakeConv2DWinogradWeightTransform(Expr weight,
                                        int tile_size) {
-  auto attrs = make_node<Conv2DWinogradWeightTransformAttrs>();
+  auto attrs = make_object<Conv2DWinogradWeightTransformAttrs>();
   attrs->tile_size = tile_size;
   static const Op& op = Op::Get("nn.contrib_conv2d_winograd_weight_transform");
   return CallNode::make(op, {weight}, Attrs(attrs), {});
@@ -708,7 +708,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
                               std::string kernel_layout,
                               std::string out_layout,
                               DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -783,7 +783,7 @@ bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types,
 Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
                                              int convolution_algorithm,
                                              DataType out_dtype) {
-  auto attrs = make_node<Conv2DWinogradNNPACKWeightTransformAttrs>();
+  auto attrs = make_object<Conv2DWinogradNNPACKWeightTransformAttrs>();
   attrs->convolution_algorithm = convolution_algorithm;
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("nn.contrib_conv2d_winograd_nnpack_weight_transform");
@@ -821,7 +821,7 @@ Expr MakeConv2DNCHWcInt8(Expr data,
                          std::string kernel_layout,
                          std::string out_layout,
                          DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -870,7 +870,7 @@ Expr MakeConv2DNCHWc(Expr data,
                      std::string kernel_layout,
                      std::string out_layout,
                      DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -920,7 +920,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
                               std::string kernel_layout,
                               std::string out_layout,
                               DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -1079,7 +1079,7 @@ Expr MakeDeformableConv2D(Expr data,
                           std::string kernel_layout,
                           std::string out_layout,
                           DataType out_dtype) {
-  auto attrs = make_node<DeformableConv2DAttrs>();
+  auto attrs = make_object<DeformableConv2DAttrs>();
   attrs->strides = strides;
   attrs->padding = padding;
   attrs->dilation = dilation;
