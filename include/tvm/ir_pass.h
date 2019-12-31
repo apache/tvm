@@ -221,7 +221,7 @@ Stmt StorageFlatten(Stmt stmt,
 Expr StorageFlatten(Expr expr,
                     Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size,
-                    bool create_bound_attributes = false);
+                    bool create_bound_attribute = false);
 
 /*!
  * \brief Try to modify the AST to support TensorCore
