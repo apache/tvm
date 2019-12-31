@@ -40,6 +40,7 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert attrs.rounding == "round"
 
     data, dscale, clip_min, clip_max, overflow_min, overflow_max = inputs
+    # return [topi.identity(data)]
 
     # check overflow
     # data = tvm.extern(data.shape,
@@ -61,7 +62,7 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
 _reg.register_schedule("relay.op.annotation.simulated_quantize",
                        _reg.schedule_injective)
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
-                      _reg.OpPattern.ELEMWISE)
+                      _reg.OpPattern.OPAQUE)
 
 
 # dom_scale = scale / valid_range

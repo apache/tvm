@@ -139,6 +139,33 @@ def _find_scale_by_kl(arr,
     return opt_th
 
 
+class Stats(object):
+    def __init__(self, raw_data):
+        """
+        raw_data: intermediate data * number_of_batches
+        """
+        self.raw_data = raw_data
+
+    def __len__(self):
+        return len(self.raw_data)
+
+    def data(self, idx):
+        return self.raw_data[idx] 
+
+    def range(self, idx, power_of_2=False):
+        arr = np.concatenate(self.raw_data[idx]).reshape(-1)
+        arange = np.max(np.abs(arr))
+        if power_of_2:
+            return math.floor(math.log(arange))
+        return arange
+
+    def mean(self, idx):
+        pass
+
+    def variance(self, idx):
+        pass
+
+
 def collect_stats(mod, dataset):
     """Given an annotated graph, create a profile graph to collect profile data from the
     calibration dataset. This pass collects simulated_quantize op input into a tuple.
@@ -176,9 +203,10 @@ def collect_stats(mod, dataset):
         for i in range(num_outputs):
             output = runtime.get_output(i).asnumpy()
             outputs[i].append(output)
-    for i in range(num_outputs):
-        outputs[i] = np.concatenate(outputs[i]).reshape(-1)
-    return outputs
+    return Stats(outputs)
+    # for i in range(num_outputs):
+    #     outputs[i] = np.concatenate(outputs[i]).reshape(-1)
+    # return outputs
 
 
 def _kl_scale(stats):

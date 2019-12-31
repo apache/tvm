@@ -28,19 +28,23 @@ from .. import build_module as _build_module
 import tvm
 import sys
 import random
+import math
 import itertools
 import functools
 import numpy as np
 import multiprocessing as mp
+import time
 import logging
 try:
     import scipy
 except ImportError:
     scipy = None
 
+# TODOs:
+# - experiments
+# - add overflow check
 
 # Hardware Specific
-
 # simulation mostly for accuracy
 # track scale for every tensor
 
@@ -107,10 +111,6 @@ SimulatedQuantizeParams = namedtuple("SimulatedQuantizeParams", ['scale',
                                                                  'overflow_min',
                                                                  'overflow_max'])
 ######################################################
-# TODOs:
-# - integrate kl distance threshold estimation into it 
-# - add overflow check
-# - simulated annealing
 
 # for different hardwares, we need to consider instructions that it support. Reflect on graph level:
 # - dtype constraint
@@ -141,10 +141,21 @@ def create_accelerator_description():
     desc = HardwareDescription()
     desc['add'].append(([8, 8], [16]))
     desc['add'].append(([8, 8], [32]))
+    desc['add'].append(([16, 16], [32]))
+    desc['add'].append(([32, 32], [32]))
     desc['nn.conv2d'].append(([8, 8], [16]))
     # desc['nn.conv2d'].append(([8, 8], [32]))
     return desc
 
+
+def print_expr(e):
+    if isinstance(e, (_expr.Var)):
+        print(e.name_hint)
+    if isinstance(e, _expr.Constant):
+        print('constant')
+    if isinstance(e, _expr.Call):
+        print(e.op.name)
+    return None
 
 def generate_bit_choices(graph, hw_desc):
     """
@@ -169,11 +180,13 @@ def generate_bit_choices(graph, hw_desc):
             max_bits[idx] = 8
         elif isinstance(e, _expr.Call):
             if e.op.name in hw_desc.ops:
+                print("op: "  + e.op.name)
                 constraints = hw_desc[e.op.name]
                 # consider output constraint of current op
                 max_output_bit = max(instr[1][0] for instr in hw_desc[e.op.name])
                 idx = expr2idx[e]
                 max_bits[idx] = max(max_bits[idx], max_output_bit)
+                print(max_bits[idx])
 
                 # consider input constraint of followering op
                 max_inputs_bit = constraints[0][0]
@@ -182,17 +195,30 @@ def generate_bit_choices(graph, hw_desc):
                                       in zip(inputs_bit, max_inputs_bit))
                 for (input_expr, max_input_bit) in zip(e.args, max_inputs_bit):
                     in_idx = expr2idx[input_expr]
-                    max_bits[idx] = max(max_bits[in_idx], max_input_bit)
+                    max_bits[in_idx] = max(max_bits[in_idx], max_input_bit)
         else:
             return
     _analysis.post_order_visit(graph, fvisit_max_bits)
 
     print(max_bits)
+    exprs = []
+    def fvisit_test(e):
+        if isinstance(e, (_expr.Var)):
+            exprs.append(e)
+        if isinstance(e, _expr.Constant):
+            exprs.append('constant')
+        if isinstance(e, _expr.Call):
+            exprs.append(e.op.name)
+    _analysis.post_order_visit(graph, fvisit_test)
+
+    for name, bit in zip(exprs, max_bits):
+        print(name, bit)
     bit_choices = [list(reversed(range(4, max_bit + 1))) for max_bit in max_bits]
     return bit_choices
 
 
-def threshold_estimate(graph, bits, dataset=None):
+def threshold_estimate(graph, bits, dataset=None, method='max_range'):
+    print('calculating threshold...')
     # check bit setting
     # exprs = []
     # def fvisit_test(e):
@@ -205,19 +231,48 @@ def threshold_estimate(graph, bits, dataset=None):
     # _analysis.post_order_visit(graph, fvisit_test)
 
     stats = _calibrate.collect_stats(graph, dataset)
-    assert scipy is not None, "scipy need to be installed for \
-    utilizing kl calibration during quantization"
-    with mp.Pool() as pool:
+    max_range = [stats.range(i) for i in range(len(stats))]
+    # print("range: {0}".format(max_range))
+    if method == 'max_range':
+        return max_range
+    if method == 'kl':
+        # return max_range
+        assert scipy is not None, "scipy need to be installed for \
+        utilizing kl calibration during quantization"
         logging.info("finding threshold with kl for calibration...")
-        thresholds = list(pool.map(_calibrate._find_scale_by_kl, stats))
-    return thresholds
+        t0 = time.time()
+        print(stats.data(0)[0])
+        print(len(stats))
+        print(len(stats.data(0)))
+        print(type(stats.data(0)[0]))
+        print(stats.data(0)[0].shape)
+        a = np.concatenate(stats.data(0), axis=None)
+        print(type(a))
+        print(a.shape)
+        print('')
+        arrs = [np.concatenate(stats.data(i), axis=None) for i in range(len(stats))]
 
+        print('threshold: ')
+        thresholds = []
+        for i in range(len(arrs)):
+            print(i)
+            threshold = _calibrate._find_scale_by_kl(arrs[i])
+            print(threshold)
+            thresholds.append(threshold)
+        print(thresholds)
+        return thresholds
 
-    # for (e, b) in zip(exprs, bits):
-    #     print(e, b)
+        with mp.Pool(32) as pool:
+            thresholds = list(pool.map(_calibrate._find_scale_by_kl, arrs))
+        t1 = time.time()
+        print('time: {0}'.format(t1 - t0))
+        return thresholds
 
-    thresholds = [4.0 for _ in exprs]
-    return thresholds
+        # for (e, b) in zip(exprs, bits):
+        #     print(e, b)
+
+        thresholds = [4.0 for _ in exprs]
+        return thresholds
 
 
 def calculate_quantize_op_params(graph, bits, thresholds, hw_desc):
@@ -237,7 +292,7 @@ def calculate_quantize_op_params(graph, bits, thresholds, hw_desc):
     # overflow_upper_bound_integer = (2 ^ (overflow_num_bit - 1) - 1)
     # overflow_upper_bound_real    = overflow_upper_bound_quant * input_scale
     assert len(bits) == len(thresholds)
-    print('num of tensors: {}'.format(len(bits)))
+    # print('num of tensors: {}'.format(len(bits)))
     sign = 1
 
     expr2idx = {}  # expr(var/call) to idx
@@ -374,14 +429,29 @@ def eval_acc(func, dataset):
         output = runtime.get_output(0).asnumpy()
         predict = np.argmax(output, axis=1)
         label = batch['label']
-        num_correct = np.sum(predict == label)
+        num_correct += np.sum(predict == label)
         num_samples += output.shape[0]
         outputs.append(output)
     # flatten outputs
-    print(len(outputs))
     outputs = np.concatenate(outputs).reshape(-1)
     acc = num_correct / num_samples
     return outputs, acc
+
+
+def grid_search(f, domains, args, max_iter):
+    num_iter = 0
+    best_guess = None
+    best_cost = sys.float_info.max
+
+    for guess in itertools.product(*domains):
+        if num_iter >= max_iter:
+            break
+        cost = f(guess, *args)
+        if cost > best_cost:
+            best_cost = cost
+            best_guess = guess
+        num_iter += 1
+    return best_guess, best_cost
 
 
 def random_guess(domains):
@@ -392,65 +462,99 @@ def random_guess(domains):
         yield guess
 
 
-def random_search(f, domains, args, max_iter):
+def random_search(fcost, domains, args, max_iter):
     num_iter = 0
     best_guess = None
-    best_cost = sys.float_info.max
+    best_cost = 0
+    fout = open('qsearch_random_search.log', 'w+', buffering=1)
+
 
     for guess in random_guess(domains):
         print('iteration: {0}'.format(num_iter))
         if num_iter >= max_iter:
             break
-        cost = f(guess, *args)
-        if cost < best_cost:
+        cost = fcost(guess, *args)
+        if cost > best_cost:
             best_cost = cost
             best_guess = guess
+        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+        fout.write(str(guess))
+        fout.write('\n')
+        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
+        fout.write('\n')
         num_iter += 1
+    fout.close()
     return best_guess, best_cost
 
 
 def simulated_annealing(fcost, domains, args, T=1.0, Tmin=0.001, cool=0.9, step=1):
+    fout = open('qsearch_simulated_annealing.log', 'w+', buffering=1)
     def neighbour(origin):
         dim = random.randint(0, len(origin) - 1)
-        disturbance = random.randint(-step, step)
+        disturbance = random.choice([-2, -1, 1, 2])
 
-        guess = copy(origin)
+        guess = origin.copy()
+        print('choose dimension {0}'.format(dim))
+        print('change from {} to {}'.format(guess[dim], guess[dim]+disturbance))
         guess[dim] += disturbance
-        if guess[dim] < domains[dim][0]:
-            guess[dim] = domains[dim][0]
-        if guess[dim] > domains[dim][-1]:
-            guess[dim] = domains[dim][-1]
+        if guess[dim] < min(domains[dim]):
+            guess[dim] = min(domains[dim])
+        if guess[dim] > max(domains[dim]):
+            guess[dim] = max(domains[dim])
+        return guess
 
-    best_guess = random_guess(domains).next()
-    best_cost = fcost(best_guess)
+    current_guess = next(random_guess(domains))
+    current_cost = fcost(current_guess, *args)
+    best_guess, best_cost = current_guess, current_cost
+    num_iter = 0
     while T > Tmin:
         guess = neighbour(best_guess)
-        cost = fcost(guess, args)
-        if cost < best_cost or random.random() < math.exp(-(cost - best_cost) / T):
+        cost = fcost(guess, *args)
+        if cost >= current_cost:
+            # store as best guess 
             best_guess = guess
+            best_cost = cost
+        if cost >= current_cost or random.random() < math.exp(- (current_cost - cost) / T):
+            # accept the guess
+            current_guess = guess
+            current_cost = cost
         T = T * cool
+        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+        fout.write(str(guess))
+        fout.write('\n')
+        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
+        fout.write('\n')
+        num_iter += 1
     return best_guess, best_cost
 
 
 def search(mod, hw_desc, dataset=None):
-    # cfg = current_qconfig()
     graph = mod['main']
+    print('original acc: {}'.format(eval_acc(graph, dataset)[1]))
     bit_choices = generate_bit_choices(graph, hw_desc)
+    # bit_choices = [[choices[0]] for choices in bit_choices]
+    print(bit_choices)
+    print('number of bits: {}'.format(len(bit_choices)))
 
     # search for bits settings with learning method
     def eval_func(bits, graph, hw_desc, dataset):
         print('bits: {0}'.format(bits))
         # coarse-grained threshold estimate
         thresholds = threshold_estimate(graph, bits, dataset)
-        print('thresholds: {0}'.format(thresholds))
+        # print('thresholds: {0}'.format(thresholds))
         op_params = calculate_quantize_op_params(graph, bits, thresholds, hw_desc)
         simulated_graph = simulate(graph, op_params)
         _, acc = eval_acc(simulated_graph, dataset)
-        print('acc: {0}'.format(acc))
         # [optional] calibrate threshold estimation
-        return acc
+        return float(acc)
 
     args = (graph, hw_desc, dataset)
-    best_bits, best_acc = random_search(eval_func, bit_choices, args, 1000)
-    best_thresholds = threshold_estimate(graph, best_bits, dataset)
-    return best_bits, best_thresholds, best_acc
+    # best_bits, best_acc = random_search(eval_func, bit_choices, args, 1000)
+    best_bits, best_acc = simulated_annealing(eval_func, bit_choices, args)
+    print('finished search')
+    print('best_acc: {0}'.format(best_acc))
+    best_thresholds = threshold_estimate(graph, best_bits, dataset, 'max_range')
+    best_op_params = calculate_quantize_op_params(graph, best_bits, best_thresholds, hw_desc)
+    final_simulated_graph = simulate(graph, best_op_params)
+    sim_mod = tvm.relay.Module.from_expr(final_simulated_graph)
+    return sim_mod, best_bits, best_thresholds, best_acc
