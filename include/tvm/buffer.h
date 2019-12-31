@@ -48,10 +48,10 @@ enum BufferType : int {
  *  It is a composition of primitive symbolic types,
  *  used to specify the memory layout of the Tensor used in program input.
  */
-class Buffer : public NodeRef {
+class Buffer : public ObjectRef {
  public:
   Buffer() {}
-  explicit Buffer(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit Buffer(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief Return a new buffer that is equivalent with current one
    *  but always add stride field.
@@ -101,7 +101,7 @@ class Buffer : public NodeRef {
 };
 
 /*! \brief Node to represent a buffer */
-class BufferNode : public Node {
+class BufferNode : public Object {
  public:
   // Data fields.
   /*!
@@ -169,7 +169,7 @@ class BufferNode : public Node {
                              BufferType buffer_type);
 
   static constexpr const char* _type_key = "Buffer";
-  TVM_DECLARE_NODE_TYPE_INFO(BufferNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
 };
 
 inline const BufferNode* Buffer::operator->() const {

@@ -258,7 +258,7 @@ class ModuleNode : public RelayNode {
     const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   static constexpr const char* _type_key = "relay.Module";
-  TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
 
  private:
   /*! \brief Helper function for registering a typedef's constructors */
@@ -285,9 +285,9 @@ class ModuleNode : public RelayNode {
   std::unordered_set<std::string> import_set_;
 };
 
-struct Module : public NodeRef {
+struct Module : public ObjectRef {
   Module() {}
-  explicit Module(ObjectPtr<::tvm::Object> p) : NodeRef(p) {}
+  explicit Module(ObjectPtr<::tvm::Object> p) : ObjectRef(p) {}
 
   ModuleNode* operator->() const {
     return static_cast<ModuleNode*>(get_mutable());

@@ -35,7 +35,7 @@ TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
 ConstIntBound::ConstIntBound(
     int64_t min_value, int64_t max_value) {
-  auto node = make_node<ConstIntBoundNode>();
+  auto node = make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -123,7 +123,7 @@ class ConstIntBoundAnalyzer::Impl :
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Node* op) final {
+  Entry VisitExprDefault_(const Object* op) final {
     return Everything(
         static_cast<const ExprNode*>(op)->dtype);
   }

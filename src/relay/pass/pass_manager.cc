@@ -44,7 +44,7 @@ struct RelayPassContextThreadLocalEntry {
   std::stack<PassContext> context_stack;
 
   RelayPassContextThreadLocalEntry() {
-    default_context = PassContext(make_node<PassContextNode>());
+    default_context = PassContext(make_object<PassContextNode>());
   }
 };
 
@@ -77,7 +77,7 @@ PassContext PassContext::Current() {
 }
 
 PassContext PassContext::Create() {
-  return PassContext(make_node<PassContextNode>());
+  return PassContext(make_object<PassContextNode>());
 }
 
 class ModulePass;
@@ -126,10 +126,13 @@ class ModulePassNode : public PassNode {
       PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.ModulePass";
-  TVM_DECLARE_NODE_TYPE_INFO(ModulePassNode, PassNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
 };
 
-RELAY_DEFINE_NODE_REF(ModulePass, ModulePassNode, Pass);
+class ModulePass : public Pass {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
+};
 
 class FunctionPass;
 
@@ -180,7 +183,7 @@ class FunctionPassNode : public PassNode {
       PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
-  TVM_DECLARE_NODE_TYPE_INFO(FunctionPassNode, PassNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
 
  private:
   /*
@@ -193,7 +196,10 @@ class FunctionPassNode : public PassNode {
   bool SkipFunction(const Function& func) const;
 };
 
-RELAY_DEFINE_NODE_REF(FunctionPass, FunctionPassNode, Pass);
+class FunctionPass : public Pass {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
+};
 
 /*!
  * \brief The SequentialNode contains a set of passes that transform Relay
@@ -258,13 +264,13 @@ class SequentialNode : public PassNode {
   Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
 
   static constexpr const char* _type_key = "relay.Sequential";
-  TVM_DECLARE_NODE_TYPE_INFO(SequentialNode, PassNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
 PassInfo PassInfoNode::make(int opt_level,
                             std::string name,
                             tvm::Array<tvm::Expr> required) {
-  auto pass_info = make_node<PassInfoNode>();
+  auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   pass_info->required = std::move(required);
@@ -274,7 +280,7 @@ PassInfo PassInfoNode::make(int opt_level,
 ModulePass ModulePassNode::make(
     runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
     PassInfo pass_info) {
-  auto n = make_node<ModulePassNode>();
+  auto n = make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
   return ModulePass(n);
@@ -297,7 +303,7 @@ Module ModulePassNode::operator()(const Module& mod,
 FunctionPass FunctionPassNode::make(
     runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
     PassInfo pass_info) {
-  auto n = make_node<FunctionPassNode>();
+  auto n = make_object<FunctionPassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
   return FunctionPass(n);
@@ -330,20 +336,20 @@ Module FunctionPassNode::operator()(const Module& mod,
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
-  NodeRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
+  ObjectRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
   const ir::IntImm* pval = skip_opt.as<ir::IntImm>();
   return (pval && pval->value != 0) || (!func->UseDefaultCompiler());
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
-  auto n = make_node<SequentialNode>();
+  auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
-  auto n = make_node<SequentialNode>();
+  auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
   PassInfo pass_info = PassInfoNode::make(2, std::move(name), {});
   n->pass_info = std::move(pass_info);
