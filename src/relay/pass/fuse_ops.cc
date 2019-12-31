@@ -78,6 +78,8 @@ using common::LinkedList;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
+static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
+
 /*!
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
@@ -860,7 +862,6 @@ class FuseMutator : private ExprMutator {
 
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
-    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational =
         Op::GetAttr<TNonComputational>("TNonComputational");
@@ -872,7 +873,7 @@ class FuseMutator : private ExprMutator {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
-      if (call->op.same_as(stop_fusion)) {
+      if (call->op == stop_fusion_op) {
         return ExprMutator::VisitExpr(call->args[0]);
       }
       auto* ret_group = gmap_.at(call)->FindRoot();

@@ -21,6 +21,8 @@
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
+#include "compile_engine.h"
+
 #include <tvm/schedule.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
@@ -29,6 +31,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/tags.h>
 #include <utility>
@@ -38,7 +41,6 @@
 #include <vector>
 #include <unordered_map>
 #include "../ir/type_functor.h"
-#include "compile_engine.h"
 
 namespace tvm {
 namespace relay {
@@ -102,7 +104,7 @@ class ScheduleGetter :
       public ExprFunctor<Array<Tensor>(const Expr&)> {
  public:
   explicit ScheduleGetter(Target target)
-      : target_(target) {}
+      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
 
   std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
     static auto fschedule =
@@ -250,11 +252,9 @@ class ScheduleGetter :
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    // Check if the op is a device copy op.
-    bool is_copy_op = op.same_as(Op::Get("device_copy"));
     Array<Tensor> outputs;
     // Skip fcompute for device copy operators as it is not registered.
-    if (is_copy_op) {
+    if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
       outputs.push_back(TensorNode::make(copy_input->shape, copy_input->dtype,
                                          Operation(), 0));
@@ -282,7 +282,7 @@ class ScheduleGetter :
     }
     // Set the name to `__copy`. It will be detected in graph runtime to perform
     // data copy across devices.
-    if (is_copy_op) {
+    if (op == device_copy_op_) {
       readable_name_stream_.str(std::string());
       readable_name_stream_ << "__copy";
     } else {
@@ -332,6 +332,9 @@ class ScheduleGetter :
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
   Array<Operation> scalars_;
+  // Cache device copy op for equivalence checking to reduce registry lookup
+  // overhead for each invocation of call node when retrieving schedules.
+  const Op& device_copy_op_;
 };
 
 // Creates shape function from functor.

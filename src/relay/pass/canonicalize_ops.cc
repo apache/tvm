@@ -24,6 +24,7 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
 #include "pattern_util.h"
@@ -33,10 +34,11 @@ namespace relay {
 
 class BiasAddSimplifier : public ExprMutator {
  public:
+  BiasAddSimplifier() : bias_add_op_(Op::Get("nn.bias_add")) {}
+
   Expr VisitExpr_(const CallNode* n) {
-    static const Op& bias_add = Op::Get("nn.bias_add");
     auto new_n = ExprMutator::VisitExpr_(n);
-    if (n->op.same_as(bias_add)) {
+    if (n->op == bias_add_op_) {
       Call call = Downcast<Call>(new_n);
       CHECK_EQ(call->args.size(), 2);
       const BiasAddAttrs* param = call->attrs.as<BiasAddAttrs>();
@@ -54,6 +56,10 @@ class BiasAddSimplifier : public ExprMutator {
     }
     return new_n;
   }
+
+ private:
+  // Cache the bias_add for equivalence checking.
+  const Op& bias_add_op_;
 };
 
 Expr CanonicalizeOps(const Expr& e) {
