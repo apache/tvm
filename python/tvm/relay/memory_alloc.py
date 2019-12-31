@@ -173,6 +173,8 @@ class ManifestAllocPass(ExprMutator):
             new_args = [self.visit(arg) for arg in call.args]
             ins = expr.Tuple(new_args)
             ret_type = call.checked_type
+            view = LinearizeRetType(ret_type)
+            out_types = view.unpack()
 
             is_dynamic = ret_type.is_dynamic()
             # TODO(@jroesch): restore this code, more complex then it seems
@@ -230,13 +232,6 @@ class ManifestAllocPass(ExprMutator):
 
                 scope.let("shape_func", shape_call)
 
-                out_types = []
-                if isinstance(ret_type, ty.TensorType):
-                    out_types.append(ret_type)
-                else:
-                    for ts_ty in ret_type.fields:
-                        out_types.append(ts_ty)
-
                 storages = []
                 for out_shape, out_type in zip(out_shapes, out_types):
                     size = self.compute_storage_in_relay(
@@ -262,11 +257,8 @@ class ManifestAllocPass(ExprMutator):
                 scope.let("", invoke)
                 return outs[0] if len(outs) == 1 else tuple_outs
             else:
-                view = LinearizeRetType(ret_type)
-                out_tys = view.unpack()
-
                 outs = []
-                for i, out_ty in enumerate(out_tys):
+                for i, out_ty in enumerate(out_types):
                     out = self.make_static_allocation(scope, out_ty, i)
                     outs.append(out)
 
