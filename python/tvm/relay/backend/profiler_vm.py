@@ -38,8 +38,21 @@ class VirtualMachineProfiler(vm.VirtualMachine):
         self._set_input = self.mod["set_input"]
         self._reset = self.mod["reset"]
 
-    def get_stat(self):
-        return self._get_stat()
+    def get_stat(self, sort_by_time=True):
+        """Get the statistics of executed ops.
+
+        Parameters
+        ----------
+        sort_by_time: Optional[Boolean]
+           Set to indicate the returned results are sorted by execution time in
+           the descending order. It is printed in the random order if this
+           field is not set.
+
+        Returns
+        -------
+            The execution statistics in string.
+        """
+        return self._get_stat(sort_by_time)
 
     def reset(self):
         self._reset()
