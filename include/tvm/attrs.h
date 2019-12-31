@@ -83,7 +83,7 @@ namespace tvm {
  * \tparam TNodeRef the type to be created.
  * \return A instance that will represent None.
  */
-template<typename TNodeRef>
+template<typename TObjectRef>
 inline TNodeRef NullValue() {
   return TNodeRef(ObjectPtr<Object>(nullptr));
 }
