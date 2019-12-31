@@ -25,8 +25,8 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include "./quantize.h"
-
 
 namespace tvm {
 namespace relay {
@@ -34,6 +34,8 @@ namespace quantize {
 
 class StatsCollector : private ExprMutator {
  public:
+  StatsCollector() : simulated_quantize_op_(Op::Get("relay.op.annotation.simulated_quantize")) {}
+
   Expr Collect(const Expr& expr) {
     auto new_e = this->Mutate(expr);
     const FunctionNode* func = new_e.as<FunctionNode>();
@@ -45,13 +47,13 @@ class StatsCollector : private ExprMutator {
 
  private:
   Array<Expr> profile_data_;
+  const Op& simulated_quantize_op_;
 
   Expr VisitExpr_(const CallNode* call) {
-    static const Op& simulated_quantize = Op::Get("relay.op.annotation.simulated_quantize");
     Expr new_e = ExprMutator::VisitExpr_(call);
     const CallNode* new_call = new_e.as<CallNode>();
     CHECK(new_call);
-    if (new_call->op.same_as(simulated_quantize)) {
+    if (new_call->op == simulated_quantize_op_) {
       auto attrs = new_call->attrs.as<SimulatedQuantizeAttrs>();
       // rewrite the annotation
       auto new_attrs = make_node<SimulatedQuantizeAttrs>();

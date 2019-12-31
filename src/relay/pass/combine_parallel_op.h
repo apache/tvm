@@ -68,13 +68,13 @@ class BranchGroupFinder : private ExprVisitor {
  public:
   /*
    * \brief Constructor
-   * \param op_name name of op to start each group
+   * \param op The op that indicates the start of each group
    * \param fis_supported_op function that returns true if op
    *                         is supported for combining
    * \param fare_compatible_ops function that returns true if
    *                            two ops are compatible for combining
    */
-  BranchGroupFinder(const std::string& op_name,
+  BranchGroupFinder(const Op& op,
                     FIsSupportedOp fis_supported_op,
                     FAreCompatibleOps fare_compatible_ops);
 
@@ -87,8 +87,8 @@ class BranchGroupFinder : private ExprVisitor {
   std::vector<Group> Find(const Expr& expr);
 
  private:
-  /* \brief name of op to find parallel branches for */
-  std::string op_name_;
+  /* \brief Cache the op for finding parallel branches */
+  const Op& cached_op_;
 
   /* \brief function to return true if op is eligible to be combined,
    *         false otherwise 
@@ -205,8 +205,8 @@ class ParallelOpCombiner {
                                  ExprSubstMap* subst_map) = 0;
 
  private:
-  /* \brief name of op to be combined */
-  std::string op_name_;
+  /* \brief Cache the op to be combined */
+  const Op& cached_op_;
 
   /* \brief minimum number of parallel branches to combine */
   uint64_t min_num_branches_;

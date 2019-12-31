@@ -246,10 +246,12 @@ class Interpreter :
       public ExprFunctor<Value(const Expr& n)>,
              PatternFunctor<bool(const Pattern& p, const Value& v)> {
  public:
-  Interpreter(Module mod,
-              DLContext context,
-              Target target)
-      : mod_(mod), context_(context), target_(target) {
+  Interpreter(Module mod, DLContext context, Target target)
+      : mod_(mod),
+        context_(context),
+        target_(target),
+        debug_op_(Op::Get("debug")),
+        shape_of_op_(Op::Get("shape_of")) {
     engine_ = CompileEngine::Global();
   }
 
@@ -263,7 +265,7 @@ class Interpreter :
     stack_.current_frame().locals.Set(id, v);
   }
 
-  inline Value Lookup(const Var& local) {
+  Value Lookup(const Var& local) {
     return stack_.Lookup(local);
   }
 
@@ -307,7 +309,7 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
+  Value MakeClosure(const Function& func, Var letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
@@ -454,9 +456,9 @@ class Interpreter :
 
   Value InvokePrimitiveOp(const Function& func,
                           const Array<Value>& args) {
-    auto call_node = func->body.as<CallNode>();
+    const auto* call_node = func->body.as<CallNode>();
 
-    if (call_node && call_node->op == Op::Get("debug")) {
+    if (call_node && call_node->op == debug_op_) {
       auto dattrs = call_node->attrs.as<DebugAttrs>();
       auto interp_state = this->get_state(call_node->args[0]);
 
@@ -540,7 +542,7 @@ class Interpreter :
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
     bool is_dyn = IsDynamic(func->checked_type());
-    if (call_node->op == Op::Get("shape_of")) {
+    if (call_node->op == shape_of_op_) {
       // The output shape of shape_of must be static since Relay doesn't support
       // dynamic rank tensors.
       is_dyn = false;
@@ -782,6 +784,9 @@ class Interpreter :
   Stack stack_;
   // Backend compile engine.
   CompileEngine engine_;
+  // Cache ops that need to be frequently used later to reduce lookup overhead.
+  const Op& debug_op_;
+  const Op& shape_of_op_;
 };
 
 
