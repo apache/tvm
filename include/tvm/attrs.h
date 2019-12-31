@@ -84,8 +84,8 @@ namespace tvm {
  * \return A instance that will represent None.
  */
 template<typename TObjectRef>
-inline TNodeRef NullValue() {
-  return TNodeRef(ObjectPtr<Object>(nullptr));
+inline TObjectRef NullValue() {
+  return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 
 template<>
