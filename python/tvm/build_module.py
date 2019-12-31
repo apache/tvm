@@ -309,13 +309,22 @@ def get_binds(args, compact=False, binds=None):
                 buf = binds[x]
             shape = []
             for shape_expr in buf.shape:
-                flat_expr = ir_pass.StorageFlattenExpr(shape_expr,binds, 64, cfg.instrument_bound_checkers)
+                flat_expr = ir_pass.StorageFlatten(shape_expr,
+                                                   binds,
+                                                   64,
+                                                   cfg.instrument_bound_checkers)
                 shape.append(flat_expr)
             strides = []
             for stride in buf.strides:
-                flat_stride = ir_pass.StorageFlattenExpr(stride,binds, 64, cfg.instrument_bound_checkers)
+                flat_stride = ir_pass.StorageFlatten(stride,
+                                                     binds,
+                                                     64,
+                                                     cfg.instrument_bound_checkers)
                 strides.append(flat_stride)
-            elem_offset = ir_pass.StorageFlattenExpr(buf.elem_offset,binds, 64, cfg.instrument_bound_checkers)
+            elem_offset = ir_pass.StorageFlatten(buf.elem_offset,
+                                                 binds,
+                                                 64,
+                                                 cfg.instrument_bound_checkers)
             new_buf = api.decl_buffer(shape,
                                       dtype=buf.dtype,
                                       name=buf.name,

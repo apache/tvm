@@ -374,34 +374,28 @@ void GetBinds(const Array<Tensor>& args,
   for (const auto &x : args) {
     if (out_binds->find(x) != out_binds->end()) {
       buf = (*out_binds)[x];
-    }
-    else{
+    } else {
       buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
         config->data_alignment, config->offset_factor, compact);
-      out_binds->Set(x, buf);  
+      out_binds->Set(x, buf);
     }
-    //To support placeholder accesses as part of a buffer shape it is necessary to convert all halide calls to load nodes by flattening the buffer shape.
+    // Placeholder accesses as part of a buffer shape require flattening the buffer shape.
     Array<Expr> shape;
-    for(const auto &expr : buf->shape){
-      auto flat_expr = ir::StorageFlattenExpr(expr,*out_binds,64,config->instrument_bound_checkers);
-      shape.push_back(flat_expr); 
+    for (const auto &expr : buf->shape) {
+      auto flat_expr = ir::StorageFlatten(expr, *out_binds, 64,
+        config->instrument_bound_checkers);
+      shape.push_back(flat_expr);
     }
     Array<Expr> strides;
-    for(const auto &stride : buf->strides){
-      strides.push_back(ir::StorageFlattenExpr(stride,*out_binds,64,config->instrument_bound_checkers));
+    for (const auto &stride : buf->strides) {
+      strides.push_back(ir::StorageFlatten(stride, *out_binds, 64,
+        config->instrument_bound_checkers));
     }
-    auto elem_offset = ir::StorageFlattenExpr(buf->elem_offset,*out_binds,64,config->instrument_bound_checkers);
-    auto new_buf = BufferNode::make(buf->data,
-                                    buf->dtype,
-                                    shape,
-                                    strides,
-                                    elem_offset,
-                                    buf->name,
-                                    buf->scope,
-                                    buf->data_alignment,
-                                    buf->offset_factor,
-                                    buf->buffer_type);
-    out_binds->Set(x,new_buf);
+    auto elem_offset = ir::StorageFlatten(buf->elem_offset, *out_binds, 64,
+      config->instrument_bound_checkers);
+    auto new_buf = BufferNode::make(buf->data, buf->dtype, shape, strides, elem_offset,
+      buf->name, buf->scope, buf->data_alignment, buf->offset_factor, buf->buffer_type);
+    out_binds->Set(x, new_buf);
     out_arg_list->push_back(new_buf);
   }
 }
