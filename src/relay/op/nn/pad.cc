@@ -192,7 +192,7 @@ Expr MakePad(Expr data,
              Array<Array<IndexExpr> > pad_width,
              double pad_value,
              std::string pad_mode) {
-  auto attrs = make_node<PadAttrs>();
+  auto attrs = make_object<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
@@ -267,7 +267,7 @@ bool MirrorPadRel(const Array<Type>& types,
 
 // Handler to create a call to the padding op used by front-end FFI
 Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mode) {
-  auto attrs = make_node<MirrorPadAttrs>();
+  auto attrs = make_object<MirrorPadAttrs>();
   attrs->mode = mode;
   attrs->pad_width = std::move(pad_width);
   static const Op& op = Op::Get("nn.mirror_pad");

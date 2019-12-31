@@ -21,6 +21,8 @@
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
+#include "compile_engine.h"
+
 #include <tvm/schedule.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/operation.h>
@@ -29,6 +31,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/tags.h>
 #include <utility>
@@ -38,7 +41,6 @@
 #include <vector>
 #include <unordered_map>
 #include "../ir/type_functor.h"
-#include "compile_engine.h"
 
 namespace tvm {
 namespace relay {
@@ -49,7 +51,7 @@ TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
 CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
-  auto n = make_node<CCacheKeyNode>();
+  auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
   return CCacheKey(n);
@@ -102,12 +104,12 @@ class ScheduleGetter :
       public ExprFunctor<Array<Tensor>(const Expr&)> {
  public:
   explicit ScheduleGetter(Target target)
-      : target_(target) {}
+      : target_(target), device_copy_op_(Op::Get("device_copy")) {}
 
   std::pair<Schedule, CachedFunc> Create(const Function& prim_func) {
     static auto fschedule =
         Op::GetAttr<FTVMSchedule>("FTVMSchedule");
-    auto cache_node = make_node<CachedFuncNode>();
+    auto cache_node = make_object<CachedFuncNode>();
     cache_node->target = target_;
     for (Var param : prim_func->params) {
       Array<tvm::Tensor> inputs;
@@ -250,11 +252,9 @@ class ScheduleGetter :
     CHECK(call_node->op.as<OpNode>())
         << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    // Check if the op is a device copy op.
-    bool is_copy_op = op.same_as(Op::Get("device_copy"));
     Array<Tensor> outputs;
     // Skip fcompute for device copy operators as it is not registered.
-    if (is_copy_op) {
+    if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
       outputs.push_back(TensorNode::make(copy_input->shape, copy_input->dtype,
                                          Operation(), 0));
@@ -282,7 +282,7 @@ class ScheduleGetter :
     }
     // Set the name to `__copy`. It will be detected in graph runtime to perform
     // data copy across devices.
-    if (is_copy_op) {
+    if (op == device_copy_op_) {
       readable_name_stream_.str(std::string());
       readable_name_stream_ << "__copy";
     } else {
@@ -330,8 +330,11 @@ class ScheduleGetter :
   Attrs master_attrs_;
   int master_op_pattern_{0};
   std::ostringstream readable_name_stream_;
-  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, Array<Tensor>, ObjectHash, ObjectEqual> memo_;
   Array<Operation> scalars_;
+  // Cache device copy op for equivalence checking to reduce registry lookup
+  // overhead for each invocation of call node when retrieving schedules.
+  const Op& device_copy_op_;
 };
 
 // Creates shape function from functor.
@@ -377,7 +380,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       param_shapes_[param] = shape_inputs;
     }
     readable_name_stream_ << "shape_func";
-    auto cache_node = make_node<CachedFuncNode>();
+    auto cache_node = make_object<CachedFuncNode>();
     cache_node->outputs = VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
@@ -571,13 +574,13 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
   /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;
   /*! \brief Map from parameter to its shape function usage state */
-  std::unordered_map<Expr, int, NodeHash, NodeEqual> param_states_;
+  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> param_states_;
   /*! \brief Map from parameter to list of data placeholder */
-  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_data_;
+  std::unordered_map<Expr, Array<Tensor>, ObjectHash, ObjectEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
-  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> param_shapes_;
+  std::unordered_map<Expr, Array<Tensor>, ObjectHash, ObjectEqual> param_shapes_;
   /*! \brief Memoized visit result */
-  std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, Array<Tensor>, ObjectHash, ObjectEqual> memo_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
   /*! \brief Scalars used in the shape function */
@@ -653,9 +656,9 @@ class CompileEngineImpl : public CompileEngineNode {
     cache_.clear();
   }
   // List all items in the cache.
-  Array<NodeRef> ListItems() {
+  Array<ObjectRef> ListItems() {
     std::lock_guard<std::mutex> lock(mutex_);
-    Array<NodeRef> items;
+    Array<ObjectRef> items;
     for (auto& kv : cache_) {
       items.push_back(kv.first);
       items.push_back(kv.second);
@@ -685,14 +688,14 @@ class CompileEngineImpl : public CompileEngineNode {
       if (it->second->cached_func.defined()) return it->second;
       value = it->second;
     } else {
-      value = CCacheValue(make_node<CCacheValueNode>());
+      value = CCacheValue(make_object<CCacheValueNode>());
       value->use_count = 0;
       cache_[key] = value;
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
     if (!key->source_func->UseDefaultCompiler()) {
-      auto cache_node = make_node<CachedFuncNode>();
+      auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
           FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::ir::StringImm>();
       CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
@@ -706,7 +709,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
     CHECK(!value->cached_func.defined());
     auto spair = CreateSchedule(key->source_func, key->target);
-    auto cache_node = make_node<CachedFuncNode>(
+    auto cache_node = make_object<CachedFuncNode>(
         *(spair.second.operator->()));
 
     // Skip lowering for device copy node.
@@ -746,7 +749,7 @@ class CompileEngineImpl : public CompileEngineNode {
       if (it->second->cached_func.defined()) return it->second;
       value = it->second;
     } else {
-      value = CCacheValue(make_node<CCacheValueNode>());
+      value = CCacheValue(make_object<CCacheValueNode>());
       value->use_count = 0;
       shape_func_cache_[key] = value;
     }
@@ -755,7 +758,7 @@ class CompileEngineImpl : public CompileEngineNode {
 
     CHECK(!value->cached_func.defined());
     auto spair = MakeShapeFunc().Create(key->source_func);
-    auto cache_node = make_node<CachedFuncNode>(
+    auto cache_node = make_object<CachedFuncNode>(
             *(spair.second.operator->()));
     cache_node->func_name = GetUniqueName(cache_node->func_name);
     cache_node->target = key->target;
@@ -808,7 +811,7 @@ const CompileEngine& CompileEngine::Global() {
   // intentionally allocate raw pointer to avoid
   // free during destructuion.
   static CompileEngine* inst = new CompileEngine(
-      make_node<CompileEngineImpl>());
+      make_object<CompileEngineImpl>());
   return *inst;
 }
 
@@ -849,7 +852,7 @@ TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems")
-.set_body_typed<Array<NodeRef>(CompileEngine)>(
+.set_body_typed<Array<ObjectRef>(CompileEngine)>(
     [](CompileEngine self){
   return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
 });

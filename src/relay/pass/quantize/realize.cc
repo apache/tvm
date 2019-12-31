@@ -45,10 +45,13 @@ class QRealizeExprNode : public TempExprNode {
  public:
   Expr data;
   static constexpr const char* _type_key = "relay.quantize.QRealizeExpr";
-  TVM_DECLARE_BASE_NODE_INFO(QRealizeExprNode, TempExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(QRealizeExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QRealizeExpr, QRealizeExprNode, TempExpr);
+class QRealizeExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeExpr, TempExpr, QRealizeExprNode);
+};
 
 
 class QRealizeIntExprNode : public QRealizeExprNode {
@@ -67,10 +70,13 @@ class QRealizeIntExprNode : public QRealizeExprNode {
   TVM_DLL static QRealizeIntExpr make(Expr data, Expr dom_scale, DataType dtype);
 
   static constexpr const char * _type_key = "relay.quantize.QRealizeIntExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QRealizeIntExprNode, QRealizeExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QRealizeIntExprNode, QRealizeExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QRealizeIntExpr, QRealizeIntExprNode, QRealizeExpr);
+class QRealizeIntExpr : public QRealizeExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QRealizeIntExpr, QRealizeExpr, QRealizeIntExprNode);
+};
 
 
 Expr QRealizeIntExprNode::Realize() const {
@@ -82,7 +88,7 @@ Expr QRealizeIntExprNode::Realize() const {
 }
 
 QRealizeIntExpr QRealizeIntExprNode::make(Expr data, Expr dom_scale, DataType dtype) {
-  NodePtr<QRealizeIntExprNode> n = make_node<QRealizeIntExprNode>();
+  ObjectPtr<QRealizeIntExprNode> n = make_object<QRealizeIntExprNode>();
   n->data = std::move(data);
   n->dom_scale = std::move(dom_scale);
   n->dtype = std::move(dtype);
@@ -120,7 +126,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
 
 Expr QuantizeRealize(const Call& ref_call,
                      const Array<Expr>& new_args,
-                     const NodeRef& ctx) {
+                     const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   // do not handle data type cast
   const auto param = ref_call->attrs.as<SimulatedQuantizeAttrs>();
@@ -196,7 +202,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 
 Expr Conv2dRealize(const Call& ref_call,
                    const Array<Expr>& new_args,
-                   const NodeRef& ctx) {
+                   const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
   if (!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>()) {
@@ -214,7 +220,7 @@ Expr Conv2dRealize(const Call& ref_call,
   Expr rdata = Cast(rhs->data, cfg->dtype_weight);
 
   const auto ref_attrs = ref_call->attrs.as<Conv2DAttrs>();
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   *attrs = *ref_attrs;
   DataType out_dtype = cfg->dtype_activation;
   attrs->out_dtype = out_dtype;
@@ -232,7 +238,7 @@ RELAY_REGISTER_OP("nn.conv2d")
 
 Expr DenseRealize(const Call& ref_call,
                   const Array<Expr>& new_args,
-                  const NodeRef& ctx) {
+                  const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
   if (!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>()) {
@@ -248,7 +254,7 @@ Expr DenseRealize(const Call& ref_call,
   Expr rdata = Cast(rhs->data, cfg->dtype_weight);
 
   const auto ref_attrs = ref_call->attrs.as<DenseAttrs>();
-  auto attrs = make_node<DenseAttrs>();
+  auto attrs = make_object<DenseAttrs>();
   *attrs = *ref_attrs;
   DataType out_dtype = cfg->dtype_activation;
   attrs->out_dtype = out_dtype;
@@ -266,7 +272,7 @@ RELAY_REGISTER_OP("nn.dense")
 
 Expr MulRealize(const Call& ref_call,
                 const Array<Expr>& new_args,
-                const NodeRef& ctx) {
+                const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 2);
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
@@ -364,7 +370,7 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
 
 Expr AddRealize(const Call& ref_call,
                 const Array<Expr>& new_args,
-                const NodeRef& ctx) {
+                const ObjectRef& ctx) {
   CHECK_EQ(new_args.size(), 2);
   if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
     DataType dtype;
@@ -383,11 +389,11 @@ RELAY_REGISTER_OP("add")
 
 Expr ClipRealize(const Call& ref_call,
                  const Array<Expr>& new_args,
-                 const NodeRef& ctx) {
+                 const ObjectRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
     const auto ref_attrs = ref_call->attrs.as<ClipAttrs>();
-    auto attrs = make_node<ClipAttrs>();
+    auto attrs = make_object<ClipAttrs>();
     double dom_scale = GetScalarFromConstant<float>(n->dom_scale);
     attrs->a_min = ref_attrs->a_min / dom_scale;
     attrs->a_max = ref_attrs->a_max / dom_scale;
@@ -406,7 +412,7 @@ RELAY_REGISTER_OP("clip")
 
 Expr ConcatenateRealize(const Call& ref_call,
                         const Array<Expr>& new_args,
-                        const NodeRef& ctx) {
+                        const ObjectRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
   CHECK_EQ(ref_call->args.size(), 1);
 
@@ -438,7 +444,7 @@ RELAY_REGISTER_OP("concatenate")
 /* \brief forward the original operator */
 Expr IdentityRealize(const Call& ref_call,
                      const Array<Expr>& new_args,
-                     const NodeRef& ctx) {
+                     const ObjectRef& ctx) {
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
     Expr ret = ForwardOp(ref_call, {n->data});
@@ -460,7 +466,7 @@ RELAY_REGISTER_OP("annotation.stop_fusion")
 /* \brief for unary operators which requantize its input to dtype_nbit */
 Expr CastDtypeInputRealize(const Call& ref_call,
                            const Array<Expr>& new_args,
-                           const NodeRef& ctx) {
+                           const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
@@ -478,7 +484,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 
 Expr AvgPoolRealize(const Call& ref_call,
                     const Array<Expr>& new_args,
-                    const NodeRef& ctx) {
+                    const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {
@@ -501,7 +507,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
 
 Expr CastHintRealize(const Call& ref_call,
                      const Array<Expr>& new_args,
-                     const NodeRef& ctx) {
+                     const ObjectRef& ctx) {
   const auto param = ref_call->attrs.as<CastHintAttrs>();
   CHECK_EQ(new_args.size(), 1);
   if (const auto* n = new_args[0].as<QRealizeIntExprNode>()) {

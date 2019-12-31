@@ -49,7 +49,7 @@ class CSourceModuleCodegenBase {
    *
    * \return A runtime module.
    */
-  virtual runtime::Module CreateCSourceModule(const NodeRef& ref) = 0;
+  virtual runtime::Module CreateCSourceModule(const ObjectRef& ref) = 0;
 
   /*!
    * \brief Get the external symbol of the Relay function name.

@@ -72,7 +72,7 @@ Expr MakeTopK(Expr data,
               std::string ret_type,
               bool is_ascend,
               DataType dtype) {
-  auto attrs = make_node<TopKAttrs>();
+  auto attrs = make_object<TopKAttrs>();
   attrs->k = k;
   attrs->axis = axis;
   attrs->ret_type = ret_type;

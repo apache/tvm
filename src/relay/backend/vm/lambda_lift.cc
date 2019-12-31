@@ -43,7 +43,7 @@ inline std::string GenerateName(const Function& func) {
 }
 
 bool IsClosure(const Function& func) {
-  NodeRef res = FunctionGetAttr(func, attr::kClosure);
+  ObjectRef res = FunctionGetAttr(func, attr::kClosure);
   const ir::IntImm* pval = res.as<ir::IntImm>();
   return pval && pval->value != 0;
 }
@@ -200,7 +200,7 @@ class LambdaLifter : public ExprMutator {
   }
 
  private:
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> lambda_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
   std::vector<Var> letrec_;
   Module module_;
 };

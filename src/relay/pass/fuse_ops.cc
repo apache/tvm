@@ -78,6 +78,8 @@ using common::LinkedList;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
+static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
+
 /*!
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
@@ -101,7 +103,7 @@ class IndexedForwardGraph {
   /*! \brief A node in the graph. */
   struct Node {
     /*! \brief weak reference to the corresponding edge. */
-    const tvm::Node* ref{nullptr};
+    const tvm::Object* ref{nullptr};
     /*! \brief The index of the node in topological order. */
     size_t index{0};
     /*! \brief Whether this node is referenced by external source */
@@ -112,7 +114,7 @@ class IndexedForwardGraph {
     LinkedList<Edge> outputs;
   };
   /*! \brief The node map that maps node to graph */
-  std::unordered_map<const tvm::Node*, Node*> node_map;
+  std::unordered_map<const tvm::Object*, Node*> node_map;
   /*! \brief All the nodes in post DFS order */
   std::vector<Node*> post_dfs_order;
 
@@ -122,7 +124,7 @@ class IndexedForwardGraph {
     for (size_t i = 0; i < post_dfs_order.size(); ++i) {
       Node* node = post_dfs_order[i];
       os << "node[" << i << "], "
-         << GetRef<NodeRef>(node->ref)
+         << GetRef<ObjectRef>(node->ref)
          << " outputs=[";
       for (auto* link = node->outputs.head; link != nullptr; link = link->next) {
         os << link->value.node->index << ", ";
@@ -165,7 +167,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void Update(const Expr& node,
               IndexedForwardGraph::Node* parent,
               OpPatternKind pattern) {
-    const tvm::Node* key = node.get();
+    const tvm::Object* key = node.get();
     IndexedForwardGraph::Node* current;
     auto it = graph_.node_map.find(key);
     if (it != graph_.node_map.end()) {
@@ -184,10 +186,10 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     }
   }
 
-  void AddNode(const tvm::Node* key) {
+  void AddNode(const tvm::Object* key) {
     auto it = graph_.node_map.find(key);
     CHECK(it != graph_.node_map.end())
-        << "Cannot find node " << GetRef<NodeRef>(key);
+        << "Cannot find node " << GetRef<ObjectRef>(key);
     IndexedForwardGraph::Node* node = it->second;
     CHECK(node->ref == nullptr);
     node->ref = key;
@@ -521,12 +523,12 @@ class GraphPartitioner {
     /*! \brief The pattern of the group */
     OpPatternKind pattern;
     /*! \brief reference to the root node. */
-    const tvm::Node* root_ref{nullptr};
+    const tvm::Object* root_ref{nullptr};
     /*!
      * \brief Reference to the master node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
      */
-    const tvm::Node* master_ref{nullptr};
+    const tvm::Object* master_ref{nullptr};
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.
@@ -845,7 +847,7 @@ class FuseMutator : private ExprMutator {
   /*! \brief Internal arena. */
   common::Arena arena_;
   /*! \brief The group assignment map. */
-  std::unordered_map<const Node*, GraphPartitioner::Group*> gmap_;
+  std::unordered_map<const Object*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
 
@@ -860,7 +862,6 @@ class FuseMutator : private ExprMutator {
 
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
-    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational =
         Op::GetAttr<TNonComputational>("TNonComputational");
@@ -872,7 +873,7 @@ class FuseMutator : private ExprMutator {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
-      if (call->op.same_as(stop_fusion)) {
+      if (call->op == stop_fusion_op) {
         return ExprMutator::VisitExpr(call->args[0]);
       }
       auto* ret_group = gmap_.at(call)->FindRoot();

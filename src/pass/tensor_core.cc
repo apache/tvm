@@ -225,9 +225,9 @@ class MMAMatcher: public IRVisitor {
   }
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
-  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
-  std::unordered_map<const Node*, std::string> buf_name_;
+  std::unordered_map<const Object*, std::string> buf_name_;
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
   bool tensor_core_on_{false};
@@ -365,7 +365,7 @@ class ScheduleAnalyser {
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
-  std::unordered_map<const Node*, std::string> buf_name_;
+  std::unordered_map<const Object*, std::string> buf_name_;
 };
 
 // IndexVisitor visits access index of fragment
@@ -745,7 +745,7 @@ class BufferAnalyser : public IRVisitor {
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
   std::unordered_map<TensorKey, std::vector<DimAlignInfo> > dim_align_;
-  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
@@ -868,9 +868,9 @@ class TensorCoreIRMutator : public IRMutator {
       Expr c = operands[2];
       auto cc = c.as<Call>();
 
-      NodePtr<BufferNode> buffer_node_a = make_node<BufferNode>();
-      NodePtr<BufferNode> buffer_node_b = make_node<BufferNode>();
-      NodePtr<BufferNode> buffer_node_c = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_a = make_object<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_b = make_object<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_c = make_object<BufferNode>();
 
       auto mma_sync_call =
         [&buffer_node_a, &buffer_node_b]
@@ -921,7 +921,7 @@ class TensorCoreIRMutator : public IRMutator {
                               Call::Intrinsic));
           };
 
-        NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+        ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
         return add_buffer_bind_scope_(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
                                       fill_fragment_call, call->dtype);
@@ -971,7 +971,7 @@ class TensorCoreIRMutator : public IRMutator {
                           Call::Intrinsic));
       };
 
-      NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
                                     load_matrix_call, call->dtype);
@@ -1011,7 +1011,7 @@ class TensorCoreIRMutator : public IRMutator {
                             Call::Intrinsic));
         };
 
-      NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
                                     store_matrix_call, call->dtype);
@@ -1073,7 +1073,7 @@ class TensorCoreIRMutator : public IRMutator {
   }
 
   Stmt add_buffer_bind_scope_(const Call* call,
-      const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
+      const ObjectPtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
     auto it = bounds_.find(key);
@@ -1124,7 +1124,7 @@ class TensorCoreIRMutator : public IRMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    NodePtr<TensorNode> tensor_node = make_node<TensorNode>();
+    ObjectPtr<TensorNode> tensor_node = make_object<TensorNode>();
     tensor_node->value_index = key.value_index;
     tensor_node->op = Downcast<Operation>(key.f);
     tensor_node->shape = shape;
@@ -1140,7 +1140,7 @@ class TensorCoreIRMutator : public IRMutator {
                             intrinsic::tvm_tuple,
                             args,
                             Call::Intrinsic);
-    Array<NodeRef> node = {buffer, tensor};
+    Array<ObjectRef> node = {buffer, tensor};
     return AttrStmt::make(node,
                           "buffer_bind_scope",
                           tuple,

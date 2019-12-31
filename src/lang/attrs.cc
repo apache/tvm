@@ -39,8 +39,8 @@ void DictAttrsNode::InitByPackedArgs(
   for (int i = 0; i < args.size(); i += 2) {
     std::string key = args[i];
     runtime::TVMArgValue val = args[i + 1];
-    if (val.type_code() == kObjectHandle) {
-      dict.Set(key, val.operator NodeRef());
+    if (val.IsObjectRef<ObjectRef>()) {
+      dict.Set(key, val.operator ObjectRef());
     } else if (val.type_code() == kStr) {
       dict.Set(key, Expr(val.operator std::string()));
     } else {
@@ -53,8 +53,8 @@ Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
   return {};
 }
 
-Attrs DictAttrsNode::make(Map<std::string, NodeRef> dict) {
-  NodePtr<DictAttrsNode> n = make_node<DictAttrsNode>();
+Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
+  ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   return Attrs(n);
 }

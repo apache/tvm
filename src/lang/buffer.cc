@@ -334,7 +334,7 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<Expr> temp;
-  auto n = make_node<BufferNode>(*operator->());
+  auto n = make_object<BufferNode>(*operator->());
   Expr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0 ; --i) {
     temp.push_back(acc);
@@ -419,7 +419,7 @@ Buffer BufferNode::make(Var data,
                         int data_alignment,
                         int offset_factor,
                         BufferType buffer_type) {
-  auto n = make_node<BufferNode>();
+  auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
   n->shape = std::move(shape);

@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import ctypes
 from ..base import _LIB, check_call
 from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
-from ..node_generic import _set_class_node_base
+from .ndarray import _register_ndarray, NDArrayBase
 
 
 ObjectHandle = ctypes.c_void_p
@@ -39,6 +39,9 @@ def _set_class_node(node_class):
 
 def _register_object(index, cls):
     """register object class"""
+    if issubclass(cls, NDArrayBase):
+        _register_ndarray(index, cls)
+        return
     OBJECT_TYPE[index] = cls
 
 
@@ -91,6 +94,3 @@ class ObjectBase(object):
         if not isinstance(handle, ObjectHandle):
             handle = ObjectHandle(handle)
         self.handle = handle
-
-
-_set_class_node_base(ObjectBase)

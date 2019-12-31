@@ -68,7 +68,7 @@ const LayoutAxis& LayoutAxis::make(const std::string& name) {
 }
 
 Layout::Layout(const Array<IterVar>& axes) {
-  auto node = make_node<LayoutNode>();
+  auto node = make_object<LayoutNode>();
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
@@ -89,7 +89,7 @@ Layout::Layout(const Array<IterVar>& axes) {
 Layout::Layout(const std::string& name) { // NOLINT(*)
   if (name == "__undef__") return;
 
-  auto node = make_node<LayoutNode>();
+  auto node = make_object<LayoutNode>();
   node->name = name;
 
   if (name.empty()) return;  // scalar
@@ -347,7 +347,7 @@ Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
 
 BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
                                           const Layout& dst_layout) {
-  auto n = make_node<BijectiveLayoutNode>();
+  auto n = make_object<BijectiveLayoutNode>();
 
   n->src_layout = src_layout;
   n->dst_layout = dst_layout;

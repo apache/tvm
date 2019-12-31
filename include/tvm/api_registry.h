@@ -49,7 +49,7 @@ namespace tvm {
  * \brief Node container of EnvFunc
  * \sa EnvFunc
  */
-class EnvFuncNode : public Node {
+class EnvFuncNode : public Object {
  public:
   /*! \brief Unique name of the global function */
   std::string name;
@@ -63,7 +63,7 @@ class EnvFuncNode : public Node {
   }
 
   static constexpr const char* _type_key = "EnvFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(EnvFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
 };
 
 /*!
@@ -73,10 +73,10 @@ class EnvFuncNode : public Node {
  * An EnvFunc is saved by its name in the global registry
  * under the assumption that the same function is registered during load.
  */
-class EnvFunc : public NodeRef {
+class EnvFunc : public ObjectRef {
  public:
   EnvFunc() {}
-  explicit EnvFunc(NodePtr<Node> n) : NodeRef(n) {}
+  explicit EnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const {
     return static_cast<const EnvFuncNode*>(get());
@@ -119,12 +119,12 @@ class TypedEnvFunc;
  * \sa EnvFunc
  */
 template<typename R, typename... Args>
-class TypedEnvFunc<R(Args...)> : public NodeRef {
+class TypedEnvFunc<R(Args...)> : public ObjectRef {
  public:
   /*! \brief short hand for this function type */
   using TSelf = TypedEnvFunc<R(Args...)>;
   TypedEnvFunc() {}
-  explicit TypedEnvFunc(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit TypedEnvFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.

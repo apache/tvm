@@ -70,7 +70,7 @@ TVM_REGISTER_API("relay._quantize.simulated_quantize")
 .set_body_typed<Expr(Expr, Expr, Expr, Expr, int, bool, std::string)>(
   [](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max,
      int kind, bool sign, std::string rounding) {
-    auto attrs = make_node<SimulatedQuantizeAttrs>();
+    auto attrs = make_object<SimulatedQuantizeAttrs>();
     attrs->kind = kind;
     attrs->sign = sign;
     attrs->rounding = rounding;
@@ -88,7 +88,7 @@ struct TVMQConfigThreadLocalEntry {
   std::stack<QConfig> context_stack;
 
   TVMQConfigThreadLocalEntry() :
-    default_config(make_node<QConfigNode>()) {
+    default_config(make_object<QConfigNode>()) {
   }
 };
 

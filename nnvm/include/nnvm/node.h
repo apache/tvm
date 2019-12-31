@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -40,22 +40,22 @@ class Node;
 class Symbol;
 
 /*!
- * \brief we always used NodePtr for a reference pointer
+ * \brief we always used ObjectPtr for a reference pointer
  *  to the node, so this alias can be changed in case.
  *
- *  By default, NodePtr is a std::shared_ptr of node
+ *  By default, ObjectPtr is a std::shared_ptr of node
  */
-using NodePtr = std::shared_ptr<Node>;
+using ObjectPtr = std::shared_ptr<Node>;
 
 /*! \brief an entry that represents output data from a node */
 struct NodeEntry {
-  NodeEntry(NodePtr node, uint32_t index, uint32_t version):
+  NodeEntry(ObjectPtr node, uint32_t index, uint32_t version):
     node(std::move(node)),
     index(index),
     version(version)
   {}
 
-  explicit NodeEntry(NodePtr node):
+  explicit NodeEntry(ObjectPtr node):
     node(std::move(node)),
     index(),
     version()
@@ -72,7 +72,7 @@ struct NodeEntry {
   {}
 
   /*! \brief the source node of this data */
-  NodePtr node;
+  ObjectPtr node;
   /*! \brief index of output from the source. */
   uint32_t index;
   /*!
@@ -167,7 +167,7 @@ class NNVM_DLL Node {
    * \brief Optional control flow dependencies
    *  Gives operation must be performed before this operation.
    */
-  std::vector<NodePtr> control_deps;
+  std::vector<ObjectPtr> control_deps;
   /*! \brief additional fields for this node */
   any info;
   /*! \brief destructor of node */
@@ -189,7 +189,7 @@ class NNVM_DLL Node {
    * \return a created empty node.
    */
   template<class ...Args>
-  static NodePtr Create(Args&&... args) {
+  static ObjectPtr Create(Args&&... args) {
     return std::make_shared<Node>(std::forward<Args>(args)...);
   }
 };
@@ -208,7 +208,7 @@ inline NodeEntry MakeNode(
     std::vector<NodeEntry> inputs,
     std::unordered_map<std::string, std::string> attrs =
     std::unordered_map<std::string, std::string>()) {
-  NodePtr p = Node::Create();
+  ObjectPtr p = Node::Create();
   p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = std::move(node_name);
   p->attrs.dict = attrs;

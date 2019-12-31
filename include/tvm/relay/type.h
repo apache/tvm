@@ -41,7 +41,7 @@ using Any = tvm::ir::Any;
 class TypeNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Type";
-  TVM_DECLARE_BASE_NODE_INFO(TypeNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
 /*!
@@ -55,10 +55,10 @@ class TypeNode : public RelayNode {
  * There are also advanced types to support generic(polymorphic types),
  * which can be ignored when first reading the code base.
  */
-class Type : public NodeRef {
+class Type : public ObjectRef {
  public:
   Type() {}
-  explicit Type(ObjectPtr<tvm::Object> p) : NodeRef(p) {}
+  explicit Type(ObjectPtr<tvm::Object> p) : ObjectRef(p) {}
 
   using ContainerType = TypeNode;
 };
@@ -70,10 +70,13 @@ class Type : public NodeRef {
 class BaseTensorTypeNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.BaseTensorType";
-  TVM_DECLARE_BASE_NODE_INFO(BaseTensorTypeNode, TypeNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(BaseTensorTypeNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(BaseTensorType, BaseTensorTypeNode, Type);
+class BaseTensorType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(BaseTensorType, Type, BaseTensorTypeNode);
+};
 
 /*!
  * \brief This is the most commonly used type in relay.
@@ -113,10 +116,13 @@ class TensorTypeNode : public BaseTensorTypeNode {
   TVM_DLL static TensorType Scalar(DataType dtype);
 
   static constexpr const char* _type_key = "relay.TensorType";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorTypeNode, BaseTensorTypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorTypeNode, BaseTensorTypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
+class TensorType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorType, Type, TensorTypeNode);
+};
 
 /*! \brief Possible kinds of Type. */
 enum Kind : int {
@@ -168,10 +174,13 @@ class TypeVarNode : public TypeNode {
   TVM_DLL static TypeVar make(std::string name, Kind kind);
 
   static constexpr const char* _type_key = "relay.TypeVar";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeVarNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeVarNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeVar, TypeVarNode, Type);
+class TypeVar : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
+};
 
 /*!
  * \brief A global type variable that is used for defining new types or type aliases.
@@ -197,10 +206,13 @@ class GlobalTypeVarNode : public TypeNode {
   TVM_DLL static GlobalTypeVar make(std::string name, Kind kind);
 
   static constexpr const char* _type_key = "relay.GlobalTypeVar";
-  TVM_DECLARE_NODE_TYPE_INFO(GlobalTypeVarNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalTypeVarNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(GlobalTypeVar, GlobalTypeVarNode, Type);
+class GlobalTypeVar : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
+};
 
 /*!
  * \brief Type application.
@@ -225,10 +237,13 @@ class TypeCallNode : public TypeNode {
   TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
 
   static constexpr const char* _type_key = "relay.TypeCall";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeCallNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeCallNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);
+class TypeCall : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeCall, Type, TypeCallNode);
+};
 
 /*!
  * \brief IncompleteType.
@@ -253,10 +268,13 @@ class IncompleteTypeNode : public TypeNode {
   TVM_DLL static IncompleteType make(Kind kind);
 
   static constexpr const char* _type_key = "relay.IncompleteType";
-  TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IncompleteTypeNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(IncompleteType, IncompleteTypeNode, Type);
+class IncompleteType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
+};
 
 /*!
  * \brief Potential Constraints in the type.
@@ -267,10 +285,13 @@ class TypeConstraint;
 class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.TypeConstraint";
-  TVM_DECLARE_BASE_NODE_INFO(TypeConstraintNode, TypeNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeConstraint, TypeConstraintNode, Type);
+class TypeConstraint : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeConstraint, Type, TypeConstraintNode);
+};
 
 class FuncType;
 /*!
@@ -311,10 +332,13 @@ class FuncTypeNode : public TypeNode {
                                tvm::Array<TypeConstraint> type_constraints);
 
   static constexpr const char* _type_key = "relay.FuncType";
-  TVM_DECLARE_NODE_TYPE_INFO(FuncTypeNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
+class FuncType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
+};
 
 /*!
  * \brief The type of tuple values.
@@ -338,10 +362,13 @@ class TupleTypeNode : public TypeNode {
   TVM_DLL static TupleType make(tvm::Array<Type> fields);
 
   static constexpr const char* _type_key = "relay.TupleType";
-  TVM_DECLARE_NODE_TYPE_INFO(TupleTypeNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TupleType, TupleTypeNode, Type);
+class TupleType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleType, Type, TupleTypeNode);
+};
 
 /*!
  * \brief The type of reference values.
@@ -365,10 +392,13 @@ class RefTypeNode : public TypeNode {
   TVM_DLL static RefType make(Type value);
 
   static constexpr const char* _type_key = "relay.RefType";
-  TVM_DECLARE_NODE_TYPE_INFO(RefTypeNode, TypeNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefTypeNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefType, RefTypeNode, Type);
+class RefType : public Type {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefType, Type, RefTypeNode);
+};
 
 class TypeReporter;
 
@@ -376,7 +406,7 @@ class TypeReporter;
  * \brief reporter that reports back to the
  *  type resolution information.
  */
-class TypeReporterNode : public Node {
+class TypeReporterNode : public Object {
  public:
   /*!
    * \brief Create a type equality constraint.
@@ -408,7 +438,7 @@ class TypeReporterNode : public Node {
    * \brief Set the location at which to report unification errors.
    * \param ref The program node to report the error.
    */
-  TVM_DLL virtual void SetLocation(const NodeRef& ref) = 0;
+  TVM_DLL virtual void SetLocation(const ObjectRef& ref) = 0;
 
   /*!
    * \brief Retrieve the current global module.
@@ -420,17 +450,17 @@ class TypeReporterNode : public Node {
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.TypeReporter";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeReporterNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeReporterNode, Object);
 };
 
 /*!
  * \brief Container class of TypeReporter.
  * \sa TypeReporterNode
  */
-class TypeReporter : public NodeRef {
+class TypeReporter : public ObjectRef {
  public:
   TypeReporter() {}
-  explicit TypeReporter(::tvm::ObjectPtr<::tvm::Object> n) : NodeRef(n) {
+  explicit TypeReporter(::tvm::ObjectPtr<::tvm::Object> n) : ObjectRef(n) {
   }
   TypeReporterNode* operator->() const {
     return const_cast<TypeReporterNode*>(
@@ -502,10 +532,13 @@ class TypeRelationNode : public TypeConstraintNode {
                                    Attrs attrs);
 
   static constexpr const char* _type_key = "relay.TypeRelation";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, TypeConstraintNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeRelationNode, TypeConstraintNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
+class TypeRelation : public TypeConstraint {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeRelation, TypeConstraint, TypeRelationNode);
+};
 
 // The following fields contains advanced typing
 // Only keep the class name and reserved for future usage.

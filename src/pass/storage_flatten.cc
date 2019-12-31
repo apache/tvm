@@ -402,7 +402,7 @@ class StorageFlattener : public IRMutator {
   // We do support a few relaxed case, such as bindingx
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
   Stmt HandleBufferBindScope(const AttrStmt* op) {
-    Array<NodeRef> arr = Downcast<Array<NodeRef> > (op->node);
+    Array<ObjectRef> arr = Downcast<Array<ObjectRef> > (op->node);
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const TensorNode* tensor = arr[1].as<TensorNode>();
@@ -512,7 +512,7 @@ class StorageFlattener : public IRMutator {
   // Dimension alignment
   std::unordered_map<TensorKey, std::vector<DimAlignInfo> > dim_align_;
   // Storage scope
-  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_map<const Object*, std::string> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.

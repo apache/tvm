@@ -55,7 +55,7 @@ Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
 Operation PlaceholderOpNode::make(std::string name,
                                   Array<Expr> shape,
                                   DataType dtype) {
-  auto n = make_node<PlaceholderOpNode>();
+  auto n = make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
