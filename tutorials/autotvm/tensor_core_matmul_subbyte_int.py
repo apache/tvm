@@ -22,9 +22,9 @@ import numpy as np
 import tvm
 
 from tvm import autotvm
+from tvm.contrib.nvcc import *
 
-
-def matmul_nn(A, B, L, dtype='int4', layout='TN'):
+def matmul_nn(A, B, L):
     k = tvm.reduce_axis((0, L), name='k')
     out_type = 'int'
     return tvm.compute((N, M), lambda i, j: tvm.sum((A[i, k] * B[j, k]).astype(out_type), axis=k))
@@ -35,7 +35,7 @@ def test_gemm_nn(N, L, M, dtype, layout):
     shape_b = (M, L)
     A = tvm.placeholder(shape_a, name='A', dtype=dtype)
     B = tvm.placeholder(shape_b, name='B', dtype=dtype)
-    C = matmul_nn(A, B, L, dtype, layout)
+    C = matmul_nn(A, B, L)
 
     s = tvm.create_schedule(C.op)
     y, x = s[C].op.axis
@@ -64,11 +64,6 @@ def test_gemm_nn(N, L, M, dtype, layout):
     bx = cfg['bx'].val
     step_k = cfg['step_k'].val
     v = cfg['v'].val
-    '''
-    bx = 4
-    by = 16
-    step_k = 32
-    '''
 
     TX = 2
     TY = 1
@@ -133,13 +128,19 @@ M, N, L = 512, 16, 512
 dtype = 'int4'
 layout = 'TN'
 if len(sys.argv) >= 4:
-  M, N, L = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
+    M, N, L = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3])
 if len(sys.argv) >= 5:
-  dtype = sys.argv[4]
+    dtype = sys.argv[4]
 if len(sys.argv) >= 6:
-  layout = sys.argv[5]
+    layout = sys.argv[5]
 if (dtype == 'int4' or dtype == 'int1'):
-  assert(layout == 'TN')
+    assert(layout == 'TN')
+ctx = tvm.gpu(0)
+major, minor = parse_compute_version(ctx.compute_version)
+if not (major == 7 and minor == 5):
+    print ("Current compute version (sm_%s%s) does not support subbyte int tensorcore:" % (major, minor))
+    sys.exit(1);
+
 print ("M=%d, N=%d, K=%d, dtype=%s, layout=%s" % (M, N, L, dtype, layout))
 
 task = autotvm.task.create(test_gemm_nn, args=(N, L, M, dtype, layout), target='cuda')
@@ -183,41 +184,41 @@ c_np = None
 c_np_type = None
 
 if dtype == 'int4':
-  c_np_type = np.int32
-  a_np = np.random.randint(low=-8, high=7, size=shape_a).astype(np.int32)
-  b_np = np.random.randint(low=-8, high=7, size=shape_b).astype(np.int32)
-  # "TN"
-  c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
-  a_np_int = np.zeros(shape=(N, int(L/8)), dtype = np.int32)
-  b_np_int = np.zeros(shape=(M, int(L/8)), dtype = np.int32)
-  # a_np --> col_major
-  for i in range(N):
-    for j in range(int(L/8)):
-      for k in range(8):
-        a_np_int[i, j] = a_np_int[i, j] | ((a_np[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
+    c_np_type = np.int32
+    a_np = np.random.randint(low=-8, high=7, size=shape_a).astype(np.int32)
+    b_np = np.random.randint(low=-8, high=7, size=shape_b).astype(np.int32)
+    # "TN"
+    c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
+    a_np_int = np.zeros(shape=(N, int(L/8)), dtype = np.int32)
+    b_np_int = np.zeros(shape=(M, int(L/8)), dtype = np.int32)
+    # a_np --> col_major
+    for i in range(N):
+        for j in range(int(L/8)):
+            for k in range(8):
+                a_np_int[i, j] = a_np_int[i, j] | ((a_np[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
 
-  # b_np --> row_major
-  for i in range(M):
-    for j in range(int(L/8)):
-      for k in range(8):
-        b_np_int[i, j] = b_np_int[i, j] | ((b_np[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
+    # b_np --> row_major
+    for i in range(M):
+        for j in range(int(L/8)):
+            for k in range(8):
+                b_np_int[i, j] = b_np_int[i, j] | ((b_np[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
 elif dtype == 'int1':
-  c_np_type = np.int32
-  a_np = np.random.randint(low=0, high=1, size=shape_a).astype(np.int32)
-  b_np = np.random.randint(low=0, high=1, size=shape_b).astype(np.int32)
-  # "TN"
-  c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
-  a_np_int = np.zeros(shape=(N, int(L/32)), dtype = np.int32)
-  b_np_int = np.zeros(shape=(M, int(L/32)), dtype = np.int32)
-  for i in range(N):
-    for j in range(int(L/32)):
-      for k in range(32):
-        a_np_int[i, j] = a_np_int[i, j] | ((a_np[i, j * 32 + k] & 0xf) << (31 - k))
+    c_np_type = np.int32
+    a_np = np.random.randint(low=0, high=1, size=shape_a).astype(np.int32)
+    b_np = np.random.randint(low=0, high=1, size=shape_b).astype(np.int32)
+    # "TN"
+    c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
+    a_np_int = np.zeros(shape=(N, int(L/32)), dtype = np.int32)
+    b_np_int = np.zeros(shape=(M, int(L/32)), dtype = np.int32)
+    for i in range(N):
+        for j in range(int(L/32)):
+            for k in range(32):
+                a_np_int[i, j] = a_np_int[i, j] | ((a_np[i, j * 32 + k] & 0xf) << (31 - k))
 
-  for i in range(M):
-    for j in range(int(L/32)):
-      for k in range(32):
-        b_np_int[i, j] = b_np_int[i, j] | ((b_np[i, j * 32 + k] & 0xf) << (31 - k))
+    for i in range(M):
+        for j in range(int(L/32)):
+            for k in range(32):
+                b_np_int[i, j] = b_np_int[i, j] | ((b_np[i, j * 32 + k] & 0xf) << (31 - k))
 
 ctx = tvm.gpu()
 c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
