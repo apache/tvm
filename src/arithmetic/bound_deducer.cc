@@ -76,7 +76,6 @@ class BoundRemover : public IRMutator {
   }
 
   Expr Reset(Expr e) {
-    CHECK(remove_bounded_) << "Call Do(expr) first.";
     remove_bounded_ = false;
     return IRMutator::Mutate(e);
   }
@@ -339,9 +338,9 @@ void BoundDeducer::Deduce() {
   // If we eagerly simplified the left side given assert_bound(n, 0, +inf)
   // we would get i + 0 >= n => i >= n, which is obviously incorrect.
   // Thus we remove assert_bound here and reset later.
-  BoundRemover ra, rb;
-  expr_ = ra.Remove(expr_);
-  result_ = rb.Remove(result_);
+  BoundRemover bound_remover;
+  expr_ = bound_remover.Remove(expr_);
+  result_ = bound_remover.Remove(result_);
 
   Relax();
   if (!success_) return;
@@ -355,8 +354,8 @@ void BoundDeducer::Deduce() {
 
   Visit(expr_);
 
-  expr_ = ra.Reset(expr_);
-  result_ = rb.Reset(result_);
+  expr_ = bound_remover.Reset(expr_);
+  result_ = bound_remover.Reset(result_);
 }
 
 void BoundDeducer::Relax() {

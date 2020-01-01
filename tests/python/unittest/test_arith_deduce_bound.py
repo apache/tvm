@@ -213,8 +213,18 @@ def test_deduce_complex():
     test_complex(2, 6, -4)
 
 
+def test_deduce_assert_bound():
+    i = tvm.var('i')
+    x = tvm.assert_bound(tvm.var('x'), 0)
+
+    res = tvm.arith.DeduceBound(i, i+x < x, {}, {})
+    assert str(res.min_value) == "neg_inf"
+    assert tvm.ir_pass.Simplify(res.max_value).value == -1
+
+
 if __name__ == "__main__":
     test_check()
     test_deduce()
     test_deduce_basic()
     test_deduce_complex()
+    test_deduce_assert_bound()
