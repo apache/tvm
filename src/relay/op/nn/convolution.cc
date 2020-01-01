@@ -38,7 +38,7 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 template<typename T>
-Array<Array<Layout> > Conv2DInferCorrectLayout(
+Array<Array<Layout> > ConvInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
@@ -105,7 +105,7 @@ with the layer input to produce a tensor of outputs.
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
 .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // relay.nn.conv3d
 TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
@@ -163,7 +163,8 @@ with the layer input to produce a tensor of outputs.
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
-.add_type_rel("Conv3D", Conv3DRel<Conv3DAttrs>);
+.add_type_rel("Conv3D", Conv3DRel<Conv3DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv3DAttrs>);
 
 
 // relay.nn.conv2d_transpose
@@ -337,7 +338,7 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Conv2DInferCorrectLayout<Conv2DTransposeAttrs>)
+                               ConvInferCorrectLayout<Conv2DTransposeAttrs>)
 .add_type_rel("Conv2DTranspose", Conv2DTransposeRel);
 
 
@@ -635,7 +636,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
 .set_support_level(10)
 .add_type_rel("Conv2DWinograd", Conv2DWinogradRel<Conv2DWinogradAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DWinogradAttrs>);
+        ConvInferCorrectLayout<Conv2DWinogradAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradWeightTransformAttrs);
@@ -744,7 +745,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
 .add_type_rel("Conv2DWinogradNNPACKRel", Conv2DWinogradRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradNNPACKWeightTransformAttrs);
@@ -854,7 +855,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc_int8")
 .set_support_level(10)
 .add_type_rel("Conv2DNCHWcInt8", Conv2DWinogradRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 // Positional relay function to create conv2d NCHWc operator
 // used by frontend FFI.
@@ -903,7 +904,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 .set_support_level(10)
 .add_type_rel("Conv2DNCHWc", Conv2DWinogradRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 
 // Positional relay function to create depthwise conv2d NCHWc operator
@@ -953,7 +954,7 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
 .set_support_level(10)
 .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 
 bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,

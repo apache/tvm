@@ -212,7 +212,11 @@ struct Conv3DAttrs : public tvm::AttrsNode<Conv3DAttrs> {
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0, 0}))
         .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                  "on both sides for padding number of points");
+                  "Padding support both symmetric and asymmetric as"
+                  "one int : same padding used on all sides"
+                  "three int : back, bottom, right will use same padding as front, top, left"
+                  "six int : padding width in the order of (front, top, left, back, bottom,"
+                  "right)");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1, 1}))
         .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(groups).set_default(1)

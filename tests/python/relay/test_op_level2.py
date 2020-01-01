@@ -294,6 +294,56 @@ def test_conv2d_winograd():
                          padding=(2, 2), channels=192, kernel_size=(7, 7))
 
 
+def test_conv3d_infer_type():
+    # symbolic in batch dimension
+    n, c, d, h, w = tvm.var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, d, h, w), "float32"))
+    w = relay.var("w")
+    y = relay.nn.conv3d(x, w,
+                        kernel_size=(3, 3, 3),
+                        padding=(1, 1, 1),
+                        channels=2)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 224, 224, 224), "float32")
+    assert yy.args[1].checked_type == relay.TensorType(
+        (2, 10, 3, 3, 3), "float32")
+
+    # infer by shape of w, mixed precision
+    n, c, d, h, w = tvm.var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3, 3, 3), "int8"))
+    y = relay.nn.conv3d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222, 222, 222), "int32")
+
+    # infer shape in case of different dtypes for input and weight.
+    n, c, d, h, w = tvm.var("n"), 10, 224, 224, 224
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "uint8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3, 3, 3), "int8"))
+    y = relay.nn.conv3d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222, 222, 222), "int32")
+
+    # Infer with NDHWC
+    n, c, d, h, w = 4, 32, 224, 224, 224
+    x = relay.var("x", relay.TensorType((n, d, h, w, c), "int8"))
+    wt = relay.var("w")
+    y = relay.nn.conv3d(x, wt,
+                        kernel_size=(3, 3, 3),
+                        padding=(1, 1, 1),
+                        channels=16,
+                        data_layout="NDHWC",
+                        out_dtype="int32")
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, d, h, w, 16), "int32")
+
+
 def test_conv3d_run():
     def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
                         padding=(1, 1, 1),
@@ -337,6 +387,50 @@ def test_conv3d_run():
     kshape = (10, 3, 3, 3, 3)
     run_test_conv3d("float32", "float32", 1, dshape, kshape,
             padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3))
+
+def test_conv3d_ndhwc_run():
+    def run_test_conv3d(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1, 1),
+                        fref=None,
+                        groups=1,
+                        dilation=(1, 1, 1),
+                        except_targets=None,
+                        **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv3d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            groups=groups,
+                            data_layout="NDHWC", kernel_layout="DHWIO",
+                            **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        dkernel = topi.testing.dilate_python(kernel, (1, 1) + dilation)
+        if fref is None:
+            ref_res = topi.testing.conv3d_ndhwc_python(
+                data.astype(out_dtype), dkernel.astype(out_dtype), 1, padding)
+        else:
+            ref_res = fref(data.astype(out_dtype), dkernel.astype(out_dtype))
+
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    # normal conv3d
+    dshape = (1, 5, 224, 224, 6)
+    kshape = (3, 3, 3, 6, 10)
+    run_test_conv3d("float32", "float32", 1, dshape, kshape,
+            padding=(1, 1, 1), channels=10, kernel_size=(3, 3 ,3), except_targets=["cuda"])
 
 
 def test_conv2d_transpose_infer_type():
@@ -993,6 +1087,7 @@ if __name__ == "__main__":
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
+    test_conv3d_infer_type()
     test_bitpack_infer_type()
     test_upsampling_infer_type()
     test_upsampling3d_infer_type()
@@ -1006,6 +1101,7 @@ if __name__ == "__main__":
     test_conv2d_run()
     test_conv2d_winograd()
     test_conv3d_run()
+    test_conv3d_ndhwc_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()

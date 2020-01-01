@@ -173,6 +173,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
             assert len(weight_shape) == 5
             C, M, _, _, VC = weight_shape
             return C * VC * M
+
     if groups == 1:
         out = topi.nn.conv2d(
             inputs[0], inputs[1], strides, padding,
@@ -330,7 +331,7 @@ def compute_conv3d(attrs, inputs, out_type, target):
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
-    assert layout in ["NCDHW"]
+    assert layout in ["NCDHW", "NDHWC"]
     (dilation_d, dilation_h, dilation_w) = dilation
     if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
@@ -353,6 +354,8 @@ def schedule_conv3d(attrs, outs, target):
     with target:
         if groups == 1 and layout == "NCDHW":
             return topi.generic.schedule_conv3d_ncdhw(outs)
+        elif groups == 1 and layout == "NDHWC":
+            return topi.generic.schedule_conv3d_ndhwc(outs)
 
     raise ValueError("No compatible schedule")
 
