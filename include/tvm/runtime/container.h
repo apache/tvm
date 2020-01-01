@@ -164,7 +164,7 @@ class InplaceArrayBase {
 class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
  public:
   /*! \brief The tag representing the constructor used. */
-  uint32_t tag;
+  int32_t tag;
   /*! \brief Number of fields in the ADT object. */
   uint32_t size;
   // The fields of the structure follows directly in memory.
@@ -211,7 +211,7 @@ class ADT : public ObjectRef {
    * \param fields The fields of the ADT object.
    * \return The constructed ADT object reference.
    */
-  ADT(uint32_t tag, std::vector<ObjectRef> fields)
+  ADT(int32_t tag, std::vector<ObjectRef> fields)
       : ADT(tag, fields.begin(), fields.end()){};
 
   /*!
@@ -222,7 +222,7 @@ class ADT : public ObjectRef {
    * \return The constructed ADT object reference.
    */
   template <typename Iterator>
-  ADT(uint32_t tag, Iterator begin, Iterator end) {
+  ADT(int32_t tag, Iterator begin, Iterator end) {
     size_t num_elems = std::distance(begin, end);
     auto ptr = make_inplace_array_object<ADTObj, ObjectRef>(num_elems);
     ptr->tag = tag;
@@ -236,7 +236,7 @@ class ADT : public ObjectRef {
    * \param init The initializer list of fields.
    * \return The constructed ADT object reference.
    */
-  ADT(uint32_t tag, std::initializer_list<ObjectRef> init)
+  ADT(int32_t tag, std::initializer_list<ObjectRef> init)
       : ADT(tag, init.begin(), init.end()){};
 
   /*!
@@ -252,7 +252,7 @@ class ADT : public ObjectRef {
   /*!
    * \brief Return the ADT tag.
    */
-  size_t tag() const { return operator->()->tag; }
+  int32_t tag() const { return operator->()->tag; }
 
   /*!
    * \brief Return the number of fields.
