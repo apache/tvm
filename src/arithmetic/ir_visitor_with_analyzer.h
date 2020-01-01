@@ -27,43 +27,43 @@
 
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace ir {
 
-class IRVisitorWithAnalyzer final : public IRVisitor {
+class IRVisitorWithAnalyzer final : public StmtExprVisitor {
  public:
   Expr Simplify(const Expr& expr) {
     return analyzer_.Simplify(expr);
   }
 
-  void Visit_(const For* op) {
+  void VisitStmt_(const For* op) {
     analyzer_.Bind(op->loop_var,
                    Range::make_by_min_extent(op->min, op->extent));
-    return IRVisitor::Visit_(op);
+    return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void Visit_(const AttrStmt* op) {
+  void VisitStmt_(const AttrStmt* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var,
                       Range::make_by_min_extent(0, op->value));
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Reduce* op) {
+  void VisitExpr_(const Reduce* op) {
     // Setup the domain information before simplification.
     for (const IterVar& iv : op->axis) {
       analyzer_.Bind(iv->var, iv->dom);
     }
     // Recursively call simplification when necessary.
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
 
  protected:
