@@ -94,13 +94,14 @@ def vmobj_to_list(o):
 
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
-                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime'):
+                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
+                  cuda_layout="NCHW"):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
     layout = None
     if target == "cuda":
-        layout = "NCHW"
+        layout = cuda_layout
     target_host = None
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
@@ -160,7 +161,8 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 
 
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
-                        no_gpu=False, opt_level=3, mode='graph_runtime'):
+                        no_gpu=False, opt_level=3, mode='graph_runtime',
+                        cuda_layout="NCHW"):
     """Generic function to generate and compare tensorflow and TVM output"""
     def name_without_num(name):
         return name.split(':')[0] if ":" in name else name
@@ -191,7 +193,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        target=device, out_names=out_name,
-                                       num_output=len(out_name), opt_level=opt_level, mode=mode)
+                                       num_output=len(out_name), opt_level=opt_level, mode=mode,
+                                       cuda_layout=cuda_layout)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -467,6 +470,57 @@ def test_forward_convolution():
     # output channel is 1
     _test_convolution('conv_transpose', [1, 8, 8, 19], [1, 1, 1, 19], [1, 1], [1, 1], 'VALID',
                       'NHWC', [1, 8, 8, 1])
+
+
+#######################################################################
+# Convolution3D
+# -----------
+
+
+def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
+                        dilations, strides, padding, data_format,
+                        deconv_output_shape=[]):
+    """ One iteration of 3D convolution with given shapes and attributes """
+
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(
+            filter_array, shape=filter_in_sizes, dtype='float32')
+        if data_format == 'NDHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
+
+        if opname == 'conv':
+            nn_ops.conv3d(in_data,
+                          in_filter,
+                          strides=strides,
+                          dilations=dilations,
+                          padding=padding,
+                          data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
+
+def test_forward_convolution3d():
+    if is_gpu_available():
+        _test_convolution3d('conv', [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 19, 17, 17, 17], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+        _test_convolution3d('conv', [4, 124, 17, 17, 17], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 12, 17, 17, 17], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+    _test_convolution3d('conv', [4, 8, 8, 8, 176], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 19], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 124], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 12], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
 
 
 #######################################################################
