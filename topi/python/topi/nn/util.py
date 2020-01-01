@@ -158,9 +158,15 @@ def get_pad_tuple3d(padding, kernel):
     """
     # compute the padding size
     if isinstance(padding, (tuple, list)):
-        pad_h = padding[0] * 2
-        pad_w = padding[1] * 2
-        pad_d = padding[2] * 2
+        if len(padding) == 3:
+            pad_d = padding[0] * 2
+            pad_h = padding[1] * 2
+            pad_w = padding[2] * 2
+        elif len(padding) == 6:
+            return padding[0], padding[1], padding[2], padding[3], \
+                padding[4], padding[5]
+        else:
+            raise ValueError("Size of padding can only be 3 or 6")
     elif isinstance(padding, int):
         pad_d = pad_w = pad_h = padding * 2
     elif padding == "VALID":

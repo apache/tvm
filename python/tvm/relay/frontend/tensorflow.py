@@ -66,16 +66,18 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
+        if len(kernel) == 3:
+            return prefix + '3d' + surfix
         raise tvm.error.OpAttributeInvalid(
-            'Only 2D kernels are supported for operator {}'.format(prefix + '2d'))
+            'Only 2D or 3D kernels are supported for operator {}'.format(prefix + '2d or 3d'))
     return _impl
 
 def _dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2:
+        if len(attrs['kernel_shape']) in (2, 3):
             return True
         return False
-    return _dim_check, "Only 2d kernel supported."
+    return _dim_check, "Only 2d or 3d kernel supported."
 
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
@@ -421,6 +423,130 @@ def _conv(opname):
 
         if flip_layout:
             out = _op.transpose(out, axes=(0, 2, 3, 1))
+
+        return out
+    return _impl
+
+def _conv3d(opname):
+    def _impl(inputs, attr, params):
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        flip_layout = False
+
+        inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
+
+        # NCDHW Layout require weights transpose
+        if attr['data_format'] == 'NCDHW':
+            tmp_shape = attr['_input_shapes'][inputs[1]]
+            tmp_shape = [tmp_shape[ii] for ii in (4, 3, 0, 1, 2)]
+            inputs[1] = _op.transpose(inputs[1], axes=(4, 3, 0, 1, 2))
+            attr['_input_shapes'][inputs[1]] = tmp_shape
+
+        input_shape = attr['_input_shapes'][inputs_data]
+        weights_shape = attr['_input_shapes'][inputs[1]]
+
+        if attr['_target_layout'] == "NCDHW" and attr['data_format'] == "NDHWC":
+            input_shape = [input_shape[ii] for ii in (0, 4, 1, 2, 3)]
+            inputs_data = _op.transpose(inputs_data, axes=(0, 4, 1, 2, 3))
+            weights_shape = [weights_shape[ii] for ii in (4, 3, 0, 1, 2)]
+            inputs[1] = _op.transpose(inputs[1], axes=(4, 3, 0, 1, 2))
+
+            attr['data_format'] = "NCDHW"
+            attr['strides'] = [attr['strides'][ii] for ii in (0, 4, 1, 2, 3)]
+            flip_layout = True
+
+        if attr['data_format'] == 'NDHWC':
+            kernel_d, kernel_h, kernel_w, _, _ = weights_shape
+            attr['kernel_shape'] = (kernel_d, kernel_h, kernel_w)
+            if opname == 'conv':
+                attr['channels'] = weights_shape[4]
+            elif opname == 'conv_transpose':
+                attr['channels'] = weights_shape[3]
+
+            if 'dilations' in attr:
+                attr['dilations'] =\
+                    (attr['dilations'][1], attr['dilations'][2], attr['dilations'][3])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2], attr['strides'][3])
+        elif attr['data_format'] == 'NCDHW':
+            _, _, kernel_d, kernel_h, kernel_w = weights_shape
+            attr['kernel_shape'] = (kernel_d, kernel_h, kernel_w)
+            if opname == 'conv':
+                attr['channels'] = weights_shape[0]
+            elif opname == 'conv_transpose':
+                attr['channels'] = weights_shape[1]
+
+            if 'dilations' in attr:
+                attr['dilations'] =\
+                    (attr['dilations'][2], attr['dilations'][3], attr['dilations'][4])
+            attr['strides'] = (attr['strides'][2], attr['strides'][3], attr['strides'][4])
+        else:
+            msg = 'Value {} in attribute "data_format" of operator Conv is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
+
+        # Fix padding
+        attr['padding'] = attr['padding'].decode("utf-8")
+
+        if attr['padding'] == 'VALID':
+            attr['padding'] = [0, 0, 0]
+        elif attr['padding'] == 'SAME':
+            stride_d, stride_h, stride_w = attr['strides']
+            kernel_d, kernel_h, kernel_w = attr['kernel_shape']
+
+            pdata_shape = input_shape
+            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
+                pdata_shape = attr['_output_shapes'][0]
+
+            if attr['data_format'] == 'NDHWC':
+                in_d = pdata_shape[1]
+                in_h = pdata_shape[2]
+                in_w = pdata_shape[3]
+            else:
+                in_d = pdata_shape[2]
+                in_h = pdata_shape[3]
+                in_w = pdata_shape[4]
+
+            dilation_d = attr['dilations'][0]
+            dilation_h = attr['dilations'][1]
+            dilation_w = attr['dilations'][2]
+            dilated_kernel_d = (kernel_d - 1) * dilation_d + 1
+            dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+            dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+            pad_d = _get_pad_pair(in_d, dilated_kernel_d, stride_d)
+            pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
+
+            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_v[0], pad_v[1], pad_h[1]]
+
+        else:
+            msg = 'Value {} in attribute "padding" of operator Conv is not ' \
+                  'valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
+
+        if 'kernel_layout' not in attr:
+            attr['kernel_layout'] = 'DHWIO' if attr['data_format'] == 'NDHWC' else 'OIDHW'
+
+        use_bias = len(inputs) == (3 if opname != 'conv_transpose' else 4)
+        channel_axis = 1 if attr['data_format'] == "NCDHW" else 3
+
+        # Ignore the new attributes from TF2.0, for now.
+        out = AttrCvt(
+            op_name=_dimension_picker('conv', \
+                surfix="_transpose" if opname == 'conv_transpose' else ""),
+            ignores=['explicit_paddings'],
+            transforms={
+                'kernel_shape': 'kernel_size',
+                'data_format': 'data_layout',
+                'dilations': ('dilation', (0, 0)),
+                'group': ('groups', 1)},
+            custom_check=_dimension_constraint())([inputs_data, inputs[1]], attr)
+
+        if use_bias:
+            out = _op.nn.bias_add(out,
+                                  inputs[2] if opname != 'conv_transpose' else inputs[3],
+                                  axis=channel_axis)
+
+        if flip_layout:
+            out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
 
         return out
     return _impl
@@ -1442,6 +1568,7 @@ _convert_map = {
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
+    'Conv3D'                            : _conv3d('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'CropAndResize'                     : _crop_and_resize(),
     'DecodeJpeg'                        : _decode_image(),
