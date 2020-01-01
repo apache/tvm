@@ -162,7 +162,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                         no_gpu=False, opt_level=3, mode='graph_runtime',
-                        assert_atol=1e-5, assert_rtol=1e-5, cuda_layout="NCHW"):
+                        cuda_layout="NCHW"):
     """Generic function to generate and compare tensorflow and TVM output"""
     def name_without_num(name):
         return name.split(':')[0] if ":" in name else name
@@ -199,7 +199,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(
-                    tf_output[i], tvm_output[i], atol=assert_atol, rtol=assert_rtol)
+                    tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
 
         sess.close()
 
@@ -509,7 +509,7 @@ def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
                           data_format=data_format)
 
             compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
-                                'Placeholder:0', 'Conv3D:0', assert_rtol=1e-2, cuda_layout="NCDHW")
+                                'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
 
 def test_forward_convolution3d():
     if is_gpu_available():
