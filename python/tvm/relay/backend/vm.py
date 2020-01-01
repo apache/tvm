@@ -26,6 +26,7 @@ import tvm
 from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
+from tvm._ffi import base as _base
 from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
@@ -34,7 +35,9 @@ Tensor = _obj.Tensor
 ADT = _obj.ADT
 
 def _convert(arg, cargs):
-    if isinstance(arg, _obj.Object):
+    if isinstance(arg, _expr.Constant):
+        cargs.append(_obj.Tensor(arg.data))
+    elif isinstance(arg, _obj.Object):
         cargs.append(arg)
     elif isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
         cargs.append(_obj.Tensor(arg))
@@ -43,8 +46,12 @@ def _convert(arg, cargs):
         for field in arg:
             _convert(field, field_args)
         cargs.append(_obj.tuple_object(field_args))
+    elif isinstance(arg, (_base.numeric_types, bool)):
+        dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
+        value = _obj.Tensor(np.array(arg, dtype=dtype))
+        cargs.append(value)
     else:
-        raise "Unsupported type: %s" % (type(arg))
+        raise TypeError("Unsupported type: %s" % (type(arg)))
 
 
 def convert(args):
