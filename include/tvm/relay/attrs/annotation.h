@@ -66,7 +66,7 @@ struct CompilerAttrs : public tvm::AttrsNode<CompilerAttrs> {
 
   TVM_DECLARE_ATTRS(CompilerAttrs, "relay.attrs.CompilerAttrs") {
     TVM_ATTR_FIELD(compiler)
-      .describe("A 3rd compiler used for code generation.");
+      .describe("A 3rd party compiler used for code generation.");
   }
 };
 

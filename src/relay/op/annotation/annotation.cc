@@ -190,7 +190,7 @@ Beginning of a region that is handled by a given compiler.
 
 TVM_REGISTER_API("relay.op.annotation._make.compiler_begin")
 .set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
-  auto attrs = make_node<CompilerAttrs>();
+  auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_begin");
   return CallNode::make(op, {expr}, Attrs(attrs), {});
@@ -215,7 +215,7 @@ End of a region that is handled by a given compiler.
 
 TVM_REGISTER_API("relay.op.annotation._make.compiler_end")
 .set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
-  auto attrs = make_node<CompilerAttrs>();
+  auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_end");
   return CallNode::make(op, {expr}, Attrs(attrs), {});
