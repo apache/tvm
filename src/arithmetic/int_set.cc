@@ -416,33 +416,19 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExpr_(const Div* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const Mod* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorDiv* op) final {
-    IntervalSet a = this->Eval(op->a);
-    IntervalSet b = this->Eval(op->b);
-    if (MatchPoint(a, op->a) && (b->min_value.same_as(op->b) || b->max_value.same_as(op->b))) {
-      // e.g., floordiv(10, [0, n])
-      // if using VisitBinaryExpr_ it will be inferred as IntervalSet::Everything()
-      return IntervalSet::SinglePoint(GetRef<Expr>(op));
-    }
-    return Combine<FloorDiv>(analyzer_, a, b);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorMod* op) final {
-    IntervalSet a = this->Eval(op->a);
-    IntervalSet b = this->Eval(op->b);
-    if (MatchPoint(a, op->a) && (b->min_value.same_as(op->b) || b->max_value.same_as(op->b))) {
-      // e.g., floormod(10, [0, n])
-      // if using VisitBinaryExpr_ it will be inferred as IntervalSet::Everything()
-      return IntervalSet::SinglePoint(GetRef<Expr>(op));
-    }
-    return Combine<FloorMod>(analyzer_, a, b);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const Min* op) final {
@@ -549,6 +535,18 @@ class IntervalSetEvaluator :
     return set->min_value.same_as(value) && set->max_value.same_as(value);
   }
 
+  bool BoundedBySelf(const Expr& op) const {
+    if (const Call* call = op.as<Call>()) {
+      if (call->is_intrinsic(intrinsic::tvm_assert_bound)) {
+        Expr value = call->args[0];
+        Expr lb = call->args[1];
+        Expr ub = call->args[2];
+        return lb.same_as(value) || ub.same_as(value);
+      }
+    }
+    return false;
+  }
+
   template<typename T>
   inline IntervalSet VisitBinaryExpr_(const T* op) {
     IntervalSet a = this->Eval(op->a);
@@ -556,6 +554,22 @@ class IntervalSetEvaluator :
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<Expr>(op));
     }
+    return Combine<T>(analyzer_, a, b);
+  }
+
+  template<typename T>
+  inline IntervalSet VisitDivExpr_(const T* op) {
+    IntervalSet a = this->Eval(op->a);
+    IntervalSet b = this->Eval(op->b);
+    if ((MatchPoint(a, op->a) && (MatchPoint(b, op->b) || BoundedBySelf(op->b)))
+          || (BoundedBySelf(op->a) && BoundedBySelf(op->b))) {
+      // e.g.,
+      // div(10, 5) evaluates to 2
+      // div(10, assert_bound(n, 0, n)) to itself
+      // div(assert_bound(m, 0, m), assert_bound(n, 0, n)) to itself
+      return IntervalSet::SinglePoint(GetRef<Expr>(op));
+    }
+    // e.g., div(assert_bound(m, 0, m), 2) goes here
     return Combine<T>(analyzer_, a, b);
   }
 

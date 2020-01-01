@@ -837,6 +837,7 @@ def test_assert_bound_simplify():
     ck = RewriteChecker()
     x = tvm.var("x")
     ck.verify(tvm.assert_bound(x, 0) + 1 >= 1, tvm.const(True, "bool"))
+    ck.verify(tvm.assert_bound(x, 0, 10) + 1 <= 11, tvm.const(True, "bool"))
 
 if __name__ == "__main__":
     test_floordiv_index_simplify()

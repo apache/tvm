@@ -70,12 +70,12 @@ std::vector<const Object*> GetPath(Expr target, Expr expr) {
 
 class BoundRemover : public IRMutator {
  public:
-  Expr Do(Expr e) {
+  Expr Remove(Expr e) {
     remove_bounded_ = true;
     return IRMutator::Mutate(ir::Simplify(e));
   }
 
-  Expr Undo(Expr e) {
+  Expr Reset(Expr e) {
     CHECK(remove_bounded_) << "Call Do(expr) first.";
     remove_bounded_ = false;
     return IRMutator::Mutate(e);
@@ -336,10 +336,12 @@ void BoundDeducer::Deduce() {
   // they should not be eagerly simplified according to its bound
   // e.g., i + n/4 >= n
   // => i >= n - n/4
+  // If we eagerly simplified the left side given assert_bound(n, 0, +inf)
+  // we would get i + 0 >= n => i >= n, which is obviously incorrect.
   // Thus we remove assert_bound here and reset later.
   BoundRemover ra, rb;
-  expr_ = ra.Do(expr_);
-  result_ = rb.Do(result_);
+  expr_ = ra.Remove(expr_);
+  result_ = rb.Remove(result_);
 
   Relax();
   if (!success_) return;
@@ -353,8 +355,8 @@ void BoundDeducer::Deduce() {
 
   Visit(expr_);
 
-  expr_ = ra.Undo(expr_);
-  result_ = rb.Undo(result_);
+  expr_ = ra.Reset(expr_);
+  result_ = rb.Reset(result_);
 }
 
 void BoundDeducer::Relax() {
