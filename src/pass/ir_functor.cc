@@ -417,7 +417,7 @@ Stmt StmtMutator::VisitStmt_(const IfThenElse* op) {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->then_case = std::move(then_case);
-    n->else_case = std::move(then_case);
+    n->else_case = std::move(else_case);
     return Stmt(n);
   }
 }
