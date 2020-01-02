@@ -191,7 +191,7 @@ class TensorReplacer : public ir::StmtExprMutator {
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
 
-  Expr VisitExpr_(const ir::Call* op) {
+  Expr VisitExpr_(const ir::Call* op) final {
     if (op->call_type == ir::Call::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);

@@ -75,13 +75,13 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     StmtExprVisitor::VisitStmt(n);
   }
 
-  void VisitStmt_(const LetStmt *op) final {
+  void VisitStmt_(const LetStmt* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;
     return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AttrStmt *op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (!InThreadEnv() && (op->attr_key == attr::thread_extent ||
                            op->attr_key == attr::pipeline_exec_scope)) {
       EnterThreadEnv();
@@ -92,18 +92,18 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const ProducerConsumer *op) final {
+  void VisitStmt_(const ProducerConsumer* op) final {
     EnterProducerConsumer(op);
     StmtExprVisitor::VisitStmt_(op);
     ExitProducerConsumer();
   }
 
-  void VisitExpr_(const Load *op) final {
+  void VisitExpr_(const Load* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
     return StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const Store *op) final {
+  void VisitStmt_(const Store* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
     return StmtExprVisitor::VisitStmt_(op);
   }

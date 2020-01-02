@@ -47,7 +47,7 @@ class VarReplacer : public ir::StmtExprMutator {
   explicit VarReplacer(
       const std::unordered_map<const Variable*, Expr>& vsub)
       : vsub_(vsub) {}
-  Expr VisitExpr_(const Variable* op) {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
     return GetRef<Expr>(op);
@@ -71,7 +71,7 @@ class VarReplacer : public ir::StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const ir::Reduce* op) {
+  Expr VisitExpr_(const ir::Reduce* op) final {
     Expr new_e = StmtExprMutator::VisitExpr_(op);
     const ir::Reduce* new_reduce = new_e.as<ir::Reduce>();
     ir::CommReducer new_combiner = MutateCommReducer(op->combiner);

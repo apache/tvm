@@ -54,7 +54,7 @@ class GPUCodeVerifier : public StmtVisitor {
     return valid_;
   }
 
-  void VisitStmt_(const ProducerConsumer *op) {
+  void VisitStmt_(const ProducerConsumer* op) final {
     if (nest_level_ == 0) {
       // enter a new kernel, reset statistics
       Reset_();
@@ -77,7 +77,7 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const Allocate *op) {
+  void VisitStmt_(const Allocate* op) final {
     StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
@@ -89,7 +89,7 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt *op) {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       std::string op_value = op->value.as<StringImm>()->value;
       if (op_value == "local") {

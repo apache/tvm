@@ -96,19 +96,19 @@ class ExprTouched final : public StmtExprVisitor {
 // Analyze if the buffers are invariant to value of var
 class VarTouchedAnalysis : public StmtVisitor {
  public:
-  void VisitStmt_(const LetStmt* op) {
+  void VisitStmt_(const LetStmt* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     Record(op->var.get(), tc);
     this->VisitStmt(op->body);
   }
-  void VisitStmt_(const Store *op) {
+  void VisitStmt_(const Store* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     tc(op->index);
     Record(op->buffer_var.get(), tc);
   }
-  void VisitStmt_(const For *op) {
+  void VisitStmt_(const For* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->min);
     tc(op->extent);
@@ -116,14 +116,14 @@ class VarTouchedAnalysis : public StmtVisitor {
     this->VisitStmt(op->body);
   }
   // external function call
-  void VisitStmt_(const Evaluate *op) {
+  void VisitStmt_(const Evaluate* op) final {
     ExprTouched tc(touched_var_, true);
     tc(op->value);
     for (const Variable* var : tc.write_vars_) {
       Record(var, tc);
     }
   }
-  void VisitStmt_(const Allocate *op) {
+  void VisitStmt_(const Allocate* op) final {
     ExprTouched tc(touched_var_, false);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       tc(op->extents[i]);

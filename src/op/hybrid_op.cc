@@ -280,8 +280,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         extent(0), fused(false) {}
 
     // TODO(@were): Handle imperfect loops
-
-    Stmt VisitStmt_(const For *op) {
+    Stmt VisitStmt_(const For* op) final {
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
         std::unordered_map<const Variable *, Expr> rmap;
@@ -422,7 +421,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                 const std::unordered_map<const Variable*, IterVar> &reorder)
       : stage(stage), dom_map(dom_map), reorder(reorder) {}
 
-    Stmt VisitStmt_(const For *op) final {
+    Stmt VisitStmt_(const For* op) final {
       // Reorder from in to out
       Stmt body_ = this->VisitStmt(op->body);
       CHECK(reorder.count(op->loop_var.get()));
