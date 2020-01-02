@@ -22,7 +22,7 @@
  * \file tensorize.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
 #include "op_util.h"
@@ -157,10 +157,10 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 }
 
 // Remap the tensor placeholder, index and inline things.
-class TensorIntrinMatcher final : public IRMutator {
+class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  Expr Mutate_(const Call* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Call* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     if (op->call_type == Call::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
@@ -180,17 +180,17 @@ class TensorIntrinMatcher final : public IRMutator {
     return expr;
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
 
-  Expr Mutate_(const Reduce* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Reduce* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Reduce>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
@@ -317,7 +317,7 @@ Array<Expr> MatchTensorizeBody(
   matcher.Init(self, stage, dom_map, out_dom, in_region, intrin, compute_intrin_iter_space);
   Array<Expr> ret;
   for (Expr expr : self->body) {
-    ret.push_back(matcher.Mutate(expr));
+    ret.push_back(matcher(expr));
   }
   return ret;
 }
