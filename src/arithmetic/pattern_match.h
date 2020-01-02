@@ -250,7 +250,7 @@ class PBinaryExpr :
     b_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const NodeType* ptr = node.as<NodeType>()) {
       if (!a_.Match_(ptr->a)) return false;
       if (!b_.Match_(ptr->b)) return false;
@@ -282,7 +282,7 @@ class PConstWithTypeLike :
 
   void InitMatch_() const {}
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::IntImm* ptr = node.as<ir::IntImm>()) {
       return ptr->value == value_;
     } else {
@@ -364,7 +364,7 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
     value_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Not* ptr = node.as<ir::Not>()) {
       if (!value_.Match_(ptr->a)) return false;
       return true;
@@ -410,7 +410,7 @@ class PSelectExpr :
     false_value_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Select* ptr = node.as<ir::Select>()) {
       if (!condition_.Match_(ptr->condition)) return false;
       if (!true_value_.Match_(ptr->true_value)) return false;
@@ -472,7 +472,7 @@ class PCastExpr :
     value_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Cast* ptr = node.as<ir::Cast>()) {
       if (!dtype_.Match_(ptr->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
@@ -530,7 +530,7 @@ class PRampExpr :
     lanes_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Ramp* ptr = node.as<ir::Ramp>()) {
       if (!base_.Match_(ptr->base)) return false;
       if (!stride_.Match_(ptr->stride)) return false;
@@ -592,7 +592,7 @@ class PBroadcastExpr :
     lanes_.InitMatch_();
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Broadcast* ptr = node.as<ir::Broadcast>()) {
       if (!value_.Match_(ptr->value)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
@@ -704,7 +704,7 @@ class PCallExpr :
     detail::tuple_for_each(finit, args_);
   }
 
-  bool Match_(const NodeRef& node) const {
+  bool Match_(const ObjectRef& node) const {
     if (const ir::Call* ptr = node.as<ir::Call>()) {
       if (ptr->args.size() != sizeof...(TArgs)) return false;
       if (ptr->name != Op::kName) return false;

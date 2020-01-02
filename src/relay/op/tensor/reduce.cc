@@ -308,7 +308,7 @@ bool ReduceRel(const Array<Type>& types,
                         Array<Integer> axis,                       \
                         bool keepdims,                             \
                         bool exclude) {                            \
-      auto attrs = make_node<ReduceAttrs>();                       \
+      auto attrs = make_object<ReduceAttrs>();                       \
       attrs->axis = std::move(axis);                               \
       attrs->keepdims = keepdims;                                  \
       attrs->exclude = exclude;                                    \
@@ -625,7 +625,7 @@ Expr MakeVariance(Expr data,
                   Array<Integer> axis,
                   bool keepdims,
                   bool exclude) {
-  auto attrs = make_node<ReduceAttrs>();
+  auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;

@@ -607,7 +607,7 @@ Expr MakeQnnConv2D(Expr data, Expr weight, int32_t input_zero_point, int32_t ker
                    int groups, IndexExpr channels, Array<IndexExpr> kernel_size,
                    std::string data_layout, std::string kernel_layout, std::string out_layout,
                    DataType out_dtype) {
-  auto attrs = make_node<QnnConv2DAttrs>();
+  auto attrs = make_object<QnnConv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);

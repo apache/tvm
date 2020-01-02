@@ -116,14 +116,14 @@ class TextMetaDataContext {
    * \param node The node to be converted to meta node.
    * \return A string representation of the meta node.
    */
-  Doc GetMetaNode(const NodeRef& node) {
+  Doc GetMetaNode(const ObjectRef& node) {
     auto it = meta_repr_.find(node);
     if (it != meta_repr_.end()) {
       return it->second;
     }
     std::string type_key = node->GetTypeKey();
     CHECK(!type_key.empty());
-    Array<NodeRef>& mvector =
+    Array<ObjectRef>& mvector =
         meta_data_[type_key];
     int64_t index = static_cast<int64_t>(mvector.size());
     mvector.push_back(node);
@@ -143,7 +143,7 @@ class TextMetaDataContext {
    */
   Doc GetMetaSection() const {
     if (meta_data_.size() == 0) return Doc();
-    return Doc(SaveJSON(Map<std::string, NodeRef>(meta_data_.begin(), meta_data_.end())));
+    return Doc(SaveJSON(Map<std::string, ObjectRef>(meta_data_.begin(), meta_data_.end())));
   }
 
   /*! \return whether the meta data context is empty. */
@@ -153,9 +153,9 @@ class TextMetaDataContext {
 
  private:
   /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<std::string, Array<NodeRef> > meta_data_;
+  std::unordered_map<std::string, Array<ObjectRef> > meta_data_;
   /*! \brief map from meta data into its string representation */
-  std::unordered_map<NodeRef, Doc, NodeHash, NodeEqual> meta_repr_;
+  std::unordered_map<ObjectRef, Doc, ObjectHash, ObjectEqual> meta_repr_;
 };
 
 class PrettyPrinter :
@@ -191,7 +191,7 @@ class PrettyPrinter :
   }
 
   // indent a new body
-  Doc PrintBody(const NodeRef& node, int indent = 2) {
+  Doc PrintBody(const ObjectRef& node, int indent = 2) {
     Doc doc;
     Doc body;
     doc << "{";
@@ -202,7 +202,7 @@ class PrettyPrinter :
 
   // create a new scope by creating a new printer object. This allows temp var
   // numbers to be reused and prevents hoisted vars from escaping too far
-  Doc PrintScope(const NodeRef& node) {
+  Doc PrintScope(const ObjectRef& node) {
     // print in a new scope
     doc_stack_.push_back(Doc());
     // must print first so doc_stack_.back() reference doesn't become stale
@@ -212,7 +212,7 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc PrintFinal(const NodeRef& node) {
+  Doc PrintFinal(const ObjectRef& node) {
     if (node.as<ExprNode>()) {
       Expr expr = Downcast<Expr>(node);
       dg_ = DependencyGraph::Create(&arena_, expr);
@@ -235,7 +235,7 @@ class PrettyPrinter :
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
   std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
 
-  Doc Print(const NodeRef& node, bool meta = false, bool try_inline = false) {
+  Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false) {
     if (node.as<ExprNode>()) {
       return PrintExpr(Downcast<Expr>(node), meta, try_inline);
     } else if (node.as<TypeNode>()) {
@@ -383,7 +383,7 @@ class PrettyPrinter :
 
     Doc printed_expr;
     if (meta) {
-      printed_expr = meta_.GetMetaNode(GetRef<NodeRef>(expr.get()));
+      printed_expr = meta_.GetMetaNode(GetRef<ObjectRef>(expr.get()));
     } else if (!inline_expr && expr.as<LetNode>()) {
       // wrap GNFed let in brackets
       Doc body;
@@ -440,7 +440,7 @@ class PrettyPrinter :
     }
     // default fall-back, record it as meta node.
     Doc doc;
-    return doc << Print(GetRef<NodeRef>(op), true);
+    return doc << Print(GetRef<ObjectRef>(op), true);
   }
 
   Doc VisitExpr_(const TupleNode* op) final {
@@ -624,7 +624,7 @@ class PrettyPrinter :
     if (it != memo_pattern_.end()) return it->second;
     Doc printed_pattern;
     if (meta) {
-      printed_pattern = meta_.GetMetaNode(GetRef<NodeRef>(pattern.get()));
+      printed_pattern = meta_.GetMetaNode(GetRef<ObjectRef>(pattern.get()));
     } else {
       printed_pattern = VisitPattern(pattern);
     }
@@ -687,7 +687,7 @@ class PrettyPrinter :
     if (it != memo_type_.end()) return it->second;
     Doc printed_type;
     if (meta) {
-      printed_type = meta_.GetMetaNode(GetRef<NodeRef>(type.get()));
+      printed_type = meta_.GetMetaNode(GetRef<ObjectRef>(type.get()));
     } else {
       printed_type = VisitType(type);
     }
@@ -695,9 +695,9 @@ class PrettyPrinter :
     return printed_type;
   }
 
-  Doc VisitTypeDefault_(const Node* node) final {
+  Doc VisitTypeDefault_(const Object* node) final {
     // by default always print as meta data
-    return Print(GetRef<NodeRef>(node), true);
+    return Print(GetRef<ObjectRef>(node), true);
   }
 
   Doc VisitType_(const TypeVarNode* node) final {
@@ -728,7 +728,7 @@ class PrettyPrinter :
     Doc doc;
     doc << "Tensor[(";
     std::vector<Doc> shapes;
-    for (NodeRef shape : node->shape) {
+    for (ObjectRef shape : node->shape) {
       shapes.push_back(PrintAttr(shape));
     }
     doc << PrintSep(shapes);
@@ -816,7 +816,7 @@ class PrettyPrinter :
       if (value.as<tvm::ir::Any>()) {
         printed_attr << "?";
       } else if (meta) {
-        printed_attr = meta_.GetMetaNode(Downcast<NodeRef>(value));
+        printed_attr = meta_.GetMetaNode(Downcast<ObjectRef>(value));
       } else {
         printed_attr = VisitAttr(value);
       }
@@ -866,11 +866,11 @@ class PrettyPrinter :
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
-  std::unordered_map<Expr, Doc, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, Doc, ObjectHash, ObjectEqual> memo_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Type, Doc, NodeHash, NodeEqual> memo_type_;
+  std::unordered_map<Type, Doc, ObjectHash, ObjectEqual> memo_type_;
   /*! \brief Map from Type to Doc */
-  std::unordered_map<Pattern, Doc, NodeHash, NodeEqual> memo_pattern_;
+  std::unordered_map<Pattern, Doc, ObjectHash, ObjectEqual> memo_pattern_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
   /*! \brief meta data context */
@@ -969,7 +969,7 @@ std::vector<Doc> PrettyPrinter::PrintFuncAttrs(const Attrs& attrs) {
   return docs;
 }
 
-std::string PrettyPrint_(const NodeRef& node,
+std::string PrettyPrint_(const ObjectRef& node,
                          bool show_meta_data,
                          runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   Doc doc;
@@ -978,20 +978,20 @@ std::string PrettyPrint_(const NodeRef& node,
   return doc.str();
 }
 
-std::string PrettyPrint(const NodeRef& node) {
+std::string PrettyPrint(const ObjectRef& node) {
   Doc doc;
   doc << PrettyPrinter(false, runtime::TypedPackedFunc<std::string(Expr)>()).PrintFinal(node);
   return doc.str();
 }
 
-std::string AsText(const NodeRef& node,
+std::string AsText(const ObjectRef& node,
                        bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate) {
   return PrettyPrint_(node, show_meta_data, annotate);
 }
 
 TVM_REGISTER_API("relay._expr.AsText")
-.set_body_typed<std::string(const NodeRef&,
+.set_body_typed<std::string(const ObjectRef&,
                             bool,
                             runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
 

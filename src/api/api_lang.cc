@@ -65,7 +65,7 @@ TVM_REGISTER_API("_Array")
         data.push_back(ObjectRef(nullptr));
       }
     }
-    auto node = make_node<ArrayNode>();
+    auto node = make_object<ArrayNode>();
     node->data = std::move(data);
     *ret = Array<ObjectRef>(node);
   });
@@ -105,7 +105,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].operator std::string(),
                                     args[i + 1].operator ObjectRef()));
       }
-      auto node = make_node<StrMapNode>();
+      auto node = make_object<StrMapNode>();
       node->data = std::move(data);
       *ret = Map<ObjectRef, ObjectRef>(node);
     } else {
@@ -119,7 +119,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].operator ObjectRef(),
                                     args[i + 1].operator ObjectRef()));
       }
-      auto node = make_node<MapNode>();
+      auto node = make_object<MapNode>();
       node->data = std::move(data);
       *ret = Map<ObjectRef, ObjectRef>(node);
     }
@@ -186,7 +186,7 @@ TVM_REGISTER_API("_MapItems")
 
     if (ptr->IsInstance<MapNode>()) {
       auto* n = static_cast<const MapNode*>(ptr);
-      auto rkvs = make_node<ArrayNode>();
+      auto rkvs = make_object<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(kv.first);
         rkvs->data.push_back(kv.second);
@@ -194,7 +194,7 @@ TVM_REGISTER_API("_MapItems")
       *ret = Array<ObjectRef>(rkvs);
     } else {
       auto* n = static_cast<const StrMapNode*>(ptr);
-      auto rkvs = make_node<ArrayNode>();
+      auto rkvs = make_object<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(ir::StringImm::make(kv.first));
         rkvs->data.push_back(kv.second);

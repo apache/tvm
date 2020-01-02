@@ -220,13 +220,13 @@ class SchedulePostProc : public IRMutator {
         }
       }
     } else if (op->attr_key == ir::attr::buffer_bind_scope) {
-      Array<NodeRef> tuple = Downcast<Array<NodeRef> >(op->node);
+      Array<ObjectRef> tuple = Downcast<Array<ObjectRef> >(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
           return AttrStmt::make(
-              Array<NodeRef>{tuple[0], it->second.output(tensor->value_index)},
+              Array<ObjectRef>{tuple[0], it->second.output(tensor->value_index)},
               op->attr_key, op->value, Mutate(op->body));
         } else {
           return this->Mutate(op->body);
@@ -344,7 +344,7 @@ class SchedulePostProc : public IRMutator {
     replace_op_[src->op.get()] = repl_op;
   }
   // The thread extent scope.
-  std::unordered_map<const Node*, Expr> thread_extent_scope_;
+  std::unordered_map<const Object*, Expr> thread_extent_scope_;
   // The scan value
   std::unordered_map<const Variable*, Expr> var_value_;
   // buffer replacement
@@ -352,7 +352,7 @@ class SchedulePostProc : public IRMutator {
   // buffere realization to be replaced
   std::unordered_map<TensorKey, Tensor> replace_realize_;
   // replace producer consumer.
-  std::unordered_map<const Node*, Operation> replace_op_;
+  std::unordered_map<const Object*, Operation> replace_op_;
 };
 
 Stmt ScheduleOps(

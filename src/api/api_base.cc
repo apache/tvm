@@ -32,7 +32,7 @@ TVM_REGISTER_API("_format_str")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     CHECK(args[0].type_code() == kObjectHandle);
     std::ostringstream os;
-    os << args[0].operator NodeRef();
+    os << args[0].operator ObjectRef();
     *ret = os.str();
   });
 

@@ -130,7 +130,7 @@ class CustomDatatypesLowerer : public IRMutator {
 };
 
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = CustomDatatypesLowerer(target).Mutate(n->body);
   return LoweredFunc(n);
 }

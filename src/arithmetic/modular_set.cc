@@ -37,7 +37,7 @@ using namespace ir;
 TVM_REGISTER_NODE_TYPE(ModularSetNode);
 
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
-  auto node = make_node<ModularSetNode>();
+  auto node = make_object<ModularSetNode>();
   node->coeff = coeff;
   node->base = base;
   // finish construction.
@@ -120,7 +120,7 @@ class ModularSetAnalyzer::Impl :
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Node* op) final {
+  Entry VisitExprDefault_(const Object* op) final {
     return Everything();
   }
 

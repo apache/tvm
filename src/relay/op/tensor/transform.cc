@@ -77,7 +77,7 @@ Array<Tensor> CastCompute(const Attrs& attrs,
 
 Expr MakeCast(Expr data,
               DataType dtype) {
-  auto attrs = make_node<CastAttrs>();
+  auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("cast");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -165,7 +165,7 @@ Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs
 }
 
 Expr MakeReinterpret(Expr data, DataType dtype) {
-  auto attrs = make_node<CastAttrs>();
+  auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("reinterpret");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -242,7 +242,7 @@ Array<Tensor> ExpandDimsCompute(const Attrs& attrs,
 Expr MakeExpandDims(Expr data,
                     int axis,
                     int num_newaxis) {
-  auto attrs = make_node<ExpandDimsAttrs>();
+  auto attrs = make_object<ExpandDimsAttrs>();
   attrs->axis = axis;
   attrs->num_newaxis = num_newaxis;
   static const Op& op = Op::Get("expand_dims");
@@ -328,7 +328,7 @@ Array<Array<Layout>> ConcatenateLayout(
 
 Expr MakeConcatenate(Expr data,
                      int axis) {
-  auto attrs = make_node<ConcatenateAttrs>();
+  auto attrs = make_object<ConcatenateAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("concatenate");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -423,7 +423,7 @@ Array<Tensor> StackCompute(const Attrs& attrs,
 
 Expr MakeStack(Expr data,
                int axis) {
-  auto attrs = make_node<StackAttrs>();
+  auto attrs = make_object<StackAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("stack");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -515,7 +515,7 @@ Array<Tensor> TransposeCompute(const Attrs& attrs,
 
 Expr MakeTranspose(Expr data,
                    Array<Integer> axes) {
-  auto attrs = make_node<TransposeAttrs>();
+  auto attrs = make_object<TransposeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("transpose");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -706,7 +706,7 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
 
 Expr MakeReshape(Expr data,
                  Array<Integer> newshape) {
-  auto attrs = make_node<ReshapeAttrs>();
+  auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
@@ -860,7 +860,7 @@ bool ArgWhereRel(const Array<Type>& types,
 TVM_REGISTER_API("relay.op._make.argwhere")
 .set_body_typed<Expr(Expr)>([](Expr data) {
   static const Op& op = Op::Get("argwhere");
-  auto attrs = make_node<ArgWhereAttrs>();
+  auto attrs = make_object<ArgWhereAttrs>();
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
@@ -938,7 +938,7 @@ Expr MakeTake(Expr data,
               Expr indices,
               Integer axis,
               std::string mode) {
-  auto attrs = make_node<TakeAttrs>();
+  auto attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
   static const Op& op = Op::Get("take");
@@ -1019,7 +1019,7 @@ Array<Tensor> FullCompute(const Attrs& attrs,
 Expr MakeFull(Expr fill_value,
               Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
@@ -1054,7 +1054,7 @@ bool InitOpRel(const Array<Type>& types,
 
 Expr MakeZeros(Array<IndexExpr> shape,
                DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
@@ -1075,7 +1075,7 @@ RELAY_REGISTER_OP("zeros")
 
 Expr MakeOnes(Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
@@ -1244,7 +1244,7 @@ Expr MakeArange(Expr start,
                 Expr stop,
                 Expr step,
                 DataType dtype) {
-  auto attrs = make_node<ArangeAttrs>();
+  auto attrs = make_object<ArangeAttrs>();
   attrs->start = start;
   attrs->stop = stop;
   attrs->step = step;
@@ -1335,7 +1335,7 @@ Array<Tensor> RepeatCompute(const Attrs& attrs,
 Expr MakeRepeat(Expr data,
                 int repeats,
                 int axis) {
-  auto attrs = make_node<RepeatAttrs>();
+  auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = repeats;
   attrs->axis = axis;
   static const Op& op = Op::Get("repeat");
@@ -1445,7 +1445,7 @@ Array<Tensor> TileCompute(const Attrs& attrs,
 
 Expr MakeTile(Expr data,
               Array<Integer> reps) {
-  auto attrs = make_node<TileAttrs>();
+  auto attrs = make_object<TileAttrs>();
   attrs->reps = reps;
   static const Op& op = Op::Get("tile");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -1506,7 +1506,7 @@ Array<Tensor> ReverseCompute(const Attrs& attrs,
 
 Expr MakeReverse(Expr data,
                  int axis) {
-  auto attrs = make_node<ReverseAttrs>();
+  auto attrs = make_object<ReverseAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("reverse");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -1623,7 +1623,7 @@ TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr MakeSqueeze(Expr data,
                  Array<Integer> axis) {
-  auto attrs = make_node<SqueezeAttrs>();
+  auto attrs = make_object<SqueezeAttrs>();
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("squeeze");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -1764,7 +1764,7 @@ bool BroadCastToRel(const Array<Type>& types,
 
 Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
   static const Op& op = Op::Get("broadcast_to");
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -2006,7 +2006,7 @@ Expr MakeStridedSlice(Expr data,
                       Array<Integer> begin,
                       Array<Integer> end,
                       Array<Integer> strides) {
-  auto attrs = make_node<StridedSliceAttrs>();
+  auto attrs = make_object<StridedSliceAttrs>();
   attrs->begin = std::move(begin);
   attrs->end = std::move(end);
   attrs->strides = std::move(strides);
@@ -2189,9 +2189,9 @@ Array<Tensor> SplitCompute(const Attrs& attrs,
 }
 
 Expr MakeSplit(Expr data,
-               NodeRef indices_or_sections,
+               ObjectRef indices_or_sections,
                int axis) {
-  auto attrs = make_node<SplitAttrs>();
+  auto attrs = make_object<SplitAttrs>();
   attrs->axis = axis;
   attrs->indices_or_sections = std::move(indices_or_sections);
   static const Op& op = Op::Get("split");
@@ -2294,7 +2294,7 @@ bool SliceLikeRel(const Array<Type>& types,
 Expr MakeSliceLike(Expr data,
                    Expr shape_like,
                    Array<Integer> axes) {
-  auto attrs = make_node<SliceLikeAttrs>();
+  auto attrs = make_object<SliceLikeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("slice_like");
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
@@ -2403,7 +2403,7 @@ bool LayoutTransformRel(const Array<Type>& types,
 Expr MakeLayoutTransform(Expr data,
                          std::string src_layout,
                          std::string dst_layout) {
-  auto attrs = make_node<LayoutTransformAttrs>();
+  auto attrs = make_object<LayoutTransformAttrs>();
   attrs->src_layout = std::move(src_layout);
   attrs->dst_layout = std::move(dst_layout);
   static const Op& op = Op::Get("layout_transform");
@@ -2431,7 +2431,7 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 /* relay._contrib_reverse_reshape */
 Expr MakeReverseReshape(Expr data,
                         Array<Integer> newshape) {
-  auto attrs = make_node<ReshapeAttrs>();
+  auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = true;
   static const Op& op = Op::Get("_contrib_reverse_reshape");
@@ -2566,7 +2566,7 @@ Expr MakeSequenceMask(Expr data,
                       Expr valid_length,
                       double mask_value,
                       int axis) {
-  auto attrs = make_node<SequenceMaskAttrs>();
+  auto attrs = make_object<SequenceMaskAttrs>();
   attrs->mask_value = std::move(mask_value);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("sequence_mask");
@@ -2687,7 +2687,7 @@ Expr MakeOneHot(Expr indices,
                 int depth,
                 int axis,
                 DataType dtype) {
-  auto attrs = make_node<OneHotAttrs>();
+  auto attrs = make_object<OneHotAttrs>();
   attrs->depth = std::move(depth);
   attrs->axis = axis;
   attrs->dtype = dtype;

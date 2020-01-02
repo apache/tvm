@@ -107,8 +107,8 @@ class AlterTransformMemorizer : public TransformMemorizer {
  * 2. Do not support nested tuple arguments.
  */
 Expr AlterOpLayout(const Expr& expr) {
-  AlterTransformMemorizer alterMemorizer(make_node<AlterTransformMemorizerNode>());
-  auto fcontext = [&](const Call& call) -> NodeRef { return alterMemorizer; };
+  AlterTransformMemorizer alterMemorizer(make_object<AlterTransformMemorizerNode>());
+  auto fcontext = [&](const Call& call) -> ObjectRef { return alterMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<AlterTransformMemorizer>, fcontext);
 }

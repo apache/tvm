@@ -28,6 +28,8 @@
 #include <string>
 #include <utility>
 
+#include "../op_common.h"
+
 namespace tvm {
 namespace relay {
 
@@ -187,7 +189,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  param->kernel_size[1], param->kernel_size[2]}};
     }
 
-    /*wshape = trans_kernel_layout.BackwardShape(wshape); */
+    wshape = trans_kernel_layout.BackwardShape(wshape);
     channels = param->channels;
     dilated_ksize_z = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_y = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
@@ -196,6 +198,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight != nullptr) {
       weight_dtype = weight->dtype;
     }
+
     // assign result to reporter
     reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
   } else {
@@ -225,22 +228,24 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_ncdhw[0], channels, 0, 0, 0});
 
+  IndexExpr pad_d, pad_h, pad_w;
+  GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
   if (!dshape_ncdhw[2].as<ir::Any>()) {
-    oshape.Set(2, indexdiv(dshape_ncdhw[2] + param->padding[0] * 2 - dilated_ksize_z,
+    oshape.Set(2, indexdiv(dshape_ncdhw[2] + pad_d - dilated_ksize_z,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncdhw[2]);
   }
 
   if (!dshape_ncdhw[3].as<ir::Any>()) {
-    oshape.Set(3, indexdiv(dshape_ncdhw[3] + param->padding[1] * 2 - dilated_ksize_y,
+    oshape.Set(3, indexdiv(dshape_ncdhw[3] + pad_h - dilated_ksize_y,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
 
   if (!dshape_ncdhw[4].as<ir::Any>()) {
-    oshape.Set(4, indexdiv(dshape_ncdhw[4] + param->padding[2] * 2 - dilated_ksize_x,
+    oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x,
                            param->strides[2]) + 1);
   } else {
     oshape.Set(4, dshape_ncdhw[4]);

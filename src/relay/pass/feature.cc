@@ -36,7 +36,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
-    std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
     FeatureSet fs = FeatureSet::No();
 
     void VisitExpr(const Expr& expr) final {

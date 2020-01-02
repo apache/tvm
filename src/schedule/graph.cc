@@ -62,7 +62,7 @@ namespace std {
 template <>
 struct hash<::tvm::schedule::TensorDimKey> {
   std::size_t operator()(const ::tvm::schedule::TensorDimKey& k) const {
-    size_t lhs = ::tvm::NodeHash()(k.f);
+    size_t lhs = ::tvm::ObjectHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index) << 16UL |
         static_cast<size_t>(k.dim);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
@@ -80,7 +80,7 @@ namespace schedule {
 ReadGraph CreateReadGraph(const Array<Operation>& roots) {
   ReadGraph rmap;
   std::vector<Operation> stack;
-  std::unordered_set<const Node*> visited;
+  std::unordered_set<const Object*> visited;
   // initialize the roots
   for (Operation op : roots) {
     stack.push_back(op);
@@ -106,9 +106,9 @@ ReadGraph CreateReadGraph(const Array<Operation>& roots) {
 // Return if op is inside the subgraph.
 bool GetSubGraphByPostDFS_(
     const Operation& op,
-    const std::unordered_set<const Node*>& boundary,
+    const std::unordered_set<const Object*>& boundary,
     bool include_bounary,
-    std::unordered_map<const Node*, bool>* visited,
+    std::unordered_map<const Object*, bool>* visited,
     Array<Operation>* result) {
   if (visited->count(op.get())) {
     return visited->at(op.get());
@@ -143,11 +143,11 @@ Array<Operation> GetSubGraph(const Array<Tensor>& outputs,
                              const Array<Tensor>& inputs,
                              bool include_inputs) {
   Array<Operation> result;
-  std::unordered_set<const Node*> boundary;
+  std::unordered_set<const Object*> boundary;
   for (Tensor t : inputs) {
     boundary.insert(t->op.get());
   }
-  std::unordered_map<const Node*, bool> visited;
+  std::unordered_map<const Object*, bool> visited;
   for (Tensor t : outputs) {
     GetSubGraphByPostDFS_(t->op, boundary, include_inputs,
                           &visited, &result);
@@ -192,7 +192,7 @@ FeedGraph CreateFeedGraph(const ReadGraph& g) {
 AttachPath CreateAttachPath(Schedule sch) {
   AttachPath ret;
   for (Stage stage : sch->stages) {
-    std::unordered_set<const Node*> visited;
+    std::unordered_set<const Object*> visited;
     Array<IterVar> path;
     for (Stage s = stage; s.defined();) {
       CHECK(!visited.count(s.get()))
@@ -236,7 +236,7 @@ using ReachGraph = std::unordered_map<TensorDimKey, std::vector<TensorDimKey> >;
 
 ReachGraph GetReachGraph(const Array<Operation>& ops) {
   ReachGraph reach;
-  std::unordered_set<const Node*> bset;
+  std::unordered_set<const Object*> bset;
   for (size_t i = 0; i < ops.size(); ++i) {
     bset.insert(ops[i].get());
   }
@@ -255,20 +255,20 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         }
       }
     } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
-      std::unordered_map<const Node*, TensorDimKey> vmap;
+      std::unordered_map<const Object*, TensorDimKey> vmap;
       const auto& axis = compute_op->axis;
       Tensor t = op.output(0);
       for (size_t i = 0; i < axis.size(); ++i) {
         vmap[axis[i]->var.get()] = TensorDimKey(t, i);
         reach[TensorDimKey(t, i)] = {};
       }
-      auto fvisit = [&vmap, &reach, &bset](const NodeRef& n) {
+      auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
         const ir::Call *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
           if (!bset.count(call->func.get())) return;
           for (size_t i = 0; i < call->args.size(); ++i) {
             TensorDimKey dkey(call, static_cast<int>(i));
-            auto fpush = [&dkey, &vmap, &reach](const NodeRef& node) {
+            auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
               const Variable *v = node.as<Variable>();
               auto it = vmap.find(v);
               if (it != vmap.end()) {
@@ -304,8 +304,8 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
   const ScanOpNode* scan = scan_op.as<ScanOpNode>();
   Array<Operation> body = ScanGetBody(scan_op);
 
-  std::unordered_map<TensorDimKey, const Node*> exact_reach;
-  std::unordered_set<const Node*> fail_set;
+  std::unordered_map<TensorDimKey, const Object*> exact_reach;
+  std::unordered_set<const Object*> fail_set;
 
   for (size_t i = 0, sp_idx = 0; i < scan->update.size(); ++i) {
     for (size_t k = 1; k < scan->update[i]->shape.size(); ++k, ++sp_idx) {
@@ -342,7 +342,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
       }
     } else if (const auto* compute_op = op.as<ComputeOpNode>()) {
-      std::unordered_map<const Node*, std::vector<TensorDimKey> > vmap;
+      std::unordered_map<const Object*, std::vector<TensorDimKey> > vmap;
       const auto& axis = compute_op->axis;
       for (size_t i = 0; i < axis.size(); ++i) {
         std::vector<TensorDimKey> keys;
@@ -352,7 +352,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
         vmap[axis[i]->var.get()] = std::move(keys);
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
-          const NodeRef& n) {
+          const ObjectRef& n) {
         const ir::Call *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
           for (size_t i = 0; i < call->args.size(); ++i) {

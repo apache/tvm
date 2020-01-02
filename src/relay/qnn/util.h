@@ -84,7 +84,7 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
                               double input_scale, int32_t input_zero_point, double output_scale,
                               int32_t output_zero_point, const DataType& out_dtype,
                               const std::string& rounding = "UPWARD") {
-  auto attrs = make_node<RequantizeAttrs>();
+  auto attrs = make_object<RequantizeAttrs>();
   attrs->input_scale = std::move(input_scale);
   attrs->input_zero_point = std::move(input_zero_point);
   attrs->output_scale = std::move(output_scale);

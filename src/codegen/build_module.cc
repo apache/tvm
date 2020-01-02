@@ -53,7 +53,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 */
 Target CreateTarget(const std::string& target_name,
                     const std::vector<std::string>& options) {
-  auto t = make_node<TargetNode>();
+  auto t = make_object<TargetNode>();
   t->target_name = target_name;
 
   std::string libs_flag = "-libs=";
@@ -366,7 +366,7 @@ void GetBinds(const Array<Tensor>& args,
               bool compact,
               const std::unordered_map<Tensor, Buffer>& binds,
               Map<Tensor, Buffer>* out_binds,
-              Array<NodeRef>* out_arg_list,
+              Array<ObjectRef>* out_arg_list,
               const BuildConfig& config) {
   *out_binds = binds;
 
@@ -396,7 +396,7 @@ Stmt BuildStmt(Schedule sch,
                const Array<Tensor>& args,
                const std::unordered_map<Tensor, Buffer>& binds,
                bool loop_partition,
-               Array<NodeRef> *out_arg_list,
+               Array<ObjectRef> *out_arg_list,
                const BuildConfig& config) {
   sch = sch.normalize();
 
@@ -445,7 +445,7 @@ Array<LoweredFunc> lower(Schedule sch,
                          const std::string& name,
                          const std::unordered_map<Tensor, Buffer>& binds,
                          const BuildConfig& config) {
-  Array<NodeRef> out_arg_list;
+  Array<ObjectRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
@@ -618,7 +618,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 }
 
 BuildConfig BuildConfig::Create() {
-  return BuildConfig(make_node<BuildConfigNode>());
+  return BuildConfig(make_object<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -701,7 +701,7 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
-    auto f = make_node<GenericFuncNode>();
+    auto f = make_object<GenericFuncNode>();
     f->name_ = name;
     auto gf = GenericFunc(f);
     m->fmap[name] = gf;
@@ -825,7 +825,7 @@ TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
 
 TVM_REGISTER_API("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = GenericFunc(make_node<GenericFuncNode>());
+  *ret = GenericFunc(make_object<GenericFuncNode>());
   });
 
 TVM_REGISTER_API("_GenericFuncGetGlobal")

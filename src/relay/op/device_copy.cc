@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,7 +44,7 @@ TVM_REGISTER_NODE_TYPE(DeviceCopyAttrs);
 TVM_REGISTER_API("relay.op._make.device_copy")
 .set_body_typed<Expr(Expr, int, int)>([](Expr data, int src_dev_type,
                                     int dst_dev_type) {
-  auto attrs = make_node<DeviceCopyAttrs>();
+  auto attrs = make_object<DeviceCopyAttrs>();
   attrs->src_dev_type = src_dev_type;
   attrs->dst_dev_type = dst_dev_type;
   static const Op& op = Op::Get("device_copy");

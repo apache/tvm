@@ -50,10 +50,13 @@ class QAnnotateExprNode : public TempExprNode {
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QAnnotateExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QAnnotateExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QAnnotateExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
+class QAnnotateExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
+};
 
 
 Expr QAnnotateExprNode::Realize() const {
@@ -61,7 +64,7 @@ Expr QAnnotateExprNode::Realize() const {
 }
 
 QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
-  auto rnode = make_node<QAnnotateExprNode>();
+  auto rnode = make_object<QAnnotateExprNode>();
   rnode->expr = expr;
   rnode->kind = kind;
   return QAnnotateExpr(rnode);

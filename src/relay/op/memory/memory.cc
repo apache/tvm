@@ -43,7 +43,7 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // being able to see the arguments as well?
 TVM_REGISTER_API("relay.op.memory._make.alloc_storage")
     .set_body_typed<Expr(Expr, Expr, DataType)>([](Expr size, Expr alignment, DataType dtype) {
-      auto attrs = make_node<AllocTensorAttrs>();
+      auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
       static const Op& op = Op::Get("memory.alloc_storage");
       return CallNode::make(op, {size, alignment}, Attrs(attrs), {});
@@ -90,7 +90,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
 TVM_REGISTER_API("relay.op.memory._make.alloc_tensor")
     .set_body_typed<Expr(Expr, Expr, DataType, Array<IndexExpr> assert_shape)>(
         [](Expr storage, tvm::relay::Expr shape, DataType dtype, Array<IndexExpr> assert_shape) {
-          auto attrs = make_node<AllocTensorAttrs>();
+          auto attrs = make_object<AllocTensorAttrs>();
           attrs->dtype = dtype;
           if (assert_shape.defined()) {
             attrs->assert_shape = assert_shape;
@@ -260,7 +260,7 @@ TVM_REGISTER_API("relay.op.memory._make.shape_func")
     .set_body_typed<Expr(Expr, Expr, Expr, Array<tvm::Integer>)>(
       [](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
       static const Op& op = Op::Get("memory.shape_func");
-      auto attrs = make_node<ShapeFuncAttrs>();
+      auto attrs = make_object<ShapeFuncAttrs>();
       attrs->is_input = is_input;
       return CallNode::make(op, {func, inputs, outputs}, Attrs(attrs), {});
     });

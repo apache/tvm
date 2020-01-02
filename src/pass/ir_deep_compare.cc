@@ -358,7 +358,7 @@ class IRDeepCompare :
     return order_;
   }
 
-  int CompareNodeRef(const NodeRef& lhs, const NodeRef& rhs) {
+  int CompareNodeRef(const ObjectRef& lhs, const ObjectRef& rhs) {
     if (order_ != 0) return order_;
     if (lhs.get() < rhs.get()) {
       order_ = -1; return order_;

@@ -145,7 +145,7 @@ class OpMatch {
 
  private:
   /*! \brief The match function map. */
-  std::unordered_map<Op, MatchFunc, NodeHash, NodeEqual> match_map_;
+  std::unordered_map<Op, MatchFunc, ObjectHash, ObjectEqual> match_map_;
   /*! \brief An optional default case. */
   MatchFunc default_;
 };
@@ -158,6 +158,45 @@ inline void GetPaddingWidth(const Array<IndexExpr>& padding, IndexExpr* pad_w) {
     *pad_w = padding[0] + padding[1];
   } else {
     CHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found "
+        << padding.size();
+  }
+}
+
+/*! \brief A utility function to get padding height and width from a 1, 2, 4 ints tuple. */
+inline void GetPaddingHeightWidth(const Array<IndexExpr>& padding, IndexExpr* pad_h,
+                                  IndexExpr* pad_w) {
+  if (padding.size() == 1) {
+    *pad_h = padding[0] * 2;
+    *pad_w = padding[0] * 2;
+  } else if (padding.size() == 2) {
+    *pad_h = padding[0] * 2;
+    *pad_w = padding[1] * 2;
+  } else if (padding.size() == 4) {
+    *pad_h = padding[0] + padding[2];
+    *pad_w = padding[1] + padding[3];
+  } else {
+    CHECK_EQ(padding.size(), 4) << " Padding size should be 1, 2 or 4, but got "
+        << padding.size();
+  }
+}
+
+/*! \brief A utility function to get padding depth, height and width from a 1, 3, 6 ints tuple. */
+inline void GetPaddingDepthHeightWidth(const Array<IndexExpr>& padding, IndexExpr* pad_d,
+                                       IndexExpr* pad_h, IndexExpr* pad_w) {
+  if (padding.size() == 1) {
+    *pad_d = padding[0] * 2;
+    *pad_h = padding[0] * 2;
+    *pad_w = padding[0] * 2;
+  } else if (padding.size() == 3) {
+    *pad_d = padding[0] * 2;
+    *pad_h = padding[1] * 2;
+    *pad_w = padding[2] * 2;
+  } else if (padding.size() == 6) {
+    *pad_d = padding[0] + padding[3];
+    *pad_h = padding[1] + padding[4];
+    *pad_w = padding[2] + padding[5];
+  } else {
+    CHECK_EQ(padding.size(), 6) << " Padding size should be 1, 3 or 6, but got "
         << padding.size();
   }
 }
