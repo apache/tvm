@@ -487,34 +487,36 @@ def random_search(fcost, domains, args, max_iter):
     return best_guess, best_cost
 
 
-def simulated_annealing(fcost, domains, args, T=1.0, Tmin=0.001, cool=0.9, step=1):
+def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, portion=0.10, step=2):
     fout = open('qsearch_simulated_annealing.log', 'w+', buffering=1)
-    def neighbour(origin):
-        dim = random.randint(0, len(origin) - 1)
-        disturbance = random.choice([-2, -1, 1, 2])
-
-        guess = origin.copy()
-        print('choose dimension {0}'.format(dim))
-        print('change from {} to {}'.format(guess[dim], guess[dim]+disturbance))
-        guess[dim] += disturbance
-        if guess[dim] < min(domains[dim]):
-            guess[dim] = min(domains[dim])
-        if guess[dim] > max(domains[dim]):
-            guess[dim] = max(domains[dim])
-        return guess
+    def neighbour(origin, portion):
+        num_changed = int(portion * len(origin))
+        dims = random.sample(range(0, len(origin)), num_changed)
+        new = origin.copy()
+        for dim in dims:
+            disturbance = random.choice(range(-step, step + 1))
+            print('choose dimension {0}'.format(dim))
+            print('change from {} to {}'.format(new[dim], new[dim]+disturbance))
+            new[dim] += disturbance
+            if new[dim] < min(domains[dim]):
+                new[dim] = min(domains[dim])
+            if new[dim] > max(domains[dim]):
+                new[dim] = max(domains[dim])
+        return new
 
     current_guess = next(random_guess(domains))
     current_cost = fcost(current_guess, *args)
     best_guess, best_cost = current_guess, current_cost
     num_iter = 0
     while T > Tmin:
-        guess = neighbour(best_guess)
+        guess = neighbour(best_guess, portion)
         cost = fcost(guess, *args)
-        if cost >= current_cost:
+        if cost >= best_cost:
             # store as best guess 
             best_guess = guess
             best_cost = cost
         if cost >= current_cost or random.random() < math.exp(- (current_cost - cost) / T):
+            print('accept guess')
             # accept the guess
             current_guess = guess
             current_cost = cost
