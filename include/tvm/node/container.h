@@ -284,6 +284,48 @@ class Array : public ObjectRef {
   inline bool empty() const {
     return size() == 0;
   }
+  /*!
+   * \brief Helper function to apply fmutate to mutate an array.
+   * \param fmutate The transformation function T -> T.
+   * \tparam F the type of the mutation function.
+   * \note This function performs copy on write optimization.
+   */
+  template<typename F>
+  inline void MutateByApply(F fmutate) {
+    ArrayNode* ptr = static_cast<ArrayNode*>(data_.get());
+    if (ptr == nullptr) return;
+    if (data_.unique()) {
+      // Copy on write optimization.
+      // Perform inplace update because this is an unique copy.
+      for (size_t i = 0; i < ptr->data.size(); ++i) {
+        // It is important to use move here
+        // to make prevent the element's ref count from increasing
+        // so fmutate itself can perform copy-on-write optimization
+        T old_elem = DowncastNoCheck<T>(std::move(ptr->data[i]));
+        T new_elem = fmutate(std::move(old_elem));
+        ptr->data[i] = std::move(new_elem);
+      }
+    } else {
+      // lazily trigger copy if there is element change.
+      ObjectPtr<ArrayNode> copy;
+      for (size_t i = 0; i < ptr->data.size(); ++i) {
+        T old_elem = DowncastNoCheck<T>(ptr->data[i]);
+        T new_elem = fmutate(old_elem);
+        if (!new_elem.same_as(ptr->data[i])) {
+          // copy the old array
+          if (copy == nullptr) {
+            copy = runtime::make_object<ArrayNode>(*ptr);
+          }
+          copy->data[i] = std::move(new_elem);
+        }
+      }
+      // replace the data with the new copy.
+      if (copy != nullptr) {
+        data_ = std::move(copy);
+      }
+    }
+  }
+
   /*! \brief specify container node */
   using ContainerType = ArrayNode;
 

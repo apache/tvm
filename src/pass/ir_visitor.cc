@@ -26,26 +26,6 @@
 
 namespace tvm {
 namespace ir {
-// visitor to implement apply
-class IRApplyVisit : public IRVisitor {
- public:
-  explicit IRApplyVisit(std::function<void(const ObjectRef&)> f) : f_(f) {}
-
-  void Visit(const ObjectRef& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
-    IRVisitor::Visit(node);
-    f_(node);
-  }
-
- private:
-  std::function<void(const ObjectRef&)> f_;
-  std::unordered_set<const Object*> visited_;
-};
-
-void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit) {
-  IRApplyVisit(fvisit).Visit(node);
-}
 
 IRVisitor::FVisit& IRVisitor::vtable() {  // NOLINT(*)
   static FVisit inst; return inst;

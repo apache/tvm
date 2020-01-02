@@ -31,7 +31,6 @@ TEST(IRF, Basic) {
   auto z = x + 1;
 
   NodeFunctor<int(const ObjectRef& n, int b)> f;
-  LOG(INFO) << "x";
   f.set_dispatch<Variable>([](const ObjectRef& n, int b) {
       return b;
     });
@@ -99,6 +98,98 @@ TEST(IRF, ExprVisit) {
   MyVisitor v;
   v.VisitStmt(Evaluate::make(z));
   CHECK_EQ(v.count, 1);
+}
+
+
+TEST(IRF, StmtVisitor) {
+  using namespace tvm;
+  using namespace tvm::ir;
+  Var x("x");
+  class MyVisitor
+      : public StmtExprVisitor {
+   public:
+    int count = 0;
+    // implementation
+    void VisitExpr_(const Variable* op) final {
+      ++count;
+    }
+  };
+  MyVisitor v;
+  auto fmaketest = [&]() {
+    auto z = x + 1;
+    Stmt body = Evaluate::make(z);
+    Var buffer("b", DataType::Handle());
+    return Allocate::make(buffer, DataType::Float(32), {z, z}, const_true(), body);
+  };
+  v(fmaketest());
+  CHECK_EQ(v.count, 3);
+}
+
+TEST(IRF, StmtMutator) {
+  using namespace tvm;
+  using namespace tvm::ir;
+  Var x("x");
+
+  class MyVisitor
+      : public ir::StmtMutator,
+        public ir::ExprMutator {
+   public:
+    using StmtMutator::operator();
+    using ExprMutator::operator();
+
+   protected:
+    // implementation
+    Expr VisitExpr_(const Add* op) final {
+      return op->a;
+    }
+    Expr VisitExpr(const Expr& expr) final {
+      return ExprMutator::VisitExpr(expr);
+    }
+  };
+  auto fmaketest = [&]() {
+    auto z = x + 1;
+    Stmt body = Evaluate::make(z);
+    Var buffer("b", DataType::Handle());
+    return Allocate::make(buffer, DataType::Float(32), {1, z}, const_true(), body);
+  };
+
+  MyVisitor v;
+  {
+    auto body = fmaketest();
+    Stmt body2 = Evaluate::make(1);
+    Stmt bref = body.as<Allocate>()->body;
+    auto* extentptr = body.as<Allocate>()->extents.get();
+    Array<Stmt> arr{std::move(body), body2, body2};
+    auto* arrptr = arr.get();
+    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    CHECK(arr.get() == arrptr);
+    // inplace update body
+    CHECK(arr[0].as<Allocate>()->extents[1].same_as(x));
+    CHECK(arr[0].as<Allocate>()->extents.get() == extentptr);
+    // copy because there is additional refs
+    CHECK(!arr[0].as<Allocate>()->body.same_as(bref));
+    CHECK(arr[0].as<Allocate>()->body.as<Evaluate>()->value.same_as(x));
+    CHECK(bref.as<Evaluate>()->value.as<Add>());
+  }
+  {
+    Array<Stmt> arr{fmaketest()};
+    // mutate array get reference by another one, triiger copy.
+    Array<Stmt> arr2 = arr;
+    auto* arrptr = arr.get();
+    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    CHECK(arr.get() != arrptr);
+    CHECK(arr[0].as<Allocate>()->extents[1].same_as(x));
+    CHECK(!arr2[0].as<Allocate>()->extents[1].same_as(x));
+    // mutate but no content change.
+    arr2 = arr;
+    arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
+    CHECK(arr2.get() == arr.get());
+  }
+  {
+    auto body = Evaluate::make(Call::make(DataType::Int(32), "xyz", {x + 1}, Call::Extern));
+    auto res = v(std::move(body));
+    CHECK(res.as<Evaluate>()->value.as<Call>()->args[0].same_as(x));
+  }
 }
 
 int main(int argc, char ** argv) {

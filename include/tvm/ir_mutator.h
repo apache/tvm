@@ -123,6 +123,7 @@ class TVM_DLL IRMutator {
   virtual Expr Mutate_(const Shuffle* op, const Expr& e);
 };
 
+
 /*!
  * \brief recursively visit the ir in post DFS order node, and transform it
  *
@@ -138,7 +139,7 @@ class TVM_DLL IRMutator {
  *          If it is not empty, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
-Stmt IRTransform(const Stmt& node,
+Stmt IRTransform(Stmt node,
                  const runtime::PackedFunc& preorder,
                  const runtime::PackedFunc& postorder,
                  const Array<Expr>& only_enable = {});

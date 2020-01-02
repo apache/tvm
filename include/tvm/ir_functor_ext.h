@@ -287,6 +287,265 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
 #undef EXPR_FUNCTOR_DEFAULT
 #undef STMT_FUNCTOR_DEFAULT
 
+/*!
+ * \brief ExprVisitor
+ */
+class TVM_DLL ExprVisitor :
+      public ExprFunctor<void(const Expr&)> {
+ public:
+  using ExprFunctor::operator();
+
+ protected:
+  using ExprFunctor::VisitExpr;
+  // list of functions to override.
+  void VisitExpr_(const Variable* op) override;
+  void VisitExpr_(const Load* op) override;
+  void VisitExpr_(const Let* op) override;
+  void VisitExpr_(const Call* op) override;
+  void VisitExpr_(const Add* op) override;
+  void VisitExpr_(const Sub* op) override;
+  void VisitExpr_(const Mul* op) override;
+  void VisitExpr_(const Div* op) override;
+  void VisitExpr_(const Mod* op) override;
+  void VisitExpr_(const FloorDiv* op) override;
+  void VisitExpr_(const FloorMod* op) override;
+  void VisitExpr_(const Min* op) override;
+  void VisitExpr_(const Max* op) override;
+  void VisitExpr_(const EQ* op) override;
+  void VisitExpr_(const NE* op) override;
+  void VisitExpr_(const LT* op) override;
+  void VisitExpr_(const LE* op) override;
+  void VisitExpr_(const GT* op) override;
+  void VisitExpr_(const GE* op) override;
+  void VisitExpr_(const And* op) override;
+  void VisitExpr_(const Or* op) override;
+  void VisitExpr_(const Reduce* op) override;
+  void VisitExpr_(const Cast* op) override;
+  void VisitExpr_(const Not* op) override;
+  void VisitExpr_(const Select* op) override;
+  void VisitExpr_(const Ramp* op) override;
+  void VisitExpr_(const Broadcast* op) override;
+  void VisitExpr_(const Shuffle* op) override;
+  void VisitExpr_(const IntImm* op) override;
+  void VisitExpr_(const UIntImm* op) override;
+  void VisitExpr_(const FloatImm* op) override;
+  void VisitExpr_(const StringImm* op) override;
+};
+
+/*!
+ * \brief ExprMutator that mutates expressions.
+ */
+class TVM_DLL ExprMutator :
+      protected ExprFunctor<Expr(const Expr&)> {
+ public:
+  using ExprFunctor::operator();
+
+ protected:
+  using ExprFunctor::VisitExpr;
+  // list of functions to override.
+  Expr VisitExpr_(const Variable* op) override;
+  Expr VisitExpr_(const Load* op) override;
+  Expr VisitExpr_(const Let* op) override;
+  Expr VisitExpr_(const Call* op) override;
+  Expr VisitExpr_(const Add* op) override;
+  Expr VisitExpr_(const Sub* op) override;
+  Expr VisitExpr_(const Mul* op) override;
+  Expr VisitExpr_(const Div* op) override;
+  Expr VisitExpr_(const Mod* op) override;
+  Expr VisitExpr_(const FloorDiv* op) override;
+  Expr VisitExpr_(const FloorMod* op) override;
+  Expr VisitExpr_(const Min* op) override;
+  Expr VisitExpr_(const Max* op) override;
+  Expr VisitExpr_(const EQ* op) override;
+  Expr VisitExpr_(const NE* op) override;
+  Expr VisitExpr_(const LT* op) override;
+  Expr VisitExpr_(const LE* op) override;
+  Expr VisitExpr_(const GT* op) override;
+  Expr VisitExpr_(const GE* op) override;
+  Expr VisitExpr_(const And* op) override;
+  Expr VisitExpr_(const Or* op) override;
+  Expr VisitExpr_(const Reduce* op) override;
+  Expr VisitExpr_(const Cast* op) override;
+  Expr VisitExpr_(const Not* op) override;
+  Expr VisitExpr_(const Select* op) override;
+  Expr VisitExpr_(const Ramp* op) override;
+  Expr VisitExpr_(const Broadcast* op) override;
+  Expr VisitExpr_(const Shuffle* op) override;
+  Expr VisitExpr_(const IntImm* op) override;
+  Expr VisitExpr_(const UIntImm* op) override;
+  Expr VisitExpr_(const FloatImm* op) override;
+  Expr VisitExpr_(const StringImm* op) override;
+};
+
+/*!
+ * \brief StmtVisitor.
+ */
+class TVM_DLL StmtVisitor :
+      protected StmtFunctor<void(const Stmt&)> {
+ public:
+  using StmtFunctor::operator();
+
+ protected:
+  using StmtFunctor::VisitStmt;
+  /*!
+   * \brief Visitor to Exprs, can be overriden
+   *        to do recursive changes to Exprs.
+   * \note A common pattern is to call ExprVisitor here,
+   *       or have a class sub-class both StmtVisitor and ExprVisitor
+   *       and redirect Visit to ExprMutator::VisitExpr(Expr)
+   */
+  virtual void VisitExpr(const Expr& e) {}
+  // statement visitor
+  void VisitStmt_(const AttrStmt* op) override;
+  void VisitStmt_(const IfThenElse* op) override;
+  void VisitStmt_(const LetStmt* op) override;
+  void VisitStmt_(const For* op) override;
+  void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const Free* op) override;
+  void VisitStmt_(const AssertStmt* op) override;
+  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const Provide* op) override;
+  void VisitStmt_(const Realize* op) override;
+  void VisitStmt_(const Prefetch* op) override;
+  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const Evaluate* op) override;
+};
+
+/*!
+ * \brief StmtMutator that mutates the statements.
+ */
+class TVM_DLL StmtMutator :
+      protected StmtFunctor<Stmt(const Stmt&)> {
+ public:
+  /*!
+   * \brief Mutate stmt.
+   * \param stmt The input statement to be mutated.
+   * \return The result of the call
+   * \note It is important that stmt is passed by value.
+   *       so copy on write can be triggered correctly.
+   *       do mutator(std::move(stmt)) or when copy elison is triggered.
+   */
+  Stmt operator()(Stmt stmt) {
+    allow_copy_on_write_ = true;
+    return VisitStmt(stmt);
+  }
+
+ protected:
+  // We perform copy on write optimizations on the StmtMutator
+  // so that an unique copy of parent can be mutated inplace
+  // when some of its children changed.
+  // We only do such optimization for Stmt nests(instead of Exprs) for now
+  // as Stmt's parent state is more likely remain unchanged when one of
+  // its child block changes.
+  /*!
+   * \brief Internal state to indicate whether copy on write is enabled.
+   *  COW is enabled iff all the parents of the node are unique.
+   */
+  bool allow_copy_on_write_{false};
+  /*!
+   * \brief Perform copy on write on node.
+   *
+   *  If CopyOnWrite is allowed, directly return
+   *  a strong reference to the node container.
+   *  Otherwise, return a copy of the node.
+   *
+   * \return The result object pointer.
+   */
+  template<typename TNode>
+  ObjectPtr<TNode> CopyOnWrite(const TNode* node) {
+    if (allow_copy_on_write_) {
+      // return the old node.
+      return runtime::GetObjectPtr<TNode>(const_cast<TNode*>(node));
+    } else {
+      // Make a new copy of the node.
+      // need to rely on the default copy constructor
+      return runtime::make_object<TNode>(*node);
+    }
+  }
+  /*!
+   * \brief Internal mutator that everyone calls.
+   * \note To override mutate's behavior, override VisitExpr instead.
+   * \param stmt The input stmt.
+   * \return The mutated results.
+   */
+  Stmt VisitStmt(const Stmt& stmt) override {
+    if (allow_copy_on_write_ && !stmt.unique()) {
+      allow_copy_on_write_ = false;
+      Stmt ret = StmtFunctor::VisitStmt(stmt);
+      allow_copy_on_write_ = true;
+      return ret;
+    } else {
+      return StmtFunctor::VisitStmt(stmt);
+    }
+  }
+  /*!
+   * \brief Visitor to Exprs, can be overriden
+   *        to do recursive changes to Exprs.
+   * \note A common pattern is to call ExprMutator here,
+   *       or have a class sub-class both StmtMutator and ExprMutator
+   *       and redirect Mutate to ExprMutator::Mutate(Expr)
+   */
+  virtual Expr VisitExpr(const Expr& e) {
+    return e;
+  }
+  // statement visitor
+  Stmt VisitStmt_(const AttrStmt* op) override;
+  Stmt VisitStmt_(const IfThenElse* op) override;
+  Stmt VisitStmt_(const LetStmt* op) override;
+  Stmt VisitStmt_(const For* op) override;
+  Stmt VisitStmt_(const Allocate* op) override;
+  Stmt VisitStmt_(const Store* op) override;
+  Stmt VisitStmt_(const Free* op) override;
+  Stmt VisitStmt_(const AssertStmt* op) override;
+  Stmt VisitStmt_(const ProducerConsumer* op) override;
+  Stmt VisitStmt_(const Provide* op) override;
+  Stmt VisitStmt_(const Realize* op) override;
+  Stmt VisitStmt_(const Prefetch* op) override;
+  Stmt VisitStmt_(const Block* op) override;
+  Stmt VisitStmt_(const Evaluate* op) override;
+  // internal helper.
+  class Internal;
+};
+
+/*!
+ * \brief Visitor that recursively visit stmts and exprs on them.
+ */
+class StmtExprVisitor :
+      public StmtVisitor,
+      public ExprVisitor {
+ public:
+  using StmtVisitor::operator();
+  using ExprVisitor::operator();
+
+ protected:
+  using StmtVisitor::VisitStmt;
+  using ExprVisitor::VisitExpr;
+
+  void VisitExpr(const Expr& e) override {
+    return ExprVisitor::VisitExpr(e);
+  }
+};
+
+/*!
+ * \brief Mutator that recursively mutates stmts and exprs on them.
+ */
+class StmtExprMutator :
+      public StmtMutator,
+      public ExprMutator {
+ public:
+  using StmtMutator::operator();
+  using ExprMutator::operator();
+
+ protected:
+  using StmtMutator::VisitExpr;
+  using ExprMutator::VisitExpr;
+
+  Expr VisitExpr(const Expr& e) override {
+    return ExprMutator::VisitExpr(e);
+  }
+};
+
 }  // namespace ir
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTOR_EXT_H_
