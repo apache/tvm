@@ -572,6 +572,7 @@ runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
     auto& fhost = host_dev_funcs[0];
     auto& fdevice = host_dev_funcs[1];
     // Get the module for a certain target.
+    printf("build device module: %s\n", it.first->device_name.c_str());
     runtime::Module mdev = DeviceBuild(fdevice, it.first);
     for (const auto& it : fhost) {
       fhost_all.push_back(it);
