@@ -24,7 +24,6 @@
 // Acknowledgement: Most rewrite-rules are from Halide.
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"

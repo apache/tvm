@@ -23,7 +23,6 @@
  */
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include "const_fold.h"
 #include "pattern_match.h"
 #include "rewrite_simplify.h"

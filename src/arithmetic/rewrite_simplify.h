@@ -26,7 +26,6 @@
 
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include <unordered_map>
 #include <vector>
 #include "const_fold.h"
