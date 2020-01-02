@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -29,7 +29,7 @@ namespace tvm {
 namespace autotvm {
 
 // for loop
-void FeatureVisitor::Visit_(const For *op) {
+void FeatureVisitor::VisitStmt_(const For* op) {
   const auto *extent = op->extent.as<IntImm>();
   int64_t loop_extent = -1;
   if (extent != nullptr)
@@ -51,13 +51,13 @@ void FeatureVisitor::Visit_(const For *op) {
   }
 
   if (EnterItervar_(op->loop_var, loop_extent, ann)) {
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     ExitItervar_();
   }
 }
 
 // parallel axis, virtual thread
-void FeatureVisitor::Visit_(const AttrStmt *op) {
+void FeatureVisitor::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
     VarExpr var = op->node.as<tvm::IterVarNode>()->var;
@@ -86,24 +86,24 @@ void FeatureVisitor::Visit_(const AttrStmt *op) {
     }
 
     if (EnterItervar_(var, extent->value, ann)) {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       ExitItervar_();
     }
   } else {
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 }
 
 // memory access
-void FeatureVisitor::Visit_(const Load *op) {
+void FeatureVisitor::VisitExpr_(const Load* op) {
   EnterMem_(op->buffer_var, op->index);
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitExpr_(op);
   ExitMem_();
 }
 
-void FeatureVisitor::Visit_(const Store *op) {
+void FeatureVisitor::VisitStmt_(const Store* op) {
   EnterMem_(op->buffer_var, op->index);
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitStmt_(op);
   ExitMem_();
 }
 
