@@ -1827,62 +1827,6 @@ def test_unsqueeze_constant():
         relay.frontend.from_onnx(onnx_model, {'0': input_size})
 
 
-def test_resize():
-    def make_constant_node(name, data_type, dims, vals):
-        return helper.make_node('Constant',
-                                inputs=[],
-                                outputs=[name],
-                                value=helper.make_tensor(name=name,
-                                                         data_type=data_type,
-                                                         dims=dims,
-                                                         vals=vals))
-    def verify(ishape, oshape, scales, mode, coord_trans):
-        nodes = [
-            make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), []),
-            make_constant_node('scales', onnx.TensorProto.FLOAT, (len(scales),), scales)
-        ]
-        input_names = ['X', 'roi', 'scales']
-        if oshape != []:
-            nodes.append(make_constant_node('sizes', onnx.TensorProto.INT64, (len(oshape),), oshape))
-            input_names.append('sizes')
-        nodes.append(helper.make_node(
-            'Resize',
-            inputs=input_names,
-            outputs=['Y'],
-            mode=mode,
-            coordinate_transformation_mode=coord_trans
-        ))
-
-        if oshape == []:
-            oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
-
-        graph = helper.make_graph(nodes,
-                                  "resize_test",
-                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, ishape)],
-                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, oshape)])
-
-        model = helper.make_model(graph, producer_name='resize_test')
-
-        for target, ctx in ctx_list():
-            x = np.random.uniform(size=ishape).astype('float32')
-            onnx_out = get_onnxruntime_output(model, x, 'float32')
-            tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
-
-            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
-
-    # # NCHW and upsampling
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
-    # NCHW and downsampling
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
-    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
-    # scales are specified instead of sizes
-    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
-    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
-
-
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1940,4 +1884,3 @@ if __name__ == '__main__':
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
-    test_resize()
