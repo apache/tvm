@@ -39,10 +39,10 @@ def get_mod(data_shape, data_dtype, out_dtype, input_scale, output_scale,
             dtype=data_dtype)
     mod = relay.qnn.op.requantize(
             quantized_data,
-            input_scale=input_scale,
-            input_zero_point=input_zero_point,
-            output_scale=output_scale,
-            output_zero_point=output_zero_point,
+            input_scale=relay.const(input_scale, 'float32'),
+            input_zero_point=relay.const(input_zero_point, 'int32'),
+            output_scale=relay.const(output_scale, 'float32'),
+            output_zero_point=relay.const(output_zero_point, 'int32'),
             rounding=rounding,
             out_dtype=out_dtype)
 

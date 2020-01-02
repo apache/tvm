@@ -20,6 +20,7 @@
 """
 
 import numpy as np
+from tvm import relay
 from tvm.relay.qnn.op.qnn import dequantize
 
 zero_centered_uint8_quantized_range = np.float32(255)
@@ -54,8 +55,8 @@ def _dequantize_zero_centered(data,
 
     real_range = np.max([np.abs(np.float32(data_min)),
                          np.abs(np.float32(data_max))])
-    scale = np.divide(real_range, quantized_range)
-    zero_point = 0
+    scale = relay.const(np.divide(real_range, quantized_range), 'float32')
+    zero_point = relay.const(0, 'int32')
     return dequantize(data, scale, zero_point)
 
 
@@ -186,9 +187,11 @@ def _dequantize_mxnet_min_max_uint8(data,
     max_limit = np.float64(iinfo.max)
     imin_range = np.float64(imin_range)
     imax_range = np.float64(imax_range)
-    scale = np.divide((imax_range - imin_range),
-                      (max_limit - min_limit))
-    zero_point = np.int(-1 * np.divide(imin_range, scale))
+    scale_val = np.divide((imax_range - imin_range),
+                          (max_limit - min_limit))
+    zero_point_val = np.int(-1 * np.divide(imin_range, scale_val))
+    scale = relay.const(scale_val, 'float32')
+    zero_point = relay.const(zero_point_val, 'int32')
     return dequantize(data, scale, zero_point)
 
 
