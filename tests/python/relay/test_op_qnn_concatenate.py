@@ -26,16 +26,17 @@ def test_same_io_qnn_params():
     axis = 0
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
-    x_scale = (62 + 64) / (np.power(2, 32) - 1.0)
-    y_scale = (62 + 64) / (np.power(2, 32) - 1.0)
+    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    zero = relay.const(0, 'int32')
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
     z = relay.qnn.op.concatenate((x, y),
-                                 input_scales=[x_scale, y_scale],
-                                 input_zero_points=[0, 0],
+                                 input_scales=(x_scale, y_scale),
+                                 input_zero_points=(zero, zero),
                                  output_scale=y_scale,
-                                 output_zero_point=0,
+                                 output_zero_point=zero,
                                  axis=axis)
 
     func = relay.Function([x, y], z)
@@ -54,16 +55,19 @@ def test_different_io_qnn_params():
     axis = 0
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
-    x_scale = (62 + 64) / (np.power(2, 32) - 1.0)
-    y_scale = (62 + 64) / (np.power(2, 32) - 1.0)
+
+    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_zero_point = relay.const(3, 'int32')
+    y_zero_point = relay.const(4, 'int32')
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
     z = relay.qnn.op.concatenate((x, y),
-                                 input_scales=[x_scale, y_scale],
-                                 input_zero_points=[3, 4],
+                                 input_scales=(x_scale, y_scale),
+                                 input_zero_points=(x_zero_point, y_zero_point),
                                  output_scale=y_scale,
-                                 output_zero_point=1,
+                                 output_zero_point=relay.const(1, 'int32'),
                                  axis=axis)
 
     func = relay.Function([x, y], z)
@@ -82,16 +86,19 @@ def test_few_same_io_qnn_params():
     axis = 0
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
-    x_scale = (62 + 64) / (np.power(2, 32) - 1.0)
-    y_scale = (62 + 64) / (np.power(2, 32) - 1.0)
+
+    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_zero_point = relay.const(0, 'int32')
+    y_zero_point = relay.const(1, 'int32')
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
     z = relay.qnn.op.concatenate((x, y),
-                                 input_scales=[x_scale, y_scale],
-                                 input_zero_points=[0, 1],
+                                 input_scales=(x_scale, y_scale),
+                                 input_zero_points=(x_zero_point, y_zero_point),
                                  output_scale=y_scale,
-                                 output_zero_point=1,
+                                 output_zero_point=relay.const(1, 'int32'),
                                  axis=axis)
 
     func = relay.Function([x, y], z)
@@ -110,16 +117,19 @@ def test_same_i_qnn_params():
     axis = 0
     x_data = np.arange(-32, 32, 1).reshape(1, 64).astype(data_dtype)
     y_data = np.arange(-64, 64, 2).reshape(1, 64).astype(data_dtype)
-    x_scale = (62 + 64) / (np.power(2, 32) - 1.0)
-    y_scale = (62 + 64) / (np.power(2, 32) - 1.0)
+
+    x_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    y_scale = relay.const((62 + 64) / (np.power(2, 32) - 1.0), 'float32')
+    x_zero_point = relay.const(0, 'int32')
+    y_zero_point = relay.const(0, 'int32')
 
     x = relay.var("x", shape=(1, 64), dtype=data_dtype)
     y = relay.var("y", shape=(1, 64), dtype=data_dtype)
     z = relay.qnn.op.concatenate((x, y),
-                                 input_scales=[x_scale, y_scale],
-                                 input_zero_points=[0, 0],
+                                 input_scales=(x_scale, y_scale),
+                                 input_zero_points=(x_zero_point, y_zero_point),
                                  output_scale=y_scale,
-                                 output_zero_point=1,
+                                 output_zero_point=relay.const(1, 'int32'),
                                  axis=axis)
 
     func = relay.Function([x, y], z)

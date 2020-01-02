@@ -285,6 +285,7 @@ inline Expr Log(Expr e) {
 template <typename T>
 T GetScalarFromConstant(Expr expr) {
   const auto* n = expr.as<ConstantNode>();
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
   CHECK(n->is_scalar());
   return static_cast<T*>(n->data->data)[0];
 }
