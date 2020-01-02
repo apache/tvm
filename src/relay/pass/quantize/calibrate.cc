@@ -77,7 +77,7 @@ static float ComputeEntropy(float* p, float* q, size_t size) {
   return ret;
 }
 
-float MinimizeKL(const std::vector<int64_t>& hist,
+float MinimizeKL(const std::vector<int>& hist,
                  const std::vector<float>& hist_edges,
                  int num_bins, int num_quantized_bins) {
   const int zero_bin_idx = num_bins / 2;
@@ -208,11 +208,11 @@ TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
 
 TVM_REGISTER_API("relay._quantize.FindScaleByKLMinimization")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-  int64_t* hist_ptr = static_cast<int64_t*>(static_cast<void*>(args[0]));
+  int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
   float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));
   int num_bins = args[2];
   int num_quantized_bins = args[3];
-  std::vector<int64_t> hist(hist_ptr, hist_ptr + num_bins);
+  std::vector<int> hist(hist_ptr, hist_ptr + num_bins);
   std::vector<float> hist_edges(hist_edges_ptr, hist_edges_ptr + num_bins + 1);
   ret[0] = MinimizeKL(hist, hist_edges, num_bins, num_quantized_bins);
 });
