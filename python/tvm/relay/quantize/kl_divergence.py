@@ -34,7 +34,7 @@ def _find_scale_by_kl(arr, quantized_dtype='int8',
     assert isinstance(arr, np.ndarray)
     min_val = np.min(arr)
     max_val = np.max(arr)
-    th = max(abs(min_val), abs(max_val))
+    thres = max(abs(min_val), abs(max_val))
 
     if min_val >= 0 and quantized_dtype in ['uint8']:
         # We need to move negative bins to positive bins to fit uint8 range.
@@ -44,7 +44,7 @@ def _find_scale_by_kl(arr, quantized_dtype='int8',
         ptr = arr.ctypes.data_as(ctypes.POINTER(ctypes_type))
         return ctypes.cast(ptr, ctypes.c_void_p)
 
-    hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-th, th))
+    hist, hist_edges = np.histogram(arr, bins=num_bins, range=(-thres, thres))
     hist_ptr = get_pointer(hist, ctypes.c_int64)
     hist_edges_ptr = get_pointer(hist_edges, ctypes.c_float)
 
