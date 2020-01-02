@@ -95,7 +95,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   void Plan(const Stmt& stmt) {
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanSync(scope_.back(), nullptr, true);
     if (sync_.size() == 0) {
       sync_[stmt.get()] = GetSync(coproc_name_ + ".coproc_sync");
@@ -219,12 +219,12 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
 
   void PlanReadBarrier(const Stmt& stmt) {
     read_barrier_ = true;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanReadBarrier(scope_.back(), nullptr);
   }
   void PlanWriteBarrier(const Stmt& stmt) {
     read_barrier_ = false;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanWriteBarrier(scope_.back(), nullptr);
   }
 

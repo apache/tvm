@@ -363,7 +363,7 @@ class ThreadSyncInserter : public IRMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::make(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
-  planner.Visit(stmt);
+  planner(stmt);
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_).Mutate(stmt);
 }
 
