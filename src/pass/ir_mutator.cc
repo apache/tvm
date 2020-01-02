@@ -28,59 +28,6 @@
 namespace tvm {
 namespace ir {
 
-class IRTransformer final : public IRMutator {
- public:
-  IRTransformer(const runtime::PackedFunc& f_preorder,
-                const runtime::PackedFunc& f_postorder,
-                const std::unordered_set<uint32_t>& only_enable)
-      : f_preorder_(f_preorder),
-        f_postorder_(f_postorder),
-        only_enable_(only_enable) {
-  }
-  Stmt Mutate(Stmt stmt) final {
-    return MutateInternal<Stmt>(stmt);
-  }
-  Expr Mutate(Expr expr) final {
-    return MutateInternal<Expr>(expr);
-  }
-
- private:
-  template <typename T>
-  T MutateInternal(T node) {
-    if (only_enable_.size() &&
-        !only_enable_.count(node->type_index())) {
-      return IRMutator::Mutate(node);
-    }
-    if (f_preorder_ != nullptr) {
-      T pre = f_preorder_(node);
-      if (pre.defined()) return pre;
-    }
-    node = IRMutator::Mutate(node);
-    if (f_postorder_ != nullptr) {
-      T post = f_postorder_(node);
-      if (post.defined()) return post;
-    }
-    return node;
-  }
-  // The functions
-  const runtime::PackedFunc& f_preorder_;
-  const runtime::PackedFunc& f_postorder_;
-  // type indices enabled.
-  const std::unordered_set<uint32_t>& only_enable_;
-};
-
-Stmt IRTransform(const Stmt& ir_node,
-                 const runtime::PackedFunc& f_preorder,
-                 const runtime::PackedFunc& f_postorder,
-                 const Array<Expr>& only_enable) {
-  std::unordered_set<uint32_t> only_type_index;
-  for (Expr s : only_enable) {
-    only_type_index.insert(Object::TypeKey2Index(s.as<StringImm>()->value.c_str()));
-  }
-  return IRTransformer(f_preorder, f_postorder, only_type_index)
-      .Mutate(ir_node);
-}
-
 IRMutator::FMutateExpr& IRMutator::vtable_expr() {  // NOLINT(*)
   static FMutateExpr inst; return inst;
 }
