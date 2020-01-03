@@ -888,6 +888,7 @@ bool TakeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   const auto* indices = types[1].as<TensorTypeNode>();
   CHECK(indices != nullptr);
+  CHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
 
@@ -1648,6 +1649,9 @@ bool SqueezeRel(const Array<Type>& types,
   // if axes is None, squeeze all axes of dimension 1
   if (!param->axis.defined()) {
     for (const auto& e : data->shape) {
+      if (!e.as<IntImm>()) {
+        LOG(FATAL) << "axis needs to be defined for dynamic input.";
+      }
       const int64_t* axis_ptr = as_const_int(e);
       CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
       if (*axis_ptr != 1) {
