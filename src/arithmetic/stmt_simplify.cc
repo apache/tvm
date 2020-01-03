@@ -24,7 +24,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/arithmetic.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/expr_operator.h>
 #include <tvm/arithmetic.h>
 #include "ir_mutator_with_analyzer.h"
@@ -40,44 +39,47 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       : IRMutatorWithAnalyzer(analyzer) {}
 
   using Parent = IRMutatorWithAnalyzer;
-  using Parent::Mutate;
-  using Parent::Mutate_;
+  using Parent::VisitStmt;
+  using Parent::VisitStmt_;
 
-  Expr Mutate(Expr expr) final {
+  Expr VisitExpr(const Expr& expr) final {
     return analyzer_->Simplify(expr);
   }
 
   Stmt Simplify(Stmt stmt) {
-    return Mutate(stmt);
+    return operator()(std::move(stmt));
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
-    return IRMutator::Mutate_(op, s);
+    return Parent::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const LetStmt* op, const Stmt& s) {
-    Expr value = this->Mutate(op->value);
+  Stmt VisitStmt_(const LetStmt* op) {
+    Expr value = this->VisitExpr(op->value);
     if (!ir::HasSideEffect(value)) {
       // it is fine to discard the let binding
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);
-      return Mutate(op->body);
+      return this->VisitStmt(op->body);
     }
-    Stmt body = this->Mutate(op->body);
+    Stmt body = this->VisitStmt(op->body);
     if (value.same_as(op->value) &&
         body.same_as(op->body)) {
-      return s;
+      return GetRef<Stmt>(op);
     } else {
-      return LetStmt::make(op->var, value, body);
+      auto n = this->CopyOnWrite(op);
+      n->value = std::move(value);
+      n->body = std::move(body);
+      return Stmt(n);
     }
   }
 
   // eliminate useless stores
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Store* op) final {
+    Stmt stmt = Parent::VisitStmt_(op);
     op = stmt.as<Store>();
     if (const Load* load = op->value.as<Load>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
@@ -85,7 +87,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
         return Evaluate::make(0);
       }
     }
-    return stmt;
+    return GetRef<Stmt>(op);
   }
 };
 
@@ -98,7 +100,7 @@ Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
   for (auto kv : vrange) {
     analyzer.Bind(kv.first, kv.second);
   }
-  return arith::StmtSimplifier(&analyzer).Simplify(stmt);
+  return arith::StmtSimplifier(&analyzer).Simplify(std::move(stmt));
 }
 
 Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
@@ -119,7 +121,7 @@ Expr Simplify(Expr expr, Map<Var, Range> vrange) {
 }
 
 Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
-  return CanonicalSimplify(stmt, vrange);
+  return CanonicalSimplify(std::move(stmt), vrange);
 }
 }  // namespace ir
 }  // namespace tvm

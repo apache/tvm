@@ -24,8 +24,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/target_info.h>
 #include <map>
 #include <unordered_set>
@@ -54,7 +53,7 @@ using runtime::StorageScope;
 // The storage need to be kept alive between allocate and last access.
 // The free point is only inserted at the same scope of allocate.
 //
-class LinearAccessPatternFinder final : public IRVisitor {
+class LinearAccessPatternFinder final : public StmtExprVisitor {
  public:
   /*! \brief record the touch hist of statment. */
   struct StmtEntry {
@@ -78,7 +77,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
     const Allocate* alloc{nullptr};
   };
 
-  void Visit_(const Allocate* op) final {
+  void VisitStmt_(const Allocate* op) final {
     size_t level = scope_.size();
     const Variable* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
@@ -86,12 +85,12 @@ class LinearAccessPatternFinder final : public IRVisitor {
     CHECK(it->second.alloc == nullptr);
     it->second.alloc = op;
     it->second.level = level;
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
-  void Visit_(const Store* op) final {
+  void VisitStmt_(const Store* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     // Add write access.
     const Variable* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
@@ -106,10 +105,10 @@ class LinearAccessPatternFinder final : public IRVisitor {
       linear_seq_.push_back(e);
     }
   }
-  void Visit_(const Evaluate* op) final {
+  void VisitStmt_(const Evaluate* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     StmtEntry e = scope_.back();
     scope_.pop_back();
     if (e.touched.size() != 0) {
@@ -117,9 +116,9 @@ class LinearAccessPatternFinder final : public IRVisitor {
       linear_seq_.push_back(e);
     }
   }
-  void Visit_(const Load* op) final {
+  void VisitExpr_(const Load* op) final {
     // Add write access.
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
     const Variable* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
@@ -128,15 +127,15 @@ class LinearAccessPatternFinder final : public IRVisitor {
       scope_[it->second.level].touched.push_back(buf);
     }
   }
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_address_of)) {
       const Load* l = op->args[0].as<Load>();
-      this->Visit(l->index);
+      this->VisitExpr(l->index);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitExpr_(op);
     }
   }
-  void Visit_(const Variable* buf) final {
+  void VisitExpr_(const Variable* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
@@ -153,7 +152,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
     int64_t begin_index =  static_cast<int64_t>(linear_seq_.size());
     // before scope.
     linear_seq_.push_back(e);
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     // after scope.
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
@@ -165,7 +164,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
     CHECK_NE(end_index, 0U);
     linear_seq_[begin_index].scope_pair_offset = end_index - begin_index;
   }
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     // Only record the outer most thread extent.
     if (op->attr_key == attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
@@ -179,20 +178,20 @@ class LinearAccessPatternFinder final : public IRVisitor {
       const Variable* buf = op->node.as<Variable>();
       alloc_info_[buf].storage_scope =
           StorageScope::make(op->value.as<StringImm>()->value);
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
-  void Visit_(const IfThenElse* op) final {
+  void VisitStmt_(const IfThenElse* op) final {
     VisitNewScope(op);
   }
 
-  void Visit_(const For* op) final {
+  void VisitStmt_(const For* op) final {
     VisitNewScope(op);
   }
 
-  void Visit_(const AssertStmt* op) final {
+  void VisitStmt_(const AssertStmt* op) final {
     VisitNewScope(op);
   }
 
@@ -234,7 +233,7 @@ class LinearAccessPatternFinder final : public IRVisitor {
 //
 // The code after inplace transformation is no longer idempotent.
 //
-class InplaceOpVerifier : public IRVisitor {
+class InplaceOpVerifier : public StmtExprVisitor {
  public:
   bool Check(const Object* stmt,
              const Variable* dst,
@@ -243,58 +242,62 @@ class InplaceOpVerifier : public IRVisitor {
     src_ = src;
     result_ = true;
     if (stmt->IsInstance<AttrStmt>()) {
-      Visit_(static_cast<const AttrStmt*>(stmt));
+      VisitStmt_(static_cast<const AttrStmt*>(stmt));
     } else if (stmt->IsInstance<For>()) {
-      Visit_(static_cast<const For*>(stmt));
+      VisitStmt_(static_cast<const For*>(stmt));
     } else if (stmt->IsInstance<IfThenElse>()) {
-      Visit_(static_cast<const IfThenElse*>(stmt));
+      VisitStmt_(static_cast<const IfThenElse*>(stmt));
     } else if (stmt->IsInstance<Store>()) {
-      Visit_(static_cast<const Store*>(stmt));
+      VisitStmt_(static_cast<const Store*>(stmt));
     } else {
       return false;
     }
     return result_;
   }
 
-  using IRVisitor::Visit_;
+  using StmtExprVisitor::VisitStmt_;
 
-  void Visit(const ObjectRef& e) final {
+  void VisitStmt(const Stmt& n) final {
     if (!result_) return;
-    IRVisitor::Visit(e);
+    StmtExprVisitor::VisitStmt(n);
+  }
+  void VisitExpr(const Expr& n) final {
+    if (!result_) return;
+    StmtExprVisitor::VisitExpr(n);
   }
 
-  void Visit_(const Variable* op) final {
+  void VisitExpr_(const Variable* op) final {
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false; return;
     }
   }
 
-  void Visit_(const Store* op) final {
+  void VisitStmt_(const Store* op) final {
     ++mem_nest_;
-    this->Visit(op->index);
+    this->VisitExpr(op->index);
     --mem_nest_;
     if (op->buffer_var.get() == dst_) {
       store_ = op;
-      this->Visit(op->value);
-      this->Visit(op->predicate);
+      this->VisitExpr(op->value);
+      this->VisitExpr(op->predicate);
       store_ = nullptr;
     } else {
-      this->Visit(op->value);
-      this->Visit(op->predicate);
+      this->VisitExpr(op->value);
+      this->VisitExpr(op->predicate);
     }
   }
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     // always reject extern code
     if (op->attr_key == attr::extern_scope ||
         op->attr_key == attr::volatile_scope) {
       result_ = false; return;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 
-  void Visit_(const Load* op) final {
+  void VisitExpr_(const Load* op) final {
     const Variable* buf = op->buffer_var.get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
@@ -312,7 +315,7 @@ class InplaceOpVerifier : public IRVisitor {
       }
     }
     ++mem_nest_;
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
     --mem_nest_;
   }
 
@@ -332,7 +335,7 @@ class InplaceOpVerifier : public IRVisitor {
 };
 
 // Planner to plan and rewrite memory allocation.
-class StoragePlanRewriter : public IRMutator {
+class StoragePlanRewriter : public StmtExprMutator {
  public:
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
@@ -341,12 +344,12 @@ class StoragePlanRewriter : public IRMutator {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
     LinearAccessPatternFinder finder;
-    finder.Visit(stmt);
+    finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
     this->PlanMemory(finder.linear_seq_, finder.alloc_info_);
     this->PrepareNewAlloc();
     // start rewrite
-    stmt = this->Mutate(stmt);
+    stmt = operator()(std::move(stmt));
     if (attach_map_.count(nullptr)) {
       std::vector<Stmt> nest;
       for (StorageEntry* e : attach_map_.at(nullptr)) {
@@ -363,8 +366,8 @@ class StoragePlanRewriter : public IRMutator {
     }
     return stmt;
   }
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Store* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Store>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
@@ -373,8 +376,8 @@ class StoragePlanRewriter : public IRMutator {
                        RemapIndex(op->value.dtype(), op->index, it->second),
                        op->predicate);
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Load* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Load>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
@@ -383,7 +386,7 @@ class StoragePlanRewriter : public IRMutator {
                       RemapIndex(op->dtype, op->index, it->second),
                       op->predicate);
   }
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = alloc_map_.find(op);
     if (it != alloc_map_.end()) {
       if (it->second->bits_offset != 0) {
@@ -391,79 +394,81 @@ class StoragePlanRewriter : public IRMutator {
       }
       return it->second->alloc_var;
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();
       auto it = alloc_map_.find(buffer);
-       if (it == alloc_map_.end()) return IRMutator::Mutate_(op, e);
-       const StorageEntry* se = it->second;
-       Expr offset = Mutate(op->args[2]);
-       Expr extent = Mutate(op->args[3]);
-       uint64_t elem_bits = dtype.bits() * dtype.lanes();
-       CHECK_EQ(se->bits_offset % elem_bits, 0U);
-       if (se->bits_offset != 0) {
-         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
-       }
-       return Call::make(
-           op->dtype, op->name,
-           {op->args[0], se->alloc_var, offset, extent, op->args[4]},
-           op->call_type);
+      if (it == alloc_map_.end()) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
+      const StorageEntry* se = it->second;
+      Expr offset = this->VisitExpr(op->args[2]);
+      Expr extent = this->VisitExpr(op->args[3]);
+      uint64_t elem_bits = dtype.bits() * dtype.lanes();
+      CHECK_EQ(se->bits_offset % elem_bits, 0U);
+      if (se->bits_offset != 0) {
+        offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
+      }
+      return Call::make(
+          op->dtype, op->name,
+          {op->args[0], se->alloc_var, offset, extent, op->args[4]},
+          op->call_type);
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::thread_extent ||
                op->attr_key == attr::virtual_thread ||
                attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
-        Stmt stmt = IRMutator::Mutate_(op, s);
+        Stmt stmt = StmtExprMutator::VisitStmt_(op);
         op = stmt.as<AttrStmt>();
         return AttrStmt::make(
             op->node, op->attr_key, op->value,
             MakeAttach(svec, op->body));
       } else {
-        return IRMutator::Mutate_(op, s);
+        return StmtExprMutator::VisitStmt_(op);
       }
     } else if (op->attr_key == attr::volatile_scope) {
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AttrStmt>();
       auto it = alloc_map_.find(op->node.as<Variable>());
       if (it == alloc_map_.end()) return stmt;
       return AttrStmt::make(
           it->second->alloc_var, op->attr_key, op->value, op->body);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     CHECK(op->for_type != ForType::Vectorized)
         << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<For>();
       return For::make(
           op->loop_var, op->min, op->extent, op->for_type, op->device_api,
           MakeAttach(svec, op->body));
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    return this->Mutate(op->body);
+  Stmt VisitStmt_(const Allocate* op) final {
+    return this->VisitStmt(op->body);
   }
 
  private:
@@ -929,28 +934,28 @@ class StoragePlanRewriter : public IRMutator {
 
 // Turn alloc into vector alloc
 // if all its access is the same vector type.
-class VectorAllocRewriter : public IRMutator {
+class VectorAllocRewriter : public StmtExprMutator {
  public:
-  Expr Mutate_(const Load* op, const Expr& e) final {
+  Expr VisitExpr_(const Load* op) final {
     UpdateTypeMap(op->buffer_var.get(), op->dtype);
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Store* op) final {
     UpdateTypeMap(op->buffer_var.get(), op->value.dtype());
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();
       UpdateTypeMap(buffer, dtype);
     }
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     const auto& tvec = acc_map_[op->buffer_var.get()];
 
@@ -989,7 +994,7 @@ class VectorAllocRewriter : public IRMutator {
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
   auto n = make_object<LoweredFuncNode>(*f.operator->());
   VectorAllocRewriter rewriter;
-  n->body = rewriter.Mutate(n->body);
+  n->body = rewriter(n->body);
   for (Var arg : f->args) {
     if (arg.dtype().is_handle()) {
       const auto& tvec = rewriter.acc_map_[arg.get()];
@@ -1010,8 +1015,8 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
 }
 
 Stmt StorageRewrite(Stmt stmt) {
-  stmt = StoragePlanRewriter().Rewrite(stmt, true);
-  return VectorAllocRewriter().Mutate(stmt);
+  stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
+  return VectorAllocRewriter()(std::move(stmt));
 }
 }  // namespace ir
 }  // namespace tvm
