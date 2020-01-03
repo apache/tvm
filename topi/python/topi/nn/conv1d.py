@@ -55,6 +55,13 @@ def conv1d(data, kernel, layout='NCW', stride=1, padding='VALID', pad_method='SY
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
+    if out_dtype == None:
+        out_dtype = data.dtype
+    if isinstance(stride, (tuple, list)):
+        stride = stride[0]
+    if isinstance(dilation, (tuple, list)):
+        dilation = dilation[0]
+
     if layout == 'NCW':
         return conv1d_ncw(data, kernel, stride, padding, pad_method, dilation, out_dtype)
     elif layout == 'NWC':
@@ -76,8 +83,9 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     stride : int
         The spatial stride along width
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int, tuple, or str
+        Padding size can be an integer for equal padding,
+        a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
     pad_method : str
         How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
@@ -88,13 +96,6 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    if out_dtype == None:
-        out_dtype = data.dtype
-    # Dilate and pad
-    if isinstance(stride, (tuple, list)):
-        stride = stride[0]
-    if isinstance(dilation, (tuple, list)):
-        dilation = dilation[0]
     batch, in_channels, data_width = data.shape
     out_channels, _, kernel_size = kernel.shape
 
@@ -112,9 +113,11 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     elif pad_method == 'BEFORE':
         pad_before = [0, 0, pad_right + pad_left]
         pad_after = [0, 0, 0]
-    else:
+    elif pad_method == 'AFTER':
         pad_before = [0, 0, 0]
         pad_after = [0, 0, pad_right + pad_left]
+    else:
+        raise ValueError("Pad method {} is not supported.".format(pad_method))
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
@@ -143,8 +146,9 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     stride : int
         The spatial stride along width
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int, tuple, or str
+        Padding size can be an integer for equal padding,
+        a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
     pad_method : str
         How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
@@ -155,13 +159,6 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    if out_dtype == None:
-        out_dtype = data.dtype
-    # Dilate and pad
-    if isinstance(stride, (tuple, list)):
-        stride = stride[0]
-    if isinstance(dilation, (tuple, list)):
-        dilation = dilation[0]
     batch, data_width, in_channels = data.shape
     kernel_size, _, out_channels = kernel.shape
 
@@ -179,9 +176,11 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
     elif pad_method == 'BEFORE':
         pad_before = [0, pad_right + pad_left, 0]
         pad_after = [0, 0, 0]
-    else:
+    elif pad_method == 'AFTER':
         pad_before = [0, 0, 0]
         pad_after = [0, pad_right + pad_left, 0]
+    else:
+        raise ValueError("Pad method {} is not supported.".format(pad_method))
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
