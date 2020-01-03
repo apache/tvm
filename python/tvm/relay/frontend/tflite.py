@@ -1055,7 +1055,7 @@ class OperatorConverter(object):
         input_tensor_rank = len(input_tensor_shape)
         for i in range(input_tensor_rank):
             if size[i] == -1:
-                end[i] = input_tensor_shape[i] - begin[i] + 1
+                end[i] = input_tensor_shape[i]
             else:
                 end[i] += begin[i]
 

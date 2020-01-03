@@ -237,6 +237,7 @@ def test_forward_slice():
     # tflite 1.13 outputs nonsense values if size[i] == -1
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_slice(np.arange(8, dtype=np.int32).reshape((2, 4)), begin=[0, 1], size=[-1, -1])
+        _test_slice(np.arange(5, dtype=np.int32).reshape((5, )), begin=[4], size=[-1])
 
 #######################################################################
 # transpose
