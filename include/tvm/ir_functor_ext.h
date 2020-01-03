@@ -546,6 +546,35 @@ class StmtExprMutator :
   }
 };
 
+/*!
+ * \brief recursively visit the ir in post DFS order node, and transform it
+ *
+ * \param node The ir to be transformed.
+ * \param preorder The function called in before recursive mutation
+ *          If preorder returns None, then the transform will proceed to recursive call.
+ *          If preorder returns a not None Stmt/Expr, the transformer will simply return it and
+ *          won't do further recursion.
+ * \param postorder The function called after recursive mutation.
+ *          The recursive mutation result is passed to postorder for further mutation.
+ * \param only_enable List of StringImm.
+ *          If it is empty, all IRNode will call preorder/postorder
+ *          If it is not empty, preorder/postorder will only be called
+ *          when the IRNode's type key is in the list.
+ */
+TVM_DLL Stmt IRTransform(Stmt node,
+                         const runtime::PackedFunc& preorder,
+                         const runtime::PackedFunc& postorder,
+                         const Array<Expr>& only_enable = {});
+
+/*!
+ * \brief recursively visit the ir in post DFS order node, apply fvisit
+ * Each node is guaranteed to be visited only once.
+ * \param node The ir to be visited.
+ * \param fvisit The visitor function to be applied.
+ */
+TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
+
+
 }  // namespace ir
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTOR_EXT_H_

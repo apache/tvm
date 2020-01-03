@@ -22,8 +22,7 @@
  */
 #include <tvm/ir_pass.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/buffer.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
@@ -207,29 +206,29 @@ LoweredFunc MakeAPI(Stmt body,
   return f;
 }
 
-class DeviceTypeBinder: public IRMutator {
+class DeviceTypeBinder: public StmtExprMutator {
  public:
   explicit DeviceTypeBinder(int device_type)
       : device_type_(device_type) {}
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::device_context_type) {
       if (const Variable* var = op->value.as<Variable>()) {
         var_ = var;
         Expr value = make_const(op->value.dtype(), device_type_);
-        Stmt body = IRMutator::Mutate_(op, s);
+        Stmt body = StmtExprMutator::VisitStmt_(op);
         var_ = nullptr;
         std::ostringstream os;
         os << "device_type need to be " << device_type_;
         return AssertStmt::make(op->value == value, os.str(), body);
       }
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
+  Stmt VisitStmt_(const IfThenElse* op) final {
     // eager simplify if guard.
-    Stmt res = IRMutator::Mutate_(op, s);
+    Stmt res = StmtExprMutator::VisitStmt_(op);
     op = res.as<IfThenElse>();
     if (is_zero(op->condition)) {
       if (op->else_case.defined()) return op->else_case;
@@ -241,9 +240,9 @@ class DeviceTypeBinder: public IRMutator {
     return res;
   }
 
-  Expr Mutate_(const NE* op, const Expr& e) final {
+  Expr VisitExpr_(const NE* op) final {
     // eager check NE for device check
-    Expr res = IRMutator::Mutate_(op, e);
+    Expr res = StmtExprMutator::VisitExpr_(op);
     op = res.as<NE>();
     if (ir::Equal(op->a, op->b)) {
       return make_const(op->dtype, false);
@@ -251,11 +250,11 @@ class DeviceTypeBinder: public IRMutator {
     return res;
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     if (op == var_) {
       return make_const(op->dtype, device_type_);
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
 
@@ -267,7 +266,7 @@ class DeviceTypeBinder: public IRMutator {
 LoweredFunc BindDeviceType(LoweredFunc f,
                            int device_type) {
   auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = DeviceTypeBinder(device_type).Mutate(n->body);
+  n->body = DeviceTypeBinder(device_type)(n->body);
   return LoweredFunc(n);
 }
 
