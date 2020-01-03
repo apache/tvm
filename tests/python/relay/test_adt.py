@@ -888,6 +888,56 @@ def test_tensor_array_concat():
     run('int32')
 
 
+def test_tensor_array_scatter():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor_array1 = tensor_array(relay.const(3))
+        write_func = p.get_var('tensor_array_write', dtype)
+        scatter_func = p.get_var('tensor_array_scatter', dtype)
+        tensor2 = p.get_var('tensor2', dtype)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
+
+        # indices array
+        index = relay.var('index')
+
+        # values array
+        value_0 = relay.var('value_0')
+        value_1 = relay.var('value_1')
+        values_array = tensor_array(relay.const(2))
+        values_array = write_func(values_array, relay.const(0),
+                                  tensor2(value_0))
+        values_array = write_func(values_array, relay.const(1),
+                                  tensor2(value_1))
+
+        # create the scatter function
+        tensor_array_scatter = scatter_func(tensor_array1, index, values_array)
+        mod["main"] = relay.Function([v1, v2, v3, index, value_0, value_1],
+                                     tensor_array_scatter)
+
+        # initialize and check
+        v1_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        v3_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        index_data = np.array([0, 1], dtype="int32")
+        val1_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        val2_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        expected = [val1_data, val2_data, v3_data]
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            index_data, val1_data,
+                                            val2_data), dtype=dtype)
+    run('float32')
+    run('int32')
+
+
 if __name__ == "__main__":
     test_nat_constructor()
     test_double()
@@ -921,3 +971,4 @@ if __name__ == "__main__":
     test_tensor_take()
     test_tensor_concatenate()
     test_tensor_array_concat()
+    test_tensor_array_scatter()
