@@ -51,7 +51,7 @@ class IndexParser: public ExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void VisitExpr_(const Variable *op) {
+  void VisitExpr_(const Variable* op) final {
     // TODO(lmzheng): handle more index types (multiple occurrence)
     if (pattern_map.count(op) == 0) {
       pattern_map[op] = TouchPattern();
@@ -60,7 +60,7 @@ class IndexParser: public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const Mul *op) {
+  void VisitExpr_(const Mul* op) final {
     if (op->a.as<Variable>()) {
       if (const auto stride = op->b.as<IntImm>()) {
         next_stride_ = stride->value;
