@@ -22,7 +22,7 @@ def resize(data,
            size,
            layout="NCHW",
            method="bilinear",
-           align_corners=True,
+           coordinate_transformation_mode="half_pixel",
            out_dtype=None):
     """Image resize operator.
 
@@ -48,8 +48,11 @@ def resize(data,
     method : str, optional
         Scale method to used [nearest_neighbor, bilinear, bicubic].
 
-    align_corners : int, optional
-        Should be true to preserve the values at the corner pixels
+    coordinate_transformation_mode : string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        [half_pixel, align_corners, asymmetric]
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
@@ -59,4 +62,4 @@ def resize(data,
     result: relay.Expr
         The resized result.
     """
-    return _make.resize(data, size, layout, method, align_corners, out_dtype)
+    return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)

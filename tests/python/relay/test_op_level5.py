@@ -39,7 +39,7 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", True)
+    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -57,7 +57,7 @@ def test_resize():
         else:
             ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, True)
+        z = relay.image.resize(x, size, layout, method, "align_corners")
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")

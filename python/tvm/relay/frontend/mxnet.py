@@ -676,7 +676,7 @@ def _mx_resize(inputs, attrs):
     if scale_width is not None:
         width = (scale_width * shape[3]).astype("int32")
     size = (height, width)
-    return _op.image.resize(inputs[0], size, align_corners=True)
+    return _op.image.resize(inputs[0], size, coordinate_transformation_mode="align_corners")
 
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}

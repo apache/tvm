@@ -43,7 +43,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
 
     if method == "bilinear":
         out_size = (int(round(in_height*scale_h)), int(round(in_width*scale_w)))
-        b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout, align_corners=False)
+        b_np = topi.testing.bilinear_resize_python(a_np, out_size, layout, "asymmetric")
     else:
         b_np = topi.testing.upsampling_python(a_np, (scale_h, scale_w), layout)
 
