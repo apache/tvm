@@ -22,8 +22,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "ir_util.h"
@@ -33,25 +32,25 @@ namespace tvm {
 namespace ir {
 
 // Visitor to find touched set by co-processor scope.
-class CoProcTouchedBuffer : public IRVisitor {
+class CoProcTouchedBuffer : public StmtExprVisitor {
  public:
-  void Visit_(const Load* op) final {
+  void VisitExpr_(const Load* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {
       touched_[op->buffer_var.get()].normal = true;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
-  void Visit_(const Store* op) final {
+  void VisitStmt_(const Store* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {
       touched_[op->buffer_var.get()].normal = true;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       const Variable* buffer = op->args[1].as<Variable>();
       if (in_scope_) {
@@ -60,17 +59,17 @@ class CoProcTouchedBuffer : public IRVisitor {
         touched_[buffer].normal = true;
       }
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::coproc_scope && !in_scope_) {
       in_scope_ = true;
       IterVar iv = Downcast<IterVar>(op->node);
       coproc_.insert(iv);
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       in_scope_ = false;
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
@@ -96,7 +95,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   void Plan(const Stmt& stmt) {
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanSync(scope_.back(), nullptr, true);
     if (sync_.size() == 0) {
       sync_[stmt.get()] = GetSync(coproc_name_ + ".coproc_sync");
@@ -218,14 +217,14 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     write_barrier_name_ = coproc_name + ".coproc_write_barrier";
   }
 
-  void PlanReadBarrier(Stmt stmt) {
+  void PlanReadBarrier(const Stmt& stmt) {
     read_barrier_ = true;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanReadBarrier(scope_.back(), nullptr);
   }
-  void PlanWriteBarrier(Stmt stmt) {
+  void PlanWriteBarrier(const Stmt& stmt) {
     read_barrier_ = false;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanWriteBarrier(scope_.back(), nullptr);
   }
 
@@ -356,7 +355,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
 };
 
 
-class CoProcInstDepDetector : public IRVisitor {
+class CoProcInstDepDetector : public StmtVisitor {
  public:
   explicit CoProcInstDepDetector(
       const IterVar& coproc_axis,
@@ -366,15 +365,15 @@ class CoProcInstDepDetector : public IRVisitor {
     sync_pop_name_ = coproc_name + ".coproc_dep_pop";
   }
 
-  void Plan(Stmt stmt) {
-    this->Visit(stmt);
+  void Plan(const Stmt& stmt) {
+    this->VisitStmt(stmt);
     if (last_state_.node != nullptr) {
       MatchFixEnterPop(first_state_);
       MatchFixExitPush(last_state_);
     }
   }
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::coproc_scope &&
         op->node.same_as(coproc_axis_)) {
       const IntImm* ctx_id = op->value.as<IntImm>();
@@ -385,15 +384,15 @@ class CoProcInstDepDetector : public IRVisitor {
       curr_state_.exit_ctx.insert(ctx_id->value);
       UpdateState();
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const For* op) final {
+  void VisitStmt_(const For* op) final {
     SyncState temp_first, temp_last;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
-    this->Visit(op->body);
+    this->VisitStmt(op->body);
     curr_state_.clear();
     if (last_state_.node != nullptr) {
       curr_state_.node = op;
@@ -412,13 +411,13 @@ class CoProcInstDepDetector : public IRVisitor {
     }
   }
 
-  void Visit_(const IfThenElse* op) final {
+  void VisitStmt_(const IfThenElse* op) final {
     SyncState temp_first, temp_last, curr_state;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
     {
       // then stmt
-      this->Visit(op->then_case);
+      this->VisitStmt(op->then_case);
       if (last_state_.node != nullptr) {
         curr_state.node = op;
         MatchFixEnterPop(first_state_);
@@ -434,7 +433,7 @@ class CoProcInstDepDetector : public IRVisitor {
       last_state_.clear();
     }
     if (op->else_case.defined()) {
-      this->Visit(op->else_case);
+      this->VisitStmt(op->else_case);
       if (last_state_.node != nullptr) {
         curr_state.node = op;
         MatchFixEnterPop(first_state_);
@@ -606,11 +605,11 @@ class CoProcInstDepDetector : public IRVisitor {
 };
 
 
-class CoProcSyncInserter : public IRMutator {
+class CoProcSyncInserter : public StmtMutator {
  public:
   Stmt Insert(Stmt stmt) {
     CoProcTouchedBuffer visitor;
-    visitor.Visit(stmt);
+    visitor(stmt);
     if (visitor.coproc_.size() == 0) return stmt;
     std::unordered_set<const Variable*> touched;
 
@@ -652,10 +651,10 @@ class CoProcSyncInserter : public IRMutator {
       auto& vec = insert_after_[kv.first];
       vec.insert(vec.end(), kv.second.begin(), kv.second.end());
     }
-    return Mutate(stmt);
+    return operator()(std::move(stmt));
   }
 
-  Stmt Mutate(Stmt stmt) final {
+  Stmt VisitStmt(const Stmt& stmt) final {
     Stmt before, after;
     auto it = insert_before_.find(stmt.get());
     if (it != insert_before_.end()) {
@@ -666,14 +665,14 @@ class CoProcSyncInserter : public IRMutator {
     if (it != insert_after_.end()) {
       after = MergeSeq(it->second);
     }
-    stmt = IRMutator::Mutate(stmt);
+    Stmt new_stmt = StmtMutator::VisitStmt(stmt);
     if (before.defined()) {
-      stmt = Block::make(before, stmt);
+      new_stmt = Block::make(before, new_stmt);
     }
     if (after.defined()) {
-      stmt = Block::make(stmt, after);
+      new_stmt = Block::make(new_stmt, after);
     }
-    return stmt;
+    return new_stmt;
   }
 
  private:
@@ -685,7 +684,7 @@ class CoProcSyncInserter : public IRMutator {
 
 
 Stmt CoProcSync(Stmt stmt) {
-  return CoProcSyncInserter().Insert(stmt);
+  return CoProcSyncInserter().Insert(std::move(stmt));
 }
 
 }  // namespace ir

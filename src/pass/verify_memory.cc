@@ -22,8 +22,9 @@
  * \brief Pass to check if memory accesses are legal.
  */
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
+
 
 namespace tvm {
 namespace ir {
@@ -39,7 +40,7 @@ namespace {
  *  This pass performs such verification by checking if all Producer/Consumer
  *  with memory accesses are bound with threads when device type is GPU.
  */
-class MemoryAccessVerifier final : protected IRVisitor {
+class MemoryAccessVerifier final : protected StmtExprVisitor {
  public:
   /// Special member functions
   //@{
@@ -55,7 +56,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
   /// Interface to perform memory access verification
   void Run() {
     if (!IsGPUDevice(dev_type_) && !IsFPGADevice(dev_type_)) return;
-    IRVisitor::Visit(func_->body);
+    StmtExprVisitor::VisitStmt(func_->body);
   }
 
   /// Verification result
@@ -64,42 +65,47 @@ class MemoryAccessVerifier final : protected IRVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void Visit(const ObjectRef &n) final {
+  void VisitExpr(const Expr &n) final {
     if (Failed()) return;
-    IRVisitor::Visit(n);
+    StmtExprVisitor::VisitExpr(n);
   }
 
-  void Visit_(const LetStmt *op) final {
+  void VisitStmt(const Stmt &n) final {
+    if (Failed()) return;
+    StmtExprVisitor::VisitStmt(n);
+  }
+
+  void VisitStmt_(const LetStmt* op) final {
     // Book keep definitions
     defs_[op->var.get()] = op->value;
-    return IRVisitor::Visit_(op);
+    return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void Visit_(const AttrStmt *op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (!InThreadEnv() && (op->attr_key == attr::thread_extent ||
                            op->attr_key == attr::pipeline_exec_scope)) {
       EnterThreadEnv();
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       ExitThreadEnv();
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const ProducerConsumer *op) final {
+  void VisitStmt_(const ProducerConsumer* op) final {
     EnterProducerConsumer(op);
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     ExitProducerConsumer();
   }
 
-  void Visit_(const Load *op) final {
+  void VisitExpr_(const Load* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
-    return IRVisitor::Visit_(op);
+    return StmtExprVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Store *op) final {
+  void VisitStmt_(const Store* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
-    return IRVisitor::Visit_(op);
+    return StmtExprVisitor::VisitStmt_(op);
   }
   //@}
 

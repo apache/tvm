@@ -145,15 +145,6 @@ class TVM_DLL IRVisitor {
   virtual void Visit_(const FloatImm* op);
   virtual void Visit_(const StringImm* op);
 };
-
-/*!
- * \brief recursively visit the ir in post DFS order node, apply fvisit
- * Each node is guaranteed to be visited only once.
- * \param node The ir to be visited.
- * \param fvisit The visitor function to be applied.
- */
-TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
-
 }  // namespace ir
 }  // namespace tvm
 

@@ -22,7 +22,7 @@
  * \brief Utilities to get information about schedule graph.
  */
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/operation.h>
 #include <utility>
 #include <unordered_set>

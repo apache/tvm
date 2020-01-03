@@ -22,8 +22,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "ir_util.h"
@@ -197,13 +196,13 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
-class ThreadSyncInserter : public IRMutator {
+class ThreadSyncInserter : public StmtExprMutator {
  public:
   ThreadSyncInserter(StorageScope sync_scope,
                      const std::unordered_set<const Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
-  Stmt Mutate(Stmt stmt) final {
+  Stmt VisitStmt(const Stmt& stmt) final {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
@@ -216,33 +215,33 @@ class ThreadSyncInserter : public IRMutator {
                            Call::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
-      stmt = IRMutator::Mutate(stmt);
-      stmt = Block::make(barrier, stmt);
+      auto ret = StmtExprMutator::VisitStmt(stmt);
+      ret = Block::make(barrier, ret);
+      return ret;
     } else {
-      stmt = IRMutator::Mutate(stmt);
+      return StmtExprMutator::VisitStmt(stmt);
     }
-    return stmt;
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
+  Expr VisitExpr_(const Load* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
     }
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Store* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].write_count;
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
       bool temp = true;
       std::swap(temp, in_thread_env_);
       thread_extents_.push_back(op);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       std::swap(temp, in_thread_env_);
       // first thread scope.
@@ -256,15 +255,15 @@ class ThreadSyncInserter : public IRMutator {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] =
           StorageScope::make(op->value.as<StringImm>()->value);
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      Expr expr = IRMutator::Mutate_(op, e);
+      Expr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<Call>();
       CHECK_EQ(op->args.size(), 5U);
       const Variable* buffer_var = op->args[1].as<Variable>();
@@ -280,7 +279,7 @@ class ThreadSyncInserter : public IRMutator {
       }
       return expr;
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
@@ -363,8 +362,8 @@ class ThreadSyncInserter : public IRMutator {
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::make(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
-  planner.Visit(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_).Mutate(stmt);
+  planner(stmt);
+  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
 }
 
 LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {

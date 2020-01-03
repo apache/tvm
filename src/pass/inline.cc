@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,8 +21,8 @@
  * \file inline.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace ir {
@@ -30,13 +30,13 @@ namespace ir {
 // inliner to inline a function
 // the result may not be SSA,
 // ConvertSSA need to be applied after this pass
-class IRInline final : public IRMutator {
+class IRInline final : public StmtExprMutator {
  public:
   IRInline(FunctionRef f, Array<Var> args, Expr body)
       : f_(f), args_(args), body_(body) {}
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Call* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
 
     if (op->func == f_) {
@@ -78,7 +78,7 @@ Stmt Inline(Stmt stmt,
             Expr body) {
   CHECK_EQ(f->num_outputs(), 1)
       << "can only inline output single value operation";
-  Stmt ret = IRInline(f, args, body).Mutate(stmt);
+  Stmt ret = IRInline(f, args, body)(std::move(stmt));
   if (ret.same_as(stmt)) return ret;
   return ConvertSSA(ret);
 }

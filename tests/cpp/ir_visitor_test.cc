@@ -20,6 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 
 TEST(IRVisitor, CountVar) {

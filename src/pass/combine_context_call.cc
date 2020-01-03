@@ -23,7 +23,7 @@
  * \file combine_context_call.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <map>
 
@@ -32,7 +32,7 @@ namespace ir {
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class ContextCallCombiner final : public IRMutator {
+class ContextCallCombiner final : public StmtExprMutator {
  public:
   struct CompareExpr {
     bool operator()(const Expr& lhs, const Expr& rhs) const {
@@ -40,7 +40,7 @@ class ContextCallCombiner final : public IRMutator {
     }
   };
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
       Expr ctx = op->args[0];
@@ -60,39 +60,39 @@ class ContextCallCombiner final : public IRMutator {
         return std::move(ctx_var);
       }
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
       return BuildContext(temp, stmt);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     if (op->for_type == ForType::Parallel) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
       return BuildContext(temp, stmt);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
   Stmt Combine(Stmt stmt) {
-    return BuildContext(ctx_map_, this->Mutate(stmt));
+    return BuildContext(ctx_map_, this->VisitStmt(stmt));
   }
 
  private:
