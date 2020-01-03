@@ -81,7 +81,8 @@ class QConfig(NodeBase):
         "do_simulation": False,
         "round_for_shift": True,
         "debug_enabled_ops": None,
-        "rounding": "UPWARD"
+        "rounding": "UPWARD",
+        "calibrate_chunk_by": -1,
     }
 
     # pylint: disable=no-member

@@ -33,24 +33,7 @@ from ...contrib import graph_runtime
 from .kl_divergence import _find_scale_by_kl
 
 
-def collect_stats(mod, dataset):
-    """Given an annotated graph, create a profile graph to collect profile data from the
-    calibration dataset. This pass collects simulated_quantize op input into a tuple.
-    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
-    graph.
-
-    Parameters
-    ----------
-    mod: Module
-        The simulation graph after annotation.
-
-    Returns
-    -------
-    ret: list of ndarray
-        List of output data of each layer
-    """
-
-    logging.info("collecting statistics for calibration...")
+def _get_profile_runtime(mod):
     func = mod['main']
     func = _quantize.CreateStatsCollector(func)
 
@@ -63,30 +46,61 @@ def collect_stats(mod, dataset):
 
     with _transform.build_config(opt_level=3):
         graph, lib, params = _build_module.build(func, target=target)
-    outputs = []
     runtime = graph_runtime.create(graph, lib, ctx)
     runtime.set_input(**params)
 
+    return runtime
+
+
+def collect_stats(mod, dataset, chunk_by=-1):
+    """Given an annotated graph, create a profile graph to collect profile data from the
+    calibration dataset. This pass collects simulated_quantize op input into a tuple.
+    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
+    graph.
+
+    Parameters
+    ----------
+    mod: Module
+        The simulation graph after annotation.
+
+    dataset: Iterable[NDArray]
+        The calibration dataset.
+
+    chunk_by: optional, int
+        The size of chunk to be returned in one iteration. It is meant to be
+        used for reducing memory usage. If not specified, return samples for
+        all layers in one chunk.
+
+    Returns
+    -------
+    ret: Iterable[list of ndarray]
+        List of output data of each layer, chunked by the chunk_by parameter
+    """
+    logging.info("collecting statistics for calibration...")
+    runtime = _get_profile_runtime(mod)
     num_outputs = runtime.get_num_outputs()
-    outputs = [[] for i in range(num_outputs)]
+    chunk_by = num_outputs if chunk_by == -1 else chunk_by
 
-    for batch in dataset:
-        runtime.set_input(**batch)
-        runtime.run()
-        for i in range(num_outputs):
-            output = runtime.get_output(i).asnumpy()
-            outputs[i].append(output)
-    for i in range(num_outputs):
-        outputs[i] = np.concatenate(outputs[i]).reshape(-1)
-    return outputs
+    for i in range(0, num_outputs, chunk_by):
+        outputs = [[] for i in range(min(chunk_by, num_outputs - i))]
+        for batch in dataset:
+            runtime.set_input(**batch)
+            runtime.run()
+            for j in range(i, min(i+chunk_by, num_outputs)):
+                outputs[j-i].append(runtime.get_output(j).asnumpy())
+        yield [np.concatenate(output).reshape(-1) for output in outputs]
 
 
-def _kl_scale(stats):
-    with mp.Pool() as pool:
+def _kl_scale(mod, dataset):
+    cfg = quantize.current_qconfig()
+    chunk_by = cfg.calibrate_chunk_by
+    scales = []
+    for samples in collect_stats(mod, dataset, chunk_by):
         logging.info("finding threshold with kl for calibration...")
-        scales = list(pool.map(_find_scale_by_kl, stats))
+        with mp.Pool() as pool:
+            scales += list(pool.map(_find_scale_by_kl, samples))
 
-    def func(sq_call):  # pylint: disable=unused-argument
+    def func(_):
         scale = scales[func.scale_idx]
         func.scale_idx += 1
         return scale
@@ -168,13 +182,12 @@ def calibrate(dataset=None):
     ret: Function
         The module pass function.
     """
-    def wrapped_func(mod, ctx): # pylint: disable=unused-argument
+    def wrapped_func(mod, _):
         """make transform.module pass happy"""
         cfg = quantize.current_qconfig()
 
         if cfg.calibrate_mode == 'kl_divergence':
-            stats = collect_stats(mod, dataset)
-            input_scale_func = _kl_scale(stats)
+            input_scale_func = _kl_scale(mod, dataset)
         elif cfg.calibrate_mode == 'global_scale':
             input_scale_func = _global_scale
         else:

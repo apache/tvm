@@ -67,7 +67,18 @@ def test_calibrate_target(create_target=False):
             relay.quantize.quantize(mod, params, dataset)
 
 
+def test_calibrate_memory_bound():
+    mod, params = testing.resnet.get_workload(num_layers=18)
+    dataset = get_calibration_dataset("data")
+    import multiprocessing
+    num_cpu = multiprocessing.cpu_count()
+    with relay.quantize.qconfig(calibrate_mode="kl_divergence",
+                                calibrate_chunk_by=num_cpu):
+        relay.quantize.quantize(mod, params, dataset)
+
+
 if __name__ == "__main__":
     test_mul_rewrite()
     test_calibrate_target(False)
     test_calibrate_target(True)
+    test_calibrate_memory_bound()
