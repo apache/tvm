@@ -65,7 +65,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TypeVar TypeVarNode::make(std::string name, Kind kind) {
   ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
-  n->var = tvm::Var(name);
+  n->name_hint = std::move(name);
   n->kind = std::move(kind);
   return TypeVar(n);
 }
@@ -74,19 +74,19 @@ TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_API("relay._make.TypeVar")
 .set_body_typed<TypeVar(std::string, int)>([](std::string name, int kind) {
-    return TypeVarNode::make(name, static_cast<Kind>(kind));
-    });
+  return TypeVarNode::make(name, static_cast<Kind>(kind));
+});
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<TypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
-    auto* node = static_cast<const TypeVarNode*>(ref.get());
-  p->stream << "TypeVarNode(" << node->var->name_hint << ", "
-    << node->kind << ")";
+  auto* node = static_cast<const TypeVarNode*>(ref.get());
+  p->stream << "TypeVarNode(" << node->name_hint << ", "
+            << node->kind << ")";
 });
 
 GlobalTypeVar GlobalTypeVarNode::make(std::string name, Kind kind) {
   ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
-  n->var = tvm::Var(name);
+  n->name_hint = std::move(name);
   n->kind = std::move(kind);
   return GlobalTypeVar(n);
 }
@@ -101,7 +101,7 @@ TVM_REGISTER_API("relay._make.GlobalTypeVar")
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
     auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
-  p->stream << "GlobalTypeVarNode(" << node->var->name_hint << ", "
+  p->stream << "GlobalTypeVarNode(" << node->name_hint << ", "
             << node->kind << ")";
 });
 
