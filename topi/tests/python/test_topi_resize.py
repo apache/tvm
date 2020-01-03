@@ -23,7 +23,8 @@ import math
 
 from common import get_all_backend
 
-def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width, layout='NCHW', align_corners=True, method="bilinear"):
+def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
+                  layout='NCHW', coord_trans="align_corners", method="bilinear"):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
@@ -37,11 +38,9 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
     else:
         raise NotImplementedError(
             'Layout not supported {} '.format(layout))
-
-    B = topi.image.resize(A, (out_height, out_width), layout=layout, align_corners=align_corners, method=method)
-
+    B = topi.image.resize(A, (out_height, out_width), layout=layout, coordinate_transformation_mode=coord_trans, method=method)
     if method == "bilinear":
-        b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, align_corners)
+        b_np = topi.testing.bilinear_resize_python(a_np, (out_height, out_width), layout, coord_trans)
     else:
         scale_h = out_height / in_height
         scale_w = out_width / in_width
@@ -70,14 +69,17 @@ def test_resize():
     # Scale NCHW
     verify_resize(4, 16, 32, 32, 50, 50, 'NCHW')
     # Scale NCHW + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, 'NCHW', True)
+    verify_resize(6, 32, 64, 64, 20, 20, 'NCHW')
     # Scale NHWC
     verify_resize(4, 16, 32, 32, 50, 50, "NHWC")
     # Scale NHWC + Align Corners
-    verify_resize(6, 32, 64, 64, 20, 20, "NHWC", True)
+    verify_resize(6, 32, 64, 64, 20, 20, "NHWC")
     # Nearest + Fractional
-    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', method="nearest_neighbor", align_corners=False)
-    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', method="nearest_neighbor", align_corners=False)
+    verify_resize(4, 16, 32, 32, 50, 50, 'NCHW', "asymmetric", method="nearest_neighbor")
+    verify_resize(4, 16, 32, 32, 50, 50, 'NHWC', "asymmetric", method="nearest_neighbor")
+    # half_pixel
+    verify_resize(4, 16, 16, 16, 32, 32, 'NCHW', "half_pixel", method="bilinear")
+    verify_resize(4, 16, 16, 16, 32, 32, 'NHWC', "half_pixel", method="bilinear")
 
 
 def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth, out_height, out_width,
