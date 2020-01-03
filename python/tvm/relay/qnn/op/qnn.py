@@ -18,7 +18,6 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm.expr import FloatImm, IntImm
 from tvm.relay.expr import Tuple
 from . import _make
 
@@ -42,16 +41,16 @@ def requantize(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
-    input_scale: float
+    input_scale: tvm.relay.Expr
         The quantization scale for the input tensor.
 
-    input_zero_point: int
+    input_zero_point: tvm.relay.Expr
         The zero point of the input tensor.
 
-    output_scale: float
+    output_scale: tvm.relay.Expr
         The quantization scale for the output tensor.
 
-    output_zero_point: int
+    output_zero_point: tvm.relay.Expr
         The zero point of the output tensor.
 
     rounding : string, optional
@@ -92,9 +91,9 @@ def quantize(data,
     ----------
     data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
-    output_zero_point : int
+    output_zero_point : tvm.relay.Expr
         The output zero_point.
-    output_scale : float
+    output_scale : tvm.relay.Expr
         The output scale.
     out_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8]
@@ -122,9 +121,9 @@ def dequantize(data,
     ----------
     data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8].
-    input_zero_point : int
+    input_zero_point : tvm.relay.Expr
         The output zero_point.
-    input_scale : float
+    input_scale : tvm.relay.Expr
         The output scale.
     Returns
     -------
@@ -150,16 +149,16 @@ def concatenate(data,
     data : Union(List[relay.Expr], Tuple[relay.Expr])
         The list of quantized tensors.
 
-    input_scales : List[float32]
+    input_scales : List[relay.Expr]
         The list of scales of input quantized tensors.
 
-    input_zero_points : List[int32]
+    input_zero_points : List[relay.Expr]
         The list of zero points of input quantized tensors.
 
-    output_scale : float32
+    output_scale : relay.Expr
         The scale of the output quantized tensor.
 
-    output_zero_point : int32
+    output_zero_point : relay.Expr
         The zero point of the output quantized tensor.
 
     axis : int
@@ -176,10 +175,12 @@ def concatenate(data,
         raise ValueError("relay.concatenate requires data to be non-empty.")
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
+    input_scales = list(input_scales)
+    input_zero_points = list(input_zero_points)
 
     return _make.concatenate(Tuple(data),
-                             [FloatImm("float64", x) for x in input_scales],
-                             [IntImm("int32", x) for x in input_zero_points],
+                             Tuple(input_scales),
+                             Tuple(input_zero_points),
                              output_scale,
                              output_zero_point,
                              axis)
@@ -218,21 +219,21 @@ def conv2d(data,
     kernel : tvm.relay.Expr
         The kernel expressions.
 
-    input_zero_point: int
+    input_zero_point: tvm.relay.Expr
            The zero point of the data distribution.
 
-    input_scale: float
+    kernel_zero_point: tvm.relay.Expr
+           The zero point of the quantized_kernel distribution.
+
+    input_scale: tvm.relay.Expr
            The scale for the input tensor. The scale for the input tensor is
            stored purely for convenience here. See more commentary below.
 
-    kernel_scale: float
+    kernel_scale: tvm.relay.Expr
            The scale for the weight tensor. The scale for the weight tensor is
            stored for access to this during relay. This information is not
            needed in the pass pipeline after qnn.conv2d is lowered to the
            sequence of steps as in nn.conv2d. See also input_scale in Requantize.
-
-    kernel_zero_point: int
-           The zero point of the quantized_kernel distribution.
 
     strides : tuple of int, optional
         The strides of convolution.
@@ -299,19 +300,22 @@ def add(lhs,
     lhs_scale: float
         The scale of the lhs quantized expr.
 
-    lhs_zero_point: int
+    lhs_scale: relay.Expr
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: relay.Expr
        The zero point of lhs quantized expr.
 
-    rhs_scale: float
+    rhs_scale: relay.Expr
         The scale of the rhs quantized expr.
 
-    rhs_zero_point: int
+    rhs_zero_point: relay.Expr
        The zero point of rhs quantized expr.
 
-    output_scale: float
+    output_scale: relay.Expr
         The scale of the output quantized expr.
 
-    output_zero_point: int
+    output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
     Returns
@@ -347,13 +351,13 @@ def dense(data,
         The quantized input data to the operator.
     weight : tvm.relay.Expr
         The quantized weight expressions.
-    input_zero_point: int
+    input_zero_point: tvm.relay.Expr
         The input zero point.
-    kernel_zero_point: int
+    kernel_zero_point: tvm.relay.Expr
         The kernel zero point.
-    input_scale: float
+    input_scale: tvm.relay.Expr
         The scale for the input tensor.
-    kernel_scale: float
+    kernel_scale: tvm.relay.Expr
         The scale for the weight tensor. The scale for the weight tensor is
         stored for access to this during relay. This information is not
         needed in the pass pipeline after qnn.conv2d is lowered to the
@@ -391,22 +395,22 @@ def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
     rhs : relay.Expr
         The right hand side quantized input data.
 
-    lhs_scale: float
+    lhs_scale: relay.Expr
         The scale of the lhs quantized expr.
 
-    lhs_zero_point: int
+    lhs_zero_point: relay.Expr
        The zero point of lhs quantized expr.
 
-    rhs_scale: float
+    rhs_scale: relay.Expr
         The scale of the rhs quantized expr.
 
-    rhs_zero_point: int
+    rhs_zero_point: relay.Expr
        The zero point of rhs quantized expr.
 
-    output_scale: float
+    output_scale: relay.Expr
         The scale of the output quantized expr.
 
-    output_zero_point: int
+    output_zero_point: relay.Expr
        The zero point of output quantized expr.
 
     Returns
