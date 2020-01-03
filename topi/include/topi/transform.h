@@ -34,6 +34,7 @@
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
+#include "topi/detail/tensor_utils.h"
 #include "tvm/operation.h"
 #include "tvm/expr_operator.h"
 #include "tvm/data_layout.h"
@@ -41,19 +42,6 @@
 namespace topi {
 using namespace tvm;
 using namespace topi::detail;
-
-bool is_empty_tensor(const Tensor& x) {
-  bool is_empty_tensor = false;
-  for (const auto& dim : x->shape) {
-    if (auto int_dim = dim.as<IntImm>()) {
-      if (int_dim->value == 0) {
-        is_empty_tensor = true;
-        break;
-      }
-    }
-  }
-  return is_empty_tensor;
-}
 
 /*!
 * \brief Creates an operation to insert new dimensions of length 1
@@ -232,7 +220,7 @@ inline Tensor reshape(const Tensor& x,
 
   if (is_empty_tensor(x)) {
     return compute(target_shape,
-                   [&](const Array<Var> &indices) { return cast(x->dtype, 0); },
+                   [&](const Array<Var> &indices) { return tvm::cast(x->dtype, 0); },
                    name, tag);
   } else {
     return compute(
@@ -965,7 +953,7 @@ inline Tensor tile(const Tensor& x,
 
   if (is_empty_tensor(x)) {
     return compute(new_shape,
-                   [&](const Array<Var>& indices) { return cast(x->dtype, 0);},
+                   [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0);},
                    name, tag);
   } else {
     return compute(

@@ -65,7 +65,10 @@ def schedule_injective(outs):
     x = outs[0]
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
-    schedule_injective_from_existing(s, x)
+
+    is_empty = all(dim != 0 for dim in x.shape)
+    if not is_empty:
+        schedule_injective_from_existing(s, x)
     return s
 
 @generic.schedule_concatenate.register(["cpu"])

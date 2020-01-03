@@ -79,7 +79,9 @@ def schedule_injective(outs):
 
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        schedule_injective_from_existing(s, out)
+        is_empty = all(dim != 0 for dim in out.shape)
+        if not is_empty:
+            schedule_injective_from_existing(s, out)
     return s
 
 schedule_elemwise = schedule_injective
