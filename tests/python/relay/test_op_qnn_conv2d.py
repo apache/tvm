@@ -52,16 +52,16 @@ def get_ref_func(data,
     shifted_kernel = relay.op.subtract(casted_kernel,
             relay.const(kernel_zero_point, "int32"))
     func = relay.op.nn.conv2d(shifted_data,
-                             shifted_kernel,
-                             padding=padding,
-                             strides=strides,
-                             dilation=dilation,
-                             groups=groups,
-                             channels=channels,
-                             kernel_size=kernel_size,
-                             out_dtype=out_dtype,
-                             data_layout=data_layout,
-                             kernel_layout=kernel_layout)
+                              shifted_kernel,
+                              padding=padding,
+                              strides=strides,
+                              dilation=dilation,
+                              groups=groups,
+                              channels=channels,
+                              kernel_size=kernel_size,
+                              out_dtype=out_dtype,
+                              data_layout=data_layout,
+                              kernel_layout=kernel_layout)
 
     func = relay.Function(relay.analysis.free_vars(func), func)
     return func
@@ -83,10 +83,10 @@ def get_qnn_func(data,
                  channels=None):
     func = relay.qnn.op.conv2d(
             data, kernel,
-            input_zero_point=input_zero_point,
-            kernel_zero_point=kernel_zero_point,
-            input_scale=input_scale,
-            kernel_scale=kernel_scale,
+            input_zero_point=relay.const(input_zero_point, 'int32'),
+            kernel_zero_point=relay.const(kernel_zero_point, 'int32'),
+            input_scale=relay.const(input_scale, 'float32'),
+            kernel_scale=relay.const(kernel_scale, 'float32'),
             kernel_size=kernel_size,
             strides=strides,
             dilation=dilation,
