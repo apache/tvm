@@ -23,7 +23,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include "../arithmetic/pattern_match.h"
 
@@ -32,7 +32,7 @@ namespace ir {
 
 using runtime::PackedFunc;
 
-class CopyIntrinInjector : public IRMutator {
+class CopyIntrinInjector : public StmtMutator {
  public:
   CopyIntrinInjector(const std::string& pragma_key,
                      const PackedFunc& flower_copy_fromto)
@@ -40,7 +40,7 @@ class CopyIntrinInjector : public IRMutator {
         flower_copy_fromto_(flower_copy_fromto) {
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       storage_scope_[buf] = op->value.as<StringImm>()->value;
@@ -50,7 +50,7 @@ class CopyIntrinInjector : public IRMutator {
           << "Cannot match copy pattern of " << op->body;
       return ret;
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtMutator::VisitStmt_(op);
   }
 
  private:
@@ -193,8 +193,7 @@ class CopyIntrinInjector : public IRMutator {
 Stmt InjectCopyIntrin(Stmt stmt,
                       const std::string& pragma_key,
                       const PackedFunc& flower_copy_fromto) {
-  return CopyIntrinInjector(pragma_key, flower_copy_fromto)
-      .Mutate(stmt);
+  return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
 
 }  // namespace ir

@@ -21,9 +21,7 @@
  * \file hoist_if_then_else.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
 #include <tvm/api_registry.h>
 #include <unordered_map>

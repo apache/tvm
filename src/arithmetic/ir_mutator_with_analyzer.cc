@@ -30,41 +30,44 @@ namespace arith {
 using namespace ir;
 
 Stmt IRMutatorWithAnalyzer::
-Mutate_(const For* op, const Stmt& s) {
+VisitStmt_(const For* op) {
   analyzer_->Bind(op->loop_var,
-                 Range::make_by_min_extent(op->min, op->extent));
-  return IRMutator::Mutate_(op, s);
+                  Range::make_by_min_extent(op->min, op->extent));
+  return StmtExprMutator::VisitStmt_(op);
 }
 
 Stmt IRMutatorWithAnalyzer::
-Mutate_(const LetStmt* op, const Stmt& s) {
-  Expr value = this->Mutate(op->value);
+VisitStmt_(const LetStmt* op) {
+  Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
   // as sub-class may or maynot choose to replace it.
-  Stmt body = this->Mutate(op->body);
+  Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
-    return s;
+    return GetRef<Stmt>(op);
   } else {
-    return LetStmt::make(op->var, value, body);
+    auto n = this->CopyOnWrite(op);
+    n->value = std::move(value);
+    n->body = std::move(body);
+    return Stmt(n);
   }
 }
 
 Stmt IRMutatorWithAnalyzer::
-Mutate_(const IfThenElse* op, const Stmt& s) {
-  Expr condition = this->Mutate(op->condition);
+VisitStmt_(const IfThenElse* op) {
+  Expr condition = this->VisitExpr(op->condition);
   Stmt then_case, else_case;
   {
     With<ConstraintContext> ctx(analyzer_, condition);
-    then_case = this->Mutate(op->then_case);
+    then_case = this->VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
       With<ConstraintContext> ctx(analyzer_,
                                   analyzer_->rewrite_simplify(Not::make(condition)));
-      else_case = this->Mutate(op->else_case);
+      else_case = this->VisitStmt(op->else_case);
   }
   if (is_one(condition)) return then_case;
   if (is_zero(condition)) {
@@ -77,57 +80,65 @@ Mutate_(const IfThenElse* op, const Stmt& s) {
   if (condition.same_as(op->condition) &&
       then_case.same_as(op->then_case) &&
       else_case.same_as(op->else_case)) {
-    return s;
+    return GetRef<Stmt>(op);
   } else {
-    return IfThenElse::make(condition, then_case, else_case);
+    auto n = this->CopyOnWrite(op);
+    n->condition = std::move(condition);
+    n->then_case = std::move(then_case);
+    n->else_case = std::move(else_case);
+    return Stmt(n);
   }
 }
 
 Stmt IRMutatorWithAnalyzer::
-Mutate_(const AttrStmt* op, const Stmt& s) {
+VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
     CHECK_NE(iv->thread_tag.length(), 0U);
     analyzer_->Bind(iv->var,
                     Range::make_by_min_extent(0, op->value));
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     return stmt;
   } else {
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 }
 
 Stmt IRMutatorWithAnalyzer::
-Mutate_(const AssertStmt* op, const Stmt& s) {
-  Expr condition = this->Mutate(op->condition);
-  Expr message = this->Mutate(op->message);
+VisitStmt_(const AssertStmt* op) {
+  Expr condition = this->VisitExpr(op->condition);
+  Expr message = this->VisitExpr(op->message);
   With<ConstraintContext> ctx(analyzer_, condition);
-  Stmt body = this->Mutate(op->body);
+  Stmt body = this->VisitStmt(op->body);
 
   if (condition.same_as(op->condition) &&
       message.same_as(op->message) &&
       body.same_as(op->body)) {
-    return s;
+    return GetRef<Stmt>(op);
   } else {
-    return AssertStmt::make(condition, message, body);
+    auto n = this->CopyOnWrite(op);
+    n->condition = std::move(condition);
+    n->message = std::move(message);
+    n->body = std::move(body);
+    return Stmt(n);
   }
 }
 
 Expr IRMutatorWithAnalyzer::
-Mutate_(const Call* op, const Expr& self) {
+VisitExpr_(const Call* op) {
   // add condition context to if_then_else
   if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
-    Expr cond = Mutate(op->args[0]);
+    Expr cond = this->VisitExpr(op->args[0]);
     Expr true_value, false_value;
     {
       With<ConstraintContext> constraint(analyzer_, cond);
-      true_value = Mutate(op->args[1]);
+      true_value = this->VisitExpr(op->args[1]);
     }
     {
       With<ConstraintContext> constraint(analyzer_,
                                          analyzer_->rewrite_simplify(Not::make(cond)));
-      false_value = Mutate(op->args[2]);
+      false_value = this->VisitExpr(op->args[2]);
     }
     if (is_zero(cond)) {
       return false_value;
@@ -138,45 +149,45 @@ Mutate_(const Call* op, const Expr& self) {
     if (cond.same_as(op->args[0]) &&
         true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
-      return self;
+      return GetRef<Expr>(op);
     } else {
       return Call::make(op->dtype, op->name,
                         {cond, true_value, false_value},
                         op->call_type);
     }
   }
-  return IRMutator::Mutate_(op, self);
+  return StmtExprMutator::VisitExpr_(op);
 }
 
 Expr IRMutatorWithAnalyzer::
-Mutate_(const Let* op, const Expr& self) {
-  Expr value = this->Mutate(op->value);
+VisitExpr_(const Let* op) {
+  Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
   // as sub-class may or maynot choose to replace it.
-  Expr body = this->Mutate(op->body);
+  Expr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Let::make(op->var, value, body);
   }
 }
 
 Expr IRMutatorWithAnalyzer::
-Mutate_(const Select* op, const Expr& self) {
-  Expr cond = Mutate(op->condition);
+VisitExpr_(const Select* op) {
+  Expr cond = this->VisitExpr(op->condition);
   Expr true_value, false_value;
   {
     With<ConstraintContext> constraint(analyzer_, cond);
-    true_value = Mutate(op->true_value);
+    true_value = VisitExpr(op->true_value);
   }
   {
     With<ConstraintContext> constraint(analyzer_,
                                        analyzer_->rewrite_simplify(Not::make(cond)));
-    false_value = Mutate(op->false_value);
+    false_value = VisitExpr(op->false_value);
   }
   if (is_zero(cond)) {
     return false_value;
@@ -188,20 +199,20 @@ Mutate_(const Select* op, const Expr& self) {
   if (cond.same_as(op->condition) &&
       true_value.same_as(op->true_value) &&
       false_value.same_as(op->false_value)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Select::make(cond, true_value, false_value);
   }
 }
 
 Expr IRMutatorWithAnalyzer::
-Mutate_(const Reduce* op, const Expr& self) {
+VisitExpr_(const Reduce* op) {
   // Setup the domain information before simplification.
   for (const IterVar& iv : op->axis) {
     analyzer_->Bind(iv->var, iv->dom);
   }
   // Recursively call simplification when necessary.
-  return IRMutator::Mutate_(op, self);
+  return StmtExprMutator::VisitExpr_(op);
 }
 
 }  // namespace arith

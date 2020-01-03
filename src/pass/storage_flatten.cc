@@ -26,8 +26,7 @@
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -48,7 +47,7 @@ using runtime::StorageScope;
 using runtime::ThreadScope;
 using intrinsic::tvm_address_of;
 
-class StorageFlattener : public IRMutator {
+class StorageFlattener : public StmtExprMutator {
  public:
   explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
                             int cache_line_size, bool create_bound_attributes,
@@ -64,8 +63,8 @@ class StorageFlattener : public IRMutator {
     cache_line_size_ = cache_line_size;
   }
 
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Store* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Store>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
@@ -78,14 +77,14 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::double_buffer_scope &&
                op->node->IsInstance<OperationNode>()) {
       Operation func = Downcast<Operation>(op->node);
-      Stmt body = Mutate(op->body);
+      Stmt body = this->VisitStmt(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
         TensorKey key{func, i};
         auto it = buf_map_.find(key);
@@ -99,7 +98,7 @@ class StorageFlattener : public IRMutator {
       IterVar iv = Downcast<IterVar>(op->node);
       ThreadScope ts = ThreadScope::make(iv->thread_tag);
       curr_thread_scope_.push_back(ts);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       curr_thread_scope_.pop_back();
       return stmt;
     } else if (op->attr_key == attr::buffer_bind_scope) {
@@ -116,17 +115,17 @@ class StorageFlattener : public IRMutator {
       }
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::opengl_stage_scope) {
       is_opengl_ = true;
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Provide* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Provide* op) final {
     if (create_bound_attributes_)
       shape_collector_.clear();
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Provide>();
     TensorKey key{op->func, op->value_index};
     auto it = buf_map_.find(key);
@@ -159,11 +158,11 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const Realize* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else {
       // create a buffer entry
       BufferEntry e;
@@ -226,7 +225,7 @@ class StorageFlattener : public IRMutator {
           align, 0, kDefault);
 
       buf_map_[key] = e;
-      Stmt body = this->Mutate(op->body);
+      Stmt body = this->VisitStmt(op->body);
       buf_map_[key].released = true;
       Stmt ret;
 
@@ -263,8 +262,8 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Expr Mutate_(const Load* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Load* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Load>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
@@ -277,17 +276,17 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& olde) final {
-    Expr expr = IRMutator::Mutate_(op, olde);
+  Expr VisitExpr_(const Call* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     if (op != nullptr && op->call_type == Call::Halide) {
       TensorKey key{op->func, op->value_index};
@@ -308,8 +307,8 @@ class StorageFlattener : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const Prefetch *op, const Stmt &s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Prefetch *op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Prefetch>();
     CHECK(op != nullptr);
     TensorKey key{op->func, op->value_index};
@@ -443,7 +442,7 @@ class StorageFlattener : public IRMutator {
     // Apply the remaps
     Stmt body = MergeNest(binder.asserts(), op->body);
     body = MergeNest(binder.init_nest(), body);
-    body = this->Mutate(body);
+    body = this->VisitStmt(body);
     // remove the binds
     for (const Var& v : binder.defs()) {
       var_remap_.erase(v.get());
@@ -531,10 +530,10 @@ class StorageFlattener : public IRMutator {
 Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
   IRVisitorWithAnalyzer bounded_analyzer;
-  bounded_analyzer.Visit(stmt);
+  bounded_analyzer(stmt);
   stmt =
       StorageFlattener(extern_buffer, cache_line_size,
-          create_bound_attributes, &bounded_analyzer).Mutate(stmt);
+                       create_bound_attributes, &bounded_analyzer)(std::move(stmt));
   return stmt;
 }
 

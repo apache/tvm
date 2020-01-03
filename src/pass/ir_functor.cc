@@ -21,7 +21,6 @@
  */
 #include <tvm/ir_functor_ext.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/ir_visitor.h>
 
 namespace tvm {
 namespace ir {

@@ -24,8 +24,7 @@
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -73,7 +72,7 @@ Expr unpack_type_cast(const Expr &input, const DataType &target_type) {
 // MMAMatcher matches C = Cast(A)*Cast(B)+C,
 // where A & B are fp16/int8 local buffers,
 // and C is fp32/int32 local buffer.
-class MMAMatcher: public IRVisitor {
+class MMAMatcher: public StmtVisitor {
  public:
   explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer) {
     for (auto kv : extern_buffer) {
@@ -84,22 +83,21 @@ class MMAMatcher: public IRVisitor {
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
     }
   }
-  using IRVisitor::Visit_;
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::pragma_tensor_core) {
       tensor_core_on_ = true;
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Provide* op) final {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const Provide* op) final {
+    StmtVisitor::VisitStmt_(op);
     auto it = buf_map_.find(TensorKey{op->func, op->value_index});
     if (it == buf_map_.end()) {
       return;
@@ -113,19 +111,19 @@ class MMAMatcher: public IRVisitor {
     }
   }
 
-  void Visit_(const Realize* op) final {
+  void VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       if (!buf_map_.at(key).external) {
         return;
       }
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
       BufferInfo bi;
       bi.name = key.GetName();
       bi.dtype = op->dtype;
       buf_map_[key] = bi;
-      Visit(op->body);
+      this->VisitStmt(op->body);
       buf_map_[key].released = true;
     }
   }
@@ -236,12 +234,11 @@ class MMAMatcher: public IRVisitor {
 // BodyVisitor visits the body stmt of original ComputeOp
 // to get the access indices of input matrices,
 // if it is recognized as matrix multiply.
-class BodyVisitor : public IRVisitor {
+class BodyVisitor : public StmtExprVisitor {
  public:
   BodyVisitor() {}
-  using IRVisitor::Visit_;
 
-  void Visit_(const Reduce* op) final {
+  void VisitExpr_(const Reduce* op) final {
     auto* comm_add = op->combiner->result[0].as<Add>();
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
@@ -254,12 +251,12 @@ class BodyVisitor : public IRVisitor {
       }
 
       tensorcore_candidate_ = true;
-      IRVisitor::Visit(source);
+      StmtExprVisitor::VisitExpr(source);
     }
   }
 
-  void Visit_(const Call* op) final {
-    IRVisitor::Visit_(op);
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
     args_.insert(std::make_pair(op->name, op->args));
   }
 
@@ -298,7 +295,7 @@ class ScheduleAnalyser {
 
       BodyVisitor body_visitor;
       for (Expr expr : compute->body) {
-        body_visitor.Visit(expr);
+        body_visitor(expr);
       }
       if (!body_visitor.tensorcore_candidate_) {
         continue;
@@ -370,12 +367,11 @@ class ScheduleAnalyser {
 
 // IndexVisitor visits access index of fragment
 // to record variable for loop scaling
-class IndexVisitor : public IRVisitor {
+class IndexVisitor : public StmtExprVisitor {
  public:
   IndexVisitor() {}
-  using IRVisitor::Visit_;
 
-  void Visit_(const Variable* op) final {
+  void VisitExpr_(const Variable* op) final {
     loop_scaling_.insert(std::make_pair(op, scaling_factor_));
   }
 
@@ -389,7 +385,7 @@ class IndexVisitor : public IRVisitor {
 
 // BufferAnalyser gets buffer info,
 // e.g. thread tile and warp tile, for TensorCore CodeGen
-class BufferAnalyser : public IRVisitor {
+class BufferAnalyser : public StmtExprVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
                           const ScheduleAnalyser &schedule_analyser,
@@ -407,9 +403,8 @@ class BufferAnalyser : public IRVisitor {
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
     }
   }
-  using IRVisitor::Visit_;
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
       if (const IntImm* value = op->value.as<IntImm>()) {
         thread_extent_.insert(
@@ -417,10 +412,10 @@ class BufferAnalyser : public IRVisitor {
                 op->node.as<IterVarNode>()->var->name_hint,
                 value->value));
       }
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
       const Call* tuple = op->value.as<Call>();
@@ -432,14 +427,14 @@ class BufferAnalyser : public IRVisitor {
       }
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Provide* op) final {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const Provide* op) final {
+    StmtExprVisitor::VisitStmt_(op);
     TensorKey key{op->func, op->value_index};
     auto it = buf_map_.find(key);
     CHECK(it != buf_map_.end())
@@ -503,7 +498,7 @@ class BufferAnalyser : public IRVisitor {
         }
         auto index = rel_index[i];
         auto simplified_index = ir::Simplify(index);
-        index_visitor.Visit(simplified_index);
+        index_visitor(simplified_index);
       }
 
       std::string input_name = simplify_name(bi.name);
@@ -550,8 +545,8 @@ class BufferAnalyser : public IRVisitor {
     }
   }
 
-  void Visit_(const Call* op) final {
-    IRVisitor::Visit_(op);
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
     if (op->call_type == Call::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = buf_map_.find(key);
@@ -606,16 +601,16 @@ class BufferAnalyser : public IRVisitor {
         }
         auto index = rel_index[i];
         auto simplified_index = ir::Simplify(index);
-        index_visitor.Visit(simplified_index);
+        index_visitor(simplified_index);
       }
     }
   }
 
-  void Visit_(const Realize* op) final {
+  void VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
       // create a buffer entry
       BufferInfo bi;
@@ -653,7 +648,7 @@ class BufferAnalyser : public IRVisitor {
       bi.shape = shape;
 
       buf_map_[key] = bi;
-      Visit(op->body);
+      this->VisitStmt(op->body);
       buf_map_[key].released = true;
     }
   }
@@ -761,12 +756,12 @@ class BufferAnalyser : public IRVisitor {
 };
 
 // ThreadIdxMutator does the thread index unification inside a warp
-class ThreadIdxMutator : public IRMutator {
+class ThreadIdxMutator : public StmtExprMutator {
  public:
   explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
 
-  Expr Mutate_(const Variable* op, const Expr& olde) final {
-    Expr expr = IRMutator::Mutate_(op, olde);
+  Expr VisitExpr_(const Variable* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Variable>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
@@ -788,7 +783,7 @@ class ThreadIdxMutator : public IRMutator {
 
 // TensorCoreIRMutator mutates the AST for TensorCore CodeGen
 // based on tensor core intrinsics
-class TensorCoreIRMutator : public IRMutator {
+class TensorCoreIRMutator : public StmtExprMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
     const BufferAnalyser &buffer_analyser)
@@ -803,10 +798,10 @@ class TensorCoreIRMutator : public IRMutator {
       warp_tile_(buffer_analyser.warp_tile_),
       warp_threads_y_(buffer_analyser.warp_threads_y_) {}
 
-  Stmt Mutate_(const Realize* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     bounds_[key] = op->bounds;
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Realize>();
     if (op != nullptr) {
       if (!frag_reg_.count(key.GetName())) {
@@ -833,8 +828,8 @@ class TensorCoreIRMutator : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const AttrStmt* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (op->attr_key == attr::realize_scope) {
       auto node = op->node.as<OperationNode>();
       if (node != nullptr) {
@@ -846,7 +841,7 @@ class TensorCoreIRMutator : public IRMutator {
         CHECK(it != matrix_abc_.end())
               << "Cannot find matrix info for " << node->name;
         auto matrix_abc = "wmma." + it->second;
-        Stmt body = Mutate(op->body);
+        Stmt body = this->VisitStmt(op->body);
         return AttrStmt::make(op->node,
                               op->attr_key,
                               matrix_abc,
@@ -856,8 +851,8 @@ class TensorCoreIRMutator : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate_(const Provide* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Provide* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
       const auto &operands = it->second;
@@ -941,7 +936,7 @@ class TensorCoreIRMutator : public IRMutator {
       // thread index unification inside a warp
       Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
-      Expr mutated_value = thread_idx_mutator.Mutate(op->value);
+      Expr mutated_value = thread_idx_mutator(op->value);
       Expr src = Call::make(value->dtype,
                             "&",
                             {mutated_value},
@@ -991,7 +986,7 @@ class TensorCoreIRMutator : public IRMutator {
       // thread index unification inside a warp
       Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
-      dst = thread_idx_mutator.Mutate(dst);
+      dst = thread_idx_mutator(dst);
       dst = Call::make(DataType::Handle(),
                        "&",
                        {dst},
@@ -1020,8 +1015,8 @@ class TensorCoreIRMutator : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const For* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<For>();
     if (op != nullptr) {
       auto it = loop_scaling_.find(op->loop_var.get());
@@ -1177,7 +1172,7 @@ Stmt RewriteForTensorCore(Stmt stmt,
   }
 
   MMAMatcher mma_matcher(extern_buffer);
-  mma_matcher.Visit(stmt);
+  mma_matcher(stmt);
   if (!mma_matcher.Matched()) {
     return stmt;
   }
@@ -1189,12 +1184,12 @@ Stmt RewriteForTensorCore(Stmt stmt,
 
   BufferAnalyser buffer_analyser(extern_buffer,
                                  schedule_analyser, mma_matcher);
-  buffer_analyser.Visit(stmt);
+  buffer_analyser(stmt);
   if (!buffer_analyser.QualifiedForTensorCore()) {
     return stmt;
   }
 
-  return TensorCoreIRMutator(schedule_analyser, buffer_analyser).Mutate(stmt);
+  return TensorCoreIRMutator(schedule_analyser, buffer_analyser)(std::move(stmt));
 }
 
 }  // namespace ir

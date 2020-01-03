@@ -27,7 +27,7 @@
 #include <tvm/ir.h>
 #include <tvm/attrs.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <vector>
 #include <unordered_map>
 #include "../runtime/thread_storage_scope.h"
@@ -40,7 +40,7 @@ using runtime::StorageRank;
 /*!
  * \brief Base class of storage access analysis
  */
-class StorageAccessVisitor : public IRVisitor {
+class StorageAccessVisitor : public StmtExprVisitor {
  public:
   /*! \brief Storage access type */
   enum AccessType {
@@ -76,13 +76,13 @@ class StorageAccessVisitor : public IRVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void Visit_(const Load* op) final;
-  void Visit_(const Store* op) final;
-  void Visit_(const Evaluate* op) final;
-  void Visit_(const AttrStmt* op) final;
-  void Visit_(const For* op) final;
-  void Visit_(const IfThenElse* op) final;
-  void Visit_(const Call* op) final;
+  void VisitExpr_(const Load* op) final;
+  void VisitStmt_(const Store* op) final;
+  void VisitStmt_(const Evaluate* op) final;
+  void VisitStmt_(const AttrStmt* op) final;
+  void VisitStmt_(const For* op) final;
+  void VisitStmt_(const IfThenElse* op) final;
+  void VisitExpr_(const Call* op) final;
 
  protected:
   StorageAccessVisitor() {

@@ -24,8 +24,8 @@
 #include <tvm/operation.h>
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_set>
 #include <string>
 #include <utility>
@@ -538,7 +538,7 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifier final : protected ir::IRVisitor {
+class ComputeVerifier final : protected ir::ExprVisitor {
  public:
   /// Special member functions
   //@{
@@ -567,20 +567,20 @@ class ComputeVerifier final : protected ir::IRVisitor {
       }
 
       level_ = 0;
-      ir::IRVisitor::Visit(e);
+      ExprVisitor::VisitExpr(e);
     }
   }
 
  protected:
   /// Visitor implementation
   //@{
-  void Visit(const ObjectRef& n) final {
+  void VisitExpr(const Expr& n) final {
     ++level_;
-    ir::IRVisitor::Visit(n);
+    ExprVisitor::VisitExpr(n);
     --level_;
   }
 
-  void Visit_(const ir::Reduce* op) final {
+  void VisitExpr_(const ir::Reduce* op) final {
     // Check for non top level reductions
     CHECK(0 == level_)
         << "Reductions are only allowed at the top level of compute. "

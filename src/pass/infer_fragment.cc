@@ -23,8 +23,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "ir_util.h"
@@ -35,7 +34,7 @@ namespace tvm {
 namespace ir {
 
 // Get fragment information from tensor intrinsics
-class FragmentGetter : public IRVisitor {
+class FragmentGetter : public StmtExprVisitor {
  public:
   // fragment metadata
   struct FragmentInfo {
@@ -48,8 +47,8 @@ class FragmentGetter : public IRVisitor {
       : m(_m), n(_n), k(_k), layout(_layout) {}
   };
 
-  void Visit_(const Call* op) final {
-    IRVisitor::Visit_(op);
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
 
     if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync) ||
         op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
@@ -116,13 +115,13 @@ class FragmentGetter : public IRVisitor {
   }
 
   // Get memory scope
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       const Variable* buffer = op->node.as<Variable>();
       CHECK(buffer);
       scopes[buffer] = op->value.as<StringImm>()->value;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 
   // Memory scope for allocations
@@ -132,11 +131,12 @@ class FragmentGetter : public IRVisitor {
 };
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
-class FragmentChecker : public IRVisitor {
+class FragmentChecker : public StmtExprVisitor {
  public:
   explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
     if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
       CHECK_EQ(op->args.size(), 8U);
@@ -170,12 +170,12 @@ class FragmentChecker : public IRVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public IRMutator {
+class InferFragmenter : public StmtMutator {
  public:
   explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     const Variable* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {
       // Add attribute to fragments allocation
@@ -206,9 +206,10 @@ class InferFragmenter : public IRMutator {
 
 Stmt InferFragment(Stmt stmt) {
   FragmentGetter getter;
-  getter.Visit(stmt);
-  FragmentChecker(getter).Visit(stmt);
-  stmt = InferFragmenter(getter).Mutate(stmt);
+  getter(stmt);
+  FragmentChecker checker(getter);
+  checker(stmt);
+  stmt = InferFragmenter(getter)(std::move(stmt));
   return stmt;
 }
 

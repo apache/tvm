@@ -24,7 +24,6 @@
 #include <tvm/operation.h>
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"

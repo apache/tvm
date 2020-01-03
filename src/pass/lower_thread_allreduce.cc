@@ -22,7 +22,7 @@
  * \file lower_thread_allreduce.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
@@ -32,19 +32,19 @@
 namespace tvm {
 namespace ir {
 
-class ThreadAllreduceBuilder final : public IRMutator {
+class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
   explicit ThreadAllreduceBuilder(int warp_size)
       : warp_size_(warp_size) {}
 
-  Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt *op) final {
     if (op->attr_key == attr::thread_extent) {
       thread_extents_.push_back(op);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       op = ret.as<AttrStmt>();
       const Variable* v = op->node.as<Variable>();
       if (alloc_remap_.count(v)) {
@@ -56,15 +56,15 @@ class ThreadAllreduceBuilder final : public IRMutator {
       const CommReducerNode *combiner = op->node.as<CommReducerNode>();
       CHECK(combiner);
       reduce_combiner_.push_back(combiner);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       reduce_combiner_.pop_back();
       return ret;
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const Evaluate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Evaluate* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Evaluate>();
     const Call* call = op->value.as<Call>();
     if (call && call->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
@@ -73,8 +73,8 @@ class ThreadAllreduceBuilder final : public IRMutator {
       return stmt;
     }
   }
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
@@ -93,13 +93,13 @@ class ThreadAllreduceBuilder final : public IRMutator {
       return stmt;
     }
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
+  Expr VisitExpr_(const Load* op) final {
     auto it = load_remap_.find(op->buffer_var.get());
     if (it != load_remap_.end()) {
-      CHECK(is_zero(op->index)) << e;
+      CHECK(is_zero(op->index));
       return it->second;
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
@@ -339,7 +339,7 @@ LoweredFunc
 LowerThreadAllreduce(LoweredFunc f, int warp_size) {
   CHECK_NE(f->func_type, kHostFunc);
   auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = ThreadAllreduceBuilder(warp_size).Mutate(n->body);
+  n->body = ThreadAllreduceBuilder(warp_size)(n->body);
   return LoweredFunc(n);
 }
 }  // namespace ir

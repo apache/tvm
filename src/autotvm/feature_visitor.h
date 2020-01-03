@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,7 +27,7 @@
 #define TVM_AUTOTVM_FEATURE_VISITOR_H_
 
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <string>
 
 namespace tvm {
@@ -48,15 +48,18 @@ enum AnnotationType {
  * \brief A base class for feature extractor, used for processing
  * for loop and memory access in the IR
  */
-class FeatureVisitor : public IRVisitor {
+class FeatureVisitor : public StmtExprVisitor {
  public:
   // for loop
-  void Visit_(const For *op);
-  void Visit_(const AttrStmt *op);
+  void VisitStmt_(const For *op);
+  void VisitStmt_(const AttrStmt *op);
 
   // memory access
-  void Visit_(const Load *op);
-  void Visit_(const Store *op);
+  void VisitExpr_(const Load *op);
+  void VisitStmt_(const Store *op);
+
+  using StmtExprVisitor::VisitStmt_;
+  using StmtExprVisitor::VisitExpr_;
 
  protected:
   /*!

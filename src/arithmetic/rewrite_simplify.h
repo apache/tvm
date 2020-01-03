@@ -26,7 +26,6 @@
 
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include <unordered_map>
 #include <vector>
 #include "const_fold.h"
@@ -45,35 +44,35 @@ using namespace ir;
  */
 class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzer::VisitExpr_;
 
   explicit Impl(Analyzer* parent)
       : IRMutatorWithAnalyzer(parent) {}
 
-  void Update(const Var& var, const Expr& info, bool override);
-  Expr Mutate_(const Add* op, const Expr& self) override;
-  Expr Mutate_(const Sub* op, const Expr& self) override;
-  Expr Mutate_(const Mul* op, const Expr& self) override;
-  Expr Mutate_(const Div* op, const Expr& self) override;
-  Expr Mutate_(const Mod* op, const Expr& self) override;
-  Expr Mutate_(const FloorDiv* op, const Expr& self) override;
-  Expr Mutate_(const FloorMod* op, const Expr& self) override;
-  Expr Mutate_(const Min* op, const Expr& self) override;
-  Expr Mutate_(const Max* op, const Expr& self) override;
-  Expr Mutate_(const EQ* op, const Expr& self) override;
-  Expr Mutate_(const NE* op, const Expr& self) override;
-  Expr Mutate_(const LT* op, const Expr& self) override;
-  Expr Mutate_(const LE* op, const Expr& self) override;
-  Expr Mutate_(const GT* op, const Expr& self) override;
-  Expr Mutate_(const GE* op, const Expr& self) override;
-  Expr Mutate_(const And* op, const Expr& self) override;
-  Expr Mutate_(const Or* op, const Expr& self) override;
-  Expr Mutate_(const Not* op, const Expr& self) override;
-  Expr Mutate_(const Select* op, const Expr& self) override;
-  Expr Mutate_(const Call* op, const Expr& self) override;
-  Expr Mutate_(const Variable* op, const Expr& self) override;
-  Expr Mutate_(const Cast* op, const Expr& self) override;
-  Expr Mutate_(const Let* op, const Expr& self) override;
+  void Update(const Var& var, const Expr& info, bool override_info);
+  Expr VisitExpr_(const Add* op) override;
+  Expr VisitExpr_(const Sub* op) override;
+  Expr VisitExpr_(const Mul* op) override;
+  Expr VisitExpr_(const Div* op) override;
+  Expr VisitExpr_(const Mod* op) override;
+  Expr VisitExpr_(const FloorDiv* op) override;
+  Expr VisitExpr_(const FloorMod* op) override;
+  Expr VisitExpr_(const Min* op) override;
+  Expr VisitExpr_(const Max* op) override;
+  Expr VisitExpr_(const EQ* op) override;
+  Expr VisitExpr_(const NE* op) override;
+  Expr VisitExpr_(const LT* op) override;
+  Expr VisitExpr_(const LE* op) override;
+  Expr VisitExpr_(const GT* op) override;
+  Expr VisitExpr_(const GE* op) override;
+  Expr VisitExpr_(const And* op) override;
+  Expr VisitExpr_(const Or* op) override;
+  Expr VisitExpr_(const Not* op) override;
+  Expr VisitExpr_(const Select* op) override;
+  Expr VisitExpr_(const Call* op) override;
+  Expr VisitExpr_(const Variable* op) override;
+  Expr VisitExpr_(const Cast* op) override;
+  Expr VisitExpr_(const Let* op) override;
 
   std::function<void()> EnterConstraint(const Expr& constraint);
 
@@ -123,7 +122,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr RecursiveRewrite(const Expr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    Expr res = Mutate(x);
+    Expr res = this->VisitExpr(x);
     --recur_depth_;
     return res;
   }

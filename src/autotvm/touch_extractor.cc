@@ -44,14 +44,14 @@ int ParallelLevel(AnnotationType ann) {
 }
 
 // get touch pattern from index expression
-class IndexParser: public IRVisitor {
+class IndexParser: public ExprVisitor {
  public:
   void Parse(Expr expr) {
     pattern_map.clear();
-    this->Visit(expr);
+    this->VisitExpr(expr);
   }
 
-  void Visit_(const Variable *op) {
+  void VisitExpr_(const Variable *op) {
     // TODO(lmzheng): handle more index types (multiple occurrence)
     if (pattern_map.count(op) == 0) {
       pattern_map[op] = TouchPattern();
@@ -60,13 +60,13 @@ class IndexParser: public IRVisitor {
     }
   }
 
-  void Visit_(const Mul *op) {
+  void VisitExpr_(const Mul *op) {
     if (op->a.as<Variable>()) {
       if (const auto stride = op->b.as<IntImm>()) {
         next_stride_ = stride->value;
       }
     }
-    IRVisitor::Visit_(op);
+    ExprVisitor::VisitExpr_(op);
   }
 
   std::unordered_map<const Variable*, TouchPattern> pattern_map;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,7 +23,7 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/tensor.h>
 #include <tvm/api_registry.h>
 
@@ -36,13 +36,13 @@ namespace arith {
 using namespace ir;
 
 // Find Read region of the tensor in the stmt.
-class FuncTouchedDomain final : public IRVisitor {
+class FuncTouchedDomain final : public StmtExprVisitor {
  public:
   FuncTouchedDomain(const Tensor &tensor, bool consider_calls, bool consider_provides)
     : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
 
   Domain Find(const Stmt& stmt) {
-    this->Visit(stmt);
+    operator()(stmt);
     Domain ret;
     Range none;
     for (size_t i = 0; i < bounds_.size(); ++i) {
@@ -51,49 +51,49 @@ class FuncTouchedDomain final : public IRVisitor {
     return ret;
   }
 
-  void Visit_(const For *op) final {
+  void VisitStmt_(const For *op) final {
     const Variable* var = op->loop_var.get();
     dom_map_[var] = IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(var);
   }
 
-  void Visit_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmt* op) final {
     dom_map_[op->var.get()] =
         arith::EvalSet(op->value, dom_map_);
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(op->var.get());
   }
 
   /* TODO: Thread extent unitest not generated.*/
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const Variable* var = thread_axis->var.get();
       dom_map_[var] = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       dom_map_.erase(var);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     if (consider_calls_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Provide* op) final {
+  void VisitStmt_(const Provide* op) final {
     if (consider_provides_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 
  private:

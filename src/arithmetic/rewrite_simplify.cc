@@ -24,7 +24,6 @@
 // Acknowledgement: Most rewrite-rules are from Halide.
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -69,7 +68,7 @@ using namespace ir;
 // try to prove x equals val
 RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::
 TryCompare(const Expr& x, int64_t val) {
-  Expr diff = Mutate(x);
+  Expr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImm>()) {
     if (ptr->value == val) {
       return kEQ;
@@ -117,8 +116,8 @@ Update(const Var& var, const Expr& info, bool override) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Add* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Add* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Add>();
   Expr const_res = TryConstFold<Add>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -232,8 +231,8 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const Expr& const
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Sub* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Sub* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Sub>();
   Expr const_res = TryConstFold<Sub>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -431,8 +430,8 @@ Mutate_(const Sub* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Mul* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Mul* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Mul>();
   Expr const_res = TryConstFold<Mul>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -470,8 +469,8 @@ Mutate_(const Mul* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Div* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Div* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Div>();
   Expr const_res = TryConstFold<Div>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -692,8 +691,8 @@ Mutate_(const Div* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Mod* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Mod* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Mod>();
   Expr const_res = TryConstFold<Mod>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -782,8 +781,8 @@ Mutate_(const Mod* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const FloorDiv* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const FloorDiv* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorDiv>();
   Expr const_res = TryConstFold<FloorDiv>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -926,8 +925,8 @@ Mutate_(const FloorDiv* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const FloorMod* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const FloorMod* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorMod>();
   Expr const_res = TryConstFold<FloorMod>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -996,8 +995,8 @@ Mutate_(const FloorMod* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Min* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Min* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Min>();
   Expr const_res = TryConstFold<Min>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1181,8 +1180,8 @@ Mutate_(const Min* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Max* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Max* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Max>();
   Expr const_res = TryConstFold<Max>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1354,8 +1353,8 @@ Mutate_(const Max* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const EQ* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const EQ* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<EQ>();
   Expr const_res = TryConstFold<EQ>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1388,28 +1387,28 @@ Mutate_(const EQ* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const NE* op, const Expr& self) {
-  return Mutate(Not::make(op->a == op->b));
+VisitExpr_(const NE* op) {
+  return this->VisitExpr(Not::make(op->a == op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const LE* op, const Expr& self) {
-  return Mutate(Not::make(op->b < op->a));
+VisitExpr_(const LE* op) {
+  return this->VisitExpr(Not::make(op->b < op->a));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const GT* op, const Expr& self) {
-  return Mutate(op->b < op->a);
+VisitExpr_(const GT* op) {
+  return this->VisitExpr(op->b < op->a);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const GE* op, const Expr& self) {
-  return Mutate(Not::make(op->a < op->b));
+VisitExpr_(const GE* op) {
+  return this->VisitExpr(Not::make(op->a < op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const LT* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const LT* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<LT>();
   Expr const_res = TryConstFold<LT>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1564,8 +1563,8 @@ Mutate_(const LT* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Not* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Not* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Not>();
   Expr const_res = TryConstFold<Not>(op->a);
   if (const_res.defined()) return const_res;
@@ -1589,8 +1588,8 @@ Mutate_(const Not* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const And* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const And* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<And>();
   Expr const_res = TryConstFold<And>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1638,8 +1637,8 @@ Mutate_(const And* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Or* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Or* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Or>();
   Expr const_res = TryConstFold<Or>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1688,8 +1687,8 @@ Mutate_(const Or* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Select* op, const Expr& self) {
-  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
+VisitExpr_(const Select* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Select>();
   if (op == nullptr) return ret;
   // Pattern var to match any expression
@@ -1699,9 +1698,9 @@ Mutate_(const Select* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Call* op, const Expr& self) {
+VisitExpr_(const Call* op) {
   // add condition context to if_then_else
-  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Call>();
   if (op == nullptr) return ret;
   if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
@@ -1729,35 +1728,35 @@ Mutate_(const Call* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Variable* op, const Expr& self) {
+VisitExpr_(const Variable* op) {
   Var var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {
     return it->second;
   }
-  return self;
+  return GetRef<Expr>(op);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Cast* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Cast* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Cast>();
   return cast(op->dtype, op->value);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Let* op, const Expr& self) {
-  Expr value = this->Mutate(op->value);
+VisitExpr_(const Let* op) {
+  Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     // it is fine to discard the let binding
     // because the value will always be inlined in the simplifier.
     analyzer_->Bind(op->var, value);
-    return this->Mutate(op->body);
+    return this->VisitExpr(op->body);
   }
-  Expr body = this->Mutate(op->body);
+  Expr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Let::make(op->var, value, body);
   }
@@ -1768,7 +1767,7 @@ Expr RewriteSimplifier::operator()(const Expr& expr) {
   Expr res = expr;
   int max_iter = 2;
   for (int i = 0; i < max_iter; ++i) {
-    Expr new_expr = impl_->Mutate(res);
+    Expr new_expr = impl_->operator()(res);
     if (new_expr.same_as(res)) return res;
     res = new_expr;
   }

@@ -24,7 +24,7 @@
  * \file lift_attr_scope.cc
  */
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include "ir_util.h"
 
 namespace tvm {
@@ -32,13 +32,13 @@ namespace ir {
 
 // NOTE: this optimization can only be applied
 // to a few specified attr keys
-class AttrScopeLifter : public IRMutator {
+class AttrScopeLifter : public StmtMutator {
  public:
   explicit AttrScopeLifter(std::string attr_key)
       : attr_key_(attr_key) {}
 
   Stmt Lift(Stmt stmt) {
-    stmt = Mutate(stmt);
+    stmt = operator()(std::move(stmt));
     if (attr_node_.defined()) {
       stmt = AttrStmt::make(
           attr_node_, attr_key_, attr_value_, stmt);
@@ -47,8 +47,8 @@ class AttrScopeLifter : public IRMutator {
   }
 
   // do not go beyond
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     if (attr_node_.defined()) {
       Stmt body = AttrStmt::make(
@@ -65,17 +65,17 @@ class AttrScopeLifter : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr_key_) {
       attr_node_ = op->node;
       attr_value_ = op->value;
       return op->body;
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const Block* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Block* op) final {
     std::vector<Stmt> seq;
     FlattenSeq(op->first, &seq);
     FlattenSeq(op->rest, &seq);
@@ -83,21 +83,21 @@ class AttrScopeLifter : public IRMutator {
     if (seq.size() == 2 &&
         seq[0].same_as(op->first) &&
         seq[1].same_as(op->rest)) {
-      return s;
+      return GetRef<Stmt>(op);
     }
     return MergeSeq(seq);
   }
 
-  Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
+  Stmt VisitStmt_(const IfThenElse* op) final {
     if (!op->else_case.defined()) {
-      return IRMutator::Mutate_(op, s);
+      return StmtMutator::VisitStmt_(op);
     }
-    Stmt then_case = this->Mutate(op->then_case);
+    Stmt then_case = this->VisitStmt(op->then_case);
     ObjectRef first_node;
     Expr first_value;
     std::swap(first_node, attr_node_);
     std::swap(first_value, attr_value_);
-    Stmt else_case = this->Mutate(op->else_case);
+    Stmt else_case = this->VisitStmt(op->else_case);
     if (attr_node_.defined() &&
         attr_value_.defined() &&
         first_node.defined() &&
@@ -106,7 +106,7 @@ class AttrScopeLifter : public IRMutator {
         ValueSame(attr_value_, first_value)) {
       if (then_case.same_as(op->then_case) &&
           else_case.same_as(op->else_case)) {
-        return s;
+        return GetRef<Stmt>(op);
       } else {
         return IfThenElse::make(op->condition, then_case, else_case);
       }
@@ -124,7 +124,7 @@ class AttrScopeLifter : public IRMutator {
       }
       if (then_case.same_as(op->then_case) &&
           else_case.same_as(op->else_case)) {
-        return s;
+        return GetRef<Stmt>(op);
       } else {
         return IfThenElse::make(op->condition, then_case, else_case);
       }
@@ -155,7 +155,7 @@ class AttrScopeLifter : public IRMutator {
     for (const Stmt & stmt : seq) {
       attr_node_ = ObjectRef();
       attr_value_ = Expr();
-      Stmt rest = this->Mutate(stmt);
+      Stmt rest = this->VisitStmt(stmt);
       if (attr_node_.defined() &&
           attr_value_.defined() &&
           curr_node.defined() &&
@@ -214,7 +214,7 @@ class AttrScopeLifter : public IRMutator {
 };
 
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
-  return AttrScopeLifter(attr_key).Lift(stmt);
+  return AttrScopeLifter(attr_key).Lift(std::move(stmt));
 }
 
 }  // namespace ir

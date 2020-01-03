@@ -21,7 +21,7 @@
  * \brief Pass for lowering custom datatypes
  */
 
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/packed_func_ext.h>
 #include "../codegen/datatype/registry.h"
@@ -37,17 +37,17 @@ namespace ir {
  * datatype) for lowering this type of expression, and uses it to lower the
  * expression.
  */
-class CustomDatatypesLowerer : public IRMutator {
+class CustomDatatypesLowerer : public StmtExprMutator {
  public:
   explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
-  inline Expr Mutate_(const Cast* op, const Expr& e) final {
+  inline Expr VisitExpr_(const Cast* op) final {
     auto type_code = op->dtype.code();
     auto src_type_code = op->value.dtype().code();
     // If either datatype is a registered custom datatype, we must lower.
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Cast>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
@@ -59,8 +59,9 @@ class CustomDatatypesLowerer : public IRMutator {
     return expr;
   }
 
-  inline Expr Mutate_(const FloatImm* imm, const Expr& e) final {
+  inline Expr VisitExpr_(const FloatImm* imm) final {
     auto type_code = imm->dtype.code();
+    auto e = GetRef<Expr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
@@ -70,9 +71,9 @@ class CustomDatatypesLowerer : public IRMutator {
     return e;
   }
 
-  inline Stmt Mutate_(const Allocate* allocate, const Stmt& s) final {
+  inline Stmt VisitStmt_(const Allocate* allocate) final {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
-    Stmt stmt = IRMutator::Mutate_(allocate, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(allocate);
     allocate = stmt.as<Allocate>();
 
     if (toBeLowered) {
@@ -84,9 +85,9 @@ class CustomDatatypesLowerer : public IRMutator {
     return stmt;
   }
 
-  inline Expr Mutate_(const Load* load, const Expr& e) final {
+  inline Expr VisitExpr_(const Load* load) final {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->dtype.code());
-    Expr expr = IRMutator::Mutate_(load, e);
+    Expr expr = StmtExprMutator::VisitExpr_(load);
     load = expr.as<Load>();
     if (toBeLowered) {
       auto new_load_type = DataType::UInt(load->dtype.bits());
@@ -96,10 +97,10 @@ class CustomDatatypesLowerer : public IRMutator {
   }
 
 #define DEFINE_MUTATE__(OP)                                                        \
-  inline Expr Mutate_(const OP* op, const Expr& e) final {                         \
+  inline Expr VisitExpr_(const OP* op) final {                                     \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
-    Expr expr = IRMutator::Mutate_(op, e);                                         \
+    Expr expr = StmtExprMutator::VisitExpr_(op);                                   \
     op = expr.as<OP>();                                                            \
     if (toBeLowered) {                                                             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \
@@ -131,7 +132,7 @@ class CustomDatatypesLowerer : public IRMutator {
 
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
   auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = CustomDatatypesLowerer(target).Mutate(n->body);
+  n->body = CustomDatatypesLowerer(target)(n->body);
   return LoweredFunc(n);
 }
 

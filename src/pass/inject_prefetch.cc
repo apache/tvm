@@ -22,8 +22,7 @@
  */
 // Inject prefetch op in HalideIR
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/arithmetic.h>
 #include <unordered_set>
@@ -34,10 +33,10 @@ namespace ir {
 using arith::IntSet;
 using arith::DomainTouched;
 
-class PrefetchInjector : public IRMutator {
+class PrefetchInjector : public StmtMutator {
  public:
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    Stmt ret = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const AttrStmt* op) final {
+    Stmt ret = StmtMutator::VisitStmt_(op);
     op = ret.as<AttrStmt>();
     if (op && op->attr_key == attr::prefetch_scope) {
       Tensor ts = Downcast<Tensor>(op->node);
@@ -65,13 +64,13 @@ class PrefetchInjector : public IRMutator {
     return ret;
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     auto &var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
       vectorized_[var.get()] = IntSet::interval(op->min, (op->min + op->extent) - 1);
     }
-    Stmt ret = IRMutator::Mutate_(op, s);
+    Stmt ret = StmtMutator::VisitStmt_(op);
     if (op->for_type == ForType::Vectorized) {
       vectorized_.erase(var.get());
     }
@@ -88,7 +87,7 @@ class PrefetchInjector : public IRMutator {
 const Range PrefetchInjector::none;
 
 Stmt InjectPrefetch(Stmt stmt) {
-  return PrefetchInjector().Mutate(stmt);
+  return PrefetchInjector()(std::move(stmt));
 }
 
 }  // namespace ir

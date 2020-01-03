@@ -22,7 +22,6 @@
  * \file lower_intrin.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
 #include <tvm/expr_operator.h>
@@ -34,9 +33,10 @@
 namespace tvm {
 namespace ir {
 
-class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
+class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+  using IRMutatorWithAnalyzer::VisitExpr_;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target)
       : IRMutatorWithAnalyzer(analyzer) {
@@ -51,28 +51,29 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
-      Expr r = ApplyPattern(op->name, e);
+      Expr r = ApplyPattern(op->name, GetRef<Expr>(op));
       if (r.defined()) return r;
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const Add* op, const Expr& e) final {
+  Expr VisitExpr_(const Add* op) final {
     if (const Mul* mb = op->b.as<Mul>()) {
-      return MakeFMA(mb->a, mb->b, op->a, op, e);
+      return MakeFMA(mb->a, mb->b, op->a, op);
     } else if (const Mul* ma = op->a.as<Mul>()) {
-      return MakeFMA(ma->a, ma->b, op->b, op, e);
+      return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr Mutate_(const FloorDiv* op, const Expr& e) final {
-    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
+  Expr VisitExpr_(const FloorDiv* op) final {
+    auto e = GetRef<Expr>(op);
+    Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
     op = ret.as<FloorDiv>();
     if (op == nullptr) return ret;
     int shift;
@@ -117,8 +118,8 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Mutate_(const FloorMod* op, const Expr& e) final {
-    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
+  Expr VisitExpr_(const FloorMod* op) final {
+    Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
     op = ret.as<FloorMod>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
@@ -167,34 +168,37 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Mutate_(const Max* op, const Expr& e) final {
+  Expr VisitExpr_(const Max* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     PVar<Integer> c;
+    auto e = GetRef<Expr>(op);
     if (max(floordiv(x, y), c).Match(e) &&
         c.Eval()->value >= 0 &&
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
-      return max(Mutate(truncdiv(x, y).Eval()), c.Eval());
+      return max(VisitExpr(truncdiv(x, y).Eval()), c.Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const EQ* op, const Expr& e) final {
+  Expr VisitExpr_(const EQ* op) final {
     using namespace arith;
     PVar<Expr> x, y;
+    auto e = GetRef<Expr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
-      return Mutate((truncmod(x, y) == 0).Eval());
+      return VisitExpr((truncmod(x, y) == 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const NE* op, const Expr& e) final {
+  Expr VisitExpr_(const NE* op) final {
     using namespace arith;
     PVar<Expr> x, y;
+    auto e = GetRef<Expr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
-      return Mutate((truncmod(x, y) != 0).Eval());
+      return VisitExpr((truncmod(x, y) != 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
  private:
@@ -231,7 +235,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
   }
 
   Expr MakeFMA(const Expr& a, const Expr& b, const Expr& c,
-               const Add* op, const Expr& e) {
+               const Add* op) {
     // emit fma instruction: a * b + c
     Expr lhs = SwapBroadcastCast(a);
     Expr rhs = SwapBroadcastCast(b);
@@ -239,14 +243,14 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     if (fma_ != nullptr && op->dtype.is_float()) {
       Expr r = (*fma_)(Call::make(
           op->dtype, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
-      if (r.defined()) return this->Mutate(r);
+      if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        Expr mul = this->Mutate(Mul::make(lhs, rhs));
-        return Add::make(mul, this->Mutate(c));
+        Expr mul = this->VisitExpr(Mul::make(lhs, rhs));
+        return Add::make(mul, this->VisitExpr(c));
       }
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
   Expr ApplyPattern(const std::string& name, const Expr& e) {
@@ -262,7 +266,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         Expr r = (*f)(e);
         CHECK(r.defined()) << "intrinsic rule must always return valid Expr";
         if (!r.same_as(e)) {
-          return this->Mutate(r);
+          return this->VisitExpr(r);
         }
       }
     }
@@ -277,7 +281,7 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  return IntrinInjecter(&analyzer, target).Mutate(stmt);
+  return IntrinInjecter(&analyzer, target)(std::move(stmt));
 }
 
 LoweredFunc

@@ -19,22 +19,22 @@
 
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace ir {
 
-class AssertSkipper : public IRMutator {
+class AssertSkipper : public StmtMutator {
  public:
-  Stmt Mutate_(const AssertStmt* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const AssertStmt* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AssertStmt>();
     return op->body;
   }
 };
 
 Stmt SkipAssert(Stmt stmt) {
-  return AssertSkipper().Mutate(stmt);
+  return AssertSkipper()(std::move(stmt));
 }
 
 LoweredFunc SkipAssert(LoweredFunc f) {
