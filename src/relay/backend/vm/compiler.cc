@@ -31,17 +31,13 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/attrs/memory.h>
-#include <topi/tags.h>
-#include <algorithm>
 #include <iostream>
 #include <memory>
-#include <set>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
 #include "../../op/op_common.h"
@@ -72,8 +68,6 @@ using namespace relay::transform;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
-
-void InstructionPrint(std::ostream& os, const Instruction& instr);
 
 // Represent a runtime object that's going to be matched by pattern match expressions
 struct MatchValue {
@@ -156,12 +150,10 @@ TreeObjectPtr BuildDecisionTreeFromPattern(MatchValuePtr data,
   if (pattern.as<PatternWildcardNode>()) {
     // We ignore wildcard binding since it's not producing new vars
     return then_branch;
-  } else if (pattern.as<PatternVarNode>()) {
-    auto pat = pattern.as<PatternVarNode>();
-    auto pattern = GetRef<PatternVar>(pat);
-    auto cond = std::make_shared<VarBinding>(pattern->var, data);
+  } else if (const auto* pvn = pattern.as<PatternVarNode>()) {
+    auto cond = std::make_shared<VarBinding>(pvn->var, data);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
-  } else if (auto pcn = pattern.as<PatternConstructorNode>()) {
+  } else if (const auto* pcn = pattern.as<PatternConstructorNode>()) {
     auto tag = pcn->constructor->tag;
 
     size_t field_index = 0;
@@ -173,13 +165,12 @@ TreeObjectPtr BuildDecisionTreeFromPattern(MatchValuePtr data,
     auto cond = std::make_shared<TagCompare>(data, tag);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
   } else {
-    auto pt = pattern.as<PatternTupleNode>();
-    CHECK(pt) << "unhandled case: " << pattern;
+    const auto* pt = pattern.as<PatternTupleNode>();
+    CHECK(pt) << "unhandled case: " << AsText(pattern, false);
     size_t field_index = 0;
     for (auto& p : pt->patterns) {
-      auto d = std::make_shared<AccessField>(data, field_index);
+      auto d = std::make_shared<AccessField>(data, field_index++);
       then_branch = BuildDecisionTreeFromPattern(d, p, then_branch, else_branch);
-      field_index++;
     }
     return then_branch;
   }
@@ -633,7 +624,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // and emit a call to allocate the data structure.
       auto constructor = GetRef<Constructor>(constructor_node);
       Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
-                                      NewRegister()));
+                                 NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
       // If we are calling a variable, it must be the case that it is a closure so we
       // emit invoke closure here.
@@ -675,16 +666,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void CompileTreeNode(TreeObjectPtr tree) {
-    if (std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
-      auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree);
+    if (auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
       VisitExpr(node->body);
     } else if (std::dynamic_pointer_cast<TreeLeafFatalNode>(tree)) {
       Emit(Instruction::Fatal());
-    } else if (std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
-      auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree);
-      if (std::dynamic_pointer_cast<TagCompare>(node->cond)) {
+    } else if (auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
+      if (auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond)) {
         // For Tag compariton, generate branches
-        auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond);
         auto r = CompileMatchValue(cond->obj);
         Emit(Instruction::GetTag(r, NewRegister()));
         auto operand1 = last_register_;
@@ -707,8 +695,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         instructions_[goto_offset].pc_offset = else_offset - goto_offset + 1;
       } else {
         // For other non-branch conditions, move to then_branch directly
-        auto cond = std::dynamic_pointer_cast<VarBinding>(node->cond);
-        var_register_map_[cond->var] = CompileMatchValue(cond->val);
+        auto var_bind = std::dynamic_pointer_cast<VarBinding>(node->cond);
+        var_register_map_[var_bind->var] = CompileMatchValue(var_bind->val);
         CompileTreeNode(node->then_branch);
       }
     }
