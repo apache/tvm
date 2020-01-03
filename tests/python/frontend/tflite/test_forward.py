@@ -863,7 +863,41 @@ def _test_minimum(data):
 def _test_greater(data):
     """ One iteration of greater """
     return _test_elemwise(math_ops.greater, data)
+#######################################################################
+# Greater_equal
+# -------------
 
+def _test_greater_equal(data):
+    """ One iteration of greater_equal """
+    return _test_elemwise(math_ops.greater_equal, data)
+#######################################################################
+# Less
+# ----
+
+def _test_less(data):
+    """ One iteration of less """
+    return _test_elemwise(math_ops.less, data)
+#######################################################################
+# Less_equal
+# ----------
+
+def _test_less_equal(data):
+    """ One iteration of less_equal """
+    return _test_elemwise(math_ops.less_equal, data)
+#######################################################################
+# Equal
+# -----
+
+def _test_equal(data):
+    """ One iteration of equal """
+    return _test_elemwise(math_ops.equal, data)
+#######################################################################
+# Not_equal
+# ---------
+
+def _test_not_equal(data):
+    """ One iteration of not_equal"""
+    return _test_elemwise(math_ops.not_equal, data)
 #######################################################################
 # Squared_difference
 # ------------------
@@ -915,6 +949,11 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_minimum)
     _test_forward_elemwise(_test_greater)
     _test_forward_elemwise(_test_squared_difference)
+    _test_forward_elemwise(_test_greater_equal)
+    _test_forward_elemwise(_test_less)
+    _test_forward_elemwise(_test_less_equal)
+    _test_forward_elemwise(_test_equal)
+    _test_forward_elemwise(_test_not_equal)
 
 #######################################################################
 # Zeros like
