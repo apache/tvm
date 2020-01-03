@@ -20,11 +20,13 @@ from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm
+from tvm import relay
 from .. import analysis
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .. import qnn as _qnn
+from ..util import get_scalar_from_constant
 from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
@@ -177,8 +179,8 @@ class OperatorConverter(object):
                 # Check that the scale and zero points are valid.
                 if scale != 0 or zero_point != 0:
                     qnn_params = dict()
-                    qnn_params['scale'] = scale
-                    qnn_params['zero_point'] = zero_point
+                    qnn_params['scale'] = relay.const(scale, 'float32')
+                    qnn_params['zero_point'] = relay.const(zero_point, 'int32')
             return_list.append(TensorWrapper(tensor_idx, tensor, buffer, qnn_params))
         return return_list
 
@@ -225,8 +227,16 @@ class OperatorConverter(object):
                                   .format(str(tensor_type)))
 
     def has_same_qnn_params(self, lhs_tensor, rhs_tensor):
-        return lhs_tensor.qnn_params['scale'] == rhs_tensor.qnn_params['scale'] and \
-                lhs_tensor.qnn_params['zero_point'] == rhs_tensor.qnn_params['zero_point']
+        lhs_scale = lhs_tensor.qnn_params['scale']
+        rhs_scale = rhs_tensor.qnn_params['scale']
+        lhs_zero_point = lhs_tensor.qnn_params['zero_point']
+        rhs_zero_point = rhs_tensor.qnn_params['zero_point']
+        lhs_scale_value = get_scalar_from_constant(lhs_scale)
+        rhs_scale_value = get_scalar_from_constant(rhs_scale)
+        lhs_zero_point_value = get_scalar_from_constant(lhs_zero_point)
+        rhs_zero_point_value = get_scalar_from_constant(rhs_zero_point)
+        return lhs_scale_value == rhs_scale_value and \
+                lhs_zero_point_value == rhs_zero_point_value
 
     def is_quantized(self, op):
         """Check if an input tensor is quantized."""
@@ -750,13 +760,11 @@ class OperatorConverter(object):
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
 
         if input_tensor.qnn_params:
-            input_scale = input_tensor.qnn_params['scale']
-            kernel_scale = weight_tensor.qnn_params['scale']
             out = _qnn.op.dense(in_expr, weight_expr,
                                 input_zero_point=input_tensor.qnn_params['zero_point'],
                                 kernel_zero_point=weight_tensor.qnn_params['zero_point'],
-                                input_scale=input_scale,
-                                kernel_scale=kernel_scale,
+                                input_scale=input_tensor.qnn_params['scale'],
+                                kernel_scale=weight_tensor.qnn_params['scale'],
                                 out_dtype='int32')
         else:
             out = _op.nn.dense(in_expr, weight_expr)
@@ -783,11 +791,16 @@ class OperatorConverter(object):
 
         # Finally if the dense is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:
-            input_scale = input_tensor.qnn_params['scale'] * weight_tensor.qnn_params['scale']
-            input_zero_point = 0
+            data_scale = input_tensor.qnn_params['scale']
+            weight_scale = weight_tensor.qnn_params['scale']
+            data_scale_val = get_scalar_from_constant(data_scale)
+            weight_scale_val = get_scalar_from_constant(weight_scale)
+            new_input_scale_val = data_scale_val * weight_scale_val
+            new_input_scale = relay.const(new_input_scale_val, 'float32')
+            new_input_zero_point = relay.const(0, 'int32')
             out = _qnn.op.requantize(out,
-                                     input_scale=input_scale,
-                                     input_zero_point=input_zero_point,
+                                     input_scale=new_input_scale,
+                                     input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
                                      out_dtype=output_tensor_type_str)
@@ -989,11 +1002,16 @@ class OperatorConverter(object):
 
         # Finally if the conv is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:
-            input_scale = input_tensor.qnn_params['scale'] * weight_tensor.qnn_params['scale']
-            input_zero_point = 0
+            data_scale = input_tensor.qnn_params['scale']
+            weight_scale = weight_tensor.qnn_params['scale']
+            data_scale_val = get_scalar_from_constant(data_scale)
+            weight_scale_val = get_scalar_from_constant(weight_scale)
+            new_input_scale_val = data_scale_val * weight_scale_val
+            new_input_scale = relay.const(new_input_scale_val, 'float32')
+            new_input_zero_point = relay.const(0, 'int32')
             out = _qnn.op.requantize(out,
-                                     input_scale=input_scale,
-                                     input_zero_point=input_zero_point,
+                                     input_scale=new_input_scale,
+                                     input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
                                      out_dtype=output_tensor_type_str)

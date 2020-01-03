@@ -179,10 +179,10 @@ def qnn_dense_driver(test_configuration):
     mod = relay.qnn.op.dense(
         quantized_data,
         quantized_kernel,
-        test_configuration['input_zero_point'],
-        test_configuration['kernel_zero_point'],
-        test_configuration['input_scale'],
-        test_configuration['kernel_scale'],
+        relay.const(test_configuration['input_zero_point'], 'int32'),
+        relay.const(test_configuration['kernel_zero_point'], 'int32'),
+        relay.const(test_configuration['input_scale'], 'float32'),
+        relay.const(test_configuration['kernel_scale'], 'float32'),
         test_configuration['units'])
     if test_configuration[bias_name] is not None:
         bias = relay.var(bias_name,
@@ -193,10 +193,10 @@ def qnn_dense_driver(test_configuration):
         requantize_config = test_configuration['requantize']
         mod = relay.qnn.op.requantize(
             mod,
-            input_scale=requantize_config['input_scale'],
-            input_zero_point=0,
-            output_scale=requantize_config['output_scale'],
-            output_zero_point=requantize_config['output_zero_point'],
+            input_scale=relay.const(requantize_config['input_scale'], 'float32'),
+            input_zero_point=relay.const(0, 'int32'),
+            output_scale=relay.const(requantize_config['output_scale'], 'float32'),
+            output_zero_point=relay.const(requantize_config['output_zero_point'], 'int32'),
             out_dtype=requantize_config['out_dtype'])
         expected_out_dtype = requantize_config['out_dtype']
 

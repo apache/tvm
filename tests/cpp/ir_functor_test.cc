@@ -41,6 +41,19 @@ TEST(IRF, Basic) {
   CHECK_EQ(f(z, 2),  4);
 }
 
+TEST(IRF, CountVar) {
+  using namespace tvm;
+  int n_var = 0;
+  Var x("x"), y;
+
+  auto z = x + 1 + y + y;
+  ir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
+      if (n.as<Variable>()) ++n_var;
+    });
+  CHECK_EQ(n_var, 2);
+}
+
+
 TEST(IRF, ExprTransform) {
   using namespace tvm;
   using namespace tvm::ir;
