@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,30 +23,30 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 
 namespace tvm {
 namespace ir {
 
 // Mark the statment of each stage.
-class NoOpRemover : public IRMutator {
+class NoOpRemover : public StmtMutator {
  public:
-  Stmt Mutate_(const LetStmt* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const LetStmt* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<LetStmt>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
     }
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmt>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
-  Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const IfThenElse* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<IfThenElse>();
     if (op->else_case.defined()) {
       if (is_no_op(op->else_case)) {
@@ -66,35 +66,35 @@ class NoOpRemover : public IRMutator {
       }
     }
   }
-  Stmt Mutate_(const For* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const For* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<For>();
     if (is_zero(op->extent)) {
       return Evaluate::make(0);
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
   }
-  Stmt Mutate_(const ProducerConsumer* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const ProducerConsumer* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ProducerConsumer>();
     return is_no_op(op->body) ? op->body : stmt;
   }
-  Stmt Mutate_(const Realize* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Realize* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<Realize>();
     return is_no_op(op->body) ? op->body : stmt;
   }
-  Stmt Mutate_(const Evaluate* op, const Stmt& s) final {
-    if (HasSideEffect(op->value)) return s;
+  Stmt VisitStmt_(const Evaluate* op) final {
+    if (HasSideEffect(op->value)) return GetRef<Stmt>(op);
     return Evaluate::make(0);
   }
-  Stmt Mutate_(const Block* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Block* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<Block>();
     if (is_no_op(op->first)) {
       return op->rest;
@@ -129,7 +129,7 @@ class NoOpRemover : public IRMutator {
 };
 
 Stmt RemoveNoOp(Stmt stmt) {
-  return NoOpRemover().Mutate(stmt);
+  return NoOpRemover()(std::move(stmt));
 }
 }  // namespace ir
 }  // namespace tvm

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,7 +26,7 @@
 #define TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/api_registry.h>
 #include <stack>
 #include <vector>
@@ -85,39 +85,39 @@ struct ItervarFeature {
 // extract iter vars and their touch pattern from ir
 class TouchExtractor : public FeatureVisitor {
  public:
-  void Analyze(Stmt stmt) {
-    this->Visit(stmt);
+  void Analyze(const Stmt& stmt) {
+    operator()(stmt);
   }
 
   // arithmetic stats
-  void Visit_(const Add *op) {
+  void VisitExpr_(const Add *op) {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Sub *op) {
+  void VisitExpr_(const Sub *op) {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Mul *op) {
+  void VisitExpr_(const Mul *op) {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].mul_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Div *op) {
+  void VisitExpr_(const Div *op) {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Mod *op) {
+  void VisitExpr_(const Mod *op) {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
   std::unordered_map<VarExpr, ItervarFeature, tvm::ExprHash, tvm::ExprEqual> itervar_map;
@@ -134,7 +134,7 @@ class TouchExtractor : public FeatureVisitor {
   std::deque<VarExpr> itervar_stack_;  // use deque instead of stack for indexing
   std::deque<size_t> skip_stack_size_;
 
-  using IRVisitor::Visit_;
+  using FeatureVisitor::VisitExpr_;
 };
 
 }  // namespace autotvm

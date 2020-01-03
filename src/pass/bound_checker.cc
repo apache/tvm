@@ -23,9 +23,8 @@
 // Instrument checkers for out of the bounds access.
 
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <vector>
 #include <unordered_map>
 #include <utility>
@@ -33,48 +32,48 @@
 namespace tvm {
 namespace ir {
 
-class BoundCollector : public IRVisitor {
+class BoundCollector : public StmtVisitor {
  public:
   BoundCollector() {}
 
-  void Visit_(const AttrStmt *op) {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == ir::attr::buffer_bound) {
       if (const Variable *key = op->node.as<Variable>()) {
         mem_to_shape[key] = op->value;
       }
     }
-    IRVisitor::Visit_(op);
+    StmtVisitor::VisitStmt_(op);
   }
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const Variable *, Expr> mem_to_shape;
 };
 
-class BoundChecker : public IRMutator {
+class BoundChecker : public StmtExprMutator {
  public:
   explicit BoundChecker(
       const std::unordered_map<const Variable *, Expr> &mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt Mutate_(const Allocate *op, const Stmt &s) final {
+  Stmt VisitStmt_(const Allocate* op) final {
     // If the shape was updated we should update the hashtable.
     if (UpdateIsNeeded(op->buffer_var)) {
       Update(op->buffer_var, op->extents, op->dtype);
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr Mutate_(const Call *op, const Expr &ex) final {
+  Expr VisitExpr_(const Call* op) final {
     if (process_store_ && op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       unsafe_rewritten_ = true;
     }
-    return IRMutator::Mutate_(op, ex);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt Mutate_(const Store *op, const Stmt &s) final {
+  Stmt VisitStmt_(const Store* op) final {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
-    IRMutator::Mutate_(op, s);
+    StmtExprMutator::VisitStmt_(op);
     process_store_ = false;
     if (CanInstrument(op->index, op->buffer_var)) {
       Collect(op->index, op->buffer_var);
@@ -92,23 +91,24 @@ class BoundChecker : public IRMutator {
         return body;
       }
     }
-    return s;
+    return GetRef<Stmt>(op);
   }
 
-  Expr Mutate_(const Load *op, const Expr &ex) final {
+  Expr VisitExpr_(const Load* op) final {
     if (CanInstrument(op->index, op->buffer_var)) {
       Collect(op->index, op->buffer_var);
     }
-    return IRMutator::Mutate_(op, ex);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
  private:
-  bool UpdateIsNeeded(const VarExpr &buffer_var) const {
+  bool UpdateIsNeeded(const VarExpr& buffer_var) const {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const VarExpr &buffer_var, const Array<Expr> &new_shape,
-              const DataType &type) {
+  void Update(const VarExpr& buffer_var,
+              const Array<Expr>& new_shape,
+              const DataType& type) {
     // Sanity check at first.
     if (!new_shape.size()) {
       return;
@@ -132,7 +132,7 @@ class BoundChecker : public IRMutator {
     mem_to_shape_[buffer_var.get()] = shape;
   }
 
-  bool IndexIsValid(const Expr &index) const {
+  bool IndexIsValid(const Expr& index) const {
     if (!index.defined()) {
       return false;
     }
@@ -146,7 +146,7 @@ class BoundChecker : public IRMutator {
     return true;
   }
 
-  bool CanInstrument(const Expr &index, const VarExpr &buffer_var) const {
+  bool CanInstrument(const Expr& index, const VarExpr& buffer_var) const {
     return buffer_var.defined() && mem_to_shape_.count(buffer_var.get()) &&
            IndexIsValid(index) && !unsafe_rewritten_;
   }
@@ -206,8 +206,8 @@ class BoundChecker : public IRMutator {
 Stmt InstrumentBoundCheckers(Stmt stmt) {
   BoundCollector bound_collector;
   // At first walk recursively and collect bound attributes.
-  bound_collector.Visit(stmt);
-  return BoundChecker(bound_collector.mem_to_shape).Mutate(stmt);
+  bound_collector(stmt);
+  return BoundChecker(bound_collector.mem_to_shape)(std::move(stmt));
 }
 }  // namespace ir
 }  // namespace tvm

@@ -22,7 +22,7 @@
  * \file lower_tvm_buildin.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
@@ -43,14 +43,14 @@ inline Expr StackAlloca(std::string type, size_t num) {
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class BuiltinLower : public IRMutator {
+class BuiltinLower : public StmtExprMutator {
  public:
   Stmt Build(Stmt stmt) {
     stack_shape_ = Var("stack_shape", DataType::Handle());
     stack_array_ = Var("stack_array", DataType::Handle());
     stack_value_ = Var("stack_value", DataType::Handle());
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
-    stmt = this->Mutate(stmt);
+    stmt = this->VisitStmt(stmt);
     if (max_shape_stack_ != 0) {
       stmt = LetStmt::make(
           stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
@@ -68,8 +68,8 @@ class BuiltinLower : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate(Stmt stmt) final {
-    stmt = IRMutator::Mutate(stmt);
+  Stmt VisitStmt(const Stmt& s) final {
+    auto stmt = StmtExprMutator::VisitStmt(s);
     CHECK_EQ(run_shape_stack_, 0);
     CHECK_EQ(run_array_stack_, 0);
     while (prep_seq_.size() != 0) {
@@ -79,9 +79,9 @@ class BuiltinLower : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate_(const Allocate* op, const Stmt& s) {
+  Stmt VisitStmt_(const Allocate* op) {
     // Lower allocate to device allocate when needed.
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     if (op->new_expr.defined()) return stmt;
     // Get constant allocation bound.
@@ -141,39 +141,39 @@ class BuiltinLower : public IRMutator {
     return body;
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::device_context_id) {
       CHECK(!device_id_.defined());
       device_id_ = op->value;
-      return Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::device_context_type) {
       CHECK(!device_type_.defined());
       device_type_ = op->value;
-      return Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Expr Mutate_(const Call* op, const Expr &e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
-      return MakeCallPacked(op, e);
+      return MakeCallPacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed)) {
-      return MakeCallTracePacked(op, e);
+      return MakeCallTracePacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_shape)) {
-      return MakeShape(op, e);
+      return MakeShape(op);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
-      return MakeArray(op, e);
+      return MakeArray(op);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
       return make_zero(op->dtype);
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
   // call shape
-  Expr MakeShape(const Call* op, const Expr& e) {
+  Expr MakeShape(const Call* op) {
     size_t stack_begin = run_shape_stack_;
     run_shape_stack_ += op->args.size();
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
@@ -183,10 +183,10 @@ class BuiltinLower : public IRMutator {
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
   // make array
-  Expr MakeArray(const Call* op, const Expr& e) {
+  Expr MakeArray(const Call* op) {
     size_t idx = run_array_stack_;
     run_array_stack_ += 1;
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrData, op->args[0]));
@@ -230,13 +230,13 @@ class BuiltinLower : public IRMutator {
     return TVMStructGet(DataType::Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
   // call packed.
-  Expr MakeCallPacked(const Call* op, const Expr& e) {
+  Expr MakeCallPacked(const Call* op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     // Specially handle the buffer packed intrinsic
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
@@ -278,14 +278,14 @@ class BuiltinLower : public IRMutator {
         packed_args, Call::Intrinsic);
   }
 
-  Expr MakeCallTracePacked(const Call *op, const Expr &e) {
+  Expr MakeCallTracePacked(const Call *op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     size_t args_size = op->args.size();
     CHECK_GT(args_size, 0);
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);

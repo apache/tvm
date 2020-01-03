@@ -21,7 +21,8 @@ import tvm
 from .. import tag
 
 
-def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out_dtype=None):
+def resize(data, size, layout="NCHW", method="bilinear",
+           coordinate_transformation_mode="half_pixel", out_dtype=None):
     """Perform resize operation on the data.
 
     Parameters
@@ -37,8 +38,11 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
     layout: string, optional
         "NCHW", "NHWC", or "NCHWc".
 
-    align_corners: Boolean, optional
-        To preserve the values at the corner pixels.
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
 
     method: {"bilinear", "nearest_neighbor", "bicubic"}
         Method to be used for resizing.
@@ -66,12 +70,15 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
         in_n, in_c, in_h, in_w, in_cc = data.shape
         output_shape = [in_n, in_c, size[0], size[1], in_cc]
 
-    if align_corners:
+    if coordinate_transformation_mode == "align_corners":
         y_ratio = (in_h - 1).astype('float') / (size[0] - 1)
         x_ratio = (in_w - 1).astype('float') / (size[1] - 1)
-    else:
+    elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
         y_ratio = (in_h).astype('float') / (size[0])
         x_ratio = (in_w).astype('float') / (size[1])
+    else:
+        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+            coordinate_transformation_mode))
 
     def _get_pixel(n, c, y, x, cc):
         y = tvm.max(tvm.min(y, in_h - 1), 0)
@@ -109,7 +116,7 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
         in_y = y_ratio * y
         in_x = x_ratio * x
 
-        if align_corners:
+        if coordinate_transformation_mode == "align_corners":
             yint = tvm.round(in_y).astype('int32')
             xint = tvm.round(in_x).astype('int32')
         else:
@@ -127,8 +134,12 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
     def _bilinear(*indices):
         n, c, y, x, cc = _get_indices(*indices)
 
-        in_y = y_ratio * y
-        in_x = x_ratio * x
+        if coordinate_transformation_mode == "half_pixel":
+            in_y = y_ratio * (y + 0.5) - 0.5
+            in_x = x_ratio * (x + 0.5) - 0.5
+        else:
+            in_y = y_ratio * y
+            in_x = x_ratio * x
 
         xint = tvm.floor(in_x).astype('int32')
         xfract = in_x - tvm.floor(in_x)
@@ -158,8 +169,12 @@ def resize(data, size, layout="NCHW", method="bilinear", align_corners=True, out
     def _bicubic(*indices):
         n, c, y, x, cc = _get_indices(*indices)
 
-        in_y = y_ratio * y
-        in_x = x_ratio * x
+        if coordinate_transformation_mode == "half_pixel":
+            in_y = y_ratio * (y + 0.5) - 0.5
+            in_x = x_ratio * (x + 0.5) - 0.5
+        else:
+            in_y = y_ratio * y
+            in_x = x_ratio * x
 
         xint = tvm.floor(in_x).astype('int32')
         xfract = in_x - tvm.floor(in_x)

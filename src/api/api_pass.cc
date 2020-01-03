@@ -25,8 +25,7 @@
 #include <tvm/ir.h>
 #include <tvm/attrs.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/api_registry.h>
 
 namespace tvm {

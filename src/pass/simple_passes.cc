@@ -22,25 +22,24 @@
  * \brief Implementation of simple passes
  */
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 
 namespace tvm {
 namespace ir {
 
-class IRSideEffect : public IRVisitor {
+class IRSideEffect : public ExprVisitor {
  public:
-  void Visit(const ObjectRef& e) final {
+  void VisitExpr(const Expr& e) final {
     if (has_side_effect_) return;
-    IRVisitor::Visit(e);
+    ExprVisitor::VisitExpr(e);
   }
 
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     if (!op->is_pure()) {
       has_side_effect_ = true; return;
     } else {
-      IRVisitor::Visit_(op);
+      ExprVisitor::VisitExpr_(op);
     }
   }
 
@@ -49,23 +48,23 @@ class IRSideEffect : public IRVisitor {
 
 bool HasSideEffect(const Expr& e) {
   IRSideEffect v;
-  v.Visit(e);
+  v(e);
   return v.has_side_effect_;
 }
 
-class IRSubstitue : public IRMutator {
+class IRSubstitue : public StmtExprMutator {
  public:
   explicit IRSubstitue(
       const std::unordered_map<const Variable*, Expr>& smap)
       : smap_(smap) {
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = smap_.find(op);
     if (it != smap_.end()) {
       return it->second;
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
 
@@ -76,13 +75,13 @@ class IRSubstitue : public IRMutator {
 Stmt Substitute(Stmt stmt,
                 const std::unordered_map<const Variable*, Expr>& value_map) {
   if (value_map.size() == 0) return stmt;
-  return IRSubstitue(value_map).Mutate(stmt);
+  return IRSubstitue(value_map)(std::move(stmt));
 }
 
 Expr Substitute(Expr expr,
                 const std::unordered_map<const Variable*, Expr>& value_map) {
   if (value_map.size() == 0) return expr;
-  return IRSubstitue(value_map).Mutate(expr);
+  return IRSubstitue(value_map)(std::move(expr));
 }
 
 Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
@@ -101,20 +100,20 @@ Expr Substitute(Expr expr, const Map<Var, Expr>& value_map) {
   return Substitute(expr, vmap);
 }
 
-class VarTouchVisitor : public IRVisitor {
+class VarTouchVisitor : public ExprVisitor {
  public:
-  void Visit(const ObjectRef& e) final {
+  void VisitExpr(const Expr& e) final {
     if (use_var_) return;
-    IRVisitor::Visit(e);
+    ExprVisitor::VisitExpr(e);
   }
 
-  void Visit_(const Variable* op) final {
+  void VisitExpr_(const Variable* op) final {
     Handle(op);
   }
 
-  void Visit_(const Load* op) final {
+  void VisitExpr_(const Load* op) final {
     Handle(op->buffer_var.get());
-    IRVisitor::Visit_(op);
+    ExprVisitor::VisitExpr_(op);
   }
 
   virtual void Handle(const Variable* var) = 0;
@@ -149,14 +148,14 @@ class ExprUseVSetVisitor : public VarTouchVisitor {
 
 bool ExprUseVar(const Expr& e, const Var& v) {
   ExprUseVarVisitor visitor(v.get());
-  visitor.Visit(e);
+  visitor(e);
   return visitor.use_var_;
 }
 
 bool ExprUseVar(const Expr& e,
                 const std::unordered_set<const Variable*>& vset) {
   ExprUseVSetVisitor visitor(vset);
-  visitor.Visit(e);
+  visitor(e);
   return visitor.use_var_;
 }
 

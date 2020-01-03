@@ -98,23 +98,6 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def verify_super_resolution_example():
-    verify_onnx_forward_impl(
-        super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
-
-
-def verify_squeezenet1_1():
-    verify_onnx_forward_impl(squeezenet1_1, (1, 3, 224, 224), (1, 1000))
-
-
-def verify_lenet():
-    verify_onnx_forward_impl(lenet, (1, 1, 28, 28), (1, 10))
-
-
-def verify_resnet18():
-    verify_onnx_forward_impl(resnet18_1_0, (1, 3, 224, 224), (1, 1000))
-
-
 def test_reshape():
     in_shape = (4, 3, 3, 4)
     ref_shape = (6, 2, 4, 3)

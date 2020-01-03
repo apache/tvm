@@ -36,7 +36,7 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   Array<IndexExpr> size;
   std::string layout;
   std::string method;
-  bool align_corners;
+  std::string coordinate_transformation_mode;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
@@ -52,8 +52,11 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
                   "nearest_neighbor -  Nearest Neighbor"
                   "bilinear - Bilinear Interpolation"
                   "bicubic - Bicubic Interpolation");
-    TVM_ATTR_FIELD(align_corners).set_default(true)
-        .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(coordinate_transformation_mode).set_default("half_pixel")
+        .describe("Describes how to transform the coordinate in the resized tensor"
+                  "to the coordinate in the original tensor."
+                  "Refer to the ONNX Resize operator specification for details"
+                  "Available options are half_pixel, align_corners and asymmetric");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type.");

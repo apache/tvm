@@ -582,7 +582,7 @@ def _crop_and_resize():
             raise tvm.error.OpAttributeUnImplemented(
                 'Attribute method=nearest is not supported')
         else:
-            attrs['align_corners'] = True
+            attrs['coordinate_transformation_mode'] = 'align_corners'
             attrs['method'] = 'bilinear'
 
         out = None
@@ -632,6 +632,10 @@ def _resize(method):
         inputs.pop(1)
         # NHWC
         attr['layout'] = 'NHWC'
+        if attr.pop('align_corners') is True:
+            attr['coordinate_transformation_mode'] = 'align_corners'
+        else:
+            attr['coordinate_transformation_mode'] = 'asymmetric'
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(op_name='resize',

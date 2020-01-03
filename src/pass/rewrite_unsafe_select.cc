@@ -23,7 +23,6 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 
 namespace tvm {
@@ -109,10 +108,10 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   }
 };
 
-class UnsafeSelectRewriter : public IRMutator {
+class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr Mutate_(const Select* op, const Expr& e) {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Select* op) {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Select>();
     UnsafeExprDetector unsafe;
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
@@ -131,7 +130,7 @@ class UnsafeSelectRewriter : public IRMutator {
 };
 
 Stmt RewriteUnsafeSelect(Stmt stmt) {
-  return UnsafeSelectRewriter().Mutate(stmt);
+  return UnsafeSelectRewriter()(std::move(stmt));
 }
 
 }  // namespace ir

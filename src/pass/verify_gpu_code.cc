@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -26,12 +26,12 @@
 
 #include <tvm/api_registry.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace ir {
 
-class GPUCodeVerifier : public IRVisitor {
+class GPUCodeVerifier : public StmtVisitor {
  public:
   bool Verify(tvm::Stmt stmt,
               int64_t max_local_memory_per_block,
@@ -49,12 +49,12 @@ class GPUCodeVerifier : public IRVisitor {
 
     Reset_();
 
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
 
     return valid_;
   }
 
-  void Visit_(const ProducerConsumer *op) {
+  void VisitStmt_(const ProducerConsumer* op) final {
     if (nest_level_ == 0) {
       // enter a new kernel, reset statistics
       Reset_();
@@ -62,10 +62,10 @@ class GPUCodeVerifier : public IRVisitor {
 
     if (op->is_producer) {
       nest_level_++;
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
       nest_level_--;
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
 
     if (nest_level_ == 0) {
@@ -77,8 +77,8 @@ class GPUCodeVerifier : public IRVisitor {
     }
   }
 
-  void Visit_(const Allocate *op) {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const Allocate* op) final {
+    StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
@@ -89,7 +89,7 @@ class GPUCodeVerifier : public IRVisitor {
     }
   }
 
-  void Visit_(const AttrStmt *op) {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       std::string op_value = op->value.as<StringImm>()->value;
       if (op_value == "local") {
@@ -132,7 +132,7 @@ class GPUCodeVerifier : public IRVisitor {
         }
       }
     }
-    IRVisitor::Visit_(op);
+    StmtVisitor::VisitStmt_(op);
   }
 
  private:

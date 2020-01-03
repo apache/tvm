@@ -22,23 +22,23 @@
  */
 #include <tvm/schedule_pass.h>
 #include <tvm/operation.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace schedule {
 
 using namespace ir;
 
-class ElemWiseDetector : public ir::IRVisitor {
+class ElemWiseDetector : public ir::ExprVisitor {
  public:
   explicit ElemWiseDetector(Array<IterVar> axis) : axis_(axis) {}
 
-  void Visit(const ObjectRef& e) final {
+  void VisitExpr(const Expr& e) final {
     if (!is_elem_wise_) return;
-    IRVisitor::Visit(e);
+    ExprVisitor::VisitExpr(e);
   }
 
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     Array<Expr> axis = op->args;
     if (axis_.size() != axis.size()) {
       is_elem_wise_ = false;
@@ -51,7 +51,7 @@ class ElemWiseDetector : public ir::IRVisitor {
         return;
       }
     }
-    IRVisitor::Visit_(op);
+    ExprVisitor::VisitExpr_(op);
   }
 
   bool is_elem_wise_{true};
@@ -64,7 +64,7 @@ class ElemWiseDetector : public ir::IRVisitor {
 bool IsElemWise(const Operation& op) {
   if (const ComputeOpNode* compute = op.as<ComputeOpNode>()) {
     ElemWiseDetector v = ElemWiseDetector(compute->axis);
-    for (auto& e : compute->body) v.Visit(e);
+    for (auto& e : compute->body) v(e);
     return v.is_elem_wise_;
   }
   return false;

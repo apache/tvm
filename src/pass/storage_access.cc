@@ -21,7 +21,6 @@
  * \file storage_access.cc
  */
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/target_info.h>
 #include <string>
 #include <utility>
@@ -32,7 +31,7 @@
 namespace tvm {
 namespace ir {
 
-void StorageAccessVisitor::Visit_(const Load* op) {
+void StorageAccessVisitor::VisitExpr_(const Load* op) {
   const Variable* buf = op->buffer_var.as<Variable>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
@@ -47,10 +46,10 @@ void StorageAccessVisitor::Visit_(const Load* op) {
     curr_stmt_.access.emplace_back(std::move(e));
   }
   // traverse child
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitExpr_(op);
 }
 
-void StorageAccessVisitor::Visit_(const Store* op) {
+void StorageAccessVisitor::VisitStmt_(const Store* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -67,7 +66,7 @@ void StorageAccessVisitor::Visit_(const Store* op) {
     curr_stmt_.access.emplace_back(std::move(e));
   }
   // traverse child
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitStmt_(op);
   // push to the scope
   scope_.back().push_back(curr_stmt_);
   // clear access entry.
@@ -75,11 +74,11 @@ void StorageAccessVisitor::Visit_(const Store* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::Visit_(const Evaluate* op) {
+void StorageAccessVisitor::VisitStmt_(const Evaluate* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitStmt_(op);
   // push to the scope
   if (curr_stmt_.access.size() != 0) {
     scope_.back().push_back(curr_stmt_);
@@ -88,17 +87,17 @@ void StorageAccessVisitor::Visit_(const Evaluate* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::Visit_(const AttrStmt* op) {
+void StorageAccessVisitor::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::storage_scope) {
     const Variable* buf = op->node.as<Variable>();
     storage_scope_[buf] =
         StorageScope::make(op->value.as<StringImm>()->value);
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   } else if (op->attr_key == attr::double_buffer_write) {
     CHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<Variable>();
     scope_.push_back(std::vector<StmtEntry>());
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     StmtEntry s;
     s.stmt = op;
     s.access = Summarize(std::move(scope_.back()), nullptr);
@@ -115,7 +114,7 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
   } else if (op->attr_key == attr::coproc_scope) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
     env_threads_.CopyOnWrite()->data.pop_back();
   } else if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
@@ -123,23 +122,23 @@ void StorageAccessVisitor::Visit_(const AttrStmt* op) {
     if (!in_device_env_) {
       in_device_env_ = true;
       scope_.push_back(std::vector<StmtEntry>());
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       // no need to take the result as the thread barrier automatically syncs.
       Summarize(std::move(scope_.back()), nullptr);
       in_device_env_ = false;
       scope_.pop_back();
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
     env_threads_.CopyOnWrite()->data.pop_back();
   } else {
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 }
 
-void StorageAccessVisitor::Visit_(const For* op) {
+void StorageAccessVisitor::VisitStmt_(const For* op) {
   scope_.push_back(std::vector<StmtEntry>());
-  IRVisitor::Visit_(op);
+  StmtExprVisitor::VisitStmt_(op);
   StmtEntry s;
   s.stmt = op;
   s.access = Summarize(std::move(scope_.back()), op);
@@ -161,11 +160,11 @@ void StorageAccessVisitor::Visit_(const For* op) {
   }
 }
 
-void StorageAccessVisitor::Visit_(const IfThenElse* op) {
+void StorageAccessVisitor::VisitStmt_(const IfThenElse* op) {
   ++condition_counter_;
-  this->Visit(op->condition);
+  this->VisitExpr(op->condition);
   scope_.push_back(std::vector<StmtEntry>());
-  this->Visit(op->then_case);
+  this->VisitStmt(op->then_case);
   StmtEntry s;
   s.stmt = op;
   s.access = Summarize(std::move(scope_.back()), nullptr);
@@ -180,10 +179,10 @@ void StorageAccessVisitor::Visit_(const IfThenElse* op) {
   --condition_counter_;
 }
 
-void StorageAccessVisitor::Visit_(const Call* op) {
+void StorageAccessVisitor::VisitExpr_(const Call* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
     const Load *l = op->args[0].as<Load>();
-    IRVisitor::Visit_(l);
+    StmtExprVisitor::VisitExpr_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
@@ -211,7 +210,7 @@ void StorageAccessVisitor::Visit_(const Call* op) {
         curr_stmt_.access.emplace_back(e);
       }
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     CHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImm>()->value;
@@ -224,7 +223,7 @@ void StorageAccessVisitor::Visit_(const Call* op) {
       curr_stmt_.access.emplace_back(std::move(e));
     }
   } else {
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
 }
 
@@ -236,11 +235,12 @@ StorageScope StorageAccessVisitor::GetScope(const Variable* buf) const {
   return it->second;
 }
 
-class StorageAccessInfoLower : public IRMutator {
+
+class StorageAccessInfoLower : public StmtExprMutator {
  public:
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Allocate* op) final {
     // Lower allocate to device allocate when needed.
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     // For special memory, remove allocate, or use head expr
     auto it = storage_info_.find(op->buffer_var.get());
@@ -259,7 +259,7 @@ class StorageAccessInfoLower : public IRMutator {
       return stmt;
     }
   }
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
       const Variable* buf = op->node.as<Variable>();
       StorageScope scope = StorageScope::make(op->value.as<StringImm>()->value);
@@ -270,26 +270,26 @@ class StorageAccessInfoLower : public IRMutator {
         CHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
       }
       storage_info_[buf] = e;
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
 
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr &e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      return MakeAccessPtr(op, e);
+      return MakeAccessPtr(op);
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
  private:
   // tvm_access_ptr
-  Expr MakeAccessPtr(const Call* op, const Expr& e) {
+  Expr MakeAccessPtr(const Call* op) {
     // Specially handle the buffer packed intrinsic
-    Expr expr = IRMutator::Mutate_(op, e);
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
@@ -337,7 +337,7 @@ class StorageAccessInfoLower : public IRMutator {
 };
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {
-  return StorageAccessInfoLower().Mutate(stmt);
+  return StorageAccessInfoLower()(std::move(stmt));
 }
 
 LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc f) {
