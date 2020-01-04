@@ -302,7 +302,7 @@ bool ReduceRel(const Array<Type>& types,
 }
 
 #define RELAY_REGISTER_REDUCE_OP(OpName)                           \
-  TVM_REGISTER_API("relay.op._make." OpName)                       \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                       \
   .set_body_typed<Call(Expr, Array<Integer>, bool, bool)>([](      \
                         Expr data,                                 \
                         Array<Integer> axis,                       \
@@ -633,7 +633,7 @@ Expr MakeVariance(Expr data,
   return CallNode::make(op, {data, mean}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make._variance")
+TVM_REGISTER_GLOBAL("relay.op._make._variance")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 5>(MakeVariance, args, rv);
 });

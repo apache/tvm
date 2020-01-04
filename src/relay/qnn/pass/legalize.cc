@@ -38,7 +38,7 @@ Pass Legalize() {
   return seq;
 }
 
-TVM_REGISTER_API("relay.qnn._transform.Legalize").set_body_typed(Legalize);
+TVM_REGISTER_GLOBAL("relay.qnn._transform.Legalize").set_body_typed(Legalize);
 
 }  // namespace transform
 

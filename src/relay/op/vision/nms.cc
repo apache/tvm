@@ -61,7 +61,7 @@ Expr MakeGetValidCounts(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.get_valid_counts")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.get_valid_counts")
 .set_body_typed(MakeGetValidCounts);
 
 
@@ -129,7 +129,7 @@ Expr MakeNMS(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.non_max_suppression")
 .set_body_typed(MakeNMS);
 
 

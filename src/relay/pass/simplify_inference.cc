@@ -191,7 +191,7 @@ Pass SimplifyInference() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.SimplifyInference")
+TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference")
 .set_body_typed(SimplifyInference);
 
 }  // namespace transform

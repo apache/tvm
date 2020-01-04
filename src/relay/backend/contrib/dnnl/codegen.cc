@@ -303,7 +303,7 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
   return dnnl.CreateCSourceModule(ref);
 }
 
-TVM_REGISTER_API("relay.ext.dnnl").set_body_typed(DNNLCompiler);
+TVM_REGISTER_GLOBAL("relay.ext.dnnl").set_body_typed(DNNLCompiler);
 
 }  // namespace contrib
 }  // namespace relay

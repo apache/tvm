@@ -21,7 +21,9 @@
  * \file attrs.cc
  */
 #include <tvm/attrs.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "attr_functor.h"
 
 namespace tvm {
@@ -345,7 +347,7 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
 
-TVM_REGISTER_API("_AttrsListFieldInfo")
+TVM_REGISTER_GLOBAL("_AttrsListFieldInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator Attrs()->ListFieldInfo();
 });

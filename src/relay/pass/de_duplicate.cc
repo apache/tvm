@@ -114,7 +114,7 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
-TVM_REGISTER_API("relay._transform.dedup")
+TVM_REGISTER_GLOBAL("relay._transform.dedup")
 .set_body_typed(DeDup);
 
 }  // namespace relay

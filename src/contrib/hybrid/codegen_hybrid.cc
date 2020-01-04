@@ -27,6 +27,9 @@
 namespace tvm {
 namespace contrib {
 
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+
 using namespace ir;
 
 std::string dot_to_underscore(std::string s) {

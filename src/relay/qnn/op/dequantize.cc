@@ -94,7 +94,7 @@ The input is always quantized (int8, uint8) and will be converted to float32 giv
 .add_type_rel("Dequantize", DequantizeRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", DequantizeQnnCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.dequantize")
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.dequantize")
 .set_body_typed(MakeDequantize);
 
 }  // namespace qnn

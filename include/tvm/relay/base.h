@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_BASE_H_
 #define TVM_RELAY_BASE_H_
 
-#include <tvm/api_registry.h>
+
 #include <tvm/ir/span.h>
 #include <tvm/ir.h>
 #include <tvm/node/node.h>

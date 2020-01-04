@@ -126,7 +126,7 @@ Pass AlterOpLayout() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.AlterOpLayout")
+TVM_REGISTER_GLOBAL("relay._transform.AlterOpLayout")
 .set_body_typed(AlterOpLayout);
 
 }  // namespace transform

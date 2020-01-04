@@ -18,7 +18,9 @@
  */
 
 #include "registry.h"
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 namespace tvm {
 namespace datatype {

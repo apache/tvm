@@ -23,7 +23,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <tvm/expr_operator.h>
 #include <unordered_set>
 #include "ir_util.h"
@@ -292,7 +294,7 @@ LowerIntrin(LoweredFunc f, const std::string& target) {
 }
 
 // Register the api only for test purposes
-TVM_REGISTER_API("ir_pass._LowerIntrinStmt")
+TVM_REGISTER_GLOBAL("ir_pass._LowerIntrinStmt")
 .set_body_typed(LowerIntrinStmt);
 
 }  // namespace ir

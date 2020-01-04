@@ -40,7 +40,7 @@ Pass PrintIR(bool show_meta_data) {
   return CreateModulePass(pass_func, 0, "PrintIR", {});
 }
 
-TVM_REGISTER_API("relay._transform.PrintIR")
+TVM_REGISTER_GLOBAL("relay._transform.PrintIR")
 .set_body_typed(PrintIR);
 
 }  // namespace transform

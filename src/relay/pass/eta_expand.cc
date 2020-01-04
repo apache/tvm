@@ -160,7 +160,7 @@ Pass EtaExpand(bool expand_constructor, bool expand_global_var) {
   return CreateModulePass(pass_func, 1, "EtaExpand", {});
 }
 
-TVM_REGISTER_API("relay._transform.EtaExpand")
+TVM_REGISTER_GLOBAL("relay._transform.EtaExpand")
 .set_body_typed(EtaExpand);
 
 }  // namespace transform

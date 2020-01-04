@@ -51,7 +51,7 @@ Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
   return Closure(n);
 }
 
-TVM_REGISTER_API("relay._make.Closure")
+TVM_REGISTER_GLOBAL("relay._make.Closure")
 .set_body_typed(ClosureNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -70,7 +70,7 @@ RecClosure RecClosureNode::make(Closure clos, Var bind) {
   return RecClosure(n);
 }
 
-TVM_REGISTER_API("relay._make.RecClosure")
+TVM_REGISTER_GLOBAL("relay._make.RecClosure")
 .set_body_typed(RecClosureNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -85,7 +85,7 @@ TupleValue TupleValueNode::make(tvm::Array<Value> value) {
   return TupleValue(n);
 }
 
-TVM_REGISTER_API("relay._make.TupleValue")
+TVM_REGISTER_GLOBAL("relay._make.TupleValue")
 .set_body_typed(TupleValueNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -108,7 +108,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << "TensorValueNode(" << data_str << ")";
   });
 
-TVM_REGISTER_API("relay._make.TensorValue")
+TVM_REGISTER_GLOBAL("relay._make.TensorValue")
 .set_body_typed(TensorValueNode::make);
 
 RefValue RefValueNode::make(Value value) {
@@ -117,7 +117,7 @@ RefValue RefValueNode::make(Value value) {
   return RefValue(n);
 }
 
-TVM_REGISTER_API("relay._make.RefValue")
+TVM_REGISTER_GLOBAL("relay._make.RefValue")
 .set_body_typed(RefValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(RefValueNode);
@@ -138,7 +138,7 @@ ConstructorValue ConstructorValueNode::make(int32_t tag,
   return ConstructorValue(n);
 }
 
-TVM_REGISTER_API("relay._make.ConstructorValue")
+TVM_REGISTER_GLOBAL("relay._make.ConstructorValue")
 .set_body_typed(ConstructorValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(ConstructorValueNode);
@@ -817,7 +817,7 @@ CreateInterpreter(
   return TypedPackedFunc<Value(Expr)>(packed);
 }
 
-TVM_REGISTER_API("relay.backend.CreateInterpreter")
+TVM_REGISTER_GLOBAL("relay.backend.CreateInterpreter")
 .set_body_typed(CreateInterpreter);
 
 TVM_REGISTER_NODE_TYPE(ClosureNode);

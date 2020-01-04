@@ -23,7 +23,9 @@
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>

@@ -137,7 +137,7 @@ Pass CanonicalizeCast() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CanonicalizeCast")
+TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeCast")
 .set_body_typed(CanonicalizeCast);
 
 }  // namespace transform

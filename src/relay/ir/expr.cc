@@ -37,7 +37,7 @@ Constant ConstantNode::make(runtime::NDArray data) {
 
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
-TVM_REGISTER_API("relay._make.Constant")
+TVM_REGISTER_GLOBAL("relay._make.Constant")
 .set_body_typed(ConstantNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -70,7 +70,7 @@ Tuple TupleNode::make(tvm::Array<relay::Expr> fields) {
 
 TVM_REGISTER_NODE_TYPE(TupleNode);
 
-TVM_REGISTER_API("relay._make.Tuple")
+TVM_REGISTER_GLOBAL("relay._make.Tuple")
 .set_body_typed(TupleNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -95,7 +95,7 @@ Var VarNode::make(std::string name_hint, Type type_annotation) {
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
-TVM_REGISTER_API("relay._make.Var")
+TVM_REGISTER_GLOBAL("relay._make.Var")
 .set_body_typed(static_cast<Var (*)(std::string, Type)>(VarNode::make));
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -117,7 +117,7 @@ GlobalVar GlobalVarNode::make(std::string name_hint) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_API("relay._make.GlobalVar")
+TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
 .set_body_typed(GlobalVarNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -166,7 +166,7 @@ Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) cons
   return FunctionSetAttr(GetRef<Function>(this), attr::kParams, parameters);
 }
 
-TVM_REGISTER_API("relay._expr.FunctionSetParams")
+TVM_REGISTER_GLOBAL("relay._expr.FunctionSetParams")
 .set_body_typed<Function(const Function&, const tvm::Map<Var, Constant>&)>(
   [](const Function& func, const tvm::Map<Var, Constant>& parameters) {
     return func->SetParams(parameters);
@@ -177,7 +177,7 @@ tvm::Map<Var, Constant> FunctionNode::GetParams() const {
   return Downcast<tvm::Map<Var, Constant>>(node_ref);
 }
 
-TVM_REGISTER_API("relay._expr.FunctionGetParams")
+TVM_REGISTER_GLOBAL("relay._expr.FunctionGetParams")
 .set_body_typed<tvm::Map<Var, Constant>(const Function&)>([](const Function& func) {
   return func->GetParams();
 });
@@ -223,7 +223,7 @@ Function FunctionSetAttr(const Function& func, const std::string& key, const Obj
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-TVM_REGISTER_API("relay._make.Function")
+TVM_REGISTER_GLOBAL("relay._make.Function")
 .set_body_typed(FunctionNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -246,7 +246,7 @@ Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
 
 TVM_REGISTER_NODE_TYPE(CallNode);
 
-TVM_REGISTER_API("relay._make.Call")
+TVM_REGISTER_GLOBAL("relay._make.Call")
 .set_body_typed(CallNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -266,7 +266,7 @@ Let LetNode::make(Var var, Expr value, Expr body) {
 
 TVM_REGISTER_NODE_TYPE(LetNode);
 
-TVM_REGISTER_API("relay._make.Let")
+TVM_REGISTER_GLOBAL("relay._make.Let")
 .set_body_typed(LetNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -286,7 +286,7 @@ If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
 
 TVM_REGISTER_NODE_TYPE(IfNode);
 
-TVM_REGISTER_API("relay._make.If")
+TVM_REGISTER_GLOBAL("relay._make.If")
 .set_body_typed(IfNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -305,7 +305,7 @@ TupleGetItem TupleGetItemNode::make(Expr tuple, int index) {
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
-TVM_REGISTER_API("relay._make.TupleGetItem")
+TVM_REGISTER_GLOBAL("relay._make.TupleGetItem")
 .set_body_typed(TupleGetItemNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -322,7 +322,7 @@ RefCreate RefCreateNode::make(Expr value) {
 
 TVM_REGISTER_NODE_TYPE(RefCreateNode);
 
-TVM_REGISTER_API("relay._make.RefCreate")
+TVM_REGISTER_GLOBAL("relay._make.RefCreate")
 .set_body_typed(RefCreateNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -339,7 +339,7 @@ RefRead RefReadNode::make(Expr ref) {
 
 TVM_REGISTER_NODE_TYPE(RefReadNode);
 
-TVM_REGISTER_API("relay._make.RefRead")
+TVM_REGISTER_GLOBAL("relay._make.RefRead")
 .set_body_typed(RefReadNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -357,7 +357,7 @@ RefWrite RefWriteNode::make(Expr ref, Expr value) {
 
 TVM_REGISTER_NODE_TYPE(RefWriteNode);
 
-TVM_REGISTER_API("relay._make.RefWrite")
+TVM_REGISTER_GLOBAL("relay._make.RefWrite")
 .set_body_typed(RefWriteNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -366,12 +366,12 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "RefWriteNode(" << node->ref << ", " << node->value << ")";
 });
 
-TVM_REGISTER_API("relay._expr.TempExprRealize")
+TVM_REGISTER_GLOBAL("relay._expr.TempExprRealize")
 .set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
   return temp->Realize();
 });
 
-TVM_REGISTER_API("relay._expr.FunctionSetAttr")
+TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
 .set_body_typed<Function(Function, std::string, ObjectRef)>(
   [](Function func, std::string name, ObjectRef ref) {
     return FunctionSetAttr(func, name, ref);

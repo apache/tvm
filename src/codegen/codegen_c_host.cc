@@ -290,7 +290,7 @@ runtime::Module BuildCHost(Array<LoweredFunc> funcs) {
   return CSourceModuleCreate(code, "c");
 }
 
-TVM_REGISTER_API("codegen.build_c")
+TVM_REGISTER_GLOBAL("codegen.build_c")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildCHost(args[0]);
   });

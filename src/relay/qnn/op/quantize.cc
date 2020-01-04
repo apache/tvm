@@ -116,7 +116,7 @@ scale and zero point.
 .add_type_rel("Quantize", QuantizeRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QuantizeQnnCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.quantize")
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.quantize")
 .set_body_typed(MakeQuantize);
 
 }  // namespace qnn

@@ -131,13 +131,13 @@ Python APIs to create a compilation pipeline using pass context.
       TVM_DLL static PassContext Create();
       TVM_DLL static PassContext Current();
       /* Other fields are omitted. */
-    
+
      private:
       // The entry of a pass context scope.
       TVM_DLL void EnterWithScope();
       // The exit of a pass context scope.
       TVM_DLL void ExitWithScope();
-    
+
       // Classes to get the Python `with` like syntax.
       friend class tvm::With<PassContext>;
     };
@@ -225,7 +225,7 @@ cannot add or delete a function through these passes as they are not aware of
 the global information.
 
 .. code:: c++
-   
+
     class FunctionPassNode : PassNode {
       PassInfo pass_info;
       runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
@@ -319,7 +319,7 @@ favorably use Python APIs to create a specific pass object.
     ModulePass CreateModulePass(std::string name,
                                 int opt_level,
                                 PassFunc pass_func);
-    
+
     SequentialPass CreateSequentialPass(std::string name,
                                         int opt_level,
                                         Array<Pass> passes,
@@ -347,14 +347,14 @@ registration.
     auto tensor_type = relay::TensorTypeNode::make({}, tvm::Bool());
     auto x = relay::VarNode::make("x", relay::Type());
     auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
-    
+
     auto y = relay::VarNode::make("y", tensor_type);
     auto call = relay::CallNode::make(f, tvm::Array<relay::Expr>{ y });
     auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
-    
+
     // Create a module for optimization.
     auto mod = relay::ModuleNode::FromExpr(fx);
-    
+
     // Create a sequential pass.
     tvm::Array<relay::transform::Pass> pass_seqs{
        relay::transform::InferType(),
@@ -363,7 +363,7 @@ registration.
        relay::transform::AlterOpLayout()
     };
     relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
-    
+
     // Create a pass context for the optimization.
     auto ctx = relay::transform::PassContext::Create();
     ctx->opt_level = 2;
@@ -421,7 +421,7 @@ Python when needed.
       return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
     }
 
-    TVM_REGISTER_API("relay._transform.FoldConstant")
+    TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
     .set_body_typed(FoldConstant);
 
     }  // namespace transform
@@ -457,10 +457,10 @@ a certain scope.
         def __enter__(self):
             _transform.EnterPassContext(self)
             return self
-    
+
         def __exit__(self, ptype, value, trace):
             _transform.ExitPassContext(self)
-    
+
         @staticmethod
         def current():
             """Return the current pass context."""
@@ -580,18 +580,18 @@ using ``Sequential`` associated with other types of passes.
     z1 = relay.add(y, c)
     z2 = relay.add(z, z1)
     func = relay.Function([x], z2)
-  
-    # Customize the optimization pipeline. 
+
+    # Customize the optimization pipeline.
     seq = _transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.AlterOpLayout()
     ])
-  
+
     # Create a module to perform optimizations.
     mod = relay.Module({"main": func})
-    
+
     # Users can disable any passes that they don't want to execute by providing
     # a list, e.g. disabled_pass=["EliminateCommonSubexpr"].
     with relay.build_config(opt_level=3):
@@ -629,7 +629,7 @@ For more pass infra related examples in Python and C++, please refer to
 
 .. _Block: https://mxnet.incubator.apache.org/api/python/docs/api/gluon/block.html#gluon-block
 
-.. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions 
+.. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions
 
 .. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/relay/transform.h
 

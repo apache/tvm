@@ -329,33 +329,33 @@ unsigned LookupLLVMIntrinsic(const std::string& name) {
   return llvm::Function::lookupIntrinsicID(name);
 }
 
-TVM_REGISTER_API("codegen.llvm_lookup_intrinsic_id")
+TVM_REGISTER_GLOBAL("codegen.llvm_lookup_intrinsic_id")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
   });
 
-TVM_REGISTER_API("codegen.build_llvm")
+TVM_REGISTER_GLOBAL("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
     n->Init(args[0], args[1]);
     *rv = runtime::Module(n);
   });
 
-TVM_REGISTER_API("codegen.llvm_version_major")
+TVM_REGISTER_GLOBAL("codegen.llvm_version_major")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::ostringstream os;
     int major = TVM_LLVM_VERSION / 10;
     *rv = major;
   });
 
-TVM_REGISTER_API("module.loadfile_ll")
+TVM_REGISTER_GLOBAL("module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
     n->LoadIR(args[0]);
     *rv = runtime::Module(n);
   });
 
-TVM_REGISTER_API("codegen.llvm_target_enabled")
+TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     InitializeLLVM();
     *rv = (GetLLVMTargetMachine(args[0], true) != nullptr);

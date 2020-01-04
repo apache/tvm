@@ -217,7 +217,7 @@ Pass LambdaLift() {
   return CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_API("relay._transform.LambdaLift")
+TVM_REGISTER_GLOBAL("relay._transform.LambdaLift")
 .set_body_typed(LambdaLift);
 
 }  // namespace transform

@@ -676,7 +676,7 @@ operator to understand how to scale back the int32 output to (u)int8.
 .add_type_rel("QnnConv2D", QnnConv2DRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.conv2d").set_body_typed(MakeQnnConv2D);
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.conv2d").set_body_typed(MakeQnnConv2D);
 
 }  // namespace qnn
 }  // namespace relay

@@ -138,7 +138,7 @@ Pass ConvertLayout(const std::string& desired_layout) {
        ir::StringImm::make("CanonicalizeOps")});
 }
 
-TVM_REGISTER_API("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);
+TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);
 
 }  // namespace transform
 

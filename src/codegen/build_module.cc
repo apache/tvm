@@ -26,12 +26,17 @@
 #include <tvm/operation.h>
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
+#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <mutex>
 #include <stack>
 
 namespace tvm {
+
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+using runtime::PackedFunc;
 
 TVM_REGISTER_NODE_TYPE(TargetNode);
 TVM_REGISTER_NODE_TYPE(GenericFuncNode);
@@ -142,7 +147,7 @@ Target CreateTarget(const std::string& target_name,
   return Target(t);
 }
 
-TVM_REGISTER_API("_TargetCreate")
+TVM_REGISTER_GLOBAL("_TargetCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_name = args[0];
   std::vector<std::string> options;
@@ -154,7 +159,7 @@ TVM_REGISTER_API("_TargetCreate")
   *ret = CreateTarget(target_name, options);
   });
 
-TVM_REGISTER_API("_TargetFromString")
+TVM_REGISTER_GLOBAL("_TargetFromString")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_str = args[0];
   *ret = Target::Create(target_str);
@@ -768,7 +773,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_GetCurrentBuildConfig")
+TVM_REGISTER_GLOBAL("_GetCurrentBuildConfig")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = BuildConfig::Current();
   });
@@ -783,13 +788,13 @@ class BuildConfig::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterBuildConfigScope")
+TVM_REGISTER_GLOBAL("_EnterBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitBuildConfigScope")
+TVM_REGISTER_GLOBAL("_ExitBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::ExitScope);
 
-TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
+TVM_REGISTER_GLOBAL("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
   std::vector< std::pair<int, PackedFunc> > add_lower_pass;
@@ -802,7 +807,7 @@ TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
   cfg->add_lower_pass = add_lower_pass;
   });
 
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
+TVM_REGISTER_GLOBAL("_BuildConfigGetAddLowerPassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   // Return one of the following:
   //  * Size of add_lower_pass if num_args == 1
@@ -823,18 +828,18 @@ TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
   }
   });
 
-TVM_REGISTER_API("_GenericFuncCreate")
+TVM_REGISTER_GLOBAL("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = GenericFunc(make_object<GenericFuncNode>());
   });
 
-TVM_REGISTER_API("_GenericFuncGetGlobal")
+TVM_REGISTER_GLOBAL("_GenericFuncGetGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
   });
 
-TVM_REGISTER_API("_GenericFuncSetDefault")
+TVM_REGISTER_GLOBAL("_GenericFuncSetDefault")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -845,7 +850,7 @@ TVM_REGISTER_API("_GenericFuncSetDefault")
     .set_default(*func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncRegisterFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -862,7 +867,7 @@ TVM_REGISTER_API("_GenericFuncRegisterFunc")
     .register_func(tags_vector, *func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncCallFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncCallFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
@@ -871,7 +876,7 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
     .CallPacked(func_args, ret);
   });
 
-TVM_REGISTER_API("_GetCurrentTarget")
+TVM_REGISTER_GLOBAL("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
   *ret = Target::Current(allow_not_defined);
@@ -887,10 +892,10 @@ class Target::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterTargetScope")
+TVM_REGISTER_GLOBAL("_EnterTargetScope")
 .set_body_typed(Target::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitTargetScope")
+TVM_REGISTER_GLOBAL("_ExitTargetScope")
 .set_body_typed(Target::Internal::ExitScope);
 
 }  // namespace tvm

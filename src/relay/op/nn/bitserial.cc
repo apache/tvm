@@ -96,7 +96,7 @@ Expr MakeBitPack(Expr data, int bits, int pack_axis, int bit_axis, DataType pack
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
 
 RELAY_REGISTER_OP("nn.bitpack")
     .describe(R"code(Bitpack layer that prepares data for bitserial operations.
@@ -167,7 +167,7 @@ Expr MakeBinaryConv2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<In
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitserial_conv2d").set_body_typed(MakeBinaryConv2D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_conv2d").set_body_typed(MakeBinaryConv2D);
 
 RELAY_REGISTER_OP("nn.bitserial_conv2d")
     .describe(R"code(2D convolution using packed binary computation.
@@ -235,7 +235,7 @@ Expr MakeBinaryDense(Expr data, Expr weight, IndexExpr units, int data_bits, int
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitserial_dense").set_body_typed(MakeBinaryDense);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_dense").set_body_typed(MakeBinaryDense);
 
 RELAY_REGISTER_OP("nn.bitserial_dense")
     .describe(R"code(Applies a quantized linear transformation: :math:`Y = XW^T`.

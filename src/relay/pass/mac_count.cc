@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -20,7 +20,7 @@
 /*!
  *
  * \file mac_count.cc
- * \brief Pass to roughly count the number of MACs (Multiply-Accumulate) 
+ * \brief Pass to roughly count the number of MACs (Multiply-Accumulate)
  * operations of a model. Only MACs in CONV and Dense ops are counted.
  * This pass is valid after the type infer pass is called,
  * otherwise the count is 0.
@@ -206,7 +206,7 @@ int64_t GetTotalMacNumber(const Expr& expr) {
   return MacCounter::GetTotalMacNumber(expr);
 }
 
-TVM_REGISTER_API("relay._analysis.GetTotalMacNumber")
+TVM_REGISTER_GLOBAL("relay._analysis.GetTotalMacNumber")
 .set_body_typed(GetTotalMacNumber);
 
 }  // namespace mac_count

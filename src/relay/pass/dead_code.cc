@@ -147,7 +147,7 @@ Pass DeadCodeElimination(bool inline_once) {
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_API("relay._transform.DeadCodeElimination")
+TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination")
 .set_body_typed(DeadCodeElimination);
 
 }  // namespace transform

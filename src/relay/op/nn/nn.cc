@@ -79,7 +79,7 @@ Expr MakeBiasAdd(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.bias_add")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bias_add")
 .set_body_typed(MakeBiasAdd);
 
 
@@ -142,7 +142,7 @@ bool FIFOBufferRel(const Array<Type>& types,
   return true;
 }
 
-TVM_REGISTER_API("relay.op.nn._make.fifo_buffer")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.fifo_buffer")
 .set_body_typed(MakeFIFOBuffer);
 
 RELAY_REGISTER_OP("nn.fifo_buffer")
@@ -183,7 +183,7 @@ Expr MakeDense(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.dense")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.dense")
 .set_body_typed(MakeDense);
 
 
@@ -215,7 +215,7 @@ Expr MakeLeakyRelu(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.leaky_relu")
 .set_body_typed(MakeLeakyRelu);
 
 
@@ -295,7 +295,7 @@ Expr MakePRelu(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.prelu")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.prelu")
 .set_body_typed(MakePRelu);
 
 
@@ -325,7 +325,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 // relay.softmax
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
-TVM_REGISTER_API("relay.op.nn._make.softmax")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax")
 .set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
@@ -360,7 +360,7 @@ RELAY_REGISTER_OP("nn.softmax")
 
 
 // relay.nn.log_softmax
-TVM_REGISTER_API("relay.op.nn._make.log_softmax")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax")
 .set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
@@ -429,7 +429,7 @@ Expr MakeBatchFlatten(Expr data) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.batch_flatten")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_flatten")
 .set_body_typed(MakeBatchFlatten);
 
 
@@ -469,7 +469,7 @@ Example::
 
 
 // relu
-TVM_REGISTER_API("relay.op.nn._make.relu")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.relu")
 .set_body_typed<Call(Expr)>([](Expr data) {
     static const Op& op = Op::Get("nn.relu");
     return CallNode::make(op, {data}, Attrs(), {});
@@ -514,7 +514,7 @@ Expr MakeLRN(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.lrn")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.lrn")
 .set_body_typed(MakeLRN);
 
 RELAY_REGISTER_OP("nn.lrn")
@@ -552,7 +552,7 @@ Expr MakeL2Normalize(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.l2_normalize")
 .set_body_typed(MakeL2Normalize);
 
 RELAY_REGISTER_OP("nn.l2_normalize")
@@ -597,7 +597,7 @@ Expr MakeDropout(Expr data, double rate) {
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.dropout")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.dropout")
 .set_body_typed(MakeDropout);
 
 RELAY_REGISTER_OP("nn.dropout")
@@ -689,7 +689,7 @@ Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr movi
   return CallNode::make(op, {data, gamma, beta, moving_mean, moving_var}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.batch_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_norm")
 .set_body_typed(MakeBatchNorm);
 
 RELAY_REGISTER_OP("nn.batch_norm")
@@ -772,7 +772,7 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.instance_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
   });
@@ -842,7 +842,7 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
   return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.layer_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
   });
@@ -894,7 +894,7 @@ Expr MakeBatchMatmul(Expr x,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul")
 .set_body_typed(MakeBatchMatmul);
 
 
@@ -951,7 +951,7 @@ Expr MakeCrossEntropy(Expr predictions, Expr targets) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.cross_entropy")
 .set_body_typed(MakeCrossEntropy);
 
 
@@ -974,7 +974,7 @@ Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.cross_entropy_with_logits")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.cross_entropy_with_logits")
 .set_body_typed(MakeCrossEntropyWithLogits);
 
 
@@ -1032,7 +1032,7 @@ Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
 
 RELAY_REGISTER_OP("nn.depth_to_space")
     .describe(R"code(Rearrange input channels into spatial pixels.
@@ -1089,7 +1089,7 @@ Expr MakeSpaceToDepth(Expr data, int block_size, std::string layout) {
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.space_to_depth").set_body_typed(MakeSpaceToDepth);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.space_to_depth").set_body_typed(MakeSpaceToDepth);
 
 RELAY_REGISTER_OP("nn.space_to_depth")
     .describe(R"code(Rearrange spatial pixels into new output channels.

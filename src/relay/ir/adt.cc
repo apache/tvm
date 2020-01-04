@@ -34,7 +34,7 @@ PatternWildcard PatternWildcardNode::make() {
 
 TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 
-TVM_REGISTER_API("relay._make.PatternWildcard")
+TVM_REGISTER_GLOBAL("relay._make.PatternWildcard")
 .set_body_typed(PatternWildcardNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -50,7 +50,7 @@ PatternVar PatternVarNode::make(tvm::relay::Var var) {
 
 TVM_REGISTER_NODE_TYPE(PatternVarNode);
 
-TVM_REGISTER_API("relay._make.PatternVar")
+TVM_REGISTER_GLOBAL("relay._make.PatternVar")
 .set_body_typed(PatternVarNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -69,7 +69,7 @@ PatternConstructor PatternConstructorNode::make(Constructor constructor,
 
 TVM_REGISTER_NODE_TYPE(PatternConstructorNode);
 
-TVM_REGISTER_API("relay._make.PatternConstructor")
+TVM_REGISTER_GLOBAL("relay._make.PatternConstructor")
 .set_body_typed(PatternConstructorNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -87,7 +87,7 @@ PatternTuple PatternTupleNode::make(tvm::Array<Pattern> patterns) {
 
 TVM_REGISTER_NODE_TYPE(PatternTupleNode);
 
-TVM_REGISTER_API("relay._make.PatternTuple")
+TVM_REGISTER_GLOBAL("relay._make.PatternTuple")
 .set_body_typed(PatternTupleNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -108,7 +108,7 @@ Constructor ConstructorNode::make(std::string name_hint,
 
 TVM_REGISTER_NODE_TYPE(ConstructorNode);
 
-TVM_REGISTER_API("relay._make.Constructor")
+TVM_REGISTER_GLOBAL("relay._make.Constructor")
 .set_body_typed(ConstructorNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -130,7 +130,7 @@ TypeData TypeDataNode::make(GlobalTypeVar header,
 
 TVM_REGISTER_NODE_TYPE(TypeDataNode);
 
-TVM_REGISTER_API("relay._make.TypeData")
+TVM_REGISTER_GLOBAL("relay._make.TypeData")
 .set_body_typed(TypeDataNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -149,7 +149,7 @@ Clause ClauseNode::make(Pattern lhs, Expr rhs) {
 
 TVM_REGISTER_NODE_TYPE(ClauseNode);
 
-TVM_REGISTER_API("relay._make.Clause")
+TVM_REGISTER_GLOBAL("relay._make.Clause")
 .set_body_typed(ClauseNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -169,7 +169,7 @@ Match MatchNode::make(Expr data, tvm::Array<Clause> clauses, bool complete) {
 
 TVM_REGISTER_NODE_TYPE(MatchNode);
 
-TVM_REGISTER_API("relay._make.Match")
+TVM_REGISTER_GLOBAL("relay._make.Match")
 .set_body_typed(MatchNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)

@@ -112,7 +112,7 @@ Expr MakeUpSampling(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.upsampling")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling")
 .set_body_typed(MakeUpSampling);
 
 
@@ -193,7 +193,7 @@ Expr MakeUpSampling3D(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.upsampling3d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling3d")
 .set_body_typed(MakeUpSampling3D);
 
 

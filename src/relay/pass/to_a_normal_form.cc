@@ -328,7 +328,7 @@ Pass ToANormalForm() {
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToANormalForm")
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm")
 .set_body_typed(ToANormalForm);
 
 }  // namespace transform
