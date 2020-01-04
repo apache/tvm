@@ -327,8 +327,9 @@ class RelayBuildModule : public runtime::ModuleNode {
             *rv = true;
           }
         }
+      } else {
+        *rv = false;
       }
-      *rv = false;
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
