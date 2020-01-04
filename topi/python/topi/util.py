@@ -439,4 +439,3 @@ def is_empty_shape(shape):
                 is_empty = True
                 break
     return is_empty
-
