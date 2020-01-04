@@ -312,7 +312,7 @@ class PrettyPrinter :
       val << "-malformed-ir";
       return val;
     }
-    std::string name = var->var->name_hint;
+    std::string name = var->name_hint;
     if (name.length() == 0 || !std::isalpha(name[0])) {
       name = "t" + name;
     }
@@ -493,7 +493,7 @@ class PrettyPrinter :
       doc << "[";
       std::vector<Doc> type_params;
       for (const TypeVar& tv : fn->type_params) {
-        type_params.push_back(Doc(tv->var->name_hint));
+        type_params.push_back(Doc(tv->name_hint));
       }
       doc << PrintSep(type_params);
       doc << "]";
@@ -701,11 +701,11 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const TypeVarNode* node) final {
-    return Doc(node->var->name_hint);
+    return Doc(node->name_hint);
   }
 
   Doc VisitType_(const GlobalTypeVarNode* node) final {
-    return Doc(node->var->name_hint);
+    return Doc(node->name_hint);
   }
 
   Doc VisitType_(const TypeCallNode* node) final {

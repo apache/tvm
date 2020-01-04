@@ -334,7 +334,7 @@ Function UnCPS(const Function& f) {
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
-    new_type_params.push_back(TypeVarNode::make(tp->var->name_hint, tp->kind));
+    new_type_params.push_back(TypeVarNode::make(tp->name_hint, tp->kind));
   }
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();

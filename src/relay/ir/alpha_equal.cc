@@ -69,8 +69,8 @@ class AlphaEqualHandler:
       }
       if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
       for (const auto& p : lhsm->type_definitions) {
-        if (!rhsm->ContainGlobalTypeVar(p.first->var->name_hint) ||
-            !Equal(p.second, rhsm->LookupDef(p.first->var->name_hint))) {
+        if (!rhsm->ContainGlobalTypeVar(p.first->name_hint) ||
+            !Equal(p.second, rhsm->LookupDef(p.first->name_hint))) {
           return false;
         }
       }
@@ -233,11 +233,6 @@ class AlphaEqualHandler:
           return false;
         }
         equal_map_[lhs->type_params[i]] = rhs->type_params[i];
-        // set up type parameter equal
-        if (lhs->type_params[i]->kind == Kind::kShapeVar) {
-          // map variable
-          equal_map_[lhs->type_params[i]->var] = rhs->type_params[i]->var;
-        }
       }
       for (size_t i = 0; i < lhs->arg_types.size(); i++) {
         if (!TypeEqual(lhs->arg_types[i], rhs->arg_types[i])) return false;
