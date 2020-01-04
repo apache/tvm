@@ -18,6 +18,7 @@
 """Schedule for composition of injective operator"""
 import tvm
 from .. import generic, util
+from ..util import is_empty_shape
 
 @generic.schedule_injective_from_existing.register(["cuda", "gpu"])
 def schedule_injective_from_existing(sch, out):
@@ -79,8 +80,7 @@ def schedule_injective(outs):
 
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        is_empty = all(dim != 0 for dim in out.shape)
-        if not is_empty:
+        if not is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
 

@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
+from ..util import is_empty_shape
 
 @generic.schedule_injective_from_existing.register(["cpu"])
 def schedule_injective_from_existing(sch, out):
@@ -66,8 +67,7 @@ def schedule_injective(outs):
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
 
-    is_empty = all(dim != 0 for dim in x.shape)
-    if not is_empty:
+    if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
     return s
 

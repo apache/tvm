@@ -218,7 +218,7 @@ inline Tensor reshape(const Tensor& x,
     }
   }
 
-  if (is_empty_tensor(x)) {
+  if (is_empty_shape(target_shape)) {
     return compute(target_shape,
                    [&](const Array<Var> &indices) { return tvm::cast(x->dtype, 0); },
                    name, tag);
@@ -951,7 +951,7 @@ inline Tensor tile(const Tensor& x,
   for (size_t i = 0; i < tdim; ++i)
     new_shape.push_back(data_shape[i] * reps_shape[i]);
 
-  if (is_empty_tensor(x)) {
+  if (is_empty_shape(new_shape)) {
     return compute(new_shape,
                    [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0);},
                    name, tag);

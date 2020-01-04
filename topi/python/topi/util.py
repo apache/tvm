@@ -417,3 +417,26 @@ def make_idx(b, e, s, z, i):
                           (b - i) // tvm.abs(s),
                           (i - b) // s)
     return tvm.if_then_else(tvm.expr.Or(bc, ec), 88, ss)
+
+
+def is_empty_shape(shape):
+    """Check whether an input shape has dimesion with size 0.
+
+    Parameter
+    ---------
+    shape : list of Expr
+      Input shape
+
+    Returns
+    -------
+    is_empty: bool
+      Whether input shape is empty or has dimesion with size 0.
+    """
+    is_empty = False
+    for dim in shape:
+        if isinstance(dim, tvm.expr.IntImm):
+            if dim.value == 0:
+                is_empty = True
+                break
+    return is_empty
+

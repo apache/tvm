@@ -18,6 +18,7 @@
 """Schedule for pooling operators"""
 import tvm
 from .. import generic
+from ..util import is_empty_shape
 
 @generic.schedule_injective_from_existing.register(["arm_cpu"])
 def schedule_injective_from_existing(sch, out):
@@ -69,8 +70,7 @@ def schedule_injective(outs):
         s[x].vectorize(ii)
     tvm.schedule.AutoInlineInjective(s)
 
-    is_empty = all(dim != 0 for dim in x.shape)
-    if not is_empty:
+    if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
     return s
 

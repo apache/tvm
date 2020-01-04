@@ -30,24 +30,23 @@ namespace detail {
 using namespace tvm;
 
 /*!
- * \brief Check whether a tensor is an empty tensor
+ * \brief Check whether input shape has dimension of size 0;
  *
- * \param x Input tensor
+ * \param x Input shape
  *
- * \return True if the input tensor is empty.
+ * \return True if the input shape is empty.
  */
-inline bool is_empty_tensor(const Tensor& x) {
-  if (x->shape.size() == 0) return true;
-  bool is_empty_tensor = false;
-  for (const auto& dim : x->shape) {
+inline bool is_empty_shape(const Array<Expr>& x) {
+  bool is_empty = false;
+  for (const auto& dim : x) {
     if (auto int_dim = dim.as<IntImm>()) {
       if (int_dim->value == 0) {
-        is_empty_tensor = true;
+        is_empty = true;
         break;
       }
     }
   }
-  return is_empty_tensor;
+  return is_empty;
 }
 
 }  // namespace detail
