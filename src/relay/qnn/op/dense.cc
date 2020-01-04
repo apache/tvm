@@ -190,7 +190,7 @@ RELAY_REGISTER_OP("qnn.dense")
 .add_type_rel("QDense", QnnDenseRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnDenseCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.dense")
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.dense")
 .set_body_typed(MakeQuantizedDense);
 
 }  // namespace qnn

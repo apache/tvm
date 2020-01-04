@@ -24,7 +24,9 @@
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "op_util.h"
 #include "compute_op.h"
 #include "../schedule/message_passing.h"
@@ -496,7 +498,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
 }
 
 // Register functions for unittests
-TVM_REGISTER_API("test.op.InferTensorizeRegion")
+TVM_REGISTER_GLOBAL("test.op.InferTensorizeRegion")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     Stage stage = args[0];
     Map<IterVar, Range> dmap = args[1];
@@ -511,7 +513,7 @@ TVM_REGISTER_API("test.op.InferTensorizeRegion")
                           Map<Tensor, Array<Range> >(in_region)};
   });
 
-TVM_REGISTER_API("test.op.MatchTensorizeBody")
+TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     Stage stage = args[0];
     Map<IterVar, Range> out_dom = args[1];

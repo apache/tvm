@@ -162,7 +162,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), whole_code);
 }
 
-TVM_REGISTER_API("codegen.build_sdaccel")
+TVM_REGISTER_GLOBAL("codegen.build_sdaccel")
 .set_body_typed(BuildSDAccel);
 
 }  // namespace codegen

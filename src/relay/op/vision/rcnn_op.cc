@@ -60,7 +60,7 @@ Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spa
   return CallNode::make(op, {data, rois}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.roi_align")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_align")
 .set_body_typed(MakeROIAlign);
 
 RELAY_REGISTER_OP("vision.roi_align")
@@ -110,7 +110,7 @@ Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spat
   return CallNode::make(op, {data, rois}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.roi_pool")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_pool")
 .set_body_typed(MakeROIPool);
 
 RELAY_REGISTER_OP("vision.roi_pool")
@@ -176,7 +176,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
   return CallNode::make(op, {cls_prob, bbox_pred, im_info}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.proposal")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.proposal")
 .set_body_typed(MakeProposal);
 
 RELAY_REGISTER_OP("vision.proposal")

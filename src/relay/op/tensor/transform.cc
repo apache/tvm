@@ -83,7 +83,7 @@ Expr MakeCast(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay._make.cast")
+TVM_REGISTER_GLOBAL("relay._make.cast")
 .set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
@@ -140,7 +140,7 @@ Expr MakeCastLike(Expr data,
 }
 
 
-TVM_REGISTER_API("relay._make.cast_like")
+TVM_REGISTER_GLOBAL("relay._make.cast_like")
 .set_body_typed(MakeCastLike);
 
 RELAY_REGISTER_OP("cast_like")
@@ -171,7 +171,7 @@ Expr MakeReinterpret(Expr data, DataType dtype) {
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 2>(MakeReinterpret, args, rv);
 });
 
@@ -249,7 +249,7 @@ Expr MakeExpandDims(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.expand_dims")
+TVM_REGISTER_GLOBAL("relay.op._make.expand_dims")
 .set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
@@ -334,7 +334,7 @@ Expr MakeConcatenate(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.concatenate")
+TVM_REGISTER_GLOBAL("relay.op._make.concatenate")
 .set_body_typed(MakeConcatenate);
 
 RELAY_REGISTER_OP("concatenate")
@@ -429,7 +429,7 @@ Expr MakeStack(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.stack")
+TVM_REGISTER_GLOBAL("relay.op._make.stack")
 .set_body_typed(MakeStack);
 
 RELAY_REGISTER_OP("stack")
@@ -521,7 +521,7 @@ Expr MakeTranspose(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.transpose")
+TVM_REGISTER_GLOBAL("relay.op._make.transpose")
 .set_body_typed(MakeTranspose);
 
 RELAY_REGISTER_OP("transpose")
@@ -713,7 +713,7 @@ Expr MakeReshape(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.reshape")
+TVM_REGISTER_GLOBAL("relay.op._make.reshape")
 .set_body_typed(MakeReshape);
 
 RELAY_REGISTER_OP("reshape")
@@ -821,7 +821,7 @@ Expr MakeReshapeLike(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.reshape_like")
+TVM_REGISTER_GLOBAL("relay.op._make.reshape_like")
 .set_body_typed(MakeReshapeLike);
 
 
@@ -857,7 +857,7 @@ bool ArgWhereRel(const Array<Type>& types,
   return true;
 }
 
-TVM_REGISTER_API("relay.op._make.argwhere")
+TVM_REGISTER_GLOBAL("relay.op._make.argwhere")
 .set_body_typed<Expr(Expr)>([](Expr data) {
   static const Op& op = Op::Get("argwhere");
   auto attrs = make_object<ArgWhereAttrs>();
@@ -945,7 +945,7 @@ Expr MakeTake(Expr data,
   return CallNode::make(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.take")
+TVM_REGISTER_GLOBAL("relay.op._make.take")
 .set_body_typed(MakeTake);
 
 RELAY_REGISTER_OP("take")
@@ -1026,7 +1026,7 @@ Expr MakeFull(Expr fill_value,
   return CallNode::make(op, {fill_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.full")
+TVM_REGISTER_GLOBAL("relay.op._make.full")
 .set_body_typed(MakeFull);
 
 RELAY_REGISTER_OP("full")
@@ -1061,7 +1061,7 @@ Expr MakeZeros(Array<IndexExpr> shape,
   return CallNode::make(op, {}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.zeros")
+TVM_REGISTER_GLOBAL("relay.op._make.zeros")
 .set_body_typed(MakeZeros);
 
 RELAY_REGISTER_OP("zeros")
@@ -1082,7 +1082,7 @@ Expr MakeOnes(Array<IndexExpr> shape,
   return CallNode::make(op, {}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.ones")
+TVM_REGISTER_GLOBAL("relay.op._make.ones")
 .set_body_typed(MakeOnes);
 
 RELAY_REGISTER_OP("ones")
@@ -1129,7 +1129,7 @@ Expr MakeFullLike(Expr data,
   return CallNode::make(op, {data, fill_value}, Attrs(), {});
 }
 
-TVM_REGISTER_API("relay.op._make.full_like")
+TVM_REGISTER_GLOBAL("relay.op._make.full_like")
 .set_body_typed(MakeFullLike);
 
 RELAY_REGISTER_OP("full_like")
@@ -1253,7 +1253,7 @@ Expr MakeArange(Expr start,
   return CallNode::make(op, {start, stop, step}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.arange")
+TVM_REGISTER_GLOBAL("relay.op._make.arange")
 .set_body_typed(MakeArange);
 
 // An issue with the existing design is that we require dependency
@@ -1342,7 +1342,7 @@ Expr MakeRepeat(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.repeat")
+TVM_REGISTER_GLOBAL("relay.op._make.repeat")
 .set_body_typed(MakeRepeat);
 
 RELAY_REGISTER_OP("repeat")
@@ -1451,7 +1451,7 @@ Expr MakeTile(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.tile")
+TVM_REGISTER_GLOBAL("relay.op._make.tile")
 .set_body_typed(MakeTile);
 
 RELAY_REGISTER_OP("tile")
@@ -1512,7 +1512,7 @@ Expr MakeReverse(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.reverse")
+TVM_REGISTER_GLOBAL("relay.op._make.reverse")
 .set_body_typed(MakeReverse);
 
 RELAY_REGISTER_OP("reverse")
@@ -1576,7 +1576,7 @@ Array<Tensor> WhereCompute(const Attrs& attrs,
   return { topi::where(inputs[0], inputs[1], inputs[2]) };
 }
 
-TVM_REGISTER_API("relay.op._make.where")
+TVM_REGISTER_GLOBAL("relay.op._make.where")
 .set_body_typed(MakeWhere);
 
 RELAY_REGISTER_OP("where")
@@ -1629,7 +1629,7 @@ Expr MakeSqueeze(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.squeeze")
+TVM_REGISTER_GLOBAL("relay.op._make.squeeze")
 .set_body_typed(MakeSqueeze);
 
 
@@ -1733,7 +1733,7 @@ Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
   return { topi::collapse_sum(inputs[0], out_ttype->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.collapse_sum_like")
+TVM_REGISTER_GLOBAL("relay.op._make.collapse_sum_like")
 .set_body_typed(MakeCollapseSumLike);
 
 RELAY_REGISTER_OP("collapse_sum_like")
@@ -1778,7 +1778,7 @@ Array<Tensor> BroadCastToCompute(const Attrs& attrs,
   return { topi::broadcast_to(inputs[0], ioattrs->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.broadcast_to")
+TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to")
 .set_body_typed(MakeBroadCastTo);
 
 RELAY_REGISTER_OP("broadcast_to")
@@ -1816,7 +1816,7 @@ Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
   return { topi::broadcast_to(inputs[0], out_ttype->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.broadcast_to_like")
+TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to_like")
 .set_body_typed(MakeBroadCastToLike);
 
 RELAY_REGISTER_OP("broadcast_to_like")
@@ -2026,7 +2026,7 @@ Array<Tensor> StridedSliceCompute(const Attrs& attrs,
 }
 
 
-TVM_REGISTER_API("relay.op._make.strided_slice")
+TVM_REGISTER_GLOBAL("relay.op._make.strided_slice")
 .set_body_typed(MakeStridedSlice);
 
 
@@ -2082,7 +2082,7 @@ Expr MakeStridedSet(Expr data,
   return CallNode::make(op, {data, v, begin, end, strides}, {});
 }
 
-TVM_REGISTER_API("relay.op._make.strided_set")
+TVM_REGISTER_GLOBAL("relay.op._make.strided_set")
 .set_body_typed(MakeStridedSet);
 
 
@@ -2198,7 +2198,7 @@ Expr MakeSplit(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.split")
+TVM_REGISTER_GLOBAL("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
       *rv = MakeSplit(args[0], make_const(DataType::Int(64), int64_t(args[1])), args[2]);
@@ -2347,7 +2347,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
 }
 
 
-TVM_REGISTER_API("relay.op._make.slice_like")
+TVM_REGISTER_GLOBAL("relay.op._make.slice_like")
 .set_body_typed(MakeSliceLike);
 
 
@@ -2410,7 +2410,7 @@ Expr MakeLayoutTransform(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.layout_transform")
+TVM_REGISTER_GLOBAL("relay.op._make.layout_transform")
 .set_body_typed(MakeLayoutTransform);
 
 RELAY_REGISTER_OP("layout_transform")
@@ -2438,7 +2438,7 @@ Expr MakeReverseReshape(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
+TVM_REGISTER_GLOBAL("relay.op._make._contrib_reverse_reshape")
 .set_body_typed(MakeReverseReshape);
 
 RELAY_REGISTER_OP("_contrib_reverse_reshape")
@@ -2512,7 +2512,7 @@ Expr MakeGatherND(Expr data,
   return CallNode::make(op, {data, indices}, {});
 }
 
-TVM_REGISTER_API("relay.op._make.gather_nd")
+TVM_REGISTER_GLOBAL("relay.op._make.gather_nd")
 .set_body_typed(MakeGatherND);
 
 RELAY_REGISTER_OP("gather_nd")
@@ -2573,7 +2573,7 @@ Expr MakeSequenceMask(Expr data,
   return CallNode::make(op, {data, valid_length}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.sequence_mask")
+TVM_REGISTER_GLOBAL("relay.op._make.sequence_mask")
 .set_body_typed(MakeSequenceMask);
 
 RELAY_REGISTER_OP("sequence_mask")
@@ -2695,7 +2695,7 @@ Expr MakeOneHot(Expr indices,
   return CallNode::make(op, {indices, on_value, off_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.one_hot")
+TVM_REGISTER_GLOBAL("relay.op._make.one_hot")
 .set_body_typed(MakeOneHot);
 
 RELAY_REGISTER_OP("one_hot")

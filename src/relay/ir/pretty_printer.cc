@@ -990,7 +990,7 @@ std::string AsText(const ObjectRef& node,
   return PrettyPrint_(node, show_meta_data, annotate);
 }
 
-TVM_REGISTER_API("relay._expr.AsText")
+TVM_REGISTER_GLOBAL("relay._expr.AsText")
 .set_body_typed<std::string(const ObjectRef&,
                             bool,
                             runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);

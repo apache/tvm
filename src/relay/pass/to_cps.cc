@@ -359,10 +359,10 @@ Function UnCPS(const Function& f) {
                             f->attrs);
 }
 
-TVM_REGISTER_API("relay._transform.to_cps")
+TVM_REGISTER_GLOBAL("relay._transform.to_cps")
 .set_body_typed(static_cast<Function (*)(const Function&, const Module&)>(ToCPS));
 
-TVM_REGISTER_API("relay._transform.un_cps")
+TVM_REGISTER_GLOBAL("relay._transform.un_cps")
 .set_body_typed(UnCPS);
 
 namespace transform {
@@ -375,7 +375,7 @@ Pass ToCPS() {
   return CreateFunctionPass(pass_func, 1, "ToCPS", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToCPS")
+TVM_REGISTER_GLOBAL("relay._transform.ToCPS")
 .set_body_typed(ToCPS);
 
 
@@ -387,7 +387,7 @@ Pass UnCPS() {
   return CreateFunctionPass(pass_func, 1, "UnCPS", {});
 }
 
-TVM_REGISTER_API("relay._transform.UnCPS")
+TVM_REGISTER_GLOBAL("relay._transform.UnCPS")
 .set_body_typed(UnCPS);
 
 }  // namespace transform

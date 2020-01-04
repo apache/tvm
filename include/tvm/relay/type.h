@@ -24,8 +24,12 @@
 #ifndef TVM_RELAY_TYPE_H_
 #define TVM_RELAY_TYPE_H_
 
-#include <tvm/api_registry.h>
+
 #include <tvm/ir/type.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+#include <tvm/node/env_func.h>
+
 #include <tvm/ir.h>
 #include <string>
 

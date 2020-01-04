@@ -86,7 +86,7 @@ Pass ToGraphNormalForm() {
   return CreateFunctionPass(pass_func, 1, "ToGraphNormalForm", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToGraphNormalForm")
+TVM_REGISTER_GLOBAL("relay._transform.ToGraphNormalForm")
 .set_body_typed(ToGraphNormalForm);
 
 }  // namespace transform

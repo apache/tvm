@@ -985,7 +985,7 @@ Pass FuseOps(int fuse_opt_level) {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.FuseOps")
+TVM_REGISTER_GLOBAL("relay._transform.FuseOps")
 .set_body_typed(FuseOps);
 
 }  // namespace transform

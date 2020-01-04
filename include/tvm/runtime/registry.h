@@ -70,7 +70,7 @@ class Registry {
    *
    * \code
    *
-   * TVM_REGISTER_API("addone")
+   * TVM_REGISTER_GLOBAL("addone")
    * .set_body_typed<int(int)>([](int x) { return x + 1; });
    *
    * \endcode
@@ -96,7 +96,7 @@ class Registry {
    *   return x * y;
    * }
    *
-   * TVM_REGISTER_API("multiply")
+   * TVM_REGISTER_GLOBAL("multiply")
    * .set_body_typed(multiply); // will have type int(int, int)
    *
    * \endcode
@@ -120,7 +120,7 @@ class Registry {
    * struct Example {
    *    int doThing(int x);
    * }
-   * TVM_REGISTER_API("Example_doThing")
+   * TVM_REGISTER_GLOBAL("Example_doThing")
    * .set_body_method(&Example::doThing); // will have type int(Example, int)
    *
    * \endcode
@@ -148,7 +148,7 @@ class Registry {
    * struct Example {
    *    int doThing(int x);
    * }
-   * TVM_REGISTER_API("Example_doThing")
+   * TVM_REGISTER_GLOBAL("Example_doThing")
    * .set_body_method(&Example::doThing); // will have type int(Example, int)
    *
    * \endcode
@@ -181,7 +181,7 @@ class Registry {
    * // noderef subclass
    * struct Example;
    *
-   * TVM_REGISTER_API("Example_doThing")
+   * TVM_REGISTER_GLOBAL("Example_doThing")
    * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
    *
    * // note that just doing:
@@ -221,7 +221,7 @@ class Registry {
    * // noderef subclass
    * struct Example;
    *
-   * TVM_REGISTER_API("Example_doThing")
+   * TVM_REGISTER_GLOBAL("Example_doThing")
    * .set_body_method<Example>(&ExampleNode::doThing); // will have type int(Example, int)
    *
    * // note that just doing:

@@ -444,10 +444,10 @@ Pass CreateFunctionPass(
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_API("relay._transform.PassInfo")
+TVM_REGISTER_GLOBAL("relay._transform.PassInfo")
 .set_body_typed(PassInfoNode::make);
 
-TVM_REGISTER_API("relay._transform.Info")
+TVM_REGISTER_GLOBAL("relay._transform.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
@@ -469,10 +469,10 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_API("relay._transform.MakeModulePass")
+TVM_REGISTER_GLOBAL("relay._transform.MakeModulePass")
 .set_body_typed(ModulePassNode::make);
 
-TVM_REGISTER_API("relay._transform.RunPass")
+TVM_REGISTER_GLOBAL("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   Module mod = args[1];
@@ -489,7 +489,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_API("relay._transform.MakeFunctionPass")
+TVM_REGISTER_GLOBAL("relay._transform.MakeFunctionPass")
 .set_body_typed(FunctionPassNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -502,7 +502,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_API("relay._transform.Sequential")
+TVM_REGISTER_GLOBAL("relay._transform.Sequential")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
@@ -528,7 +528,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_API("relay._transform.PassContext")
+TVM_REGISTER_GLOBAL("relay._transform.PassContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   auto pctx = PassContext::Create();
   int opt_level = args[0];
@@ -575,13 +575,13 @@ class PassContext::Internal {
   }
 };
 
-TVM_REGISTER_API("relay._transform.GetCurrentPassContext")
+TVM_REGISTER_GLOBAL("relay._transform.GetCurrentPassContext")
 .set_body_typed(PassContext::Current);
 
-TVM_REGISTER_API("relay._transform.EnterPassContext")
+TVM_REGISTER_GLOBAL("relay._transform.EnterPassContext")
 .set_body_typed(PassContext::Internal::EnterScope);
 
-TVM_REGISTER_API("relay._transform.ExitPassContext")
+TVM_REGISTER_GLOBAL("relay._transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
 
 }  // namespace transform
