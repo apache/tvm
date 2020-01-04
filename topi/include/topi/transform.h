@@ -90,7 +90,7 @@ inline Tensor expand_dims(const Tensor& x,
         idx.push_back(indices[i]);
       }
       for (size_t i = axis + num_newaxis; i < indices.size(); ++i) {
-          idx.push_back(indices[i]);
+        idx.push_back(indices[i]);
       }
       return x(idx);
     }, name, tag);
