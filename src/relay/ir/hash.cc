@@ -228,11 +228,6 @@ class RelayHashHandler:
       hash = Combine(hash, TypeHash(var_node->type_annotation));
     }
     hash_map_[var] = hash;
-    // TODO(tqchen) Introduce TypeVarExpr
-    // const auto* ty_param = var.as<TypeVarNode>();
-    // if (ty_param && ty_param->kind == Kind::kShapeVar) {
-    //   hash_map_[ty_param->var] = hash;
-    // }
     return hash;
   }
 
