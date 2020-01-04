@@ -59,6 +59,22 @@ def test_any_broadcast():
     verify_any_broadcast((relay.Any(),), (3, 2), (2,), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, 2), (3, 2), (3, 2), relay.add, np.add)
 
+def verify_any_elemwise(x_shape, x_np_shape, op, np_op):
+    dtype = 'float32'
+    x = relay.var('x', shape=x_shape, dtype=dtype)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], op(x))
+    x_np = np.random.uniform(size=x_np_shape).astype(dtype)
+    res_np = np_op(x_np)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(x_np)
+        tvm.testing.assert_allclose(result.asnumpy(), res_np)
+
+def test_any_elemwise():
+    verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
+    verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
+    verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
 
 def test_any_broadcast_fail():
     # Test broadcast with incompatible values at runtime
@@ -621,6 +637,7 @@ def test_recursive_concat_with_wrong_annotation():
 if __name__ == "__main__":
     test_any_full()
     test_any_broadcast()
+    test_any_elemwise()
     test_any_broadcast_fail()
     test_any_concat()
     test_any_reshape()
