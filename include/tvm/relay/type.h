@@ -25,8 +25,8 @@
 #define TVM_RELAY_TYPE_H_
 
 #include <tvm/api_registry.h>
+#include <tvm/ir/type.h>
 #include <tvm/ir.h>
-#include <tvm/node/node.h>
 #include <string>
 
 #include "base.h"
@@ -36,32 +36,17 @@ namespace tvm {
 namespace relay {
 
 using Any = tvm::ir::Any;
-
-/*! \brief Base type of the Relay type hiearchy. */
-class TypeNode : public RelayNode {
- public:
-  static constexpr const char* _type_key = "relay.Type";
-  TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
-};
-
-/*!
- * \brief Type is the base type of relay type hiearchy.
- *
- * Relay's type system contains following two key concepts:
- *
- * - TensorType: type of certain Tensor values in the expression.
- * - FunctionType: the type of the function.
- *
- * There are also advanced types to support generic(polymorphic types),
- * which can be ignored when first reading the code base.
- */
-class Type : public ObjectRef {
- public:
-  Type() {}
-  explicit Type(ObjectPtr<tvm::Object> p) : ObjectRef(p) {}
-
-  using ContainerType = TypeNode;
-};
+using Kind = TypeKind;
+using Type = tvm::Type;
+using TypeNode = tvm::TypeNode;
+using TypeVar = tvm::TypeVar;
+using TypeVarNode = tvm::TypeVarNode;
+using GlobalTypeVar = tvm::GlobalTypeVar;
+using GlobalTypeVarNode = tvm::GlobalTypeVarNode;
+using TypeConstraint = tvm::TypeConstraint;
+using TypeConstraintNode = tvm::TypeConstraintNode;
+using FuncType = tvm::FuncType;
+using FuncTypeNode = tvm::FuncTypeNode;
 
 /*!
  * \brief Base of all Tensor types
@@ -124,90 +109,6 @@ class TensorType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(TensorType, Type, TensorTypeNode);
 };
 
-/*! \brief Possible kinds of Type. */
-enum Kind : int {
-  kType = 0,
-  /*! \brief Template variable in shape expression. */
-  kShapeVar = 1,
-  kBaseType = 2,
-  kShape = 3,
-  kConstraint = 4,
-  kAdtHandle = 5,
-  kTypeData = 6
-};
-
-/*!
- * \brief Type parameter in the function.
- *  This can be viewed as template parameter in c++ template function.
- *
- * For example, in the following pesudo code,
- * the TypeVar of f is TypeVar(kind=kShapeVar, var=n).
- * This function can take in a Tensor with shape=(3, 3) and
- * returns a Tensor with shape=(9,)
- *
- * \code
- *
- *  template<i32 n>
- *  f(x : Tensor[i32, (n, n)]) -> Tensor[i32, (n * n)]
- *
- * \endcode
- * \sa TypeVarNode The actual container class of TypeVar
- */
-class TypeVar;
-/*! \brief TypeVar container node */
-class TypeVarNode : public TypeNode {
- public:
-  /*! \brief Name of the variable, it only acts as a hint. */
-  std::string name_hint;
-  /*! \brief The kind of type parameter */
-  Kind kind;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("kind", &kind);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static TypeVar make(std::string name, Kind kind);
-
-  static constexpr const char* _type_key = "relay.TypeVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TypeVarNode, TypeNode);
-};
-
-class TypeVar : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
-};
-
-/*!
- * \brief A global type variable that is used for defining new types or type aliases.
- */
-class GlobalTypeVar;
-/*! \brief GlobalTypeVar container node */
-class GlobalTypeVarNode : public TypeNode {
- public:
-  /*! \brief Name of the variable, it only acts as a hint. */
-  std::string name_hint;
-  /*! \brief The kind of type parameter */
-  Kind kind;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("kind", &kind);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static GlobalTypeVar make(std::string name, Kind kind);
-
-  static constexpr const char* _type_key = "relay.GlobalTypeVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalTypeVarNode, TypeNode);
-};
-
-class GlobalTypeVar : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
-};
-
 /*!
  * \brief Type application.
  */
@@ -268,70 +169,6 @@ class IncompleteTypeNode : public TypeNode {
 class IncompleteType : public Type {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
-};
-
-/*!
- * \brief Potential Constraints in the type.
- * \note This is reserved for future use.
- */
-class TypeConstraint;
-/*! \brief TypeConstraint container node. */
-class TypeConstraintNode : public TypeNode {
- public:
-  static constexpr const char* _type_key = "relay.TypeConstraint";
-  TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
-};
-
-class TypeConstraint : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TypeConstraint, Type, TypeConstraintNode);
-};
-
-class FuncType;
-/*!
- * \brief Function type in Relay.
- *
- * Relay support polymorphic function type.
- * This can be roughly viewed as template function in C++.
- *
- * \sa TypeVar, TypeConstraint
- */
-class FuncTypeNode : public TypeNode {
- public:
-  /*! \brief type type of arguments */
-  tvm::Array<Type> arg_types;
-  /*! \brief The type of return value. */
-  Type ret_type;
-  // The following fields are used in polymorphic(template) functions
-  // For normal functions, the following two fields will be empty.
-  /*! \brief The type parameters of the function */
-  tvm::Array<TypeVar> type_params;
-  /*!
-   * \brief potential constraint the type need to obey
-   * \note this field is reserved for futher purposes.
-   */
-  tvm::Array<TypeConstraint> type_constraints;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("arg_types", &arg_types);
-    v->Visit("ret_type", &ret_type);
-    v->Visit("type_params", &type_params);
-    v->Visit("type_constraints", &type_constraints);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static FuncType make(tvm::Array<Type> arg_types,
-                               Type ret_type,
-                               tvm::Array<TypeVar> type_params,
-                               tvm::Array<TypeConstraint> type_constraints);
-
-  static constexpr const char* _type_key = "relay.FuncType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
-};
-
-class FuncType : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
 
 /*!

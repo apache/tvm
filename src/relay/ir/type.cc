@@ -63,48 +63,6 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
-TypeVar TypeVarNode::make(std::string name, Kind kind) {
-  ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
-  n->name_hint = std::move(name);
-  n->kind = std::move(kind);
-  return TypeVar(n);
-}
-
-TVM_REGISTER_NODE_TYPE(TypeVarNode);
-
-TVM_REGISTER_API("relay._make.TypeVar")
-.set_body_typed<TypeVar(std::string, int)>([](std::string name, int kind) {
-  return TypeVarNode::make(name, static_cast<Kind>(kind));
-});
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
-  auto* node = static_cast<const TypeVarNode*>(ref.get());
-  p->stream << "TypeVarNode(" << node->name_hint << ", "
-            << node->kind << ")";
-});
-
-GlobalTypeVar GlobalTypeVarNode::make(std::string name, Kind kind) {
-  ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
-  n->name_hint = std::move(name);
-  n->kind = std::move(kind);
-  return GlobalTypeVar(n);
-}
-
-TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
-
-TVM_REGISTER_API("relay._make.GlobalTypeVar")
-.set_body_typed<GlobalTypeVar(std::string, int)>([](std::string name, int kind) {
-    return GlobalTypeVarNode::make(name, static_cast<Kind>(kind));
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
-    auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
-  p->stream << "GlobalTypeVarNode(" << node->name_hint << ", "
-            << node->kind << ")";
-});
-
 TypeCall TypeCallNode::make(Type func, tvm::Array<Type> args) {
   ObjectPtr<TypeCallNode> n = make_object<TypeCallNode>();
   n->func = std::move(func);
@@ -142,31 +100,6 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     auto* node = static_cast<const IncompleteTypeNode*>(ref.get());
     p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
   });
-
-FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
-                            Type ret_type,
-                            tvm::Array<TypeVar> type_params,
-                            tvm::Array<TypeConstraint> type_constraints) {
-  ObjectPtr<FuncTypeNode> n = make_object<FuncTypeNode>();
-  n->arg_types = std::move(arg_types);
-  n->ret_type = std::move(ret_type);
-  n->type_params = std::move(type_params);
-  n->type_constraints = std::move(type_constraints);
-  return FuncType(n);
-}
-
-TVM_REGISTER_NODE_TYPE(FuncTypeNode);
-
-TVM_REGISTER_API("relay._make.FuncType")
-.set_body_typed(FuncTypeNode::make);
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<FuncTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
-  auto* node = static_cast<const FuncTypeNode*>(ref.get());
-  p->stream << "FuncTypeNode(" << node->type_params << ", "
-            << node->arg_types << ", " << node->ret_type << ", "
-            << node->type_constraints << ")";
-});
 
 TypeRelation TypeRelationNode::make(TypeRelationFn func,
                                     Array<Type> args,

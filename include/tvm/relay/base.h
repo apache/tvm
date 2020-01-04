@@ -25,6 +25,7 @@
 #define TVM_RELAY_BASE_H_
 
 #include <tvm/api_registry.h>
+#include <tvm/ir/span.h>
 #include <tvm/ir.h>
 #include <tvm/node/node.h>
 #include <string>
@@ -58,88 +59,9 @@ namespace relay {
  */
 using IndexExpr = ::tvm::Expr;
 
-/*!
- * \brief The source name in the Span
- * \sa SourceNameNode, Span
- */
-class SourceName;
-/*!
- * \brief The name of a source fragment.
- */
-class SourceNameNode : public Object {
- public:
-  /*! \brief The source name. */
-  std::string name;
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
-
-  static constexpr const char* _type_key = "relay.SourceName";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
-};
-
-/*!
- * \brief The source name of a file span.
- * \sa SourceNameNode, Span
- */
-class SourceName : public ObjectRef {
- public:
-  /*! \brief default constructor  */
-  SourceName() {}
-
-  /*! \brief constructor from node pointer */
-  explicit SourceName(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const SourceNameNode* operator->() const {
-    return static_cast<const SourceNameNode*>(get());
-  }
-
-  /*!
-   * \brief Get an SourceName for a given operator name.
-   *  Will raise an error if the source name has not been registered.
-   * \param name Name of the operator.
-   * \return SourceName valid throughout program lifetime.
-   */
-  TVM_DLL static SourceName Get(const std::string& name);
-
-  /*! \brief specify container node */
-  using ContainerType = SourceNameNode;
-};
-
-/*!
- * \brief Span information for debugging purposes
- */
-class Span;
-/*!
- * \brief Stores locations in frontend source that generated a node.
- */
-class SpanNode : public Object {
- public:
-  /*! \brief The source name */
-  SourceName source;
-  /*! \brief Line number */
-  int lineno;
-  /*! \brief column offset */
-  int col_offset;
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source", &source);
-    v->Visit("lineno", &lineno);
-    v->Visit("col_offset", &col_offset);
-  }
-
-  TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
-
-  static constexpr const char* _type_key = "relay.Span";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
-};
-
-class Span : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Span, ObjectRef, SpanNode);
-};
+using SourceName = tvm::SourceName;
+using Span = tvm::Span;
+using SpanNode = tvm::SpanNode;
 
 /*!
  * \brief This is the base node container of all relay structures.

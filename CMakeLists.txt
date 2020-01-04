@@ -126,6 +126,8 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
 file(GLOB COMPILER_SRCS
+    src/node/*.cc
+    src/ir/*.cc
     src/api/*.cc
     src/arithmetic/*.cc
     src/autotvm/*.cc
@@ -133,7 +135,6 @@ file(GLOB COMPILER_SRCS
     src/lang/*.cc
     src/pass/*.cc
     src/op/*.cc
-    src/node/*.cc
     src/schedule/*.cc
     )
 

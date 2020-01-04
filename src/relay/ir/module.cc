@@ -234,7 +234,7 @@ Function ModuleNode::Lookup(const std::string& name) const {
 TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
   auto it = type_definitions.find(var);
   CHECK(it != type_definitions.end())
-      << "There is no definition of " << var->name_hint;
+    << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
