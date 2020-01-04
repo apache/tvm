@@ -55,9 +55,9 @@ Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
 
   for (const auto& kv : n->type_definitions) {
     // set global typevar map
-    CHECK(n->global_type_var_map_.count(kv.first->var->name_hint) == 0)
-      << "Duplicate global type definition name " << kv.first->var->name_hint;
-    n->global_type_var_map_.Set(kv.first->var->name_hint, kv.first);
+    CHECK(n->global_type_var_map_.count(kv.first->name_hint) == 0)
+      << "Duplicate global type definition name " << kv.first->name_hint;
+    n->global_type_var_map_.Set(kv.first->name_hint, kv.first);
     n->RegisterConstructors(kv.first, kv.second);
   }
 
@@ -177,7 +177,7 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
   // We hash the global type var name to use as a globally unique prefix for tags.
   // The hash will be used as the most significant byte of the tag, with the index of
   // the constructor in the less significant bytes
-  size_t hash = std::hash<std::string>()(var->var->name_hint);
+  size_t hash = std::hash<std::string>()(var->name_hint);
   int32_t prefix = static_cast<int32_t>(hash & 0xff) << 24;
   for (size_t i = 0; i < type->constructors.size(); ++i) {
     type->constructors[i]->tag = prefix | static_cast<int32_t>(i);
@@ -197,10 +197,10 @@ void ModuleNode::AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type,
   this->type_definitions.Set(var, type);
   if (!update) {
     // set global type var map
-    CHECK(global_type_var_map_.count(var->var->name_hint) == 0)
-      << "Duplicate global type definition name " << var->var->name_hint;
+    CHECK(global_type_var_map_.count(var->name_hint) == 0)
+      << "Duplicate global type definition name " << var->name_hint;
   }
-  global_type_var_map_.Set(var->var->name_hint, var);
+  global_type_var_map_.Set(var->name_hint, var);
   RegisterConstructors(var, type);
 }
 
@@ -234,7 +234,7 @@ Function ModuleNode::Lookup(const std::string& name) const {
 TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
   auto it = type_definitions.find(var);
   CHECK(it != type_definitions.end())
-    << "There is no definition of " << var->var->name_hint;
+      << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
