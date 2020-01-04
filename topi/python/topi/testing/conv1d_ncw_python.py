@@ -17,9 +17,32 @@
 # pylint: disable=unused-variable
 """1D convolution in python"""
 import numpy as np
-import scipy
 import topi
 from topi.nn.util import get_pad_tuple1d
+
+
+def dilate_np(x, dilation):
+    """ 1D dilation using numpy
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Array to dilate with shape [batch, in_channel, in_width]
+
+    dilation : int
+        dilation rate of output
+
+    Returns
+    -------
+    out : numpy.ndarray
+        Dilated output with shape [batch, in_channel, (in_width - 1) * dilation + 1]
+    """
+    irange = range(len(x) - 1)
+    for d in range(dilation - 1):
+        indices = [(d + 1)*(i + 1) for i in irange]
+        x = np.insert(x, indices, 0)
+    return x
+
 
 def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
     """1D convolution operator in NCW layout
@@ -28,7 +51,7 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
     ----------
     a_np : numpy.ndarray
         3-D with shape [batch, in_channel, in_width]
-    
+
     w_np : numpy.ndarray
         3-D with shape [num_filter, in_channel, filter_width]
 
@@ -47,7 +70,7 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
 
     Returns
     -------
-    b_np : np.ndarray
+    b_np : numpy.ndarray
         3-D with shape [batch, out_channel, out_width]
     """
     batch, in_c, in_w = a_np.shape
@@ -59,14 +82,24 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
 
     dilated_filter_w = (filter_w - 1) * dilation + 1
     pad_left, pad_right = get_pad_tuple1d(padding, (dilated_filter_w,))
-    out_w = (in_w - dilated_filter_w + pad_left + pad_right) // (stride + 1)
+    out_w = ((in_w - dilated_filter_w + pad_left + pad_right) // stride) + 1
 
     padded_a_np = np.zeros((batch, in_c, in_w + pad_left + pad_right))
     if pad_method == 'SYMMETRIC':
         padded_a_np[:, :, pad_left:(in_w + pad_left)] = a_np
     elif pad_method == 'BEFORE':
-        padded_a_np[:, :, (pad_left + pad_right):(in_w + pad_left + pad_right)] = a_np
+        padded_a_np[:, :, (pad_left + pad_right)
+                           :(in_w + pad_left + pad_right)] = a_np
     elif pad_method == 'AFTER':
         padded_a_np[:, :, :in_w] = a_np
     else:
         raise ValueError("Pad method {} is not supported.".format(pad_method))
+
+    b_np = np.zeros((batch, out_c, out_w))
+    for n in range(batch):
+        for f in range(out_c):
+            for c in range(in_c):
+                out = np.convolve(
+                    padded_a_np[n, c], np.flip(dilate_np(w_np[f, c], dilation)), mode='valid')
+                b_np[n, f] += out[::stride]
+    return b_np
