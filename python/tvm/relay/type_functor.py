@@ -143,7 +143,7 @@ class TypeMutator(TypeFunctor):
     and reconstructs the AST.
     """
     def visit_type_var(self, tv):
-        return TypeVar(tv.var.name, tv.kind)
+        return TypeVar(tv.name_hint, tv.kind)
 
     def visit_incomplete_type(self, it):
         return IncompleteType(it.kind)
@@ -180,7 +180,7 @@ class TypeMutator(TypeFunctor):
         return RefType(self.visit(rt.value))
 
     def visit_global_type_var(self, gtv):
-        return GlobalTypeVar(gtv.var.name, gtv.kind)
+        return GlobalTypeVar(gtv.name_hint, gtv.kind)
 
     def visit_type_call(self, tc):
         return TypeCall(

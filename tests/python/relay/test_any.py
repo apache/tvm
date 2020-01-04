@@ -534,15 +534,16 @@ def test_fused_ops():
         tvm.testing.assert_allclose(result.asnumpy(), (data + 1) * 2)
 
 def test_arange_with_dynamic_shape():
-    m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
-    x = relay.var('x', shape=(m.var, n.var, k.var), dtype='float32')
+    # m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
+    m, n, k = relay.Any(), relay.Any(), relay.Any()
+    x = relay.var('x', shape=(m, n, k), dtype='float32')
     y0 = relay.shape_of(x)
     y1 = relay.take(y0, relay.const(0, 'int32'))
     y2 = relay.op.arange(y1, dtype="int32")
     y3 = y2 + relay.const(1, dtype="int32")
     data = np.random.rand(10, 5, 3).astype('float32')
     mod = relay.module.Module()
-    mod["main"] = relay.Function([x], y3, type_params=[m, n, k])
+    mod["main"] = relay.Function([x], y3)
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data)

@@ -157,16 +157,13 @@ class TypeVar;
 /*! \brief TypeVar container node */
 class TypeVarNode : public TypeNode {
  public:
-  /*!
-   * \brief The variable itself is only meaningful when
-   *  kind is ShapeVar, otherwise, we only use the name.
-   */
-  tvm::Var var;
+  /*! \brief Name of the variable, it only acts as a hint. */
+  std::string name_hint;
   /*! \brief The kind of type parameter */
   Kind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("var", &var);
+    v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
   }
@@ -189,16 +186,13 @@ class GlobalTypeVar;
 /*! \brief GlobalTypeVar container node */
 class GlobalTypeVarNode : public TypeNode {
  public:
-  /*!
-   * \brief The variable itself is only meaningful when
-   *  kind is ShapeVar; otherwise, we only use the name.
-   */
-  tvm::Var var;
+  /*! \brief Name of the variable, it only acts as a hint. */
+  std::string name_hint;
   /*! \brief The kind of type parameter */
   Kind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("var", &var);
+    v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
   }
