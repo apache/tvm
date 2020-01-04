@@ -277,7 +277,7 @@ runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
   return MetalModuleCreate(code, fmt, ExtractFuncInfo(funcs), source);
 }
 
-TVM_REGISTER_API("codegen.build_metal")
+TVM_REGISTER_GLOBAL("codegen.build_metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildMetal(args[0]);
   });

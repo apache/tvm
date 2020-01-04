@@ -18,33 +18,19 @@
  */
 
 /*!
- * \file tvm/api_registry.h
- * \brief This file contains utilities related to
- *  the TVM's global function registry.
+ * \file tvm/node/env_func.h
+ * \brief Serializable global function.
  */
-#ifndef TVM_API_REGISTRY_H_
-#define TVM_API_REGISTRY_H_
+#ifndef TVM_NODE_ENV_FUNC_H_
+#define TVM_NODE_ENV_FUNC_H_
+
+#include <tvm/node/reflection.h>
 
 #include <string>
 #include <utility>
-#include "base.h"
-#include "packed_func_ext.h"
-#include "runtime/registry.h"
+
 
 namespace tvm {
-/*!
- * \brief Register an API function globally.
- * It simply redirects to TVM_REGISTER_GLOBAL
- *
- * \code
- *   TVM_REGISTER_API(MyPrint)
- *   .set_body([](TVMArgs args, TVMRetValue* rv) {
- *     // my code.
- *   });
- * \endcode
- */
-#define TVM_REGISTER_API(OpName) TVM_REGISTER_GLOBAL(OpName)
-
 /*!
  * \brief Node container of EnvFunc
  * \sa EnvFunc
@@ -54,7 +40,7 @@ class EnvFuncNode : public Object {
   /*! \brief Unique name of the global function */
   std::string name;
   /*! \brief The internal packed function */
-  PackedFunc func;
+  runtime::PackedFunc func;
   /*! \brief constructor */
   EnvFuncNode() {}
 
@@ -154,4 +140,4 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
 };
 
 }  // namespace tvm
-#endif  // TVM_API_REGISTRY_H_
+#endif  // TVM_NODE_ENV_FUNC_H_

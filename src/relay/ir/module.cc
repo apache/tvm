@@ -317,13 +317,13 @@ Module FromText(const std::string& source, const std::string& source_name) {
 
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
-TVM_REGISTER_API("relay._make.Module")
+TVM_REGISTER_GLOBAL("relay._make.Module")
 .set_body_typed<Module(tvm::Map<GlobalVar, Function>, tvm::Map<GlobalTypeVar, TypeData>)>(
 [](tvm::Map<GlobalVar, Function> funcs, tvm::Map<GlobalTypeVar, TypeData> types) {
   return ModuleNode::make(funcs, types, {});
 });
 
-TVM_REGISTER_API("relay._module.Module_Add")
+TVM_REGISTER_GLOBAL("relay._module.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Module mod = args[0];
   GlobalVar var = args[1];
@@ -346,50 +346,50 @@ TVM_REGISTER_API("relay._module.Module_Add")
   *ret = mod;
 });
 
-TVM_REGISTER_API("relay._module.Module_AddDef")
+TVM_REGISTER_GLOBAL("relay._module.Module_AddDef")
 .set_body_method<Module>(&ModuleNode::AddDef);
 
-TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
+TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalVar);
 
-TVM_REGISTER_API("relay._module.Module_GetGlobalVars")
+TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalVars")
 .set_body_method<Module>(&ModuleNode::GetGlobalVars);
 
-TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVars")
+TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalTypeVars")
 .set_body_method<Module>(&ModuleNode::GetGlobalTypeVars);
 
-TVM_REGISTER_API("relay._module.Module_ContainGlobalVar")
+TVM_REGISTER_GLOBAL("relay._module.Module_ContainGlobalVar")
 .set_body_method<Module>(&ModuleNode::ContainGlobalVar);
 
-TVM_REGISTER_API("relay._module.Module_GetGlobalTypeVar")
+TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalTypeVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalTypeVar);
 
-TVM_REGISTER_API("relay._module.Module_Lookup")
+TVM_REGISTER_GLOBAL("relay._module.Module_Lookup")
 .set_body_typed<Function(Module, GlobalVar)>([](Module mod, GlobalVar var) {
   return mod->Lookup(var);
 });
 
-TVM_REGISTER_API("relay._module.Module_Lookup_str")
+TVM_REGISTER_GLOBAL("relay._module.Module_Lookup_str")
 .set_body_typed<Function(Module, std::string)>([](Module mod, std::string var) {
   return mod->Lookup(var);
 });
 
-TVM_REGISTER_API("relay._module.Module_LookupDef")
+TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef")
 .set_body_typed<TypeData(Module, GlobalTypeVar)>([](Module mod, GlobalTypeVar var) {
   return mod->LookupDef(var);
 });
 
-TVM_REGISTER_API("relay._module.Module_LookupDef_str")
+TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef_str")
 .set_body_typed<TypeData(Module, std::string)>([](Module mod, std::string var) {
   return mod->LookupDef(var);
 });
 
-TVM_REGISTER_API("relay._module.Module_LookupTag")
+TVM_REGISTER_GLOBAL("relay._module.Module_LookupTag")
 .set_body_typed<Constructor(Module, int32_t)>([](Module mod, int32_t tag) {
     return mod->LookupTag(tag);
   });
 
-TVM_REGISTER_API("relay._module.Module_FromExpr")
+TVM_REGISTER_GLOBAL("relay._module.Module_FromExpr")
 .set_body_typed<
   Module(Expr,
          tvm::Map<GlobalVar, Function>,
@@ -399,17 +399,17 @@ TVM_REGISTER_API("relay._module.Module_FromExpr")
                                                return ModuleNode::FromExpr(e, funcs, type_defs);
                                              });
 
-TVM_REGISTER_API("relay._module.Module_Update")
+TVM_REGISTER_GLOBAL("relay._module.Module_Update")
 .set_body_typed<void(Module, Module)>([](Module mod, Module from) {
   mod->Update(from);
 });
 
-TVM_REGISTER_API("relay._module.Module_Import")
+TVM_REGISTER_GLOBAL("relay._module.Module_Import")
 .set_body_typed<void(Module, std::string)>([](Module mod, std::string path) {
   mod->Import(path);
 });
 
-TVM_REGISTER_API("relay._module.Module_ImportFromStd")
+TVM_REGISTER_GLOBAL("relay._module.Module_ImportFromStd")
 .set_body_typed<void(Module, std::string)>([](Module mod, std::string path) {
   mod->ImportFromStd(path);
 });;
