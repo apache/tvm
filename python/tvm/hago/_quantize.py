@@ -19,4 +19,4 @@
 from __future__ import absolute_import
 from tvm._ffi.function import _init_api
 
-_init_api("relay._quantize", __name__)
+_init_api("hago._quantize", __name__)

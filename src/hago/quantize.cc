@@ -26,15 +26,18 @@
  *   for compression and acceleration.
  */
 #include <dmlc/thread_local.h>
-#include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/type.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/op_attr_types.h>
 #include <stack>
 #include "./quantize.h"
 
-
 namespace tvm {
-namespace relay {
-namespace quantize {
+namespace hago {
+
+using namespace ::tvm::relay;
+using ::tvm::relay::Expr;
+using ::tvm::relay::Type;
 
 TVM_REGISTER_NODE_TYPE(SimulatedQuantizeAttrs);
 
@@ -50,12 +53,12 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
-  reporter->Assign(types[1], TensorTypeNode::make({}, Float(32)));    // dom_scale
-  reporter->Assign(types[2], TensorTypeNode::make({}, Float(32)));    // clip_min
-  reporter->Assign(types[3], TensorTypeNode::make({}, Float(32)));    // clip_max
+  reporter->Assign(types[1], TensorTypeNode::make({}, Float(32)));     // dom_scale
+  reporter->Assign(types[2], TensorTypeNode::make({}, Float(32)));     // clip_min
+  reporter->Assign(types[3], TensorTypeNode::make({}, Float(32)));     // clip_max
   reporter->Assign(types[4], TensorTypeNode::make({1}, Float(32)));    // overflow_min
   reporter->Assign(types[5], TensorTypeNode::make({1}, Float(32)));    // overflow_max
-  reporter->Assign(types[6], types[0]);                               // output
+  reporter->Assign(types[6], types[0]);                                // output
   return true;
 }
 
@@ -73,7 +76,7 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
-TVM_REGISTER_API("relay._quantize.simulated_quantize")
+TVM_REGISTER_API("hago._quantize.simulated_quantize")
 .set_body_typed<Expr(Expr, Expr, Expr, Expr, Expr, Expr, bool, std::string)>(
   [](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max,
      Expr overflow_min, Expr overflow_max,
@@ -127,11 +130,9 @@ TVM_REGISTER_NODE_TYPE(QConfigNode);
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<QConfigNode>([](const QConfigNode *op, IRPrinter *p) {
   p->stream << "qconfig(";
-  p->stream << "nbit_input=" << op->nbit_input << ", ";
-  p->stream << "nbit_weight=" << op->nbit_weight << ", ";
-  p->stream << "nbit_activation=" << op->nbit_activation << ", ";
   p->stream << "skip_conv_layers==" << op->skip_conv_layers << ", ";
-  p->stream << "calibrate_mode=" << op->calibrate_mode << ", ";
+  p->stream << "search_strategy=" << op->search_strategy << ", ";
+  p->stream << "threshold_estimate_strategy=" << op->threshold_estimate_strategy << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
   p->stream << "do_simulation==" << op->do_simulation << ", ";
   p->stream << "round_for_shift==" << op->round_for_shift << ", ";
@@ -139,15 +140,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
-TVM_REGISTER_API("relay._quantize._GetCurrentQConfig")
+TVM_REGISTER_API("hago._quantize._GetCurrentQConfig")
 .set_body_typed(QConfig::Current);
 
-TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
+TVM_REGISTER_API("hago._quantize._EnterQConfigScope")
 .set_body_typed(QConfig::EnterQConfigScope);
 
-TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
+TVM_REGISTER_API("hago._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
 
-}  // namespace quantize
-}  // namespace relay
+}  // namespace hago
 }  // namespace tvm

@@ -54,7 +54,6 @@ from . import contrib
 from . import image
 from . import frontend
 from . import backend
-from . import quantize
 
 # Dialects
 from . import qnn

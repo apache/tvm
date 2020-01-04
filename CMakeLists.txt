@@ -130,6 +130,7 @@ file(GLOB COMPILER_SRCS
     src/op/*.cc
     src/node/*.cc
     src/schedule/*.cc
+    src/hago/*.cc
     )
 
 file(GLOB_RECURSE RELAY_OP_SRCS

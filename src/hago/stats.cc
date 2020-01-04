@@ -24,14 +24,19 @@
  *
  * \brief Create profile graph and calibrate on dataset
  */
+#include <tvm/attrs.h>
+#include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include "./quantize.h"
 
 
 namespace tvm {
-namespace relay {
-namespace quantize {
+namespace hago {
+
+using namespace ::tvm::relay;
+using ::tvm::relay::Expr;
+using ::tvm::relay::Type;
 
 class StatsCollector : public ExprVisitor {
  public:
@@ -40,8 +45,8 @@ class StatsCollector : public ExprVisitor {
     const FunctionNode* func = expr.as<FunctionNode>();
     CHECK(func) << "Input should be Function";
     Expr new_body = TupleNode::make(std::move(profile_list_));
-    return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
-        func->attrs);
+    return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(),
+        func->type_params, func->attrs);
   }
 
   void VisitExpr_(const VarNode* op) {
@@ -122,9 +127,8 @@ Expr CreateStatsCollector(const Expr& expr) {
   return StatsCollector().Collect(expr);
 }
 
-TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
+TVM_REGISTER_API("hago._quantize.CreateStatsCollector")
 .set_body_typed(CreateStatsCollector);
 
-}  // namespace quantize
-}  // namespace relay
+}  // namespace hago
 }  // namespace tvm

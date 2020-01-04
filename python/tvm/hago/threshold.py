@@ -27,14 +27,9 @@ except ImportError:
 import tvm
 
 from . import _quantize
-from . import quantize
-from .. import op as _op
-from .. import expr as _expr
-from .. import module as _module
-from .. import analysis as _analysis
-from .. import transform as _transform
-from .. import build_module as _build_module
-from ...contrib import graph_runtime
+from . import quantize as qtz
+from .. import relay
+from ..contrib import graph_runtime
 
 
 def _smooth_distribution(p, eps=0.0001):
@@ -188,8 +183,8 @@ def collect_stats(mod, dataset):
     else:
         func = mod
     func = _quantize.CreateStatsCollector(func)
-    with _transform.build_config(opt_level=2):
-        graph, lib, params = _build_module.build(func, target="llvm")
+    with relay.transform.build_config(opt_level=2):
+        graph, lib, params = relay.build_module.build(func, target="llvm")
     outputs = []
     runtime = graph_runtime.create(graph, lib, tvm.cpu())
     runtime.set_input(**params)
@@ -225,104 +220,66 @@ def _kl_scale(stats):
     return func
 
 
-def set_params(mod, input_scale_func, weight_scale_func):
-    quantize_op = _op.get("relay.op.annotation.simulated_quantize")
-    cfg = quantize.current_qconfig()
-    const_params = {}
-
-    def visit_func(expr):
-        # TODO(ziheng) memorize, e.g. two sq share the same scales
-        if isinstance(expr, _expr.Call) and expr.op == quantize_op:
-            sq = expr
-            _, ndom_scale, nclip_min, nclip_max = sq.args
-            attrs = sq.attrs
-            kind = attrs.kind
-            nbit = cfg.get_nbit_by_kind(kind)
-            valid_bit = nbit - attrs.sign
-
-            # set scale
-            if kind == quantize.QAnnotateKind.WEIGHT:
-                assert isinstance(sq.args[0], _expr.Constant)
-                scale = weight_scale_func(sq)
-            else:
-                scale = input_scale_func(sq)
-
-            def _make_const(val):
-                return _expr.const(val, 'float32')
-
-            valid_range = 2**valid_bit
-            const_params[ndom_scale] = _make_const(scale / valid_range)
-            const_params[nclip_min] = _make_const(- (valid_range - 1))
-            const_params[nclip_max] = _make_const((valid_range - 1))
-
-    func = mod['main']
-    _analysis.post_order_visit(func, visit_func)
-    func = _expr.bind(func, const_params)
-    return _module.Module.from_expr(func)
-
-
 # weight scale functions
 def _power2_scale(sq_call):
     """calculate weight scale with nearest mode-2 scale"""
     var = sq_call.args[0]
-    assert isinstance(var, _expr.Constant)
+    assert isinstance(var, relay.Constant)
     val = np.amax(np.abs(var.data.asnumpy()))
     return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
 
 def _max_scale(sq_call):
     """calculate weight scale with maximum absolute value"""
     var = sq_call.args[0]
-    assert isinstance(var, _expr.Constant)
+    assert isinstance(var, relay.Constant)
     val = np.amax(np.abs(var.data.asnumpy()))
     return val
 
 
 # input scale functions
 def _global_scale(sq_call):
-    cfg = quantize.current_qconfig()
+    cfg = qtz.current_qconfig()
     return cfg.global_scale
 
 
-def calibrate(dataset=None):
-    """The calibrate procedure will try to calculate the content of
-    dom_scale, nbit, clip_min, clip_max for every `simulated_quantize`
-    operator.
+def threshold_estimate(graph, bits, dataset=None):
+    print('calculating threshold...')
+    cfg = qtz.current_qconfig()
+    # check bit setting
+    # exprs = []
+    # def fvisit_test(e):
+    #     if isinstance(e, (relay.Var)):
+    #         exprs.append(e)
+    #     if isinstance(e, relay.Constant):
+    #         exprs.append('constant')
+    #     if isinstance(e, relay.Call):
+    #         exprs.append(e.op.name)
+    # _analysis.post_order_visit(graph, fvisit_test)
 
-    Parameters
-    ---------
-    graph: Function
-        The simulation graph after annotation.
+    stats = collect_stats(graph, dataset)
+    max_ranges = [stats.range(i) for i in range(len(stats))]
+    # print("range: {0}".format(max_range))
+    if cfg.threshold_estimate_strategy == 'global_scale':
+        thresholds = [cfg.global_scale for _ in exprs]
+        return thresholds
+    elif cfg.threshold_estimate_strategy == 'max_range':
+        return max_ranges
+    elif cfg.threshold_estimate_strategy == 'kl':
+        assert scipy is not None, "scipy need to be installed for \
+        utilizing kl calibration during quantization"
+        logging.info("finding threshold with kl for calibration...")
+        # t0 = time.time()
+        arrs = [np.concatenate(stats.data(i), axis=None) for i in range(len(stats))]
 
-    mod: tvm.relay.Module
-        The module where calibration happens on.
+        print('threshold: ')
+        thresholds = []
+        for i in range(len(arrs)):
+            threshold = _find_scale_by_kl(arrs[i])
+            thresholds.append(threshold)
+        return thresholds
 
-    ctx: tvm.relay.PassContext
-        The pass context used for calibration.
-
-    weight_scales: 'power2' or 'max'.
-        The way to calculate scales for weights (annotated with QAnnotateKind.WEIGHT).
-        power2: Find the maximum of the absolute value of the tensor, and then round up to power
-        of two.
-        max: Find the maximum of the absolute value of the tensor.
-
-    scales: List[float]
-        Pre-calculated scales for input and activations. Length and the order of elements of the
-        scales list should match the output tuple of the profile graph created by collect_stats.
-
-    Returns
-    -------
-    ret: Function
-        The graph after calibration
-    """
-    def wrapped_func(mod, ctx):
-        """make transform.module pass happy"""
-        cfg = quantize.current_qconfig()
-
-        if cfg.calibrate_mode == 'kl':
-            stats = collect_stats(mod, dataset)
-            input_scale_func = _kl_scale(stats)
-        elif cfg.calibrate_mode == 'global_scale':
-            input_scale_func = _global_scale
-
-        return set_params(mod, input_scale_func, _power2_scale)
-    return wrapped_func
+        # with mp.Pool(32) as pool:
+        #     thresholds = list(pool.map(_calibrate._find_scale_by_kl, arrs))
+        # t1 = time.time()
+        # print('time: {0}'.format(t1 - t0))
+        # return thresholds

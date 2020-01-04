@@ -20,27 +20,26 @@
 /*!
  *  Copyright (c) 2018 by Contributors.
  *
- * \file tvm/relay/pass/quantize.h
+ * \file tvm/hago/quantize.h
  * \brief Header of definitions for quantization
  */
-#ifndef TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_
-#define TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_
+#ifndef TVM_HAGO_QUANTIZE_H_
+#define TVM_HAGO_QUANTIZE_H_
 
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <string>
-#include "../pattern_util.h"
+// #include "../pattern_util.h"
 
 namespace tvm {
-namespace relay {
-namespace quantize {
+namespace hago {
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
   bool sign;
   std::string rounding;
 
-  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "relay.attrs.SimulatedQuantizeAttrs") {
+  TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "hago.SimulatedQuantizeAttrs") {
     TVM_ATTR_FIELD(sign).set_default(true)
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")
@@ -54,35 +53,25 @@ class QConfig;
 */
 class QConfigNode : public Node {
  public:
-  int nbit_input = 8;
-  int nbit_weight = 8;
-  int nbit_activation = 32;
-  DataType dtype_input = Int(8);
-  DataType dtype_weight = Int(8);
-  DataType dtype_activation = Int(32);
   Array<Expr> skip_conv_layers = Array<Expr>(NodePtr<Node>(nullptr));
-  std::string calibrate_mode = "global_scale";
+  std::string search_strategy = "simulated_annealing";
+  std::string threshold_estimate_strategy = "max_range";
   double global_scale = 8.0;
   bool do_simulation = false;
   bool round_for_shift = true;
   Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
 
   void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("nbit_input", &nbit_input);
-    v->Visit("nbit_weight", &nbit_weight);
-    v->Visit("nbit_activation", &nbit_activation);
-    v->Visit("dtype_input", &dtype_input);
-    v->Visit("dtype_weight", &dtype_weight);
-    v->Visit("dtype_activation", &dtype_activation);
     v->Visit("skip_conv_layers", &skip_conv_layers);
-    v->Visit("calibrate_mode", &calibrate_mode);
+    v->Visit("search_strategy", &search_strategy);
+    v->Visit("threshold_estimate_strategy", &threshold_estimate_strategy);
     v->Visit("global_scale", &global_scale);
     v->Visit("do_simulation", &do_simulation);
     v->Visit("round_for_shift", &round_for_shift);
     v->Visit("debug_enabled_ops", &debug_enabled_ops);
   }
 
-  static constexpr const char* _type_key = "relay.quantize.QConfig";
+  static constexpr const char* _type_key = "hago.QConfig";
   TVM_DECLARE_NODE_TYPE_INFO(QConfigNode, Node);
 };
 
@@ -144,7 +133,6 @@ struct QConfigContext {
   }
 };
 
-}  // namespace quantize
-}  // namespace relay
+}  // namespace hago
 }  // namespace tvm
-#endif  // TVM_RELAY_PASS_QUANTIZE_QUANTIZE_H_
+#endif  // TVM_HAGO_QUANTIZE_H_

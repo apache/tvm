@@ -18,8 +18,7 @@
 """Automatic quantization utilities."""
 from __future__ import absolute_import as _abs
 
-from .quantize import *
-from .search import *
-from . import  _quantized_ops
-from ._partition import register_partition_function
-from ._annotate import register_annotate_function
+from . import _quantized_ops
+from .description import create_accelerator_description
+from .search import search_quantize_strategy
+from .quantize import qconfig, current_qconfig, quantize, prerequisite_optimize

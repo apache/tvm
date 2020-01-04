@@ -21,9 +21,8 @@ import math
 
 import tvm
 import topi
-from .. import expr as _expr
-from ..op import op as _reg
-from .quantize import QAnnotateKind
+from ..relay.op import op as _reg
+from .. import relay
 
 @tvm.register_func("tvm.quantize.check_overflow")
 def check_overflow(data, overflow_min, overflow_max, out):
@@ -88,7 +87,7 @@ def adjust_scale(data, from_scale, to_scale):
 
 
 def extract_scalar(tensor):
-    assert isinstance(tensor, _expr.Constant)
+    assert isinstance(tensor, relay.Constant)
     arr = tensor.value
     assert arr.size == 1
     return arr[0]
