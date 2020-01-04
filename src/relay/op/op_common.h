@@ -48,7 +48,7 @@ namespace relay {
  * \param OpName the name of registry.
  */
 #define RELAY_REGISTER_UNARY_OP(OpName)                     \
-  TVM_REGISTER_API("relay.op._make." OpName)                \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                \
     .set_body_typed<Expr(Expr)>([](Expr data) {             \
         static const Op& op = Op::Get(OpName);              \
         return CallNode::make(op, {data}, Attrs(), {});     \
@@ -74,7 +74,7 @@ namespace relay {
  * \param OpName the name of registry.
  */
 #define RELAY_REGISTER_BINARY_OP(OpName)                          \
-  TVM_REGISTER_API("relay.op._make." OpName)                      \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
     .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {    \
         static const Op& op = Op::Get(OpName);                    \
         return CallNode::make(op, {lhs, rhs}, Attrs(), {});       \
@@ -91,7 +91,7 @@ namespace relay {
 
 // Comparisons
 #define RELAY_REGISTER_CMP_OP(OpName)                             \
-  TVM_REGISTER_API("relay.op._make." OpName)                      \
+  TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
   .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {      \
     static const Op& op = Op::Get(OpName);                        \
     return CallNode::make(op, {lhs, rhs}, Attrs(), {});           \

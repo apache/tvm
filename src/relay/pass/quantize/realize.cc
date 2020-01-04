@@ -530,7 +530,7 @@ Pass QuantizeRealizePass() {
   return CreateFunctionPass(pass_func, 1, "QuantizeRealize", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizeRealize")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeRealize")
 .set_body_typed(QuantizeRealizePass);
 
 }  // namespace quantize

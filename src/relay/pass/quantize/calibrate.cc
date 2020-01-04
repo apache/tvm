@@ -202,11 +202,11 @@ Expr CreateStatsCollector(const Expr& expr) {
   return StatsCollector().Collect(expr);
 }
 
-TVM_REGISTER_API("relay._quantize.CreateStatsCollector")
+TVM_REGISTER_GLOBAL("relay._quantize.CreateStatsCollector")
 .set_body_typed(CreateStatsCollector);
 
 
-TVM_REGISTER_API("relay._quantize.FindScaleByKLMinimization")
+TVM_REGISTER_GLOBAL("relay._quantize.FindScaleByKLMinimization")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   int* hist_ptr = static_cast<int*>(static_cast<void*>(args[0]));
   float* hist_edges_ptr = static_cast<float*>(static_cast<void*>(args[1]));

@@ -82,7 +82,7 @@ Expr MakeConv2D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d")
 .set_body_typed(MakeConv2D);
 
 
@@ -140,7 +140,7 @@ Expr MakeConv3D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv3d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d")
 .set_body_typed(MakeConv3D);
 
 
@@ -307,7 +307,7 @@ Expr MakeConv2DTranspose(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
 .set_body_typed(MakeConv2DTranspose);
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
@@ -466,7 +466,7 @@ Expr MakeConv1DTranspose(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv1d_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
 .set_body_typed(MakeConv1DTranspose);
 
 RELAY_REGISTER_OP("nn.conv1d_transpose")
@@ -613,7 +613,7 @@ Expr MakeConv2DWinograd(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
 .set_body_typed(MakeConv2DWinograd);
 
 
@@ -676,7 +676,7 @@ Expr MakeConv2DWinogradWeightTransform(Expr weight,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
 .set_body_typed(MakeConv2DWinogradWeightTransform);
 
 
@@ -724,7 +724,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACK);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
@@ -791,7 +791,7 @@ Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
   return CallNode::make(op, {weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
@@ -837,7 +837,7 @@ Expr MakeConv2DNCHWcInt8(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
 .set_body_typed(MakeConv2DNCHWcInt8);
 
 
@@ -886,7 +886,7 @@ Expr MakeConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
 .set_body_typed(MakeConv2DNCHWc);
 
 
@@ -936,7 +936,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
 .set_body_typed(MakeDepthwiseConv2DNCHWc);
 
 
@@ -1096,7 +1096,7 @@ Expr MakeDeformableConv2D(Expr data,
   return CallNode::make(op, {data, offset, weight}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
 .set_body_typed(MakeDeformableConv2D);
 
 

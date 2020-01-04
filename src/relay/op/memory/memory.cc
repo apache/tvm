@@ -41,7 +41,7 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-TVM_REGISTER_API("relay.op.memory._make.alloc_storage")
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
     .set_body_typed<Expr(Expr, Expr, DataType)>([](Expr size, Expr alignment, DataType dtype) {
       auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
@@ -87,7 +87,7 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                              return {topi::identity(inputs[0])};
                            });
 
-TVM_REGISTER_API("relay.op.memory._make.alloc_tensor")
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
     .set_body_typed<Expr(Expr, Expr, DataType, Array<IndexExpr> assert_shape)>(
         [](Expr storage, tvm::relay::Expr shape, DataType dtype, Array<IndexExpr> assert_shape) {
           auto attrs = make_object<AllocTensorAttrs>();
@@ -208,7 +208,7 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-TVM_REGISTER_API("relay.op.memory._make.invoke_tvm_op")
+TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
     .set_body_typed<Expr(Expr, Expr, Expr)>(
         [](Expr func, Expr inputs, Expr outputs) {
           return CallNode::make(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
@@ -256,7 +256,7 @@ RELAY_REGISTER_OP("memory.kill")
                              return {topi::identity(inputs[0])};
                            });
 
-TVM_REGISTER_API("relay.op.memory._make.shape_func")
+TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
     .set_body_typed<Expr(Expr, Expr, Expr, Array<tvm::Integer>)>(
       [](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
       static const Op& op = Op::Get("memory.shape_func");

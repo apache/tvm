@@ -161,7 +161,7 @@ RELAY_REGISTER_OP("qnn.concatenate")
 .add_type_rel("QnnConcatenate", QnnConcatenateRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.concatenate")
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.concatenate")
 .set_body_typed(MakeQnnConcatenate);
 
 }  // namespace qnn

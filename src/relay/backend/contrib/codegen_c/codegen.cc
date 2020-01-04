@@ -219,7 +219,7 @@ runtime::Module CCompiler(const ObjectRef& ref) {
   return csource.CreateCSourceModule(ref);
 }
 
-TVM_REGISTER_API("relay.ext.ccompiler").set_body_typed(CCompiler);
+TVM_REGISTER_GLOBAL("relay.ext.ccompiler").set_body_typed(CCompiler);
 
 }  // namespace contrib
 }  // namespace relay

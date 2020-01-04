@@ -72,7 +72,7 @@ The Node system is the basis of exposing C++ types to frontend languages, includ
 
 ::
 
-   TVM_REGISTER_API("_ComputeOp")
+   TVM_REGISTER_GLOBAL("_ComputeOp")
    .set_body([](TVMArgs args,  TVMRetValue* ret) {
        *ret = ComputeOpNode::make(args[0],
                                   args[1],
@@ -174,7 +174,7 @@ The ``Build()`` function looks up the code generator for the given target in the
 
 ::
 
-   TVM_REGISTER_API("codegen.build_cuda")
+   TVM_REGISTER_GLOBAL("codegen.build_cuda")
    .set_body([](TVMArgs args, TVMRetValue* rv) {
        *rv = BuildCUDA(args[0]);
      });

@@ -72,7 +72,7 @@ QPartitionExpr QPartitionExprNode::make(Expr expr) {
   return QPartitionExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.make_partition_expr")
+TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QPartitionExprNode::make(args[0]);
   });
@@ -87,7 +87,7 @@ Pass QuantizePartition() {
   return CreateFunctionPass(pass_func, 1, "QuantizePartition", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizePartition")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizePartition")
 .set_body_typed(QuantizePartition);
 
 TVM_REGISTER_NODE_TYPE(QPartitionExprNode);

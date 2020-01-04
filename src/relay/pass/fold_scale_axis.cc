@@ -958,7 +958,7 @@ Pass ForwardFoldScaleAxis() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.ForwardFoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
 .set_body_typed(ForwardFoldScaleAxis);
 
 Pass BackwardFoldScaleAxis() {
@@ -971,7 +971,7 @@ Pass BackwardFoldScaleAxis() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.BackwardFoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")
 .set_body_typed(BackwardFoldScaleAxis);
 
 Pass FoldScaleAxis() {
@@ -983,7 +983,7 @@ Pass FoldScaleAxis() {
   return pass;
 }
 
-TVM_REGISTER_API("relay._transform.FoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.FoldScaleAxis")
 .set_body_typed(FoldScaleAxis);
 
 }  // namespace transform

@@ -311,7 +311,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll, assembly);
 }
 
-TVM_REGISTER_API("codegen.build_rocm")
+TVM_REGISTER_GLOBAL("codegen.build_rocm")
 .set_body_typed(BuildAMDGPU);
 
 }  // namespace codegen

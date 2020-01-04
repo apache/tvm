@@ -95,7 +95,7 @@ Pass EliminateCommonSubexpr(PackedFunc fskip) {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.EliminateCommonSubexpr")
+TVM_REGISTER_GLOBAL("relay._transform.EliminateCommonSubexpr")
 .set_body_typed(EliminateCommonSubexpr);
 
 }  // namespace transform

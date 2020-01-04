@@ -200,7 +200,7 @@ Expr MakePad(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.pad")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.pad")
 .set_body_typed(MakePad);
 
 RELAY_REGISTER_OP("nn.pad")
@@ -274,7 +274,7 @@ Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mo
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.mirror_pad")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.mirror_pad")
 .set_body_typed(MakeMirrorPad);
 
 RELAY_REGISTER_OP("nn.mirror_pad")

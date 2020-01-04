@@ -70,7 +70,7 @@ QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
   return QAnnotateExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.make_annotate_expr")
+TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QAnnotateExprNode::make(args[0],
       static_cast<QAnnotateKind>(args[1].operator int()));
@@ -108,7 +108,7 @@ Pass QuantizeAnnotate() {
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate")
 .set_body_typed(QuantizeAnnotate);
 
 TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);

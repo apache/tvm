@@ -275,7 +275,7 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
 }
 
-TVM_REGISTER_API("codegen.build_opencl")
+TVM_REGISTER_GLOBAL("codegen.build_opencl")
 .set_body_typed(BuildOpenCL);
 }  // namespace codegen
 }  // namespace tvm

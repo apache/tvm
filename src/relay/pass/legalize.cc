@@ -105,7 +105,7 @@ Pass Legalize(const std::string& legalize_map_attr_name) {
   return CreateFunctionPass(pass_func, 1, "Legalize", {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.Legalize").set_body_typed(Legalize);
+TVM_REGISTER_GLOBAL("relay._transform.Legalize").set_body_typed(Legalize);
 
 }  // namespace transform
 

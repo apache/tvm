@@ -142,7 +142,7 @@ Pass InlinePrimitives() {
   return Sequential({inline_pass, DeadCodeElimination()}, "InlinePrimitives");
 }
 
-TVM_REGISTER_API("relay._transform.InlinePrimitives")
+TVM_REGISTER_GLOBAL("relay._transform.InlinePrimitives")
 .set_body_typed(InlinePrimitives);
 
 }  // namespace transform

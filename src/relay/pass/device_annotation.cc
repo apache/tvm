@@ -560,13 +560,13 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_API("relay._analysis.CollectDeviceInfo")
+TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceInfo")
 .set_body_typed(CollectDeviceInfo);
 
-TVM_REGISTER_API("relay._analysis.RewriteDeviceAnnotation")
+TVM_REGISTER_GLOBAL("relay._analysis.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
-TVM_REGISTER_API("relay._analysis.CollectDeviceAnnotationOps")
+TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
 namespace transform {
@@ -580,7 +580,7 @@ Pass RewriteAnnotatedOps(int fallback_device) {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")
+TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
 }  // namespace transform

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,13 +21,13 @@
  *
  * \file combine_parallel_op_batch.cc
  * \brief Combine parallel ops into a single batch op.
- * 
+ *
  * This pass replaces ops that share the same input node and same shape
  * with a single op that takes in batched input. The inputs of the new
  * batched op are the stack of the original inputs. Elementwise and
  * broadcast ops following the original op are also stacked
  * and fused if possible. For example:
- * 
+ *
  *            data
  *         /         \
  *    add (2,2)     add (2,2)
@@ -36,7 +36,7 @@
  *      |            |
  *
  * Would become:
- * 
+ *
  *            data
  *              |
  *       add+elemwise (2,2,2)
@@ -197,7 +197,7 @@ Pass CombineParallelOpBatch(const std::string& op_name,
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CombineParallelOpBatch")
+TVM_REGISTER_GLOBAL("relay._transform.CombineParallelOpBatch")
 .set_body_typed(CombineParallelOpBatch);
 
 }  // namespace transform

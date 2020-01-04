@@ -224,7 +224,7 @@ Pass CombineParallelConv2D(uint64_t min_num_branches) {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CombineParallelConv2D")
+TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")
 .set_body_typed(CombineParallelConv2D);
 
 }  // namespace transform

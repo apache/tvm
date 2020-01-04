@@ -157,7 +157,7 @@ RELAY_REGISTER_UNARY_OP("copy")
 // relay.clip
 TVM_REGISTER_NODE_TYPE(ClipAttrs);
 
-TVM_REGISTER_API("relay.op._make.clip")
+TVM_REGISTER_GLOBAL("relay.op._make.clip")
 .set_body_typed<Expr(Expr, double, double)>([](Expr a, double a_min, double a_max) {
     auto attrs = make_object<ClipAttrs>();
     attrs->a_min = a_min;
@@ -300,7 +300,7 @@ Array<Tensor> ShapeOfCompute(const Attrs& attrs,
   return {topi::shape(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_API("relay.op._make.shape_of")
+TVM_REGISTER_GLOBAL("relay.op._make.shape_of")
 .set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
@@ -351,7 +351,7 @@ Array<Tensor> NdarraySizeCompute(const Attrs& attrs,
   return Array<Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_API("relay.op.contrib._make.ndarray_size")
+TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
 .set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;

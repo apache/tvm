@@ -135,7 +135,7 @@ void OpRegistry::UpdateAttr(const std::string& key,
 }
 
 // Frontend APIs
-TVM_REGISTER_API("relay.op._ListOpNames")
+TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
 .set_body_typed<Array<tvm::Expr>()>([]() {
     Array<tvm::Expr> ret;
     for (const std::string& name :
@@ -145,9 +145,9 @@ TVM_REGISTER_API("relay.op._ListOpNames")
     return ret;
   });
 
-TVM_REGISTER_API("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
+TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
 
-TVM_REGISTER_API("relay.op._OpGetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpGetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -157,7 +157,7 @@ TVM_REGISTER_API("relay.op._OpGetAttr")
     }
   });
 
-TVM_REGISTER_API("relay.op._OpSetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpSetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -168,7 +168,7 @@ TVM_REGISTER_API("relay.op._OpSetAttr")
     reg.set_attr(attr_name, value, plevel);
   });
 
-TVM_REGISTER_API("relay.op._OpResetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpResetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -177,7 +177,7 @@ TVM_REGISTER_API("relay.op._OpResetAttr")
     reg.reset_attr(attr_name);
   });
 
-TVM_REGISTER_API("relay.op._Register")
+TVM_REGISTER_GLOBAL("relay.op._Register")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::string op_name = args[0];
     std::string attr_key = args[1];

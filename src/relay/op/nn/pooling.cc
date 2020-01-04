@@ -213,7 +213,7 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   }
 }
 
-TVM_REGISTER_API("relay.op.nn._make.max_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d")
 .set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
   std::string, bool)>([](Expr data,
                          Array<IndexExpr> pool_size,
@@ -257,7 +257,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 
 
 // AvgPool2D
-TVM_REGISTER_API("relay.op.nn._make.avg_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d")
 .set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
   std::string, bool, bool)>([](Expr data,
                                Array<IndexExpr> pool_size,
@@ -366,7 +366,7 @@ Expr MakeGlobalAvgPool2D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.global_avg_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.global_avg_pool2d")
 .set_body_typed(MakeGlobalAvgPool2D);
 
 // GlobalAvgPool
@@ -397,7 +397,7 @@ Expr MakeGlobalMaxPool2D(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.global_max_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.global_max_pool2d")
 .set_body_typed(MakeGlobalMaxPool2D);
 
 
@@ -518,7 +518,7 @@ Expr MakeAdaptiveAvgPool2D(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.contrib._make.adaptive_avg_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.contrib._make.adaptive_avg_pool2d")
 .set_body_typed(MakeAdaptiveAvgPool2D);
 
 RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
@@ -557,7 +557,7 @@ Expr MakeAdaptiveMaxPool2D(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.contrib._make.adaptive_max_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.contrib._make.adaptive_max_pool2d")
 .set_body_typed(MakeAdaptiveMaxPool2D);
 
 RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
@@ -657,7 +657,7 @@ Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
   return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.max_pool2d_grad").set_body_typed(MakeMaxPool2DGrad);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d_grad").set_body_typed(MakeMaxPool2DGrad);
 
 
 RELAY_REGISTER_OP("nn.max_pool2d_grad")
@@ -706,7 +706,7 @@ Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
   return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.avg_pool2d_grad").set_body_typed(MakeAvgPool2DGrad);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d_grad").set_body_typed(MakeAvgPool2DGrad);
 
 
 RELAY_REGISTER_OP("nn.avg_pool2d_grad")
@@ -867,7 +867,7 @@ Array<Tensor> Pool3DCompute(const Attrs& attrs,
   }
 }
 
-TVM_REGISTER_API("relay.op.nn._make.max_pool3d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool3d")
 .set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
   std::string, bool)>([](Expr data,
                          Array<IndexExpr> pool_size,
@@ -911,7 +911,7 @@ RELAY_REGISTER_OP("nn.max_pool3d")
 
 
 // AvgPool3D
-TVM_REGISTER_API("relay.op.nn._make.avg_pool3d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool3d")
 .set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
   std::string, bool, bool)>([](Expr data,
                                Array<IndexExpr> pool_size,

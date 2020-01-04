@@ -207,7 +207,7 @@ Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 .add_type_rel("Requantize", RequantizeRel)
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize);
 
-TVM_REGISTER_API("relay.qnn.op._make.requantize")
+TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);
 
 }  // namespace qnn

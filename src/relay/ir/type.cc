@@ -54,7 +54,7 @@ IndexExpr TensorTypeNode::Size() const {
 
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
-TVM_REGISTER_API("relay._make.TensorType")
+TVM_REGISTER_GLOBAL("relay._make.TensorType")
 .set_body_typed(TensorTypeNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -72,7 +72,7 @@ TypeCall TypeCallNode::make(Type func, tvm::Array<Type> args) {
 
 TVM_REGISTER_NODE_TYPE(TypeCallNode);
 
-TVM_REGISTER_API("relay._make.TypeCall")
+TVM_REGISTER_GLOBAL("relay._make.TypeCall")
 .set_body_typed(TypeCallNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -90,7 +90,7 @@ IncompleteType IncompleteTypeNode::make(Kind kind) {
 
 TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 
-TVM_REGISTER_API("relay._make.IncompleteType")
+TVM_REGISTER_GLOBAL("relay._make.IncompleteType")
 .set_body_typed<IncompleteType(int)>([](int kind) {
     return IncompleteTypeNode::make(static_cast<Kind>(kind));
   });
@@ -115,7 +115,7 @@ TypeRelation TypeRelationNode::make(TypeRelationFn func,
 
 TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 
-TVM_REGISTER_API("relay._make.TypeRelation")
+TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
 .set_body_typed(TypeRelationNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -134,7 +134,7 @@ TupleType TupleTypeNode::make(Array<Type> fields) {
 
 TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
-TVM_REGISTER_API("relay._make.TupleType")
+TVM_REGISTER_GLOBAL("relay._make.TupleType")
 .set_body_typed(TupleTypeNode::make);
 
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
@@ -149,7 +149,7 @@ RefType RefTypeNode::make(Type value) {
   return RefType(n);
 }
 
-TVM_REGISTER_API("relay._make.RefType")
+TVM_REGISTER_GLOBAL("relay._make.RefType")
 .set_body_typed(RefTypeNode::make);
 
 TVM_REGISTER_NODE_TYPE(RefTypeNode);
@@ -160,7 +160,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "RefTypeNode(" << node->value << ")";
 });
 
-TVM_REGISTER_API("relay._make.Any")
+TVM_REGISTER_GLOBAL("relay._make.Any")
 .set_body_typed<IndexExpr()>([]() { return Any::make(); });
 
 

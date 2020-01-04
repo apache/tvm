@@ -129,7 +129,7 @@ Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions) {
   return CreateModulePass(pass_func, 1, "RemoveUnusedFunctions", {});
 }
 
-TVM_REGISTER_API("relay._transform.RemoveUnusedFunctions")
+TVM_REGISTER_GLOBAL("relay._transform.RemoveUnusedFunctions")
 .set_body_typed(RemoveUnusedFunctions);
 
 }  // namespace transform

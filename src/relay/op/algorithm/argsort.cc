@@ -60,7 +60,7 @@ Expr MakeArgsort(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.argsort")
+TVM_REGISTER_GLOBAL("relay.op._make.argsort")
 .set_body_typed(MakeArgsort);
 
 RELAY_REGISTER_OP("argsort")
