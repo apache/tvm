@@ -59,6 +59,22 @@ def test_any_broadcast():
     verify_any_broadcast((relay.Any(),), (3, 2), (2,), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, 2), (3, 2), (3, 2), relay.add, np.add)
 
+def verify_any_elemwise(x_shape, x_np_shape, op, np_op):
+    dtype = 'float32'
+    x = relay.var('x', shape=x_shape, dtype=dtype)
+    mod = relay.module.Module()
+    mod["main"] = relay.Function([x], op(x))
+    x_np = np.random.uniform(size=x_np_shape).astype(dtype)
+    res_np = np_op(x_np)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(x_np)
+        tvm.testing.assert_allclose(result.asnumpy(), res_np)
+
+def test_any_elemwise():
+    verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
+    verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
+    verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
 
 def test_any_broadcast_fail():
     # Test broadcast with incompatible values at runtime
@@ -107,12 +123,14 @@ def test_any_full():
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
     y = relay.var('y', shape=(1, 2), dtype="float32")
-    z = relay.op.concatenate([x, y], axis=0)
+    xx = x - relay.expr.const(3.0)
+    yy = y * relay.expr.const(5.0)
+    z = relay.op.concatenate([xx, yy], axis=0)
     mod = relay.module.Module()
     mod["main"] = relay.Function([x, y], z)
     x_np = np.random.uniform(size=(3, 2)).astype('float32')
     y_np = np.random.uniform(size=(1, 2)).astype('float32')
-    ref = np.concatenate([x_np, y_np], axis=0)
+    ref = np.concatenate([x_np - 3.0, y_np * 5.0], axis=0)
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(x_np, y_np)
@@ -417,6 +435,24 @@ def test_any_global_pool2d():
     verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any(), 4),
                       "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 1, 1, 4))
 
+def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, ref_out_shape):
+    mod = relay.Module()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.split(data, indices_or_sections, axis)
+    mod["main"] = relay.Function([data], y.astuple())
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        for ret, ref_ret in zip(result, ref_out_shape):
+            assert ret.asnumpy().shape == ref_ret, \
+                "Shape mismatch: expect %s but got %s." % (str(ref_ret), str(ret.asnumpy().shape))
+
+def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
+    verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+
 def test_any_batch_flatten():
     mod = relay.Module()
     dtype = "float32"
@@ -601,11 +637,13 @@ def test_recursive_concat_with_wrong_annotation():
 if __name__ == "__main__":
     test_any_full()
     test_any_broadcast()
+    test_any_elemwise()
     test_any_broadcast_fail()
     test_any_concat()
     test_any_reshape()
     test_any_take()
     test_any_tile()
+    test_any_split()
     test_any_shape_of()
     test_any_reduce()
     test_any_layout_transform()
