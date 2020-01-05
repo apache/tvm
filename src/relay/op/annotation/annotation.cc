@@ -188,7 +188,7 @@ Beginning of a region that is handled by a given compiler.
                          return {topi::identity(inputs[0])};
                        });
 
-TVM_REGISTER_API("relay.op.annotation._make.compiler_begin")
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_begin")
 .set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
@@ -213,7 +213,7 @@ End of a region that is handled by a given compiler.
                          return {topi::identity(inputs[0])};
                        });
 
-TVM_REGISTER_API("relay.op.annotation._make.compiler_end")
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
 .set_body_typed<Expr(Expr, std::string)>([](Expr expr, std::string compiler) {
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;

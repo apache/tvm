@@ -93,7 +93,7 @@ Pass AnnotateCompiler(const std::string& compiler) {
   return transform::Sequential({func_pass, InferType()}, "AnnotateCompiler");
 }
 
-TVM_REGISTER_API("relay._transform.AnnotateCompiler")
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateCompiler")
 .set_body_typed(AnnotateCompiler);
 
 }  // namespace transform

@@ -375,7 +375,7 @@ Pass PartitionGraph() {
   return Sequential({partitioned, InferType()});
 }
 
-TVM_REGISTER_API("relay._transform.PartitionGraph")
+TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph")
 .set_body_typed(transform::PartitionGraph);
 
 }  // namespace transform
