@@ -108,6 +108,7 @@ class AluVector(implicit p: Parameters) extends Module {
   * acc-scratchpad.
   */
 class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
+  val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
