@@ -14,14 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI for TOPI utility functions"""
 
-"""FFI for C++ TOPI ops and schedules"""
-from .impl import * #pylint: disable=wildcard-import
-from . import cuda
-from . import nn
-from . import vision
-from . import x86
-from . import generic
-from . import rocm
-from . import image
-from . import util
+from tvm._ffi.function import _init_api_prefix
+
+_init_api_prefix("topi.cpp.util", "topi.util")

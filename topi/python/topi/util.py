@@ -21,7 +21,7 @@ from numbers import Integral
 
 import tvm
 from tvm.api import layout, bijective_layout
-from . import tag
+from . import tag, cpp
 
 class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
@@ -432,10 +432,4 @@ def is_empty_shape(shape):
     is_empty: bool
       Whether input shape is empty or has dimesion with size 0.
     """
-    is_empty = False
-    for dim in shape:
-        if isinstance(dim, tvm.expr.IntImm):
-            if dim.value == 0:
-                is_empty = True
-                break
-    return is_empty
+    return cpp.util.is_empty_shape(shape)
