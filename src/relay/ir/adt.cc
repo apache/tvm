@@ -37,8 +37,8 @@ TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 TVM_REGISTER_GLOBAL("relay._make.PatternWildcard")
 .set_body_typed(PatternWildcardNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, NodePrinter* p) {
   p->stream << "PatternWildcardNode()";
 });
 
@@ -53,8 +53,8 @@ TVM_REGISTER_NODE_TYPE(PatternVarNode);
 TVM_REGISTER_GLOBAL("relay._make.PatternVar")
 .set_body_typed(PatternVarNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PatternVarNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PatternVarNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const PatternVarNode*>(ref.get());
   p->stream << "PatternVarNode(" << node->var << ")";
 });
@@ -72,8 +72,8 @@ TVM_REGISTER_NODE_TYPE(PatternConstructorNode);
 TVM_REGISTER_GLOBAL("relay._make.PatternConstructor")
 .set_body_typed(PatternConstructorNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PatternConstructorNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const PatternConstructorNode*>(ref.get());
   p->stream << "PatternConstructorNode(" << node->constructor
             << ", " << node->patterns << ")";
@@ -90,8 +90,8 @@ TVM_REGISTER_NODE_TYPE(PatternTupleNode);
 TVM_REGISTER_GLOBAL("relay._make.PatternTuple")
 .set_body_typed(PatternTupleNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PatternTupleNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PatternTupleNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const PatternTupleNode*>(ref.get());
   p->stream << "PatternTupleNode(" << node->patterns << ")";
 });
@@ -111,8 +111,8 @@ TVM_REGISTER_NODE_TYPE(ConstructorNode);
 TVM_REGISTER_GLOBAL("relay._make.Constructor")
 .set_body_typed(ConstructorNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstructorNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstructorNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const ConstructorNode*>(ref.get());
   p->stream << "ConstructorNode(" << node->name_hint << ", "
             << node->inputs << ", " << node->belong_to << ")";
@@ -133,8 +133,8 @@ TVM_REGISTER_NODE_TYPE(TypeDataNode);
 TVM_REGISTER_GLOBAL("relay._make.TypeData")
 .set_body_typed(TypeDataNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TypeDataNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TypeDataNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const TypeDataNode*>(ref.get());
   p->stream << "TypeDataNode(" << node->header << ", " << node->type_vars << ", "
             << node->constructors << ")";
@@ -152,8 +152,8 @@ TVM_REGISTER_NODE_TYPE(ClauseNode);
 TVM_REGISTER_GLOBAL("relay._make.Clause")
 .set_body_typed(ClauseNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ClauseNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ClauseNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const ClauseNode*>(ref.get());
   p->stream << "ClauseNode(" << node->lhs << ", "
             << node->rhs << ")";
@@ -172,8 +172,8 @@ TVM_REGISTER_NODE_TYPE(MatchNode);
 TVM_REGISTER_GLOBAL("relay._make.Match")
 .set_body_typed(MatchNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<MatchNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<MatchNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const MatchNode*>(ref.get());
   p->stream << "MatchNode(" << node->data << ", "
             << node->clauses << ", " << node->complete << ")";

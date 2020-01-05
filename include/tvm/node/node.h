@@ -38,6 +38,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/node/reflection.h>
+#include <tvm/node/printer.h>
 
 #include <string>
 #include <vector>

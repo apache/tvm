@@ -26,7 +26,7 @@
 namespace tvm {
 namespace relay {
 
-using tvm::IRPrinter;
+using tvm::NodePrinter;
 using namespace tvm::runtime;
 
 TensorType TensorTypeNode::make(Array<IndexExpr> shape, DataType dtype) {
@@ -57,8 +57,8 @@ TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 TVM_REGISTER_GLOBAL("relay._make.TensorType")
 .set_body_typed(TensorTypeNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const TensorTypeNode*>(ref.get());
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
@@ -75,8 +75,8 @@ TVM_REGISTER_NODE_TYPE(TypeCallNode);
 TVM_REGISTER_GLOBAL("relay._make.TypeCall")
 .set_body_typed(TypeCallNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TypeCallNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TypeCallNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TypeCallNode*>(ref.get());
   p->stream << "TypeCallNode(" << node->func << ", "
             << node->args << ")";
@@ -95,8 +95,8 @@ TVM_REGISTER_GLOBAL("relay._make.IncompleteType")
     return IncompleteTypeNode::make(static_cast<Kind>(kind));
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IncompleteTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<IncompleteTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const IncompleteTypeNode*>(ref.get());
     p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
   });
@@ -118,8 +118,8 @@ TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
 .set_body_typed(TypeRelationNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TypeRelationNode*>(ref.get());
     p->stream << "TypeRelationNode("
               << node->func->name
@@ -137,8 +137,8 @@ TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 TVM_REGISTER_GLOBAL("relay._make.TupleType")
 .set_body_typed(TupleTypeNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const TupleTypeNode*>(ref.get());
   p->stream << "TupleTypeNode(" << node->fields << ")";
 });
@@ -154,8 +154,8 @@ TVM_REGISTER_GLOBAL("relay._make.RefType")
 
 TVM_REGISTER_NODE_TYPE(RefTypeNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RefTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RefTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const RefTypeNode*>(ref.get());
   p->stream << "RefTypeNode(" << node->value << ")";
 });

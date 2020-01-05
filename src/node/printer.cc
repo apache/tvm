@@ -18,34 +18,35 @@
  */
 
 /*!
- * \file target_info.cc
+ * Printer utilities
+ * \file node/printer.cc
  */
-#include <tvm/runtime/registry.h>
-#include <tvm/target_info.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/node/printer.h>
 
 namespace tvm {
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const MemoryInfoNode*>(node.get());
-    p->stream << "mem-info("
-              << "unit_bits=" << op->unit_bits << ", "
-              << "max_num_bits=" << op->max_num_bits << ", "
-              << "max_simd_bits=" << op->max_simd_bits << ", "
-              << "head_address=" << op->head_address << ")";
-});
-
-TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
-
-MemoryInfo GetMemoryInfo(const std::string& scope) {
-  std::string fname = "tvm.info.mem." + scope;
-  const runtime::PackedFunc* f = runtime::Registry::Get(fname);
-  if (f == nullptr) {
-    return MemoryInfo();
+void NodePrinter::Print(const ObjectRef& node) {
+  static const FType& f = vtable();
+  if (!node.defined()) {
+    stream << "(nullptr)";
   } else {
-    return (*f)();
+    if (f.can_dispatch(node)) {
+      f(node, this);
+    } else {
+      // default value, output type key and addr.
+      stream << node->GetTypeKey() << "(" << node.get() << ")";
+    }
   }
 }
 
+void NodePrinter::PrintIndent() {
+  for (int i = 0; i < indent; ++i) {
+    stream << ' ';
+  }
+}
+
+NodePrinter::FType& NodePrinter::vtable() {
+  static FType inst;
+  return inst;
+}
 }  // namespace tvm
