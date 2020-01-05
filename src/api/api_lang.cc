@@ -236,22 +236,22 @@ TVM_REGISTER_GLOBAL("_Layout")
 .set_body_typed(LayoutNode::make);
 
 TVM_REGISTER_GLOBAL("_LayoutIndexOf")
-.set_body_typed<int(Layout, std::string)>([](Layout layout, std::string axis) {
+.set_body_typed([](Layout layout, std::string axis) -> int {
   return layout.IndexOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_GLOBAL("_LayoutFactorOf")
-.set_body_typed<int(Layout, std::string)>([](Layout layout, std::string axis) {
+.set_body_typed([](Layout layout, std::string axis) -> int {
   return layout.FactorOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_GLOBAL("_LayoutNdim")
-.set_body_typed<int(Layout)>([](Layout layout) {
+.set_body_typed([](Layout layout) -> int {
   return layout.ndim();
 });
 
 TVM_REGISTER_GLOBAL("_LayoutGetItem")
-.set_body_typed<std::string(Layout, int)>([](Layout layout, int idx) {
+.set_body_typed([](Layout layout, int idx) -> std::string {
   const LayoutAxis& axis = layout[idx];
   return axis.name();
 });
@@ -284,14 +284,12 @@ TVM_REGISTER_GLOBAL("_TensorEqual")
 .set_body_method(&Tensor::operator==);
 
 TVM_REGISTER_GLOBAL("_TensorHash")
-.set_body_typed<int64_t(Tensor)>([](Tensor tensor) {
+.set_body_typed([](Tensor tensor) -> int64_t {
     return static_cast<int64_t>(std::hash<Tensor>()(tensor));
   });
 
 TVM_REGISTER_GLOBAL("_Placeholder")
-.set_body_typed<Tensor(Array<Expr>, DataType, std::string)>([](
-  Array<Expr> shape, DataType dtype, std::string name
-) {
+.set_body_typed([](Array<Expr> shape, DataType dtype, std::string name) {
   return placeholder(shape, dtype, name);
 });
 
@@ -311,7 +309,7 @@ TVM_REGISTER_GLOBAL("_HybridOp")
 .set_body_typed(HybridOpNode::make);
 
 TVM_REGISTER_GLOBAL("_OpGetOutput")
-.set_body_typed<Tensor(Operation, int64_t)>([](Operation op, int64_t output) {
+.set_body_typed([](Operation op, int64_t output) {
   return op.output(static_cast<size_t>(output));
 });
 
@@ -322,9 +320,7 @@ TVM_REGISTER_GLOBAL("_OpInputTensors")
 .set_body_method<Operation>(&OperationNode::InputTensors);
 
 TVM_REGISTER_GLOBAL("_IterVar")
-.set_body_typed<IterVar(Range, Var, int, std::string)>([](
-  Range dom, Var var, int iter_type, std::string thread_tag
-) {
+.set_body_typed([](Range dom, Var var, int iter_type, std::string thread_tag) {
   return IterVarNode::make(
       dom, var,
       static_cast<IterVarType>(iter_type),
@@ -341,25 +337,21 @@ TVM_REGISTER_GLOBAL("_StageBind")
 .set_body_method(&Stage::bind);
 
 TVM_REGISTER_GLOBAL("_StageSplitByFactor")
-.set_body_typed<Array<IterVar>(Stage, IterVar, Expr)>([](
-  Stage stage, IterVar parent, Expr factor
-) {
+.set_body_typed([](Stage stage, IterVar parent, Expr factor) {
   IterVar outer, inner;
   stage.split(parent, factor, &outer, &inner);
   return Array<IterVar>({outer, inner});
 });
 
 TVM_REGISTER_GLOBAL("_StageSplitByNParts")
-.set_body_typed<Array<IterVar>(Stage, IterVar, Expr)>([](
-  Stage stage, IterVar parent, Expr nparts
-) {
+.set_body_typed([](Stage stage, IterVar parent, Expr nparts) {
   IterVar outer, inner;
   stage.split_by_nparts(parent, nparts, &outer, &inner);
   return Array<IterVar>({outer, inner});
 });
 
 TVM_REGISTER_GLOBAL("_StageFuse")
-.set_body_typed<IterVar(Stage, Array<IterVar>)>([](Stage stage, Array<IterVar> axes) {
+.set_body_typed([](Stage stage, Array<IterVar> axes) {
     IterVar fused;
     stage.fuse(axes, &fused);
     return fused;
@@ -378,7 +370,7 @@ TVM_REGISTER_GLOBAL("_StageReorder")
 .set_body_method(&Stage::reorder);
 
 TVM_REGISTER_GLOBAL("_StageTile")
-.set_body_typed<Array<IterVar>(Stage, IterVar, IterVar, Expr, Expr)>([](
+.set_body_typed([](
   Stage stage,
   IterVar x_parent, IterVar y_parent,
   Expr x_factor, Expr y_factor

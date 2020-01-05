@@ -42,7 +42,7 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(DeviceCopyAttrs);
 
 TVM_REGISTER_GLOBAL("relay.op._make.device_copy")
-.set_body_typed<Expr(Expr, int, int)>([](Expr data, int src_dev_type,
+.set_body_typed([](Expr data, int src_dev_type,
                                     int dst_dev_type) {
   auto attrs = make_object<DeviceCopyAttrs>();
   attrs->src_dev_type = src_dev_type;

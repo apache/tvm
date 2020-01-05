@@ -326,7 +326,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax")
-.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
+.set_body_typed([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.softmax");
@@ -361,7 +361,7 @@ RELAY_REGISTER_OP("nn.softmax")
 
 // relay.nn.log_softmax
 TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax")
-.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
+.set_body_typed([](Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.log_softmax");
@@ -470,7 +470,7 @@ Example::
 
 // relu
 TVM_REGISTER_GLOBAL("relay.op.nn._make.relu")
-.set_body_typed<Call(Expr)>([](Expr data) {
+.set_body_typed([](Expr data) {
     static const Op& op = Op::Get("nn.relu");
     return CallNode::make(op, {data}, Attrs(), {});
   });

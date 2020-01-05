@@ -303,7 +303,7 @@ bool ReduceRel(const Array<Type>& types,
 
 #define RELAY_REGISTER_REDUCE_OP(OpName)                           \
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                       \
-  .set_body_typed<Call(Expr, Array<Integer>, bool, bool)>([](      \
+  .set_body_typed([](      \
                         Expr data,                                 \
                         Array<Integer> axis,                       \
                         bool keepdims,                             \

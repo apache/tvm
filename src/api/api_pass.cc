@@ -95,21 +95,21 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
   });
 
 TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
-.set_body_typed<Stmt(const Stmt&, const Schedule&, const Map<Tensor, Buffer>&)>
+.set_body_typed
   ([](const Stmt& stmt, const Schedule& schedule, const Map<Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
 
 TVM_REGISTER_GLOBAL("ir_pass.AttrsEqual")
-.set_body_typed<bool(const ObjectRef&, const ObjectRef&)>(
+.set_body_typed(
   [](const ObjectRef& lhs, const ObjectRef& rhs) {
     return AttrsEqual()(lhs, rhs);
   });
 
 TVM_REGISTER_GLOBAL("ir_pass.AttrsHash")
-.set_body_typed<int64_t(const ObjectRef&)>([](const ObjectRef &node) {
+.set_body_typed([](const ObjectRef &node) -> int64_t {
     return AttrsHash()(node);
-  });
+});
 
 
 TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")

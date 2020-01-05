@@ -348,7 +348,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
 }
 
 TVM_REGISTER_GLOBAL("relay._analysis.post_order_visit")
-.set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
+.set_body_typed([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
       });

@@ -45,10 +45,10 @@ TVM_REGISTER_GLOBAL("_raw_ptr")
   });
 
 TVM_REGISTER_GLOBAL("_save_json")
-.set_body_typed<std::string(ObjectRef)>(SaveJSON);
+.set_body_typed(SaveJSON);
 
 TVM_REGISTER_GLOBAL("_load_json")
-.set_body_typed<ObjectRef(std::string)>(LoadJSON);
+.set_body_typed(LoadJSON);
 
 TVM_REGISTER_GLOBAL("_TVMSetStream")
 .set_body_typed(TVMSetStream);

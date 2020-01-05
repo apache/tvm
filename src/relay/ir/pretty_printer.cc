@@ -991,9 +991,7 @@ std::string AsText(const ObjectRef& node,
 }
 
 TVM_REGISTER_GLOBAL("relay._expr.AsText")
-.set_body_typed<std::string(const ObjectRef&,
-                            bool,
-                            runtime::TypedPackedFunc<std::string(Expr)>)>(AsText);
+.set_body_typed(AsText);
 
 }  // namespace relay
 }  // namespace tvm
