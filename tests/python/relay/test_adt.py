@@ -737,7 +737,7 @@ def test_tensor_expand_dims():
         expand_dims_func = p.get_var('tensor_expand_dims', dtype)
         tensor1 = p.get_var('tensor1', dtype)
         mod["main"] = relay.Function([x], expand_dims_func(tensor1(x)))
-        x_np = np.random.uniform(size=(1,)).astype(dtype)
+        x_np = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
         expected = [np.expand_dims(x_np, axis=0)]
         check_tensor_array(mod, expected, x_np)
     run('float32')
@@ -808,7 +808,7 @@ def test_tensor_array_stack():
         tensor_array3 = write(tensor_array2, relay.const(2), tensor1(v))
         tensor_array4 = stack(tensor_array3)
         mod["main"] = relay.Function([v], tensor_array4)
-        t = np.random.uniform(size=(1,)).astype(dtype)
+        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
         expected = [np.stack([t, t, t])]
         check_tensor_array(mod, expected, t, dtype=dtype)
     run('float32')
@@ -822,7 +822,7 @@ def test_tensor_array_unstack():
         unstack_tensor1 = p.get_var('tensor_array_unstack_tensor1', dtype)
         v = relay.var('v')
         mod["main"] = relay.Function([v], unstack_tensor1(v))
-        t = np.random.uniform(size=(1,)).astype(dtype)
+        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
         check_tensor_array(mod, t, t, dtype=dtype)
     run('float32')
     run('int32')
@@ -838,7 +838,7 @@ def test_tensor_take():
         lower = relay.var('lower')
         upper = relay.var('upper')
         mod["main"] = relay.Function([v, lower, upper], take(tensor2(v), lower, upper))
-        v_data = np.random.uniform(size=(10, 10)).astype(dtype)
+        v_data = np.random.uniform(low=0.0, high=8.0, size=(10, 10)).astype(dtype)
         expected = [np.take(v_data, range(2, 5), axis=0)]
         check_tensor_array(mod, expected, *(v_data, 2, 5), dtype=dtype)
         expected = [np.take(v_data, range(0, 9), axis=0)]
@@ -857,8 +857,8 @@ def test_tensor_concatenate():
         v2 = relay.var('v2')
         mod["main"] = relay.Function([v1, v2], concat(tensor1(v1),
                                                       tensor1(v2)))
-        v1_data = np.random.uniform(size=(5,)).astype(dtype)
-        v2_data = np.random.uniform(size=(5,)).astype(dtype)
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
         expected = [np.concatenate((v1_data, v2_data))]
         check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
     run('float32')
@@ -880,8 +880,8 @@ def test_tensor_array_concat():
         tensor_array1 = write_func(tensor_array1, relay.const(1), tensor1(v2))
         tensor_array_concat = concat_func(tensor_array1)
         mod["main"] = relay.Function([v1, v2], tensor_array_concat)
-        v1_data = np.random.uniform(size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(size=(1, 3)).astype(dtype)
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(1, 3)).astype(dtype)
         expected = [np.concatenate((v1_data, v2_data), axis=0)]
         check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
     run('float32')
@@ -924,16 +924,60 @@ def test_tensor_array_scatter():
                                      tensor_array_scatter)
 
         # initialize and check
-        v1_data = np.random.uniform(size=(2, 3)).astype(dtype)
-        v2_data = np.random.uniform(size=(2, 3)).astype(dtype)
-        v3_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
         index_data = np.array([0, 1], dtype="int32")
-        val1_data = np.random.uniform(size=(2, 3)).astype(dtype)
-        val2_data = np.random.uniform(size=(2, 3)).astype(dtype)
+        val1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        val2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
         expected = [val1_data, val2_data, v3_data]
         check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
                                             index_data, val1_data,
                                             val2_data), dtype=dtype)
+    run('float32')
+    run('int32')
+
+
+def test_tensor_array_split():
+    def run(dtype):
+        mod = relay.Module()
+        p = Prelude(mod)
+        
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor_array1 = tensor_array(relay.const(3))
+        write_func = p.get_var('tensor_array_write', dtype)
+        split_func = p.get_var('tensor_array_split', dtype)
+        tensor2 = p.get_var('tensor2', dtype)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
+
+        # value tensor
+        value = relay.var('value')
+
+        # lengths tensor
+        ta_len = relay.var('length')
+
+        # create the scatter function
+        tensor_array_split = split_func(tensor_array1, tensor2(value), ta_len)
+        mod["main"] = relay.Function([v1, v2, v3, value, ta_len],
+                                     tensor_array_split)
+
+        # initialize and check
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        value_data = np.random.uniform(low=0.0, high=8.0, size=(4, 3)).astype(dtype)
+        length_data = np.array([2, 2], dtype="int32")
+        expected = np.concatenate([value_data, v3_data])
+        expected = np.split(expected, indices_or_sections=[2, 4])
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            value_data, length_data),
+                           dtype=dtype)
     run('float32')
     run('int32')
 
@@ -972,3 +1016,4 @@ if __name__ == "__main__":
     test_tensor_concatenate()
     test_tensor_array_concat()
     test_tensor_array_scatter()
+    test_tensor_array_split()
