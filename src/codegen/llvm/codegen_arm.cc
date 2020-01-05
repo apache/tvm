@@ -22,6 +22,9 @@
  * \brief ARM specific code generator
  */
 #ifdef TVM_LLVM_VERSION
+
+#include <tvm/runtime/registry.h>
+
 #include "codegen_cpu.h"
 
 namespace tvm {

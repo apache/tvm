@@ -450,8 +450,8 @@ Buffer BufferNode::make(Var data,
   return Buffer(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BufferNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BufferNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const BufferNode*>(node.get());
     p->stream << "buffer(" << op->name << ", " << op << ")";
 });
