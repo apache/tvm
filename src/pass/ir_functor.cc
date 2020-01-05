@@ -71,18 +71,28 @@ class IRTransformer final :
         f_postorder_(f_postorder),
         only_enable_(only_enable) {
   }
+
   Stmt VisitStmt(const Stmt& stmt) final {
     return MutateInternal<Stmt>(stmt, [this](const Stmt& s) {
-      return StmtMutator::VisitStmt(s);
+      return this->BaseVisitStmt(s);
     });
   }
   Expr VisitExpr(const Expr& expr) final {
     return MutateInternal<Expr>(expr, [this](const Expr& e) {
-      return ExprMutator::VisitExpr(e);
+      return this->BaseVisitExpr(e);
     });
   }
 
  private:
+  // NOTE: redirect to parent's call
+  // This is used to get around limitation of gcc-4.8
+  Stmt BaseVisitStmt(const Stmt& s) {
+    return StmtMutator::VisitStmt(s);
+  }
+  Expr BaseVisitExpr(const Expr& e) {
+    return ExprMutator::VisitExpr(e);
+  }
+
   template <typename T, typename F>
   T MutateInternal(const T& node, F fmutate) {
     if (only_enable_.size() &&
