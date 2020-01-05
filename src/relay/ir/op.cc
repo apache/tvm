@@ -224,8 +224,8 @@ TVM_REGISTER_NODE_TYPE(OpNode)
     return static_cast<const OpNode*>(n)->name;
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<OpNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<OpNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const OpNode*>(ref.get());
     p->stream << "Op(" << node->name << ")";
   });

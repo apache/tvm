@@ -31,7 +31,7 @@
 namespace tvm {
 namespace relay {
 
-using tvm::IRPrinter;
+using tvm::NodePrinter;
 using namespace runtime;
 
 Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
@@ -414,8 +414,8 @@ TVM_REGISTER_GLOBAL("relay._module.Module_ImportFromStd")
   mod->ImportFromStd(path);
 });;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ModuleNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ModuleNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const ModuleNode*>(ref.get());
     p->stream << "ModuleNode( " << node->functions << ")";
 });
