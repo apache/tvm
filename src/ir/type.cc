@@ -22,6 +22,7 @@
  * \brief Common type system AST nodes throughout the IR.
  */
 #include <tvm/ir/type.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
 namespace tvm {
@@ -40,8 +41,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeVar")
   return TypeVarNode::make(name, static_cast<TypeKind>(kind));
 });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TypeVarNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TypeVarNode*>(ref.get());
     p->stream << "TypeVar(" << node->name_hint << ", "
               << node->kind << ")";
@@ -61,8 +62,8 @@ TVM_REGISTER_GLOBAL("relay._make.GlobalTypeVar")
   return GlobalTypeVarNode::make(name, static_cast<TypeKind>(kind));
 });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
     p->stream << "GlobalTypeVar(" << node->name_hint << ", "
               << node->kind << ")";
@@ -85,8 +86,8 @@ TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 TVM_REGISTER_GLOBAL("relay._make.FuncType")
 .set_body_typed(FuncTypeNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<FuncTypeNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<FuncTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const FuncTypeNode*>(ref.get());
   p->stream << "FuncType(" << node->type_params << ", "
             << node->arg_types << ", " << node->ret_type << ", "

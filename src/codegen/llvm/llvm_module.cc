@@ -22,7 +22,9 @@
  * \brief LLVM runtime module for TVM
  */
 #ifdef TVM_LLVM_VERSION
+
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/codegen.h>
 #include <mutex>
 #include "llvm_common.h"

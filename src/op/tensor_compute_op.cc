@@ -33,8 +33,8 @@
 namespace tvm {
 using namespace ir;
 // TensorComputeOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorComputeOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorComputeOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const TensorComputeOpNode*>(node.get());
     p->stream << "tensor_compute_op(" << op->name << ", " << op << ")";
   });

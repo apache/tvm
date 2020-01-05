@@ -22,6 +22,8 @@
  * \brief X86-64 specific code generator
  */
 #ifdef TVM_LLVM_VERSION
+
+#include <tvm/runtime/registry.h>
 #include "codegen_cpu.h"
 
 #include "llvm/MC/MCSubtargetInfo.h"

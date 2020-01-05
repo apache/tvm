@@ -30,8 +30,8 @@
 namespace tvm {
 using namespace ir;
 // ExternOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ExternOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ExternOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ExternOpNode*>(node.get());
     p->stream << "extern(" << op->name << ", " << op << ")";
   });

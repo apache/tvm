@@ -470,37 +470,6 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   }
   return ret;
 }
-
-// Printer infra.
-/*! \brief A Pretty printer class to print the IR. */
-class IRPrinter {
- public:
-  /*! \brief The output stream */
-  std::ostream& stream;
-  /*! \brief The indentation level. */
-  int indent{0};
-  explicit IRPrinter(std::ostream& stream)  // NOLINT(*)
-      : stream(stream) {}
-
-  /*! \brief The node to be printed. */
-  TVM_DLL void Print(const ObjectRef& node);
-  /*! \brief Print indent to the stream */
-  TVM_DLL void PrintIndent();
-  // Allow registration to be printer.
-  using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
-  TVM_DLL static FType& vtable();
-};
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-// default print function for all objects
-// provide in the runtime namespace as this is where objectref originally comes from.
-inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
-  IRPrinter(os).Print(n);
-  return os;
-}
-}  // namespace runtime
 }  // namespace tvm
 
 namespace std {

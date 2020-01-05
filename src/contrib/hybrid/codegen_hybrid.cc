@@ -20,6 +20,7 @@
 /*!
  * \file codegen_hybrid.cc
  */
+#include <tvm/runtime/registry.h>
 #include <iomanip>
 #include <cctype>
 #include "codegen_hybrid.h"

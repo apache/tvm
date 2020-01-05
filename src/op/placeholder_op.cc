@@ -26,8 +26,8 @@
 namespace tvm {
 
 // PlaceholderOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const PlaceholderOpNode*>(node.get());
     p->stream << "placeholder(" << op->name << ", " << op << ")";
 });

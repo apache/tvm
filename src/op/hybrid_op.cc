@@ -36,8 +36,8 @@
 namespace tvm {
 using namespace ir;
 // HybridOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<HybridOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<HybridOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const HybridOpNode*>(node.get());
     p->stream << "hybrid(" << op->name << ", " << op << ")";
   });
