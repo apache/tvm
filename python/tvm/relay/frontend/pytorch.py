@@ -19,8 +19,10 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
+import torch
 import tvm
 
+from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
@@ -42,7 +44,6 @@ def _elemwise(name):
 
         return get_relay_op(name)(data0, data1)
     return _impl
-
 
 def _unsqueeze():
     def _impl(inputs):
@@ -79,7 +80,7 @@ def _slice():
         dim = int(inputs[1])
         begin[dim] = int(inputs[2])
 
-        if len(inputs[3]) < 10:
+        if inputs[3].isdigit():
             end[dim] = min(end[dim], int(inputs[3]))
 
         strides.append(int(inputs[4]))
@@ -102,7 +103,7 @@ def _select():
         end[dim] = index+1
         begin[dim] = index
 
-        strides = [1]
+        strides = [1]*len(end)
 
         sym = _op.transform.strided_slice(data, begin, end, strides)
         axis = [dim]
@@ -145,12 +146,22 @@ def _relu():
         return _op.nn.relu(data)
     return _impl
 
-def _adaptive_2d():
+def _adaptive_avg_2d():
     def _impl(inputs):
         data = inputs[0]
         output_size = get_tensor_from_relay_var(inputs[1])
 
         return _op.contrib.contrib.adaptive_avg_pool2d(
+            data,
+            output_size=output_size)
+    return _impl
+
+def _adaptive_max_2d():
+    def _impl(inputs):
+        data = inputs[0]
+        output_size = get_tensor_from_relay_var(inputs[1])
+
+        return _op.contrib.contrib.adaptive_max_pool2d(
             data,
             output_size=output_size)
     return _impl
@@ -184,23 +195,20 @@ def _convolution():
             use_transpose = True
 
         use_bias = False
-        if isinstance(inputs[2], tvm.ndarray.NDArray) and len(inputs[2].asnumpy()) > 0:
-
+        if isinstance(inputs[2], _expr.Var):
             use_bias = True
 
             data = inputs[0]
             weight = inputs[1]
             bias = inputs[2]
-            bias = _expr.const(bias, dtype='float32')
 
-            if isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
+            if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
                 inferred_shape = _infer_type(weight).checked_type.shape
                 weight_shape = []
                 for infer in inferred_shape:
                     weight_shape.append(infer)
             else:
                 weight_shape = weight.shape
-            weight = _expr.const(weight, dtype='float32')
             channels = weight_shape[0]
 
             strides = inputs[3]
@@ -214,14 +222,13 @@ def _convolution():
             weight = inputs[1]
             bias = inputs[2]
 
-            if isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
+            if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
                 inferred_shape = _infer_type(weight).checked_type.shape
                 weight_shape = []
                 for infer in inferred_shape:
                     weight_shape.append(infer)
             else:
                 weight_shape = weight.shape
-            weight = _expr.const(weight, dtype='float32')
             channels = weight_shape[0]
 
             strides = inputs[3]
@@ -302,8 +309,7 @@ def _batch_norm():
 
         channels = _infer_type(data).checked_type.shape
 
-        if (isinstance(inputs[1], tvm.ndarray.NDArray) and len(inputs[1].asnumpy()) > 0) and \
-                (isinstance(inputs[2], tvm.ndarray.NDArray) and len(inputs[2].asnumpy()) > 0):
+        if isinstance(inputs[1], _expr.Var) and isinstance(inputs[2], _expr.Var):
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
@@ -311,17 +317,17 @@ def _batch_norm():
             scale = center = False
 
         if scale:
-            gamma = _expr.const(weight, dtype='float32')
+            gamma = weight
         else:
             gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'), dtype='float32')
 
         if center:
-            beta = _expr.const(beta, dtype='float32')
+            beta = beta
         else:
             beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'), dtype='float32')
 
-        moving_mean = _expr.const(inputs[3], dtype='float32')
-        moving_var = _expr.const(inputs[4], dtype='float32')
+        moving_mean = inputs[3]
+        moving_var = inputs[4]
         epsilon = float(inputs[7])
 
         center = center
@@ -359,7 +365,8 @@ def _transpose():
             if ndims >= 2:
                 axes[-1] = ndims - 2
                 axes[-2] = ndims - 1
-            data = _expr.const(data, dtype='float32')
+            if not isinstance(data, _expr.Var):
+                data = _expr.const(data, dtype='float32')
 
         elif num_inputs == 3:
             parse = lambda i: ndims * (i < 0) + i
@@ -381,7 +388,7 @@ def _dense():
     def _impl(inputs):
         use_bias = False
 
-        if isinstance(inputs[0], tvm.ndarray.NDArray) and len(inputs[0].asnumpy()) > 0:
+        if isinstance(inputs[0], _expr.Var):
             use_bias = True
 
         data = inputs[1]
@@ -403,7 +410,7 @@ def _dense():
         dense_out = _op.nn.dense(data, weight_out, units=units)
 
         if use_bias:
-            bias = _expr.const(inputs[0], dtype='float32')
+            bias = inputs[0]
             return _op.nn.bias_add(dense_out, bias)
         else:
             return dense_out
@@ -423,6 +430,10 @@ def _numtotensor():
     def _impl(inputs):
         val = inputs[0]
         dtype = type(val)
+
+        if isinstance(val, tvm.expr.IntImm):
+            val = val.__int__()
+            dtype = int
 
         arr = val * np.ones([]).astype(dtype)
         return arr
@@ -489,7 +500,7 @@ def _dropout():
         return _op.nn.dropout(data, rate)
     return _impl
 
-def _reduce():
+def _reduce(name):
     def _impl(inputs, attrs, params):
         data = inputs[0]
         return get_relay_op(name)(data)
@@ -603,6 +614,26 @@ def _to():
         return inputs[0]
     return _impl
 
+def _device():
+    def _impl(inputs):
+        return None
+    return _impl
+
+def _pad():
+    def _impl(inputs):
+        data = inputs[0]
+        padding = inputs[1]
+        pad_width = list(zip(padding, padding))
+        pad_value = inputs[2]
+        return _op.nn.pad(data, pad_width, pad_value)
+    return _impl
+
+def _sqrt():
+    def _impl(inputs):
+        data = inputs[0]
+        return _op.tensor.sqrt(data)
+    return _impl
+
 # Helper functions for operator implementation
 
 # Helper to grab actual tensor from a converted relay var (not sure if there's another way to do it)
@@ -642,6 +673,7 @@ def convert_input(data):
 # Operator mappings
 
 _convert_map = {
+    'aten::device'                          : _device(),
     'aten::add'                             : _elemwise('add'),
     'aten::add_'                            : _elemwise('add'),
     'aten::sub'                             : _elemwise('subtract'),
@@ -662,8 +694,10 @@ _convert_map = {
     'aten::select'                          : _select(),
     'aten::relu'                            : _relu(),
     'aten::relu_'                           : _relu(),
-    'aten::adaptive_avg_pool2d'             : _adaptive_2d(),
+    'aten::adaptive_avg_pool2d'             : _adaptive_avg_2d(),
+    'aten::adaptive_max_pool2d'             : _adaptive_max_2d(),
     'aten::max_pool2d'                      : _maxpool_2d(),
+    'aten::max_pool2d_with_indices'         : _maxpool_2d(),
     'aten::hardtanh'                        : _hardtanh(),
     'aten::hardtanh_'                       : _hardtanh(),
     'aten::_convolution'                    : _convolution(),
@@ -691,7 +725,12 @@ _convert_map = {
     'aten::expand'                          : _expand(),
     'aten::Int'                             : _int(),
     'prim::NumToTensor'                     : _numtotensor(),
-    'prim::ListUnpack'                      : _listunpack()
+    'prim::ListUnpack'                      : _listunpack(),
+    'aten::constant_pad_nd'                 : _pad(),
+    'aten::permute'                         : _transpose(),
+    'aten::sum'                             : _reduce('sum'),
+    'aten::prod'                            : _reduce('prod'),
+    'aten::sqrt'                            : _sqrt()
 }
 
 # Internal graph for parsing
@@ -699,10 +738,14 @@ _convert_map = {
 class Graph(object):
     """ A helper class for handling relay graph copying from PyTorch trace. """
 
-    def __init__(self, trace, input_shapes):
-        self._trace = trace
+    def __init__(self, filename, input_shapes):
+
+        self._trace = None
+        self._load_model(filename, input_shapes)
+
         self._inputs_r = {}
         self._params = {}
+        self._param_tensors = {}
         self._consts = {}
         self._ops = {}
         self._op_inputs_r = {}
@@ -790,11 +833,32 @@ class Graph(object):
         else:
             body = outputs[-1]
 
-        func = tvm.relay.Function(self._fn_param, body)
+        func = tvm.relay.Function(_analysis.free_vars(body), body)
 
-        param = {k: tvm.nd.array(v) for k, v in self._params.items()}
+        param = {k: tvm.nd.array(v) for k, v in self._param_tensors.items()}
 
         return  _module.Module.from_expr(func), param
+
+    def _load_model(self, filename, input_shapes):
+        """ The parser supports PyTorch models which are traceable which includes TorchScript
+        modules.
+        """
+        try:
+            self._trace = torch.jit.load(filename, map_location='cpu').float().eval()
+        except RuntimeError:
+            try:
+                self._trace = torch.load(filename, map_location='cpu').float().eval()
+            except UnpicklingError:
+                raise RuntimeError('Failed to load model')
+        shapes = [input_shapes[k] for k in sorted(input_shapes)]
+        inputs = [torch.zeros(shape).float() for shape in shapes]
+        try:
+            self._trace = torch.jit.trace(self._trace, *inputs).float().eval()
+        except RuntimeError:
+            inputs = [inp.cuda() for inp in inputs]
+            self._trace = torch.jit.trace(self._trace, *inputs).float().eval().cpu()
+            inputs = [inp.cpu() for inp in inputs]
+            self._trace = torch.jit.trace(self._trace, *inputs).float().eval().cpu()
 
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
@@ -850,7 +914,17 @@ class Graph(object):
 
                     value = state_dict[node_weight_map[node_name]]
                     tensor = tvm.nd.array(value.cpu().numpy())
-                    self._params[node_name] = tensor
+                    shape = tensor.shape
+                    self._param_tensors[node_name] = tensor
+
+                    self._params[node_name] = _expr.var(node_name,
+                                                        shape=shape,
+                                                        dtype='float32')
+
+                    self._fn_param.append(_expr.var(node_name,
+                                                    shape=shape,
+                                                    dtype='float32'))
+
 
     def _parse_ops(self):
         """ Iterate through nodes and decorate graph with constants, operators,
@@ -865,7 +939,8 @@ class Graph(object):
 
             if node.kind() == "prim::Constant":
                 node_value = '0'
-                if "None" not in node_str and node_expr != "prim::Constant()":
+                if "None" not in node_str and node_expr != "prim::Constant()" and \
+                        "?" not in node_str:
                     node_value = ((node_str.split(' = ')[1]).split('value=')[1]).split(']')[0]
                     # Quick fix for shufflenet, assume we always have shape w/ a Float tensor
 
@@ -949,7 +1024,7 @@ class Graph(object):
 
         return missing_operators
 
-def from_pytorch(trace, input_shapes):
+def from_pytorch(filename, input_shapes):
     """ Load PyTorch model in the form of a trace object into relay.
     The companion parameters will be handled automatically.
 
@@ -969,6 +1044,6 @@ def from_pytorch(trace, input_shapes):
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(trace, input_shapes)
+    g = Graph(filename, input_shapes)
     mod, params = g.from_pytorch()
     return mod, params

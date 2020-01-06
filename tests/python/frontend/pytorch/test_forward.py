@@ -27,23 +27,11 @@ import tvm
 import torchvision
 import single_op
 
-
 from tvm import relay
 from tvm.contrib import graph_runtime
-#from tvm.relay.testing.config import ctx_list
+from tvm.relay.testing.config import ctx_list
 
 sys.setrecursionlimit(10000)
-
-TARGET = 'llvm'
-CTX = tvm.cpu()
-EXT_ACCEL = None
-
-model_names = []
-baseline_latencies_map = {}
-compiled_latencies_map = {}
-speedups_map = {}
-
-test_repeats = 1
 
 def _vectorize(ten):
     return ten.reshape(-1)
@@ -194,99 +182,36 @@ def verify_model(model_name):
     with TemporaryDirectory() as tmp:
         path = os.path.join(tmp, 'model.pth')
         torch.jit.save(trace, path)
-        mod, params = relay.frontend.from_pytorch(trace, input_shapes)
+        mod, params = relay.frontend.from_pytorch(path, input_shapes)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
     with relay.build_config(opt_level=3):
-        relay_graph, relay_lib, relay_params = relay.build(mod, target=TARGET, params=params)
-        relay_model = graph_runtime.create(relay_graph, relay_lib, CTX)
-        relay_model.set_input(**relay_params)
-        relay_model.set_input(**compiled_input)
-        relay_model.run()
+        for target, ctx in ctx_list():
+            relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
+            relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
+            relay_model.set_input(**relay_params)
+            relay_model.set_input(**compiled_input)
+            relay_model.run()
 
-    for i, baseline_output in enumerate(baseline_outputs):
-        output_shape = baseline_output.shape
-        compiled_output = relay_model.get_output(
-            i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
+            for i, baseline_output in enumerate(baseline_outputs):
+                output_shape = baseline_output.shape
+                compiled_output = relay_model.get_output(
+                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
 
-        compiled_relay_output = relay_model.get_output(
-            i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
+                compiled_relay_output = relay_model.get_output(
+                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
 
-        assert_shapes_match(baseline_output, compiled_output)
-        tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                    rtol=1e-3, atol=1e-3)
+                assert_shapes_match(baseline_output, compiled_output)
+                tvm.testing.assert_allclose(baseline_output, compiled_output,
+                                            rtol=1e-3, atol=1e-3)
 
-        assert_shapes_match(baseline_output, compiled_relay_output)
-        tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
-                                    rtol=1e-3, atol=1e-3)
-
-    if(test_repeats > 0):
-        thresh = 1e-2
-        units = 1e3
-        thresh = int(thresh * units)
-        input_shapes = list(input_shapes.values())
-
-        compiled_latencies = []
-        baseline_latencies = []
-        speedups = []
-
-        for i in range(0, test_repeats):
-            print("computing compiled latency")
-            compiled_latency = measure_latency(relay_model, input_shapes,
-                                               output_shapes, thresh) * units
-            print(f'Compiled latency is {compiled_latency:.3f} +/- {thresh:d} ms.')
-            print("computing baseline latency")
-            baseline_latency = measure_latency(baseline_model, input_shapes,
-                                               output_shapes, thresh) * units
-
-            print(f'Baseline latency is {baseline_latency:.3f} +/- {thresh:d} ms.')
-
-            speedup = baseline_latency/compiled_latency
-            print(f'Relative speedup is {speedup:.3f}')
-
-            compiled_latencies.append(compiled_latency)
-            baseline_latencies.append(baseline_latency)
-            speedups.append(speedup)
-
-        baseline_latencies_map[model_name] = baseline_latencies
-        compiled_latencies_map[model_name] = compiled_latencies
-        speedups_map[model_name] = speedups
-        model_names.append(model_name)
-
-        print_results()
+                assert_shapes_match(baseline_output, compiled_relay_output)
+                tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
+                                            rtol=1e-3, atol=1e-3)
 
     from subprocess import call
     call('rm -rf ~/.torch/models/*', shell=True)
-
-def print_results():
-    print(baseline_latencies_map)
-    print(compiled_latencies_map)
-    print(speedups_map)
-
-    thresh = 1e-2
-    units = 1e3
-    thresh = int(thresh * units)
-
-    for model_name in model_names:
-
-        compiled_sum = 0.0
-        baseline_sum = 0.0
-        speedup_sum = 0.0
-
-        print("For model name "+model_name)
-        for i in range(0, test_repeats):
-            print(f'Compiled latency is {compiled_latencies_map[model_name][i]:.3f} +/- {thresh:d} ms.')
-            print(f'Baseline latency is {baseline_latencies_map[model_name][i]:.3f} +/- {thresh:d} ms.')
-            print(f'Relative speedup is {speedups_map[model_name][i]:.3f}')
-
-            compiled_sum = compiled_sum + compiled_latencies_map[model_name][i]
-            baseline_sum = baseline_sum + baseline_latencies_map[model_name][i]
-            speedup_sum = speedup_sum + speedups_map[model_name][i]
-
-        print(f'Average compiled latency is {compiled_sum/test_repeats:.3f} +/- {thresh:d} ms.')
-        print(f'Average baseline latency is {baseline_sum/test_repeats:.3f} +/- {thresh:d} ms.')
-        print(f'Average relative speedup is {speedup_sum/test_repeats:.3f}')
 
 # Test Functions
 def test_add1():
