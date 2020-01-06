@@ -121,7 +121,7 @@ class OperatorConverter(object):
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self._convert_detection_postprocess,
+            'DETECTION_POSTPROCESS': self._convert_detection_postprocess
         }
 
     def check_unsupported_ops(self):
