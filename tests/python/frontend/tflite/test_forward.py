@@ -1380,6 +1380,7 @@ def test_detection_postprocess():
     converter.allow_custom_ops = True
     converter.inference_type = tf.lite.constants.FLOAT
     tflite_model = converter.convert()
+    np.random.seed(0)
     box_encodings = np.random.uniform(size=(1, 1917, 4)).astype('float32')
     class_predictions = np.random.uniform(size=(1, 1917, 91)).astype('float32')
     tflite_output = run_tflite_graph(tflite_model, [box_encodings, class_predictions])
