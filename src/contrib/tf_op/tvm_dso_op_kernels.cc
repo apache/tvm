@@ -28,11 +28,10 @@
 
 #include "index_seq.h"
 
-using namespace tensorflow;
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
 typedef Eigen::GpuDevice GPUDevice;
-typedef gtl::InlinedVector<int64, 4> ShapeContainer;
+typedef tensorflow::gtl::InlinedVector<tensorflow::int64, 4> ShapeContainer;
 
 
 template <typename DEVICE_TYPE>
@@ -41,8 +40,8 @@ class TVMDSOOpTrait;
 
 class TensorAsBuf {
   public:
-    Tensor inline_tensor;
-    Tensor* tensor;
+    tensorflow::Tensor inline_tensor;
+    tensorflow::Tensor* tensor;
 
     size_t size;
     size_t offset;
@@ -76,28 +75,22 @@ class TensorAsBuf {
 };
 
 
-int GetDLPackDtype(const Tensor& tf_tensor, DLDataType* res) {
+tensorflow::Status GetDLPackDtype(const tensorflow::Tensor& tf_tensor, DLDataType* res) {
     auto dtype = tf_tensor.dtype();
-    if (dtype == DT_FLOAT) {
-      res->code = kDLFloat;
-      res->bits = 32;
-      res->lanes = 1;
-    } else if (dtype == DT_INT64) {
-      res->code = kDLInt;
-      res->bits = 64;
-      res->lanes = 1;
-    } else if (dtype == DT_INT32) {
-      res->code = kDLInt;
-      res->bits = 32;
-      res->lanes = 1;
+    if (dtype == tensorflow::DT_FLOAT) {
+      *res = {kDLFloat, 32, 1};
+    } else if (dtype == tensorflow::DT_INT64) {
+      *res = {kDLInt, 64, 1};
+    } else if (dtype == tensorflow::DT_INT32) {
+      *res = {kDLInt, 32, 1};
     } else {
-      return -1;
+      return tensorflow::Status(tensorflow::error::INTERNAL, "Fail to get dlpack datatype");
     }
-    return 0;
+    return tensorflow::Status::OK();
 }
 
 
-void EnsureAlignment(OpKernelContext* ctx, const Tensor& tensor, TensorAsBuf* out) {
+void EnsureAlignment(tensorflow::OpKernelContext* ctx, const tensorflow::Tensor& tensor, TensorAsBuf* out) {
     char* buf = (char*) tensor.tensor_data().data();
     out->origin_buf = buf;
     out->size = tensor.TotalBytes(); 
@@ -105,13 +98,13 @@ void EnsureAlignment(OpKernelContext* ctx, const Tensor& tensor, TensorAsBuf* ou
     int alignment = 64;
     char* aligned = (char*)(((uint64_t)buf + alignment - 1) & (~ (alignment - 1)));
     if (buf == aligned) {
-        out->tensor = const_cast<Tensor*>(&tensor);
+        out->tensor = const_cast<tensorflow::Tensor*>(&tensor);
         out->buf = buf;
         out->offset = 0;
     } else {
-        TensorShape buf_shape;
-        int64 dims[1] = { (int64)(tensor.TotalBytes() + alignment) }; 
-        TensorShapeUtils::MakeShape(dims, 1, &buf_shape);
+        tensorflow::TensorShape buf_shape;
+        tensorflow::int64 dims[1] = { (tensorflow::int64)(tensor.TotalBytes() + alignment) }; 
+        tensorflow::TensorShapeUtils::MakeShape(dims, 1, &buf_shape);
         
         out->tensor = &out->inline_tensor;
         ctx->allocate_temp(tensor.dtype(), buf_shape, out->tensor);
@@ -124,22 +117,22 @@ void EnsureAlignment(OpKernelContext* ctx, const Tensor& tensor, TensorAsBuf* ou
 }
 
 
-int MakeDLTensor(const TensorAsBuf& src, const DLContext& ctx, int64_t* tf_shape, DLTensor* out) {
+tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLContext& ctx, int64_t* tf_shape, DLTensor* out) {
     DLDataType dlpack_type;
-    const Tensor& tensor = *src.tensor;
+    const tensorflow::Tensor& tensor = *src.tensor;
 
-    int status = GetDLPackDtype(tensor, &dlpack_type);
-    if (status != 0) {
+    auto status = GetDLPackDtype(tensor, &dlpack_type);
+    if (! status.ok()) {
         return status;
     }
     out->ctx = ctx;
     out->ndim = tensor.shape().dims();
     out->shape = tf_shape;
-    out->strides = NULL;
+    out->strides = nullptr;
     out->byte_offset = 0;
     out->dtype = dlpack_type;    
     out->data = src.buf + src.offset;
-    return 0;
+    return tensorflow::Status::OK();
 }
 
 
@@ -148,7 +141,7 @@ class TVMDSOOpTrait<CPUDevice> {
   public:
     static const int device_type = kDLCPU;
 
-    static int device_id(OpKernelContext* context) {
+    static int device_id(tensorflow::OpKernelContext* context) {
         return 0;
     }
 
@@ -160,7 +153,7 @@ class TVMDSOOpTrait<GPUDevice> {
   public:
     static const int device_type = kDLGPU;
 
-    static int device_id(OpKernelContext* context) {
+    static int device_id(tensorflow::OpKernelContext* context) {
         auto device_base = context->device();
         auto gpu_device_info = device_base->tensorflow_gpu_device_info();
         return gpu_device_info->gpu_id;
@@ -169,19 +162,19 @@ class TVMDSOOpTrait<GPUDevice> {
 
 
 template <typename DEVICE_TYPE, int NUM_INPUTS>
-class TVMDSOOp : public OpKernel {
+class TVMDSOOp : public tensorflow::OpKernel {
 
 private:
   tvm::runtime::PackedFunc tvm_func;
-  string lib_path;
-  string func_name;
+  std::string lib_path;
+  std::string func_name;
 
-  DataType output_dtype;
+  tensorflow::DataType output_dtype;
   
   bool has_static_output_shape;
-  std::vector<int64> static_output_shape;
+  std::vector<tensorflow::int64> static_output_shape;
 
-  void initAttributes(OpKernelConstruction* context) {
+  void initAttributes(tensorflow::OpKernelConstruction* context) {
     context->GetAttr("lib_path", &lib_path);
     context->GetAttr("func_name", &func_name);
     context->GetAttr("output_dtype", &output_dtype);
@@ -191,41 +184,40 @@ private:
   }
 
  public:
-  explicit TVMDSOOp(OpKernelConstruction* context) : OpKernel(context) {
+  explicit TVMDSOOp(tensorflow::OpKernelConstruction* context) : tensorflow::OpKernel(context) {
 
     // Get attr
     initAttributes(context);
 
     // Load TVM function from dynamic library
     tvm::runtime::Module mod_dylib = tvm::runtime::Module::LoadFromFile(lib_path);
-    LOG(INFO) << "Verify dynamic loading from " << lib_path << " device_type=" << TVMDSOOpTrait<DEVICE_TYPE>::device_type;
     tvm_func = mod_dylib.GetFunction(func_name);
     CHECK(tvm_func != nullptr);
   }
   
-  void Compute(OpKernelContext* context) override {
+  void Compute(tensorflow::OpKernelContext* context) override {
 
     DLTensor args[NUM_INPUTS + 1];
     TensorAsBuf buf_info[NUM_INPUTS];
     ShapeContainer shapes[NUM_INPUTS];
 
-    int status;
+    tensorflow::Status status;
     int device_id = TVMDSOOpTrait<DEVICE_TYPE>::device_id(context);
     int device_type = TVMDSOOpTrait<DEVICE_TYPE>::device_type;
     
     DLContext dl_ctx = { DLDeviceType(device_type), device_id };
 
     // Get output shape
-    TensorShape output_shape;
+    tensorflow::TensorShape output_shape;
     auto& output_shape_tensor = context->input(NUM_INPUTS);
     if (has_static_output_shape) {
       // use static output shape
-      const int64* dims = static_output_shape.data();
-      TensorShapeUtils::MakeShape(dims, static_output_shape.size(), &output_shape);
+      const tensorflow::int64* dims = static_output_shape.data();
+      tensorflow::TensorShapeUtils::MakeShape(dims, static_output_shape.size(), &output_shape);
     } else if (output_shape_tensor.dims() == 1) {
       // use shape tensor values as output shape
-      const int64* dims = output_shape_tensor.flat<int64>().data();
-      TensorShapeUtils::MakeShape(dims, 1, &output_shape);
+      const tensorflow::int64* dims = output_shape_tensor.flat<tensorflow::int64>().data();
+      tensorflow::TensorShapeUtils::MakeShape(dims, 1, &output_shape);
     } else {
       // use input tensor shape by default
       output_shape = context->input(0).shape();
@@ -246,11 +238,11 @@ private:
         input.CopyFromOrigin();
 
         status = MakeDLTensor(input, dl_ctx, shape_ptr, &args[i]);
-        OP_REQUIRES(context, status == 0, Status(error::INTERNAL, "Fail to create dlpack tensor for input"));
+        OP_REQUIRES_OK(context, status);
     }
 
     // Allocate output tensor
-    Tensor* output_tensor;
+    tensorflow::Tensor* output_tensor;
     OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output_tensor));
     auto output_shape_dim_buf = output_tensor->shape().dim_sizes(); // should keep alive on stack 
     auto output_shape_ptr = (int64_t*) output_shape_dim_buf.data();
@@ -260,7 +252,7 @@ private:
     EnsureAlignment(context, *output_tensor, &output);
 
     status = MakeDLTensor(output, dl_ctx, output_shape_ptr, &args[NUM_INPUTS]);
-    OP_REQUIRES(context, status == 0, Status(error::INTERNAL, "Fail to create dlpack tensor for output"));
+    OP_REQUIRES_OK(context, status);
    
     apply_variadic_by_ptrs(tvm_func, args);
    
@@ -271,8 +263,8 @@ private:
 
 
 #define REGISTER_TFTVM_KERNEL(n) \
-    REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(DEVICE_CPU), TVMDSOOp<CPUDevice, n>); \
-    REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(DEVICE_GPU), TVMDSOOp<GPUDevice, n>); \
+    REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(tensorflow::DEVICE_CPU), TVMDSOOp<CPUDevice, n>); \
+    REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(tensorflow::DEVICE_GPU), TVMDSOOp<GPUDevice, n>); \
 
 REGISTER_TFTVM_KERNEL(1)
 REGISTER_TFTVM_KERNEL(2)

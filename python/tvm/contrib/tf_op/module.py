@@ -19,11 +19,28 @@ from tensorflow.python.framework import load_library
 
 
 class Module():
+  """Module container of TensorFlow TVMDSO op which wraps exported
+  TVM op implementation library to be called on TensorFlow side"""
 
   def __init__(self, lib_path):
     self.lib_path = lib_path
 
   def func(self, name, output_dtype=None, output_shape=None):
+    """Get tvm op function wrapped as TensorFlow tensor to tensor function
+
+    Parameters
+    ----------
+    name: str
+        function name
+    output_dtype: str or TensorFlow datatype
+        Output datatype, default is float32
+    output_shape: List of integer/tf scalar tensor or tf shape tensor
+        Output shape, default the same with first input's shape
+
+    Returns
+    ----------
+    Func object that act as TensorFlow tensor to tensor function.
+    """
     return Func(self.lib_path, name, output_dtype, output_shape)
 
   def __getitem__(self, func_name):
@@ -31,6 +48,7 @@ class Module():
 
 
 class Func():
+  """Function object that act as TensorFlow tensor to tensor function."""
 
   def __init__(self, lib_path, func_name, output_dtype, output_shape):
     self.lib_path = lib_path
