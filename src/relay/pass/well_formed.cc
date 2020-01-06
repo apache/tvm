@@ -30,7 +30,7 @@ namespace tvm {
 namespace relay {
 
 
-//! brief make sure each Var is bind at most once.
+//! brief make sure each Var is bound at most once in a scope.
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
