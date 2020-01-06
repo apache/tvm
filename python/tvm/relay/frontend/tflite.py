@@ -1889,10 +1889,10 @@ class OperatorConverter(object):
         new_attrs0["clip"] = False
         new_attrs0["threshold"] = custom_options["nms_score_threshold"]
         new_attrs0["variances"] = (
-            1/custom_options["x_scale"],
-            1/custom_options["y_scale"],
-            1/custom_options["w_scale"],
-            1/custom_options["h_scale"],
+            1 / custom_options["x_scale"],
+            1 / custom_options["y_scale"],
+            1 / custom_options["w_scale"],
+            1 / custom_options["h_scale"],
         )
 
         # attributes for non_max_suppression
