@@ -816,43 +816,43 @@ const CompileEngine& CompileEngine::Global() {
 }
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed<CCacheKey(Function, Target)>(CCacheKeyNode::make);
+.set_body_typed(CCacheKeyNode::make);
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
-.set_body_typed<CompileEngine()>([]() {
+.set_body_typed([]() {
   return CompileEngine::Global();
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineClear")
-.set_body_typed<void(const CompileEngine&)>([](CompileEngine self) {
+.set_body_typed([](CompileEngine self) {
   self->Clear();
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLower")
-.set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
+.set_body_typed(
     [](CompileEngine self, CCacheKey key) {
   return self->Lower(key);
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineLowerShapeFunc")
-.set_body_typed<CachedFunc(CompileEngine, CCacheKey)>(
+.set_body_typed(
     [](CompileEngine self, CCacheKey key) {
   return self->LowerShapeFunc(key);
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileLowerExternalFunctions")
-.set_body_typed<void(const CompileEngine&)>([](CompileEngine self) {
+.set_body_typed([](CompileEngine self) {
   return self->LowerExternalFunctions();
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineJIT")
-.set_body_typed<PackedFunc(CompileEngine, CCacheKey)>(
+.set_body_typed(
     [](CompileEngine self, CCacheKey key) {
   return self->JIT(key);
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineListItems")
-.set_body_typed<Array<ObjectRef>(CompileEngine)>(
+.set_body_typed(
     [](CompileEngine self){
   return static_cast<CompileEngineImpl*>(self.operator->())->ListItems();
 });

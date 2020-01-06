@@ -51,7 +51,7 @@ EnvFunc EnvFunc::Get(const std::string& name) {
 }
 
 TVM_REGISTER_GLOBAL("_EnvFuncGet")
-.set_body_typed<EnvFunc(const std::string& name)>(EnvFunc::Get);
+.set_body_typed(EnvFunc::Get);
 
 TVM_REGISTER_GLOBAL("_EnvFuncCall")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -63,7 +63,7 @@ TVM_REGISTER_GLOBAL("_EnvFuncCall")
   });
 
 TVM_REGISTER_GLOBAL("_EnvFuncGetPackedFunc")
-.set_body_typed<PackedFunc(const EnvFunc& n)>([](const EnvFunc&n) {
+.set_body_typed([](const EnvFunc&n) {
     return n->func;
   });
 

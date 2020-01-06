@@ -48,7 +48,7 @@ TVM_REGISTER_GLOBAL("arith.DetectClipBound")
 .set_body_typed(DetectClipBound);
 
 TVM_REGISTER_GLOBAL("arith.DeduceBound")
-.set_body_typed<IntSet(Expr, Expr, Map<Var, IntSet>, Map<Var, IntSet>)>([](
+.set_body_typed([](
   Expr v, Expr cond,
   const Map<Var, IntSet> hint_map,
   const Map<Var, IntSet> relax_map

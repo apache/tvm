@@ -214,13 +214,12 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d")
-.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
-  std::string, bool)>([](Expr data,
-                         Array<IndexExpr> pool_size,
-                         Array<IndexExpr> strides,
-                         Array<IndexExpr> padding,
-                         std::string layout,
-                         bool ceil_mode) {
+.set_body_typed([](Expr data,
+                   Array<IndexExpr> pool_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   std::string layout,
+                   bool ceil_mode) {
   return MakeMaxPool<MaxPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
     "nn.max_pool2d");
 });
@@ -258,14 +257,13 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 
 // AvgPool2D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d")
-.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
-  std::string, bool, bool)>([](Expr data,
-                               Array<IndexExpr> pool_size,
-                               Array<IndexExpr> strides,
-                               Array<IndexExpr> padding,
-                               std::string layout,
-                               bool ceil_mode,
-                               bool count_include_pad) {
+.set_body_typed([](Expr data,
+                   Array<IndexExpr> pool_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   std::string layout,
+                   bool ceil_mode,
+                   bool count_include_pad) {
   return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
     count_include_pad, "nn.avg_pool2d");
 });
@@ -868,13 +866,12 @@ Array<Tensor> Pool3DCompute(const Attrs& attrs,
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool3d")
-.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
-  std::string, bool)>([](Expr data,
-                         Array<IndexExpr> pool_size,
-                         Array<IndexExpr> strides,
-                         Array<IndexExpr> padding,
-                         std::string layout,
-                         bool ceil_mode) {
+.set_body_typed([](Expr data,
+                   Array<IndexExpr> pool_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   std::string layout,
+                   bool ceil_mode) {
   return MakeMaxPool<MaxPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
     "nn.max_pool3d");
 });
@@ -912,14 +909,13 @@ RELAY_REGISTER_OP("nn.max_pool3d")
 
 // AvgPool3D
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool3d")
-.set_body_typed<Expr(Expr, Array<IndexExpr>, Array<IndexExpr>, Array<IndexExpr>,
-  std::string, bool, bool)>([](Expr data,
-                               Array<IndexExpr> pool_size,
-                               Array<IndexExpr> strides,
-                               Array<IndexExpr> padding,
-                               std::string layout,
-                               bool ceil_mode,
-                               bool count_include_pad) {
+.set_body_typed([](Expr data,
+                   Array<IndexExpr> pool_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   std::string layout,
+                   bool ceil_mode,
+                   bool count_include_pad) {
   return MakeAvgPool<AvgPool3DAttrs>(data, pool_size, strides, padding, layout, ceil_mode,
     count_include_pad, "nn.avg_pool3d");
 });

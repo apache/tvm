@@ -32,7 +32,7 @@ namespace tvm {
 namespace ir {
 
 TVM_REGISTER_GLOBAL("_Var")
-.set_body_typed<VarExpr(std::string, DataType)>([](std::string s, DataType t) {
+.set_body_typed([](std::string s, DataType t) {
     return Variable::make(t, s);
   });
 
@@ -64,7 +64,7 @@ TVM_REGISTER_GLOBAL("make._range_by_min_extent")
 .set_body_typed(Range::make_by_min_extent);
 
 TVM_REGISTER_GLOBAL("make.For")
-.set_body_typed<Stmt(VarExpr, Expr, Expr, int, int, Stmt)>([](
+.set_body_typed([](
   VarExpr loop_var, Expr min, Expr extent,
   int for_type, int device_api, Stmt body) {
   return For::make(loop_var,
@@ -99,7 +99,7 @@ TVM_REGISTER_GLOBAL("make.Realize")
 .set_body_typed(Realize::make);
 
 TVM_REGISTER_GLOBAL("make.Call")
-.set_body_typed<Expr(DataType, std::string, Array<Expr>, int, FunctionRef, int)>([](
+.set_body_typed([](
   DataType type, std::string name,
   Array<Expr> args, int call_type,
   FunctionRef func, int value_index
@@ -116,9 +116,9 @@ TVM_REGISTER_GLOBAL("make.CommReducer")
 .set_body_typed(CommReducerNode::make);
 
 // make from two arguments
-#define REGISTER_MAKE(Node)                                  \
+#define REGISTER_MAKE(Node)                                     \
   TVM_REGISTER_GLOBAL("make."#Node)                             \
-  .set_body_typed(Node::make);                              \
+  .set_body_typed(Node::make);                                  \
 
 REGISTER_MAKE(Reduce);
 REGISTER_MAKE(AttrStmt);
@@ -168,32 +168,32 @@ TVM_REGISTER_GLOBAL("make.Block")
 
 // has default args
 TVM_REGISTER_GLOBAL("make.Allocate")
-  .set_body_typed<Stmt(VarExpr, DataType, Array<Expr>, Expr, Stmt)>([](
+  .set_body_typed([](
     VarExpr buffer_var, DataType type, Array<Expr> extents, Expr condition, Stmt body
   ){
     return Allocate::make(buffer_var, type, extents, condition, body);
   });
 
 // operator overloading, smarter than make
-#define REGISTER_MAKE_BINARY_OP(Node, Func)                  \
+#define REGISTER_MAKE_BINARY_OP(Node, Func)                     \
   TVM_REGISTER_GLOBAL("make."#Node)                             \
-  .set_body_typed<Expr(Expr, Expr)>([](Expr a, Expr b) {     \
-      return (Func(a, b));                                   \
-    })
+  .set_body_typed([](Expr a, Expr b) {                          \
+    return (Func(a, b));                                        \
+  })
 
 #define REGISTER_MAKE_BIT_OP(Node, Func)                                \
-  TVM_REGISTER_GLOBAL("make."#Node)                                        \
+  TVM_REGISTER_GLOBAL("make."#Node)                                     \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
-      bool lhs_is_int = args[0].type_code() == kDLInt;                  \
-      bool rhs_is_int = args[1].type_code() == kDLInt;                  \
-      if (lhs_is_int) {                                                 \
-        *ret = (Func(args[0].operator int(), args[1].operator Expr())); \
-      } else if (rhs_is_int) {                                          \
-        *ret = (Func(args[0].operator Expr(), args[1].operator int())); \
-      } else {                                                          \
-        *ret = (Func(args[0].operator Expr(), args[1].operator Expr())); \
-      }                                                                 \
-    })
+    bool lhs_is_int = args[0].type_code() == kDLInt;                    \
+    bool rhs_is_int = args[1].type_code() == kDLInt;                    \
+    if (lhs_is_int) {                                                   \
+      *ret = (Func(args[0].operator int(), args[1].operator Expr()));   \
+    } else if (rhs_is_int) {                                            \
+      *ret = (Func(args[0].operator Expr(), args[1].operator int()));   \
+    } else {                                                            \
+      *ret = (Func(args[0].operator Expr(), args[1].operator Expr()));  \
+    }                                                                   \
+  })
 
 
 REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
@@ -224,7 +224,7 @@ REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
 TVM_REGISTER_GLOBAL("make._OpIfThenElse")
-.set_body_typed<Expr(Expr, Expr, Expr)>([] (Expr cond, Expr true_value, Expr false_value) {
+.set_body_typed([] (Expr cond, Expr true_value, Expr false_value) {
   return if_then_else(cond, true_value, false_value);
 });
 

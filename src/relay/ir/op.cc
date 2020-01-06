@@ -136,7 +136,7 @@ void OpRegistry::UpdateAttr(const std::string& key,
 
 // Frontend APIs
 TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
-.set_body_typed<Array<tvm::Expr>()>([]() {
+.set_body_typed([]() {
     Array<tvm::Expr> ret;
     for (const std::string& name :
              dmlc::Registry<OpRegistry>::ListAllNames()) {
@@ -145,7 +145,7 @@ TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
     return ret;
   });
 
-TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
+TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed(Op::Get);
 
 TVM_REGISTER_GLOBAL("relay.op._OpGetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
