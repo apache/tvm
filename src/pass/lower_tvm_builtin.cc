@@ -72,11 +72,14 @@ class BuiltinLower : public StmtExprMutator {
     auto stmt = StmtExprMutator::VisitStmt(s);
     CHECK_EQ(run_shape_stack_, 0);
     CHECK_EQ(run_array_stack_, 0);
-    while (prep_seq_.size() != 0) {
-      stmt = Block::make(prep_seq_.back(), stmt);
-      prep_seq_.pop_back();
+
+    if (prep_seq_.size() != 0) {
+      Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
+      prep_seq_.clear();
+      return ret;
+    } else {
+      return stmt;
     }
-    return stmt;
   }
 
   Stmt VisitStmt_(const Allocate* op) {
@@ -107,12 +110,12 @@ class BuiltinLower : public StmtExprMutator {
                                            intrinsic::tvm_throw_last_error, {},
                                            Call::Intrinsic));
 
-    Stmt body = Block::make(
+    Stmt body = SeqStmt({
         IfThenElse::make(Call::make(DataType::Bool(1),
                                     intrinsic::tvm_handle_is_null,
                                     {op->buffer_var}, Call::PureIntrinsic),
                          throw_last_error),
-        op->body);
+        op->body});
 
     Stmt alloca = LetStmt::make(
         op->buffer_var,
@@ -133,7 +136,7 @@ class BuiltinLower : public StmtExprMutator {
                                     op->buffer_var},
                               Call::Extern);
     Stmt free_stmt = IfThenElse::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
-    body = Block::make(alloca, free_stmt);
+    body = SeqStmt({alloca, free_stmt});
     body = AttrStmt::make(
         op->buffer_var, attr::storage_alignment,
         make_const(DataType::Int(32), runtime::kTempAllocaAlignment),
