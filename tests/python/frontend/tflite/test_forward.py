@@ -651,7 +651,7 @@ def _test_floor(data):
     return _test_unary_elemwise(math_ops.floor, data)
 #######################################################################
 # Exp
-# -----
+# ---
 
 def _test_exp(data):
     """ One iteration of exp """
