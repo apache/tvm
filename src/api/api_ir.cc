@@ -169,9 +169,6 @@ REGISTER_MAKE(IfThenElse);
 REGISTER_MAKE(Evaluate);
 
 // overloaded, needs special handling
-TVM_REGISTER_GLOBAL("make.Block")
-  .set_body_typed(static_cast<Stmt (*)(Stmt, Stmt)>(Block::make));
-
 // has default args
 TVM_REGISTER_GLOBAL("make.Allocate")
   .set_body_typed([](

@@ -94,18 +94,6 @@ class NoOpRemover : public StmtMutator {
     return Evaluate::make(0);
   }
 
-  Stmt VisitStmt_(const Block* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<Block>();
-    if (is_no_op(op->first)) {
-      return op->rest;
-    } else if (is_no_op(op->rest)) {
-      return op->first;
-    } else {
-      return stmt;
-    }
-  }
-
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     Stmt ret = StmtMutator::VisitSeqStmt_(op, true);
     op = ret.as<SeqStmtNode>();

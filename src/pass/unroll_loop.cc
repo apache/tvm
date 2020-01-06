@@ -120,28 +120,6 @@ class LoopUnroller : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Block* op) final {
-    Stmt first = this->VisitStmt(op->first);
-    // cleanup state
-    int step_count = step_count_;
-    int unroll_depth = unroll_depth_;
-    int normal_loop_depth = normal_loop_depth_;
-    step_count_ = 0;
-    unroll_depth_ = 0;
-    normal_loop_depth_ = 0;
-    // work on rest part
-    Stmt rest = this->VisitStmt(op->rest);
-    step_count_ += step_count;
-    normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
-    unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return GetRef<Stmt>(op);
-    } else {
-      return Block::make(first, rest);
-    }
-  }
-
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     auto fmutate = [this](const Stmt& s) {
       int step_count = step_count_;

@@ -209,11 +209,6 @@ void StmtVisitor::VisitStmt_(const Prefetch* op) {
     });
 }
 
-void StmtVisitor::VisitStmt_(const Block* op) {
-  this->VisitStmt(op->first);
-  this->VisitStmt(op->rest);
-}
-
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
   VisitArray(op->seq, [this](const Stmt& s) {
       this->VisitStmt(s);
@@ -492,20 +487,6 @@ Stmt StmtMutator::VisitStmt_(const Prefetch* op) {
   } else {
     auto n = CopyOnWrite(op);
     n->bounds = std::move(bounds);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const Block* op) {
-  Stmt first = this->VisitStmt(op->first);
-  Stmt rest = this->VisitStmt(op->rest);
-  if (first.same_as(op->first) &&
-      rest.same_as(op->rest)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->first = std::move(first);
-    n->rest = std::move(rest);
     return Stmt(n);
   }
 }

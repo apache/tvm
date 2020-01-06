@@ -1121,28 +1121,6 @@ class SeqStmt : public Stmt {
 };
 
 /*!
- * \brief A sequence of statements.
- */
-class Block : public StmtNode {
- public:
-  /*! \brief The first statement. */
-  Stmt first;
-  /*! \brief The restof statments. */
-  Stmt rest;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("first", &first);
-    v->Visit("rest", &rest);
-  }
-
-  TVM_DLL static Stmt make(Stmt first, Stmt rest);
-  TVM_DLL static Stmt make(const std::vector<Stmt> &stmts);
-
-  static constexpr const char* _type_key = "Block";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Block, StmtNode);
-};
-
-/*!
  * \brief IfThenElse statment.
  */
 class IfThenElse : public StmtNode {

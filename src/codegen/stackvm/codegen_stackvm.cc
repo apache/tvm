@@ -417,11 +417,6 @@ void CodeGenStackVM::VisitStmt_(const For* op) {
   this->SetOperand(backward_jump, loop_head - label_bjump);
 }
 
-void CodeGenStackVM::VisitStmt_(const Block* op) {
-  this->Push(op->first);
-  if (op->rest.defined()) this->Push(op->rest);
-}
-
 void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
     this->Push(stmt);

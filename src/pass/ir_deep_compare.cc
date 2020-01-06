@@ -179,13 +179,6 @@ class IRDeepCompare :
     if (CompareRegion(op->bounds, rhs->bounds) != 0) return;
   }
 
-  void VisitStmt_(const Block* op, const Stmt& other) final {
-    const Block* rhs = other.as<Block>();
-    if (CompareStmt(op->first, rhs->first) != 0) return;
-    if (CompareStmt(op->rest, rhs->rest) != 0) return;
-  }
-
-
   void VisitStmt_(const SeqStmtNode* op, const Stmt& other) final {
     const SeqStmtNode* rhs = other.as<SeqStmtNode>();
     if (CompareValue(op->size(), rhs->size()) != 0) return;

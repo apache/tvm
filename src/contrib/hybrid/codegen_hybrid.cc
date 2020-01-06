@@ -389,11 +389,6 @@ void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const Block* op) {
-  PrintStmt(op->first);
-  if (op->rest.defined()) PrintStmt(op->rest);
-}
-
 void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
     PrintStmt(stmt);

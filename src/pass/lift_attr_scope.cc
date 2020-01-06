@@ -75,19 +75,6 @@ class AttrScopeLifter : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const Block* op) final {
-    std::vector<Stmt> seq;
-    FlattenSeq(op->first, &seq);
-    FlattenSeq(op->rest, &seq);
-    seq = MutateSeq(seq);
-    if (seq.size() == 2 &&
-        seq[0].same_as(op->first) &&
-        seq[1].same_as(op->rest)) {
-      return GetRef<Stmt>(op);
-    }
-    return SeqStmt::Flatten(seq);
-  }
-
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     // remember the decorations.
     std::vector<ObjectRef> attr_node;
@@ -184,68 +171,6 @@ class AttrScopeLifter : public StmtMutator {
   }
 
  private:
-  void FlattenSeq(Stmt s, std::vector<Stmt>* res) {
-    if (const Block* op = s.as<Block>()) {
-      FlattenSeq(op->first, res);
-      FlattenSeq(op->rest, res);
-    } else if (const ProducerConsumer* op = s.as<ProducerConsumer>()) {
-      if (!op->is_producer) {
-        FlattenSeq(op->body, res);
-      } else {
-        res->emplace_back(s);
-      }
-    } else {
-      res->emplace_back(s);
-    }
-  }
-
-  std::vector<Stmt> MutateSeq(const Array<Stmt>& seq) {
-    std::vector<Stmt> res_seq;
-    ObjectRef curr_node;
-    Expr curr_value;
-    Stmt curr_stmt;
-    for (const Stmt & stmt : seq) {
-      attr_node_ = ObjectRef();
-      attr_value_ = Expr();
-      Stmt rest = this->VisitStmt(stmt);
-      if (attr_node_.defined() &&
-          attr_value_.defined() &&
-          curr_node.defined() &&
-          curr_value.defined() &&
-          attr_node_.same_as(curr_node) &&
-          ValueSame(attr_value_, curr_value)) {
-        curr_stmt = Block::make(curr_stmt, rest);
-      } else {
-        if (curr_stmt.defined()) {
-          if (curr_node.defined()) {
-            curr_stmt = AttrStmt::make(
-                curr_node, attr_key_, curr_value, curr_stmt);
-          }
-          res_seq.push_back(curr_stmt);
-        }
-        curr_stmt = rest;
-        curr_node = attr_node_;
-        curr_value = attr_value_;
-      }
-    }
-
-    if (curr_stmt.defined()) {
-      // keep attr_node_, attr_node_
-      if (res_seq.size() == 0) {
-        return {curr_stmt};
-      }
-      if (curr_node.defined()) {
-        curr_stmt = AttrStmt::make(
-            curr_node, attr_key_, curr_value, curr_stmt);
-      }
-      res_seq.push_back(curr_stmt);
-      // reset
-      attr_node_ = ObjectRef();
-      attr_value_ = Expr();
-    }
-    return res_seq;
-  }
-
   // value comparison that also compares content of int constant
   static bool ValueSame(const Expr& a, const Expr& b) {
     if (a.same_as(b)) return true;

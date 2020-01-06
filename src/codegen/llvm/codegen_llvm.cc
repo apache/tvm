@@ -1214,13 +1214,6 @@ void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const Block* op) {
-  this->VisitStmt(op->first);
-  if (op->rest.defined()) {
-    this->VisitStmt(op->rest);
-  }
-}
-
 void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
     this->VisitStmt(stmt);

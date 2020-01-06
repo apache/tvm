@@ -356,21 +356,7 @@ class VTInjector : public StmtExprMutator {
       return IfThenElse::make(condition, then_case, else_case);
     }
   }
-  // Block
-  Stmt VisitStmt_(const Block* op) final {
-    CHECK_EQ(max_loop_depth_, 0);
-    Stmt first = this->VisitStmt(op->first);
-    int temp = max_loop_depth_;
-    max_loop_depth_ = 0;
-    Stmt rest = this->VisitStmt(op->rest);
-    max_loop_depth_ = std::max(max_loop_depth_, temp);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return GetRef<Stmt>(op);
-    } else {
-      return Block::make(first, rest);
-    }
-  }
+
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     CHECK_EQ(max_loop_depth_, 0);

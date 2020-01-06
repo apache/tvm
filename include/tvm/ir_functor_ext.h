@@ -253,7 +253,6 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const Provide* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Realize* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Prefetch* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const Block* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Evaluate* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args ...) {
@@ -277,7 +276,6 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(Provide);
     IR_STMT_FUNCTOR_DISPATCH(Realize);
     IR_STMT_FUNCTOR_DISPATCH(Prefetch);
-    IR_STMT_FUNCTOR_DISPATCH(Block);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(Evaluate);
     return vtable;
@@ -410,7 +408,6 @@ class TVM_DLL StmtVisitor :
   void VisitStmt_(const Provide* op) override;
   void VisitStmt_(const Realize* op) override;
   void VisitStmt_(const Prefetch* op) override;
-  void VisitStmt_(const Block* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const Evaluate* op) override;
 };
@@ -505,7 +502,6 @@ class TVM_DLL StmtMutator :
   Stmt VisitStmt_(const Provide* op) override;
   Stmt VisitStmt_(const Realize* op) override;
   Stmt VisitStmt_(const Prefetch* op) override;
-  Stmt VisitStmt_(const Block* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const Evaluate* op) override;
   /*!

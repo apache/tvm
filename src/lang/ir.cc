@@ -510,33 +510,6 @@ SeqStmt::SeqStmt(Array<Stmt> seq) {
   data_ = std::move(node);
 }
 
-Stmt Block::make(Stmt first, Stmt rest) {
-  CHECK(first.defined());
-  CHECK(rest.defined());
-  ObjectPtr<Block> node = make_object<Block>();
-
-  // canonicalize.
-  if (const Block* b = first.as<Block>()) {
-    node->first = b->first;
-    node->rest  = Block::make(b->rest, rest);
-  } else {
-    node->first = std::move(first);
-    node->rest = std::move(rest);
-  }
-  return Stmt(node);
-}
-
-Stmt Block::make(const std::vector<Stmt>& stmts) {
-  if (stmts.empty()) {
-    return Stmt();
-  }
-  Stmt result = stmts.back();
-  for (size_t i = stmts.size() - 1; i != 0; --i) {
-    result = Block::make(stmts[i - 1], result);
-  }
-  return result;
-}
-
 Stmt IfThenElse::make(Expr condition, Stmt then_case, Stmt else_case) {
   CHECK(condition.defined());
   CHECK(then_case.defined());
@@ -1038,13 +1011,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Block>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Block*>(node.get());
-    p->Print(op->first);
-    if (op->rest.defined()) p->Print(op->rest);
-  });
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<SeqStmtNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const SeqStmtNode*>(node.get());
     for (Stmt stmt : op->seq) {
@@ -1226,7 +1192,6 @@ TVM_REGISTER_NODE_TYPE(Provide);
 TVM_REGISTER_NODE_TYPE(Allocate);
 TVM_REGISTER_NODE_TYPE(Free);
 TVM_REGISTER_NODE_TYPE(Realize);
-TVM_REGISTER_NODE_TYPE(Block);
 TVM_REGISTER_NODE_TYPE(SeqStmtNode);
 TVM_REGISTER_NODE_TYPE(IfThenElse);
 TVM_REGISTER_NODE_TYPE(Evaluate);

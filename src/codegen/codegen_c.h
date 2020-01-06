@@ -140,7 +140,6 @@ class CodeGenC :
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const Evaluate* op) override;
-  void VisitStmt_(const Block* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
   /*!

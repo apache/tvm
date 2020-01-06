@@ -106,16 +106,6 @@ class CandidateSelector final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const Block* op) final {
-    bool temp = no_split_;
-    this->VisitStmt(op->first);
-    // erase the no split state of first when visit rest.
-    std::swap(temp, no_split_);
-    this->VisitStmt(op->rest);
-    // restore the no split flag.
-    no_split_ = no_split_ || temp;
-  }
-
   void VisitStmt_(const SeqStmtNode* op) final {
     bool init_no_split = no_split_;
     for (Stmt stmt : op->seq) {

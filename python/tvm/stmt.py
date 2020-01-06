@@ -289,23 +289,6 @@ class Realize(Stmt):
 
 
 @register_node
-class Block(Stmt):
-    """Block node.
-
-    Parameters
-    ----------
-    first : Stmt
-        The first statement.
-
-    rest : Stmt
-        The following statement.
-    """
-    def __init__(self, first, rest):
-        self.__init_handle_by_constructor__(
-            _make.Block, first, rest)
-
-
-@register_node
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -422,12 +405,9 @@ def stmt_list(stmt):
         for x in stmt:
             res += stmt_list(x)
         return res
-    elif isinstance(stmt, Block):
-        return stmt_list(stmt.first) + stmt_list(stmt.rest)
     if isinstance(stmt, ProducerConsumer):
         return stmt_list(stmt.body)
     return [stmt]
 
 
 _make.stmt_list = stmt_list
-_make.stmt_seq = stmt_seq

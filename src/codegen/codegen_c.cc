@@ -875,11 +875,6 @@ void CodeGenC::VisitStmt_(const IfThenElse* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const Block* op) {
-  PrintStmt(op->first);
-  if (op->rest.defined()) PrintStmt(op->rest);
-}
-
 void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
   for (Stmt stmt : op->seq) {
     PrintStmt(stmt);
