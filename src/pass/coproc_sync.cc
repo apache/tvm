@@ -655,24 +655,14 @@ class CoProcSyncInserter : public StmtMutator {
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
-    Stmt before, after;
-    auto it = insert_before_.find(stmt.get());
-    if (it != insert_before_.end()) {
-      before = MergeSeq(std::vector<Stmt>(
-          it->second.rbegin(), it->second.rend()));
-    }
-    it = insert_after_.find(stmt.get());
-    if (it != insert_after_.end()) {
-      after = MergeSeq(it->second);
-    }
+    auto it_before = insert_before_.find(stmt.get());
+    auto it_after = insert_after_.find(stmt.get());
     Stmt new_stmt = StmtMutator::VisitStmt(stmt);
-    if (before.defined()) {
-      new_stmt = Block::make(before, new_stmt);
-    }
-    if (after.defined()) {
-      new_stmt = Block::make(new_stmt, after);
-    }
-    return new_stmt;
+
+    return SeqStmt::Flatten(
+      it_before != insert_before_.end() ? it_before->second : std::vector<Stmt>(),
+      new_stmt,
+      it_after != insert_after_.end() ? it_after->second : std::vector<Stmt>());
   }
 
  private:

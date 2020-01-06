@@ -59,7 +59,7 @@ class PrefetchInjector : public StmtMutator {
       vectorized_.erase(iter_var);
 
       Stmt prefetch = Prefetch::make(ts->op, ts->value_index, ts->dtype, region);
-      return Block::make(prefetch, op->body);
+      return SeqStmt({prefetch, op->body});
     }
     return ret;
   }

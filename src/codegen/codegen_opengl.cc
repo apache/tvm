@@ -300,7 +300,7 @@ runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
   return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(funcs));
 }
 
-TVM_REGISTER_API("codegen.build_opengl")
+TVM_REGISTER_GLOBAL("codegen.build_opengl")
 .set_body_typed(BuildOpenGL);
 
 }  // namespace codegen

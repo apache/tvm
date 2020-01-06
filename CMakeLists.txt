@@ -107,8 +107,8 @@ if(MSVC)
 else(MSVC)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message("Build in Debug mode")
-    set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS} -rdynamic")
-    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS} -rdynamic")
+    set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
   else()
     set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC ${CMAKE_CXX_FLAGS}")
@@ -132,6 +132,8 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
 file(GLOB COMPILER_SRCS
+    src/node/*.cc
+    src/ir/*.cc
     src/api/*.cc
     src/arithmetic/*.cc
     src/autotvm/*.cc
@@ -139,7 +141,6 @@ file(GLOB COMPILER_SRCS
     src/lang/*.cc
     src/pass/*.cc
     src/op/*.cc
-    src/node/*.cc
     src/schedule/*.cc
     )
 

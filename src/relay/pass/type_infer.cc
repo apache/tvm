@@ -78,8 +78,8 @@ bool TupleGetItemRel(const Array<Type>& types,
 }
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemAttrs);
-TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
-.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
+TVM_REGISTER_GLOBAL("tvm.relay.type_relation.TupleGetItem")
+.set_body_typed(
     TupleGetItemRel);
 
 struct ResolvedTypeInfo {
@@ -839,8 +839,8 @@ Pass InferType() {
   return CreateFunctionPass(pass_func, 0, "InferType", {});
 }
 
-TVM_REGISTER_API("relay._transform.InferType")
-.set_body_typed<Pass()>([]() {
+TVM_REGISTER_GLOBAL("relay._transform.InferType")
+.set_body_typed([]() {
   return InferType();
 });
 

@@ -23,7 +23,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <utility>
 #include <algorithm>
 #include <unordered_map>
@@ -47,7 +49,7 @@ IntervalSet MakeIntervalSet(Expr min_value, Expr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_REGISTER_API("arith._make_IntervalSet")
+TVM_REGISTER_GLOBAL("arith._make_IntervalSet")
 .set_body_typed(MakeIntervalSet);
 
 
@@ -809,8 +811,8 @@ IntSet EvalSet(Range r,
 
 TVM_REGISTER_NODE_TYPE(IntervalSetNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntervalSetNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<IntervalSetNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IntervalSetNode*>(node.get());
     p->stream << "IntervalSet"
               << "[" << op->min_value << ", "

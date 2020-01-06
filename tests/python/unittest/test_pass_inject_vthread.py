@@ -92,8 +92,8 @@ def test_vthread_if_then_else():
             B[i] = A[i * nthread + tx] + 2
     stmt = ib.get()
     stmt = tvm.ir_pass.InjectVirtualThread(stmt)
-    assert stmt.body.body.body.first.else_case != None
-    assert stmt.body.body.body.rest.else_case == None
+    assert stmt.body.body.body[0].else_case != None
+    assert stmt.body.body.body[1].else_case == None
 
 if __name__ == "__main__":
     test_vthread_extern()

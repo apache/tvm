@@ -71,7 +71,7 @@ Expr MakeMultiBoxPrior(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.multibox_prior")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.multibox_prior")
 .set_body_typed(MakeMultiBoxPrior);
 
 
@@ -143,7 +143,7 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
   return CallNode::make(op, {cls_prob, loc_pred, anchor}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.multibox_transform_loc")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.multibox_transform_loc")
 .set_body_typed(MakeMultiBoxTransformLoc);
 
 RELAY_REGISTER_OP("vision.multibox_transform_loc")

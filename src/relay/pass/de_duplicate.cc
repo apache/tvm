@@ -37,7 +37,7 @@ Expr DeDup(const Expr& e) {
                        public PatternMutator {
    public:
     TypeVar Fresh(const TypeVar& tv) {
-      TypeVar ret = TypeVarNode::make(tv->var->name_hint, tv->kind);
+      TypeVar ret = TypeVarNode::make(tv->name_hint, tv->kind);
       type_rename_[tv] = ret;
       return ret;
     }
@@ -114,7 +114,7 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
-TVM_REGISTER_API("relay._transform.dedup")
+TVM_REGISTER_GLOBAL("relay._transform.dedup")
 .set_body_typed(DeDup);
 
 }  // namespace relay

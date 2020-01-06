@@ -51,11 +51,11 @@ Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
   return Closure(n);
 }
 
-TVM_REGISTER_API("relay._make.Closure")
+TVM_REGISTER_GLOBAL("relay._make.Closure")
 .set_body_typed(ClosureNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ClosureNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ClosureNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const ClosureNode*>(ref.get());
     p->stream << "ClosureNode(" << node->func << ", " << node->env << ")";
   });
@@ -70,11 +70,11 @@ RecClosure RecClosureNode::make(Closure clos, Var bind) {
   return RecClosure(n);
 }
 
-TVM_REGISTER_API("relay._make.RecClosure")
+TVM_REGISTER_GLOBAL("relay._make.RecClosure")
 .set_body_typed(RecClosureNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RecClosureNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RecClosureNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const RecClosureNode*>(ref.get());
     p->stream << "RecClosureNode(" << node->clos << ")";
   });
@@ -85,11 +85,11 @@ TupleValue TupleValueNode::make(tvm::Array<Value> value) {
   return TupleValue(n);
 }
 
-TVM_REGISTER_API("relay._make.TupleValue")
+TVM_REGISTER_GLOBAL("relay._make.TupleValue")
 .set_body_typed(TupleValueNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TupleValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TupleValueNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TupleValueNode*>(ref.get());
     p->stream << "TupleValueNode(" << node->fields << ")";
   });
@@ -100,15 +100,15 @@ TensorValue TensorValueNode::make(runtime::NDArray data) {
   return TensorValue(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorValueNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TensorValueNode*>(ref.get());
     auto to_str = GetPackedFunc("relay._tensor_value_repr");
     std::string data_str = to_str(GetRef<TensorValue>(node));
     p->stream << "TensorValueNode(" << data_str << ")";
   });
 
-TVM_REGISTER_API("relay._make.TensorValue")
+TVM_REGISTER_GLOBAL("relay._make.TensorValue")
 .set_body_typed(TensorValueNode::make);
 
 RefValue RefValueNode::make(Value value) {
@@ -117,13 +117,13 @@ RefValue RefValueNode::make(Value value) {
   return RefValue(n);
 }
 
-TVM_REGISTER_API("relay._make.RefValue")
+TVM_REGISTER_GLOBAL("relay._make.RefValue")
 .set_body_typed(RefValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(RefValueNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RefValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RefValueNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const RefValueNode*>(ref.get());
     p->stream << "RefValueNode(" << node->value << ")";
   });
@@ -138,13 +138,13 @@ ConstructorValue ConstructorValueNode::make(int32_t tag,
   return ConstructorValue(n);
 }
 
-TVM_REGISTER_API("relay._make.ConstructorValue")
+TVM_REGISTER_GLOBAL("relay._make.ConstructorValue")
 .set_body_typed(ConstructorValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(ConstructorValueNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstructorValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstructorValueNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const ConstructorValueNode*>(ref.get());
   p->stream << "ConstructorValueNode(" << node->tag << ","
             << node->fields << ")";
@@ -817,7 +817,7 @@ CreateInterpreter(
   return TypedPackedFunc<Value(Expr)>(packed);
 }
 
-TVM_REGISTER_API("relay.backend.CreateInterpreter")
+TVM_REGISTER_GLOBAL("relay.backend.CreateInterpreter")
 .set_body_typed(CreateInterpreter);
 
 TVM_REGISTER_NODE_TYPE(ClosureNode);

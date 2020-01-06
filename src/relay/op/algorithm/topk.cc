@@ -83,7 +83,7 @@ Expr MakeTopK(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.topk")
+TVM_REGISTER_GLOBAL("relay.op._make.topk")
 .set_body_typed(MakeTopK);
 
 RELAY_REGISTER_OP("topk")

@@ -555,6 +555,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2])
     verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
+    verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
 
 def test_strided_set():
     verify_strided_set((3, 4, 3), (3, 2, 2), [0, 3, 0], [4, 1, 4], [1, -1, 2])
@@ -596,6 +597,7 @@ def test_reshape():
     verify_reshape((4, 2, 3, 4), (2, 4, 12))
     verify_reshape((4, 2, 3, 4), (2, 48))
     verify_reshape((16, ), (2, 2, 2, 2))
+    verify_reshape((4, 0), (2, 0, 2))
 
 
 def test_where():
@@ -718,6 +720,7 @@ def test_tile():
     verify_tile((3, 2), (2, 3))
     verify_tile((3, 2, 5), (2,))
     verify_tile((3, ), (2, 3, 3))
+    verify_tile((4, 0), (5,))
 
 def test_layout_transform():
     in_shape = (1, 32, 8, 8)

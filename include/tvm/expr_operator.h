@@ -667,6 +667,9 @@ inline bool is_no_op(const Stmt& stmt) {
   if (const auto* op = stmt.as<ir::Evaluate>()) {
     return is_const(op->value);
   }
+  if (const auto* op = stmt.as<ir::SeqStmtNode>()) {
+    return op->seq.size() == 0;
+  }
   return false;
 }
 

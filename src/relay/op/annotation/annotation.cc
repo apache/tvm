@@ -39,8 +39,8 @@ namespace relay {
 // relay.annotation.on_device
 TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
 
-TVM_REGISTER_API("relay.op.annotation._make.on_device")
-.set_body_typed<Expr(Expr, int)>([](Expr data, int device_type) {
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
+.set_body_typed([](Expr data, int device_type) {
   auto attrs = make_object<OnDeviceAttrs>();
   attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
@@ -62,8 +62,8 @@ Expr StopFusion(Expr data) {
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
-TVM_REGISTER_API("relay.op.annotation._make.stop_fusion")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.stop_fusion")
+.set_body_typed([](Expr data) {
     return StopFusion(data);
 });
 
@@ -144,8 +144,8 @@ Mark the end of bitpacking.
                          return {topi::identity(inputs[0])};
                        });
 
-TVM_REGISTER_API("relay.op.annotation._make.checkpoint")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpoint")
+.set_body_typed([](Expr data) {
   static const Op& op = Op::Get("annotation.checkpoint");
   return CallNode::make(op, {data}, Attrs{}, {});
 });

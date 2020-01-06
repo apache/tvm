@@ -26,6 +26,7 @@
 #include <tvm/relay/attrs/bitserial.h>
 #include <tvm/relay/op.h>
 
+#include "../op_common.h"
 #include "../../pass/infer_layout_util.h"
 
 namespace tvm {
@@ -96,7 +97,7 @@ Expr MakeBitPack(Expr data, int bits, int pack_axis, int bit_axis, DataType pack
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
 
 RELAY_REGISTER_OP("nn.bitpack")
     .describe(R"code(Bitpack layer that prepares data for bitserial operations.
@@ -134,10 +135,12 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   CHECK(param->channels.defined());
   CHECK(param->kernel_size.defined());
   Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   oshape.Set(
-      2, (dshape_nchw[2] + param->padding[0] * 2 - param->kernel_size[0]) / param->strides[0] + 1);
+      2, (dshape_nchw[2] + pad_h - param->kernel_size[0]) / param->strides[0] + 1);
   oshape.Set(
-      3, (dshape_nchw[3] + param->padding[1] * 2 - param->kernel_size[1]) / param->strides[1] + 1);
+      3, (dshape_nchw[3] + pad_w - param->kernel_size[1]) / param->strides[1] + 1);
   DataType out_dtype = param->out_dtype;
   oshape = trans_in_layout.BackwardShape(oshape);
   // assign output type
@@ -167,7 +170,7 @@ Expr MakeBinaryConv2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<In
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitserial_conv2d").set_body_typed(MakeBinaryConv2D);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_conv2d").set_body_typed(MakeBinaryConv2D);
 
 RELAY_REGISTER_OP("nn.bitserial_conv2d")
     .describe(R"code(2D convolution using packed binary computation.
@@ -235,7 +238,7 @@ Expr MakeBinaryDense(Expr data, Expr weight, IndexExpr units, int data_bits, int
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.bitserial_dense").set_body_typed(MakeBinaryDense);
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_dense").set_body_typed(MakeBinaryDense);
 
 RELAY_REGISTER_OP("nn.bitserial_dense")
     .describe(R"code(Applies a quantized linear transformation: :math:`Y = XW^T`.

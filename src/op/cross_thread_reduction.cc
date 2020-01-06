@@ -100,10 +100,10 @@ Stmt MakeCrossThreadReduction(
       stage->op, idx,
       Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
-  Stmt assign_body = Block::make(assigns);
+  Stmt assign_body = SeqStmt::Flatten(assigns);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
-  Stmt body = Block::make(reduce_body, assign_body);
+  Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
     body = Allocate::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);

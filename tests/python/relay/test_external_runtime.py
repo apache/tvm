@@ -445,6 +445,7 @@ def get_whole_graph_json():
 def run_extern(label, get_extern_src, **kwargs):
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
+        return
 
     obj_name = "{}.o".format(label)
     lib_name = "external_{}.so".format(label)
@@ -492,8 +493,9 @@ def test_engine_extern():
                options=["-O2", "-std=c++11", "-I" + tmp_path.relpath("")])
 
 def test_json_extern():
-    if which("gcc") is None:
-        print("Skip test because gcc is not available.")
+    if not tvm.get_global_func("module.loadfile_examplejson", True):
+        print("Skip because JSON example runtime is not enabled.")
+        return
 
     # Get subgraph Json.
     subgraph_json = ("json_rt_0\n" +

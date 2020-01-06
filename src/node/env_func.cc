@@ -18,14 +18,21 @@
  */
 
 /*!
- * \file api_registry.cc
+ * \file env_func.cc
  */
-#include <tvm/api_registry.h>
+#include <tvm/node/env_func.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/expr.h>
 
 namespace tvm {
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<EnvFuncNode>([](const ObjectRef& node, IRPrinter *p) {
+
+using runtime::PackedFunc;
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<EnvFuncNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const EnvFuncNode*>(node.get());
     p->stream << "EnvFunc(" << op->name << ")";
 });
@@ -43,10 +50,10 @@ EnvFunc EnvFunc::Get(const std::string& name) {
   return EnvFunc(CreateEnvNode(name));
 }
 
-TVM_REGISTER_API("_EnvFuncGet")
-.set_body_typed<EnvFunc(const std::string& name)>(EnvFunc::Get);
+TVM_REGISTER_GLOBAL("_EnvFuncGet")
+.set_body_typed(EnvFunc::Get);
 
-TVM_REGISTER_API("_EnvFuncCall")
+TVM_REGISTER_GLOBAL("_EnvFuncCall")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     EnvFunc env = args[0];
     CHECK_GE(args.size(), 1);
@@ -55,8 +62,8 @@ TVM_REGISTER_API("_EnvFuncCall")
                                  args.size() - 1), rv);
   });
 
-TVM_REGISTER_API("_EnvFuncGetPackedFunc")
-.set_body_typed<PackedFunc(const EnvFunc& n)>([](const EnvFunc&n) {
+TVM_REGISTER_GLOBAL("_EnvFuncGetPackedFunc")
+.set_body_typed([](const EnvFunc&n) {
     return n->func;
   });
 

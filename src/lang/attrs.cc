@@ -21,7 +21,9 @@
  * \file attrs.cc
  */
 #include <tvm/attrs.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "attr_functor.h"
 
 namespace tvm {
@@ -59,8 +61,8 @@ Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
   return Attrs(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<DictAttrsNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const DictAttrsNode*>(node.get());
     p->stream << op->dict;
 });
@@ -345,7 +347,7 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
 
-TVM_REGISTER_API("_AttrsListFieldInfo")
+TVM_REGISTER_GLOBAL("_AttrsListFieldInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator Attrs()->ListFieldInfo();
 });

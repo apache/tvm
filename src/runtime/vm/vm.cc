@@ -583,9 +583,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage " <<
-        instr.dst << " " <<
-        instr.alloc_storage.allocation_size << " " <<
+      os << "alloc_storage $" <<
+        instr.dst << " $" <<
+        instr.alloc_storage.allocation_size << " $" <<
         instr.alloc_storage.alignment << " " <<
         TVMType2String(instr.alloc_storage.dtype_hint);
       break;
@@ -771,12 +771,14 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
       for (size_t fi = 0; fi < dt_cell->size; ++fi) {
         auto obj = (*dt_cell)[fi];
         const auto* tensor = obj.as<TensorObj>();
-        CHECK(tensor != nullptr);
+        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                                 << obj->GetTypeKey();
         setter(idx++, tensor->data);
       }
     } else {
       const auto* tensor = args[i].as<TensorObj>();
-      CHECK(tensor != nullptr);
+      CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                               << args[i]->GetTypeKey();
       setter(idx++, tensor->data);
     }
   }
@@ -823,7 +825,8 @@ inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
   int32_t result;
   const auto& obj = ReadRegister(r);
   const auto* tensor = obj.as<TensorObj>();
-  CHECK(tensor != nullptr);
+  CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                           << obj->GetTypeKey();
   NDArray array = tensor->data.CopyTo({kDLCPU, 0});
 
   if (array->dtype.bits <= 8) {
@@ -984,7 +987,8 @@ void VirtualMachine::RunLoop() {
         cpu_ctx.device_id = 0;
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         const auto* tensor = shape_tensor_obj.as<TensorObj>();
-        CHECK(tensor != nullptr);
+        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                                 << shape_tensor_obj->GetTypeKey();
         NDArray shape_tensor = tensor->data.CopyTo(cpu_ctx);
         const DLTensor* dl_tensor = shape_tensor.operator->();
         CHECK_EQ(dl_tensor->dtype.code, 0u);

@@ -120,14 +120,16 @@ class IRBuilder(object):
         seq = self._seq_stack.pop()
         if not seq or callable(seq[-1]):
             seq.append(_make.Evaluate(0))
-        stmt = seq[-1]
+        seqwrap = lambda x: x[0] if len(x) == 1 else _stmt.SeqStmt(list(reversed(x)))
+        ret_seq = [seq[-1]]
+
         for s in reversed(seq[:-1]):
             if callable(s):
-                stmt = s(stmt)
+                ret_seq = [s(seqwrap(ret_seq))]
             else:
                 assert isinstance(s, _stmt.Stmt)
-                stmt = _make.Block(s, stmt)
-        return stmt
+                ret_seq.append(s)
+        return seqwrap(ret_seq)
 
     def emit(self, stmt):
         """Emit a statement to the end of current scope.

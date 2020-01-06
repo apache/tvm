@@ -485,7 +485,7 @@ void GetCurveSampleFeatureFlatten(Stmt stmt, int sample_n, std::vector<float> *r
 
 
 // register API for front end
-TVM_REGISTER_API("autotvm.feature.GetItervarFeature")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeature")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   bool take_log = args[1];
@@ -497,7 +497,7 @@ TVM_REGISTER_API("autotvm.feature.GetItervarFeature")
 });
 
 
-TVM_REGISTER_API("autotvm.feature.GetItervarFeatureFlatten")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeatureFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   bool take_log = args[1];
@@ -512,7 +512,7 @@ TVM_REGISTER_API("autotvm.feature.GetItervarFeatureFlatten")
 });
 
 
-TVM_REGISTER_API("autotvm.feature.GetCurveSampleFeatureFlatten")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetCurveSampleFeatureFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   int sample_n = args[1];

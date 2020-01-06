@@ -70,7 +70,7 @@ bool ConstantCheck(const Expr& e) {
   return ConstantChecker().Check(e);
 }
 
-TVM_REGISTER_API("relay._analysis.check_constant")
+TVM_REGISTER_GLOBAL("relay._analysis.check_constant")
 .set_body_typed(ConstantCheck);
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
@@ -297,7 +297,7 @@ Pass FoldConstant() {
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
 
-TVM_REGISTER_API("relay._transform.FoldConstant")
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
 .set_body_typed(FoldConstant);
 
 }  // namespace transform

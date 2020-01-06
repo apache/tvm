@@ -25,12 +25,14 @@
 #include <tvm/ir.h>
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 namespace tvm {
 namespace codegen {
 
-TVM_REGISTER_API("codegen._Build")
+TVM_REGISTER_GLOBAL("codegen._Build")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<LoweredFunc>()) {
       *ret = Build({args[0]}, args[1]);
@@ -39,7 +41,7 @@ TVM_REGISTER_API("codegen._Build")
     }
   });
 
-TVM_REGISTER_API("module._PackImportsToC")
+TVM_REGISTER_GLOBAL("module._PackImportsToC")
 .set_body_typed(PackImportsToC);
 }  // namespace codegen
 }  // namespace tvm

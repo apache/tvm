@@ -253,7 +253,7 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
 }
 
-TVM_REGISTER_API("codegen.build_nvptx")
+TVM_REGISTER_GLOBAL("codegen.build_nvptx")
 .set_body_typed(BuildNVPTX);
 
 }  // namespace codegen

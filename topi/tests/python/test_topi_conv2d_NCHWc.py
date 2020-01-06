@@ -22,6 +22,7 @@ from tvm import autotvm
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
+from topi.nn.util import get_pad_tuple
 from topi.util import get_const_tuple
 
 from common import get_all_backend
@@ -49,10 +50,11 @@ def _transform_bias(bias, bn):
 
 def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
                         padding, dilation=1, add_bias=False, add_relu=False, dtype="float32"):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d)" %
-          (batch, in_channel, in_size, num_filter, kernel, stride, padding))
-
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
+    padding_sum = pad_top + pad_left + pad_bottom + pad_right
     in_height = in_width = in_size
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d)" %
+          (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum))
 
     # for testing functionality,
     # we choose arbitrary block size that can divide the channel,
@@ -96,7 +98,7 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
+            C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), padding,
                                      (dilation, dilation),
                                      layout='NCHW%dc'%ic_block,
                                      out_layout="NCHW%dc"%oc_block,
@@ -114,12 +116,12 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
         if add_bias:
             func = tvm.build(s, [A, W, bias, C], device,
                              name="relu_%d_%d_%d_%d_%d_%d_%d_%d" %
-                                  (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+                                  (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, b, c)
         else:
             func = tvm.build(s, [A, W, C], device,
                              name="relu_%d_%d_%d_%d_%d_%d_%d_%d" %
-                                  (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
+                                  (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-3)
 
@@ -216,6 +218,23 @@ def test_conv2d_NCHWc():
     verify_conv2d_NCHWc(1, 2048,  10, 126, 3, 1, 1)
     verify_conv2d_NCHWc(1,  512,   5, 126, 3, 1, 1)
     verify_conv2d_NCHWc(1,  256,   3, 126, 3, 1, 1)
+
+    # Asymmetric padding
+    verify_conv2d_NCHWc(1,   3,  224,  64,  7, 2, (0, 0, 1, 1))
+    verify_conv2d_NCHWc(1,  64,   56, 128,  3, 1, (3, 3, 2, 2))
+    verify_conv2d_NCHWc(1,  64,   56,  64,  1, 1, (1, 2, 2, 1))
+    verify_conv2d_NCHWc(1,  64,  288, 192,  1, 1, (1, 2))
+    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, (3, 1))
+    verify_conv2d_NCHWc(1, 128,   56, 384,  3, 1, (0, 2))
+    verify_conv2d_NCHWc(1,  64,   56,  64,  1, 1, "VALID")
+    verify_conv2d_NCHWc(1, 388,   56,  64,  3, 1, "VALID")
+    verify_conv2d_NCHWc(1, 512,   19,  64,  1, 1, "SAME")
+    verify_conv2d_NCHWc(1,  64, 2048,  32,  2, 1, "SAME")
+    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, (1, 2, 2, 1), add_relu=True)
+    verify_conv2d_NCHWc(1,  64,   56,  64,  5, 2, (1, 3), add_bias=True)
+    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
+    verify_conv2d_NCHWc(1,  64,   56,  64, 24, 1, "SAME", add_bias=True, add_relu=True)
+
 
 if __name__ == "__main__":
     test_conv2d_NCHWc()

@@ -1270,7 +1270,7 @@ Pass PartialEval() {
   return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }
 
-TVM_REGISTER_API("relay._transform.PartialEvaluate")
+TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate")
 .set_body_typed(PartialEval);
 
 }  // namespace transform

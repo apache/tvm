@@ -66,8 +66,8 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
-TVM_REGISTER_API("relay._quantize.simulated_quantize")
-.set_body_typed<Expr(Expr, Expr, Expr, Expr, int, bool, std::string)>(
+TVM_REGISTER_GLOBAL("relay._quantize.simulated_quantize")
+.set_body_typed(
   [](Expr data, Expr dom_scale, Expr clip_min, Expr clip_max,
      int kind, bool sign, std::string rounding) {
     auto attrs = make_object<SimulatedQuantizeAttrs>();
@@ -116,8 +116,8 @@ QConfig& QConfig::Current() {
 
 TVM_REGISTER_NODE_TYPE(QConfigNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<QConfigNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<QConfigNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* op = static_cast<const QConfigNode*>(ref.get());
   p->stream << "qconfig(";
   p->stream << "nbit_input=" << op->nbit_input << ", ";
@@ -134,13 +134,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << ")";
 });
 
-TVM_REGISTER_API("relay._quantize._GetCurrentQConfig")
+TVM_REGISTER_GLOBAL("relay._quantize._GetCurrentQConfig")
 .set_body_typed(QConfig::Current);
 
-TVM_REGISTER_API("relay._quantize._EnterQConfigScope")
+TVM_REGISTER_GLOBAL("relay._quantize._EnterQConfigScope")
 .set_body_typed(QConfig::EnterQConfigScope);
 
-TVM_REGISTER_API("relay._quantize._ExitQConfigScope")
+TVM_REGISTER_GLOBAL("relay._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
 
 }  // namespace quantize

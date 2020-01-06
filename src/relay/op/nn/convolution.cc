@@ -82,7 +82,7 @@ Expr MakeConv2D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d")
 .set_body_typed(MakeConv2D);
 
 
@@ -140,7 +140,7 @@ Expr MakeConv3D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv3d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d")
 .set_body_typed(MakeConv3D);
 
 
@@ -165,7 +165,6 @@ with the layer input to produce a tensor of outputs.
 .set_support_level(2)
 .add_type_rel("Conv3D", Conv3DRel<Conv3DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv3DAttrs>);
-
 
 // relay.nn.conv2d_transpose
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
@@ -250,18 +249,8 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   }
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
-  auto pad_h = param->padding[0];
-  auto pad_w = param->padding[1];
-  if (param->padding.size() == 2) {
-    pad_h *= 2;
-    pad_w *= 2;
-  } else if (param->padding.size() == 4) {
-    pad_h += param->padding[2];
-    pad_w += param->padding[3];
-  } else {
-    CHECK_EQ(param->padding.size(), 4) << " Padding should be 2 or 4, but got "
-        << param->padding.size();
-  }
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
                  pad_h + param->output_padding[0]));
   oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
@@ -307,7 +296,7 @@ Expr MakeConv2DTranspose(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
 .set_body_typed(MakeConv2DTranspose);
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
@@ -466,7 +455,7 @@ Expr MakeConv1DTranspose(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv1d_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
 .set_body_typed(MakeConv1DTranspose);
 
 RELAY_REGISTER_OP("nn.conv1d_transpose")
@@ -557,14 +546,16 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   if (!dshape_nchw[2].as<ir::Any>()) {
-    oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2
+    oshape.Set(2, (dshape_nchw[2] + pad_h
                    - dilated_ksize_y) / param->strides[0] + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
   if (!dshape_nchw[3].as<ir::Any>()) {
-    oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2
+    oshape.Set(3, (dshape_nchw[3] + pad_w
                    - dilated_ksize_x) / param->strides[1] + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
@@ -613,7 +604,7 @@ Expr MakeConv2DWinograd(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
 .set_body_typed(MakeConv2DWinograd);
 
 
@@ -676,7 +667,7 @@ Expr MakeConv2DWinogradWeightTransform(Expr weight,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
 .set_body_typed(MakeConv2DWinogradWeightTransform);
 
 
@@ -724,7 +715,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACK);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
@@ -791,7 +782,7 @@ Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
   return CallNode::make(op, {weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
@@ -837,7 +828,7 @@ Expr MakeConv2DNCHWcInt8(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
 .set_body_typed(MakeConv2DNCHWcInt8);
 
 
@@ -886,7 +877,7 @@ Expr MakeConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
 .set_body_typed(MakeConv2DNCHWc);
 
 
@@ -936,7 +927,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
 .set_body_typed(MakeDepthwiseConv2DNCHWc);
 
 
@@ -1015,9 +1006,11 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   // dilation
   Array<IndexExpr> oshape({data->shape[0], channels, 0, 0});
 
-  oshape.Set(2, indexdiv(data->shape[2] + param->padding[0] * 2 - dilated_ksize_y,
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  oshape.Set(2, indexdiv(data->shape[2] + pad_h - dilated_ksize_y,
                          param->strides[0]) + 1);
-  oshape.Set(3, indexdiv(data->shape[3] + param->padding[1] * 2 - dilated_ksize_x,
+  oshape.Set(3, indexdiv(data->shape[3] + pad_w - dilated_ksize_x,
                          param->strides[1]) + 1);
   DataType out_dtype = param->out_dtype;
 
@@ -1096,7 +1089,7 @@ Expr MakeDeformableConv2D(Expr data,
   return CallNode::make(op, {data, offset, weight}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
 .set_body_typed(MakeDeformableConv2D);
 
 

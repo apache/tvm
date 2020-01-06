@@ -356,20 +356,18 @@ class VTInjector : public StmtExprMutator {
       return IfThenElse::make(condition, then_case, else_case);
     }
   }
-  // Block
-  Stmt VisitStmt_(const Block* op) final {
+
+  // Seq
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
     CHECK_EQ(max_loop_depth_, 0);
-    Stmt first = this->VisitStmt(op->first);
-    int temp = max_loop_depth_;
-    max_loop_depth_ = 0;
-    Stmt rest = this->VisitStmt(op->rest);
-    max_loop_depth_ = std::max(max_loop_depth_, temp);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return GetRef<Stmt>(op);
-    } else {
-      return Block::make(first, rest);
-    }
+    auto fmutate = [this](const Stmt& s) {
+      int temp = max_loop_depth_;
+      max_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      max_loop_depth_ = std::max(max_loop_depth_, temp);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
   // Allocate
   Stmt VisitStmt_(const Allocate* op) final {
@@ -442,12 +440,11 @@ class VTInjector : public StmtExprMutator {
     // only unroll if number of vthreads are small
     if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
-      Stmt blk = Substitute(stmt, {{var_, make_zero(var_.dtype())}});
-      for (int i = 1; i < num_threads_; ++i) {
-        blk = Block::make(
-            blk, Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
+      Array<Stmt> seq;
+      for (int i = 0; i < num_threads_; ++i) {
+        seq.push_back(Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
       }
-      return blk;
+      return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->dtype);

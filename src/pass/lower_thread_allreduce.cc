@@ -185,7 +185,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         Var buffer_var = Downcast<Var>(call->args[2+size+i]);
         stores[i] = Store::make(buffer_var, values[i], 0, pred);
       }
-      return Block::make(stores);
+      return SeqStmt::Flatten(stores);
     }
     // Whether the threadIdx.x is involved in reduction.
     if (vred[0].scope.dim_index == 0) {
@@ -218,7 +218,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         {Expr(group_extent), Expr(reduce_extent)},
         pred, Evaluate::make(0));
     }
-    return MergeSeq(seq);
+    return SeqStmt::Flatten(seq);
   }
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode *combiner,
@@ -252,7 +252,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t i = 0; i < size; ++i) {
         stores[i] = Store::make(shared_bufs[i], ret[i], buf_index, const_true());
       }
-      return Block::make(stores);
+      return SeqStmt::Flatten(stores);
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {
@@ -280,11 +280,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(SyncThread("warp"));
     }
     if (in_warp_seq.size() != 0) {
-      Stmt warp_body = MergeSeq(in_warp_seq);
+      Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
       seq.emplace_back(IfThenElse::make(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
-    return MergeSeq(seq);
+    return SeqStmt::Flatten(seq);
   }
   // Flatten the thread index.
   // Also return a warp number,

@@ -1031,6 +1031,42 @@ inline void for_each(const F& f, Args&&... args) {  // NOLINT(*)
   for_each_dispatcher<sizeof...(Args) == 0, 0, F>
       ::run(f, std::forward<Args>(args)...);
 }
+
+template<typename T>
+struct func_signature_helper {
+  using FType = void;
+};
+
+template<typename T, typename R, typename ...Args>
+struct func_signature_helper<R (T::*)(Args...)> {
+  using FType = R(Args...);
+};
+
+template<typename T, typename R, typename ...Args>
+struct func_signature_helper<R (T::*)(Args...) const> {
+  using FType = R(Args...);
+};
+
+/*!
+ * \brief template class to get function signature of a function or functor.
+ * \tparam T The funtion/functor type.
+ */
+template<typename T>
+struct function_signature {
+  using FType = typename func_signature_helper<decltype(&T::operator())>::FType;
+};
+
+// handle case of function.
+template<typename R, typename ...Args>
+struct function_signature<R(Args...)> {
+  using FType = R(Args...);
+};
+
+// handle case of function ptr.
+template<typename R, typename ...Args>
+struct function_signature<R (*)(Args...)> {
+  using FType = R(Args...);
+};
 }  // namespace detail
 
 /* \brief argument settter to PackedFunc */

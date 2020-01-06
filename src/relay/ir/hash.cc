@@ -228,11 +228,6 @@ class RelayHashHandler:
       hash = Combine(hash, TypeHash(var_node->type_annotation));
     }
     hash_map_[var] = hash;
-
-    const auto* ty_param = var.as<TypeVarNode>();
-    if (ty_param && ty_param->kind == Kind::kShapeVar) {
-      hash_map_[ty_param->var] = hash;
-    }
     return hash;
   }
 
@@ -428,13 +423,13 @@ size_t StructuralHash::operator()(const Expr& expr) const {
   return RelayHashHandler().ExprHash(expr);
 }
 
-TVM_REGISTER_API("relay._analysis._expr_hash")
-.set_body_typed<int64_t(ObjectRef)>([](ObjectRef ref) {
+TVM_REGISTER_GLOBAL("relay._analysis._expr_hash")
+.set_body_typed([](ObjectRef ref) {
   return static_cast<int64_t>(RelayHashHandler().Hash(ref));
 });
 
-TVM_REGISTER_API("relay._analysis._type_hash")
-.set_body_typed<int64_t(Type)>([](Type type) {
+TVM_REGISTER_GLOBAL("relay._analysis._type_hash")
+.set_body_typed([](Type type) {
   return static_cast<int64_t>(RelayHashHandler().TypeHash(type));
 });
 

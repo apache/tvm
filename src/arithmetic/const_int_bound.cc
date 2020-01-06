@@ -51,8 +51,8 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ConstIntBoundNode*>(node.get());
     p->stream << "ConstIntBound[";
     PrintBoundValue(p->stream, op->min_value);

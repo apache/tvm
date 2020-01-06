@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return,invalid-name,len-as-condition
+# pylint: disable=no-else-return,invalid-name,len-as-condition,too-many-nested-blocks
 """
 A pass for manifesting explicit memory allocations.
 """
@@ -173,6 +173,8 @@ class ManifestAllocPass(ExprMutator):
             new_args = [self.visit(arg) for arg in call.args]
             ins = expr.Tuple(new_args)
             ret_type = call.checked_type
+            view = LinearizeRetType(ret_type)
+            out_types = view.unpack()
 
             is_dynamic = ret_type.is_dynamic()
             # TODO(@jroesch): restore this code, more complex then it seems
@@ -180,26 +182,37 @@ class ManifestAllocPass(ExprMutator):
             #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()
 
             if is_dynamic:
-                assert isinstance(ret_type, ty.TensorType)
                 shape_func_ins = []
                 engine = compile_engine.get()
                 cfunc = engine.lower_shape_func(call.op, self.target_host)
                 input_states = cfunc.shape_func_param_states
 
                 is_inputs = []
+                input_pos = 0
                 for i, (arg, state) in enumerate(zip(new_args, input_states)):
                     state = int(state)
                     # Pass Shapes
                     if state == 2:
-                        sh_of = self.visit(self.shape_of(arg))
-                        shape_func_ins.append(
-                            scope.let("in_shape_{0}".format(i), sh_of))
+                        if isinstance(arg.type_annotation, ty.TupleType):
+                            for j in range(len(arg.type_annotation.fields)):
+                                let_in_arg = scope.let("in_arg_{0}".format(input_pos + j),
+                                                       expr.TupleGetItem(arg, j))
+                                sh_of = self.visit(self.shape_of(let_in_arg))
+                                shape_func_ins.append(
+                                    scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                            input_pos += len(arg.type_annotation.fields)
+                        else:
+                            sh_of = self.visit(self.shape_of(arg))
+                            shape_func_ins.append(
+                                scope.let("in_shape_{0}".format(input_pos), sh_of))
+                            input_pos += 1
                         is_inputs.append(0)
                     # Pass Inputs
                     elif state == 1:
                         new_arg = self.visit(arg)
                         shape_func_ins.append(
-                            scope.let("in_shape_{0}".format(i), new_arg))
+                            scope.let("in_shape_{0}".format(input_pos), new_arg))
+                        input_pos += 1
                         is_inputs.append(1)
                     # TODO(@jroesch): handle 3rd case
                     else:
@@ -218,9 +231,6 @@ class ManifestAllocPass(ExprMutator):
                     expr.Tuple(out_shapes), is_inputs)
 
                 scope.let("shape_func", shape_call)
-
-                out_types = []
-                out_types.append(call.checked_type)
 
                 storages = []
                 for out_shape, out_type in zip(out_shapes, out_types):
@@ -242,15 +252,13 @@ class ManifestAllocPass(ExprMutator):
                     alloc = scope.let("out_{i}".format(i=i), alloc)
                     outs.append(alloc)
 
-                invoke = self.invoke_tvm(call.op, ins, expr.Tuple(outs))
+                tuple_outs = expr.Tuple(outs)
+                invoke = self.invoke_tvm(call.op, ins, tuple_outs)
                 scope.let("", invoke)
-                return outs[0]
+                return outs[0] if len(outs) == 1 else tuple_outs
             else:
-                view = LinearizeRetType(ret_type)
-                out_tys = view.unpack()
-
                 outs = []
-                for i, out_ty in enumerate(out_tys):
+                for i, out_ty in enumerate(out_types):
                     out = self.make_static_allocation(scope, out_ty, i)
                     outs.append(out)
 

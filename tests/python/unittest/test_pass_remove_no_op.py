@@ -16,6 +16,9 @@
 # under the License.
 import tvm
 
+def nop():
+    return tvm.stmt.Evaluate(0)
+
 def test_remove_no_op():
     i = tvm.var('i')
     j = tvm.var('j')
@@ -37,12 +40,13 @@ def test_remove_no_op():
     store = tvm.make.Store(Ab.data,
                            tvm.make.Load(dtype, Ab.data, i) + 1,
                            i + 1)
-    stmt2 = tvm.make.Block(stmt, store)
+    stmt2 = tvm.stmt.SeqStmt([nop(), tvm.stmt.SeqStmt([store, nop()])])
     assert(tvm.ir_pass.RemoveNoOp(stmt2) == store)
     # remove zero extent loop
     stmt3 = tvm.make.For(i, 0, 0, 0, 0, store)
     ret = tvm.ir_pass.RemoveNoOp(stmt3)
     assert(isinstance(ret, tvm.stmt.Evaluate))
+
 
 if __name__ == "__main__":
     test_remove_no_op()

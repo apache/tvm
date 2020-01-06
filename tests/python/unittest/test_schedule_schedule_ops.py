@@ -71,7 +71,7 @@ def test_schedule_scan():
     s = tvm.create_schedule(res.op)
     s = s.normalize()
     ir = tvm.lower(s, [s_state], simple_mode=True)
-    assert not hasattr(ir.body.body.body.body.rest.body.body.rest.body, "condition")
+    assert not hasattr(ir.body.body.body.body[1].body.body[1].body, "condition")
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
