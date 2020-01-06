@@ -30,6 +30,7 @@
 #include <tvm/relay/qnn/attrs.h>
 #include <limits>
 #include <string>
+#include <vector>
 #include <utility>
 
 namespace tvm {
@@ -125,16 +126,76 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
                         const std::string& rounding);
 
 /*
+ * \brief Fixed point multiplication between integer tensor with floating point
+ scalar where the input tensor is per-axis/per-channel quantized..
+ * \param tensor The quantized input tensor of dtype int64.
+ * \param multiplier The scalar multiplier.
+ * \param input_shape Shape of the input tensor.
+ * \param channel_axis The channel_axis along which the input tensor is quantized. Default value is
+ -1 which corresponds to the last channel_axis.
+ * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
+ is midway between" "two representable values.
+ * \return The sequence of Relay ops for fixed point multiplication.
+
+ * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ *       integer computation, the multiplication with fp32 vector can be
+ *       replaced by multiplication with an int vector and then right shifting
+ *       the result. This approximates the floating point computation with a
+ *       fixed point computation.
+ *
+ *       Computation of fixed point multiplication is consist of following
+ steps:
+ *       1) Multiply the fixed point multiplier with quantized tensor.
+ *       2) Round the result.
+ *       3) Right shift the result
+ */
+Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multiplier,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding);
+/*
  * \brief Checks whether an expr type is scalar of a given data type.
  * \param expr_type The type of expr to be checked.
  * \param dtype The expected dtype.
  * \return True if the type is a scalar of given dtype
  */
 static inline bool IsScalarType(const Type& expr_type, const DataType& dtype) {
-  const auto* scale = expr_type.as<TensorTypeNode>();
-  CHECK_EQ(scale->shape.size(), 0);
-  CHECK(scale->dtype == dtype) << "Expected " << dtype << " but got " << scale->dtype;
+  const auto* tensor_type = expr_type.as<TensorTypeNode>();
+  CHECK_EQ(tensor_type->shape.size(), 0);
+  CHECK(tensor_type->dtype == dtype) << "Expected " << dtype << " but got " << tensor_type->dtype;
   return true;
+}
+
+/*
+ * \brief Checks and assigns types to scale and zero points.
+ * \param expr_type The type of expr to be checked.
+ * \param dtype The expected dtype.
+ * \param shape The shape at C dim of original tensor.
+ * \param reporter The type reported of original InferType call.
+ */
+static inline void AssignType(const Type& expr_type, const DataType& dtype, const IndexExpr& shape,
+                              const TypeReporter& reporter) {
+  // Scale/Zero_points can be either const scalar or a vector with C axis num elems.
+  const auto* tensor_type = expr_type.as<TensorTypeNode>();
+  const auto tensor_dtype = tensor_type->dtype;
+  CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
+  if (tensor_type->shape.size() != 0) {
+    reporter->Assign(expr_type, TensorTypeNode::make({shape}, tensor_type->dtype));
+  }
+}
+
+static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  std::vector<float> vals;
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  int64_t num_elems = 1;
+  auto shape = n->data.Shape();
+  for (size_t i = 0; i < shape.size(); i++) {
+    num_elems *= shape[i];
+  }
+  for (int64_t i = 0; i < num_elems; i++) {
+    vals.push_back(static_cast<float*>(n->data->data)[i]);
+  }
+  return vals;
 }
 
 }  // namespace qnn
