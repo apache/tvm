@@ -21,7 +21,9 @@ set -u
 
 export PYTHONPATH=python:vta/python:topi/python
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc python/tvm/*/*/*/*.pyc
+# cleanup pycache
+find . -type f -path "*.pyc" | xargs rm -f
+
 rm -rf ~/.tvm
 
 # Rebuild cython
