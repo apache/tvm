@@ -84,13 +84,22 @@ def verify_conv1d(batch,
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda']:#get_all_backend():
+    for device in get_all_backend():
         check_device(device)
 
 
 def test_conv1d_transpose():
-    verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', "NCW")
-    verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', "NWC")
+    for layout in ["NCW", "NWC"]:
+        # Most basic test case
+        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', layout)
+        # With padding
+        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'SAME', 'SYMMETRIC', layout)
+        # Realistic dimensions
+        verify_conv1d(1, 16, 32, 16, 3, 1, 1, 'SAME', 'SYMMETRIC', layout)
+        # With stride
+        verify_conv1d(1, 16, 32, 16, 3, 2, 1, 'SAME', 'SYMMETRIC', layout)
+        # With dilation
+        verify_conv1d(1, 16, 32, 16, 3, 1, 2, 'SAME', 'SYMMETRIC', layout)
 
 
 if __name__ == "__main__":
