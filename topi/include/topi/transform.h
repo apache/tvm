@@ -34,6 +34,7 @@
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
+#include "topi/detail/tensor_utils.h"
 #include "tvm/operation.h"
 #include "tvm/expr_operator.h"
 #include "tvm/data_layout.h"
@@ -207,16 +208,28 @@ inline Tensor reshape(const Tensor& x,
                       std::string name = "T_reshape",
                       std::string tag = kInjective) {
   auto x_shape = x->shape;
-  Array<Expr> newshape_int32;
+  Array<Expr> target_shape;
 
   for (const auto &ele : newshape) {
-    newshape_int32.push_back(cast(DataType::Int(32), ele));
+    if (ele.as<IntImm>()) {
+      target_shape.push_back(cast(DataType::Int(32), ele));
+    } else {
+      target_shape.push_back(ele);
+    }
   }
-  return compute(
-    newshape_int32, [&](const Array<Var>& indices) {
-      return x(UnravelIndex(RavelIndex(Array<Expr>{indices.begin(), indices.end()}, newshape_int32),
-                            x_shape));
-    }, name, tag);
+
+  if (is_empty_shape(target_shape)) {
+    return compute(target_shape,
+                   [&](const Array<Var> &indices) { return tvm::cast(x->dtype, 0); },
+                   name, tag);
+  } else {
+    return compute(
+      target_shape, [&](const Array<Var>& indices) {
+        return x(UnravelIndex(
+          RavelIndex(Array<Expr>{indices.begin(), indices.end()}, target_shape),
+          x_shape));
+      }, name, tag);
+  }
 }
 
 /*!
@@ -556,7 +569,7 @@ inline Tensor strided_slice(const Tensor& x,
     int interval = std::abs(end_i - begin_i);
     int slice_size = static_cast<int>((interval
                                      + std::abs(stride_vec[i]) - 1) / std::abs(stride_vec[i]));
-    CHECK(stride_vec[i] < 0 ? (end_i < begin_i) : (begin_i < end_i))
+    CHECK(stride_vec[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
       << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
       << "] is invalid for axis=" << i;
 
@@ -938,18 +951,24 @@ inline Tensor tile(const Tensor& x,
   for (size_t i = 0; i < tdim; ++i)
     new_shape.push_back(data_shape[i] * reps_shape[i]);
 
-  return compute(
-    new_shape, [&](const Array<Var>& indices) {
-      Array<Expr> idx;
-      if (ndim >= rdim) {
-        for (size_t i = 0; i < ndim; ++i)
-          idx.push_back(indexmod(indices[i], x->shape[i]));
-      } else {
-        for (size_t i = 0; i < ndim; ++i)
-          idx.push_back(indexmod(indices[rdim - ndim + i], x->shape[i]));
-      }
-      return x(idx);
-    }, name, tag);
+  if (is_empty_shape(new_shape)) {
+    return compute(new_shape,
+                   [&](const Array<Var>& indices) { return tvm::cast(x->dtype, 0);},
+                   name, tag);
+  } else {
+    return compute(
+      new_shape, [&](const Array<Var>& indices) {
+        Array<Expr> idx;
+        if (ndim >= rdim) {
+          for (size_t i = 0; i < ndim; ++i)
+            idx.push_back(indexmod(indices[i], x->shape[i]));
+        } else {
+          for (size_t i = 0; i < ndim; ++i)
+            idx.push_back(indexmod(indices[rdim - ndim + i], x->shape[i]));
+        }
+        return x(idx);
+      }, name, tag);
+  }
 }
 
 /*!
