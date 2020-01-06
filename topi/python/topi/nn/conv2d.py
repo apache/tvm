@@ -23,7 +23,7 @@ import tvm
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, get_const_tuple
+from ..util import simplify, get_const_tuple, get_const_int
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -46,8 +46,10 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -153,7 +155,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     else:
         KH, KW, CIG, CO = [x.value for x in kernel.shape]
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -179,8 +181,10 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -221,7 +225,6 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     rc = tvm.reduce_axis((0, in_channel), name='rc')
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
-
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda nn, ff, yy, xx: tvm.sum(
@@ -245,8 +248,10 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -311,8 +316,10 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -378,8 +385,10 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -425,8 +434,10 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -448,7 +459,6 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
@@ -464,15 +474,22 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
 
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+
     # output shape
-    out_height = (ih + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    out_width = (iw + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    out_height = (ih + HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (iw + WPAD - dilated_kernel_w) // WSTR + 1
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+    pad_before = (0, 0, pad_top, pad_left, 0)
+    pad_after = (0, 0, pad_down, pad_right, 0)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+        data_pad = pad(data, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data
 
@@ -517,8 +534,10 @@ def conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, layout, out_layo
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -565,8 +584,10 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -588,7 +609,6 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
@@ -603,15 +623,23 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
 
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+
     # output shape
-    out_height = (ih + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    out_width = (iw + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    out_height = (ih + HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (iw + WPAD - dilated_kernel_w) // WSTR + 1
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+    pad_before = (0, 0, pad_top, pad_left, 0)
+    pad_after = (0, 0, pad_down, pad_right, 0)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+        data_pad = pad(data, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data
 
@@ -780,8 +808,10 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation : int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]

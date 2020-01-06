@@ -83,10 +83,10 @@ def _create_schedule_template(cfg, data, kernel, strides, padding, dilation, lay
     else:
         raise ValueError("Not support this layout {} with "
                          "schedule template.".format(layout))
-    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    oh = (h - kh + 2 * ph) // sh + 1
-    ow = (w - kw + 2 * pw) // sw + 1
+    oh = (h - kh + pt + pb) // sh + 1
+    ow = (w - kw + pl + pr) // sw + 1
     ic_bn_upper = 32
     oc_bn_upper = 64
     oc_bn_lower = min(oc, 8)
