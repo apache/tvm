@@ -660,6 +660,9 @@ _convert_map = {
     'Concatenate'              : _convert_concat,
     'BatchNormalization'       : _convert_batchnorm,
 
+    # Specific tf.Keras terminology for batch normalization
+    'BatchNormalizationV1'     : _convert_batchnorm,
+
     'Add'                      : _convert_merge,
     'Subtract'                 : _convert_merge,
     'Multiply'                 : _convert_merge,
@@ -742,7 +745,7 @@ def from_keras(model, shape=None):
 
     Parameters
     ----------
-    model : keras.engine.training.Model
+    model : keras.engine.training.Model or tensorflow.keras.models.Model
         The keras model to be converted.
 
     shape: dict of str to int list/tuple
@@ -756,25 +759,42 @@ def from_keras(model, shape=None):
     params : dict of str to tvm.NDArray
         The parameter dict to be used by Relay.
     """
-    try:
-        import keras
-    except ImportError:
-        raise ImportError('Keras must be installed')
-    assert isinstance(model, keras.engine.training.Model)
-    if keras.backend.backend() != 'tensorflow':
-        raise ValueError("Keras frontend currently supports tensorflow backend only.")
-    if keras.backend.image_data_format() != 'channels_last':
-        raise ValueError("Keras frontend currently supports data_format = channels_last only.")
-    _check_unsupported_layers(model)
+    def _check_model_is_tf_keras():
+        return type(model).__module__.startswith("tensorflow.python.keras")
 
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
+    is_tf_keras = _check_model_is_tf_keras()
+
+    if not is_tf_keras:
+        # Importing from Keras
+        try:
+            import keras
+        except ImportError:
+            raise ImportError("Keras must be installed")
+        if keras.backend.backend() != 'tensorflow':
+            raise ValueError("Keras frontend currently supports tensorflow backend only.")
+        if keras.backend.image_data_format() != 'channels_last':
+            raise ValueError("Keras frontend currently supports data_format = channels_last only.")
+        expected_model_class = keras.engine.training.Model
+        input_layer_class = keras.engine.InputLayer
+    else:
+        # Importing from Tensorflow Keras (tf.keras)
+        try:
+            from tensorflow import keras as tf_keras
+        except ImportError:
+            raise ImportError("Tensorflow must be installed")
+        expected_model_class = tf_keras.models.Model
+        input_layer_class = tf_keras.layers.InputLayer
+
+    assert isinstance(model, expected_model_class)
+
     etab = ExprTable()
     for keras_layer in model.layers:
-        if isinstance(keras_layer, keras.engine.InputLayer):
+        if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
@@ -784,10 +804,13 @@ def from_keras(model, shape=None):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node_idx, node in enumerate(inbound_nodes):
-                # If some nodes in imported model is not relevant to the current model,
-                # skip such layers. model._network_nodes contains keys of all nodes relevant
-                # to the current model.
-                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                # If some nodes in imported model are not relevant to the current model,
+                # skip such layers.
+                # - In Keras, model._network_nodes contains keys of all nodes relevant to the
+                #   current model;
+                # - In tf.Keras, this is already done as part of tensorflow.keras.network.get_config
+                if not is_tf_keras and \
+                   not model._node_key(keras_layer, node_idx) in model._network_nodes:
                     continue
                 inexpr = []
                 # Since Keras allows creating multiple layers from the same name instance,
@@ -797,7 +820,7 @@ def from_keras(model, shape=None):
                 # they are named uniquely to input_1, input_2, input_3... by default.
                 zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
                 for n_idx, t_idx, inbound_layer in zip_node:
-                    if isinstance(inbound_layer, keras.engine.InputLayer):
+                    if isinstance(inbound_layer, input_layer_class):
                         expr_name = inbound_layer.name
                         _convert_input_layer(inbound_layer)
                     else:
