@@ -146,12 +146,6 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.stmt.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.stmt.Block(tvm.stmt.Evaluate(11),
-                       nop)
-    assert isinstance(x, tvm.stmt.Block)
-    assert x.first.value.value == 11
-    assert x.rest == nop
-
     x = tvm.stmt.AssertStmt(tvm.const(1, "uint1"),
                             tvm.convert("hellow"),
                             nop)
