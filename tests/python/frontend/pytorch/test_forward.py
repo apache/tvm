@@ -152,7 +152,6 @@ def verify_model(model_name, input_data=[]):
     baseline."""
 
     if len(input_data) == 0:
-        print(model_name)
         baseline_model, baseline_input = load_model(model_name)
     else:
         baseline_model = model_name
@@ -203,9 +202,6 @@ def verify_model(model_name, input_data=[]):
                 assert_shapes_match(baseline_output, compiled_relay_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
                                             rtol=1e-3, atol=1e-3)
-
-    from subprocess import call
-    call('rm -rf ~/.torch/models/*', shell=True)
 
 # Single operator tests
 def test_forward_add():
