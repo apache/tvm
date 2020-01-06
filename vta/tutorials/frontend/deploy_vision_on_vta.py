@@ -34,7 +34,7 @@ tensorization in the core) to massage the compute graph for the hardware target.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user mxnet requests pillow
+#   pip3 install --user mxnet requests "Pillow<7"
 #
 # Now return to the python code. Import packages.
 

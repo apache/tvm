@@ -45,7 +45,7 @@ RUN apt-get install -y python3-dev python3-pip
 RUN pip3 install setuptools numpy pytest cython decorator scipy tornado psutil xgboost
 
 RUN echo "Installing Jupyter notebook"
-RUN pip3 install matplotlib Image Pillow jupyter[notebook]
+RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
 
 RUN echo "Installing OpenCL libraries"
 RUN apt-get install -y libviennacl-dev mesa-opencl-icd ocl-icd-opencl-dev clinfo

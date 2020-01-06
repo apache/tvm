@@ -21,7 +21,7 @@
 FROM tvmai/ci-gpu:v0.54
 
 # Jupyter notebook.
-RUN pip3 install matplotlib Image Pillow jupyter[notebook]
+RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
 
 # Build TVM
 COPY install/install_tvm_gpu.sh /install/install_tvm_gpu.sh
