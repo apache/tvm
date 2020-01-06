@@ -25,6 +25,7 @@ from tvm.autotvm.task.topi_integration import deserialize_args
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .. import generic, tag
 from ..generic import conv2d as conv2d_generic
+from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d_NCHWc_int8
 from .. import nn
@@ -92,10 +93,10 @@ def _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, lay
                          "schedule template.".format(layout))
 
     is_kernel_1x1 = kh == 1 and kw == 1
-    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    oh = (h - kh + 2 * ph) // sh + 1
-    ow = (w - kw + 2 * pw) // sw + 1
+    oh = (h - kh + pt + pb) // sh + 1
+    ow = (w - kw + pl + pr) // sw + 1
 
     # Create schedule config
     cfg.define_split('tile_ic', ic, num_outputs=2, filter=lambda y: y.size[-1] % 4 == 0)

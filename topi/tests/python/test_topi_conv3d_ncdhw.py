@@ -90,7 +90,6 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
 
-
 def test_conv3d_ncdhw():
     #3DCNN  workloads
     verify_conv3d_ncdhw(1, 32, 32, 5, 1, 1, 0)
@@ -121,7 +120,6 @@ def test_conv3d_ncdhw():
     verify_conv3d_ncdhw(1, 32, 32, 1, 1, 1, (2, 1, 0))
     verify_conv3d_ncdhw(1, 32, 32, 1, 3, 1, "VALID")
     verify_conv3d_ncdhw(1, 32, 32, 5, 1, 1, "VALID")
-
 
 if __name__ == "__main__":
     test_conv3d_ncdhw()

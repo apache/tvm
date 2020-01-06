@@ -64,15 +64,15 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         KH = KW = alpha + 1 - tile_size
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
-    HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
-    data_pad = nn.pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
+    pt, pl, pb, pr = nn.get_pad_tuple(padding, (KH, KW))
+    data_pad = nn.pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
 
     r = KW
     m = tile_size
     A, B, G = winograd_transform_matrices(m, r, out_dtype)
 
-    H = (H + 2 * HPAD - KH) // HSTR + 1
-    W = (W + 2 * WPAD - KW) // WSTR + 1
+    H = (H + pt + pb - KH) // HSTR + 1
+    W = (W + pl + pr - KW) // WSTR + 1
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 

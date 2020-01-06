@@ -67,7 +67,10 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
         .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                  "on both sides for padding number of points");
+                  "Padding support both symmetric and asymmetric as"
+                  "one int : same padding used on all sides"
+                  "two int : bottom, right will use same padding as top, left"
+                  "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(groups).set_default(1)
@@ -138,7 +141,10 @@ struct Conv2DWinogradAttrs : public tvm::AttrsNode<Conv2DWinogradAttrs> {
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
         .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                  "on both sides for padding number of points");
+                  "Padding support both symmetric and asymmetric as"
+                  "one int : same padding used on all sides"
+                  "two int : bottom, right will use same padding as top, left"
+                  "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(groups).set_default(1)
@@ -288,10 +294,17 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
       .describe("The strides of the convolution.");
     TVM_ATTR_FIELD(output_padding).set_default(Array<IndexExpr>({0, 0}))
-      .describe("Zero-padding added to one side of the output.");
+      .describe("Zero-padding added to one side of the output."
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1}))
       .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(groups).set_default(1)
@@ -817,7 +830,10 @@ struct DeformableConv2DAttrs : public tvm::AttrsNode<DeformableConv2DAttrs> {
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
         .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                  "on both sides for padding number of points");
+                  "Padding support both symmetric and asymmetric as"
+                  "one int : same padding used on all sides"
+                  "two int : bottom, right will use same padding as top, left"
+                  "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(deformable_groups).set_default(1)

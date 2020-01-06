@@ -26,6 +26,7 @@
 #include <tvm/relay/attrs/bitserial.h>
 #include <tvm/relay/op.h>
 
+#include "../op_common.h"
 #include "../../pass/infer_layout_util.h"
 
 namespace tvm {
@@ -134,10 +135,12 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   CHECK(param->channels.defined());
   CHECK(param->kernel_size.defined());
   Array<IndexExpr> oshape({dshape_nchw[0], param->channels, 0, 0});
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   oshape.Set(
-      2, (dshape_nchw[2] + param->padding[0] * 2 - param->kernel_size[0]) / param->strides[0] + 1);
+      2, (dshape_nchw[2] + pad_h - param->kernel_size[0]) / param->strides[0] + 1);
   oshape.Set(
-      3, (dshape_nchw[3] + param->padding[1] * 2 - param->kernel_size[1]) / param->strides[1] + 1);
+      3, (dshape_nchw[3] + pad_w - param->kernel_size[1]) / param->strides[1] + 1);
   DataType out_dtype = param->out_dtype;
   oshape = trans_in_layout.BackwardShape(oshape);
   // assign output type

@@ -372,24 +372,7 @@ def _conv(opname):
             pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
-            if opname != 'conv_transpose':
-                if attr['data_format'] == 'NHWC':
-                    inputs_data = _op.nn.pad(data=inputs_data,
-                                             pad_width=((0, 0),
-                                                        (pad_v[0], pad_v[1]),
-                                                        (pad_h[0], pad_h[1]),
-                                                        (0, 0)))
-                else:
-                    inputs_data = _op.nn.pad(data=inputs_data,
-                                             pad_width=((0, 0),
-                                                        (0, 0),
-                                                        (pad_v[0], pad_v[1]),
-                                                        (pad_h[0], pad_h[1])))
-
-                attr['padding'] = [0, 0]
-            else:
-                attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
-
+            attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' \
                   'valid.'
