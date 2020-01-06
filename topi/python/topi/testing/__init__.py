@@ -24,6 +24,7 @@ from __future__ import absolute_import as _abs
 from .conv2d_hwcn_python import conv2d_hwcn_python
 from .conv2d_nchw_python import conv2d_nchw_python
 from .conv2d_nhwc_python import conv2d_nhwc_python
+from .conv3d_ncdhw_python import conv3d_ncdhw_python
 from .conv2d_transpose_python import conv2d_transpose_nchw_python, conv2d_transpose_nhwc_python
 from .deformable_conv2d_nchw_python import deformable_conv2d_nchw_python
 from .depthwise_conv2d_python import depthwise_conv2d_python_nchw, depthwise_conv2d_python_nhwc
@@ -37,7 +38,7 @@ from .roi_pool_python import roi_pool_nchw_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
 from .gather_nd_python import gather_nd_python
-from .strided_slice_python import strided_slice_python
+from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask

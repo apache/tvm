@@ -32,7 +32,7 @@ def _get_lib_names():
 def _load_lib():
     """Load libary by searching possible path."""
     curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    lib_search = curr_path
+    lib_search = [curr_path, os.path.dirname(curr_path)]
     lib_path = libinfo.find_lib_path(_get_lib_names(), lib_search, optional=True)
     if lib_path is None:
         return None, None
