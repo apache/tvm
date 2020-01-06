@@ -1355,7 +1355,7 @@ def test_forward_fully_connected():
 
 #######################################################################
 # Custom Operators
-# -------
+# ----------------
 
 def test_detection_postprocess():
     tf_model_file = tf_testing.get_workload_official(
