@@ -56,6 +56,11 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       CHECK(is_no_op(n->rest));
       n->rest = body;
       body = Stmt(n);
+    } else if (const auto* seq = s.as<SeqStmtNode>()) {
+      auto n = make_object<SeqStmtNode>(*seq);
+      CHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
+      n->seq.Set(n->size() - 1, body);
+      body = Stmt(n);
     } else if (const auto* assert_ = s.as<AssertStmt>()) {
       auto n = make_object<AssertStmt>(*assert_);
       CHECK(is_no_op(n->body));
@@ -76,15 +81,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
 Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body) {
   for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
     body = MergeNest(*ri, body);
-  }
-  return body;
-}
-
-Stmt MergeSeq(const std::vector<Stmt>& seq) {
-  if (seq.size() == 0) return Evaluate::make(0);
-  Stmt body = seq[0];
-  for (size_t i = 1; i < seq.size(); ++i) {
-    body = Block::make(body, seq[i]);
   }
   return body;
 }

@@ -171,8 +171,8 @@ def test_tensor_compute2():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body.first, tvm.stmt.Evaluate)
-    assert isinstance(stmt.body.body.body.rest.body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body[0], tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body[1].body, tvm.stmt.Evaluate)
 
 def test_tensor_scan():
     m = tvm.var("m")

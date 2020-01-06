@@ -85,11 +85,59 @@ class AttrScopeLifter : public StmtMutator {
         seq[1].same_as(op->rest)) {
       return GetRef<Stmt>(op);
     }
-    return MergeSeq(seq);
+    return SeqStmt::Flatten(seq);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
-    return StmtMutator::VisitSeqStmt_(op, true);
+    // remember the decorations.
+    std::vector<ObjectRef> attr_node;
+    std::vector<Expr> attr_value;
+
+    auto fmutate = [&](const Stmt& s) {
+      attr_node_ = ObjectRef();
+      attr_value_ = Expr();
+      Stmt ret = this->VisitStmt(s);
+      attr_node.push_back(attr_node_);
+      attr_value.push_back(attr_value_);
+      return ret;
+    };
+    Stmt ret = StmtMutator::VisitSeqStmt_(op, true, fmutate);
+    if (attr_node.size() == 0) return ret;
+
+    op = ret.as<SeqStmtNode>();
+    CHECK(op != nullptr);
+    Array<Stmt> reorg;
+    // check if all decorations are common.
+    for (size_t begin = 0; begin < attr_node.size();) {
+      size_t end = begin + 1;
+      while (end < attr_node.size() &&
+             attr_node[end].same_as(attr_node[begin]) &&
+             ValueSame(attr_value[end], attr_value[begin])) {
+        ++end;
+      }
+      // covers everything
+      // lift attr to parent.
+      if (begin == 0 && end == attr_node.size()) {
+        attr_node_ = attr_node[0];
+        attr_value_ = attr_value[0];
+        return ret;
+      }
+      // construct subsegments.
+      Array<Stmt> seq;
+      for (size_t i = begin; i < end; ++i) {
+        seq.push_back(op->seq[i]);
+      }
+      Stmt stmt = SeqStmt::Flatten(seq);
+      if (attr_node[begin].defined()) {
+        stmt = AttrStmt::make(
+            attr_node[begin], attr_key_, attr_value[begin], stmt);
+      }
+      reorg.push_back(stmt);
+      begin = end;
+    }
+    attr_node_ = ObjectRef();
+    attr_value_ = Expr();
+    return SeqStmt::Flatten(reorg);
   }
 
   Stmt VisitStmt_(const IfThenElse* op) final {
@@ -151,7 +199,7 @@ class AttrScopeLifter : public StmtMutator {
     }
   }
 
-  std::vector<Stmt> MutateSeq(const std::vector<Stmt>& seq) {
+  std::vector<Stmt> MutateSeq(const Array<Stmt>& seq) {
     std::vector<Stmt> res_seq;
     ObjectRef curr_node;
     Expr curr_value;
@@ -201,6 +249,7 @@ class AttrScopeLifter : public StmtMutator {
   // value comparison that also compares content of int constant
   static bool ValueSame(const Expr& a, const Expr& b) {
     if (a.same_as(b)) return true;
+    if (!a.defined() || !b.defined()) return false;
     if (a->type_index() != b->type_index()) return false;
     if (a.dtype() != b.dtype()) return false;
     if (const IntImm* op = a.as<IntImm>()) {

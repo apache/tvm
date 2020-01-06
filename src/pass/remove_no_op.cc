@@ -150,7 +150,7 @@ class NoOpRemover : public StmtMutator {
     for (Expr e : values) {
       if (HasSideEffect(e)) {
         if (stmt.defined()) {
-          stmt = Block::make(stmt, Evaluate::make(e));
+          stmt = SeqStmt({stmt, Evaluate::make(e)});
         } else {
           stmt = Evaluate::make(e);
         }

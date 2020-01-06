@@ -120,7 +120,7 @@ class IRBuilder(object):
         seq = self._seq_stack.pop()
         if not seq or callable(seq[-1]):
             seq.append(_make.Evaluate(0))
-        seqwrap = lambda x : x[0] if len(x) == 1 else _stmt.SeqStmt(list(reversed(x)))
+        seqwrap = lambda x: x[0] if len(x) == 1 else _stmt.SeqStmt(list(reversed(x)))
         ret_seq = [seq[-1]]
 
         for s in reversed(seq[:-1]):

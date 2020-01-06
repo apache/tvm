@@ -454,12 +454,11 @@ class VTInjector : public StmtExprMutator {
     // only unroll if number of vthreads are small
     if (max_loop_depth_ == 0 && num_threads_ < 16) {
       // do unrolling if it is inside innermost content.
-      Stmt blk = Substitute(stmt, {{var_, make_zero(var_.dtype())}});
-      for (int i = 1; i < num_threads_; ++i) {
-        blk = Block::make(
-            blk, Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
+      Array<Stmt> seq;
+      for (int i = 0; i < num_threads_; ++i) {
+        seq.push_back(Substitute(stmt, {{var_, make_const(var_.dtype(), i)}}));
       }
-      return blk;
+      return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->dtype);

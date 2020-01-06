@@ -395,16 +395,15 @@ def stmt_seq(*args):
     stmt : Stmt
         The combined statement.
     """
-    return SeqStmt(args)
-
-    """
-    ret = None
+    ret = []
     for value in args:
         if not isinstance(value, Stmt):
             value = Evaluate(value)
-        ret = value if ret is None else Block(ret, value)
-    return ret if ret else Evaluate(0)
-    """
+        ret.append(value)
+    if len(ret) == 1:
+        return ret[0]
+    return SeqStmt(ret)
+
 
 def stmt_list(stmt):
     """Make list of stmt from blocks.

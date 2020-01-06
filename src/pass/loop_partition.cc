@@ -414,16 +414,6 @@ LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
   return std::make_pair(interval, cond_set);
 }
 
-Stmt AppendStmts(const Stmt& a, const Stmt& b) {
-  if (!a.defined()) {
-    return b;
-  } else if (!b.defined()) {
-    return a;
-  } else {
-    return Block::make(a, b);
-  }
-}
-
 /*
  * Tries to recursively partition the range of the variable (given by var) of
  * the for loop (given by node and stmt) into a
@@ -589,8 +579,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
         }
       }
     }
-    s = AppendStmts(pre_stmt, mid_stmt);
-    s = AppendStmts(s, post_stmt);
+    s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
   } else {
     Expr cond = const_true();
     if (!analyzer_.CanProve(body_begin == min)) cond = cond && (var >= body_begin);

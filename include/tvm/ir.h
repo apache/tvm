@@ -1071,8 +1071,8 @@ class SeqStmt : public Stmt {
   /*!
    * \brief Construct a flattened sequence statement.
    *
-   * \note This function can return the element if there
-   *       is only one element in the sequence.
+   * \note This function can directly return an element
+   *       if it is the only element in the sequence.
    * \param seq_args The list of arguments to be flattened.
    * \tparam Args arguments
    * \return The constructed statement
@@ -1092,6 +1092,7 @@ class SeqStmt : public Stmt {
         : seq_(seq) {}
 
     void operator()(size_t i, const Stmt& stmt) const {
+      if (!stmt.defined()) return;
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
       } else if (auto* op = stmt.as<ProducerConsumer>()) {

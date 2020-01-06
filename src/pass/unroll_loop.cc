@@ -166,17 +166,13 @@ class LoopUnroller : public StmtExprMutator {
     if (value == 0) return Evaluate::make(0);
     Stmt body = op->body;
     Map<Var, Expr> vmap;
-    Stmt unrolled;
+    Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
-      if (unrolled.defined()) {
-        unrolled = Block::make(unrolled, step);
-      } else {
-        unrolled = step;
-      }
+      unrolled.push_back(step);
     }
-    return unrolled;
+    return SeqStmt::Flatten(unrolled);
   }
 
  private:

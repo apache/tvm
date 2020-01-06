@@ -337,8 +337,8 @@ void MakeReduction(const ComputeOpNode* op,
     provides.emplace_back(Provide::make(
           t->op, t->value_index, update_value[i], args));
   }
-  *init = Block::make(inits);
-  *provide = Block::make(provides);
+  *init = SeqStmt::Flatten(inits);
+  *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
     *provide = IfThenElse::make(reduce->condition, *provide);
   }
@@ -382,7 +382,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     if (debug_keep_trivial_loop) {
       provide = MergeNest(common, provide);
     } else {
-      provide = MergeNest(common, Block::make(init, provide));
+      provide = MergeNest(common, SeqStmt::Flatten(init, provide));
     }
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
@@ -392,7 +392,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     for (size_t i = 0; i < self->body.size(); ++i) {
       provides.emplace_back(MakeProvide(self, stage->op.output(i)));
     }
-    Stmt provide = Block::make(provides);
+    Stmt provide = SeqStmt::Flatten(provides);
     provide = MergeNest(n.main_nest, provide);
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
