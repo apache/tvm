@@ -847,6 +847,12 @@ class Graph(object):
         # Grab weights, biases, etc. from graph
         state_dict = self._trace.state_dict()
 
+        param_names = []
+        for key, value in state_dict.items():
+            param_str = str(key)
+            param_name = param_str.split('.')[-1]
+            param_names.append(param_name)
+
         # Get names of all inputs
         input_names = [i for i in self._inputs_r.keys()]
 
@@ -866,9 +872,7 @@ class Graph(object):
                     previous_map = node_weight_map[node_arg[:]]
                     node_weight_map[node_name] = previous_map+"."+node_getattr_name
 
-                if node_getattr_name == "weight" or node_getattr_name == "bias" \
-                        or node_getattr_name == "running_mean" \
-                        or node_getattr_name == "running_var":
+                if node_getattr_name in param_names:
 
                     value = state_dict[node_weight_map[node_name]]
                     tensor = tvm.nd.array(value.cpu().numpy())
