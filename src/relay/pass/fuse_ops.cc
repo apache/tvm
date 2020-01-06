@@ -39,7 +39,7 @@ namespace relay {
 /*
   Note on Fusing algorithm:
 
-  The main challenge of genenral fusor is to handle possible diamond shape branches,
+  The main challenge of general fusor is to handle possible diamond shape branches,
   in the following graph, conv2d can be fused to elemwise add.
 
             conv2d
@@ -51,8 +51,9 @@ namespace relay {
           elemwise add
                |
 
-  However, at the point of conv2d we do not necessarily know that all its future path
-  will merge at the elemwise add. The new fusor algorithm applies post-dominator analysis.
+  However, at the point of conv2d we do not necessarily know that all the future paths
+  will merge at the elemwise add. The fusion algorithm applies post-dominator analysis.
+
   The immediate post-dominator of a node defined by the closest node where all the future path goes into.
   In the above case, the elemwise add is the post-dominator of conv2d. The general algorithm is as follows:
 
@@ -67,7 +68,7 @@ namespace relay {
   immediate post dominator. It has to check the following things:
 
   - CheckPath: check all the path between a node and its immediate post-dominator
-               satiesfies the fuse condition.
+               satisfies the fuse condition.
   - Note that these intermediate node can already be fused with another nodes, the algorithm
       will still run correctly.
   - CommitFuse: mark all the nodes between source and post-dominator as the same group.
@@ -84,7 +85,7 @@ static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
  *
- *  This data structure only captures the dataflow fragement and
+ *  This data structure only captures the dataflow fragment and
  *  could ignore blocks like let by simply ordering each dataflow block
  *  and mark the output node as extern_ref;
  */
@@ -287,7 +288,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleGetItemNode* op) final {
     auto tuple_type = op->tuple->checked_type().as<TupleTypeNode>();
     CHECK(tuple_type);
-    // when TVM lowers a fused function, it expects all arguments to be a Tensor or
+    // When TVM lowers a fused function, it expects all arguments to be a Tensor or
     // a tuple containing only Tensors. But this tuple may contain a reference or
     // another tuple. To avoid modifying codegen logic, we do not allow fusing through this node
     // if the tuple contains such non Tensor fields. However, all fields will be recursively
@@ -391,10 +392,10 @@ class DominatorTree {
   /*!
    * \brief compute a post dominator relation for a given dataflow graph.
    * \param arena The arena used for node allocation.
-   * \param graph The graph to be analyze.
+   * \param graph The graph to be analyzed.
    * \return The dominator tree of the graph.
    * \note This algorithm makes use of the fact that graph is DAG,
-   *       and runs a single pass algorithm via LCA.
+   *       and runs a single pass algorithm via LCA (Least Common Ancestor)
    */
   static DominatorTree PostDom(common::Arena* arena,
                                const IndexedForwardGraph& graph);
