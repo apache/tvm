@@ -23,7 +23,8 @@ from ..util import simplify
 from .util import get_pad_tuple1d
 
 
-def conv1d(data, kernel, layout='NCW', stride=1, padding='VALID', pad_method='SYMMETRIC', dilation=1, out_dtype=None):
+@tvm.target.generic_func
+def conv1d(data, kernel, stride=1, padding='VALID', dilation=1, layout='NCW', pad_method='SYMMETRIC', out_dtype=None):
     """ 1D convolution forward operator.
 
     Parameters
@@ -36,22 +37,22 @@ def conv1d(data, kernel, layout='NCW', stride=1, padding='VALID', pad_method='SY
         3-D kernel with shape [num_filter, in_channel, filter_size] for layout == 'NCW'
         and [filter_size, in_channel, num_filter] for layout == 'NWC'
 
-    layout : str
-        How input data is laid out, must be one of ['NCW', 'NWC']
-
     stride : int
         The spatial stride along width
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-        Useful when dealing with Tensorflow and Keras funkiness.
-
     dilation : int
         Dilation rate if convolution should be dilated. 
 
+    layout : str
+        How input data is laid out, must be one of ['NCW', 'NWC']
+
+    pad_method : str
+        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
+        Useful when dealing with Tensorflow and Keras funkiness.
+    
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
@@ -63,13 +64,13 @@ def conv1d(data, kernel, layout='NCW', stride=1, padding='VALID', pad_method='SY
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return conv1d_ncw(data, kernel, stride, padding, pad_method, dilation, out_dtype)
+        return conv1d_ncw(data, kernel, stride, padding, dilation, pad_method, out_dtype)
     elif layout == 'NWC':
-        return conv1d_nwc(data, kernel, stride, padding, pad_method, dilation, out_dtype)
+        return conv1d_nwc(data, kernel, stride, padding, dilation, pad_method, out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 
-def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', dilation=1, out_dtype=None):
+def conv1d_ncw(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='SYMMETRIC', out_dtype=None):
     """ 1D convolution forward operator for NCW layout.
 
     Parameters
@@ -87,11 +88,11 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
         Padding size can be an integer for equal padding,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     dilation : int
         Dilation rate if convolution should be dilated. 
+
+    pad_method : str
+        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
 
     out_dtype : str
         The output data type. If None then output is same type as input.
@@ -132,7 +133,7 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
             axis=[rc, rw]), tag="conv1d_ncw")
 
 
-def conv1d_nwc(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', dilation=1, out_dtype=None):
+def conv1d_nwc(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='SYMMETRIC', out_dtype=None):
     """ 1D convolution forward operator for NWC layout.
 
     Parameters
@@ -150,11 +151,11 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', pad_method='SYMMETRIC', 
         Padding size can be an integer for equal padding,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     dilation : int
         Dilation rate if convolution should be dilated. 
+
+    pad_method : str
+        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
 
     out_dtype : str
         The output data type. If None then output is same type as input.

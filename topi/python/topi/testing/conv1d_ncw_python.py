@@ -44,7 +44,7 @@ def dilate_np(x, dilation):
     return x
 
 
-def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
+def conv1d_ncw_python(a_np, w_np, stride, padding, dilation, pad_method):
     """1D convolution operator in NCW layout
 
     Parameters
@@ -62,11 +62,11 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, pad_method, dilation):
         Single int for padding size or tuple of (left, right) padding
         or a string in ['VALID', 'SAME']
 
-    pad_method : str
-        How to pad data, must be in ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     dilation : int
         Dilation rate of the kernel
+
+    pad_method : str
+        How to pad data, must be in ['SYMMETRIC', 'BEFORE', 'AFTER']
 
     Returns
     -------

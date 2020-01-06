@@ -25,9 +25,16 @@ from topi.util import get_const_tuple
 from common import get_all_backend
 
 
-def verify_conv1d(batch, in_channels, in_width, filters,
-                  kernel_size=3, stride=1, dilation=1,
-                  padding='VALID', pad_method='SYMMETRIC', layout='NCW'):
+def verify_conv1d(batch,
+                  in_channels,
+                  in_width,
+                  filters,
+                  kernel_size=3,
+                  stride=1,
+                  dilation=1,
+                  padding='VALID',
+                  pad_method='SYMMETRIC',
+                  layout='NCW'):
     if layout == 'NCW':
         in_shape = [batch, in_channels, in_width]
         kernel_shape = [filters, in_channels, kernel_size]
@@ -48,8 +55,8 @@ def verify_conv1d(batch, in_channels, in_width, filters,
         else:
             np_in = a_np
             np_w = w_np
-        b_np = topi.testing.conv1d_ncw_python(
-            np_in, np_w, stride, padding, pad_method, dilation)
+        b_np = topi.testing.conv1d_ncw_python(np_in, np_w, stride, padding,
+                                              dilation, pad_method)
         if layout == 'NWC':
             b_np = np.transpose(b_np, [0, 2, 1])
         return a_np, w_np, b_np
@@ -62,8 +69,8 @@ def verify_conv1d(batch, in_channels, in_width, filters,
             print("Skip because %s is not enabled" % device)
             return
         with tvm.target.create(device):
-            B = topi.nn.conv1d(A, W, layout, stride,
-                               padding, pad_method, dilation)
+            B = topi.nn.conv1d(A, W, stride, padding, dilation, layout,
+                               pad_method, 'float32')
             if layout == 'NCW':
                 s = topi.generic.schedule_conv1d_ncw([B])
             else:
@@ -77,12 +84,13 @@ def verify_conv1d(batch, in_channels, in_width, filters,
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in get_all_backend():
+    for device in ['llvm', 'cuda']:#get_all_backend():
         check_device(device)
 
 
 def test_conv1d_transpose():
     verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', "NCW")
+    verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', "NWC")
 
 
 if __name__ == "__main__":
