@@ -179,10 +179,8 @@ def verify_model(model_name):
         trace = trace.cuda()
     else:
         trace = trace.cpu()
-    with TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, 'model.pth')
-        torch.jit.save(trace, path)
-        mod, params = relay.frontend.from_pytorch(path, input_shapes)
+
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 

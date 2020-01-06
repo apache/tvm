@@ -19,7 +19,6 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
-import torch
 import tvm
 
 from .. import analysis as _analysis
@@ -720,11 +719,9 @@ _convert_map = {
 class Graph(object):
     """ A helper class for handling relay graph copying from PyTorch trace. """
 
-    def __init__(self, filename, input_shapes):
+    def __init__(self, trace, input_shapes):
 
-        self._trace = None
-        self._load_model(filename, input_shapes)
-
+        self._trace = trace
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
@@ -820,27 +817,6 @@ class Graph(object):
         param = {k: tvm.nd.array(v) for k, v in self._param_tensors.items()}
 
         return  _module.Module.from_expr(func), param
-
-    def _load_model(self, filename, input_shapes):
-        """ The parser supports PyTorch models which are traceable which includes TorchScript
-        modules.
-        """
-        try:
-            self._trace = torch.jit.load(filename, map_location='cpu').float().eval()
-        except RuntimeError:
-            try:
-                self._trace = torch.load(filename, map_location='cpu').float().eval()
-            except UnpicklingError:
-                raise RuntimeError('Failed to load model')
-        shapes = [input_shapes[k] for k in sorted(input_shapes)]
-        inputs = [torch.zeros(shape).float() for shape in shapes]
-        try:
-            self._trace = torch.jit.trace(self._trace, *inputs).float().eval()
-        except RuntimeError:
-            inputs = [inp.cuda() for inp in inputs]
-            self._trace = torch.jit.trace(self._trace, *inputs).float().eval().cpu()
-            inputs = [inp.cpu() for inp in inputs]
-            self._trace = torch.jit.trace(self._trace, *inputs).float().eval().cpu()
 
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
@@ -1000,7 +976,7 @@ class Graph(object):
 
         return missing_operators
 
-def from_pytorch(filename, input_shapes):
+def from_pytorch(trace, input_shapes):
     """ Load PyTorch model in the form of a trace object into relay.
     The companion parameters will be handled automatically.
 
@@ -1020,6 +996,6 @@ def from_pytorch(filename, input_shapes):
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(filename, input_shapes)
+    g = Graph(trace, input_shapes)
     mod, params = g.from_pytorch()
     return mod, params
