@@ -27,7 +27,7 @@ from .. import expr as _expr
 from .. import module as _module
 from .. import op as _op
 from .common import get_relay_op
-from .common import infer_type as _infer_type
+from .common import infer_shape as _infer_shape
 
 __all__ = ['from_pytorch']
 
@@ -69,12 +69,13 @@ def _slice():
         data = inputs[0]
         strides = []
 
-        inferred_shape = _infer_type(data).checked_type.shape
+        inferred_shape = _infer_shape(data)
         end = []
         for infer in inferred_shape:
             end.append(int(infer))
         if isinstance(data, _expr.Var):
-            end = get_tensor_from_relay_var(data)
+            end = _infer_shape(data)
+            end = list(end)
 
         begin = [0]*len(end)
         dim = int(inputs[1])
@@ -90,7 +91,7 @@ def _slice():
 def _select():
     def _impl(inputs):
         data = inputs[0]
-        inferred_shape = _infer_type(data).checked_type.shape
+        inferred_shape = _infer_shape(data)
         end = []
 
         for infer in inferred_shape:
@@ -116,9 +117,9 @@ def _ones():
         fill_value = _expr.const(1, dtype='float32')
 
         if isinstance(inputs[0], _expr.Var):
-            shape = get_tensor_from_relay_var(inputs[0])
+            shape = _infer_shape(inputs[0])
         elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
-            shape = _infer_type(inputs[0]).checked_type.shape
+            shape = _infer_shape(inputs[0])
         else:
             shape = inputs[0].shape
 
@@ -131,9 +132,9 @@ def _zeros():
         fill_value = _expr.const(0, dtype='float32')
 
         if isinstance(inputs[0], _expr.Var):
-            shape = get_tensor_from_relay_var(inputs[0])
+            shape = _infer_shape(inputs[0])
         elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
-            shape = _infer_type(inputs[0]).checked_type.shape
+            shape = _infer_shape(inputs[0])
         else:
             shape = inputs[0].shape
 
@@ -149,7 +150,7 @@ def _relu():
 def _adaptive_avg_2d():
     def _impl(inputs):
         data = inputs[0]
-        output_size = get_tensor_from_relay_var(inputs[1])
+        output_size = _infer_shape(inputs[1])
 
         return _op.contrib.contrib.adaptive_avg_pool2d(
             data,
@@ -159,7 +160,7 @@ def _adaptive_avg_2d():
 def _adaptive_max_2d():
     def _impl(inputs):
         data = inputs[0]
-        output_size = get_tensor_from_relay_var(inputs[1])
+        output_size = _infer_shape(inputs[1])
 
         return _op.contrib.contrib.adaptive_max_pool2d(
             data,
@@ -170,9 +171,9 @@ def _maxpool_2d():
     def _impl(inputs):
         data = inputs[0]
 
-        pool_size = get_tensor_from_relay_var(inputs[1])
-        strides = get_tensor_from_relay_var(inputs[2])
-        padding = get_tensor_from_relay_var(inputs[3])
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
 
         ceil_mode = int(inputs[5])
 
@@ -203,7 +204,7 @@ def _convolution():
             bias = inputs[2]
 
             if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
-                inferred_shape = _infer_type(weight).checked_type.shape
+                inferred_shape = _infer_shape(weight)
                 weight_shape = []
                 for infer in inferred_shape:
                     weight_shape.append(infer)
@@ -223,7 +224,7 @@ def _convolution():
             bias = inputs[2]
 
             if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
-                inferred_shape = _infer_type(weight).checked_type.shape
+                inferred_shape = _infer_shape(weight)
                 weight_shape = []
                 for infer in inferred_shape:
                     weight_shape.append(infer)
@@ -238,13 +239,13 @@ def _convolution():
             kernel_size = weight_shape[2:]
 
         if isinstance(strides, _expr.Var):
-            strides = get_tensor_from_relay_var(strides)
+            strides = _infer_shape(strides)
 
         if isinstance(padding, _expr.Var):
-            padding = get_tensor_from_relay_var(padding)
+            padding = _infer_shape(padding)
 
         if isinstance(dilation, _expr.Var):
-            dilation = get_tensor_from_relay_var(dilation)
+            dilation = _infer_shape(dilation)
 
         groups = int(inputs[8])
 
@@ -307,7 +308,7 @@ def _batch_norm():
     def _impl(inputs):
         data = inputs[0]
 
-        channels = _infer_type(data).checked_type.shape
+        channels = _infer_shape(data)
 
         if isinstance(inputs[1], _expr.Var) and isinstance(inputs[2], _expr.Var):
             scale = center = True
@@ -349,9 +350,9 @@ def _transpose():
         data = inputs[0]
 
         if isinstance(data, _expr.Var):
-            ndims = len(get_tensor_from_relay_var(data))
+            ndims = len(_infer_shape(data))
         elif isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            ndims = _infer_type(data).checked_type.shape
+            ndims = _infer_shape(data)
         else:
             ndims = data.shape
 
@@ -406,7 +407,7 @@ def _dense():
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
 
-        units = _infer_type(weight_out).checked_type.shape[0]
+        units = _infer_shape(weight_out)[0]
         dense_out = _op.nn.dense(data, weight_out, units=units)
 
         if use_bias:
@@ -420,9 +421,9 @@ def _size():
     def _impl(inputs):
         axis = int(inputs[1])
         if isinstance(inputs[0], _expr.Var):
-            shape = get_tensor_from_relay_var(inputs[0])
+            shape = _infer_shape(inputs[0])
         else:
-            shape = _infer_type(inputs[0]).checked_type.shape
+            shape = _infer_shape(inputs[0])
         return shape[axis]
     return _impl
 
@@ -444,12 +445,12 @@ def _view():
         data = inputs[0]
 
         if len(inputs) == 3:
-            new_shape = [inputs[1], get_tensor_from_relay_var(inputs[2])[0]]
+            new_shape = [inputs[1], _infer_shape(inputs[2])[0]]
         else:
             if isinstance(inputs[1], list):
                 new_shape = inputs[1]
             else:
-                new_shape = get_tensor_from_relay_var(inputs[1])
+                new_shape = _infer_shape(inputs[1])
 
         return _op.transform.reshape(data, new_shape)
     return _impl
@@ -477,9 +478,9 @@ def _avg_pool2d():
     def _impl(inputs):
         data = inputs[0]
 
-        pool_size = get_tensor_from_relay_var(inputs[1])
-        strides = get_tensor_from_relay_var(inputs[2])
-        padding = get_tensor_from_relay_var(inputs[3])
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
 
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
@@ -509,7 +510,7 @@ def _reduce(name):
 def _mean():
     def _impl(inputs):
         data = inputs[0]
-        axis = get_tensor_from_relay_var(inputs[1])
+        axis = _infer_shape(inputs[1])
 
         keepdims = int(inputs[2])
         exclude = int(inputs[3])
@@ -525,9 +526,9 @@ def _chunk():
         axis = int(inputs[2])
 
         if isinstance(data, _expr.Var):
-            inferred_shape = get_tensor_from_relay_var(data)
+            inferred_shape = _infer_shape(data)
         elif isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            inferred_shape = _infer_type(data).checked_type.shape
+            inferred_shape = _infer_shape(data)
 
         shape = []
         for infer in inferred_shape:
@@ -578,12 +579,12 @@ def _expand():
     def _impl(inputs):
         data_in = inputs[0]
         if isinstance(data_in, _expr.Var):
-            shape = get_tensor_from_relay_var(data_in)
+            shape = _infer_shape(data_in)
         elif isinstance(data_in, (_expr.Call, _expr.TupleGetItem)):
-            shape = _infer_type(data_in).checked_type.shape
+            shape = _infer_shape(data_in)
 
         ndims = len(shape)
-        sizes = get_tensor_from_relay_var(inputs[1])
+        sizes = _infer_shape(inputs[1])
         out = inputs[0]
 
         for i in range(ndims):
@@ -635,25 +636,6 @@ def _sqrt():
     return _impl
 
 # Helper functions for operator implementation
-
-# Helper to grab actual tensor from a converted relay var (not sure if there's another way to do it)
-def get_tensor_from_relay_var(relay_var):
-    """ Get tensor by parsing the string of a relay var """
-    # v0.0.4
-    # free_var %v4: Tensor[(1, 1), float32]
-    # %v4
-
-    if 'Tensor' not in str(relay_var):
-        return []
-    temp = str(relay_var).split('Tensor[')[1] #(1, 1), float32]
-    tuple_str = temp.split(', float32')[0] #(1, 1) , float32]
-    tuple_str = tuple_str[1:-1] #1, 1
-
-    tensor = []
-    for i in tuple_str.split(', '):
-        tensor.append(int(i))
-
-    return tensor
 
 def convert_input(data):
     """ Handle input conversion for elemwise op """
