@@ -1069,10 +1069,19 @@ class SeqStmt : public Stmt {
     return (*(operator->()))[index];
   }
   /*!
-   * \brief Construct a flattened sequence statement.
+   * \brief Construct a sequence statement by flattening
+   *        all the arrays and sequences in the arguments
+   *        recursively.
+   *
+   * - When an argument is nullptr, it will be ignored.
+   * - When an argument is an array or a SeqStmt, it will be flattened recursively.
+   * - When an argument is a consumer block in ProducerConsumer, the consumer
+   *   tag will be dropped as such information is not useful in lowering.
+   * - A normal Stmt will be appended to the end of the sequence.
    *
    * \note This function can directly return an element
    *       if it is the only element in the sequence.
+   *
    * \param seq_args The list of arguments to be flattened.
    * \tparam Args arguments
    * \return The constructed statement
@@ -1096,6 +1105,7 @@ class SeqStmt : public Stmt {
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
       } else if (auto* op = stmt.as<ProducerConsumer>()) {
+        // NOTE: The consumer block annotation was not as useful and can be safely dropped.
         if (!op->is_producer) {
           operator()(0, op->body);
         } else {
