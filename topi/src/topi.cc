@@ -72,6 +72,8 @@
 #include <topi/rocm/softmax.h>
 #include <topi/rocm/normalization.h>
 
+#include <topi/detail/tensor_utils.h>
+
 namespace topi {
 
 using namespace tvm;
@@ -738,6 +740,12 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2_normalize")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_l2_normalize(args[0], args[1]);
+  });
+
+/* Utility functions */
+TVM_REGISTER_GLOBAL("topi.util.is_empty_shape")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::detail::is_empty_shape(args[0]);
   });
 
 /*! \brief Builder function for instantiating schedules. */
