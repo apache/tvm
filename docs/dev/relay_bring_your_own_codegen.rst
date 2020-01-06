@@ -22,7 +22,7 @@ Bring Your Own Codegen To TVM
 
 As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge for users to achieve high performance on various devices keeps increasing as well. To free data scientists from worrying about the performance when developing a new model, hardware vendors either provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks such as TensorRT to let users describe their models in a certain way to achieve high performance. However, users have to learn a new programming interface when they attempt to work on a new library or device. As a result, the demand for a unified programming interface becomes more and more important to 1) let all users and hardware vendors stand on the same page, and 2) provide a feasible solution to allow specialized hardware or library to only support widely used operators with extremely high performance, but fallback unsupported operators to general devices like CPU/GPU.
 
-In this develop guide, we demonstrate how a hardware vendor can easily implement your own codegen and register it as a Relay backend compiler to support your hardware device/library. This guide covers two types of codegen based on different graph representations you need:
+In this developer guide, we demonstrate how you, as a hardware vendor, can easily implement your own codegen and register it as a Relay backend compiler to support your hardware device/library. This guide covers two types of codegen based on different graph representations you need:
 
 **1. You want to generate C code.**
 
@@ -30,15 +30,15 @@ If your hardware already has a well-optimized C/C++ library, such as Intel CBLAS
 
 **2. You want to generate any other graph representations.**
 
-Your hardware may require other forms of graph representation, such as JSON. In this case, you need to implement not only a codegen but a customized TVM runtime module to let TVM runtime know how this graph representation should be executed. If you already have a complete graph execution engine for your hardware, such as TensorRT for GPU, then this is a solution you can consider.
+Your hardware may require other forms of graph representation, such as JSON. In this case, you need to implement not only a codegen but also a customized TVM runtime module to let TVM runtime know how this graph representation should be executed. If you already have a complete graph execution engine for your hardware, such as TensorRT for GPU, then this is a solution you can consider.
 
-After you finished the codegen and runtime, you can then let your customers annotate their models with your customized tag to make use of them. The tutorial for end-users to annotate and launch a specific codegen is **here (TBA)**.
+After you finish the codegen and runtime, you can then let your customers annotate their models with your customized tag to make use of them. The tutorial for end-users to annotate and launch a specific codegen is **here (TBA)**.
 
 *********************
 Implement a C Codegen
 *********************
 
-In this part, we demonstrate how to implement a codegen that generates C code with pre-implemented operator functions. To simplify, our example codegen does not depend on third-party libraries. Instead, we manually implement two function macros in C:
+In this part, we demonstrate how to implement a codegen that generates C code with pre-implemented operator functions. To simplify, our example codegen does not depend on third-party libraries. Instead, we manually implement two macros in C:
 
 .. code-block:: c++
 
@@ -250,7 +250,7 @@ To generate the function declaration, as shown above, we need 1) a function name
     macro_stream << ");";
     func_decl_.push_back(macro_stream.str());
 
-As can be seen, we push the generated code to class member variables ``func_decl_``. It means after we finish traversing the entire subgraph, we have collected all required function declarations and the only thing we need to do is writing them out to be compiled. The rest implementations of ``VisitExpr_(const CallNode* call)`` also follow this concept.
+As can be seen, we push the generated code to class member variables ``func_decl_``. It means after we finish traversing the entire subgraph, we have collected all required function declarations and the only thing we need to do is having them compiled by GCC. The rest implementation of ``VisitExpr_(const CallNode* call)`` also follow this concept.
 
 **2. Generate the function call**
 
@@ -287,9 +287,9 @@ Again, we want to highlight the notes in the above code:
       (a) out_ = {}            (b) out_ = {}                   (c) out_ = {("buf_0", 20)}
        
 
-We can see in the above figure, class variable ``out_`` is empty before visiting the argument node, and it was filled with the output buffer name and size of ``arg_node``. AS a result, when we finished visiting the argument node, we know the proper input buffer we should put by looking at ``out_``. You will find out how do we update ``out_`` at the end of this section as well as the next section.
+We can see in the above figure, class variable ``out_`` is empty before visiting the argument node, and it was filled with the output buffer name and size of ``arg_node``. As a result, when we finished visiting the argument node, we know the proper input buffer we should put by looking at ``out_``. You will find out how we update ``out_`` at the end of this section as well as the next section.
 
-**Note 2**: You may notice that we did not close the function call string in this step. The current function call string looks like: ``gcc_0_0(buf_1, gcc_input3``. This is because we have not put the last argument (i.e., the output) to this call. The output of a function call could be either an allocated temporary buffer or the subgraph output tensor. To simplify, in this example, we allocate an output buffer for every call node (next step) and copy the result in the very last buffer to the output tensor.
+**Note 2**: You may notice that we did not close the function call string in this step. The current function call string looks like: ``gcc_0_0(buf_1, gcc_input3``. This is because we have not put the last argument (i.e., the output) to this call. The output of a function call could be either an allocated temporary buffer or the subgraph output tensor. For simplify, in this example, we allocate an output buffer for every call node (next step) and copy the result in the very last buffer to the output tensor.
 
 **3. Generate the output buffer**
 
@@ -327,7 +327,7 @@ After we have allocated the output buffer, we can now close the function call st
 
 **4. Update output buffer**
 
-To let the next node, which accepts the output of the current call node as its input, know which buffer should it take, we need to update the class variable ``out_`` before leaving this visit function:
+To let the next node, which accepts the output of the current call node as its input, know which buffer it should take, we need to update the class variable ``out_`` before leaving this visit function:
 
 .. code-block:: c++
 
