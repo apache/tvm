@@ -25,7 +25,15 @@ from ..util import get_const_tuple, traverse_inline
 
 
 @autotvm.register_topi_compute(nn.conv1d, ['cuda', 'gpu'], ['direct'])
-def conv1d_cuda(cfg, data, kernel, stride, padding, dilation, layout='NCW', pad_method='SYMMETRIC', out_dtype='float32'):
+def conv1d_cuda(cfg,
+                data,
+                kernel,
+                stride,
+                padding,
+                dilation,
+                layout='NCW',
+                pad_method='SYMMETRIC',
+                out_dtype='float32'):
     """ 1D convolution forward operator for cuda backend.
 
     Parameters
@@ -70,13 +78,16 @@ def conv1d_cuda(cfg, data, kernel, stride, padding, dilation, layout='NCW', pad_
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return nn.conv1d_ncw(data, kernel, stride, padding, dilation, pad_method, out_dtype)
+        return nn.conv1d_ncw(data, kernel, stride, padding, dilation,
+                             pad_method, out_dtype)
     elif layout == 'NWC':
-        return nn.conv1d_nwc(data, kernel, stride, padding, dilation, pad_method, out_dtype)
+        return nn.conv1d_nwc(data, kernel, stride, padding, dilation,
+                             pad_method, out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv1d_ncw, ["cuda", "gpu"], ["direct"])
+@autotvm.register_topi_schedule(generic.schedule_conv1d_ncw, ["cuda", "gpu"],
+                                ["direct"])
 def schedule_conv1d_ncw(cfg, outs):
     """TOPI schedule callback of conv1d ncw for cuda gpu
 
@@ -120,7 +131,8 @@ def schedule_conv1d_ncw(cfg, outs):
 
             ##### space definition end #####
 
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op,
+                          tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
@@ -175,15 +187,18 @@ def schedule_conv1d_ncw(cfg, outs):
                 s[load].bind(tz, tvm.thread_axis("threadIdx.y"))
                 s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, 'auto_unroll_max_step',
+                             cfg['auto_unroll_max_step'].val)
+            s[output].pragma(kernel_scope, 'unroll_explicit',
+                             cfg['unroll_explicit'].val)
 
     traverse_inline(s, outs[0].op, _callback)
 
     return s
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv1d_nwc, ["cuda", "gpu"], ["direct"])
+@autotvm.register_topi_schedule(generic.schedule_conv1d_nwc, ["cuda", "gpu"],
+                                ["direct"])
 def schedule_conv1d_nwc(cfg, outs):
     """TOPI schedule callback of conv1d nwc for cuda gpu
 
@@ -227,7 +242,8 @@ def schedule_conv1d_nwc(cfg, outs):
 
             ##### space definition end #####
 
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op,
+                          tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
@@ -282,8 +298,10 @@ def schedule_conv1d_nwc(cfg, outs):
                 s[load].bind(tz, tvm.thread_axis("threadIdx.y"))
                 s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-            s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
-            s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+            s[output].pragma(kernel_scope, 'auto_unroll_max_step',
+                             cfg['auto_unroll_max_step'].val)
+            s[output].pragma(kernel_scope, 'unroll_explicit',
+                             cfg['unroll_explicit'].val)
 
     traverse_inline(s, outs[0].op, _callback)
 

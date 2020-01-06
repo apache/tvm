@@ -24,7 +24,14 @@ from .util import get_pad_tuple1d
 
 
 @tvm.target.generic_func
-def conv1d(data, kernel, stride=1, padding='VALID', dilation=1, layout='NCW', pad_method='SYMMETRIC', out_dtype=None):
+def conv1d(data,
+           kernel,
+           stride=1,
+           padding='VALID',
+           dilation=1,
+           layout='NCW',
+           pad_method='SYMMETRIC',
+           out_dtype=None):
     """ 1D convolution forward operator.
 
     Parameters
@@ -64,13 +71,21 @@ def conv1d(data, kernel, stride=1, padding='VALID', dilation=1, layout='NCW', pa
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return conv1d_ncw(data, kernel, stride, padding, dilation, pad_method, out_dtype)
+        return conv1d_ncw(data, kernel, stride, padding, dilation, pad_method,
+                          out_dtype)
     elif layout == 'NWC':
-        return conv1d_nwc(data, kernel, stride, padding, dilation, pad_method, out_dtype)
+        return conv1d_nwc(data, kernel, stride, padding, dilation, pad_method,
+                          out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 
-def conv1d_ncw(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='SYMMETRIC', out_dtype=None):
+def conv1d_ncw(data,
+               kernel,
+               stride=1,
+               padding='VALID',
+               dilation=1,
+               pad_method='SYMMETRIC',
+               out_dtype=None):
     """ 1D convolution forward operator for NCW layout.
 
     Parameters
@@ -102,10 +117,11 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='
 
     # Compute the output shape
     dilated_kernel_size = (kernel_size - 1) * dilation + 1
-    pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size,))
+    pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // stride +
+        1)
 
     # Apply selected padding
     if pad_method == 'SYMMETRIC':
@@ -127,13 +143,19 @@ def conv1d_ncw(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='
 
     return tvm.compute(
         (batch, out_channels, out_width),
-        lambda b, c, w: tvm.sum(
-            temp[b, rc, w * stride + rw * dilation].astype(out_dtype) *
-            kernel[c, rc, rw].astype(out_dtype),
-            axis=[rc, rw]), tag="conv1d_ncw")
+        lambda b, c, w: tvm.sum(temp[b, rc, w * stride + rw * dilation].astype(
+            out_dtype) * kernel[c, rc, rw].astype(out_dtype),
+                                axis=[rc, rw]),
+        tag="conv1d_ncw")
 
 
-def conv1d_nwc(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='SYMMETRIC', out_dtype=None):
+def conv1d_nwc(data,
+               kernel,
+               stride=1,
+               padding='VALID',
+               dilation=1,
+               pad_method='SYMMETRIC',
+               out_dtype=None):
     """ 1D convolution forward operator for NWC layout.
 
     Parameters
@@ -165,10 +187,11 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='
 
     # Compute the output shape
     dilated_kernel_size = (kernel_size - 1) * dilation + 1
-    pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size,))
+    pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // stride +
+        1)
 
     # Apply selected padding
     if pad_method == 'SYMMETRIC':
@@ -190,7 +213,7 @@ def conv1d_nwc(data, kernel, stride=1, padding='VALID', dilation=1, pad_method='
 
     return tvm.compute(
         (batch, out_width, out_channels),
-        lambda b, w, c: tvm.sum(
-            temp[b, w * stride + rw * dilation, rc].astype(out_dtype) *
-            kernel[rw, rc, c].astype(out_dtype),
-            axis=[rc, rw]), tag="conv1d_nwc")
+        lambda b, w, c: tvm.sum(temp[b, w * stride + rw * dilation, rc].astype(
+            out_dtype) * kernel[rw, rc, c].astype(out_dtype),
+                                axis=[rc, rw]),
+        tag="conv1d_nwc")
