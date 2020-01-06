@@ -91,7 +91,7 @@ IncompleteType IncompleteTypeNode::make(Kind kind) {
 TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 
 TVM_REGISTER_GLOBAL("relay._make.IncompleteType")
-.set_body_typed<IncompleteType(int)>([](int kind) {
+.set_body_typed([](int kind) {
     return IncompleteTypeNode::make(static_cast<Kind>(kind));
   });
 
@@ -161,8 +161,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_REGISTER_GLOBAL("relay._make.Any")
-.set_body_typed<IndexExpr()>([]() { return Any::make(); });
-
+.set_body_typed([]() { return Any::make(); });
 
 }  // namespace relay
 }  // namespace tvm

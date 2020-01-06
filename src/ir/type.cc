@@ -37,7 +37,7 @@ TypeVar TypeVarNode::make(std::string name, TypeKind kind) {
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_GLOBAL("relay._make.TypeVar")
-.set_body_typed<TypeVar(std::string, int)>([](std::string name, int kind) {
+.set_body_typed([](std::string name, int kind) {
   return TypeVarNode::make(name, static_cast<TypeKind>(kind));
 });
 
@@ -58,7 +58,7 @@ GlobalTypeVar GlobalTypeVarNode::make(std::string name, TypeKind kind) {
 TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 
 TVM_REGISTER_GLOBAL("relay._make.GlobalTypeVar")
-.set_body_typed<GlobalTypeVar(std::string, int)>([](std::string name, int kind) {
+.set_body_typed([](std::string name, int kind) {
   return GlobalTypeVarNode::make(name, static_cast<TypeKind>(kind));
 });
 

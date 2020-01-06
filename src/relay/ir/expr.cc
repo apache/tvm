@@ -167,7 +167,7 @@ Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) cons
 }
 
 TVM_REGISTER_GLOBAL("relay._expr.FunctionSetParams")
-.set_body_typed<Function(const Function&, const tvm::Map<Var, Constant>&)>(
+.set_body_typed(
   [](const Function& func, const tvm::Map<Var, Constant>& parameters) {
     return func->SetParams(parameters);
 });
@@ -178,7 +178,7 @@ tvm::Map<Var, Constant> FunctionNode::GetParams() const {
 }
 
 TVM_REGISTER_GLOBAL("relay._expr.FunctionGetParams")
-.set_body_typed<tvm::Map<Var, Constant>(const Function&)>([](const Function& func) {
+.set_body_typed([](const Function& func) {
   return func->GetParams();
 });
 
@@ -367,12 +367,12 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_REGISTER_GLOBAL("relay._expr.TempExprRealize")
-.set_body_typed<Expr(TempExpr)>([](TempExpr temp) {
+.set_body_typed([](TempExpr temp) {
   return temp->Realize();
 });
 
 TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
-.set_body_typed<Function(Function, std::string, ObjectRef)>(
+.set_body_typed(
   [](Function func, std::string name, ObjectRef ref) {
     return FunctionSetAttr(func, name, ref);
 });

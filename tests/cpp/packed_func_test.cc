@@ -179,6 +179,24 @@ TEST(TypedPackedFunc, HighOrder) {
   CHECK_EQ(f1(3), 4);
 }
 
+TEST(TypedPackedFunc, Deduce) {
+  using namespace tvm::runtime;
+  using tvm::runtime::detail::function_signature;
+
+  TypedPackedFunc<int(float)> x;
+  auto f = [](int x) -> int {
+    return x + 1;
+  };
+  std::function<void(float)> y;
+
+  static_assert(std::is_same<function_signature<decltype(x)>::FType,
+                int(float)>::value, "invariant1");
+  static_assert(std::is_same<function_signature<decltype(f)>::FType,
+                int(int)>::value, "invariant2");
+  static_assert(std::is_same<function_signature<decltype(y)>::FType,
+                void(float)>::value, "invariant3");
+}
+
 
 TEST(PackedFunc, ObjectConversion) {
   using namespace tvm;

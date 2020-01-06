@@ -63,19 +63,18 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
  *
  * \param OpName the name of registry.
  */
-#define QNN_REGISTER_BINARY_OP(OpName)                                                     \
-  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                                           \
-    .set_body_typed<Expr(Expr, Expr, Expr, Expr, Expr, Expr, Expr, Expr)>(                 \
-        [](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale,        \
-           Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) {               \
-          static const Op& op = Op::Get("qnn." OpName);                                    \
-          return CallNode::make(op, {lhs, rhs,                                             \
-                                     lhs_scale, lhs_zero_point,                            \
-                                     rhs_scale, rhs_zero_point,                            \
-                                     output_scale, output_zero_point}, Attrs(), {});       \
-        });                                                                                \
-  RELAY_REGISTER_OP("qnn." OpName)                                                         \
-    .set_num_inputs(8)                                                                     \
+#define QNN_REGISTER_BINARY_OP(OpName)                                  \
+  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                     \
+  .set_body_typed([](Expr lhs, Expr rhs, Expr lhs_scale, Expr lhs_zero_point, Expr rhs_scale, \
+                     Expr rhs_zero_point, Expr output_scale, Expr output_zero_point) { \
+    static const Op& op = Op::Get("qnn." OpName);                       \
+    return CallNode::make(op, {lhs, rhs,                                \
+                               lhs_scale, lhs_zero_point,               \
+                               rhs_scale, rhs_zero_point,               \
+                               output_scale, output_zero_point}, Attrs(), {}); \
+  });                                                                   \
+  RELAY_REGISTER_OP("qnn." OpName)                                      \
+  .set_num_inputs(8)                                                    \
     .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                 \
     .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                \
     .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                   \

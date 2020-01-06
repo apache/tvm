@@ -795,7 +795,7 @@ TVM_REGISTER_GLOBAL("relay._vm.GetPrimitiveFields")
 });
 
 TVM_REGISTER_GLOBAL("relay._vm.Load_Executable")
-.set_body_typed<runtime::Module(std::string, runtime::Module)>([](
+.set_body_typed([](
     std::string code,
     runtime::Module lib) {
   return Executable::Load(code, lib);

@@ -106,7 +106,7 @@ void ErrorTest(int x, int y) {
 }
 
 TVM_REGISTER_GLOBAL("_ErrorTest")
-.set_body_typed<void(int, int)>(ErrorTest);
+.set_body_typed(ErrorTest);
 
 // internal function used for debug and testing purposes
 TVM_REGISTER_GLOBAL("_ndarray_use_count")

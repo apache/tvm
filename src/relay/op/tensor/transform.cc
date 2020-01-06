@@ -858,7 +858,7 @@ bool ArgWhereRel(const Array<Type>& types,
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.argwhere")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+.set_body_typed([](Expr data) {
   static const Op& op = Op::Get("argwhere");
   auto attrs = make_object<ArgWhereAttrs>();
   return CallNode::make(op, {data}, Attrs(attrs), {});

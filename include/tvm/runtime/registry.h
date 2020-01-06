@@ -46,6 +46,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -66,28 +67,7 @@ class Registry {
     return set_body(PackedFunc(f));
   }
   /*!
-   * \brief set the body of the function to be TypedPackedFunc.
-   *
-   * \code
-   *
-   * TVM_REGISTER_GLOBAL("addone")
-   * .set_body_typed<int(int)>([](int x) { return x + 1; });
-   *
-   * \endcode
-   *
-   * \param f The body of the function.
-   * \tparam FType the signature of the function.
-   * \tparam FLambda The type of f.
-   */
-  template<typename FType, typename FLambda>
-  Registry& set_body_typed(FLambda f) {
-    return set_body(TypedPackedFunc<FType>(f).packed());
-  }
-
-  /*!
-   * \brief set the body of the function to the given function pointer.
-   *        Note that this doesn't work with lambdas, you need to
-   *        explicitly give a type for those.
+   * \brief set the body of the function to the given function.
    *        Note that this will ignore default arg values and always require all arguments to be provided.
    *
    * \code
@@ -99,17 +79,20 @@ class Registry {
    * TVM_REGISTER_GLOBAL("multiply")
    * .set_body_typed(multiply); // will have type int(int, int)
    *
+   * // will have type int(int, int)
+   * TVM_REGISTER_GLOBAL("sub")
+   * .set_body_typed([](int a, int b) -> int { return a - b; });
+   *
    * \endcode
    *
    * \param f The function to forward to.
-   * \tparam R the return type of the function (inferred).
-   * \tparam Args the argument types of the function (inferred).
+   * \tparam FLambda The signature of the function.
    */
-  template<typename R, typename ...Args>
-  Registry& set_body_typed(R (*f)(Args...)) {
-    return set_body(TypedPackedFunc<R(Args...)>(f));
+  template<typename FLambda>
+  Registry& set_body_typed(FLambda f) {
+    using FType = typename detail::function_signature<FLambda>::FType;
+    return set_body(TypedPackedFunc<FType>(std::move(f)).packed());
   }
-
   /*!
    * \brief set the body of the function to be the passed method pointer.
    *        Note that this will ignore default arg values and always require all arguments to be provided.
@@ -132,10 +115,11 @@ class Registry {
    */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
-    return set_body_typed<R(T, Args...)>([f](T target, Args... params) -> R {
+    auto fwrap =[f](T target, Args... params) -> R {
       // call method pointer
       return (target.*f)(params...);
-    });
+    };
+    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap));
   }
 
   /*!
@@ -160,10 +144,11 @@ class Registry {
    */
   template<typename T, typename R, typename ...Args>
   Registry& set_body_method(R (T::*f)(Args...) const) {
-    return set_body_typed<R(T, Args...)>([f](const T target, Args... params) -> R {
+    auto fwrap = [f](const T target, Args... params) -> R {
       // call method pointer
       return (target.*f)(params...);
-    });
+    };
+    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap));
   }
 
   /*!
@@ -199,11 +184,12 @@ class Registry {
   template<typename TObjectRef, typename TNode, typename R, typename ...Args,
     typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...)) {
-    return set_body_typed<R(TObjectRef, Args...)>([f](TObjectRef ref, Args... params) {
+    auto fwrap = [f](TObjectRef ref, Args... params) {
       TNode* target = ref.operator->();
       // call method pointer
       return (target->*f)(params...);
-    });
+    };
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
   }
 
   /*!
@@ -239,11 +225,12 @@ class Registry {
   template<typename TObjectRef, typename TNode, typename R, typename ...Args,
     typename = typename std::enable_if<std::is_base_of<ObjectRef, TObjectRef>::value>::type>
   Registry& set_body_method(R (TNode::*f)(Args...) const) {
-    return set_body_typed<R(TObjectRef, Args...)>([f](TObjectRef ref, Args... params) {
+    auto fwrap = [f](TObjectRef ref, Args... params) {
       const TNode* target = ref.operator->();
       // call method pointer
       return (target->*f)(params...);
-    });
+    };
+    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap));
   }
 
   /*!
