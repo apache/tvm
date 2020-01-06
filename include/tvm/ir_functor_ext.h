@@ -253,7 +253,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const Provide* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Realize* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Prefetch* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const Block* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Evaluate* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args ...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
@@ -276,7 +276,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(Provide);
     IR_STMT_FUNCTOR_DISPATCH(Realize);
     IR_STMT_FUNCTOR_DISPATCH(Prefetch);
-    IR_STMT_FUNCTOR_DISPATCH(Block);
+    IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(Evaluate);
     return vtable;
   }
@@ -408,7 +408,7 @@ class TVM_DLL StmtVisitor :
   void VisitStmt_(const Provide* op) override;
   void VisitStmt_(const Realize* op) override;
   void VisitStmt_(const Prefetch* op) override;
-  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const Evaluate* op) override;
 };
 
@@ -502,8 +502,23 @@ class TVM_DLL StmtMutator :
   Stmt VisitStmt_(const Provide* op) override;
   Stmt VisitStmt_(const Realize* op) override;
   Stmt VisitStmt_(const Prefetch* op) override;
-  Stmt VisitStmt_(const Block* op) override;
+  Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const Evaluate* op) override;
+  /*!
+   * \brief Alternative advance method for SeqStmtNode.
+   *
+   *  This function can be called when a child class override
+   *  VisitStmt_(const SeqStmtNode*) to introduce
+   *  the special behavior to visit
+   *
+   * \param op The sequence.
+   * \param flatten_before_visit Whether to flatten the sequence before visit.
+   * \param fmutate The mutate function, can be nullptr, which defaults to Visit.
+   * \return The mutated result.
+   */
+  Stmt VisitSeqStmt_(const SeqStmtNode* op,
+                     bool flatten_before_visit,
+                     std::function<Stmt(const Stmt&)> fmutate = nullptr);
   // internal helper.
   class Internal;
 };

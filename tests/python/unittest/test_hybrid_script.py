@@ -123,12 +123,12 @@ def test_outer_product():
     assert ibody.extent.name == 'm'
     #Check loop body
     jblock = ibody.body
-    assert isinstance(jblock, tvm.stmt.Block)
-    jbody = jblock.first
+    assert isinstance(jblock, tvm.stmt.SeqStmt)
+    jbody = jblock[0]
     assert isinstance(jbody, tvm.stmt.AssertStmt)
     assert isinstance(jbody.message, tvm.expr.StringImm)
     assert jbody.message.value == "index out of range!"
-    jbody = jblock.rest
+    jbody = jblock[1]
     assert isinstance(jbody, tvm.stmt.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2
@@ -191,12 +191,12 @@ def test_fanout():
     assert abody.func.name == 'sigma'
     #Check i loop body
     rbody = abody.body
-    assert isinstance(rbody.first, tvm.stmt.Provide)
-    assert rbody.first.func.name == 'sigma'
-    assert len(rbody.first.args) == 1
-    assert rbody.first.args[0].value == 0
+    assert isinstance(rbody[0], tvm.stmt.Provide)
+    assert rbody[0].func.name == 'sigma'
+    assert len(rbody[0].args) == 1
+    assert rbody[0].args[0].value == 0
     #Check fanout loop
-    jloop = rbody.rest.first
+    jloop = rbody[1]
     assert jloop.loop_var.name == 'j'
     assert jloop.min.value == 0
     assert jloop.extent.value == 3
@@ -214,7 +214,7 @@ def test_fanout():
     assert value.b.name == 'a'
     assert len(value.b.args) == 1
     assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
-    divide= rbody.rest.rest.first
+    divide= rbody[2]
     assert isinstance(divide, tvm.stmt.Provide)
     assert len(divide.args) == 1
     assert divide.args[0].value == 0
@@ -224,7 +224,7 @@ def test_fanout():
     assert len(value.a.args) == 1
     assert value.a.args[0].value == 0
     assert abs(value.b.value - (1 / 3.0)) < 1e-5
-    write = rbody.rest.rest.rest
+    write = rbody[3]
     assert isinstance(write, tvm.stmt.Provide)
     assert write.func.name == 'b'
     assert write.value.name == 'sigma'
@@ -257,9 +257,9 @@ def test_looptype():
         ir = d.op.body
     except:
         return
-    iloop = ir.first
-    jloop = ir.rest.first
-    kloop = ir.rest.rest
+    iloop = ir[0]
+    jloop = ir[1]
+    kloop = ir[2]
     assert iloop.for_type == tvm.stmt.For.Parallel
     assert jloop.for_type == tvm.stmt.For.Vectorized
     assert kloop.for_type == tvm.stmt.For.Unrolled
@@ -802,7 +802,7 @@ def test_array_inputs():
     inputs = []
     for i in range(n):
         inputs.append(tvm.placeholder((10,), name='t%s' % i, dtype='float32'))
-    
+
     out = sum_array(tvm.convert(inputs))
     assert len(out.op.inputs) == n
 

@@ -93,15 +93,35 @@ class NoOpRemover : public StmtMutator {
     if (HasSideEffect(op->value)) return GetRef<Stmt>(op);
     return Evaluate::make(0);
   }
-  Stmt VisitStmt_(const Block* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<Block>();
-    if (is_no_op(op->first)) {
-      return op->rest;
-    } else if (is_no_op(op->rest)) {
-      return op->first;
+
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    Stmt ret = StmtMutator::VisitSeqStmt_(op, true);
+    op = ret.as<SeqStmtNode>();
+    CHECK(op != nullptr);
+    bool need_compact = false;
+    for (size_t i = 0; i < op->size(); ++i) {
+      if (is_no_op(op->seq[i])) need_compact = true;
+    }
+    if (need_compact) {
+      auto n = CopyOnWrite(op);
+      size_t top = 0;
+      for (size_t i = 0; i < n->seq.size(); ++i) {
+        if (!is_no_op(n->seq[i]))  {
+          n->seq.Set(top++, n->seq[i]);
+        }
+      }
+      if (top == 1) {
+        return n->seq[0];
+      } else {
+        n->seq.resize(top);
+        return Stmt(n);
+      }
     } else {
-      return stmt;
+      if (op->size() == 1) {
+        return op->seq[0];
+      } else {
+        return ret;
+      }
     }
   }
 
@@ -118,7 +138,7 @@ class NoOpRemover : public StmtMutator {
     for (Expr e : values) {
       if (HasSideEffect(e)) {
         if (stmt.defined()) {
-          stmt = Block::make(stmt, Evaluate::make(e));
+          stmt = SeqStmt({stmt, Evaluate::make(e)});
         } else {
           stmt = Evaluate::make(e);
         }

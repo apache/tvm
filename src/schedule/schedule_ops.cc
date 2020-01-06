@@ -53,7 +53,7 @@ Stmt MakePipeline(const Stage& s,
 
   if (consumer.defined() && !is_no_op(consumer)) {
     consumer = ProducerConsumer::make(s->op, false, consumer);
-    pipeline = Block::make(producer, consumer);
+    pipeline = SeqStmt({producer, consumer});
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.

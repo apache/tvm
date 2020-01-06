@@ -242,7 +242,7 @@ Stmt TensorComputeOpNode::BuildProvide(
       update = MergeNest(binder.asserts(), update);
       update = op::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
-      return MergeNest(common, Block::make(init, update));
+      return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
       // When init op is not available, use body op for reset in the first iter.
       CHECK(this->intrin->body.defined())

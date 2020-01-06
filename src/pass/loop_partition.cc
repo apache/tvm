@@ -106,14 +106,16 @@ class CandidateSelector final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const Block* op) final {
-    bool temp = no_split_;
-    this->VisitStmt(op->first);
-    // erase the no split state of first when visit rest.
-    std::swap(temp, no_split_);
-    this->VisitStmt(op->rest);
-    // restore the no split flag.
-    no_split_ = no_split_ || temp;
+  void VisitStmt_(const SeqStmtNode* op) final {
+    bool init_no_split = no_split_;
+    for (Stmt stmt : op->seq) {
+      // erase the no split state of before visiting the next one.
+      bool temp = init_no_split;
+      std::swap(temp, no_split_);
+      this->VisitStmt(stmt);
+      // restore the no split flag.
+      no_split_ = no_split_ || temp;
+    }
   }
 
   void VisitExpr_(const Call* op) final {
@@ -402,16 +404,6 @@ LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
   return std::make_pair(interval, cond_set);
 }
 
-Stmt AppendStmts(const Stmt& a, const Stmt& b) {
-  if (!a.defined()) {
-    return b;
-  } else if (!b.defined()) {
-    return a;
-  } else {
-    return Block::make(a, b);
-  }
-}
-
 /*
  * Tries to recursively partition the range of the variable (given by var) of
  * the for loop (given by node and stmt) into a
@@ -577,8 +569,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
         }
       }
     }
-    s = AppendStmts(pre_stmt, mid_stmt);
-    s = AppendStmts(s, post_stmt);
+    s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
   } else {
     Expr cond = const_true();
     if (!analyzer_.CanProve(body_begin == min)) cond = cond && (var >= body_begin);

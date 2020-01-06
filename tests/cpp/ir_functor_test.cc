@@ -155,6 +155,9 @@ TEST(IRF, StmtMutator) {
     Expr VisitExpr_(const Add* op) final {
       return op->a;
     }
+    Stmt VisitStmt_(const SeqStmtNode* op) final {
+      return StmtMutator::VisitSeqStmt_(op, true);
+    }
     Expr VisitExpr(const Expr& expr) final {
       return ExprMutator::VisitExpr(expr);
     }
@@ -218,6 +221,35 @@ TEST(IRF, StmtMutator) {
     auto body = Evaluate::make(Call::make(DataType::Int(32), "xyz", {x + 1}, Call::Extern));
     auto res = v(std::move(body));
     CHECK(res.as<Evaluate>()->value.as<Call>()->args[0].same_as(x));
+  }
+  {
+    auto body = fmakealloc();
+    Stmt body2 = Evaluate::make(1);
+    auto* ref2 = body2.get();
+    auto* extentptr = body.as<Allocate>()->extents.get();
+    // construct a recursive SeqStmt.
+    body = SeqStmt({body});
+    body = SeqStmt({body, body2});
+    body = SeqStmt({body, body2});
+    body = v(std::move(body));
+    // the seq get flattened
+    CHECK(body.as<SeqStmtNode>()->size() == 3);
+    CHECK(body.as<SeqStmtNode>()->seq[0].as<Allocate>()->extents.get() == extentptr);
+    CHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
+  }
+
+  {
+    // Cannot cow because of bref
+    auto body = fmakealloc();
+    Stmt body2 = Evaluate::make(1);
+    auto* extentptr = body.as<Allocate>()->extents.get();
+    // construct a recursive SeqStmt.
+    body = SeqStmt({body});
+    auto bref = body;
+    body = SeqStmt({body, body2});
+    body = v(std::move(body));
+    // the seq get flattened
+    CHECK(body.as<SeqStmtNode>()->seq[0].as<Allocate>()->extents.get() != extentptr);
   }
 }
 

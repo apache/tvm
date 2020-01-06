@@ -1022,25 +1022,112 @@ class Realize : public StmtNode {
 };
 
 /*!
- * \brief A sequence of statements.
+ * \brief The container of seq statement.
+ *        Represent a sequence of statements.
  */
-class Block : public StmtNode {
+class SeqStmtNode : public StmtNode {
  public:
-  /*! \brief The first statement. */
-  Stmt first;
-  /*! \brief The restof statments. */
-  Stmt rest;
+  /*! \brief internal sequence content. */
+  Array<Stmt> seq;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("first", &first);
-    v->Visit("rest", &rest);
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return seq.size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return seq[index];
   }
 
-  TVM_DLL static Stmt make(Stmt first, Stmt rest);
-  TVM_DLL static Stmt make(const std::vector<Stmt> &stmts);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("seq", &seq);
+  }
 
-  static constexpr const char* _type_key = "Block";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Block, StmtNode);
+  static constexpr const char* _type_key = "SeqStmt";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
+};
+
+/*! \brief Sequence statement. */
+class SeqStmt : public Stmt {
+ public:
+  /*!
+   * \brief Construct SeqStmt.
+   * \param seq The sequence.
+   */
+  TVM_DLL explicit SeqStmt(Array<Stmt> seq);
+
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return operator->()->size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return (*(operator->()))[index];
+  }
+  /*!
+   * \brief Construct a sequence statement by flattening
+   *        all the arrays and sequences in the arguments
+   *        recursively.
+   *
+   * - When an argument is nullptr, it will be ignored.
+   * - When an argument is an array or a SeqStmt, it will be flattened recursively.
+   * - When an argument is a consumer block in ProducerConsumer, the consumer
+   *   tag will be dropped as such information is not useful in lowering.
+   * - A normal Stmt will be appended to the end of the sequence.
+   *
+   * \note This function can directly return an element
+   *       if it is the only element in the sequence.
+   *
+   * \param seq_args The list of arguments to be flattened.
+   * \tparam Args arguments
+   * \return The constructed statement
+   */
+  template<typename ...Args>
+  static Stmt Flatten(Args&&... seq_args) {
+    Array<Stmt> seq;
+    runtime::detail::for_each(
+        Flattener(&seq), std::forward<Args>(seq_args)...);
+    if (seq.size() == 1) return seq[0];
+    return SeqStmt(seq);
+  }
+  /*! \brief Helper class to flatten sequence of arguments into Array. */
+  class Flattener {
+   public:
+    explicit Flattener(Array<Stmt>* seq)
+        : seq_(seq) {}
+
+    void operator()(size_t i, const Stmt& stmt) const {
+      if (!stmt.defined()) return;
+      if (auto* op = stmt.as<SeqStmtNode>()) {
+        operator()(0, op->seq);
+      } else if (auto* op = stmt.as<ProducerConsumer>()) {
+        // NOTE: The consumer block annotation was not as useful and can be safely dropped.
+        if (!op->is_producer) {
+          operator()(0, op->body);
+        } else {
+          seq_->push_back(stmt);
+        }
+      } else {
+        seq_->push_back(stmt);
+      }
+    }
+
+    template<typename T>
+    void operator()(size_t i, const T& seq) const {
+      for (auto v : seq) {
+        this->operator()(0, v);
+      }
+    }
+
+   private:
+    Array<Stmt>* seq_;
+  };
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
 };
 
 /*!

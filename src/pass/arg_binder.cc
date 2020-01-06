@@ -240,7 +240,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
           AssertStmt::make(arith::ComputeReduce<ir::And>(conds, Expr()),
                            stride_err_msg.str(), Evaluate::make(0));
       check = IfThenElse::make(Not::make(is_null), check, Stmt());
-      asserts_.emplace_back(Block::make(check, Evaluate::make(0)));
+      asserts_.emplace_back(SeqStmt({check, Evaluate::make(0)}));
     }
   } else if (buffer->buffer_type == kAutoBroadcast) {
     DataType stype = buffer->DefaultIndexType();

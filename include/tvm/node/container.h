@@ -272,6 +272,14 @@ class Array : public ObjectRef {
     n->data.push_back(item);
   }
   /*!
+   * \brief Resize the array.
+   * \param size The new size.
+   */
+  inline void resize(size_t size) {
+    ArrayNode* n = this->CopyOnWrite();
+    n->data.resize(size);
+  }
+  /*!
    * \brief set i-th element of the array.
    * \param i The index
    * \param value The value to be setted.

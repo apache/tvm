@@ -48,13 +48,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body);
 Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body);
 
 /*!
- * \brief combine sequence of operations.
- * \param seq The sequence.
- * \return The combined Stmt
- */
-Stmt MergeSeq(const std::vector<Stmt>& seq);
-
-/*!
  * \brief update array with an unary function
  * \param arr array
  * \param fupdate an unary function

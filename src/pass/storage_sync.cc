@@ -216,7 +216,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
-      ret = Block::make(barrier, ret);
+      ret = SeqStmt({barrier, ret});
       return ret;
     } else {
       return StmtExprMutator::VisitStmt(stmt);
@@ -313,10 +313,10 @@ class ThreadSyncInserter : public StmtExprMutator {
     rw_stats_.clear();
     Stmt kinit = Evaluate::make(
         Call::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
-    body = Block::make(kinit, body);
+    body = SeqStmt({kinit, body});
     body = AttrStmt::make(
         op->node, op->attr_key, op->value, body);
-    return Block::make(prep, body);
+    return SeqStmt({prep, body});
   }
   Stmt MakeGlobalBarrier() {
     CHECK(sync_scope_.rank == StorageRank::kGlobal);

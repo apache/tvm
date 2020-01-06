@@ -147,7 +147,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         }
         Stmt loop = For::make(
             outer_var, zero, outer_ext, old_loop->for_type, old_loop->device_api,
-            MergeSeq(loop_seq));
+            SeqStmt::Flatten(loop_seq));
         // tail
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite()(old_loop->body);
@@ -158,9 +158,9 @@ class DoubleBufferInjector : public StmtExprMutator {
               IfThenElse::make(idx < old_loop->extent,
                                Substitute(tail_body, vmap)));
         }
-        stmt = Block::make(loop, MergeSeq(tail_seq));
+        stmt = SeqStmt::Flatten(loop, tail_seq);
       }
-      stmt = Block::make(MergeSeq(it->second), stmt);
+      stmt = SeqStmt::Flatten(it->second, stmt);
     }
     it = loop_allocs_.find(op);
     if (it != loop_allocs_.end()) {

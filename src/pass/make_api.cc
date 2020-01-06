@@ -189,7 +189,7 @@ LoweredFunc MakeAPI(Stmt body,
             DataType::Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));
-    body = Block::make(set_device, body);
+    body = SeqStmt({set_device, body});
   }
   n->body = MergeNest(
       {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);

@@ -120,26 +120,21 @@ class LoopUnroller : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Block* op) final {
-    Stmt first = this->VisitStmt(op->first);
-    // cleanup state
-    int step_count = step_count_;
-    int unroll_depth = unroll_depth_;
-    int normal_loop_depth = normal_loop_depth_;
-    step_count_ = 0;
-    unroll_depth_ = 0;
-    normal_loop_depth_ = 0;
-    // work on rest part
-    Stmt rest = this->VisitStmt(op->rest);
-    step_count_ += step_count;
-    normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
-    unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return GetRef<Stmt>(op);
-    } else {
-      return Block::make(first, rest);
-    }
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    auto fmutate = [this](const Stmt& s) {
+      int step_count = step_count_;
+      int unroll_depth = unroll_depth_;
+      int normal_loop_depth = normal_loop_depth_;
+      step_count_ = 0;
+      unroll_depth_ = 0;
+      normal_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      step_count_ += step_count;
+      normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
+      unroll_depth_ = std::max(unroll_depth_, unroll_depth);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
 
   Stmt Unroll(const For* op) {
@@ -149,17 +144,13 @@ class LoopUnroller : public StmtExprMutator {
     if (value == 0) return Evaluate::make(0);
     Stmt body = op->body;
     Map<Var, Expr> vmap;
-    Stmt unrolled;
+    Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
-      if (unrolled.defined()) {
-        unrolled = Block::make(unrolled, step);
-      } else {
-        unrolled = step;
-      }
+      unrolled.push_back(step);
     }
-    return unrolled;
+    return SeqStmt::Flatten(unrolled);
   }
 
  private:

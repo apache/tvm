@@ -405,22 +405,22 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
   }
 }
 
-void CodeGenC::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const IntImm* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const UIntImm* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenC::VisitExpr_(const FloatImm* op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenC::VisitExpr_(const StringImm* op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
 template<typename T>
 inline void PrintBinaryExpr(const T* op,
-                            const char *opstr,
+                            const char* opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenC* p) {
   if (op->dtype.lanes() == 1) {
@@ -443,7 +443,7 @@ inline void PrintBinaryExpr(const T* op,
 }
 
 inline void PrintBinaryIntrinsic(const Call* op,
-                                  const char *opstr,
+                                  const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenC* p) {
   if (op->dtype.lanes() == 1) {
@@ -457,65 +457,65 @@ inline void PrintBinaryIntrinsic(const Call* op,
     p->PrintVecBinaryOp(opstr, op->dtype, op->args[0], op->args[1], os);
   }
 }
-void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.dtype(), op->dtype);
 }
-void CodeGenC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Variable* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenC::VisitExpr_(const Add *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenC::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Sub* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenC::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Mul* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
-void CodeGenC::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Div* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
-void CodeGenC::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Mod* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
-void CodeGenC::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Min* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeGenC::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Max* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenC::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const EQ* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenC::VisitExpr_(const NE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const NE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenC::VisitExpr_(const LT *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LT* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenC::VisitExpr_(const LE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenC::VisitExpr_(const GT *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const GT* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenC::VisitExpr_(const GE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const GE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenC::VisitExpr_(const And *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const And* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenC::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Or* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Not* op, std::ostream& os) {  // NOLINT(*)
   os << '!';
   PrintExpr(op->a, os);
 }
 
-void CodeGenC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
   if (op->call_type == Call::Extern ||
       op->call_type == Call::PureExtern) {
     os << op->name << "(";
@@ -875,12 +875,13 @@ void CodeGenC::VisitStmt_(const IfThenElse* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const Block *op) {
-  PrintStmt(op->first);
-  if (op->rest.defined()) PrintStmt(op->rest);
+void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    PrintStmt(stmt);
+  }
 }
 
-void CodeGenC::VisitStmt_(const Evaluate *op) {
+void CodeGenC::VisitStmt_(const Evaluate* op) {
   if (is_const(op->value)) return;
   const Call* call = op->value.as<Call>();
   if (call) {
@@ -906,7 +907,7 @@ void CodeGenC::VisitStmt_(const Evaluate *op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const ProducerConsumer *op) {
+void CodeGenC::VisitStmt_(const ProducerConsumer* op) {
   PrintStmt(op->body);
 }
 

@@ -135,7 +135,7 @@ def fold_uop_loop(stmt_in):
             if body == stmt.body:
                 return stmt
             ends = list(reversed(ends))
-            body = tvm.make.stmt_seq(*(begins + [body] + ends))
+            body = tvm.stmt.stmt_seq(*(begins + [body] + ends))
             return tvm.make.AttrStmt(
                 stmt.node, stmt.attr_key, stmt.value, body)
         return None
@@ -307,7 +307,7 @@ def inject_coproc_sync(stmt_in):
             success[0] = True
             sync = tvm.make.Call(
                 "int32", "vta.coproc_sync", [], tvm.expr.Call.Intrinsic, None, 0)
-            return tvm.make.Block(stmt.body, tvm.make.Evaluate(sync))
+            return tvm.stmt.SeqStmt([stmt.body, tvm.make.Evaluate(sync)])
         if _match_pragma(stmt, "trim_loop"):
             op = stmt.body
             assert isinstance(op, tvm.stmt.For)
