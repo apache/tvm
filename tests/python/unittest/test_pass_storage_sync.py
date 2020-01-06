@@ -119,10 +119,10 @@ def test_coproc_sync3():
 
     stmt = ib.get()
     stmt = tvm.ir_pass.CoProcSync(stmt)
-    slist = tvm.make.stmt_list(stmt.first.body.body)
+    slist = tvm.make.stmt_list(stmt[0].body.body)
     push_st = slist[2]
     slist = tvm.make.stmt_list(slist[-1])
-    pop_st = slist[0].body.first
+    pop_st = slist[0].body[0]
 
     assert(push_st.value.name == "cop.coproc_dep_push")
     assert(__check_list(push_st.value.args, [2,3]))

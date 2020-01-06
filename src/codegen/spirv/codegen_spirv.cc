@@ -638,10 +638,9 @@ void CodeGenSPIRV::VisitStmt_(const LetStmt* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const Block* op) {
-  VisitStmt(op->first);
-  if (op->rest.defined()) {
-    this->VisitStmt(op->rest);
+void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    this->VisitStmt(stmt);
   }
 }
 
