@@ -33,10 +33,15 @@ namespace qnn {
 
 /*! \brief Attribute for requantize operator */
 struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
+  int axis;
   std::string rounding;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(RequantizeAttrs, "relay.attrs.RequantizeAttrs") {
+    TVM_ATTR_FIELD(axis)
+      .describe("The output channel axis for channel wise quantization. Default value is -1,"
+                "which corresponds to the last axis.")
+      .set_default(-1);
     TVM_ATTR_FIELD(rounding).set_default("UPWARD")
         .describe("Defines the rounding direction when the value is midway between"
                   "two representable values. There are two supported modes - UPWARD"
@@ -56,10 +61,15 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
 /*! \brief Attribute for quantize operator */
 struct QuantizeAttrs : public tvm::AttrsNode<QuantizeAttrs> {
   DataType out_dtype;
+  int axis;
 
   TVM_DECLARE_ATTRS(QuantizeAttrs, "relay.attrs.QuantizeAttrs") {
     TVM_ATTR_FIELD(out_dtype)
       .describe("Output data type, can be one of [int8 or uint8].");
+    TVM_ATTR_FIELD(axis)
+      .describe("The output channel axis for channel wise quantization. Default value is -1,"
+                "which corresponds to the last axis.")
+      .set_default(-1);
   }
 };
 
