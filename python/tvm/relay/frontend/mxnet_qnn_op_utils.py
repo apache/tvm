@@ -57,6 +57,8 @@ def _quantize_scale_with_zero_centered(data,
                                        scale,
                                        zero_point,
                                        out_dtype):
+    scale = relay.const(scale, 'float32')
+    zero_point = relay.const(zero_point, 'int32')
     quantized_output = quantize(data,
                                 scale,
                                 zero_point,
