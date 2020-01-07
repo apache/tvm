@@ -21,6 +21,87 @@ from ...expr import TupleWrapper
 from . import _make
 
 
+def conv1d(data,
+           weight,
+           stride=1,
+           padding=(0, 0),
+           dilation=1,
+           channels=None,
+           kernel_size=None,
+           data_layout="NCW",
+           kernel_layout="OIW",
+           out_layout="",
+           out_dtype=""):
+    r"""1D convolution.
+
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output.
+
+
+    In the default case, where the data_layout is `NCW`
+    and kernel_layout is `OIW`, conv1d takes in
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    and a weight Tensor with shape `(channels, in_channels, kernel_size)`
+    to produce an output Tensor with the following rule:
+
+    .. math::
+
+        \mbox{out}[b, c, w] = \sum_{dw, k}
+           \mbox{data}[b, k, \mbox{strides}[1] * w + dw] *
+           \mbox{weight}[c, k, dw]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification.
+    Semantically, the operator will convert the layout to the canonical layout
+    (`NCW` for data and `OIW` for weight), perform the computation,
+    then convert to the out_layout.
+
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    stride : Optional[int]
+        The strides of convolution.
+
+    padding : Optional[Tuple[int]]
+        The padding of convolution on both sides of the input before convolution.
+
+    dilation : Optional[int]
+        Specifies the dilation rate to be used for dilated convolution.
+
+    channels : Optional[int]
+        Number of output channels of this convolution.
+
+    kernel_size : Optional[int]
+        The spatial dimension of the convolution kernel.
+
+    data_layout : Optional[str]
+        Layout of the input.
+
+    kernel_layout : Optional[str]
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.conv1d(data, weight, stride, padding, dilation,
+                        channels, kernel_size, data_layout,
+                        kernel_layout, out_layout, out_dtype)
+
+
 def conv2d(data,
            weight,
            strides=(1, 1),

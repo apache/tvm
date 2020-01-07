@@ -34,8 +34,6 @@
 namespace tvm {
 namespace relay {
 
-// relay.nn.conv2d
-TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 template<typename T>
 Array<Array<Layout> > ConvInferCorrectLayout(
@@ -51,6 +49,10 @@ Array<Array<Layout> > ConvInferCorrectLayout(
                                {params->out_layout == "" ?
                                    params->data_layout : params->out_layout}};
 }
+
+
+// relay.nn.conv1d
+TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 
 // Positional relay function to create conv1d operator
 // used by frontend FFI.
@@ -105,6 +107,9 @@ with the layer input to produce a tensor of outputs.
 .add_type_rel("Conv1D", Conv1DRel<Conv1DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv1DAttrs>);
 
+
+// relay.nn.conv2d
+TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 // Positional relay function to create conv2d operator
 // used by frontend FFI.

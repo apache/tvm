@@ -131,6 +131,44 @@ def schedule_sparse_transpose(attrs, outputs, target):
 
 reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# Conv1D
+@reg.register_compute("nn.conv1d")
+def compute_conv1d(attrs, inputs, out_type, target):
+    """Compute definition of conv1d"""
+    stride = attrs.stride
+    padding = get_const_tuple(attrs.padding)
+    dilation = attrs.dilation
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCW", "NWC"]
+    if dilation < 1:
+        raise ValueError("dilation should be a positive value")
+
+    return [topi.nn.conv1d(inputs[0], inputs[1], stride, padding, dilation, layout, out_dtype)]
+
+
+@reg.register_schedule("nn.conv1d")
+def schedule_conv1d(attrs, outs, target):
+    """Schedule definition of conv1d"""
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+
+    with target:
+        if layout == "NCW":
+            return topi.generic.schedule_conv1d_ncw(outs)
+        elif layout == "NCW":
+            return topi.generic.schedule_conv1d_nwc(outs)
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv2d
 def _find_conv2d_op(op):
     """Find the op with conv2d in its tag by traversing."""

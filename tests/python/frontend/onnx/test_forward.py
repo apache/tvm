@@ -1732,11 +1732,11 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, p):
+def verify_conv(x_shape, w_shape, y_shape, p, kernel_shape):
     node = helper.make_node('Conv',
                             inputs=['x', 'W'],
                             outputs=['y'],
-                            kernel_shape=[3, 3],
+                            kernel_shape=kernel_shape,
                             # Default values for other attributes:
                             # strides=[1, 1],
                             # dilations=[1, 1],
@@ -1765,14 +1765,21 @@ def test_conv():
     # (1, 1, 3, 3) tensor for convolution weights
     # (1, 1, 5, 5) output tensor
     # [1, 1, 1, 1] list for pads
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1])
+    # [3, 3] kernel shape
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1], [3, 3])
+    # 1D version
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [1, 1], [3])
 
     # Convolution without padding
     # (1, 1, 5, 5) input tensor
     # (1, 1, 3, 3) tensor for convolution weights
     # (1, 1, 3, 3) output tensor
     # [0, 0, 0, 0] list for pads
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0])
+    # [3, 3] kernel shape
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0], [3, 3])
+    # 1D version
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), [0, 0], [3])
+
 
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
