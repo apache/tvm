@@ -603,6 +603,3 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-
-    #test_shufflenet_v2_x0_5()
-    #test_shufflenet_v2_x1_0()
