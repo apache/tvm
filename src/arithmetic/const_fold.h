@@ -199,7 +199,7 @@ inline Expr TryConstFold<ir::ModNode>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::FloorDivNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -226,7 +226,7 @@ inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::FloorModNode>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -244,7 +244,7 @@ inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Min>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::MinNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, std::min(pa->value, pb->value));
@@ -255,7 +255,7 @@ inline Expr TryConstFold<ir::Min>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Max>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::MaxNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, std::max(pa->value, pb->value));

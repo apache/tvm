@@ -155,11 +155,11 @@ inline Tensor pool_impl(const Tensor& x,
       } else {
         Expr h_start = output[height_axis] * stride_height - pad_top;
         Expr w_start = output[width_axis] * stride_width - pad_left;
-        Expr h_end = ir::Min::make(h_start + kernel_height, height);
-        Expr w_end = ir::Min::make(w_start + kernel_width, width);
-        h_start = ir::Max::make(h_start, make_const(DataType::DataType::Int(32), 0));
-        w_start = ir::Max::make(w_start, make_const(DataType::DataType::Int(32), 0));
-        Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
+        Expr h_end = ir::MinNode::make(h_start + kernel_height, height);
+        Expr w_end = ir::MinNode::make(w_start + kernel_width, width);
+        h_start = ir::MaxNode::make(h_start, make_const(DataType::DataType::Int(32), 0));
+        w_start = ir::MaxNode::make(w_start, make_const(DataType::DataType::Int(32), 0));
+        Expr divide_factor = ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
                                            make_const(DataType::DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
@@ -308,12 +308,12 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           } else {
             Expr h_start = out_idx[height_axis] * stride_height - pad_top;
             Expr w_start = out_idx[width_axis] * stride_width - pad_left;
-            Expr h_end = ir::Min::make(h_start + kernel_height, height);
-            Expr w_end = ir::Min::make(w_start + kernel_width, width);
-            h_start = ir::Max::make(h_start, make_const(DataType::Int(32), 0));
-            w_start = ir::Max::make(w_start, make_const(DataType::Int(32), 0));
+            Expr h_end = ir::MinNode::make(h_start + kernel_height, height);
+            Expr w_end = ir::MinNode::make(w_start + kernel_width, width);
+            h_start = ir::MaxNode::make(h_start, make_const(DataType::Int(32), 0));
+            w_start = ir::MaxNode::make(w_start, make_const(DataType::Int(32), 0));
             divide_factor =
-                ir::Max::make((h_end - h_start) * (w_end - w_start),
+                ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
                               make_const(DataType::Int(32), 1));
           }
           return tvm::sum(tvm::if_then_else(
@@ -729,12 +729,12 @@ inline Tensor pool_impl_nd(const Tensor& x,
         for (int i = 0; i < k_size; i++) {
           int ii = axis[i];
           start[i] = output[ii] * stride[i] - pad_head[i];
-          end[i] = ir::Min::make(start[i] + kernel[i], x->shape[ii]);
-          start[i] = ir::Max::make(start[i], make_const(DataType::Int(32), 0));
+          end[i] = ir::MinNode::make(start[i] + kernel[i], x->shape[ii]);
+          start[i] = ir::MaxNode::make(start[i], make_const(DataType::Int(32), 0));
           kernel_size *= (end[i] - start[i]);
         }
 
-        Expr divide_factor = ir::Max::make(kernel_size, make_const(DataType::Int(32), 1));
+        Expr divide_factor = ir::MaxNode::make(kernel_size, make_const(DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);

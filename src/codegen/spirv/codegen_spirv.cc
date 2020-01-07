@@ -173,13 +173,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ModNode* op) {
   return builder_->Mod(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Min* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MinNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->Select(builder_->LT(a, b), a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Max* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MaxNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->Select(builder_->GT(a, b), a, b);

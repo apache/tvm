@@ -102,12 +102,12 @@ inline Expr Compute<ir::ModNode>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr Compute<ir::Max>(Expr a, Expr b) {
+inline Expr Compute<ir::MaxNode>(Expr a, Expr b) {
   return max(a, b);
 }
 
 template<>
-inline Expr Compute<ir::Min>(Expr a, Expr b) {
+inline Expr Compute<ir::MinNode>(Expr a, Expr b) {
   return min(a, b);
 }
 

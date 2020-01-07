@@ -645,16 +645,16 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<Min>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Min*>(node.get());
+.set_dispatch<MinNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const MinNode*>(node.get());
     p->stream << "min(";
     p->Print(op->a);
     p->stream << ", ";
     p->Print(op->b);
     p->stream << ")";
 })
-.set_dispatch<Max>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Max*>(node.get());
+.set_dispatch<MaxNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const MaxNode*>(node.get());
     p->stream << "max(";
     p->Print(op->a);
     p->stream << ", ";
@@ -711,14 +711,14 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FloorDiv>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const FloorDiv*>(node.get());
+.set_dispatch<FloorDivNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const FloorDivNode*>(node.get());
   p->stream << "floordiv(" << op->a << ", " << op->b << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FloorMod>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const FloorMod*>(node.get());
+.set_dispatch<FloorModNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const FloorModNode*>(node.get());
   p->stream << "floormod(" << op->a << ", " << op->b << ")";
 });
 
@@ -1162,10 +1162,10 @@ TVM_REGISTER_NODE_TYPE(SubNode);
 TVM_REGISTER_NODE_TYPE(MulNode);
 TVM_REGISTER_NODE_TYPE(DivNode);
 TVM_REGISTER_NODE_TYPE(ModNode);
-TVM_REGISTER_NODE_TYPE(FloorDiv);
-TVM_REGISTER_NODE_TYPE(FloorMod);
-TVM_REGISTER_NODE_TYPE(Min);
-TVM_REGISTER_NODE_TYPE(Max);
+TVM_REGISTER_NODE_TYPE(FloorDivNode);
+TVM_REGISTER_NODE_TYPE(FloorModNode);
+TVM_REGISTER_NODE_TYPE(MinNode);
+TVM_REGISTER_NODE_TYPE(MaxNode);
 TVM_REGISTER_NODE_TYPE(EQ);
 TVM_REGISTER_NODE_TYPE(NE);
 TVM_REGISTER_NODE_TYPE(LT);

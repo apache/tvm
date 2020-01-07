@@ -781,10 +781,10 @@ VisitExpr_(const ModNode* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const FloorDiv* op) {
+VisitExpr_(const FloorDivNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<FloorDiv>();
-  Expr const_res = TryConstFold<FloorDiv>(op->a, op->b);
+  op = ret.as<FloorDivNode>();
+  Expr const_res = TryConstFold<FloorDivNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1;
@@ -925,10 +925,10 @@ VisitExpr_(const FloorDiv* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const FloorMod* op) {
+VisitExpr_(const FloorModNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<FloorMod>();
-  Expr const_res = TryConstFold<FloorMod>(op->a, op->b);
+  op = ret.as<FloorModNode>();
+  Expr const_res = TryConstFold<FloorModNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -995,10 +995,10 @@ VisitExpr_(const FloorMod* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Min* op) {
+VisitExpr_(const MinNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Min>();
-  Expr const_res = TryConstFold<Min>(op->a, op->b);
+  op = ret.as<MinNode>();
+  Expr const_res = TryConstFold<MinNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1180,10 +1180,10 @@ VisitExpr_(const Min* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Max* op) {
+VisitExpr_(const MaxNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Max>();
-  Expr const_res = TryConstFold<Max>(op->a, op->b);
+  op = ret.as<MaxNode>();
+  Expr const_res = TryConstFold<MaxNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression

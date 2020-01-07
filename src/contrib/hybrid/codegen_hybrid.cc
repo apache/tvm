@@ -158,7 +158,7 @@ void CodeGenHybrid::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT
     PrintBinaryExpr(op, "/", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const FloorDiv* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const FloorDivNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
@@ -169,13 +169,13 @@ void CodeGenHybrid::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT
   PrintBinaryExpr(op, "%", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const FloorMod* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const FloorModNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Min* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Max* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
 void CodeGenHybrid::VisitExpr_(const EQ* op, std::ostream& os) {  // NOLINT(*)

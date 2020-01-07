@@ -120,8 +120,8 @@ class CodeGenStackVM
   void VisitExpr_(const MulNode* op) final;
   void VisitExpr_(const DivNode* op) final;
   void VisitExpr_(const ModNode* op) final;
-  void VisitExpr_(const Min* op) final;
-  void VisitExpr_(const Max* op) final;
+  void VisitExpr_(const MinNode* op) final;
+  void VisitExpr_(const MaxNode* op) final;
   void VisitExpr_(const EQ* op) final;
   void VisitExpr_(const NE* op) final;
   void VisitExpr_(const LT* op) final;

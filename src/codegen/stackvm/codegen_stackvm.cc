@@ -320,7 +320,7 @@ void CodeGenStackVM::VisitExpr_(const ModNode* op) {
   PushBinary(StackVM::MOD_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const Min* op) {
+void CodeGenStackVM::VisitExpr_(const MinNode* op) {
   this->Push(op->a);
   this->Push(op->b);
   this->PushOp(StackVM::PUSH_VALUE, -1);
@@ -329,7 +329,7 @@ void CodeGenStackVM::VisitExpr_(const Min* op) {
   this->PushOp(StackVM::SELECT);
 }
 
-void CodeGenStackVM::VisitExpr_(const Max* op) {
+void CodeGenStackVM::VisitExpr_(const MaxNode* op) {
   this->Push(op->a);
   this->Push(op->b);
   this->PushOp(StackVM::PUSH_VALUE, 0);

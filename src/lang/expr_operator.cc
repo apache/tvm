@@ -278,18 +278,18 @@ Expr floordiv(Expr a, Expr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorDiv>(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorDivNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::FloorDiv::make(a, b);
+  return ir::FloorDivNode::make(a, b);
 }
 
 Expr floormod(Expr a, Expr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorMod>(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorModNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::FloorMod::make(a, b);
+  return ir::FloorModNode::make(a, b);
 }
 
 Expr min(Expr a, Expr b) {
@@ -301,9 +301,9 @@ Expr min(Expr a, Expr b) {
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Min>(a, b);
+  Expr ret = arith::TryConstFold<ir::MinNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Min::make(a, b);
+  return ir::MinNode::make(a, b);
 }
 
 Expr max(Expr a, Expr b) {
@@ -315,9 +315,9 @@ Expr max(Expr a, Expr b) {
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Max>(a, b);
+  Expr ret = arith::TryConstFold<ir::MaxNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Max::make(a, b);
+  return ir::MaxNode::make(a, b);
 }
 
 Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
@@ -557,7 +557,7 @@ Expr any(Expr source, Array<IterVar> rdom) {
 
 Expr max(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Max::make(x, y);
+  Expr result = ir::MaxNode::make(x, y);
   Expr identity_element = min_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
@@ -566,7 +566,7 @@ Expr max(Expr source, Array<IterVar> rdom) {
 
 Expr min(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Min::make(x, y);
+  Expr result = ir::MinNode::make(x, y);
   Expr identity_element = max_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});

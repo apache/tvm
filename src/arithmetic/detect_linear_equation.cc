@@ -210,7 +210,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
     if (p.min_value.defined()) {
-      p.min_value = ir::Max::make(p.min_value, -ret.base);
+      p.min_value = ir::MaxNode::make(p.min_value, -ret.base);
     } else {
       p.min_value = -ret.base;
     }
@@ -219,7 +219,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
     if (p.max_value.defined()) {
-      p.max_value = ir::Min::make(p.max_value, ret.base);
+      p.max_value = ir::MinNode::make(p.max_value, ret.base);
     } else {
       p.max_value = ret.base;
     }

@@ -114,8 +114,8 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const MulNode* op) override;
   llvm::Value* VisitExpr_(const DivNode* op) override;
   llvm::Value* VisitExpr_(const ModNode* op) override;
-  llvm::Value* VisitExpr_(const Min* op) override;
-  llvm::Value* VisitExpr_(const Max* op) override;
+  llvm::Value* VisitExpr_(const MinNode* op) override;
+  llvm::Value* VisitExpr_(const MaxNode* op) override;
   llvm::Value* VisitExpr_(const LT* op) override;
   llvm::Value* VisitExpr_(const LE* op) override;
   llvm::Value* VisitExpr_(const GT* op) override;

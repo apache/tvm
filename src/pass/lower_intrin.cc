@@ -73,10 +73,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr VisitExpr_(const FloorDiv* op) final {
+  Expr VisitExpr_(const FloorDivNode* op) final {
     auto e = GetRef<Expr>(op);
     Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorDiv>();
+    op = ret.as<FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
     const DataType& dtype = op->dtype;
@@ -120,9 +120,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const FloorMod* op) final {
+  Expr VisitExpr_(const FloorModNode* op) final {
     Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorMod>();
+    op = ret.as<FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
@@ -170,7 +170,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const Max* op) final {
+  Expr VisitExpr_(const MaxNode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     PVar<Integer> c;

@@ -455,8 +455,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   Expr VisitExpr_(const MulNode* op) final;
   Expr VisitExpr_(const DivNode* op) final;
   Expr VisitExpr_(const ModNode* op) final;
-  Expr VisitExpr_(const FloorDiv* op) final;
-  Expr VisitExpr_(const FloorMod* op) final;
+  Expr VisitExpr_(const FloorDivNode* op) final;
+  Expr VisitExpr_(const FloorModNode* op) final;
   Expr VisitExpr_(const Reduce* op) final;
 
  private:
@@ -787,7 +787,7 @@ VisitExpr_(const DivNode* op) {
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const FloorDiv* op) {
+VisitExpr_(const FloorDivNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -795,7 +795,7 @@ VisitExpr_(const FloorDiv* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<FloorDiv>(a, b);
+  Expr const_res = TryConstFold<FloorDivNode>(a, b);
   if (const_res.defined()) return const_res;
   PVar<Integer> c1;
   // x / c1
@@ -838,7 +838,7 @@ VisitExpr_(const FloorDiv* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return FloorDiv::make(a, b);
+    return FloorDivNode::make(a, b);
   }
 }
 
@@ -963,7 +963,7 @@ VisitExpr_(const ModNode* op) {
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const FloorMod* op) {
+VisitExpr_(const FloorModNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -972,7 +972,7 @@ VisitExpr_(const FloorMod* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<FloorMod>(a, b);
+  Expr const_res = TryConstFold<FloorModNode>(a, b);
   if (const_res.defined()) return const_res;
 
   PVar<Integer> c1;
@@ -1018,7 +1018,7 @@ VisitExpr_(const FloorMod* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return FloorMod::make(a, b);
+    return FloorModNode::make(a, b);
   }
 }
 

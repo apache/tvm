@@ -215,7 +215,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const FloorDiv* op) final {
+  Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "floordiv by zero";
@@ -225,7 +225,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareFloorDiv);
   }
 
-  Entry VisitExpr_(const FloorMod* op) final {
+  Entry VisitExpr_(const FloorModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -246,7 +246,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Min* op) final {
+  Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -255,7 +255,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Max* op) final {
+  Entry VisitExpr_(const MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;

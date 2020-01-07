@@ -46,8 +46,8 @@ class CodeGenCHost final : public CodeGenC {
   void VisitExpr_(const Call *op, std::ostream& os) final; // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
-  void VisitExpr_(const Min *op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const Max *op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const MinNode *op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const MaxNode *op, std::ostream& os) final;  // NOLINT(*)
 
   void VisitStmt_(const AssertStmt *op) final; // NOLINT(*)
 

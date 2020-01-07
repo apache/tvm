@@ -73,8 +73,8 @@ class CodeGenSPIRV:
   spirv::Value VisitExpr_(const MulNode* op) override;
   spirv::Value VisitExpr_(const DivNode* op) override;
   spirv::Value VisitExpr_(const ModNode* op) override;
-  spirv::Value VisitExpr_(const Min* op) override;
-  spirv::Value VisitExpr_(const Max* op) override;
+  spirv::Value VisitExpr_(const MinNode* op) override;
+  spirv::Value VisitExpr_(const MaxNode* op) override;
   spirv::Value VisitExpr_(const LT* op) override;
   spirv::Value VisitExpr_(const LE* op) override;
   spirv::Value VisitExpr_(const GT* op) override;

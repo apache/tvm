@@ -147,16 +147,16 @@ class Vectorizer : public StmtExprMutator {
   Expr VisitExpr_(const ModNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const FloorDiv* op) final {
+  Expr VisitExpr_(const FloorDivNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const FloorMod* op) final {
+  Expr VisitExpr_(const FloorModNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const Min* op) final {
+  Expr VisitExpr_(const MinNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const Max* op) final {
+  Expr VisitExpr_(const MaxNode* op) final {
     return BinaryVec(op);
   }
   Expr VisitExpr_(const EQ* op) final {

@@ -196,7 +196,7 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const FloorDiv* op) final {
+  Entry VisitExpr_(const FloorDivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, true);
@@ -204,13 +204,13 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Min* op) final {
+  Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Max* op) final {
+  Entry VisitExpr_(const MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);

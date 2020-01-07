@@ -256,7 +256,7 @@ inline IntervalSet Combine<ir::ModNode>(Analyzer* analyzer,
 
 
 template<>
-inline IntervalSet Combine<ir::FloorDiv>(Analyzer* analyzer,
+inline IntervalSet Combine<ir::FloorDivNode>(Analyzer* analyzer,
                                          IntervalSet a,
                                          IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -291,7 +291,7 @@ inline IntervalSet Combine<ir::FloorDiv>(Analyzer* analyzer,
 }
 
 template<>
-inline IntervalSet Combine<ir::FloorMod>(Analyzer* analyzer,
+inline IntervalSet Combine<ir::FloorModNode>(Analyzer* analyzer,
                                          IntervalSet a,
                                          IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -317,7 +317,7 @@ inline IntervalSet Combine<ir::FloorMod>(Analyzer* analyzer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Max>(Analyzer* analzyer,
+inline IntervalSet Combine<ir::MaxNode>(Analyzer* analzyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -330,7 +330,7 @@ inline IntervalSet Combine<ir::Max>(Analyzer* analzyer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Min>(Analyzer* analzyer,
+inline IntervalSet Combine<ir::MinNode>(Analyzer* analzyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -425,19 +425,19 @@ class IntervalSetEvaluator :
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const FloorDiv* op) final {
+  IntervalSet VisitExpr_(const FloorDivNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const FloorMod* op) final {
+  IntervalSet VisitExpr_(const FloorModNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Min* op) final {
+  IntervalSet VisitExpr_(const MinNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Max* op) final {
+  IntervalSet VisitExpr_(const MaxNode* op) final {
     return VisitBinaryExpr_(op);
   }
 

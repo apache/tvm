@@ -62,10 +62,10 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   bool VisitExpr_(const MulNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const DivNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const ModNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorDiv* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorMod* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Min* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Max* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const FloorDivNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const FloorModNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const MinNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const MaxNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const EQ* op) final { return BinaryOp(op); }
   bool VisitExpr_(const NE* op) final { return BinaryOp(op); }
   bool VisitExpr_(const LT* op) final { return BinaryOp(op); }

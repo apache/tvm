@@ -38,7 +38,7 @@ TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   Var x("x");
   Expr z = max(x + 1 + 2, 100);
-  const ir::Max* op = z.as<ir::Max>();
+  const ir::MaxNode* op = z.as<ir::MaxNode>();
   CHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 

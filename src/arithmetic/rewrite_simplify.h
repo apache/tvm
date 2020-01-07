@@ -55,10 +55,10 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const MulNode* op) override;
   Expr VisitExpr_(const DivNode* op) override;
   Expr VisitExpr_(const ModNode* op) override;
-  Expr VisitExpr_(const FloorDiv* op) override;
-  Expr VisitExpr_(const FloorMod* op) override;
-  Expr VisitExpr_(const Min* op) override;
-  Expr VisitExpr_(const Max* op) override;
+  Expr VisitExpr_(const FloorDivNode* op) override;
+  Expr VisitExpr_(const FloorModNode* op) override;
+  Expr VisitExpr_(const MinNode* op) override;
+  Expr VisitExpr_(const MaxNode* op) override;
   Expr VisitExpr_(const EQ* op) override;
   Expr VisitExpr_(const NE* op) override;
   Expr VisitExpr_(const LT* op) override;

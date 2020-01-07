@@ -936,8 +936,8 @@ void CodeGenCPU::VisitStmt_(const For* op) {
                         op->body);
       } else {
         Expr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        Expr begin = Min::make(task_id * step, op->extent);
-        Expr end = Min::make((task_id + make_const(t, 1)) * step, op->extent);
+        Expr begin = MinNode::make(task_id * step, op->extent);
+        Expr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
                         ConstInt32(1),

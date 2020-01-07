@@ -332,13 +332,13 @@ TVM_PATTERN_BINARY_OP_EX(operator%, ir::ModNode, DivAmbiguityError(a));
 TVM_PATTERN_BINARY_OP(operator+, ir::AddNode);
 TVM_PATTERN_BINARY_OP(operator-, ir::SubNode);
 TVM_PATTERN_BINARY_OP(operator*, ir::MulNode);
-TVM_PATTERN_BINARY_OP(min, ir::Min);
-TVM_PATTERN_BINARY_OP(max, ir::Max);
+TVM_PATTERN_BINARY_OP(min, ir::MinNode);
+TVM_PATTERN_BINARY_OP(max, ir::MaxNode);
 TVM_PATTERN_BINARY_OP(div, ir::DivNode);
 TVM_PATTERN_BINARY_OP(truncdiv, ir::DivNode);
 TVM_PATTERN_BINARY_OP(truncmod, ir::ModNode);
-TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDiv);
-TVM_PATTERN_BINARY_OP(floormod, ir::FloorMod);
+TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDivNode);
+TVM_PATTERN_BINARY_OP(floormod, ir::FloorModNode);
 
 // logical expressions
 TVM_PATTERN_BINARY_OP(operator>, ir::GT);

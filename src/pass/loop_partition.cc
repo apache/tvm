@@ -506,7 +506,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the pre doubt loop";
-        body_begin = Max::make(body_begin, min);
+        body_begin = MaxNode::make(body_begin, min);
         // stop recursing on this interval if we can't prove it has non-negative length
         pre_stmt_recurse = false;
       }
@@ -532,7 +532,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
-        post_doubt_begin = Min::make(post_doubt_begin, max+1);
+        post_doubt_begin = MinNode::make(post_doubt_begin, max+1);
         // stop recursing on this interval if we can't prove it has non-negative length
         post_stmt_recurse = false;
       }

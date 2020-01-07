@@ -179,25 +179,25 @@ class ModNode : public BinaryOpNode<ModNode> {
 };
 
 /*! \brief Floor division, floor(a/b) */
-class FloorDiv : public BinaryOpNode<FloorDiv> {
+class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
   static constexpr const char* _type_key = "FloorDiv";
 };
 
 /*! \brief The remainder of the floordiv */
-class FloorMod : public BinaryOpNode<FloorMod> {
+class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
   static constexpr const char* _type_key = "FloorMod";
 };
 
 /*! \brief min(a, b) */
-class Min : public BinaryOpNode<Min> {
+class MinNode : public BinaryOpNode<MinNode> {
  public:
   static constexpr const char* _type_key = "Min";
 };
 
 /*! \brief max(a, b) */
-class Max : public BinaryOpNode<Max> {
+class MaxNode : public BinaryOpNode<MaxNode> {
  public:
   static constexpr const char* _type_key = "Max";
 };

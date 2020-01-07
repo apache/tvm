@@ -31,8 +31,8 @@
 namespace tvm {
 
 // TODO(tqchen): change to floormod/div
-using IndexMod = ir::FloorMod;
-using IndexDiv = ir::FloorDiv;
+using IndexMod = ir::FloorModNode;
+using IndexDiv = ir::FloorDivNode;
 
 Array<Expr> SimplifyArray(Array<Expr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
