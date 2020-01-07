@@ -61,7 +61,7 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2]+bpad_left+bpad_right))
     padded_a_np[:, :, bpad_left:dilated_a_np.shape[2]+bpad_left] = dilated_a_np
     # convolution stage
-    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
+    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad
     b_np = np.zeros((batch, out_c, out_w))
     for n in range(batch):
         for f in range(out_c):
