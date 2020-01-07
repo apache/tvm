@@ -44,7 +44,7 @@ def dilate_np(x, dilation):
     return x
 
 
-def conv1d_ncw_python(a_np, w_np, stride, padding, dilation, pad_method):
+def conv1d_ncw_python(a_np, w_np, stride, padding, dilation):
     """1D convolution operator in NCW layout
 
     Parameters
@@ -65,9 +65,6 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, dilation, pad_method):
     dilation : int
         Dilation rate of the kernel
 
-    pad_method : str
-        How to pad data, must be in ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     Returns
     -------
     b_np : numpy.ndarray
@@ -85,15 +82,7 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, dilation, pad_method):
     out_w = ((in_w - dilated_filter_w + pad_left + pad_right) // stride) + 1
 
     padded_a_np = np.zeros((batch, in_c, in_w + pad_left + pad_right))
-    if pad_method == 'SYMMETRIC':
-        padded_a_np[:, :, pad_left:(in_w + pad_left)] = a_np
-    elif pad_method == 'BEFORE':
-        padded_a_np[:, :, (pad_left + pad_right)
-                           :(in_w + pad_left + pad_right)] = a_np
-    elif pad_method == 'AFTER':
-        padded_a_np[:, :, :in_w] = a_np
-    else:
-        raise ValueError("Pad method {} is not supported.".format(pad_method))
+    padded_a_np[:, :, pad_left:(in_w + pad_left)] = a_np
 
     b_np = np.zeros((batch, out_c, out_w))
     for n in range(batch):

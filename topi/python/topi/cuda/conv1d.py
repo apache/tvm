@@ -32,7 +32,6 @@ def conv1d_cuda(cfg,
                 padding,
                 dilation,
                 layout='NCW',
-                pad_method='SYMMETRIC',
                 out_dtype='float32'):
     """ 1D convolution forward operator for cuda backend.
 
@@ -61,10 +60,6 @@ def conv1d_cuda(cfg,
     layout : str
         How input data is laid out, must be one of ['NCW', 'NWC']
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-        Useful when dealing with Tensorflow and Keras funkiness.
-    
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
@@ -79,10 +74,10 @@ def conv1d_cuda(cfg,
 
     if layout == 'NCW':
         return nn.conv1d_ncw(data, kernel, stride, padding, dilation,
-                             pad_method, out_dtype)
+                             out_dtype)
     elif layout == 'NWC':
         return nn.conv1d_nwc(data, kernel, stride, padding, dilation,
-                             pad_method, out_dtype)
+                             out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 

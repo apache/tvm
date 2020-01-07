@@ -33,7 +33,6 @@ def verify_conv1d(batch,
                   stride=1,
                   dilation=1,
                   padding='VALID',
-                  pad_method='SYMMETRIC',
                   layout='NCW'):
     if layout == 'NCW':
         in_shape = [batch, in_channels, in_width]
@@ -55,8 +54,7 @@ def verify_conv1d(batch,
         else:
             np_in = a_np
             np_w = w_np
-        b_np = topi.testing.conv1d_ncw_python(np_in, np_w, stride, padding,
-                                              dilation, pad_method)
+        b_np = topi.testing.conv1d_ncw_python(np_in, np_w, stride, padding, dilation)
         if layout == 'NWC':
             b_np = np.transpose(b_np, [0, 2, 1])
         return a_np, w_np, b_np
@@ -69,8 +67,7 @@ def verify_conv1d(batch,
             print("Skip because %s is not enabled" % device)
             return
         with tvm.target.create(device):
-            B = topi.nn.conv1d(A, W, stride, padding, dilation, layout,
-                               pad_method, 'float32')
+            B = topi.nn.conv1d(A, W, stride, padding, dilation, layout, 'float32')
             if layout == 'NCW':
                 s = topi.generic.schedule_conv1d_ncw([B])
             else:
@@ -88,19 +85,19 @@ def verify_conv1d(batch,
         check_device(device)
 
 
-def test_conv1d_transpose():
+def test_conv1d():
     for layout in ["NCW", "NWC"]:
         # Most basic test case
-        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', 'SYMMETRIC', layout)
+        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'VALID', layout)
         # With padding
-        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'SAME', 'SYMMETRIC', layout)
+        verify_conv1d(1, 1, 8, 1, 3, 1, 1, 'SAME', layout)
         # Realistic dimensions
-        verify_conv1d(1, 16, 32, 16, 3, 1, 1, 'SAME', 'SYMMETRIC', layout)
+        verify_conv1d(1, 16, 32, 16, 3, 1, 1, 'SAME', layout)
         # With stride
-        verify_conv1d(1, 16, 32, 16, 3, 2, 1, 'SAME', 'SYMMETRIC', layout)
+        verify_conv1d(1, 16, 32, 16, 3, 2, 1, 'SAME', layout)
         # With dilation
-        verify_conv1d(1, 16, 32, 16, 3, 1, 2, 'SAME', 'SYMMETRIC', layout)
+        verify_conv1d(1, 16, 32, 16, 3, 1, 2, 'SAME', layout)
 
 
 if __name__ == "__main__":
-    test_conv1d_transpose()
+    test_conv1d()

@@ -30,7 +30,6 @@ def conv1d(data,
            padding='VALID',
            dilation=1,
            layout='NCW',
-           pad_method='SYMMETRIC',
            out_dtype=None):
     """ 1D convolution forward operator.
 
@@ -56,10 +55,6 @@ def conv1d(data,
     layout : str
         How input data is laid out, must be one of ['NCW', 'NWC']
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-        Useful when dealing with Tensorflow and Keras funkiness.
-    
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
@@ -71,11 +66,9 @@ def conv1d(data,
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return conv1d_ncw(data, kernel, stride, padding, dilation, pad_method,
-                          out_dtype)
+        return conv1d_ncw(data, kernel, stride, padding, dilation, out_dtype)
     elif layout == 'NWC':
-        return conv1d_nwc(data, kernel, stride, padding, dilation, pad_method,
-                          out_dtype)
+        return conv1d_nwc(data, kernel, stride, padding, dilation, out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 
@@ -84,7 +77,6 @@ def conv1d_ncw(data,
                stride=1,
                padding='VALID',
                dilation=1,
-               pad_method='SYMMETRIC',
                out_dtype=None):
     """ 1D convolution forward operator for NCW layout.
 
@@ -106,9 +98,6 @@ def conv1d_ncw(data,
     dilation : int
         Dilation rate if convolution should be dilated. 
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
@@ -120,21 +109,11 @@ def conv1d_ncw(data,
     pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride +
-        1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
 
-    # Apply selected padding
-    if pad_method == 'SYMMETRIC':
-        pad_before = [0, 0, pad_left]
-        pad_after = [0, 0, pad_right]
-    elif pad_method == 'BEFORE':
-        pad_before = [0, 0, pad_right + pad_left]
-        pad_after = [0, 0, 0]
-    elif pad_method == 'AFTER':
-        pad_before = [0, 0, 0]
-        pad_after = [0, 0, pad_right + pad_left]
-    else:
-        raise ValueError("Pad method {} is not supported.".format(pad_method))
+    # Apply padding
+    pad_before = [0, 0, pad_left]
+    pad_after = [0, 0, pad_right]
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
@@ -145,7 +124,7 @@ def conv1d_ncw(data,
         (batch, out_channels, out_width),
         lambda b, c, w: tvm.sum(temp[b, rc, w * stride + rw * dilation].astype(
             out_dtype) * kernel[c, rc, rw].astype(out_dtype),
-                                axis=[rc, rw]),
+            axis=[rc, rw]),
         tag="conv1d_ncw")
 
 
@@ -154,7 +133,6 @@ def conv1d_nwc(data,
                stride=1,
                padding='VALID',
                dilation=1,
-               pad_method='SYMMETRIC',
                out_dtype=None):
     """ 1D convolution forward operator for NWC layout.
 
@@ -176,9 +154,6 @@ def conv1d_nwc(data,
     dilation : int
         Dilation rate if convolution should be dilated. 
 
-    pad_method : str
-        How to add padding, must be one of ['SYMMETRIC', 'BEFORE', 'AFTER']
-
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
@@ -190,21 +165,11 @@ def conv1d_nwc(data,
     pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride +
-        1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
 
-    # Apply selected padding
-    if pad_method == 'SYMMETRIC':
-        pad_before = [0, pad_left, 0]
-        pad_after = [0, pad_right, 0]
-    elif pad_method == 'BEFORE':
-        pad_before = [0, pad_right + pad_left, 0]
-        pad_after = [0, 0, 0]
-    elif pad_method == 'AFTER':
-        pad_before = [0, 0, 0]
-        pad_after = [0, pad_right + pad_left, 0]
-    else:
-        raise ValueError("Pad method {} is not supported.".format(pad_method))
+    # Apply padding
+    pad_before = [0, pad_left, 0]
+    pad_after = [0, pad_right, 0]
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
@@ -215,5 +180,5 @@ def conv1d_nwc(data,
         (batch, out_width, out_channels),
         lambda b, w, c: tvm.sum(temp[b, w * stride + rw * dilation, rc].astype(
             out_dtype) * kernel[rw, rc, c].astype(out_dtype),
-                                axis=[rc, rw]),
+            axis=[rc, rw]),
         tag="conv1d_nwc")
