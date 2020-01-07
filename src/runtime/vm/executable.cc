@@ -150,10 +150,8 @@ std::string Executable::Stats() const {
   // Get the number of constants and the shape of each of them.
   oss << "  Constant shapes (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    const auto* cell = it.as<TensorObj>();
-    CHECK(cell);
-    runtime::NDArray data = cell->data;
-    const auto& shape = data.Shape();
+    const auto constant = Downcast<NDArray>(it);
+    const auto& shape = constant.Shape();
 
     // Scalar
     if (shape.empty()) {
@@ -250,10 +248,8 @@ void Executable::SaveGlobalSection(dmlc::Stream* strm) {
 void Executable::SaveConstantSection(dmlc::Stream* strm) {
   std::vector<DLTensor*> arrays;
   for (const auto& obj : this->constants) {
-    const auto* cell = obj.as<runtime::vm::TensorObj>();
-    CHECK(cell != nullptr);
-    runtime::NDArray data = cell->data;
-    arrays.push_back(const_cast<DLTensor*>(data.operator->()));
+    const auto cell = Downcast<runtime::NDArray>(obj);
+    arrays.push_back(const_cast<DLTensor*>(cell.operator->()));
   }
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : arrays) {
@@ -513,8 +509,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   for (size_t i = 0; i < size; i++) {
     runtime::NDArray constant;
     STREAM_CHECK(constant.Load(strm), "constant");
-    runtime::ObjectRef obj = runtime::vm::Tensor(constant);
-    this->constants.push_back(obj);
+    this->constants.push_back(constant);
   }
 }
 

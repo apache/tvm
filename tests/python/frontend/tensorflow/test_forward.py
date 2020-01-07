@@ -60,7 +60,7 @@ tf_dtypes = {
 }
 
 def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.vmobj.Tensor):
+    if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
     elif isinstance(o, tvm.relay.backend.vmobj.ADT):
         result = []
@@ -87,8 +87,6 @@ def vmobj_to_list(o):
         else:
             raise RuntimeError("Unknown object type: %s" %
                                o.constructor.name_hint)
-    elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-        return [o.data.asnumpy()]
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
 
