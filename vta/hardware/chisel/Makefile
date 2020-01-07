@@ -94,7 +94,7 @@ else
 endif
 
 ifneq ($(USE_THREADS), 0)
-  verilator_opt += -threads $(USE_THREADS)
+  verilator_opt += --threads $(USE_THREADS)
   cxx_flags += -DVL_THREADED
   cxx_objs += $(verilator_build_dir)/verilated_threads.o
 endif
