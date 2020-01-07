@@ -50,7 +50,7 @@ def conv1d(data,
         Padding size, or ['VALID', 'SAME']
 
     dilation : int
-        Dilation rate if convolution should be dilated. 
+        Dilation rate if convolution should be dilated.
 
     layout : str
         How input data is laid out, must be one of ['NCW', 'NWC']
@@ -58,7 +58,7 @@ def conv1d(data,
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    if out_dtype == None:
+    if out_dtype is None:
         out_dtype = data.dtype
     if isinstance(stride, (tuple, list)):
         stride = stride[0]
@@ -67,7 +67,7 @@ def conv1d(data,
 
     if layout == 'NCW':
         return conv1d_ncw(data, kernel, stride, padding, dilation, out_dtype)
-    elif layout == 'NWC':
+    if layout == 'NWC':
         return conv1d_nwc(data, kernel, stride, padding, dilation, out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
@@ -96,7 +96,7 @@ def conv1d_ncw(data,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
     dilation : int
-        Dilation rate if convolution should be dilated. 
+        Dilation rate if convolution should be dilated.
 
     out_dtype : str
         The output data type. If None then output is same type as input.
@@ -122,8 +122,9 @@ def conv1d_ncw(data,
 
     return tvm.compute(
         (batch, out_channels, out_width),
-        lambda b, c, w: tvm.sum(temp[b, rc, w * stride + rw * dilation].astype(
-            out_dtype) * kernel[c, rc, rw].astype(out_dtype),
+        lambda b, c, w: tvm.sum(
+            temp[b, rc, w * stride + rw * dilation].astype(out_dtype)
+            * kernel[c, rc, rw].astype(out_dtype),
             axis=[rc, rw]),
         tag="conv1d_ncw")
 
@@ -152,7 +153,7 @@ def conv1d_nwc(data,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
     dilation : int
-        Dilation rate if convolution should be dilated. 
+        Dilation rate if convolution should be dilated.
 
     out_dtype : str
         The output data type. If None then output is same type as input.
@@ -178,7 +179,8 @@ def conv1d_nwc(data,
 
     return tvm.compute(
         (batch, out_width, out_channels),
-        lambda b, w, c: tvm.sum(temp[b, w * stride + rw * dilation, rc].astype(
-            out_dtype) * kernel[rw, rc, c].astype(out_dtype),
+        lambda b, w, c: tvm.sum(
+            temp[b, w * stride + rw * dilation, rc].astype(out_dtype)
+            * kernel[rw, rc, c].astype(out_dtype),
             axis=[rc, rw]),
         tag="conv1d_nwc")

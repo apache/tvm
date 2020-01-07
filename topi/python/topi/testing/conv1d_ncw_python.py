@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-variable
+# pylint: disable=unused-variable, invalid-name
 """1D convolution in python"""
 import numpy as np
-import topi
 from topi.nn.util import get_pad_tuple1d
 
 

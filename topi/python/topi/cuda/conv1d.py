@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Compute definition for conv1d with cuda backend"""
 import tvm
 from tvm import autotvm
-from tvm.contrib import cudnn
 
 from .. import nn, generic
-from ..util import get_const_tuple, traverse_inline
+from ..util import traverse_inline
 
 
 @autotvm.register_topi_compute(nn.conv1d, ['cuda', 'gpu'], ['direct'])
@@ -55,7 +54,7 @@ def conv1d_cuda(cfg,
         Padding size, or ['VALID', 'SAME']
 
     dilation : int
-        Dilation rate if convolution should be dilated. 
+        Dilation rate if convolution should be dilated.
 
     layout : str
         How input data is laid out, must be one of ['NCW', 'NWC']
@@ -63,9 +62,7 @@ def conv1d_cuda(cfg,
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
-    target = tvm.target.current_target()
-
-    if out_dtype == None:
+    if out_dtype is None:
         out_dtype = data.dtype
     if isinstance(stride, (tuple, list)):
         stride = stride[0]
@@ -75,7 +72,7 @@ def conv1d_cuda(cfg,
     if layout == 'NCW':
         return nn.conv1d_ncw(data, kernel, stride, padding, dilation,
                              out_dtype)
-    elif layout == 'NWC':
+    if layout == 'NWC':
         return nn.conv1d_nwc(data, kernel, stride, padding, dilation,
                              out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
