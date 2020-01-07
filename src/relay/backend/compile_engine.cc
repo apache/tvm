@@ -89,8 +89,8 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
       res.push_back(ir::IntImmNode::make(DataType::Int(32), *pval));
-    } else if (val->IsInstance<ir::Any>()) {
-      res.push_back(val.as<ir::Any>()->ToVar());
+    } else if (val->IsInstance<ir::AnyNode>()) {
+      res.push_back(val.as<ir::AnyNode>()->ToVar());
     } else {
       res.push_back(val);
     }

@@ -87,7 +87,7 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode *iv = op->node.as<IterVarNode>();
       CHECK(iv);
@@ -175,7 +175,7 @@ class PartitionFinder : public StmtExprVisitor {
     hint_map_.erase(var);
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     // handle thread_axis
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
@@ -279,7 +279,7 @@ class ThreadPartitionInserter : public StmtMutator {
   explicit ThreadPartitionInserter(const std::unordered_set<const Object*>& ps,
     Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       innermost_thread_scope_ = true;
       Stmt stmt = StmtMutator::VisitStmt_(op);
@@ -288,7 +288,7 @@ class ThreadPartitionInserter : public StmtMutator {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
         Stmt body = IfThenElse::make(cond_, simplified_body, op->body);
         Expr value = this->VisitExpr(op->value);
-        stmt = AttrStmt::make(op->node, op->attr_key, value, body);
+        stmt = AttrStmtNode::make(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
       return stmt;
@@ -331,7 +331,7 @@ class LoopPartitioner : public StmtMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key != attr::thread_extent) {
       return StmtMutator::VisitStmt_(op);
     }

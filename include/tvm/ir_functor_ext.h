@@ -241,14 +241,14 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitStmt_(const LetStmt* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AttrStmt* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const LetStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const IfThenElse* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const For* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Allocate* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Store* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Free* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const AssertStmt* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ProducerConsumer* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Provide* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const Realize* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -264,14 +264,14 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   // initialize the vtable.
   static FType InitVTable() {
     FType vtable;
-    IR_STMT_FUNCTOR_DISPATCH(LetStmt);
-    IR_STMT_FUNCTOR_DISPATCH(AttrStmt);
+    IR_STMT_FUNCTOR_DISPATCH(LetStmtNode);
+    IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(IfThenElse);
     IR_STMT_FUNCTOR_DISPATCH(For);
     IR_STMT_FUNCTOR_DISPATCH(Allocate);
     IR_STMT_FUNCTOR_DISPATCH(Store);
     IR_STMT_FUNCTOR_DISPATCH(Free);
-    IR_STMT_FUNCTOR_DISPATCH(AssertStmt);
+    IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(ProducerConsumer);
     IR_STMT_FUNCTOR_DISPATCH(Provide);
     IR_STMT_FUNCTOR_DISPATCH(Realize);
@@ -396,14 +396,14 @@ class TVM_DLL StmtVisitor :
    */
   virtual void VisitExpr(const Expr& e) {}
   // statement visitor
-  void VisitStmt_(const AttrStmt* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const LetStmt* op) override;
+  void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const For* op) override;
   void VisitStmt_(const Allocate* op) override;
   void VisitStmt_(const Store* op) override;
   void VisitStmt_(const Free* op) override;
-  void VisitStmt_(const AssertStmt* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
   void VisitStmt_(const Provide* op) override;
   void VisitStmt_(const Realize* op) override;
@@ -490,14 +490,14 @@ class TVM_DLL StmtMutator :
     return e;
   }
   // statement visitor
-  Stmt VisitStmt_(const AttrStmt* op) override;
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
   Stmt VisitStmt_(const IfThenElse* op) override;
-  Stmt VisitStmt_(const LetStmt* op) override;
+  Stmt VisitStmt_(const LetStmtNode* op) override;
   Stmt VisitStmt_(const For* op) override;
   Stmt VisitStmt_(const Allocate* op) override;
   Stmt VisitStmt_(const Store* op) override;
   Stmt VisitStmt_(const Free* op) override;
-  Stmt VisitStmt_(const AssertStmt* op) override;
+  Stmt VisitStmt_(const AssertStmtNode* op) override;
   Stmt VisitStmt_(const ProducerConsumer* op) override;
   Stmt VisitStmt_(const Provide* op) override;
   Stmt VisitStmt_(const Realize* op) override;

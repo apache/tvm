@@ -603,7 +603,7 @@ void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
@@ -625,12 +625,12 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AssertStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
   With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const LetStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {
   CHECK(!var_map_.count(op->var.get()));
   CHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);

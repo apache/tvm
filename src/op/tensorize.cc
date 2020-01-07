@@ -126,11 +126,11 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
   auto f_push_banned = [&banned](const Stmt& s) {
     if (const For* op = s.as<For>()) {
         banned.insert(op->loop_var.get());
-    } else if (const AttrStmt* op = s.as<AttrStmt>()) {
+    } else if (const AttrStmtNode* op = s.as<AttrStmtNode>()) {
       if (const IterVarNode* iv = op->node.as<IterVarNode>()) {
         banned.insert(iv->var.get());
       }
-    } else if (const LetStmt* op = s.as<LetStmt>()) {
+    } else if (const LetStmtNode* op = s.as<LetStmtNode>()) {
       banned.insert(op->var.get());
     }
   };
@@ -390,7 +390,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt::make(
+    input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
@@ -410,7 +410,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
-    output_bind_nest.emplace_back(AttrStmt::make(
+    output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }

@@ -37,7 +37,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   explicit ThreadAllreduceBuilder(int warp_size)
       : warp_size_(warp_size) {}
 
-  Stmt VisitStmt_(const AttrStmt *op) final {
+  Stmt VisitStmt_(const AttrStmtNode *op) final {
     if (op->attr_key == attr::thread_extent) {
       thread_extents_.push_back(op);
       Stmt ret = StmtExprMutator::VisitStmt_(op);
@@ -45,7 +45,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
       Stmt ret = StmtExprMutator::VisitStmt_(op);
-      op = ret.as<AttrStmt>();
+      op = ret.as<AttrStmtNode>();
       const VarNode* v = op->node.as<VarNode>();
       if (alloc_remap_.count(v)) {
         return op->body;
@@ -80,12 +80,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (it != alloc_remap_.end()) {
       const Allocate* repl = it->second.as<Allocate>();
       // use volatile access to shared buffer.
-      stmt = AttrStmt::make(
+      stmt = AttrStmtNode::make(
           repl->buffer_var, attr::volatile_scope, 1, op->body);
       stmt = Allocate::make(
           repl->buffer_var, repl->dtype,
           repl->extents, repl->condition, stmt);
-      stmt = AttrStmt::make(
+      stmt = AttrStmtNode::make(
           repl->buffer_var, attr::storage_scope,
           StringImmNode::make("shared"), stmt);
       return stmt;
@@ -149,7 +149,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     size_t nmatch = 0;
     std::vector<ThreadEntry> vred, vpar;
-    for (const AttrStmt* attr : thread_extents_) {
+    for (const AttrStmtNode* attr : thread_extents_) {
       ThreadEntry e;
       IterVar iv = Downcast<IterVar>(attr->node);
       e.scope = runtime::ThreadScope::make(iv->thread_tag);
@@ -327,7 +327,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   int warp_size_{1};
 
   // surrounding scope of thread extent.
-  std::vector<const AttrStmt*> thread_extents_;
+  std::vector<const AttrStmtNode*> thread_extents_;
   std::vector<const CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode *, Expr> load_remap_;

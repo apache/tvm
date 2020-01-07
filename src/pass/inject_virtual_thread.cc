@@ -96,7 +96,7 @@ class ExprTouched final : public StmtExprVisitor {
 // Analyze if the buffers are invariant to value of var
 class VarTouchedAnalysis : public StmtVisitor {
  public:
-  void VisitStmt_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmtNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     Record(op->var.get(), tc);
@@ -279,7 +279,7 @@ class VTInjector : public StmtExprMutator {
     }
   }
   // Attribute
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     Expr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
@@ -293,12 +293,12 @@ class VTInjector : public StmtExprMutator {
           body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       } else {
-        return AttrStmt::make(op->node, op->attr_key, value, body);
+        return AttrStmtNode::make(op->node, op->attr_key, value, body);
       }
     }
   }
   // LetStmt
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     Expr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
@@ -309,7 +309,7 @@ class VTInjector : public StmtExprMutator {
         body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return LetStmt::make(op->var, value, body);
+      return LetStmtNode::make(op->var, value, body);
     }
   }
   // For
@@ -480,9 +480,9 @@ class VTInjector : public StmtExprMutator {
 
 class VirtualThreadInjector : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AttrStmt>();
+    op = stmt.as<AttrStmtNode>();
     if (op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       bool allow_share = iv->thread_tag == "vthread";

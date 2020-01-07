@@ -164,7 +164,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     CHECK_NE(end_index, 0U);
     linear_seq_[begin_index].scope_pair_offset = end_index - begin_index;
   }
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     // Only record the outer most thread extent.
     if (op->attr_key == attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
@@ -191,7 +191,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     VisitNewScope(op);
   }
 
-  void VisitStmt_(const AssertStmt* op) final {
+  void VisitStmt_(const AssertStmtNode* op) final {
     VisitNewScope(op);
   }
 
@@ -241,8 +241,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
     dst_ = dst;
     src_ = src;
     result_ = true;
-    if (stmt->IsInstance<AttrStmt>()) {
-      VisitStmt_(static_cast<const AttrStmt*>(stmt));
+    if (stmt->IsInstance<AttrStmtNode>()) {
+      VisitStmt_(static_cast<const AttrStmtNode*>(stmt));
     } else if (stmt->IsInstance<For>()) {
       VisitStmt_(static_cast<const For*>(stmt));
     } else if (stmt->IsInstance<IfThenElse>()) {
@@ -288,7 +288,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     // always reject extern code
     if (op->attr_key == attr::extern_scope ||
         op->attr_key == attr::volatile_scope) {
@@ -355,7 +355,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (StorageEntry* e : attach_map_.at(nullptr)) {
         // CHECK_EQ(e->scope.rank, 0);
         if (e->new_alloc.defined()) {
-          nest.emplace_back(AttrStmt::make(
+          nest.emplace_back(AttrStmtNode::make(
               e->alloc_var, attr::storage_scope,
               StringImmNode::make(e->scope.to_string()),
               Evaluate::make(0)));
@@ -423,7 +423,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::thread_extent ||
@@ -433,8 +433,8 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
-        op = stmt.as<AttrStmt>();
-        return AttrStmt::make(
+        op = stmt.as<AttrStmtNode>();
+        return AttrStmtNode::make(
             op->node, op->attr_key, op->value,
             MakeAttach(svec, op->body));
       } else {
@@ -442,10 +442,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     } else if (op->attr_key == attr::volatile_scope) {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AttrStmt>();
+      op = stmt.as<AttrStmtNode>();
       auto it = alloc_map_.find(op->node.as<VarNode>());
       if (it == alloc_map_.end()) return stmt;
-      return AttrStmt::make(
+      return AttrStmtNode::make(
           it->second->alloc_var, op->attr_key, op->value, op->body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -519,7 +519,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     std::vector<Stmt> nest;
     for (StorageEntry* e : svec) {
       if (e->new_alloc.defined()) {
-        nest.emplace_back(AttrStmt::make(
+        nest.emplace_back(AttrStmtNode::make(
             e->alloc_var, attr::storage_scope,
             StringImmNode::make(e->scope.to_string()),
             Evaluate::make(0)));
@@ -780,8 +780,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
       }
       // enter/exit new scope
-      if (s.stmt->IsInstance<AttrStmt>()) {
-        const auto* op = static_cast<const AttrStmt*>(s.stmt);
+      if (s.stmt->IsInstance<AttrStmtNode>()) {
+        const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
         if (op->attr_key == attr::thread_extent ||
             op->attr_key == attr::virtual_thread ||
             attr::IsPragmaKey(op->attr_key)) {

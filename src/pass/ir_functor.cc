@@ -137,12 +137,12 @@ inline void VisitArray(const Array<T>& arr, F fvisit) {
   }
 }
 
-void StmtVisitor::VisitStmt_(const LetStmt* op) {
+void StmtVisitor::VisitStmt_(const LetStmtNode* op) {
   this->VisitExpr(op->value);
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const AttrStmt* op) {
+void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
   this->VisitExpr(op->value);
   this->VisitStmt(op->body);
 }
@@ -178,7 +178,7 @@ void StmtVisitor::VisitStmt_(const IfThenElse* op) {
 
 void StmtVisitor::VisitStmt_(const Free* op) {}
 
-void StmtVisitor::VisitStmt_(const AssertStmt* op) {
+void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
   this->VisitStmt(op->body);
@@ -344,7 +344,7 @@ class StmtMutator::Internal {
   }
 };
 
-Stmt StmtMutator::VisitStmt_(const AttrStmt* op) {
+Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
   Expr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) &&
@@ -358,7 +358,7 @@ Stmt StmtMutator::VisitStmt_(const AttrStmt* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const LetStmt* op) {
+Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
   Expr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) &&
@@ -548,7 +548,7 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op,
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const AssertStmt* op) {
+Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   Expr condition = this->VisitExpr(op->condition);
   Expr message = this->VisitExpr(op->message);
   Stmt body = this->VisitStmt(op->body);

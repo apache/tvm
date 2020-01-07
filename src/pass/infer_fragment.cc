@@ -115,7 +115,7 @@ class FragmentGetter : public StmtExprVisitor {
   }
 
   // Get memory scope
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buffer = op->node.as<VarNode>();
       CHECK(buffer);
@@ -186,10 +186,10 @@ class InferFragmenter : public StmtMutator {
                           std::to_string(info.n) + ", " +
                           std::to_string(info.k);
       Expr shape_expr = StringImmNode::make(shape);
-      Stmt shape_attr = AttrStmt::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         // Add shape attribute to matrix_a and matrix_b
-        Stmt layout_attr = AttrStmt::make(op->buffer_var, attr::fragment_layout,
+        Stmt layout_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_layout,
                                           StringImmNode::make(info.layout), shape_attr);
         return layout_attr;
       } else {

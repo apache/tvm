@@ -813,7 +813,7 @@ class PrettyPrinter :
   Doc PrintAttr(const ObjectRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
-      if (value.as<tvm::ir::Any>()) {
+      if (value.as<tvm::ir::AnyNode>()) {
         printed_attr << "?";
       } else if (meta) {
         printed_attr = meta_.GetMetaNode(Downcast<ObjectRef>(value));

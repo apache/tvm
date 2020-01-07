@@ -751,7 +751,7 @@ void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*
   os << ")";
 }
 
-void CodeGenC::VisitStmt_(const LetStmt* op) {
+void CodeGenC::VisitStmt_(const LetStmtNode* op) {
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
     CHECK(!var_idmap_.count(op->var.get()));
@@ -803,7 +803,7 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const AttrStmt* op) {
+void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == ir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
@@ -823,7 +823,7 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const AssertStmt* op) {
+void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (const auto* str = op->message.as<StringImmNode>()) {

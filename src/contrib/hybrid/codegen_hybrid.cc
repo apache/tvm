@@ -284,13 +284,13 @@ void CodeGenHybrid::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOL
   os << "\n";
 }
 
-void CodeGenHybrid::VisitStmt_(const LetStmt* op) {
+void CodeGenHybrid::VisitStmt_(const LetStmtNode* op) {
   std::string value = PrintExpr(op->value);
   stream << GetVarID(op->var.get()) << " = " << value << ";\n";
   PrintStmt(op->body);
 }
 
-void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
+void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == ir::attr::thread_extent) {
     auto iter_var = op->node.as<IterVarNode>();
     CHECK(iter_var);
@@ -331,7 +331,7 @@ void CodeGenHybrid::VisitStmt_(const Realize* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenHybrid::VisitStmt_(const AssertStmt* op) {
+void CodeGenHybrid::VisitStmt_(const AssertStmtNode* op) {
   PrintIndent();
   stream << "assert ";
   PrintExpr(op->condition, stream);

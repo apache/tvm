@@ -52,7 +52,7 @@ class FeatureVisitor : public StmtExprVisitor {
  public:
   // for loop
   void VisitStmt_(const For* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
 
   // memory access
   void VisitExpr_(const LoadNode* op) final;

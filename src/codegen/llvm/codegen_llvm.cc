@@ -1170,7 +1170,7 @@ void CodeGenLLVM::VisitStmt_(const Allocate* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
+void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
@@ -1202,7 +1202,7 @@ void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const LetStmt* op) {
+void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
   CHECK(!var_map_.count(op->var.get()));
   if (op->var.dtype().is_handle()) {
     if (!is_restricted_) {

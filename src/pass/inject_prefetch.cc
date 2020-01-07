@@ -35,9 +35,9 @@ using arith::DomainTouched;
 
 class PrefetchInjector : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtMutator::VisitStmt_(op);
-    op = ret.as<AttrStmt>();
+    op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
       Tensor ts = Downcast<Tensor>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);

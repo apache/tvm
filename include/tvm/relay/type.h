@@ -39,7 +39,7 @@
 namespace tvm {
 namespace relay {
 
-using Any = tvm::ir::Any;
+using Any = tvm::ir::AnyNode;
 using Kind = TypeKind;
 using Type = tvm::Type;
 using TypeNode = tvm::TypeNode;

@@ -40,7 +40,7 @@ class CopyIntrinInjector : public StmtMutator {
         flower_copy_fromto_(flower_copy_fromto) {
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
       storage_scope_[buf] = op->value.as<StringImmNode>()->value;

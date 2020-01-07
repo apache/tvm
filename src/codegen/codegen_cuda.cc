@@ -369,7 +369,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
   }
 }
 
-void CodeGenCUDA::VisitStmt_(const AttrStmt* op) {
+void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();

@@ -46,7 +46,7 @@ Stmt MakePipeline(const Stage& s,
     producer = ProducerConsumer::make(s->op, true, producer);
   }
   if (s->double_buffer) {
-    producer = AttrStmt::make(
+    producer = AttrStmtNode::make(
         s->op, ir::attr::double_buffer_scope, 1, producer);
   }
   Stmt pipeline = producer;
@@ -57,13 +57,13 @@ Stmt MakePipeline(const Stage& s,
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
-  pipeline = AttrStmt::make(
+  pipeline = AttrStmtNode::make(
       s->op, ir::attr::realize_scope,
       StringImmNode::make(s->scope),
       pipeline);
 
   if (s->is_opengl) {
-    pipeline = AttrStmt::make(
+    pipeline = AttrStmtNode::make(
         s->op, ir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
   }
   return pipeline;
@@ -82,7 +82,7 @@ class InjectAttach : public StmtMutator {
   Stmt VisitStmt(const Stmt& input_stmt) final {
     CHECK(input_stmt.defined());
     auto stmt = StmtMutator::VisitStmt(input_stmt);
-    const AttrStmt* op = stmt.as<AttrStmt>();
+    const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
         op->attr_key == attr::loop_scope) {
       if (attach_spec_->attach_type == kScope &&
@@ -91,7 +91,7 @@ class InjectAttach : public StmtMutator {
             << "Find IterVar" << attach_spec_->attach_ivar
             << " in multiple places in the IR";
         found_attach = true;
-        stmt = AttrStmt::make(
+        stmt = AttrStmtNode::make(
             op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
@@ -128,13 +128,13 @@ class InjectScanStep : public StmtMutator {
     CHECK(input_stmt.defined());
     auto stmt = StmtMutator::VisitStmt(input_stmt);
     // update
-    const AttrStmt* op = stmt.as<AttrStmt>();
+    const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
         ((op->attr_key == attr::scan_update_scope && !is_init_) ||
          (op->attr_key == attr::scan_init_scope && is_init_))) {
       if (op->node.same_as(scan_op_)) {
         found_attach = true;
-        stmt = AttrStmt::make(
+        stmt = AttrStmtNode::make(
             op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
@@ -176,7 +176,7 @@ class SchedulePostProc : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     if (!HasSideEffect(op->value)) {
       var_value_[op->var.get()] = this->VisitExpr(op->value);
       return this->VisitStmt(op->body);
@@ -185,7 +185,7 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::loop_scope ||
         op->attr_key == attr::scan_init_scope) {
       return this->VisitStmt(op->body);
@@ -211,7 +211,7 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          Stmt ret = AttrStmt::make(
+          Stmt ret = AttrStmtNode::make(
               it->second, op->attr_key, op->value, op->body);
           return this->VisitStmt(ret);
         } else {
@@ -224,7 +224,7 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmt::make(
+          return AttrStmtNode::make(
               Array<ObjectRef>{tuple[0], it->second.output(tensor->value_index)},
               op->attr_key, op->value, this->VisitStmt(op->body));
         } else {
@@ -236,7 +236,7 @@ class SchedulePostProc : public StmtExprMutator {
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmt::make(
+          return AttrStmtNode::make(
               it->second.output(tensor->value_index),
               op->attr_key, op->value, this->VisitStmt(op->body));
         } else {

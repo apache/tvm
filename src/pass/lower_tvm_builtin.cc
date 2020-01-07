@@ -52,17 +52,17 @@ class BuiltinLower : public StmtExprMutator {
     stack_tcode_ = Var("stack_tcode", DataType::Handle());
     stmt = this->VisitStmt(stmt);
     if (max_shape_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
     if (max_array_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_array_, StackAlloca("array", max_array_stack_), stmt);
     }
     if (max_arg_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
     }
     return stmt;
@@ -117,7 +117,7 @@ class BuiltinLower : public StmtExprMutator {
                          throw_last_error),
         op->body});
 
-    Stmt alloca = LetStmt::make(
+    Stmt alloca = LetStmtNode::make(
         op->buffer_var,
         CallNode::make(op->buffer_var.dtype(),
                    "TVMBackendAllocWorkspace",
@@ -137,14 +137,14 @@ class BuiltinLower : public StmtExprMutator {
                               CallNode::Extern);
     Stmt free_stmt = IfThenElse::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
-    body = AttrStmt::make(
+    body = AttrStmtNode::make(
         op->buffer_var, attr::storage_alignment,
         make_const(DataType::Int(32), runtime::kTempAllocaAlignment),
         body);
     return body;
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_context_id) {
       CHECK(!device_id_.defined());
       device_id_ = op->value;

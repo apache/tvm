@@ -91,7 +91,7 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       std::string op_value = op->value.as<StringImmNode>()->value;
       if (op_value == "local") {

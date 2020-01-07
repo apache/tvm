@@ -77,7 +77,7 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       return this->VisitStmt(op->body);
@@ -90,7 +90,7 @@ class StorageFlattener : public StmtExprMutator {
         auto it = buf_map_.find(key);
         CHECK(it != buf_map_.end())
             << "Cannot find allocated buffer for " << key.f;
-        body = AttrStmt::make(
+        body = AttrStmtNode::make(
             it->second.buffer->data, op->attr_key, op->value, body);
       }
       return body;
@@ -149,7 +149,7 @@ class StorageFlattener : public StmtExprMutator {
       // To create bound attribute collector should has at least one item.
       if (create_bound_attributes_ && shape_collector_.size()) {
         for (size_t i = 0; i < shape_collector_.size(); ++i) {
-          body = AttrStmt::make(
+          body = AttrStmtNode::make(
               shape_collector_[i].first, ir::attr::buffer_bound,
               MakeBound(e.buffer->dtype, shape_collector_[i].second), body);
         }
@@ -250,12 +250,12 @@ class StorageFlattener : public StmtExprMutator {
             e.buffer->data, storage_type, shape,
             make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }
-      ret = AttrStmt::make(
+      ret = AttrStmtNode::make(
           e.buffer->data, attr::storage_scope,
           StringImmNode::make(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
-        ret = AttrStmt::make(e.buffer->data, ir::attr::buffer_bound,
+        ret = AttrStmtNode::make(e.buffer->data, ir::attr::buffer_bound,
                              MakeBound(e.buffer->dtype, e.buffer->shape), ret);
       }
       return ret;
@@ -400,7 +400,7 @@ class StorageFlattener : public StmtExprMutator {
   //
   // We do support a few relaxed case, such as bindingx
   // region with shape [1, 1, n, m] to buffer with shape [n, m]
-  Stmt HandleBufferBindScope(const AttrStmt* op) {
+  Stmt HandleBufferBindScope(const AttrStmtNode* op) {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef> > (op->node);
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();

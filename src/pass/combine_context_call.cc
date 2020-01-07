@@ -64,7 +64,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
@@ -99,7 +99,7 @@ class ContextCallCombiner final : public StmtExprMutator {
   static Stmt BuildContext(const std::map<Expr, Var, CompareExpr>& cmap,
                            Stmt body) {
     for (const auto& kv : cmap) {
-      body = LetStmt::make(kv.second, kv.first, body);
+      body = LetStmtNode::make(kv.second, kv.first, body);
     }
     return body;
   }

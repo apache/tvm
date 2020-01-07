@@ -40,7 +40,7 @@ class AttrScopeLifter : public StmtMutator {
   Stmt Lift(Stmt stmt) {
     stmt = operator()(std::move(stmt));
     if (attr_node_.defined()) {
-      stmt = AttrStmt::make(
+      stmt = AttrStmtNode::make(
           attr_node_, attr_key_, attr_value_, stmt);
     }
     return stmt;
@@ -51,7 +51,7 @@ class AttrScopeLifter : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     if (attr_node_.defined()) {
-      Stmt body = AttrStmt::make(
+      Stmt body = AttrStmtNode::make(
           attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
       attr_node_ = ObjectRef();
@@ -65,7 +65,7 @@ class AttrScopeLifter : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr_key_) {
       attr_node_ = op->node;
       attr_value_ = op->value;
@@ -116,7 +116,7 @@ class AttrScopeLifter : public StmtMutator {
       }
       Stmt stmt = SeqStmt::Flatten(seq);
       if (attr_node[begin].defined()) {
-        stmt = AttrStmt::make(
+        stmt = AttrStmtNode::make(
             attr_node[begin], attr_key_, attr_value[begin], stmt);
       }
       reorg.push_back(stmt);
@@ -151,11 +151,11 @@ class AttrScopeLifter : public StmtMutator {
       }
     } else {
       if (first_node.defined()) {
-        then_case = AttrStmt::make(
+        then_case = AttrStmtNode::make(
             first_node, attr_key_, first_value, then_case);
       }
       if (attr_node_.defined()) {
-        else_case = AttrStmt::make(
+        else_case = AttrStmtNode::make(
             attr_node_, attr_key_, attr_value_, else_case);
         // undefine them
         attr_node_ = ObjectRef();

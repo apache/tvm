@@ -46,7 +46,7 @@ class CodeGenCPU : public CodeGenLLVM {
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
   void VisitStmt_(const AssertStmt* op) override;
-  void VisitStmt_(const AttrStmt* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const For* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(const CallNode* op) override;
@@ -114,7 +114,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task);
   // Create a new compute scope.
-  void CreateComputeScope(const AttrStmt* op);
+  void CreateComputeScope(const AttrStmtNode* op);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check

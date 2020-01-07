@@ -88,7 +88,7 @@ Stmt MakeCrossThreadReduction(
       DataType::Handle(),
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, CallNode::Intrinsic));
-  reduce_body = AttrStmt::make(
+  reduce_body = AttrStmtNode::make(
       reduces[0]->combiner,
       attr::reduce_scope,
       make_zero(DataType::Handle()),
@@ -107,7 +107,7 @@ Stmt MakeCrossThreadReduction(
   for (size_t idx = size; idx != 0; --idx) {
     body = Allocate::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmt::make(
+    body = AttrStmtNode::make(
       res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);
   }
   body = op::Substitute(body, value_map);

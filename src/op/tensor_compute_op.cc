@@ -152,7 +152,7 @@ Stmt TensorComputeOpNode::BuildProvide(
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt::make(
+    input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
@@ -176,7 +176,7 @@ Stmt TensorComputeOpNode::BuildProvide(
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmt::make(
+    output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }

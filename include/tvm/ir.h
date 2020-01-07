@@ -708,7 +708,7 @@ class ReduceNode : public ExprNode {
 };
 
 /*! \brief Any shape. */
-class Any : public ExprNode {
+class AnyNode : public ExprNode {
  public:
   void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
@@ -719,14 +719,14 @@ class Any : public ExprNode {
   TVM_DLL static Expr make();
 
   static constexpr const char* _type_key = "Any";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Any, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, ExprNode);
 };
 
 // Statements
 /*!
  * \brief Let binding, bind var to value, then run body.
  */
-class LetStmt : public StmtNode {
+class LetStmtNode : public StmtNode {
  public:
   /*! \brief The variable. */
   Var var;
@@ -744,7 +744,7 @@ class LetStmt : public StmtNode {
   TVM_DLL static Stmt make(Var var, Expr value, Stmt body);
 
   static constexpr const char* _type_key = "LetStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmtNode, StmtNode);
 };
 
 /*!
@@ -757,7 +757,7 @@ class LetStmt : public StmtNode {
  *    - Bound of function, variables.
  *    - Hint which block corresponds to a parallel region.
  */
-class AttrStmt : public StmtNode {
+class AttrStmtNode : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
   ObjectRef node;
@@ -781,13 +781,13 @@ class AttrStmt : public StmtNode {
                            Stmt body);
 
   static constexpr const char* _type_key = "AttrStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
 };
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
  */
-class AssertStmt : public StmtNode {
+class AssertStmtNode : public StmtNode {
  public:
   /*! \brief Condition to be checked. */
   Expr condition;
@@ -808,7 +808,7 @@ class AssertStmt : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Expr message, Stmt body);
 
   static constexpr const char* _type_key = "AssertStmt";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
 };
 
 // TODO(tvm-team): consider consolidate with AttrStmt.

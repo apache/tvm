@@ -61,7 +61,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitExpr_(op);
   }
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::coproc_scope && !in_scope_) {
       in_scope_ = true;
       IterVar iv = Downcast<IterVar>(op->node);
@@ -373,7 +373,7 @@ class CoProcInstDepDetector : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::coproc_scope &&
         op->node.same_as(coproc_axis_)) {
       const IntImmNode* ctx_id = op->value.as<IntImmNode>();

@@ -87,7 +87,7 @@ void StorageAccessVisitor::VisitStmt_(const Evaluate* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::VisitStmt_(const AttrStmt* op) {
+void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::storage_scope) {
     const VarNode* buf = op->node.as<VarNode>();
     storage_scope_[buf] =
@@ -259,7 +259,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
       StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);

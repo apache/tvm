@@ -34,7 +34,7 @@ namespace ir {
 // use/def analysis, also delete unreferenced lets
 class IRUseDefAnalysis : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
@@ -54,13 +54,13 @@ class IRUseDefAnalysis : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       }
-      return AttrStmt::make(op->node, op->attr_key, value, body);
+      return AttrStmtNode::make(op->node, op->attr_key, value, body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
@@ -73,7 +73,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
           value.same_as(op->value)) {
         return GetRef<Stmt>(op);
       } else {
-        return LetStmt::make(op->var, value, body);
+        return LetStmtNode::make(op->var, value, body);
       }
     }
   }
@@ -163,7 +163,7 @@ class HostDeviceSplitter : public StmtMutator {
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope ||
         op->attr_key == attr::device_scope) {

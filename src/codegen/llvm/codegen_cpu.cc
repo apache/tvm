@@ -417,7 +417,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 
-void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
+void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // There are two reasons why we create another function for compute_scope
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
@@ -869,7 +869,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
   CodeGenLLVM::VisitStmt_(op);
 }
 
-void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
+void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == ir::attr::coproc_uop_scope) {
     this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
   } else  if (op->attr_key == ir::attr::compute_scope) {

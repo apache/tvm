@@ -140,13 +140,13 @@ class CodeGenStackVM
   void VisitExpr_(const FloatImmNode* op) final;
   void VisitExpr_(const StringImmNode* op) final;
   // statment
-  void VisitStmt_(const LetStmt* op) final;
+  void VisitStmt_(const LetStmtNode* op) final;
   void VisitStmt_(const Store* op) final;
   void VisitStmt_(const For* op) final;
   void VisitStmt_(const IfThenElse* op) final;
   void VisitStmt_(const Allocate* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
-  void VisitStmt_(const AssertStmt* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const Evaluate* op) final;
   void VisitStmt_(const SeqStmtNode* op) final;
   void VisitStmt_(const ProducerConsumer* op) final;

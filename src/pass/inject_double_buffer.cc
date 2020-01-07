@@ -33,7 +33,7 @@ namespace ir {
 // Detect double buffer variables.
 class DoubleBufferDetector : public StmtExprVisitor {
  public:
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::double_buffer_scope) {
       touched_.insert(op->node.as<VarNode>());
       StmtExprVisitor::VisitStmt_(op);
@@ -54,7 +54,7 @@ class DoubleBufferDetector : public StmtExprVisitor {
 
 class StripDoubleBufferWrite : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::double_buffer_write) {
       return VisitStmt(op->body);
     } else {
@@ -78,7 +78,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return ConvertSSA(operator()(std::move(stmt)));
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
       auto it = dbuffer_info_.find(buf);
@@ -108,7 +108,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       }
       CHECK(it->second.loop != nullptr);
       auto& alloc_nest = loop_allocs_[it->second.loop];
-      alloc_nest.emplace_back(AttrStmt::make(
+      alloc_nest.emplace_back(AttrStmtNode::make(
           op->buffer_var, attr::storage_scope,
           StringImmNode::make(it->second.scope),
           Evaluate::make(0)));
@@ -210,7 +210,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
  private:
-  Stmt MakeProducer(const AttrStmt* op) {
+  Stmt MakeProducer(const AttrStmtNode* op) {
     const VarExpr buffer = Downcast<VarExpr>(op->node);
     CHECK_NE(loop_nest_.size(), 0U)
         << "Double buffer scope must be inside a loop";
@@ -238,7 +238,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
-    body = AttrStmt::make(buffer, attr::double_buffer_write, 1, body);
+    body = AttrStmtNode::make(buffer, attr::double_buffer_write, 1, body);
     body = IfThenElse::make(loop_shift < e.loop->extent, body);
     return body;
   }

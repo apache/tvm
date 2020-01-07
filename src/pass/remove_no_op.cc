@@ -32,17 +32,17 @@ namespace ir {
 // Mark the statment of each stage.
 class NoOpRemover : public StmtMutator {
  public:
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<LetStmt>();
+    op = stmt.as<LetStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
     }
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AttrStmt>();
+    op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
   }
   Stmt VisitStmt_(const IfThenElse* op) final {

@@ -214,8 +214,8 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
         for (const auto& if_stmt : for2if_map_.at(head.get())) {
           for2if_map_[for_stmt.get()].push_back(if_stmt);
         }
-      } else if (head->IsInstance<AttrStmt>()) {
-        const AttrStmt* attr_node = head.as<AttrStmt>();
+      } else if (head->IsInstance<AttrStmtNode>()) {
+        const AttrStmtNode* attr_node = head.as<AttrStmtNode>();
         tracker.push(attr_node->body);
       } else if (head->IsInstance<IfThenElse>()) {
         for2if_map_[for_stmt.get()].push_back(head);

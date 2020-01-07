@@ -74,8 +74,8 @@ class IRDeepCompare :
     StmtComparator::VisitStmt(n, other);
   }
   // Stmt
-  void VisitStmt_(const LetStmt* op, const Stmt& other) final {
-    const LetStmt* rhs = other.as<LetStmt>();
+  void VisitStmt_(const LetStmtNode* op, const Stmt& other) final {
+    const LetStmtNode* rhs = other.as<LetStmtNode>();
     if (CompareExpr(op->value, rhs->value) != 0) return;
     if (tie_def_) {
       vmap_[op->var.get()] = rhs->var.get();
@@ -85,8 +85,8 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const AttrStmt* op, const Stmt& other) final {
-    const AttrStmt* rhs = other.as<AttrStmt>();
+  void VisitStmt_(const AttrStmtNode* op, const Stmt& other) final {
+    const AttrStmtNode* rhs = other.as<AttrStmtNode>();
     if (CompareString(op->attr_key, rhs->attr_key) != 0) return;
     if (CompareNodeRef(op->node, rhs->node) != 0) return;
     if (CompareExpr(op->value, rhs->value) != 0) return;
@@ -140,8 +140,8 @@ class IRDeepCompare :
     if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
   }
 
-  void VisitStmt_(const AssertStmt* op, const Stmt& other) final {
-    const AssertStmt* rhs = other.as<AssertStmt>();
+  void VisitStmt_(const AssertStmtNode* op, const Stmt& other) final {
+    const AssertStmtNode* rhs = other.as<AssertStmtNode>();
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareExpr(op->message, rhs->message) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;

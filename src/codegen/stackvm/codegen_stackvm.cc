@@ -467,7 +467,7 @@ void CodeGenStackVM::VisitStmt_(const IfThenElse* op) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const LetStmt* op) {
+void CodeGenStackVM::VisitStmt_(const LetStmtNode* op) {
   this->Push(op->value);
   int64_t vid = this->AllocVarID(op->var.get());
   this->PushOp(StackVM::STORE_HEAP, static_cast<int>(vid));
@@ -489,7 +489,7 @@ void CodeGenStackVM::VisitExpr_(const SelectNode* op) {
   this->PushOp(StackVM::SELECT);
 }
 
-void CodeGenStackVM::VisitStmt_(const AssertStmt* op) {
+void CodeGenStackVM::VisitStmt_(const AssertStmtNode* op) {
   if (const auto* str = op->message.as<StringImmNode>()) {
     int sid = this->GetStrID(str->value);
     this->Push(op->condition);
@@ -498,7 +498,7 @@ void CodeGenStackVM::VisitStmt_(const AssertStmt* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitStmt_(const AttrStmt* op) {
+void CodeGenStackVM::VisitStmt_(const AttrStmtNode* op) {
   this->Push(op->body);
 }
 

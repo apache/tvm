@@ -36,7 +36,7 @@ class BoundCollector : public StmtVisitor {
  public:
   BoundCollector() {}
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == ir::attr::buffer_bound) {
       if (const VarNode *key = op->node.as<VarNode>()) {
         mem_to_shape[key] = op->value;
@@ -86,7 +86,7 @@ class BoundChecker : public StmtExprMutator {
         Stmt then_case =
             Store::make(op->buffer_var, op->value, op->index, op->predicate);
         Stmt else_case =
-            AssertStmt::make(condition, StringImmNode::make(error_message_), nop);
+            AssertStmtNode::make(condition, StringImmNode::make(error_message_), nop);
         Stmt body = IfThenElse::make(condition, then_case, else_case);
         return body;
       }

@@ -127,7 +127,7 @@ TVM_REGISTER_GLOBAL("make.CommReducer")
   .set_body_typed(Node::make);                                  \
 
 REGISTER_MAKE(ReduceNode);
-REGISTER_MAKE(AttrStmt);
+REGISTER_MAKE(AttrStmtNode);
 
 REGISTER_MAKE(IntImmNode);
 REGISTER_MAKE(UIntImmNode);
@@ -159,8 +159,8 @@ REGISTER_MAKE(CastNode);
 REGISTER_MAKE(BroadcastNode);
 REGISTER_MAKE(ShuffleNode);
 REGISTER_MAKE(LetNode);
-REGISTER_MAKE(LetStmt);
-REGISTER_MAKE(AssertStmt);
+REGISTER_MAKE(LetStmtNode);
+REGISTER_MAKE(AssertStmtNode);
 REGISTER_MAKE(ProducerConsumer);
 REGISTER_MAKE(Provide);
 REGISTER_MAKE(Prefetch);

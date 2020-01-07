@@ -293,7 +293,7 @@ Stmt BaseComputeOpNode::BuildRealize(
           Array<Expr> tuple = {static_cast<int>(i),
                                attr->dim_align_factor,
                                attr->dim_align_offset};
-          realize = ir::AttrStmt::make(
+          realize = ir::AttrStmtNode::make(
               t, ir::attr::buffer_dim_align,
               CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
               realize);

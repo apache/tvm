@@ -57,7 +57,7 @@ void FeatureVisitor::VisitStmt_(const For* op) {
 }
 
 // parallel axis, virtual thread
-void FeatureVisitor::VisitStmt_(const AttrStmt* op) {
+void FeatureVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
     VarExpr var = op->node.as<tvm::IterVarNode>()->var;

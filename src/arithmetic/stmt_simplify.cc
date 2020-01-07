@@ -57,7 +57,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const LetStmt* op) {
+  Stmt VisitStmt_(const LetStmtNode* op) {
     Expr value = this->VisitExpr(op->value);
     if (!ir::HasSideEffect(value)) {
       // it is fine to discard the let binding

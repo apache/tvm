@@ -307,28 +307,28 @@ Expr ReduceNode::make(CommReducer combiner, Array<Expr> source,
   return Expr(n);
 }
 
-Expr Any::make() {
-  auto n = make_object<Any>();
+Expr AnyNode::make() {
+  auto n = make_object<AnyNode>();
   return Expr(n);
 }
 
-Stmt LetStmt::make(Var var, Expr value, Stmt body) {
+Stmt LetStmtNode::make(Var var, Expr value, Stmt body) {
   CHECK(value.defined());
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
 
-  ObjectPtr<LetStmt> node = make_object<LetStmt>();
+  ObjectPtr<LetStmtNode> node = make_object<LetStmtNode>();
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
   return Stmt(node);
 }
 
-Stmt AttrStmt::make(ObjectRef node,
+Stmt AttrStmtNode::make(ObjectRef node,
                     std::string attr_key,
                     Expr value,
                     Stmt body) {
-  auto n = make_object<AttrStmt>();
+  auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
   n->value = std::move(value);
@@ -336,14 +336,14 @@ Stmt AttrStmt::make(ObjectRef node,
   return Stmt(n);
 }
 
-Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
+Stmt AssertStmtNode::make(Expr condition, Expr message, Stmt body) {
   CHECK(condition.defined());
   CHECK(message.dtype() == DataType::Int(32) ||
         message.as<StringImmNode>())
       << "TypeError: AssertStmt message must be an int or string:"
       << message << "\n";
 
-  ObjectPtr<AssertStmt> node = make_object<AssertStmt>();
+  ObjectPtr<AssertStmtNode> node = make_object<AssertStmtNode>();
   node->condition = std::move(condition);
   node->message = std::move(message);
   node->body = std::move(body);
@@ -815,8 +815,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<LetStmt>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const LetStmt*>(node.get());
+.set_dispatch<LetStmtNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const LetStmtNode*>(node.get());
     p->PrintIndent();
     p->stream << "let " << op->var << " = ";
     p->Print(op->value);
@@ -825,8 +825,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<AttrStmt>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const AttrStmt*>(node.get());
+.set_dispatch<AttrStmtNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const AttrStmtNode*>(node.get());
     p->PrintIndent();
     p->stream << "// attr [";
     p->Print(op->node);
@@ -838,8 +838,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<AssertStmt>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const AssertStmt*>(node.get());
+.set_dispatch<AssertStmtNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const AssertStmtNode*>(node.get());
     p->PrintIndent();
     p->stream << "assert(";
     p->Print(op->condition);
@@ -1143,14 +1143,14 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Any>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<AnyNode>([](const ObjectRef& node, NodePrinter* p) {
     p->stream << "?";
 });
 
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
 TVM_REGISTER_NODE_TYPE(ReduceNode);
-TVM_REGISTER_NODE_TYPE(Any);
-TVM_REGISTER_NODE_TYPE(AttrStmt);
+TVM_REGISTER_NODE_TYPE(AnyNode);
+TVM_REGISTER_NODE_TYPE(AttrStmtNode);
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 TVM_REGISTER_NODE_TYPE(IntImmNode);
 TVM_REGISTER_NODE_TYPE(UIntImmNode);
@@ -1183,8 +1183,8 @@ TVM_REGISTER_NODE_TYPE(ShuffleNode);
 TVM_REGISTER_NODE_TYPE(Prefetch);
 TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_REGISTER_NODE_TYPE(LetNode);
-TVM_REGISTER_NODE_TYPE(LetStmt);
-TVM_REGISTER_NODE_TYPE(AssertStmt);
+TVM_REGISTER_NODE_TYPE(LetStmtNode);
+TVM_REGISTER_NODE_TYPE(AssertStmtNode);
 TVM_REGISTER_NODE_TYPE(ProducerConsumer);
 TVM_REGISTER_NODE_TYPE(For);
 TVM_REGISTER_NODE_TYPE(Store);

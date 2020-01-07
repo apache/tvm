@@ -61,7 +61,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     dom_map_.erase(var);
   }
 
-  void VisitStmt_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmtNode* op) final {
     dom_map_[op->var.get()] =
         arith::EvalSet(op->value, dom_map_);
     StmtExprVisitor::VisitStmt_(op);
@@ -69,7 +69,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   }
 
   /* TODO: Thread extent unitest not generated.*/
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);

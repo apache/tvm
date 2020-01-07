@@ -155,7 +155,7 @@ class WarpIndexFinder : private StmtVisitor {
 
  private:
   /// Visitor implementation
-  void VisitStmt_(const AttrStmt *op) final {
+  void VisitStmt_(const AttrStmtNode *op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
@@ -307,7 +307,7 @@ class BindVarBoundInfo : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AttrStmt* op) {
+  void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
@@ -354,7 +354,7 @@ class WarpMemoryRewriter : private StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) {
+  Stmt VisitStmt_(const AttrStmtNode* op) {
     using runtime::StorageScope;
     if (op->attr_key == attr::storage_scope) {
       const VarNode* buf = op->node.as<VarNode>();
@@ -362,8 +362,8 @@ class WarpMemoryRewriter : private StmtMutator {
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
-        op = ret.as<AttrStmt>();
-        return AttrStmt::make(
+        op = ret.as<AttrStmtNode>();
+        return AttrStmtNode::make(
             op->node, op->attr_key, StringImmNode::make("local"), op->body);
       }
     }

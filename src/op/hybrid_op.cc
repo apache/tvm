@@ -180,7 +180,7 @@ Stmt HybridOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range> &dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmt::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);
@@ -345,7 +345,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
           std::unordered_map<const VarNode *, Expr> rmap;
           rmap[op->loop_var.get()] = iter_var;
           Stmt body = ir::Substitute(op->body, rmap);
-          return AttrStmt::make(iter_var, "thread_extent", op->extent, body);
+          return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);
         } else {
           return For::make(op->loop_var, op->min, op->extent,
                            IterVarTypeToForType(attr->iter_type), op->device_api, op->body);

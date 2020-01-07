@@ -44,7 +44,7 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
     return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AttrStmt* op) {
+  void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);

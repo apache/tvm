@@ -35,13 +35,13 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
-    } else if (const auto* let = s.as<LetStmt>()) {
-      auto n = make_object<LetStmt>(*let);
+    } else if (const auto* let = s.as<LetStmtNode>()) {
+      auto n = make_object<LetStmtNode>(*let);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
-    } else if (const auto* attr = s.as<AttrStmt>()) {
-      auto n = make_object<AttrStmt>(*attr);
+    } else if (const auto* attr = s.as<AttrStmtNode>()) {
+      auto n = make_object<AttrStmtNode>(*attr);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
@@ -56,8 +56,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       CHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
-    } else if (const auto* assert_ = s.as<AssertStmt>()) {
-      auto n = make_object<AssertStmt>(*assert_);
+    } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
+      auto n = make_object<AssertStmtNode>(*assert_);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);

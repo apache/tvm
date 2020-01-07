@@ -236,7 +236,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     return StmtExprMutator::VisitStmt_(op);
   }
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       bool temp = true;
       std::swap(temp, in_thread_env_);
@@ -246,7 +246,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       std::swap(temp, in_thread_env_);
       // first thread scope.
       if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
-        ret = InitGlobalBarrier(ret.as<AttrStmt>());
+        ret = InitGlobalBarrier(ret.as<AttrStmtNode>());
         num_blocks_ = Expr();
         is_lead_ = Expr();
       }
@@ -298,7 +298,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     return it->second;
   }
   // private functions.
-  Stmt InitGlobalBarrier(const AttrStmt* op) {
+  Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
     Array<Expr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate::make(
@@ -307,14 +307,14 @@ class ThreadSyncInserter : public StmtExprMutator {
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
       if (e.read_count != 0 && e.write_count != 0) {
-        body = AttrStmt::make(kv.first, attr::volatile_scope, 1, body);
+        body = AttrStmtNode::make(kv.first, attr::volatile_scope, 1, body);
       }
     }
     rw_stats_.clear();
     Stmt kinit = Evaluate::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
-    body = AttrStmt::make(
+    body = AttrStmtNode::make(
         op->node, op->attr_key, op->value, body);
     return SeqStmt({prep, body});
   }
@@ -323,7 +323,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (!num_blocks_.defined()) {
       CHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();
-      for (const AttrStmt* attr : thread_extents_) {
+      for (const AttrStmtNode* attr : thread_extents_) {
         IterVar iv = Downcast<IterVar>(attr->node);
         runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
         if (s.rank == 0) {
@@ -353,7 +353,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   // The statistics for global barrier
   bool in_thread_env_{false};
   // memorized results
-  std::vector<const AttrStmt*> thread_extents_;
+  std::vector<const AttrStmtNode*> thread_extents_;
   size_t num_work_dim_{0};
   Expr num_blocks_;
   Expr is_lead_;

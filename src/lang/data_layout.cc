@@ -292,7 +292,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
-    if (orig_shape.as<ir::Any>()) {
+    if (orig_shape.as<ir::AnyNode>()) {
       symbolic_var_set.insert(i);
     }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
@@ -322,7 +322,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
       result.push_back(axis->dom->extent);
     } else {
       if (symbolic_var_set.count(i)) {
-        result.push_back(ir::Any::make());
+        result.push_back(ir::AnyNode::make());
       } else {
         result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
       }

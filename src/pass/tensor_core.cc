@@ -84,7 +84,7 @@ class MMAMatcher: public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::pragma_tensor_core) {
       tensor_core_on_ = true;
       StmtVisitor::VisitStmt_(op);
@@ -404,7 +404,7 @@ class BufferAnalyser : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       if (const IntImmNode* value = op->value.as<IntImmNode>()) {
         thread_extent_.insert(
@@ -828,7 +828,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (op->attr_key == attr::realize_scope) {
       auto node = op->node.as<OperationNode>();
@@ -842,7 +842,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
               << "Cannot find matrix info for " << node->name;
         auto matrix_abc = "wmma." + it->second;
         Stmt body = this->VisitStmt(op->body);
-        return AttrStmt::make(op->node,
+        return AttrStmtNode::make(op->node,
                               op->attr_key,
                               matrix_abc,
                               body);
@@ -1136,7 +1136,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
                             args,
                             CallNode::Intrinsic);
     Array<ObjectRef> node = {buffer, tensor};
-    return AttrStmt::make(node,
+    return AttrStmtNode::make(node,
                           "buffer_bind_scope",
                           tuple,
                           call_back(buffer));

@@ -37,7 +37,7 @@ VisitStmt_(const For* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::
-VisitStmt_(const LetStmt* op) {
+VisitStmt_(const LetStmtNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
@@ -91,7 +91,7 @@ VisitStmt_(const IfThenElse* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::
-VisitStmt_(const AttrStmt* op) {
+VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
@@ -106,7 +106,7 @@ VisitStmt_(const AttrStmt* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::
-VisitStmt_(const AssertStmt* op) {
+VisitStmt_(const AssertStmtNode* op) {
   Expr condition = this->VisitExpr(op->condition);
   Expr message = this->VisitExpr(op->message);
   With<ConstraintContext> ctx(analyzer_, condition);

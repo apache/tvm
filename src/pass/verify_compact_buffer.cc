@@ -39,7 +39,7 @@ class VerifyBuffer : public StmtVisitor {
     return is_compact_;
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     StmtVisitor::VisitStmt_(op);
     if (op->attr_key == attr::buffer_bind_scope) {
       is_compact_ = true;

@@ -49,7 +49,7 @@ class IRVerifySSA final : public StmtExprVisitor {
     MarkDef(op->var.get());
     StmtExprVisitor::VisitExpr_(op);
   }
-  void VisitStmt_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmtNode* op) final {
     MarkDef(op->var.get());
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -119,7 +119,7 @@ class IRConvertSSA final : public StmtExprMutator {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     const VarExpr& v = op->var;
     if (defined_.count(v.get())) {
       Expr value = this->VisitExpr(op->value);
@@ -127,7 +127,7 @@ class IRConvertSSA final : public StmtExprMutator {
       scope_[v.get()].push_back(new_var);
       Stmt body = this->VisitStmt(op->body);
       scope_[v.get()].pop_back();
-      return LetStmt::make(new_var, value, body);
+      return LetStmtNode::make(new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -164,7 +164,7 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (const VarNode* v = op->node.as<VarNode>()) {
       if (op->attr_key == attr::storage_scope) {
         const Allocate* alloc = op->body.as<Allocate>();
@@ -173,14 +173,14 @@ class IRConvertSSA final : public StmtExprMutator {
           if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
           alloc = new_alloc.as<Allocate>();
           CHECK(alloc);
-          return AttrStmt::make(
+          return AttrStmtNode::make(
               alloc->buffer_var, op->attr_key, op->value, new_alloc);
         }
       }
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AttrStmt>();
+      op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
-        return AttrStmt::make(
+        return AttrStmtNode::make(
             scope_[v].back(), op->attr_key, op->value, op->body);
       } else {
         return stmt;

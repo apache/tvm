@@ -695,8 +695,8 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<ir::Any>()) {
-      newshape.push_back(val.as<ir::Any>()->ToVar());
+    if (val->IsInstance<ir::AnyNode>()) {
+      newshape.push_back(val.as<ir::AnyNode>()->ToVar());
     } else {
       newshape.push_back(val);
     }

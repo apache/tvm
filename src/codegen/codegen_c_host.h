@@ -49,7 +49,7 @@ class CodeGenCHost final : public CodeGenC {
   void VisitExpr_(const MinNode *op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const MaxNode *op, std::ostream& os) final;  // NOLINT(*)
 
-  void VisitStmt_(const AssertStmt *op) final; // NOLINT(*)
+  void VisitStmt_(const AssertStmtNode *op) final; // NOLINT(*)
 
  private:
   std::string module_name_;

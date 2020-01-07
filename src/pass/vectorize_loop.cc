@@ -397,7 +397,7 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // LetStmt
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     LOG(WARNING) << "Cannot vectorize with LetStmt, remove it with Simplify Before Vectorize";
     return Scalarize(GetRef<Stmt>(op));
   }

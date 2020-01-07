@@ -282,10 +282,10 @@ Stmt ScanOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt provide = AttrStmt::make(
+  Stmt provide = AttrStmtNode::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
       Evaluate::make(0));
-  Stmt init = AttrStmt::make(
+  Stmt init = AttrStmtNode::make(
       stage->op, attr::scan_init_scope, 0,
       Evaluate::make(0));
   size_t begin_scan = 0;

@@ -45,7 +45,7 @@ class LoopUnroller : public StmtExprMutator {
         explicit_unroll_(explicit_unroll) {
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
       int value = 0;
       CHECK(arith::GetConstInt(op->value, &value));
