@@ -23,15 +23,27 @@ from tempfile import TemporaryDirectory
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
-from torch.nn import Module
 import tvm
 import torchvision
+import single_op
+
 
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.testing.config import ctx_list
+#from tvm.relay.testing.config import ctx_list
 
 sys.setrecursionlimit(10000)
+
+TARGET = 'llvm'
+CTX = tvm.cpu()
+EXT_ACCEL = None
+
+model_names = []
+baseline_latencies_map = {}
+compiled_latencies_map = {}
+speedups_map = {}
+
+test_repeats = 1
 
 def _vectorize(ten):
     return ten.reshape(-1)
@@ -54,6 +66,14 @@ def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
         msg = "Output shapes {} and {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
+
+def load_single_op(model_name):
+    """Given a model name, returns a single-operator model in eval
+    mode as well as an example input."""
+    model = getattr(single_op, model_name)().float().eval()
+    input_shape = [1, 3, 224, 224]
+    input_data = torch.rand(input_shape).float()
+    return model, input_data
 
 def load_torchvision(model_name):
     """Given a model name, returns a Torchvision model in eval mode as well
@@ -89,6 +109,8 @@ def load_pretrainedmodels(model_name):
 
 def load_model(model_name):
     """Given a model name, returns a model as well as an example input."""
+    if hasattr(single_op, model_name):
+        return load_single_op(model_name)
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
     try:
@@ -147,15 +169,10 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
             if err < thresh:
                 return est
 
-def verify_model(model_name, input_data=[]):
+def verify_model(model_name):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-
-    if len(input_data) == 0:
-        baseline_model, baseline_input = load_model(model_name)
-    else:
-        baseline_model = model_name
-        baseline_input = input_data
+    baseline_model, baseline_input = load_model(model_name)
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
         baseline_input = baseline_input.cuda()
@@ -174,498 +191,256 @@ def verify_model(model_name, input_data=[]):
         trace = trace.cuda()
     else:
         trace = trace.cpu()
-
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes)
+    with TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'model.pth')
+        torch.jit.save(trace, path)
+        mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
     with relay.build_config(opt_level=3):
-        for target, ctx in ctx_list():
-            relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
-            relay_model.set_input(**relay_params)
-            relay_model.set_input(**compiled_input)
-            relay_model.run()
-
-            for i, baseline_output in enumerate(baseline_outputs):
-                output_shape = baseline_output.shape
-                compiled_output = relay_model.get_output(
-                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
-
-                compiled_relay_output = relay_model.get_output(
-                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
-
-                assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=1e-3, atol=1e-3)
-
-                assert_shapes_match(baseline_output, compiled_relay_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
-                                            rtol=1e-3, atol=1e-3)
-
-# Single operator tests
-def test_forward_add():
-    input_shape = [1, 3, 224, 224]
-
-    class Add1(Module):
-        def forward(self, *args):
-            return args[0] + args[0]
-
-    class Add2(Module):
-        def forward(self, *args):
-            return args[0] + 1
-
-    class Add3(Module):
-        def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] + ones
-
-    class Add4(Module):
-        def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] + ones
-
-    class Add5(Module):
-        def forward(self, *args):
-            ones = torch.ones([])
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] + ones
-
-    input_data = torch.rand(input_shape).float()
-
-    verify_model(Add1().float().eval(), input_data=input_data)
-    verify_model(Add2().float().eval(), input_data=input_data)
-    verify_model(Add3().float().eval(), input_data=input_data)
-    verify_model(Add4().float().eval(), input_data=input_data)
-    verify_model(Add5().float().eval(), input_data=input_data)
-
-def test_forward_subtract():
-    input_shape = [1, 3, 224, 224]
-
-    class Subtract1(Module):
-        def forward(self, *args):
-            return args[0] - args[0]
-
-    class Subtract2(Module):
-        def forward(self, *args):
-            return args[0] - 1
-
-    class Subtract3(Module):
-        def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] - ones
-
-    class Subtract4(Module):
-        def forward(self, *args):
-            ones = torch.ones([1, 1, 224, 224])
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] - ones
-
-    class Subtract5(Module):
-        def forward(self, *args):
-            ones = torch.ones([])
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] - ones
-
-    input_data = torch.rand(input_shape).float()
-
-    verify_model(Subtract1().float().eval(), input_data=input_data)
-    verify_model(Subtract2().float().eval(), input_data=input_data)
-    verify_model(Subtract3().float().eval(), input_data=input_data)
-    verify_model(Subtract4().float().eval(), input_data=input_data)
-    verify_model(Subtract5().float().eval(), input_data=input_data)
-
-def test_forward_multiply():
-    input_shape = [1, 3, 224, 224]
-
-    class Multiply1(Module):
-        def forward(self, *args):
-            return args[0] * args[0]
-
-    class Multiply2(Module):
-        def forward(self, *args):
-            return args[0] * 1
-
-    class Multiply3(Module):
-        def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] * ones
-
-    class Multiply4(Module):
-        def forward(self, *args):
-            ones = torch.ones([1, 1, 224, 224])
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] * ones
-
-    class Multiply5(Module):
-        def forward(self, *args):
-            ones = torch.ones([])
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] * ones
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Multiply1().float().eval(), input_data=input_data)
-    verify_model(Multiply2().float().eval(), input_data=input_data)
-    verify_model(Multiply3().float().eval(), input_data=input_data)
-    verify_model(Multiply4().float().eval(), input_data=input_data)
-    verify_model(Multiply5().float().eval(), input_data=input_data)
-
-def test_forward_unsqueeze():
-    input_shape = [1, 3, 224, 224]
-
-    class Unsqueeze1(Module):
-        def forward(self, *args):
-            return args[0].unsqueeze(2)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Unsqueeze1().float().eval(), input_data=input_data)
-
-def test_forward_concatenate():
-    input_shape = [1, 3, 224, 224]
-
-    class Concatenate1(Module):
-        def forward(self, *args):
-            return torch.cat([args[0][:, 0].unsqueeze(1), args[0][:, 1].unsqueeze(1)], 1)
-
-    class Concatenate2(Module):
-        def forward(self, *args):
-            a = (args[0][:, :, 0] + 2) * 7
-            b = (args[0][:, :, 1] + 3) * 11
-            c = (args[0][:, :, 2] + 5) * 13
-            return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Concatenate1().float().eval(), input_data=input_data)
-    verify_model(Concatenate2().float().eval(), input_data=input_data)
-
-def test_forward_relu():
-    input_shape = [1, 3, 224, 224]
-
-    class ReLU1(Module):
-        def forward(self, *args):
-            return torch.nn.ReLU()(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(ReLU1().float().eval(), input_data=input_data)
-
-def test_forward_adaptiveavgpool():
-    input_shape = [1, 3, 224, 224]
-
-    class AdaptiveAvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([1, 1])(args[0])
-
-    class AdaptiveAvgPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([100, 100])(args[0])
-
-    class AdaptiveAvgPool2D3(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([224, 224])(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
-    verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
-    verify_model(AdaptiveAvgPool2D3().float().eval(), input_data=input_data)
-
-def test_forward_maxpool():
-    input_shape = [1, 3, 224, 224]
-
-    class MaxPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[1, 1])(args[0])
-
-    class MaxPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[100, 100])(args[0])
-
-    class MaxPool2D3(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[224, 224])(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D3().float().eval(), input_data=input_data)
-
-def test_forward_avgpool():
-    input_shape = [1, 3, 224, 224]
-
-    class AvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AvgPool2d(kernel_size=[100, 100])(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(AvgPool2D1().float().eval(), input_data=input_data)
-
-def test_forward_hardtanh():
-    input_shape = [1, 3, 224, 224]
-
-    class HardTanh1(Module):
-        def forward(self, *args):
-            return torch.nn.Hardtanh()(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(HardTanh1().float().eval(), input_data=input_data)
-
-def test_forward_conv():
-    input_shape = [1, 3, 224, 224]
-
-    class Conv2D1(Module):
-        def __init__(self):
-            super(Conv2D1, self).__init__()
-            self.conv = torch.nn.Conv2d(3, 64, 7, bias=True)
-            self.softmax = torch.nn.Softmax()
-
-        def forward(self, *args):
-            return self.softmax(self.conv(args[0]))
-
-    class Conv2D2(Module):
-        def __init__(self):
-            super(Conv2D2, self).__init__()
-            self.conv = torch.nn.Conv2d(3, 64, 7, bias=False)
-            self.softmax = torch.nn.Softmax()
-
-        def forward(self, *args):
-            return self.softmax(self.conv(args[0]))
-
-    class Conv2D3(Module):
-        def __init__(self):
-            super(Conv2D3, self).__init__()
-            self.conv1 = torch.nn.Conv2d(3, 64, 7, bias=True)
-            self.conv2 = torch.nn.Conv2d(64, 64, 1, bias=True)
-
-        def forward(self, *args):
-            x = args[0]
-            x = self.conv1(x)
-            for i in range(200):
-                x = self.conv2(x)
-            return x
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Conv2D1().float().eval(), input_data=input_data)
-    verify_model(Conv2D2().float().eval(), input_data=input_data)
-    verify_model(Conv2D3().float().eval(), input_data=input_data)
-
-def test_forward_threshold():
-    input_shape = [1, 3, 224, 224]
-
-    class Threshold1(Module):
-        def forward(self, *args):
-            return torch.nn.Threshold(0, 0)(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Threshold1().float().eval(), input_data=input_data)
-
-def test_forward_contiguous():
-    input_shape = [1, 3, 224, 224]
-
-    class Contiguous1(Module):
-        def forward(self, *args):
-            return args[0].contiguous()
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Contiguous1().float().eval(), input_data=input_data)
-
-def test_forward_batchnorm():
-    input_shape = [1, 3, 224, 224]
-
-    class BatchNorm1(Module):
-        def __init__(self):
-            super(BatchNorm1, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=True)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
-
-    class BatchNorm2(Module):
-        def __init__(self):
-            super(BatchNorm2, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=False)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    verify_model(BatchNorm2().float().eval(), input_data=input_data)
-
-def test_forward_transpose():
-    input_shape = [1, 3, 224, 224]
-
-    class Transpose1(Module):
-        def forward(self, *args):
-            return args[0].transpose(2, 3)
-
-    class Transpose2(Module):
-        def forward(self, *args):
-            return args[0].transpose(-2, -1)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Transpose1().float().eval(), input_data=input_data)
-    verify_model(Transpose2().float().eval(), input_data=input_data)
-
-def test_forward_size():
-    input_shape = [1, 3, 224, 224]
-
-    class Size1(Module):
-        def forward(self, *args):
-            return args[0].size(0) * args[0]
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Size1().float().eval(), input_data=input_data)
-
-def test_forward_view():
-    input_shape = [1, 3, 224, 224]
-
-    class View1(Module):
-        def forward(self, *args):
-            return args[0].view((1, 3 * 224 * 224))
-
-    class View2(Module):
-        def forward(self, *args):
-            return args[0].view(args[0].shape[0], -1)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(View1().float().eval(), input_data=input_data)
-    verify_model(View2().float().eval(), input_data=input_data)
-
-def test_forward_select():
-    input_shape = [1, 3, 224, 224]
-
-    class Select1(Module):
-        def forward(self, *args):
-            return args[0].select(1, 1)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Select1().float().eval(), input_data=input_data)
-
-def test_forward_clone():
-    input_shape = [1, 3, 224, 224]
-
-    class Clone1(Module):
-        def forward(self, *args):
-            return args[0].clone()
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Clone1().float().eval(), input_data=input_data)
+        relay_graph, relay_lib, relay_params = relay.build(mod, target=TARGET, params=params)
+        relay_model = graph_runtime.create(relay_graph, relay_lib, CTX)
+        relay_model.set_input(**relay_params)
+        relay_model.set_input(**compiled_input)
+        relay_model.run()
+
+    for i, baseline_output in enumerate(baseline_outputs):
+        output_shape = baseline_output.shape
+        compiled_output = relay_model.get_output(
+            i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
+
+        compiled_relay_output = relay_model.get_output(
+            i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
+
+        assert_shapes_match(baseline_output, compiled_output)
+        tvm.testing.assert_allclose(baseline_output, compiled_output,
+                                    rtol=1e-3, atol=1e-3)
 
-def test_forward_logsoftmax():
-    input_shape = [1, 3, 224, 224]
-
-    class LogSoftmax1(Module):
-        def forward(self, *args):
-            return torch.nn.LogSoftmax(dim=1)(args[0][0, 0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(LogSoftmax1().float().eval(), input_data=input_data)
-
-def test_forward_sigmoid():
-    input_shape = [1, 3, 224, 224]
-
-    class Sigmoid1(Module):
-        def forward(self, *args):
-            return torch.nn.Sigmoid()(args[0])
-    input_data = torch.rand(input_shape).float()
-    verify_model(Sigmoid1().float().eval(), input_data=input_data)
-
-def test_forward_dense():
-    input_shape = [1, 3, 224, 224]
-
-    class Dense1(Module):
-        def __init__(self):
-            super(Dense1, self).__init__()
-            self.linear = torch.nn.Linear(224, 7, bias=True)
-        def forward(self, *args):
-            return self.linear(args[0][0, 0])
-
-    class Dense2(Module):
-        def __init__(self):
-            super(Dense2, self).__init__()
-            self.linear = torch.nn.Linear(224, 7, bias=False)
-        def forward(self, *args):
-            return self.linear(args[0][0, 0])
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Dense1().float().eval(), input_data=input_data)
-    verify_model(Dense2().float().eval(), input_data=input_data)
-
-def test_forward_dropout():
-    input_shape = [1, 3, 224, 224]
-
-    class Dropout1(Module):
-        def forward(self, *args):
-            return torch.nn.functional.dropout(args[0][0, 0], 0.5, False)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Dropout1().float().eval(), input_data=input_data)
-
-def test_forward_slice():
-    input_shape = [1, 3, 224, 224]
-
-    class Slice1(Module):
-        def forward(self, *args):
-            return args[0][:, :, :, :3]
-
-    class Slice2(Module):
-        def forward(self, *args):
-            return args[0][0, :, :, :]
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Slice1().float().eval(), input_data=input_data)
-    verify_model(Slice2().float().eval(), input_data=input_data)
-
-def test_forward_mean():
-    input_shape = [1, 3, 224, 224]
-
-    class Mean1(Module):
-        def forward(self, *args):
-            return args[0].mean(2)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Mean1().float().eval(), input_data=input_data)
-
-def test_forward_expand():
-    input_shape = [1, 3, 224, 224]
-
-    class Expand1(Module):
-        def forward(self, *args):
-            return args[0].expand((3, -1, -1, -1))
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Expand1().float().eval(), input_data=input_data)
-
-def test_forward_pow():
-    input_shape = [1, 3, 224, 224]
-
-    class Pow1(Module):
-        def forward(self, *args):
-            return args[0] ** 2
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Pow1().float().eval(), input_data=input_data)
-
-def test_forward_chunk():
-    input_shape = [1, 3, 224, 224]
-
-    class Chunk1(Module):
-        def forward(self, *args):
-            chunks = args[0].chunk(7, 2)
-            return torch.cat(chunks, 2)
-
-    input_data = torch.rand(input_shape).float()
-    verify_model(Chunk1().float().eval(), input_data=input_data)
+        assert_shapes_match(baseline_output, compiled_relay_output)
+        tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
+                                    rtol=1e-3, atol=1e-3)
+
+    if(test_repeats > 0):
+        thresh = 1e-2
+        units = 1e3
+        thresh = int(thresh * units)
+        input_shapes = list(input_shapes.values())
+
+        compiled_latencies = []
+        baseline_latencies = []
+        speedups = []
+
+        for i in range(0, test_repeats):
+            print("computing compiled latency")
+            compiled_latency = measure_latency(relay_model, input_shapes,
+                                               output_shapes, thresh) * units
+            print(f'Compiled latency is {compiled_latency:.3f} +/- {thresh:d} ms.')
+            print("computing baseline latency")
+            baseline_latency = measure_latency(baseline_model, input_shapes,
+                                               output_shapes, thresh) * units
+
+            print(f'Baseline latency is {baseline_latency:.3f} +/- {thresh:d} ms.')
+
+            speedup = baseline_latency/compiled_latency
+            print(f'Relative speedup is {speedup:.3f}')
+
+            compiled_latencies.append(compiled_latency)
+            baseline_latencies.append(baseline_latency)
+            speedups.append(speedup)
+
+        baseline_latencies_map[model_name] = baseline_latencies
+        compiled_latencies_map[model_name] = compiled_latencies
+        speedups_map[model_name] = speedups
+        model_names.append(model_name)
+
+        print_results()
+
+    from subprocess import call
+    call('rm -rf ~/.torch/models/*', shell=True)
+
+def print_results():
+    print(baseline_latencies_map)
+    print(compiled_latencies_map)
+    print(speedups_map)
+
+    thresh = 1e-2
+    units = 1e3
+    thresh = int(thresh * units)
+
+    for model_name in model_names:
+
+        compiled_sum = 0.0
+        baseline_sum = 0.0
+        speedup_sum = 0.0
+
+        print("For model name "+model_name)
+        for i in range(0, test_repeats):
+            print(f'Compiled latency is {compiled_latencies_map[model_name][i]:.3f} +/- {thresh:d} ms.')
+            print(f'Baseline latency is {baseline_latencies_map[model_name][i]:.3f} +/- {thresh:d} ms.')
+            print(f'Relative speedup is {speedups_map[model_name][i]:.3f}')
+
+            compiled_sum = compiled_sum + compiled_latencies_map[model_name][i]
+            baseline_sum = baseline_sum + baseline_latencies_map[model_name][i]
+            speedup_sum = speedup_sum + speedups_map[model_name][i]
+
+        print(f'Average compiled latency is {compiled_sum/test_repeats:.3f} +/- {thresh:d} ms.')
+        print(f'Average baseline latency is {baseline_sum/test_repeats:.3f} +/- {thresh:d} ms.')
+        print(f'Average relative speedup is {speedup_sum/test_repeats:.3f}')
+
+# Test Functions
+def test_add1():
+    verify_model('Add1')
+
+def test_add2():
+    verify_model('Add2')
+
+def test_add3():
+    verify_model('Add3')
+
+def test_add4():
+    verify_model('Add4')
+
+def test_add5():
+    verify_model('Add5')
+
+def test_subtract1():
+    verify_model('Subtract1')
+
+def test_subtract2():
+    verify_model('Subtract2')
+
+def test_subtract3():
+    verify_model('Subtract3')
+
+def test_subtract4():
+    verify_model('Subtract4')
+
+def test_subtract5():
+    verify_model('Subtract5')
+
+def test_multiply1():
+    verify_model('Multiply1')
+
+def test_multiply2():
+    verify_model('Multiply2')
+
+def test_multiply3():
+    verify_model('Multiply3')
+
+def test_multiply4():
+    verify_model('Multiply4')
+
+def test_multiply5():
+    verify_model('Multiply5')
+
+def test_unsqueeze1():
+    verify_model('Unsqueeze1')
+
+def test_concatenate1():
+    verify_model('Concatenate1')
+
+def test_concatenate2():
+    verify_model('Concatenate2')
+
+def test_relu1():
+    verify_model('ReLU1')
+
+def test_adaptiveavgpool2d1():
+    verify_model('AdaptiveAvgPool2D1')
+
+def test_adaptiveavgpool2d2():
+    verify_model('AdaptiveAvgPool2D2')
+
+def test_adaptiveavgpool2d3():
+    verify_model('AdaptiveAvgPool2D3')
+
+def test_maxpool2d1():
+    verify_model('MaxPool2D1')
+
+def test_maxpool2d2():
+    verify_model('MaxPool2D2')
+
+def test_maxpool2d3():
+    verify_model('MaxPool2D3')
+
+def test_hardtanh1():
+    verify_model('HardTanh1')
+
+def test_conv2d1():
+    verify_model('Conv2D1')
+
+def test_conv2d2():
+    verify_model('Conv2D2')
+
+def test_threshold1():
+    verify_model('Threshold1')
+
+def test_contiguous1():
+    verify_model('Contiguous1')
+
+def test_batchnorm1():
+    verify_model('BatchNorm1')
+
+def test_batchnorm2():
+    verify_model('BatchNorm2')
+
+def test_transpose1():
+    verify_model('Transpose1')
+
+def test_transpose2():
+    verify_model('Transpose2')
+
+def test_size1():
+    verify_model('Size1')
+
+def test_view1():
+    verify_model('View1')
+
+def test_view2():
+    verify_model('View2')
+
+def test_select1():
+    verify_model('Select1')
+
+def test_clone1():
+    verify_model('Clone1')
+
+def test_logsoftmax1():
+    verify_model('LogSoftmax1')
+
+def test_sigmoid1():
+    verify_model('Sigmoid1')
+
+def test_dense1():
+    verify_model('Dense1')
+
+def test_dense2():
+    verify_model('Dense2')
+
+def test_avgpool2d1():
+    verify_model('AvgPool2D1')
+
+def test_dropout1():
+    verify_model('Dropout1')
+
+def test_slice1():
+    verify_model('Slice1')
+
+def test_slice2():
+    verify_model('Slice2')
+
+def test_mean1():
+    verify_model('Mean1')
+
+def test_expand1():
+    verify_model('Expand1')
+
+def test_pow1():
+    verify_model('Pow1')
+
+def test_chunk1():
+    verify_model('Chunk1')
 
 # Model tests
 def test_resnet18():
@@ -740,37 +515,68 @@ def test_mnasnet0_5():
 def test_mnasnet1_0():
     verify_model('mnasnet1_0')
 
+"""
+def test_shufflenet_v2_x0_5():
+    verify_model('shufflenet_v2_x0_5')
+
+def test_shufflenet_v2_x1_0():
+    verify_model('shufflenet_v2_x1_0')
+"""
+
 if __name__ == '__main__':
 
     # Single operator tests
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_unsqueeze()
-    test_forward_concatenate()
-    test_forward_relu()
-    test_forward_adaptiveavgpool()
-    test_forward_maxpool()
-    test_forward_hardtanh()
-    test_forward_conv()
-    test_forward_threshold()
-    test_forward_contiguous()
-    test_forward_batchnorm()
-    test_forward_transpose()
-    test_forward_size()
-    test_forward_view()
-    test_forward_select()
-    test_forward_clone()
-    test_forward_logsoftmax()
-    test_forward_sigmoid()
-    test_forward_dense()
-    test_forward_avgpool()
-    test_forward_dropout()
-    test_forward_slice()
-    test_forward_mean()
-    test_forward_expand()
-    test_forward_pow()
-    test_forward_chunk()
+    test_add1()
+    test_add2()
+    test_add3()
+    test_add4()
+    test_add5()
+    test_subtract1()
+    test_subtract2()
+    test_subtract3()
+    test_subtract4()
+    test_subtract5()
+    test_multiply1()
+    test_multiply2()
+    test_multiply3()
+    test_multiply4()
+    test_multiply5()
+    test_unsqueeze1()
+    test_concatenate1()
+    test_concatenate2()
+    test_relu1()
+    test_adaptiveavgpool2d1()
+    test_adaptiveavgpool2d2()
+    test_adaptiveavgpool2d3()
+    test_maxpool2d1()
+    test_maxpool2d2()
+    test_maxpool2d3()
+    test_hardtanh1()
+    test_conv2d1()
+    test_conv2d2()
+    test_threshold1()
+    test_contiguous1()
+    test_batchnorm1()
+    test_batchnorm2()
+    test_transpose1()
+    test_transpose2()
+    test_size1()
+    test_view1()
+    test_view2()
+    test_select1()
+    test_clone1()
+    test_logsoftmax1()
+    test_sigmoid1()
+    test_dense1()
+    test_dense2()
+    test_avgpool2d1()
+    test_dropout1()
+    test_slice1()
+    test_slice2()
+    test_mean1()
+    test_expand1()
+    test_pow1()
+    test_chunk1()
 
     # Model tests
     test_resnet18()
@@ -797,3 +603,6 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
+
+    #test_shufflenet_v2_x0_5()
+    #test_shufflenet_v2_x1_0()
