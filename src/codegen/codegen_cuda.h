@@ -44,7 +44,7 @@ class CodeGenCUDA final : public CodeGenC {
   }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
-  void PrintStorageSync(const Call* op) final;
+  void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
       const std::string&op, DataType t,
@@ -56,11 +56,11 @@ class CodeGenCUDA final : public CodeGenC {
       const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
-  void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const Shuffle* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final;
-  void VisitExpr_(const Call *op, std::ostream& os) final;
+  void VisitExpr_(const CallNode *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
   void VisitStmt_(const Allocate *op) final;
   void VisitStmt_(const AttrStmt *op) final;

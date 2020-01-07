@@ -262,8 +262,8 @@ void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
 }
 
 void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
-  auto call = op->value.as<Call>();
-  if (call == nullptr || call->name != Call::glsl_texture_store) {
+  auto call = op->value.as<CallNode>();
+  if (call == nullptr || call->name != CallNode::glsl_texture_store) {
     // Fallback to normal logic.
     CodeGenC::VisitStmt_(op);
   }

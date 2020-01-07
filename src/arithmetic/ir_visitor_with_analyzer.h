@@ -57,7 +57,7 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Reduce* op) {
+  void VisitExpr_(const ReduceNode* op) {
     // Setup the domain information before simplification.
     for (const IterVar& iv : op->axis) {
       analyzer_.Bind(iv->var, iv->dom);

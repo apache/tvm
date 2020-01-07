@@ -53,9 +53,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
       Expr r = ApplyPattern(op->name, GetRef<Expr>(op));
       if (r.defined()) return r;
     }
@@ -209,7 +209,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
-    if (const Broadcast* bcast = e.as<Broadcast>()) {
+    if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
       if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
@@ -228,7 +228,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         };
 
         if (should_swap()) {
-          Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
+          Expr new_bcast = BroadcastNode::make(cast->value, bcast->lanes);
           return CastNode::make(bcast->dtype, new_bcast);
         }
       }
@@ -243,8 +243,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     Expr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      Expr r = (*fma_)(Call::make(
-          op->dtype, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
+      Expr r = (*fma_)(CallNode::make(
+          op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {

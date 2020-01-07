@@ -112,9 +112,9 @@ class CodeGenStackVM
   // overloadable functions
   // expression
   void VisitExpr_(const VarNode* op) final;
-  void VisitExpr_(const Load* op) final;
-  void VisitExpr_(const Let* op) final;
-  void VisitExpr_(const Call* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitExpr_(const LetNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
   void VisitExpr_(const AddNode* op) final;
   void VisitExpr_(const SubNode* op) final;
   void VisitExpr_(const MulNode* op) final;
@@ -133,8 +133,8 @@ class CodeGenStackVM
   void VisitExpr_(const CastNode* op) final;
   void VisitExpr_(const NotNode* op) final;
   void VisitExpr_(const SelectNode* op) final;
-  void VisitExpr_(const Ramp* op) final;
-  void VisitExpr_(const Broadcast* op) final;
+  void VisitExpr_(const RampNode* op) final;
+  void VisitExpr_(const BroadcastNode* op) final;
   void VisitExpr_(const IntImm* op) final;
   void VisitExpr_(const UIntImm* op) final;
   void VisitExpr_(const FloatImm* op) final;

@@ -54,10 +54,10 @@ class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
   Stmt VisitStmt_(const ir::IfThenElse* op) override;
   Stmt VisitStmt_(const ir::AttrStmt* op) override;
   Stmt VisitStmt_(const ir::AssertStmt* op) override;
-  Expr VisitExpr_(const ir::Let* op) override;
+  Expr VisitExpr_(const ir::LetNode* op) override;
   Expr VisitExpr_(const ir::SelectNode* op) override;
-  Expr VisitExpr_(const ir::Call* op) override;
-  Expr VisitExpr_(const ir::Reduce* op) override;
+  Expr VisitExpr_(const ir::CallNode* op) override;
+  Expr VisitExpr_(const ir::ReduceNode* op) override;
 
  protected:
   /*! \brief internal analyzer field. */

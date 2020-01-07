@@ -205,7 +205,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     field_name << v_shape->name_hint << '[' << k << ']';
     Bind_(buffer->shape[k],
           cast(buffer->shape[k].dtype(),
-               Load::make(tvm_shape_type, v_shape,
+               LoadNode::make(tvm_shape_type, v_shape,
                           IntImm::make(DataType::Int(32), k), const_true(1))),
           field_name.str(), true);
   }
@@ -215,9 +215,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   init_nest_.emplace_back(LetStmt::make(
       v_strides, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrStrides),
       nop));
-  Expr is_null = Call::make(
+  Expr is_null = CallNode::make(
     DataType::Bool(1), intrinsic::tvm_handle_is_null,
-    {v_strides}, Call::PureIntrinsic);
+    {v_strides}, CallNode::PureIntrinsic);
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
     DataType stype = buffer->DefaultIndexType();
@@ -227,7 +227,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       size_t k = i - 1;
       Expr svalue = cast(
           stype,
-          Load::make(tvm_shape_type, v_strides,
+          LoadNode::make(tvm_shape_type, v_strides,
                      IntImm::make(DataType::Int(32), k), const_true(1)));
       conds.push_back(expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
@@ -250,7 +250,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';
       Expr value = cast(buffer->shape[k].dtype(),
-                        Load::make(tvm_shape_type, v_strides,
+                        LoadNode::make(tvm_shape_type, v_strides,
                                    IntImm::make(DataType::Int(32), k), const_true(1)));
       value = tvm::if_then_else(is_null, stride, value);
       value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
@@ -267,7 +267,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       field_name << v_strides->name_hint << '[' << k << ']';
       Bind_(buffer->strides[k],
             cast(buffer->shape[k].dtype(),
-                 Load::make(tvm_shape_type, v_strides,
+                 LoadNode::make(tvm_shape_type, v_strides,
                             IntImm::make(DataType::Int(32), k), const_true(1))),
             field_name.str(), true);
     }

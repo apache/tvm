@@ -600,7 +600,7 @@ TVM_DLL Expr trunc(Expr x);
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
-    return ir::Call::make(x.dtype(), #OpName, {x}, ir::Call::PureIntrinsic); \
+    return ir::CallNode::make(x.dtype(), #OpName, {x}, ir::CallNode::PureIntrinsic); \
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -619,7 +619,7 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 inline bool is_const(const Expr& x) {
   if (x.as<ir::IntImm>() || x.as<ir::UIntImm>()) {
     return true;
-  } else if (const auto* op = x.as<ir::Broadcast>()) {
+  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const Expr& val = op->value;
     if (val.as<ir::IntImm>() || val.as<ir::UIntImm>()) {
       return true;
@@ -651,7 +651,7 @@ inline bool is_const_int(const Expr& x, int64_t value) {
     return op->value == value;
   } else if (const auto* op = x.as<ir::UIntImm>()) {
     return op->value == static_cast<uint64_t>(value);
-  } else if (const auto* op = x.as<ir::Broadcast>()) {
+  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const Expr& val = op->value;
     if (const auto* opv = val.as<ir::IntImm>()) {
       return opv->value == value;
@@ -693,7 +693,7 @@ inline Expr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return ir::Broadcast::make(
+    return ir::BroadcastNode::make(
         MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }

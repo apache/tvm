@@ -270,12 +270,12 @@ class ConstIntBoundAnalyzer::Impl :
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Call* op) final {
+  Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
-    if (op->is_intrinsic(Call::shift_right)) {
+    if (op->is_intrinsic(CallNode::shift_right)) {
       return VisitRightShift(op);
-    } else if (op->is_intrinsic(Call::bitwise_and)) {
+    } else if (op->is_intrinsic(CallNode::bitwise_and)) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything(op->dtype);
@@ -292,13 +292,13 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitRightShift(const Call* op) {
+  Entry VisitRightShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     return BinaryOpBoundry(a, b, InfAwareRightShift);
   }
 
-  Entry VisitBitwiseAnd(const Call* op) {
+  Entry VisitBitwiseAnd(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     // handle positive index case.

@@ -95,7 +95,7 @@ void FeatureVisitor::VisitStmt_(const AttrStmt* op) {
 }
 
 // memory access
-void FeatureVisitor::VisitExpr_(const Load* op) {
+void FeatureVisitor::VisitExpr_(const LoadNode* op) {
   EnterMem_(op->buffer_var, op->index);
   StmtExprVisitor::VisitExpr_(op);
   ExitMem_();

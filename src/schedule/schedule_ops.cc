@@ -277,13 +277,13 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
-    if (op->call_type == Call::Halide) {
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = replace_buffer_.find(key);
       if (it != replace_buffer_.end()) {
         const Tensor& dst = it->second;
-        Expr ret = Call::make(
+        Expr ret = CallNode::make(
             op->dtype, dst->op->name, op->args,
             op->call_type, dst->op, dst->value_index);
         return this->VisitExpr(ret);

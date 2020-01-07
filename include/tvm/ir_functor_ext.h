@@ -133,9 +133,9 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
   // Functions that can be overriden by subclass
   virtual R VisitExpr_(const Variable* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Load* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Let* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Call* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const LoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const SubNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MulNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -153,13 +153,13 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const GENode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const AndNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OrNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Reduce* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ReduceNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const NotNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const SelectNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Ramp* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Broadcast* op, Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const Shuffle* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const RampNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const BroadcastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ShuffleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const IntImm* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const UIntImm* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FloatImm* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -175,9 +175,9 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     FType vtable;
     // Set dispatch
     IR_EXPR_FUNCTOR_DISPATCH(Variable);
-    IR_EXPR_FUNCTOR_DISPATCH(Load);
-    IR_EXPR_FUNCTOR_DISPATCH(Let);
-    IR_EXPR_FUNCTOR_DISPATCH(Call);
+    IR_EXPR_FUNCTOR_DISPATCH(LoadNode);
+    IR_EXPR_FUNCTOR_DISPATCH(LetNode);
+    IR_EXPR_FUNCTOR_DISPATCH(CallNode);
     IR_EXPR_FUNCTOR_DISPATCH(AddNode);
     IR_EXPR_FUNCTOR_DISPATCH(SubNode);
     IR_EXPR_FUNCTOR_DISPATCH(MulNode);
@@ -195,13 +195,13 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(GENode);
     IR_EXPR_FUNCTOR_DISPATCH(AndNode);
     IR_EXPR_FUNCTOR_DISPATCH(OrNode);
-    IR_EXPR_FUNCTOR_DISPATCH(Reduce);
+    IR_EXPR_FUNCTOR_DISPATCH(ReduceNode);
     IR_EXPR_FUNCTOR_DISPATCH(CastNode);
     IR_EXPR_FUNCTOR_DISPATCH(NotNode);
     IR_EXPR_FUNCTOR_DISPATCH(SelectNode);
-    IR_EXPR_FUNCTOR_DISPATCH(Ramp);
-    IR_EXPR_FUNCTOR_DISPATCH(Shuffle);
-    IR_EXPR_FUNCTOR_DISPATCH(Broadcast);
+    IR_EXPR_FUNCTOR_DISPATCH(RampNode);
+    IR_EXPR_FUNCTOR_DISPATCH(ShuffleNode);
+    IR_EXPR_FUNCTOR_DISPATCH(BroadcastNode);
     IR_EXPR_FUNCTOR_DISPATCH(IntImm);
     IR_EXPR_FUNCTOR_DISPATCH(UIntImm);
     IR_EXPR_FUNCTOR_DISPATCH(FloatImm);
@@ -299,9 +299,9 @@ class TVM_DLL ExprVisitor :
   using ExprFunctor::VisitExpr;
   // list of functions to override.
   void VisitExpr_(const Variable* op) override;
-  void VisitExpr_(const Load* op) override;
-  void VisitExpr_(const Let* op) override;
-  void VisitExpr_(const Call* op) override;
+  void VisitExpr_(const LoadNode* op) override;
+  void VisitExpr_(const LetNode* op) override;
+  void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const AddNode* op) override;
   void VisitExpr_(const SubNode* op) override;
   void VisitExpr_(const MulNode* op) override;
@@ -319,13 +319,13 @@ class TVM_DLL ExprVisitor :
   void VisitExpr_(const GENode* op) override;
   void VisitExpr_(const AndNode* op) override;
   void VisitExpr_(const OrNode* op) override;
-  void VisitExpr_(const Reduce* op) override;
+  void VisitExpr_(const ReduceNode* op) override;
   void VisitExpr_(const CastNode* op) override;
   void VisitExpr_(const NotNode* op) override;
   void VisitExpr_(const SelectNode* op) override;
-  void VisitExpr_(const Ramp* op) override;
-  void VisitExpr_(const Broadcast* op) override;
-  void VisitExpr_(const Shuffle* op) override;
+  void VisitExpr_(const RampNode* op) override;
+  void VisitExpr_(const BroadcastNode* op) override;
+  void VisitExpr_(const ShuffleNode* op) override;
   void VisitExpr_(const IntImm* op) override;
   void VisitExpr_(const UIntImm* op) override;
   void VisitExpr_(const FloatImm* op) override;
@@ -344,9 +344,9 @@ class TVM_DLL ExprMutator :
   using ExprFunctor::VisitExpr;
   // list of functions to override.
   Expr VisitExpr_(const Variable* op) override;
-  Expr VisitExpr_(const Load* op) override;
-  Expr VisitExpr_(const Let* op) override;
-  Expr VisitExpr_(const Call* op) override;
+  Expr VisitExpr_(const LoadNode* op) override;
+  Expr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const CallNode* op) override;
   Expr VisitExpr_(const AddNode* op) override;
   Expr VisitExpr_(const SubNode* op) override;
   Expr VisitExpr_(const MulNode* op) override;
@@ -364,13 +364,13 @@ class TVM_DLL ExprMutator :
   Expr VisitExpr_(const GENode* op) override;
   Expr VisitExpr_(const AndNode* op) override;
   Expr VisitExpr_(const OrNode* op) override;
-  Expr VisitExpr_(const Reduce* op) override;
+  Expr VisitExpr_(const ReduceNode* op) override;
   Expr VisitExpr_(const CastNode* op) override;
   Expr VisitExpr_(const NotNode* op) override;
   Expr VisitExpr_(const SelectNode* op) override;
-  Expr VisitExpr_(const Ramp* op) override;
-  Expr VisitExpr_(const Broadcast* op) override;
-  Expr VisitExpr_(const Shuffle* op) override;
+  Expr VisitExpr_(const RampNode* op) override;
+  Expr VisitExpr_(const BroadcastNode* op) override;
+  Expr VisitExpr_(const ShuffleNode* op) override;
   Expr VisitExpr_(const IntImm* op) override;
   Expr VisitExpr_(const UIntImm* op) override;
   Expr VisitExpr_(const FloatImm* op) override;

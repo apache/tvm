@@ -153,7 +153,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     return builder_->CreateCall(f, {});
   }
 
-  llvm::Value* CreateStorageSync(const Call* op) final {
+  llvm::Value* CreateStorageSync(const CallNode* op) final {
     const std::string& sync = op->args[0].as<StringImm>()->value;
     if (sync == "warp") {
       return nullptr;

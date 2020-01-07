@@ -101,7 +101,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::OrNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::NotNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::CastNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Call* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::CallNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::SelectNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
 
  private:
@@ -136,7 +136,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(OrNode);
     ATTR_FUNCTOR_DISPATCH(NotNode);
     ATTR_FUNCTOR_DISPATCH(CastNode);
-    ATTR_FUNCTOR_DISPATCH(Call);
+    ATTR_FUNCTOR_DISPATCH(CallNode);
     ATTR_FUNCTOR_DISPATCH(SelectNode);
     return vtable;
   }
@@ -179,7 +179,7 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ir::OrNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::NotNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::CastNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Call* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::CallNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::SelectNode* lhs, const ObjectRef& other) final;
 };
 
@@ -222,7 +222,7 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::OrNode* op) final;
   size_t VisitAttr_(const ir::NotNode* op) final;
   size_t VisitAttr_(const ir::CastNode* op) final;
-  size_t VisitAttr_(const ir::Call* op) final;
+  size_t VisitAttr_(const ir::CallNode* op) final;
   size_t VisitAttr_(const ir::SelectNode* op) final;
   /*!
    * \brief alias of dmlc::HashCombine

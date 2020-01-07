@@ -85,11 +85,11 @@ class CodeGenSPIRV:
   spirv::Value VisitExpr_(const OrNode* op) override;
   spirv::Value VisitExpr_(const NotNode* op) override;
   spirv::Value VisitExpr_(const SelectNode* op) override;
-  spirv::Value VisitExpr_(const Let* op) override;
-  spirv::Value VisitExpr_(const Call* op) override;
-  spirv::Value VisitExpr_(const Ramp* op) override;
-  spirv::Value VisitExpr_(const Broadcast* op) override;
-  spirv::Value VisitExpr_(const Load* op) override;
+  spirv::Value VisitExpr_(const LetNode* op) override;
+  spirv::Value VisitExpr_(const CallNode* op) override;
+  spirv::Value VisitExpr_(const RampNode* op) override;
+  spirv::Value VisitExpr_(const BroadcastNode* op) override;
+  spirv::Value VisitExpr_(const LoadNode* op) override;
   // stmt
   void VisitStmt_(const Store* op) override;
   void VisitStmt_(const For* op) override;
@@ -129,7 +129,7 @@ class CodeGenSPIRV:
   void InitFuncState();
   // Get the thread index
   spirv::Value GetThreadIndex(const IterVar& iv, const Expr& extent);
-  spirv::Value CreateStorageSync(const Call* op);
+  spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const Expr& e,
                  std::function<void(int i, spirv::Value v)> f);
   // The builder

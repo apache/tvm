@@ -203,15 +203,15 @@ class IRDeepCompare :
       order_ = +1;
     }
   }
-  void VisitExpr_(const Load* op, const Expr& other) final {
-    const Load* rhs = other.as<Load>();
+  void VisitExpr_(const LoadNode* op, const Expr& other) final {
+    const LoadNode* rhs = other.as<LoadNode>();
     if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
     if (CompareExpr(op->index, rhs->index) != 0) return;
     if (CompareExpr(op->predicate, rhs->predicate) != 0) return;
   }
 
-  void VisitExpr_(const Let* op, const Expr& other) final {
-    const Let* rhs = other.as<Let>();
+  void VisitExpr_(const LetNode* op, const Expr& other) final {
+    const LetNode* rhs = other.as<LetNode>();
     if (tie_def_) {
       vmap_[op->var.get()] = rhs->var.get();
     } else {
@@ -221,8 +221,8 @@ class IRDeepCompare :
     if (CompareExpr(op->body, rhs->body) != 0) return;
   }
 
-  void VisitExpr_(const Call* op, const Expr& other) final {
-    const Call* rhs = other.as<Call>();
+  void VisitExpr_(const CallNode* op, const Expr& other) final {
+    const CallNode* rhs = other.as<CallNode>();
     if (CompareString(op->name, rhs->name)) return;
     if (CompareArray(op->args, rhs->args)) return;
     if (CompareValue(op->call_type, rhs->call_type) != 0) return;
@@ -230,8 +230,8 @@ class IRDeepCompare :
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
   }
 
-  void VisitExpr_(const Reduce *op, const Expr& other) final {
-    const Reduce* rhs = other.as<Reduce>();
+  void VisitExpr_(const ReduceNode *op, const Expr& other) final {
+    const ReduceNode* rhs = other.as<ReduceNode>();
     if (CompareCommReducer(op->combiner, rhs->combiner) != 0) return;
     if (CompareValue(op->axis.size(), rhs->axis.size()) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
@@ -279,21 +279,21 @@ class IRDeepCompare :
     if (CompareExpr(op->false_value, rhs->false_value) != 0) return;
   }
 
-  void VisitExpr_(const Ramp *op, const Expr& other) final {
-    const Ramp* rhs = other.as<Ramp>();
+  void VisitExpr_(const RampNode *op, const Expr& other) final {
+    const RampNode* rhs = other.as<RampNode>();
     if (CompareExpr(op->base, rhs->base) != 0) return;
     if (CompareExpr(op->stride, rhs->stride) != 0) return;
     if (CompareValue(op->lanes, rhs->lanes) != 0) return;
   }
 
-  void VisitExpr_(const Broadcast *op, const Expr& other) final {
-    const Broadcast* rhs = other.as<Broadcast>();
+  void VisitExpr_(const BroadcastNode *op, const Expr& other) final {
+    const BroadcastNode* rhs = other.as<BroadcastNode>();
     if (CompareExpr(op->value, rhs->value) != 0) return;
     if (CompareValue(op->lanes, rhs->lanes) != 0) return;
   }
 
-  void VisitExpr_(const Shuffle *op, const Expr& other) final {
-    const Shuffle* rhs = other.as<Shuffle>();
+  void VisitExpr_(const ShuffleNode *op, const Expr& other) final {
+    const ShuffleNode* rhs = other.as<ShuffleNode>();
     if (CompareArray(op->vectors, rhs->vectors) != 0) return;
     if (CompareArray(op->indices, rhs->indices) != 0) return;
   }

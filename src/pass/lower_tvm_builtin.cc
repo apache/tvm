@@ -38,7 +38,7 @@ inline Expr ConstInt32(size_t index) {
 
 inline Expr StackAlloca(std::string type, size_t num) {
   Array<Expr> args = {StringImm::make(type), ConstInt32(num)};
-  return Call::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, Call::Intrinsic);
+  return CallNode::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, CallNode::Intrinsic);
 }
 
 // Calculate the statistics of packed function.
@@ -106,35 +106,35 @@ class BuiltinLower : public StmtExprMutator {
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = Evaluate::make(Call::make(DataType::Int(32),
+    Stmt throw_last_error = Evaluate::make(CallNode::make(DataType::Int(32),
                                            intrinsic::tvm_throw_last_error, {},
-                                           Call::Intrinsic));
+                                           CallNode::Intrinsic));
 
     Stmt body = SeqStmt({
-        IfThenElse::make(Call::make(DataType::Bool(1),
+        IfThenElse::make(CallNode::make(DataType::Bool(1),
                                     intrinsic::tvm_handle_is_null,
-                                    {op->buffer_var}, Call::PureIntrinsic),
+                                    {op->buffer_var}, CallNode::PureIntrinsic),
                          throw_last_error),
         op->body});
 
     Stmt alloca = LetStmt::make(
         op->buffer_var,
-        Call::make(op->buffer_var.dtype(),
+        CallNode::make(op->buffer_var.dtype(),
                    "TVMBackendAllocWorkspace",
                    {cast(DataType::Int(32), device_type_),
                     cast(DataType::Int(32), device_id_),
                     cast(DataType::UInt(64), total_bytes),
                     IntImm::make(DataType::Int(32), op->dtype.code()),
                     IntImm::make(DataType::Int(32), op->dtype.bits())},
-                   Call::Extern),
+                   CallNode::Extern),
         body);
 
-    Expr free_op = Call::make(DataType::Int(32),
+    Expr free_op = CallNode::make(DataType::Int(32),
                               "TVMBackendFreeWorkspace",
                               {cast(DataType::Int(32), device_type_),
                                     cast(DataType::Int(32), device_id_),
                                     op->buffer_var},
-                              Call::Extern);
+                              CallNode::Extern);
     Stmt free_stmt = IfThenElse::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
     body = AttrStmt::make(
@@ -157,7 +157,7 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
       return MakeCallPacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed)) {
@@ -173,11 +173,11 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
   // call shape
-  Expr MakeShape(const Call* op) {
+  Expr MakeShape(const CallNode* op) {
     size_t stack_begin = run_shape_stack_;
     run_shape_stack_ += op->args.size();
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
           Store::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
@@ -186,11 +186,11 @@ class BuiltinLower : public StmtExprMutator {
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
   // make array
-  Expr MakeArray(const Call* op) {
+  Expr MakeArray(const CallNode* op) {
     size_t idx = run_array_stack_;
     run_array_stack_ += 1;
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrData, op->args[0]));
     prep_seq_.emplace_back(
@@ -233,14 +233,14 @@ class BuiltinLower : public StmtExprMutator {
     return TVMStructGet(DataType::Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
   // call packed.
-  Expr MakeCallPacked(const Call* op) {
+  Expr MakeCallPacked(const CallNode* op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     // Specially handle the buffer packed intrinsic
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
       Expr arg = op->args[i];
@@ -276,12 +276,12 @@ class BuiltinLower : public StmtExprMutator {
       ConstInt32(arg_stack_begin),
       ConstInt32(arg_stack_begin + op->args.size() - 1)
     };
-    return Call::make(
+    return CallNode::make(
         DataType::Int(32), intrinsic::tvm_call_packed_lowered,
-        packed_args, Call::Intrinsic);
+        packed_args, CallNode::Intrinsic);
   }
 
-  Expr MakeCallTracePacked(const Call *op) {
+  Expr MakeCallTracePacked(const CallNode *op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
@@ -289,7 +289,7 @@ class BuiltinLower : public StmtExprMutator {
     size_t args_size = op->args.size();
     CHECK_GT(args_size, 0);
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
       Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
       Expr arg = op->args[i];
@@ -326,15 +326,15 @@ class BuiltinLower : public StmtExprMutator {
       // Pass traced value.
       op->args[args_size - 1]
     };
-    return Call::make(
+    return CallNode::make(
         op->dtype, intrinsic::tvm_call_trace_packed_lowered,
-        packed_args, Call::Intrinsic);
+        packed_args, CallNode::Intrinsic);
   }
 
  private:
   bool IsArrayHandle(const Expr& arg) {
     // specially set array handle.
-    if (const Call* buf = arg.as<Call>()) {
+    if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->is_intrinsic(intrinsic::tvm_struct_get) &&
           buf->args[2].as<IntImm>()->value == intrinsic::kArrAddr) {
         return true;

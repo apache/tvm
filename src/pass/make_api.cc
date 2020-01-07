@@ -71,9 +71,9 @@ LoweredFunc MakeAPI(Stmt body,
                           IntImm::make(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    Expr res = Call::make(
+    Expr res = CallNode::make(
         api_type, intrinsic::tvm_struct_get, call_args,
-        Call::PureIntrinsic);
+        CallNode::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
       res = CastNode::make(t, res);
@@ -113,7 +113,7 @@ LoweredFunc MakeAPI(Stmt body,
       // type code checks
       Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
       seq_init.emplace_back(LetStmt::make(
-          tcode, Load::make(
+          tcode, LoadNode::make(
               DataType::Int(32), v_packed_arg_type_ids,
               IntImm::make(DataType::Int(32), i), const_true(1)),
           nop));
@@ -185,10 +185,10 @@ LoweredFunc MakeAPI(Stmt body,
     seq_check.push_back(AttrStmt::make(
         node, attr::device_context_type, device_type, nop));
     Stmt set_device = IfThenElse::make(
-        device_type != kDLCPU, Evaluate::make(Call::make(
+        device_type != kDLCPU, Evaluate::make(CallNode::make(
             DataType::Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
-             device_type, device_id}, Call::Intrinsic)));
+             device_type, device_id}, CallNode::Intrinsic)));
     body = SeqStmt({set_device, body});
   }
   n->body = MergeNest(

@@ -1698,25 +1698,25 @@ VisitExpr_(const SelectNode* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Call* op) {
+VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Call>();
+  op = ret.as<CallNode>();
   if (op == nullptr) return ret;
-  if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
+  if (op->is_intrinsic(CallNode::likely) && is_const(op->args[0])) {
     return op->args[0];
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] >> op->args[1];
     }
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }
   }
-  if (op->is_intrinsic(Call::likely)) {
+  if (op->is_intrinsic(CallNode::likely)) {
     for (const auto& constraint : literal_constraints_) {
       // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
       if (Equal(constraint, op->args[0])) {
@@ -1745,7 +1745,7 @@ VisitExpr_(const CastNode* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Let* op) {
+VisitExpr_(const LetNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     // it is fine to discard the let binding
@@ -1758,7 +1758,7 @@ VisitExpr_(const Let* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Let::make(op->var, value, body);
+    return LetNode::make(op->var, value, body);
   }
 }
 

@@ -93,7 +93,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const Let* op) final {
+  Expr VisitExpr_(const LetNode* op) final {
     this->HandleDef(op->var.get());
     Expr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
@@ -106,7 +106,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
           value.same_as(op->value)) {
         return GetRef<Expr>(op);
       } else {
-        return Let::make(op->var, value, body);
+        return LetNode::make(op->var, value, body);
       }
     }
   }
@@ -116,7 +116,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -227,9 +227,9 @@ class HostDeviceSplitter : public StmtMutator {
       call_args.push_back(ext);
     }
     device_funcs_.emplace_back(f_device);
-    return Evaluate::make(Call::make(
+    return Evaluate::make(CallNode::make(
         DataType::Int(32), intrinsic::tvm_call_packed,
-        call_args, Call::Intrinsic));
+        call_args, CallNode::Intrinsic));
   }
 
   // function name

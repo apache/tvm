@@ -371,7 +371,7 @@ class SelectNode : public ExprNode {
  *
  * \endcode
  */
-class Load : public ExprNode {
+class LoadNode : public ExprNode {
  public:
   /*! \brief The buffer variable. */
   Var buffer_var;
@@ -390,7 +390,7 @@ class Load : public ExprNode {
   TVM_DLL static Expr make(DataType dtype, Var buffer_var, Expr index, Expr predicate);
 
   static constexpr const char* _type_key = "Load";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Load, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoadNode, ExprNode);
 };
 
 /*!
@@ -402,7 +402,7 @@ class Load : public ExprNode {
  *  - ramp(0, 1, 3) = [0, 1, 2]
  *  - ramp(1, 2, 4) = [1, 3, 5, 7]
  */
-class Ramp : public ExprNode {
+class RampNode : public ExprNode {
  public:
   /*! \brief The base value. */
   Expr base;
@@ -421,11 +421,11 @@ class Ramp : public ExprNode {
   TVM_DLL static Expr make(Expr base, Expr stride, int lanes);
 
   static constexpr const char* _type_key = "Ramp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Ramp, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RampNode, ExprNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
-class Broadcast : public ExprNode {
+class BroadcastNode : public ExprNode {
  public:
   /*! \brief The base value. */
   Expr value;
@@ -441,13 +441,13 @@ class Broadcast : public ExprNode {
   TVM_DLL static Expr make(Expr value, int lanes);
 
   static constexpr const char* _type_key = "Broadcast";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Broadcast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BroadcastNode, ExprNode);
 };
 
 /*!
  * \brief Let binding. Bind var to value then evaluate body.
  */
-class Let : public ExprNode {
+class LetNode : public ExprNode {
  public:
   /*! \brief The variable. */
   Var var;
@@ -466,7 +466,7 @@ class Let : public ExprNode {
   TVM_DLL static Expr make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "Let";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Let, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
 };
 
 // Call node, represent a function call or a multi-dimensional array load.
@@ -494,7 +494,7 @@ class FunctionRef : public ObjectRef {
 /*!
  * \brief Call node.
  */
-class Call : public ExprNode {
+class CallNode : public ExprNode {
  public:
   /*! \brief Possible types of calls. */
   enum CallType : int {
@@ -560,7 +560,7 @@ class Call : public ExprNode {
   bool is_vectorizable() const;
 
   static constexpr const char* _type_key = "Call";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Call, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 
   // Build-in intrinsics
   static constexpr const char* reinterpret = "reinterpret";
@@ -585,7 +585,7 @@ class Call : public ExprNode {
  *  vec = concat(vectors)
  *  result = (vec[indices[0]], vec[indices[1]] ...)
  */
-class Shuffle : public ExprNode {
+class ShuffleNode : public ExprNode {
  public:
   /*! \brief the input vectors. */
   Array<Expr> vectors;
@@ -602,7 +602,7 @@ class Shuffle : public ExprNode {
   TVM_DLL static Expr make_extract_element(Expr vector, int index);
 
   static constexpr const char* _type_key = "Shuffle";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Shuffle, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShuffleNode, ExprNode);
 };
 
 // Reduce operator
@@ -671,7 +671,7 @@ inline const CommReducerNode* CommReducer::operator->() const {
 }
 
 /*! \brief Reduction operator operator */
-class Reduce : public ExprNode {
+class ReduceNode : public ExprNode {
  public:
   /*! \brief The commutative combiner */
   CommReducer combiner;
@@ -704,7 +704,7 @@ class Reduce : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Reduce";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Reduce, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ReduceNode, ExprNode);
 };
 
 /*! \brief Any shape. */
@@ -1708,9 +1708,9 @@ constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
  * \return Expr a expression with dtype.
  */
 inline Expr TypeAnnotation(DataType dtype) {
-  return ir::Call::make(dtype,
+  return ir::CallNode::make(dtype,
                         "type_annotation", {},
-                        ir::Call::PureIntrinsic);
+                        ir::CallNode::PureIntrinsic);
 }
 
 // overload printing of for type.

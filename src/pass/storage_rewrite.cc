@@ -116,7 +116,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       linear_seq_.push_back(e);
     }
   }
-  void VisitExpr_(const Load* op) final {
+  void VisitExpr_(const LoadNode* op) final {
     // Add write access.
     StmtExprVisitor::VisitExpr_(op);
     const Variable* buf = op->buffer_var.get();
@@ -127,9 +127,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       scope_[it->second.level].touched.push_back(buf);
     }
   }
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-      const Load* l = op->args[0].as<Load>();
+      const LoadNode* l = op->args[0].as<LoadNode>();
       this->VisitExpr(l->index);
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -297,7 +297,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitExpr_(const Load* op) final {
+  void VisitExpr_(const LoadNode* op) final {
     const Variable* buf = op->buffer_var.get();
     // cannot read from dst_ (no reduction)
     if (buf == dst_) {
@@ -376,12 +376,12 @@ class StoragePlanRewriter : public StmtExprMutator {
                        RemapIndex(op->value.dtype(), op->index, it->second),
                        op->predicate);
   }
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Load>();
+    op = expr.as<LoadNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
-    return Load::make(op->dtype,
+    return LoadNode::make(op->dtype,
                       it->second->alloc_var,
                       RemapIndex(op->dtype, op->index, it->second),
                       op->predicate);
@@ -397,7 +397,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       return GetRef<Expr>(op);
     }
   }
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
@@ -414,7 +414,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
-      return Call::make(
+      return CallNode::make(
           op->dtype, op->name,
           {op->args[0], se->alloc_var, offset, extent, op->args[4]},
           op->call_type);
@@ -936,7 +936,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 // if all its access is the same vector type.
 class VectorAllocRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     UpdateTypeMap(op->buffer_var.get(), op->dtype);
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -945,7 +945,7 @@ class VectorAllocRewriter : public StmtExprMutator {
     UpdateTypeMap(op->buffer_var.get(), op->value.dtype());
     return StmtExprMutator::VisitStmt_(op);
   }
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       DataType dtype = op->args[0].dtype();
       const Variable* buffer = op->args[1].as<Variable>();

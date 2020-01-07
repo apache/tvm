@@ -171,7 +171,7 @@ Stmt ExternOpNode::BuildProvide(
     }
     ret = AttrStmt::make(
         bind_spec, attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
+        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

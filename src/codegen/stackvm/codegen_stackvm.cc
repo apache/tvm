@@ -98,7 +98,7 @@ int CodeGenStackVM::GetVarID(const VarNode* v) const {
   return it->second;
 }
 
-void CodeGenStackVM::VisitExpr_(const Load* op) {
+void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
   this->Push(op->buffer_var);
   StackVM::OpCode code = StackVM::GetLoad(op->dtype);
   if (const IntImm* index = op->index.as<IntImm>()) {
@@ -141,16 +141,16 @@ void CodeGenStackVM::VisitStmt_(const Allocate* op) {
   }
 }
 
-void CodeGenStackVM::VisitExpr_(const Call* op) {
+void CodeGenStackVM::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
+    const LoadNode *l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
     this->PushOp(StackVM::LOAD_HEAP, GetVarID(l->buffer_var.get()));
     this->Push(l->index);
     this->PushOp(StackVM::PUSH_I64, l->dtype.element_of().bytes());
     this->PushOp(StackVM::MUL_I64);
     this->PushOp(StackVM::ADDR_ADD);
-  } else if (op->is_intrinsic(Call::reinterpret)) {
+  } else if (op->is_intrinsic(CallNode::reinterpret)) {
     this->Push(op->args[0]);
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
@@ -425,7 +425,7 @@ void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
 
 void CodeGenStackVM::VisitStmt_(const Evaluate *ev) {
   if (is_const(ev->value)) return;
-  const Call* op = ev->value.as<Call>();
+  const CallNode* op = ev->value.as<CallNode>();
   if (op && op->is_intrinsic(intrinsic::tvm_struct_set)) {
     CHECK_EQ(op->args.size(), 4U);
     this->Push(op->args[0]);
@@ -474,11 +474,11 @@ void CodeGenStackVM::VisitStmt_(const LetStmt* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitExpr_(const Ramp* op) {
+void CodeGenStackVM::VisitExpr_(const RampNode* op) {
   LOG(FATAL) << "Ramp is not supported";
 }
 
-void CodeGenStackVM::VisitExpr_(const Broadcast* op) {
+void CodeGenStackVM::VisitExpr_(const BroadcastNode* op) {
   LOG(FATAL) << "Broadcast is not supported";
 }
 
@@ -502,7 +502,7 @@ void CodeGenStackVM::VisitStmt_(const AttrStmt* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitExpr_(const Let* op) {
+void CodeGenStackVM::VisitExpr_(const LetNode* op) {
   this->Push(op->value);
   int64_t vid = this->AllocVarID(op->var.get());
   this->PushOp(StackVM::STORE_HEAP, static_cast<int>(vid));

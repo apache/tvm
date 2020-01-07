@@ -91,9 +91,9 @@ class CodeGenHybrid :
   }
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const AddNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const SubNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const MulNode* op, std::ostream& os) override;  // NOLINT(*)
@@ -114,8 +114,8 @@ class CodeGenHybrid :
   void VisitExpr_(const CastNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const NotNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)

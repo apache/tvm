@@ -85,13 +85,13 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return stmt;
   }
 
-  inline Expr VisitExpr_(const Load* load) final {
+  inline Expr VisitExpr_(const LoadNode* load) final {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->dtype.code());
     Expr expr = StmtExprMutator::VisitExpr_(load);
-    load = expr.as<Load>();
+    load = expr.as<LoadNode>();
     if (toBeLowered) {
       auto new_load_type = DataType::UInt(load->dtype.bits());
-      return Load::make(new_load_type, load->buffer_var, load->index, load->predicate);
+      return LoadNode::make(new_load_type, load->buffer_var, load->index, load->predicate);
     }
     return expr;
   }

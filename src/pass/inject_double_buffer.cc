@@ -187,15 +187,15 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Load>();
+    op = expr.as<LoadNode>();
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       CHECK(e.stride.defined());
       CHECK(e.switch_read_var.defined());
-      return Load::make(op->dtype,
+      return LoadNode::make(op->dtype,
                         op->buffer_var,
                         e.switch_read_var * e.stride + op->index,
                         op->predicate);

@@ -41,9 +41,9 @@ void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
   if (ltype.lanes() == 1 && rtype.lanes() != 1) {
-    lhs = ir::Broadcast::make(lhs, rtype.lanes());
+    lhs = ir::BroadcastNode::make(lhs, rtype.lanes());
   } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
-    rhs = ir::Broadcast::make(rhs, ltype.lanes());
+    rhs = ir::BroadcastNode::make(rhs, ltype.lanes());
   } else {
     CHECK(ltype.lanes() == rtype.lanes())
         << "Cannot match type " << ltype << " vs " << rtype;
@@ -192,7 +192,7 @@ Expr cast(const DataType& t, Expr value) {
           value = ir::CastNode::make(vtype, value);
         }
       }
-      return ir::Broadcast::make(value, t.lanes());
+      return ir::BroadcastNode::make(value, t.lanes());
     } else {
       CHECK(value.dtype().lanes() == t.lanes());
       return ir::CastNode::make(t, value);
@@ -202,7 +202,7 @@ Expr cast(const DataType& t, Expr value) {
 
 Expr reinterpret(const DataType& t, Expr value) {
   if (value.dtype() == t) return value;
-  return ir::Call::make(t, ir::Call::reinterpret, { value }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(t, ir::CallNode::reinterpret, { value }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator+(Expr a, Expr b) {
@@ -339,16 +339,16 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
       return false_value;
     }
   }
-  return ir::Call::make(
+  return ir::CallNode::make(
       true_value.dtype(),
       ir::intrinsic::tvm_if_then_else,
       {cond, true_value, false_value},
-      ir::Call::PureIntrinsic);
+      ir::CallNode::PureIntrinsic);
 }
 
 Expr likely(Expr cond) {
   if (is_const(cond)) return cond;
-  return ir::Call::make(cond.dtype(), ir::Call::likely, { cond }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(cond.dtype(), ir::CallNode::likely, { cond }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator>(Expr a, Expr b) {
@@ -425,7 +425,7 @@ Expr operator>>(Expr a, Expr b) {
         if (pb->value == 0) return a;
       }
     });
-  return ir::Call::make(a.dtype(), ir::Call::shift_right, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::shift_right, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator<<(Expr a, Expr b) {
@@ -437,7 +437,7 @@ Expr operator<<(Expr a, Expr b) {
         if (pb->value == 0) return a;
       }
     });
-  return ir::Call::make(a.dtype(), ir::Call::shift_left, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::shift_left, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator&(Expr a, Expr b) {
@@ -446,7 +446,7 @@ Expr operator&(Expr a, Expr b) {
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, (pa->value & pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_and, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::bitwise_and, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator|(Expr a, Expr b) {
@@ -455,7 +455,7 @@ Expr operator|(Expr a, Expr b) {
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, (pa->value | pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_or, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::bitwise_or, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator^(Expr a, Expr b) {
@@ -464,18 +464,18 @@ Expr operator^(Expr a, Expr b) {
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, (pa->value ^ pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_xor, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::bitwise_xor, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator~(Expr a) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_not, { a }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(a.dtype(), ir::CallNode::bitwise_not, { a }, ir::CallNode::PureIntrinsic);
 }
 
 Expr pow(Expr x, Expr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "power only applies to float";
-  return ir::Call::make(x.dtype(), "pow", { x, y }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "pow", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
 Expr abs(Expr x) {
@@ -492,7 +492,7 @@ Expr abs(Expr x) {
     if (fx) {
       return ir::FloatImm::make(x.dtype(), std::fabs(fx->value));
     }
-    return ir::Call::make(x.dtype(), "fabs", {x}, ir::Call::PureIntrinsic);
+    return ir::CallNode::make(x.dtype(), "fabs", {x}, ir::CallNode::PureIntrinsic);
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
@@ -513,11 +513,11 @@ Expr isnan(Expr x) {
       return make_const(t, std::isnan(fx->value));
     }
     if (x.dtype().bits() == 16) {
-      return ir::Call::make(t, ir::Call::isnan,
+      return ir::CallNode::make(t, ir::CallNode::isnan,
                                {cast(DataType::Float(32, t.lanes()), std::move(x))},
-                               ir::Call::PureIntrinsic);
+                               ir::CallNode::PureIntrinsic);
     } else {
-      return ir::Call::make(t, ir::Call::isnan, {x}, ir::Call::PureIntrinsic);
+      return ir::CallNode::make(t, ir::CallNode::isnan, {x}, ir::CallNode::PureIntrinsic);
     }
   } else {
     LOG(FATAL) << "Data type " << x.dtype()
@@ -532,7 +532,7 @@ Expr sum(Expr source, Array<IterVar> rdom) {
   Expr identity_element = make_zero(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr all(Expr source, Array<IterVar> rdom) {
@@ -542,7 +542,7 @@ Expr all(Expr source, Array<IterVar> rdom) {
   Expr identity_element = make_const(source.dtype(), true);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr any(Expr source, Array<IterVar> rdom) {
@@ -552,7 +552,7 @@ Expr any(Expr source, Array<IterVar> rdom) {
   Expr identity_element = make_const(source.dtype(), false);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr max(Expr source, Array<IterVar> rdom) {
@@ -561,7 +561,7 @@ Expr max(Expr source, Array<IterVar> rdom) {
   Expr identity_element = min_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr min(Expr source, Array<IterVar> rdom) {
@@ -570,7 +570,7 @@ Expr min(Expr source, Array<IterVar> rdom) {
   Expr identity_element = max_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr prod(Expr source, Array<IterVar> rdom) {
@@ -579,41 +579,41 @@ Expr prod(Expr source, Array<IterVar> rdom) {
   Expr identity_element = make_const(source.dtype(), 1);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr fmod(Expr x, Expr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "fmod only applies to float";
-  return ir::Call::make(x.dtype(), "fmod", { x, y }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "fmod", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
 Expr floor(Expr x) {
   using ir::FloatImm;
   const FloatImm* fx = x.as<FloatImm>();
   if (fx) return FloatImm::make(x.dtype(), std::floor(fx->value));
-  return ir::Call::make(x.dtype(), "floor", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "floor", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr ceil(Expr x) {
   using ir::FloatImm;
   const FloatImm* fx = x.as<FloatImm>();
   if (fx) return FloatImm::make(x.dtype(), std::ceil(fx->value));
-  return ir::Call::make(x.dtype(), "ceil", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "ceil", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr round(Expr x) {
   using ir::FloatImm;
   const FloatImm* fx = x.as<FloatImm>();
   if (fx) return FloatImm::make(x.dtype(), std::nearbyint(fx->value));
-  return ir::Call::make(x.dtype(), "round", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "round", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr nearbyint(Expr x) {
   using ir::FloatImm;
   const FloatImm* fx = x.as<FloatImm>();
   if (fx) return FloatImm::make(x.dtype(), std::nearbyint(fx->value));
-  return ir::Call::make(x.dtype(), "nearbyint", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "nearbyint", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr trunc(Expr x) {
@@ -623,7 +623,7 @@ Expr trunc(Expr x) {
     return FloatImm::make(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) :
                                      std::floor(fx->value)));
   }
-  return ir::Call::make(x.dtype(), "trunc", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "trunc", {x}, ir::CallNode::PureIntrinsic);
 }
 
 }  // namespace tvm

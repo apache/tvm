@@ -105,7 +105,7 @@ class StorageFlattener : public StmtExprMutator {
       return HandleBufferBindScope(op);
     } else if (op->attr_key == attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
-      const Call* tuple = op->value.as<Call>();
+      const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       TensorKey key{tensor->op, tensor->value_index};
       auto& vinfo = dim_align_[key];
@@ -135,11 +135,11 @@ class StorageFlattener : public StmtExprMutator {
     CHECK(!e.released)
         << "Read a buffer that is already out of scope";
     if (is_opengl_) {
-      return Evaluate::make(Call::make(
+      return Evaluate::make(CallNode::make(
           DataType(),
-          Call::glsl_texture_store,
+          CallNode::glsl_texture_store,
           {e.buffer->data, op->value},
-          Call::Intrinsic));
+          CallNode::Intrinsic));
     } else {
       Stmt body = e.buffer.vstore(e.RelIndex(op->args), op->value);
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
@@ -262,15 +262,15 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Load>();
+    op = expr.as<LoadNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<Variable>());
       VarExpr buf_var = Downcast<VarExpr>(it->second);
-      return Load::make(op->dtype, buf_var, op->index, op->predicate);
+      return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
@@ -285,10 +285,10 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
-    if (op != nullptr && op->call_type == Call::Halide) {
+    op = expr.as<CallNode>();
+    if (op != nullptr && op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = buf_map_.find(key);
       CHECK(it != buf_map_.end())
@@ -355,8 +355,8 @@ class StorageFlattener : public StmtExprMutator {
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        Expr address = Call::make(DataType::Handle(), tvm_address_of, {load}, Call::PureIntrinsic);
-        Expr prefetch = Call::make(op->dtype, Call::prefetch, {address, 0, 3, 1}, Call::Intrinsic);
+        Expr address = CallNode::make(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
+        Expr prefetch = CallNode::make(op->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
         stmt = Evaluate::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
@@ -405,7 +405,7 @@ class StorageFlattener : public StmtExprMutator {
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
     const TensorNode* tensor = arr[1].as<TensorNode>();
-    const Call* tuple = op->value.as<Call>();
+    const CallNode* tuple = op->value.as<CallNode>();
     CHECK(buffer && tensor);
     CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
     TensorKey key{tensor->op, tensor->value_index};

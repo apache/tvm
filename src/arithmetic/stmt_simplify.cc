@@ -81,7 +81,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const Store* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
     op = stmt.as<Store>();
-    if (const Load* load = op->value.as<Load>()) {
+    if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           Equal(load->index, op->index)) {
         return Evaluate::make(0);

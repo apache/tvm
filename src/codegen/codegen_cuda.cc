@@ -265,7 +265,7 @@ void CodeGenCUDA::PrintVecElemStore(
   }
 }
 
-void CodeGenCUDA::PrintStorageSync(const Call* op) {
+void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "warp") {
     // DO nothing.
@@ -314,7 +314,7 @@ void CodeGenCUDA::PrintStorageScope(
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
   if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
     need_mma_h_ = true;
     CHECK_EQ(op->args.size(), 6U);
@@ -427,7 +427,7 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
 
 void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   if (is_const(op->value)) return;
-  const Call* call = op->value.as<Call>();
+  const CallNode* call = op->value.as<CallNode>();
   if (call && call->is_intrinsic(intrinsic::tvm_global_barrier_kinit)) {
     PrintIndent();
     stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
@@ -442,7 +442,7 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   os << "((make_int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
@@ -452,7 +452,7 @@ void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
   os << "))";
 }
 
-void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   if (op->dtype.is_int() && op->dtype.bits() == 8 && op->lanes == 4) {
     // make_int8x4
     const int64_t *p = as_const_int(op->value);
@@ -474,7 +474,7 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   os << ')';
 }
 
-void CodeGenCUDA::VisitExpr_(const Shuffle* op, std::ostream &os) {
+void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream &os) {
   std::vector<std::string> to_shuffle(op->vectors.size());
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
     CHECK(op->vectors[i].dtype().lanes() == 1) << "Only scalars can be shuffled in CUDA!";

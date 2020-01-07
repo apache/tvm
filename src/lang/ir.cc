@@ -119,14 +119,14 @@ Expr SelectNode::make(Expr condition, Expr true_value, Expr false_value) {
   return Expr(node);
 }
 
-Expr Load::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
+Expr LoadNode::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
   CHECK(buffer_var.defined());
   CHECK(predicate.defined());
   CHECK(index.defined());
   CHECK_EQ(dtype.lanes(), index.dtype().lanes());
   CHECK_EQ(dtype.lanes(), predicate.dtype().lanes());
 
-  ObjectPtr<Load> node = make_object<Load>();
+  ObjectPtr<LoadNode> node = make_object<LoadNode>();
   node->dtype = dtype;
   node->buffer_var = std::move(buffer_var);
   node->index = std::move(index);
@@ -135,7 +135,7 @@ Expr Load::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
   return Expr(node);
 }
 
-Expr Ramp::make(Expr base, Expr stride, int lanes) {
+Expr RampNode::make(Expr base, Expr stride, int lanes) {
   CHECK(base.defined());
   CHECK(stride.defined());
   CHECK(base.dtype().is_scalar());
@@ -143,7 +143,7 @@ Expr Ramp::make(Expr base, Expr stride, int lanes) {
   CHECK_GT(lanes, 1);
   CHECK_EQ(stride.dtype(), base.dtype());
 
-  ObjectPtr<Ramp> node = make_object<Ramp>();
+  ObjectPtr<RampNode> node = make_object<RampNode>();
   node->dtype = base.dtype().with_lanes(lanes);
   node->base = base;
   node->stride = stride;
@@ -151,24 +151,24 @@ Expr Ramp::make(Expr base, Expr stride, int lanes) {
   return Expr(node);
 }
 
-Expr Broadcast::make(Expr value, int lanes) {
+Expr BroadcastNode::make(Expr value, int lanes) {
   CHECK(value.defined());
   CHECK(value.dtype().is_scalar());
   CHECK_GT(lanes, 1);
 
-  ObjectPtr<Broadcast> node = make_object<Broadcast>();
+  ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
   node->dtype = value.dtype().with_lanes(lanes);
   node->value = std::move(value);
   node->lanes = lanes;
   return Expr(node);
 }
 
-Expr Let::make(Var var, Expr value, Expr body) {
+Expr LetNode::make(Var var, Expr value, Expr body) {
   CHECK(value.defined());
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
 
-  ObjectPtr<Let> node = make_object<Let>();
+  ObjectPtr<LetNode> node = make_object<LetNode>();
   node->dtype = body.dtype();
   node->var = std::move(var);
   node->value = std::move(value);
@@ -176,23 +176,23 @@ Expr Let::make(Var var, Expr value, Expr body) {
   return Expr(node);
 }
 
-const char* Call::vectorizable_intrinsics[] = {
+const char* CallNode::vectorizable_intrinsics[] = {
     "floor", "ceil", "sign", "trunc", "fabs", "round", "exp", "tanh", "sqrt",
-    "log", "sin", "cos", "pow", ir::Call::shift_left, ir::Call::shift_right,
-    ir::Call::likely, ir::Call::popcount
+    "log", "sin", "cos", "pow", ir::CallNode::shift_left, ir::CallNode::shift_right,
+    ir::CallNode::likely, ir::CallNode::popcount
 };
 
-bool Call::is_vectorizable() const {
-  size_t cnt = sizeof(Call::vectorizable_intrinsics) / sizeof(char*);
+bool CallNode::is_vectorizable() const {
+  size_t cnt = sizeof(CallNode::vectorizable_intrinsics) / sizeof(char*);
   for (size_t i = 0; i < cnt; ++i) {
-    if (name == Call::vectorizable_intrinsics[i]) {
+    if (name == CallNode::vectorizable_intrinsics[i]) {
       return true;
     }
   }
   return false;
 }
 
-Expr Call::make(DataType dtype,
+Expr CallNode::make(DataType dtype,
                 std::string name,
                 Array<Expr> args,
                 CallType call_type,
@@ -208,7 +208,7 @@ Expr Call::make(DataType dtype,
     }
   }
 
-  ObjectPtr<Call> node = make_object<Call>();
+  ObjectPtr<CallNode> node = make_object<CallNode>();
   node->dtype = dtype;
   node->name = std::move(name);
   node->args = std::move(args);
@@ -218,7 +218,7 @@ Expr Call::make(DataType dtype,
   return Expr(node);
 }
 
-Expr Shuffle::make(Array<Expr> vectors,
+Expr ShuffleNode::make(Array<Expr> vectors,
                    Array<Expr> indices) {
   CHECK_NE(vectors.size(), 0U);
   CHECK_NE(indices.size(), 0U);
@@ -232,14 +232,14 @@ Expr Shuffle::make(Array<Expr> vectors,
   }
   CHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
-  ObjectPtr<Shuffle> node = make_object<Shuffle>();
+  ObjectPtr<ShuffleNode> node = make_object<ShuffleNode>();
   node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
   return Expr(node);
 }
 
-Expr Shuffle::make_concat(Array<Expr> vectors) {
+Expr ShuffleNode::make_concat(Array<Expr> vectors) {
   CHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
@@ -254,7 +254,7 @@ Expr Shuffle::make_concat(Array<Expr> vectors) {
   return make(vectors, indices);
 }
 
-Expr Shuffle::make_extract_element(Expr vector, int index) {
+Expr ShuffleNode::make_extract_element(Expr vector, int index) {
   return make({vector}, {Integer(index)});
 }
 
@@ -284,7 +284,7 @@ Array<Expr> CommReducerNode::operator()(Array<Expr> a, Array<Expr> b) const {
     });
 }
 
-Expr Reduce::make(CommReducer combiner, Array<Expr> source,
+Expr ReduceNode::make(CommReducer combiner, Array<Expr> source,
                   Array<IterVar> axis, Expr condition, int value_index) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
@@ -293,7 +293,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   if (!condition.defined()) {
     condition = const_true();
   }
-  auto n = make_object<Reduce>();
+  auto n = make_object<ReduceNode>();
   CHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());
@@ -762,8 +762,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Load>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Load*>(node.get());
+.set_dispatch<LoadNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const LoadNode*>(node.get());
     p->stream << op->buffer_var << "[";
     p->Print(op->index);
     p->stream << "]";
@@ -774,8 +774,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Ramp>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Ramp*>(node.get());
+.set_dispatch<RampNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const RampNode*>(node.get());
     p->stream << "ramp(";
     p->Print(op->base);
     p->stream << ", ";
@@ -784,16 +784,16 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Broadcast>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Broadcast*>(node.get());
+.set_dispatch<BroadcastNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const BroadcastNode*>(node.get());
     p->stream << "x" << op->lanes << "(";
     p->Print(op->value);
     p->stream << ")";
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Call>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Call*>(node.get());
+.set_dispatch<CallNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const CallNode*>(node.get());
     p->stream << op->name << "(";
     for (size_t i = 0; i < op->args.size(); ++i) {
       p->Print(op->args[i]);
@@ -805,8 +805,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Let>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Let*>(node.get());
+.set_dispatch<LetNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const LetNode*>(node.get());
     p->stream << "(let " << op->var << " = ";
     p->Print(op->value);
     p->stream << " in ";
@@ -1068,8 +1068,8 @@ void PrintList(const Array<T> &exprs, NodePrinter* p) {
 }
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Shuffle>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Shuffle*>(node.get());
+.set_dispatch<ShuffleNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ShuffleNode*>(node.get());
     p->stream << "shuffle(";
     PrintList(op->vectors, p);
     p->stream << ", ";
@@ -1121,8 +1121,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Reduce>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Reduce*>(node.get());
+.set_dispatch<ReduceNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ReduceNode*>(node.get());
     p->stream << "reduce(combiner="
               << op->combiner;
     p->stream << ", source=" << op->source;
@@ -1148,7 +1148,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
-TVM_REGISTER_NODE_TYPE(Reduce);
+TVM_REGISTER_NODE_TYPE(ReduceNode);
 TVM_REGISTER_NODE_TYPE(Any);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
 TVM_REGISTER_NODE_TYPE(FloatImm);
@@ -1176,13 +1176,13 @@ TVM_REGISTER_NODE_TYPE(AndNode);
 TVM_REGISTER_NODE_TYPE(OrNode);
 TVM_REGISTER_NODE_TYPE(NotNode);
 TVM_REGISTER_NODE_TYPE(SelectNode);
-TVM_REGISTER_NODE_TYPE(Load);
-TVM_REGISTER_NODE_TYPE(Ramp);
-TVM_REGISTER_NODE_TYPE(Broadcast);
-TVM_REGISTER_NODE_TYPE(Shuffle);
+TVM_REGISTER_NODE_TYPE(LoadNode);
+TVM_REGISTER_NODE_TYPE(RampNode);
+TVM_REGISTER_NODE_TYPE(BroadcastNode);
+TVM_REGISTER_NODE_TYPE(ShuffleNode);
 TVM_REGISTER_NODE_TYPE(Prefetch);
-TVM_REGISTER_NODE_TYPE(Call);
-TVM_REGISTER_NODE_TYPE(Let);
+TVM_REGISTER_NODE_TYPE(CallNode);
+TVM_REGISTER_NODE_TYPE(LetNode);
 TVM_REGISTER_NODE_TYPE(LetStmt);
 TVM_REGISTER_NODE_TYPE(AssertStmt);
 TVM_REGISTER_NODE_TYPE(ProducerConsumer);

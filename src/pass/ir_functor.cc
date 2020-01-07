@@ -221,17 +221,17 @@ void StmtVisitor::VisitStmt_(const Evaluate* op) {
 
 void ExprVisitor::VisitExpr_(const Variable* op) {}
 
-void ExprVisitor::VisitExpr_(const Load* op) {
+void ExprVisitor::VisitExpr_(const LoadNode* op) {
   this->VisitExpr(op->index);
   this->VisitExpr(op->predicate);
 }
 
-void ExprVisitor::VisitExpr_(const Let* op) {
+void ExprVisitor::VisitExpr_(const LetNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->body);
 }
 
-void ExprVisitor::VisitExpr_(const Call* op) {
+void ExprVisitor::VisitExpr_(const CallNode* op) {
   VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e); });
 }
 
@@ -264,7 +264,7 @@ void ExprVisitor::VisitExpr_(const UIntImm* op) {}
 void ExprVisitor::VisitExpr_(const FloatImm* op) {}
 void ExprVisitor::VisitExpr_(const StringImm* op) {}
 
-void ExprVisitor::VisitExpr_(const Reduce* op) {
+void ExprVisitor::VisitExpr_(const ReduceNode* op) {
   VisitArray(op->axis, [this](const IterVar& r) {
       this->VisitExpr(r->dom->min);
       this->VisitExpr(r->dom->extent);
@@ -287,17 +287,17 @@ void ExprVisitor::VisitExpr_(const SelectNode* op) {
   this->VisitExpr(op->false_value);
 }
 
-void ExprVisitor::VisitExpr_(const Ramp* op) {
+void ExprVisitor::VisitExpr_(const RampNode* op) {
   this->VisitExpr(op->base);
   this->VisitExpr(op->stride);
 }
 
-void ExprVisitor::VisitExpr_(const Shuffle* op) {
+void ExprVisitor::VisitExpr_(const ShuffleNode* op) {
   VisitArray(op->indices, [this](const Expr& e) { this->VisitExpr(e); });
   VisitArray(op->vectors, [this](const Expr& e) { this->VisitExpr(e); });
 }
 
-void ExprVisitor::VisitExpr_(const Broadcast* op) {
+void ExprVisitor::VisitExpr_(const BroadcastNode* op) {
   this->VisitExpr(op->value);
 }
 
@@ -597,35 +597,35 @@ Expr ExprMutator::VisitExpr_(const Variable* op) {
   return GetRef<Expr>(op);
 }
 
-Expr ExprMutator::VisitExpr_(const Load* op) {
+Expr ExprMutator::VisitExpr_(const LoadNode* op) {
   Expr index = this->VisitExpr(op->index);
   Expr predicate = this->VisitExpr(op->predicate);
   if (index.same_as(op->index) && predicate.same_as(op->predicate)) {
     return GetRef<Expr>(op);
   } else {
-    return Load::make(op->dtype, op->buffer_var, index, predicate);
+    return LoadNode::make(op->dtype, op->buffer_var, index, predicate);
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Let* op) {
+Expr ExprMutator::VisitExpr_(const LetNode* op) {
   Expr value = this->VisitExpr(op->value);
   Expr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Let::make(op->var, value, body);
+    return LetNode::make(op->var, value, body);
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Call* op) {
+Expr ExprMutator::VisitExpr_(const CallNode* op) {
   auto fmutate = [this](const Expr& e) { return this->VisitExpr(e); };
   Array<Expr> args = MutateArray(op->args, fmutate);
 
   if (args.same_as(op->args)) {
     return GetRef<Expr>(op);
   } else {
-    return Call::make(op->dtype,
+    return CallNode::make(op->dtype,
                       op->name,
                       args,
                       op->call_type,
@@ -674,7 +674,7 @@ DEFINE_BIOP_EXPR_MUTATE_(GENode);
 DEFINE_BIOP_EXPR_MUTATE_(AndNode);
 DEFINE_BIOP_EXPR_MUTATE_(OrNode);
 
-Expr ExprMutator::VisitExpr_(const Reduce* op) {
+Expr ExprMutator::VisitExpr_(const ReduceNode* op) {
   auto fitervar =  [this](const IterVar& v) {
     Range r = v->dom;
     Expr min = this->VisitExpr(r->min);
@@ -700,7 +700,7 @@ Expr ExprMutator::VisitExpr_(const Reduce* op) {
       condition.same_as(op->condition)) {
     return GetRef<Expr>(op);
   } else {
-    return Reduce::make(
+    return ReduceNode::make(
       op->combiner, source, axis, condition, op->value_index);
   }
 }
@@ -736,33 +736,33 @@ Expr ExprMutator::VisitExpr_(const SelectNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Ramp* op) {
+Expr ExprMutator::VisitExpr_(const RampNode* op) {
   Expr base = this->VisitExpr(op->base);
   Expr stride = this->VisitExpr(op->stride);
   if (base.same_as(op->base) &&
       stride.same_as(op->stride)) {
     return GetRef<Expr>(op);
   } else {
-    return Ramp::make(base, stride, op->lanes);
+    return RampNode::make(base, stride, op->lanes);
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Broadcast* op) {
+Expr ExprMutator::VisitExpr_(const BroadcastNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return GetRef<Expr>(op);
   } else {
-    return Broadcast::make(value, op->lanes);
+    return BroadcastNode::make(value, op->lanes);
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Shuffle* op) {
+Expr ExprMutator::VisitExpr_(const ShuffleNode* op) {
   auto fexpr = [this](const Expr& e) { return this->VisitExpr(e); };
   auto vectors = MutateArray(op->vectors, fexpr);
   if (vectors.same_as(op->vectors)) {
     return GetRef<Expr>(op);
   } else {
-    return Shuffle::make(vectors, op->indices);
+    return ShuffleNode::make(vectors, op->indices);
   }
 }
 

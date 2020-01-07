@@ -227,7 +227,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     }
   }
 
-  Expr Mutate_(const Load* op) {
+  Expr Mutate_(const LoadNode* op) {
     if (op->buffer_var.get() == buffer_) {
       Expr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
@@ -235,12 +235,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(!ExprUseVar(local_index, {warp_index_.get()}))
           << "LowerWarpMemory failed to rewrite load to shuffle for index "
           << op->index << " local_index=" << local_index;
-      Expr load_value = Load::make(
+      Expr load_value = LoadNode::make(
           op->dtype, op->buffer_var, local_index, op->predicate);
-      return Call::make(load_value.dtype(),
+      return CallNode::make(load_value.dtype(),
                         intrinsic::tvm_warp_shuffle,
                         {load_value, group},
-                        Call::Intrinsic);
+                        CallNode::Intrinsic);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -256,7 +256,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       CHECK(GetRamp1Base(index, index.dtype().lanes(), &base));
       std::tie(local_index, group) = SplitIndexByGroup(base);
       local_index =
-          Ramp::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
+          RampNode::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
     Expr m = make_const(index.dtype(), warp_coeff_);

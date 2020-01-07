@@ -82,7 +82,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     if (consider_calls_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);

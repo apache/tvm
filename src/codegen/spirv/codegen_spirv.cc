@@ -106,7 +106,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   return builder_->Cast(builder_->GetSType(iv->var.dtype()), v);
 }
 
-spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
+spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   spirv::Value value;
   if (sync == "warp") {
@@ -232,14 +232,14 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const SelectNode* op) {
                           MakeValue(op->false_value));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Let* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic("spirv_glsl450")) {
     CHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = op->args[0].as<UIntImm>()->value;
@@ -249,31 +249,31 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
     }
     return builder_->CallGLSL450(
         builder_->GetSType(op->dtype), inst_id, values);
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     spirv::Value a = MakeValue(op->args[0]);
     return builder_->MakeValue(spv::OpNot, a.stype, a);
-  } else if (op->is_intrinsic(Call::shift_left)) {
+  } else if (op->is_intrinsic(CallNode::shift_left)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
@@ -282,7 +282,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
-  } else if (op->is_intrinsic(Call::reinterpret)) {
+  } else if (op->is_intrinsic(CallNode::reinterpret)) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
@@ -319,12 +319,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
         builder_->GetSType(op->dtype),
         MakeValue(op->args[0]));
   } else {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
       LOG(FATAL) << "Unresolved intrinsic " << op->name
                  << " with return type " << op->dtype;
-    } else if (op->call_type == Call::Extern ||
-               op->call_type == Call::PureExtern) {
+    } else if (op->call_type == CallNode::Extern ||
+               op->call_type == CallNode::PureExtern) {
       LOG(FATAL) << "Unresolved extern " << op->name
                  << " with return type " << op->dtype;
     } else {
@@ -334,7 +334,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
   }
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value base = MakeValue(op->base);
   for (int i = 0; i < op->lanes; ++i) {
@@ -349,7 +349,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Broadcast* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value v = MakeValue(op->value);
   for (int i = 0; i < op->lanes; i++) {
@@ -358,7 +358,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Broadcast* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
   CHECK(is_one(op->predicate));
   auto it = storage_info_.find(op->buffer_var.get());
   CHECK(it != storage_info_.end());
@@ -396,7 +396,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
       this->Scalarize(op->index, f);
       return builder_->Concat(values);
     } else {
-      if (const Ramp* ramp = op->index.as<Ramp>()) {
+      if (const RampNode* ramp = op->index.as<RampNode>()) {
         if (is_one(ramp->stride)) {
           CHECK_EQ(ramp->lanes, op->dtype.lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);
@@ -419,7 +419,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
 
 void CodeGenSPIRV::Scalarize(const Expr& e,
                              std::function<void(int i, spirv::Value v)> f) {
-  if (const Ramp* ramp = e.as<Ramp>()) {
+  if (const RampNode* ramp = e.as<RampNode>()) {
     for (int i = 0; i < ramp->dtype.lanes(); ++i) {
       Expr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
@@ -474,7 +474,7 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
       };
       this->Scalarize(op->index, f);
     } else {
-      if (const Ramp* ramp = op->index.as<Ramp>()) {
+      if (const RampNode* ramp = op->index.as<RampNode>()) {
         if (is_one(ramp->stride)) {
           CHECK_EQ(ramp->lanes, op->value.dtype().lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);

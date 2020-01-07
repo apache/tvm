@@ -222,10 +222,10 @@ class ModularSetAnalyzer::Impl :
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Call* op) final {
+  Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->is_intrinsic(Call::shift_right)) {
+    if (op->is_intrinsic(CallNode::shift_right)) {
       return VisitRightShift(op);
     } else {
       return Everything();
@@ -242,7 +242,7 @@ class ModularSetAnalyzer::Impl :
     }
   }
 
-  Entry VisitRightShift(const Call* op) {
+  Entry VisitRightShift(const CallNode* op) {
     Entry b = VisitExpr(op->args[1]);
     // a c x  / c -> a x
     if (b.is_const()) {

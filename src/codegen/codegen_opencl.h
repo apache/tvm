@@ -42,7 +42,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void InitFuncState(LoweredFunc f) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
-  void PrintStorageSync(const Call* op) final;  // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
   std::string GetVecLoad(DataType t, const VarNode* buffer,
                          Expr base) final;
@@ -55,8 +55,8 @@ class CodeGenOpenCL final : public CodeGenC {
   std::string CastFromTo(std::string value, DataType from, DataType target); // NOLINT(*)
 
   // overload visitor
-  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const Call* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final; // NOLINT(*)
 

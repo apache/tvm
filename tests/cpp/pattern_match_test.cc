@@ -112,18 +112,18 @@ TEST(Pattern, Basic) {
   // ramp pattern
   {
     CHECK(ramp(px, PConst<Expr>(1), planes).Match(
-        ir::Ramp::make(x, 1, 10)));
+        ir::RampNode::make(x, 1, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(!ramp(px, PConst<Expr>(1), planes).Match(
-        ir::Ramp::make(x, 2, 10)));
+        ir::RampNode::make(x, 2, 10)));
   }
   // broadcast pattern
   {
     CHECK(broadcast(px, planes).Match(
-        ir::Broadcast::make(x, 10)));
+        ir::BroadcastNode::make(x, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(broadcast(px * py , planes).Match(
-        ir::Broadcast::make(x * 10, 10)));
+        ir::BroadcastNode::make(x * 10, 10)));
   }
 }
 

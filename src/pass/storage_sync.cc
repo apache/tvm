@@ -210,9 +210,9 @@ class ThreadSyncInserter : public StmtExprMutator {
         barrier = MakeGlobalBarrier();
       } else {
         barrier = Evaluate::make(
-                Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
+                CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                            {StringImm::make(sync_scope_.to_string())},
-                           Call::Intrinsic));
+                           CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
@@ -222,7 +222,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt(stmt);
     }
   }
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
@@ -261,10 +261,10 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       Expr expr = StmtExprMutator::VisitExpr_(op);
-      op = expr.as<Call>();
+      op = expr.as<CallNode>();
       CHECK_EQ(op->args.size(), 5U);
       const Variable* buffer_var = op->args[1].as<Variable>();
       Var var(GetRef<Var>(buffer_var));
@@ -302,7 +302,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     CHECK(op != nullptr);
     Array<Expr> pargs = {StringImm::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate::make(
-        Call::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
+        CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
@@ -312,7 +312,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     rw_stats_.clear();
     Stmt kinit = Evaluate::make(
-        Call::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
+        CallNode::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
     body = AttrStmt::make(
         op->node, op->attr_key, op->value, body);
@@ -338,10 +338,10 @@ class ThreadSyncInserter : public StmtExprMutator {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
     return Evaluate::make(
-        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
+        CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},
-                   Call::Intrinsic));
+                   CallNode::Intrinsic));
   }
   // data structure.
   StorageScope sync_scope_;

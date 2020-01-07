@@ -40,7 +40,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   };
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
       Expr ctx = op->args[0];
@@ -50,7 +50,7 @@ class ContextCallCombiner final : public StmtExprMutator {
       } else {
         CHECK(ctx.dtype().is_handle());
         std::string name;
-        if (const Call* call = ctx.as<Call>()) {
+        if (const CallNode* call = ctx.as<CallNode>()) {
           name = call->name + "_cache";
         } else {
           name = "ctx_cache_";

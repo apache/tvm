@@ -38,11 +38,11 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   bool VisitExpr_(const SelectNode* op) {
     return VisitExpr(op->condition);
   }
-  bool VisitExpr_(const Call* op) {
+  bool VisitExpr_(const CallNode* op) {
     if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       return VisitExpr(op->args[0]);
     } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-      const Load* l = op->args[0].as<Load>();
+      const LoadNode* l = op->args[0].as<LoadNode>();
       return this->VisitExpr(l->index);
     } else if (op->is_pure()) {
       for (Expr e : op->args) {
@@ -53,7 +53,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
       return true;
     }
   }
-  bool VisitExpr_(const Load* op) {
+  bool VisitExpr_(const LoadNode* op) {
     // Load is considered unsafe.
     return true;
   }
@@ -77,19 +77,19 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   bool VisitExpr_(const NotNode* op) final {
     return VisitExpr(op->a);
   }
-  bool VisitExpr_(const Let* op) final {
+  bool VisitExpr_(const LetNode* op) final {
     return VisitExpr(op->body) || VisitExpr(op->value);
   }
   bool VisitExpr_(const CastNode* op) final {
     return VisitExpr(op->value);
   }
-  bool VisitExpr_(const Broadcast* op) final {
+  bool VisitExpr_(const BroadcastNode* op) final {
     return VisitExpr(op->value);
   }
-  bool VisitExpr_(const Ramp* op) final {
+  bool VisitExpr_(const RampNode* op) final {
     return VisitExpr(op->base) && VisitExpr(op->stride);
   }
-  bool VisitExpr_(const Shuffle* op) final {
+  bool VisitExpr_(const ShuffleNode* op) final {
     for (Expr e : op->vectors) {
       if (VisitExpr(e)) return true;
     }
@@ -118,11 +118,11 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     if ((unsafe.VisitExpr(op->true_value) ||
         unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call::make(
+      return CallNode::make(
           op->dtype,
           intrinsic::tvm_if_then_else,
           {op->condition, op->true_value, op->false_value},
-          Call::Intrinsic);
+          CallNode::Intrinsic);
     } else {
       return expr;
     }

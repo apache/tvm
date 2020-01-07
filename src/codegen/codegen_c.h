@@ -103,9 +103,9 @@ class CodeGenC :
   virtual void InitFuncState(LoweredFunc f);
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const AddNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const SubNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const MulNode* op, std::ostream& os) override;  // NOLINT(*)
@@ -124,9 +124,9 @@ class CodeGenC :
   void VisitExpr_(const CastNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const NotNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Shuffle* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)
@@ -154,7 +154,7 @@ class CodeGenC :
    */
   virtual void BindThreadIndex(const IterVar& iv); // NOLINT(*)
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os); // NOLINT(*)
-  virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
+  virtual void PrintStorageSync(const CallNode* op);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
       const std::string&op, DataType op_type,

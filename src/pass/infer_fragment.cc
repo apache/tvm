@@ -47,7 +47,7 @@ class FragmentGetter : public StmtExprVisitor {
       : m(_m), n(_n), k(_k), layout(_layout) {}
   };
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
     if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync) ||
@@ -135,7 +135,7 @@ class FragmentChecker : public StmtExprVisitor {
  public:
   explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
     if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {

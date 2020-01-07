@@ -46,9 +46,9 @@ Stmt MakeCrossThreadReduction(
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);
-  std::vector<const Reduce*> reduces(size);
+  std::vector<const ReduceNode*> reduces(size);
   for (size_t i = 0; i < size; ++i) {
-    const Reduce* reduce = self->body[i].as<Reduce>();
+    const ReduceNode* reduce = self->body[i].as<ReduceNode>();
     CHECK(reduce);
     reduces[i] = reduce;
   }
@@ -84,10 +84,10 @@ Stmt MakeCrossThreadReduction(
     thread_head_check.emplace_back(stage->store_predicate);
   }
 
-  Stmt reduce_body = Evaluate::make(Call::make(
+  Stmt reduce_body = Evaluate::make(CallNode::make(
       DataType::Handle(),
       ir::intrinsic::tvm_thread_allreduce,
-      freduce_args, Call::Intrinsic));
+      freduce_args, CallNode::Intrinsic));
   reduce_body = AttrStmt::make(
       reduces[0]->combiner,
       attr::reduce_scope,
@@ -98,7 +98,7 @@ Stmt MakeCrossThreadReduction(
     DataType t = reduces[idx]->dtype;
     assigns[idx] = Provide::make(
       stage->op, idx,
-      Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+      LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);

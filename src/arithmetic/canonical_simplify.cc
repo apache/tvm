@@ -457,7 +457,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   Expr VisitExpr_(const ModNode* op) final;
   Expr VisitExpr_(const FloorDivNode* op) final;
   Expr VisitExpr_(const FloorModNode* op) final;
-  Expr VisitExpr_(const Reduce* op) final;
+  Expr VisitExpr_(const ReduceNode* op) final;
 
  private:
   /*!
@@ -562,7 +562,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     }
   }
   // Simplify the combiner used in reduce.
-  Expr SimplifyReduceCombiner(const Reduce* op);
+  Expr SimplifyReduceCombiner(const ReduceNode* op);
 };
 
 Expr CanonicalSimplifier::Impl::
@@ -1024,7 +1024,7 @@ VisitExpr_(const FloorModNode* op) {
 
 // Simplify reduce expression.
 Expr CanonicalSimplifier::Impl::
-SimplifyReduceCombiner(const Reduce* op) {
+SimplifyReduceCombiner(const ReduceNode* op) {
   // First simplify the results
   Array<Expr> simplified_result;
   for (const auto& res : op->combiner->result) {
@@ -1089,15 +1089,15 @@ SimplifyReduceCombiner(const Reduce* op) {
 
   CommReducer new_combiner =
       CommReducerNode::make(new_lhs, new_rhs, new_result, new_identity);
-  return Reduce::make(
+  return ReduceNode::make(
       new_combiner, new_source, op->axis, op->condition, new_value_index);
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Reduce* op) {
+VisitExpr_(const ReduceNode* op) {
   // Recursively call simplification when necessary.
   Expr ret = RewriteSimplifier::Impl::VisitExpr_(op);
-  op = ret.as<Reduce>();
+  op = ret.as<ReduceNode>();
   // already been simplified by const reduction axis removal
   if (op == nullptr) return ret;
   if (op->axis.empty()) {

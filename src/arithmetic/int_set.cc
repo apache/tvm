@@ -473,7 +473,7 @@ class IntervalSetEvaluator :
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Ramp* op) final {
+  IntervalSet VisitExpr_(const RampNode* op) final {
     CHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
     PVar<Integer> stride;
@@ -496,7 +496,7 @@ class IntervalSetEvaluator :
     return IntervalSet::Everything();
   }
 
-  IntervalSet VisitExpr_(const Broadcast* op) final {
+  IntervalSet VisitExpr_(const BroadcastNode* op) final {
     CHECK(eval_vec_);
     return VisitExpr(op->value);
   }

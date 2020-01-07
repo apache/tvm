@@ -31,7 +31,7 @@
 namespace tvm {
 namespace ir {
 
-void StorageAccessVisitor::VisitExpr_(const Load* op) {
+void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
   const Variable* buf = op->buffer_var.as<Variable>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
@@ -179,9 +179,9 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElse* op) {
   --condition_counter_;
 }
 
-void StorageAccessVisitor::VisitExpr_(const Call* op) {
+void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
+    const LoadNode *l = op->args[0].as<LoadNode>();
     StmtExprVisitor::VisitExpr_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
@@ -277,7 +277,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       return MakeAccessPtr(op);
     } else {
@@ -287,10 +287,10 @@ class StorageAccessInfoLower : public StmtExprMutator {
 
  private:
   // tvm_access_ptr
-  Expr MakeAccessPtr(const Call* op) {
+  Expr MakeAccessPtr(const CallNode* op) {
     // Specially handle the buffer packed intrinsic
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const Variable* buffer = op->args[1].as<Variable>();

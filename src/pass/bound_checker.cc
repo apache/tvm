@@ -62,7 +62,7 @@ class BoundChecker : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (process_store_ && op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       unsafe_rewritten_ = true;
     }
@@ -94,7 +94,7 @@ class BoundChecker : public StmtExprMutator {
     return GetRef<Stmt>(op);
   }
 
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     if (CanInstrument(op->index, op->buffer_var)) {
       Collect(op->index, op->buffer_var);
     }
@@ -137,7 +137,7 @@ class BoundChecker : public StmtExprMutator {
       return false;
     }
 
-    if (const Ramp *ramp_index = index.as<Ramp>()) {
+    if (const RampNode *ramp_index = index.as<RampNode>()) {
       return ramp_index->base.defined() &&
              ramp_index->base.dtype().is_scalar() &&
              ramp_index->stride.defined() &&
@@ -163,7 +163,7 @@ class BoundChecker : public StmtExprMutator {
       Expr index = buffer_to_mem.first;
       Expr upper_bound = buffer_to_mem.second;
 
-      if (const Ramp *ramp_index = index.as<Ramp>()) {
+      if (const RampNode *ramp_index = index.as<RampNode>()) {
         // In case index is base + stride * i.
         // Non inclusive range.
         index = AddNode::make(

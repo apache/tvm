@@ -321,7 +321,7 @@ void CodeGenC::BindThreadIndex(const IterVar& iv) {
   LOG(FATAL) << "not implemented";
 }
 
-void CodeGenC::PrintStorageSync(const Call* op) { // NOLINT(*)
+void CodeGenC::PrintStorageSync(const CallNode* op) { // NOLINT(*)
 }
 
 void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
@@ -442,7 +442,7 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-inline void PrintBinaryIntrinsic(const Call* op,
+inline void PrintBinaryIntrinsic(const CallNode* op,
                                   const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenC* p) {
@@ -515,9 +515,9 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->a, os);
 }
 
-void CodeGenC::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == Call::Extern ||
-      op->call_type == Call::PureExtern) {
+void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+  if (op->call_type == CallNode::Extern ||
+      op->call_type == CallNode::PureExtern) {
     os << op->name << "(";
     for (size_t i = 0; i < op->args.size(); i++) {
       this->PrintExpr(op->args[i], os);
@@ -526,20 +526,20 @@ void CodeGenC::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
       }
     }
     os << ")";
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     PrintBinaryIntrinsic(op, " & ", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     PrintBinaryIntrinsic(op, " ^ ", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
     PrintBinaryIntrinsic(op, " | ", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     this->PrintExpr(op->args[0], os);
     os << ')';
-  } else if (op->is_intrinsic(Call::shift_left)) {
+  } else if (op->is_intrinsic(CallNode::shift_left)) {
     PrintBinaryIntrinsic(op, " << ", os, this);
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     PrintBinaryIntrinsic(op, " >> ", os, this);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     os << "(";
@@ -550,7 +550,7 @@ void CodeGenC::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
     PrintExpr(op->args[2], os);
     os << ")";
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
+    const LoadNode *l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
     os << "((";
     this->PrintType(l->dtype.element_of(), os);
@@ -568,22 +568,22 @@ void CodeGenC::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
     os << "(";
     this->PrintExpr(op->args[0], os);
     os << " == NULL)";
-  } else if (op->is_intrinsic(Call::reinterpret)) {
+  } else if (op->is_intrinsic(CallNode::reinterpret)) {
     // generate (*( TYPE *)(&(ARG)))
     os << "(*(";
     this->PrintType(op->dtype, os);
     os << " *)(&(";
     this->PrintExpr(op->args[0], os);
     os << ")))";
-  } else if (op->is_intrinsic(Call::isnan)) {
+  } else if (op->is_intrinsic(CallNode::isnan)) {
     os << "(";
     this->PrintExpr(op->args[0], os);
     os << " != ";
     this->PrintExpr(op->args[0], os);
     os << ")";
   } else {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
       LOG(FATAL) << "Unresolved intrinsic " << op->name
                  << " with return type " << op->dtype;
     } else {
@@ -610,7 +610,7 @@ void CodeGenC::PrintVecBinaryOp(
   }
 }
 
-void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->dtype.lanes();
   // delcare type.
   if (op->dtype.lanes() == 1) {
@@ -714,14 +714,14 @@ void CodeGenC::VisitStmt_(const Store* op) {
   }
 }
 
-void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   std::string value = PrintExpr(op->value);
   CHECK(!var_idmap_.count(op->var.get()));
   var_idmap_[op->var.get()] = value;
   os << PrintExpr(op->body);
 }
 
-void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // constraint of current logic
   CHECK_EQ(op->base.dtype(), DataType::Int(32));
   os << "((int" << op->lanes << ")(";
@@ -733,11 +733,11 @@ void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
   os << "))";
 }
 
-void CodeGenC::VisitExpr_(const Shuffle* op, std::ostream& os) {
+void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
   LOG(FATAL) << "Shuffle: not supported ";
 }
 
-void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenC::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
@@ -883,7 +883,7 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
 
 void CodeGenC::VisitStmt_(const Evaluate* op) {
   if (is_const(op->value)) return;
-  const Call* call = op->value.as<Call>();
+  const CallNode* call = op->value.as<CallNode>();
   if (call) {
     if (call->is_intrinsic(intrinsic::tvm_storage_sync)) {
       this->PrintStorageSync(call); return;

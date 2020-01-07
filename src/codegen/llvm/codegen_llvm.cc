@@ -229,7 +229,7 @@ llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
   return nullptr;
 }
 
-llvm::Value* CodeGenLLVM::CreateStorageSync(const Call* op) {
+llvm::Value* CodeGenLLVM::CreateStorageSync(const CallNode* op) {
   LOG(FATAL) << "not implemented";
   return nullptr;
 }
@@ -348,7 +348,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
   if (index.defined()) {
-    const Ramp* ramp = index.as<Ramp>();
+    const RampNode* ramp = index.as<RampNode>();
     if (ramp) {
       int base, stride;
       if (arith::GetConstInt(ramp->base, &base) &&
@@ -639,7 +639,7 @@ llvm::Value* CodeGenLLVM::GetVarValue(const Variable* v) const {
   return it->second;
 }
 
-llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
+llvm::Value* CodeGenLLVM::CreateCallExtern(const CallNode* op) {
   std::vector<llvm::Value*> arg_value;
   std::vector<llvm::Type*> arg_type;
   for (size_t i = 0; i < op->args.size(); ++i) {
@@ -658,7 +658,7 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const Call* op) {
   return call;
 }
 
-llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
+llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
@@ -681,17 +681,17 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     llvm::Function* f = llvm::Intrinsic::getDeclaration(
         module_.get(), id, sig_type);
     return builder_->CreateCall(f, arg_value);
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     return builder_->CreateAnd(MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
     return builder_->CreateOr(MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
     return builder_->CreateNot(MakeValue(op->args[0]));
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     return builder_->CreateXor(MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::shift_left)) {
+  } else if (op->is_intrinsic(CallNode::shift_left)) {
     return builder_->CreateShl(MakeValue(op->args[0]), MakeValue(op->args[1]));
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     if (op->args[0].dtype().is_int()) {
       return builder_->CreateAShr(MakeValue(op->args[0]), MakeValue(op->args[1]));
     } else {
@@ -700,9 +700,9 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
+    const LoadNode *l = op->args[0].as<LoadNode>();
     CHECK(op->args.size() == 1 && l);
-    const Ramp *r = l->index.as<Ramp>();
+    const RampNode *r = l->index.as<RampNode>();
     llvm::Value* ptr;
     unsigned addrspace;
     if (!r) {
@@ -718,7 +718,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
           ptr->getType())->getAddressSpace();
     }
     return builder_->CreatePointerCast(ptr, t_char_->getPointerTo(addrspace));
-  } else if (op->is_intrinsic(Call::reinterpret) && is_zero(op->args[0])) {
+  } else if (op->is_intrinsic(CallNode::reinterpret) && is_zero(op->args[0])) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
@@ -746,10 +746,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->is_intrinsic(Call::reinterpret)) {
+  } else if (op->is_intrinsic(CallNode::reinterpret)) {
     llvm::Type * target = LLVMType(op->dtype);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
-  } else if (op->is_intrinsic(Call::isnan)) {
+  } else if (op->is_intrinsic(CallNode::isnan)) {
     // TODO(hgt312): set fast math flag
     llvm::Value* a = MakeValue(op->args[0]);
     return builder_->CreateFCmpUNO(a, a);
@@ -778,7 +778,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
 
 void CodeGenLLVM::Scalarize(const Expr& e,
                             std::function<void(int i, llvm::Value* v)> f) {
-  if (const Ramp* ramp = e.as<Ramp>()) {
+  if (const RampNode* ramp = e.as<RampNode>()) {
     for (int i = 0; i < ramp->dtype.lanes(); ++i) {
       Expr offset = ramp->base + (ramp->stride * i);
       f(i, MakeValue(offset));
@@ -942,14 +942,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const SelectNode* op) {
       MakeValue(op->false_value));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Let* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
   DataType t = op->dtype;
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
   llvm::Value* buffer = MakeValue(op->buffer_var);
@@ -966,7 +966,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
     // vector load
     unsigned addrspace = llvm::dyn_cast<llvm::PointerType>(
       buffer->getType())->getAddressSpace();
-    if (const Ramp* ramp = op->index.as<Ramp>()) {
+    if (const RampNode* ramp = op->index.as<RampNode>()) {
       if (is_one(ramp->stride)) {
         int alignment, native_bits;
         GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);
@@ -994,12 +994,12 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Load* op) {
   return ret;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
-  if (op->call_type == Call::Intrinsic ||
-      op->call_type == Call::PureIntrinsic) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
+  if (op->call_type == CallNode::Intrinsic ||
+      op->call_type == CallNode::PureIntrinsic) {
     return CreateIntrinsic(op);
-  } else if (op->call_type == Call::Extern ||
-             op->call_type == Call::PureExtern) {
+  } else if (op->call_type == CallNode::Extern ||
+             op->call_type == CallNode::PureExtern) {
     return CreateCallExtern(op);
   } else {
     LOG(FATAL) << "Unknown call type " <<
@@ -1009,7 +1009,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Call* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
   llvm::Value* vec = llvm::UndefValue::get(LLVMType(op->dtype));
   for (int i = 0; i < op->lanes; ++i) {
     vec = builder_->CreateInsertElement(
@@ -1019,7 +1019,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Ramp* op) {
   return vec;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
   std::vector<llvm::Value *> vecs(op->vectors.size());
   int total_lanes = 0;
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
@@ -1039,7 +1039,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Shuffle* op) {
   return res;
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Broadcast* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   return CreateBroadcast(MakeValue(op->value), op->lanes);
 }
 
@@ -1062,7 +1062,7 @@ void CodeGenLLVM::VisitStmt_(const Store* op) {
     // vector store
     unsigned addrspace = llvm::dyn_cast<llvm::PointerType>(
         buffer->getType())->getAddressSpace();
-    if (const Ramp* ramp = op->index.as<Ramp>()) {
+    if (const RampNode* ramp = op->index.as<RampNode>()) {
       if (is_one(ramp->stride)) {
         int alignment, native_bits;
         GetAlignment(t, op->buffer_var.get(), ramp->base, &alignment, &native_bits);

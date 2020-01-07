@@ -218,9 +218,9 @@ TEST(IRF, StmtMutator) {
   }
 
   {
-    auto body = Evaluate::make(Call::make(DataType::Int(32), "xyz", {x + 1}, Call::Extern));
+    auto body = Evaluate::make(CallNode::make(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
     auto res = v(std::move(body));
-    CHECK(res.as<Evaluate>()->value.as<Call>()->args[0].same_as(x));
+    CHECK(res.as<Evaluate>()->value.as<CallNode>()->args[0].same_as(x));
   }
   {
     auto body = fmakealloc();

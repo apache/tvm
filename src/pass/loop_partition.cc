@@ -118,8 +118,8 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
-    if (op->is_intrinsic(Call::likely)) {
+  void VisitExpr_(const CallNode* op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
@@ -192,8 +192,8 @@ class PartitionFinder : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
-    if (op->is_intrinsic(Call::likely)) {
+  void VisitExpr_(const CallNode* op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
       Expr cond = op->args[0];
       if (ExprUseVars(cond,
           std::unordered_set<const Variable*>({current_var_.get()}))) {
@@ -594,8 +594,8 @@ inline Stmt LoopPartitioner::MakeFor(const Object *node, Expr extent, Stmt body)
 
 class RemoveLikelyTags : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Call *op) final {
-    if (op->is_intrinsic(Call::likely)) {
+  Expr VisitExpr_(const CallNode *op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
       CHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {

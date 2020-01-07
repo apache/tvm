@@ -46,14 +46,14 @@ class ExprTouched final : public StmtExprVisitor {
     if (expr_touched_ && !check_write_) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr_(const Load *op) final {
+  void VisitExpr_(const LoadNode *op) final {
     HandleUseVar(op->buffer_var.get());
     StmtExprVisitor::VisitExpr_(op);
   }
   void VisitExpr_(const Variable *op) final {
     HandleUseVar(op);
   }
-  void VisitExpr_(const Call *op) final {
+  void VisitExpr_(const CallNode *op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       int rw_mask = 0;
       CHECK(arith::GetConstInt(op->args[4], &rw_mask));
@@ -217,15 +217,15 @@ class VTInjector : public StmtExprMutator {
     return index + var_ * alloc_extent;
   }
   // Load
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Load>();
+    op = expr.as<LoadNode>();
     if (touched_var_.count(op->buffer_var.get())) {
       visit_touched_var_ = true;
     }
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return Load::make(op->dtype, op->buffer_var,
+      return LoadNode::make(op->dtype, op->buffer_var,
                         RewriteIndex(op->index, it->second),
                         op->predicate);
     } else {
@@ -233,7 +233,7 @@ class VTInjector : public StmtExprMutator {
     }
   }
   // Expression.
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
@@ -246,7 +246,7 @@ class VTInjector : public StmtExprMutator {
       Expr stride =
           it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
-      return Call::make(
+      return CallNode::make(
           op->dtype, op->name,
           {op->args[0], op->args[1], offset, extent, op->args[4]},
           op->call_type);

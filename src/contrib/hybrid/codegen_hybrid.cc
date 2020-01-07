@@ -114,7 +114,7 @@ inline void PrintBinaryExpr(const T* op,
   }
 }
 
-inline void PrintBinaryIntrinsitc(const Call* op,
+inline void PrintBinaryIntrinsitc(const CallNode* op,
                                   const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
@@ -207,8 +207,8 @@ void CodeGenHybrid::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT
   PrintExpr(op->a, os);
 }
 
-void CodeGenHybrid::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
-  if (op->call_type == Call::Halide) {
+void CodeGenHybrid::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+  if (op->call_type == CallNode::Halide) {
     os << GetTensorID(op->func, op->value_index);
     os << "[";
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -218,17 +218,17 @@ void CodeGenHybrid::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
       os << idx.str();
     }
     os << "]";
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     PrintBinaryIntrinsitc(op, "&", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     PrintBinaryIntrinsitc(op, "^", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
     PrintBinaryIntrinsitc(op, "|", os, this);
-  } else if (op->is_intrinsic(Call::shift_left)) {
+  } else if (op->is_intrinsic(CallNode::shift_left)) {
     PrintBinaryIntrinsitc(op, "<<", os, this);
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     PrintBinaryIntrinsitc(op, ">>", os, this);
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(~";
     PrintExpr(op->args[0], os);
@@ -251,7 +251,7 @@ void CodeGenHybrid::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-void CodeGenHybrid::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no Load(s)!";
 }
 
@@ -259,7 +259,7 @@ void CodeGenHybrid::VisitStmt_(const Store* op) {
   LOG(FATAL) << "Phase 0 has no Store(s)!";
 }
 
-void CodeGenHybrid::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Phase 0 has no Let(s)!";
 }
 
@@ -267,11 +267,11 @@ void CodeGenHybrid::VisitStmt_(const Allocate* op) {
   LOG(FATAL) << "Phase 0 has no Allocate(s)!";
 }
 
-void CodeGenHybrid::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Ramp to be supported yet";
 }
 
-void CodeGenHybrid::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
 

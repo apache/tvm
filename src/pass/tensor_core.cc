@@ -149,8 +149,8 @@ class MMAMatcher: public StmtVisitor {
   };
 
   // Check whether the storage scope is local
-  bool check_local_buffer_(const Call* op, BufferInfo* bi) {
-    if (op->call_type == Call::Halide) {
+  bool check_local_buffer_(const CallNode* op, BufferInfo* bi) {
+    if (op->call_type == CallNode::Halide) {
       auto it = storage_scope_.find(op->func.get());
       if (it == storage_scope_.end()) {
         return false;
@@ -179,7 +179,7 @@ class MMAMatcher: public StmtVisitor {
       return false;
     }
 
-    auto* load_c = add->a.as<Call>();
+    auto* load_c = add->a.as<CallNode>();
     BufferInfo buffer_c;
     if (!check_local_buffer_(load_c, &buffer_c)
         || !buffer_c.same_as(store_buffer)
@@ -194,7 +194,7 @@ class MMAMatcher: public StmtVisitor {
     }
 
     auto load_a_expr = unpack_type_cast(mul->a, buffer_c.dtype);
-    auto load_a = load_a_expr.as<Call>();
+    auto load_a = load_a_expr.as<CallNode>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
         || !(buffer_a.dtype == DataType::Float(16) ||
@@ -203,7 +203,7 @@ class MMAMatcher: public StmtVisitor {
     }
 
     auto load_b_expr = unpack_type_cast(mul->b, buffer_c.dtype);
-    auto load_b = load_b_expr.as<Call>();
+    auto load_b = load_b_expr.as<CallNode>();
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
         || !(buffer_b.dtype == DataType::Float(16) ||
@@ -238,7 +238,7 @@ class BodyVisitor : public StmtExprVisitor {
  public:
   BodyVisitor() {}
 
-  void VisitExpr_(const Reduce* op) final {
+  void VisitExpr_(const ReduceNode* op) final {
     auto* comm_add = op->combiner->result[0].as<AddNode>();
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
@@ -255,7 +255,7 @@ class BodyVisitor : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     args_.insert(std::make_pair(op->name, op->args));
   }
@@ -334,8 +334,8 @@ class ScheduleAnalyser {
 
     for (auto &mma_sync : mma_sync_) {
       auto &operands = mma_sync.second;
-      auto* load_a = operands[0].as<Call>();
-      auto* load_b = operands[1].as<Call>();
+      auto* load_a = operands[0].as<CallNode>();
+      auto* load_b = operands[1].as<CallNode>();
       auto input0 = simplify_name(buf_name_.find(load_a)->second);
       auto input1 = simplify_name(buf_name_.find(load_b)->second);
       auto it0 = matrix_abc_.find(input0);
@@ -418,7 +418,7 @@ class BufferAnalyser : public StmtExprVisitor {
       this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
-      const Call* tuple = op->value.as<Call>();
+      const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
       size_t dim = tuple->args[0].as<IntImm>()->value;
@@ -473,10 +473,10 @@ class BufferAnalyser : public StmtExprVisitor {
     strides_.insert(std::make_pair(key.GetName(), strides));
 
     if (frag_reg_.count(bi.name)) {
-      Expr dst = Call::make(bi.dtype,
+      Expr dst = CallNode::make(bi.dtype,
                             bi.name,
                             op->args,
-                            Call::Halide,
+                            CallNode::Halide,
                             op->func,
                             0);
       frag_load_.insert(std::make_pair(op, dst));
@@ -533,21 +533,21 @@ class BufferAnalyser : public StmtExprVisitor {
       }
     }
 
-    const Call* value = op->value.as<Call>();
+    const CallNode* value = op->value.as<CallNode>();
     if (value != nullptr && frag_reg_.count(value->name)) {
-      Expr dst = Call::make(bi.dtype,
+      Expr dst = CallNode::make(bi.dtype,
                             bi.name,
                             op->args,
-                            Call::Halide,
+                            CallNode::Halide,
                             op->func,
                             0);
       frag_store_.insert(std::make_pair(op, dst));
     }
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
-    if (op->call_type == Call::Halide) {
+    if (op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = buf_map_.find(key);
       CHECK(it != buf_map_.end())
@@ -857,11 +857,11 @@ class TensorCoreIRMutator : public StmtExprMutator {
     if (it != mma_sync_.end()) {
       const auto &operands = it->second;
       Expr a = operands[0];
-      auto ca = a.as<Call>();
+      auto ca = a.as<CallNode>();
       Expr b = operands[1];
-      auto cb = b.as<Call>();
+      auto cb = b.as<CallNode>();
       Expr c = operands[2];
-      auto cc = c.as<Call>();
+      auto cc = c.as<CallNode>();
 
       ObjectPtr<BufferNode> buffer_node_a = make_object<BufferNode>();
       ObjectPtr<BufferNode> buffer_node_b = make_object<BufferNode>();
@@ -873,13 +873,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
           return Evaluate::make(
-                  Call::make(DataType::Handle(),
+                  CallNode::make(DataType::Handle(),
                         intrinsic::tvm_mma_sync,
                         {buffer->data, buffer->elem_offset,
                         buffer_a->data, buffer_a->elem_offset,
                         buffer_b->data, buffer_b->elem_offset,
                         buffer->data, buffer->elem_offset},
-                        Call::Intrinsic));
+                        CallNode::Intrinsic));
         };
 
       auto call_add_c =
@@ -903,17 +903,17 @@ class TensorCoreIRMutator : public StmtExprMutator {
       Expr dst = it2->second;
       if (op->value.as<FloatImm>() != nullptr ||
           op->value.as<IntImm>() != nullptr) {
-        auto call = dst.as<Call>();
+        auto call = dst.as<CallNode>();
 
         auto fill_fragment_call =
           [this, &op](const Buffer &buffer) {
             return Evaluate::make(
-                    Call::make(DataType::Handle(),
+                    CallNode::make(DataType::Handle(),
                               intrinsic::tvm_fill_fragment,
                               {buffer->data,
                               warp_tile_.m, warp_tile_.n, warp_tile_.k,
                               buffer->elem_offset, op->value},
-                              Call::Intrinsic));
+                              CallNode::Intrinsic));
           };
 
         ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -922,7 +922,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
                                       fill_fragment_call, call->dtype);
       }
 
-      const Call* value = op->value.as<Call>();
+      const CallNode* value = op->value.as<CallNode>();
       CHECK(value != nullptr)
           << "Can only load fragment from a buffer";
 
@@ -937,12 +937,12 @@ class TensorCoreIRMutator : public StmtExprMutator {
       Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       Expr mutated_value = thread_idx_mutator(op->value);
-      Expr src = Call::make(value->dtype,
+      Expr src = CallNode::make(value->dtype,
                             "&",
                             {mutated_value},
-                            Call::Extern);
+                            CallNode::Extern);
 
-      auto call = dst.as<Call>();
+      auto call = dst.as<CallNode>();
       Expr matrix_major;
       auto iter2 = matrix_major_.find(simplify_name(call->name));
       CHECK(iter2 != matrix_major_.end())
@@ -958,12 +958,12 @@ class TensorCoreIRMutator : public StmtExprMutator {
       auto load_matrix_call =
         [this, &src, &stride, &matrix_major](const Buffer &buffer) {
         return Evaluate::make(
-                Call::make(DataType::Handle(),
+                CallNode::make(DataType::Handle(),
                           intrinsic::tvm_load_matrix_sync,
                           {buffer->data,
                           warp_tile_.m, warp_tile_.n, warp_tile_.k,
                           buffer->elem_offset, src, stride, matrix_major},
-                          Call::Intrinsic));
+                          CallNode::Intrinsic));
       };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -987,23 +987,23 @@ class TensorCoreIRMutator : public StmtExprMutator {
       Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
-      dst = Call::make(DataType::Handle(),
+      dst = CallNode::make(DataType::Handle(),
                        "&",
                        {dst},
-                       Call::Extern);
+                       CallNode::Extern);
 
-      auto call = op->value.as<Call>();
+      auto call = op->value.as<CallNode>();
 
       auto store_matrix_call =
         [this, &dst, &stride](const Buffer &buffer) {
           return Evaluate::make(
-                  Call::make(DataType::Handle(),
+                  CallNode::make(DataType::Handle(),
                             intrinsic::tvm_store_matrix_sync,
                             {buffer->data,
                             warp_tile_.m, warp_tile_.n, warp_tile_.k,
                             buffer->elem_offset, dst, stride,
                             StringImm::make("col_major")},
-                            Call::Intrinsic));
+                            CallNode::Intrinsic));
         };
 
       ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
@@ -1067,7 +1067,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       return tile_size;
   }
 
-  Stmt add_buffer_bind_scope_(const Call* call,
+  Stmt add_buffer_bind_scope_(const CallNode* call,
       const ObjectPtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
@@ -1131,10 +1131,10 @@ class TensorCoreIRMutator : public StmtExprMutator {
       args.push_back(call->args[i]);
       args.push_back(shape[i]);
     }
-    auto tuple = Call::make(DataType::Handle(),
+    auto tuple = CallNode::make(DataType::Handle(),
                             intrinsic::tvm_tuple,
                             args,
-                            Call::Intrinsic);
+                            CallNode::Intrinsic);
     Array<ObjectRef> node = {buffer, tensor};
     return AttrStmt::make(node,
                           "buffer_bind_scope",

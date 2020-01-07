@@ -161,10 +161,10 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 // Remap the tensor placeholder, index and inline things.
 class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
-    if (op->call_type == Call::Halide) {
+    op = expr.as<CallNode>();
+    if (op->call_type == CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = in_remap_.find(t);
       if (it != in_remap_.end()) {
@@ -174,7 +174,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         for (size_t i = e.start; i < e.region.size(); ++i) {
           args.push_back(op->args[i] - e.region[i]->min);
         }
-        return Call::make(
+        return CallNode::make(
             op->dtype, e.tensor->op->name, args,
             op->call_type, e.tensor->op, e.tensor->value_index);
       }
@@ -191,9 +191,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Reduce* op) final {
+  Expr VisitExpr_(const ReduceNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Reduce>();
+    op = expr.as<ReduceNode>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
       auto it = axis_remap_.find(op->axis[i]);
@@ -201,7 +201,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         axis.push_back(it->second);
       }
     }
-    return Reduce::make(
+    return ReduceNode::make(
         op->combiner, op->source, axis, op->condition, op->value_index);
   }
 
@@ -392,7 +392,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     }
     input_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -412,7 +412,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     Array<ObjectRef> bind_spec{buffer, tensor};
     output_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
   }
   // Check variable remap
   std::unordered_map<const VarNode*, Expr> vmap;

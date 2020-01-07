@@ -76,13 +76,13 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const Load* op) final;
+  void VisitExpr_(const LoadNode* op) final;
   void VisitStmt_(const Store* op) final;
   void VisitStmt_(const Evaluate* op) final;
   void VisitStmt_(const AttrStmt* op) final;
   void VisitStmt_(const For* op) final;
   void VisitStmt_(const IfThenElse* op) final;
-  void VisitExpr_(const Call* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  protected:
   StorageAccessVisitor() {

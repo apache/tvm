@@ -186,8 +186,8 @@ bool AttrsEqualHandler::VisitAttr_(const CastNode* lhs, const ObjectRef& other) 
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Call>()) {
+bool AttrsEqualHandler::VisitAttr_(const CallNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<CallNode>()) {
     return
         lhs->name == rhs->name &&
         lhs->dtype == rhs->dtype &&
@@ -297,8 +297,8 @@ size_t AttrsHashHandler::VisitAttr_(const CastNode* op) {
   return res;
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Call* op) {
-  static size_t key = std::hash<std::string>()(Call::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const CallNode* op) {
+  static size_t key = std::hash<std::string>()(CallNode::_type_key);
   AttrsHash hasher;
   size_t res = key;
   res = Combine(res, hasher(op->name));

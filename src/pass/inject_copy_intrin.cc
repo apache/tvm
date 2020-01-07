@@ -75,17 +75,17 @@ class CopyIntrinInjector : public StmtMutator {
         select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
     const CastNode* cast = store->value.as<CastNode>();
-    const Load* load = store->value.as<Load>();
+    const LoadNode* load = store->value.as<LoadNode>();
     if (0 == loops.size()) {
       CHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
-      load = sel_true_value.Eval().as<Load>();
+      load = sel_true_value.Eval().as<LoadNode>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {
-      load = cast->value.as<Load>();
+      load = cast->value.as<LoadNode>();
     }
     if (load == nullptr) return false;
     if (load->dtype.lanes() != 1) return false;

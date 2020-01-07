@@ -85,9 +85,9 @@ TVM_REGISTER_GLOBAL("make.Load")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     DataType t = args[0];
     if (args.size() == 3) {
-      *ret = Load::make(t, args[1], args[2], const_true(t.lanes()));
+      *ret = LoadNode::make(t, args[1], args[2], const_true(t.lanes()));
     } else {
-      *ret = Load::make(t, args[1], args[2], args[3]);
+      *ret = LoadNode::make(t, args[1], args[2], args[3]);
     }
   });
 
@@ -110,10 +110,10 @@ TVM_REGISTER_GLOBAL("make.Call")
   Array<Expr> args, int call_type,
   FunctionRef func, int value_index
 ) {
-  return Call::make(type,
+  return CallNode::make(type,
                     name,
                     args,
-                    static_cast<Call::CallType>(call_type),
+                    static_cast<CallNode::CallType>(call_type),
                     func,
                     value_index);
 });
@@ -126,7 +126,7 @@ TVM_REGISTER_GLOBAL("make.CommReducer")
   TVM_REGISTER_GLOBAL("make."#Node)                             \
   .set_body_typed(Node::make);                                  \
 
-REGISTER_MAKE(Reduce);
+REGISTER_MAKE(ReduceNode);
 REGISTER_MAKE(AttrStmt);
 
 REGISTER_MAKE(IntImm);
@@ -154,11 +154,11 @@ REGISTER_MAKE(OrNode);
 
 REGISTER_MAKE(NotNode);
 REGISTER_MAKE(SelectNode);
-REGISTER_MAKE(Ramp);
+REGISTER_MAKE(RampNode);
 REGISTER_MAKE(CastNode);
-REGISTER_MAKE(Broadcast);
-REGISTER_MAKE(Shuffle);
-REGISTER_MAKE(Let);
+REGISTER_MAKE(BroadcastNode);
+REGISTER_MAKE(ShuffleNode);
+REGISTER_MAKE(LetNode);
 REGISTER_MAKE(LetStmt);
 REGISTER_MAKE(AssertStmt);
 REGISTER_MAKE(ProducerConsumer);

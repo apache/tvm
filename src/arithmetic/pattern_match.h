@@ -531,7 +531,7 @@ class PRampExpr :
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Ramp* ptr = node.as<ir::Ramp>()) {
+    if (const ir::RampNode* ptr = node.as<ir::RampNode>()) {
       if (!base_.Match_(ptr->base)) return false;
       if (!stride_.Match_(ptr->stride)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
@@ -542,7 +542,7 @@ class PRampExpr :
   }
 
   Expr Eval() const {
-    return ir::Ramp::make(base_.Eval(), stride_.Eval(), lanes_.Eval());
+    return ir::RampNode::make(base_.Eval(), stride_.Eval(), lanes_.Eval());
   }
 
  private:
@@ -593,7 +593,7 @@ class PBroadcastExpr :
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Broadcast* ptr = node.as<ir::Broadcast>()) {
+    if (const ir::BroadcastNode* ptr = node.as<ir::BroadcastNode>()) {
       if (!value_.Match_(ptr->value)) return false;
       if (!lanes_.Match_(ptr->lanes)) return false;
       return true;
@@ -603,7 +603,7 @@ class PBroadcastExpr :
   }
 
   Expr Eval() const {
-    return ir::Broadcast::make(value_.Eval(), lanes_.Eval());
+    return ir::BroadcastNode::make(value_.Eval(), lanes_.Eval());
   }
 
  private:
@@ -662,10 +662,10 @@ struct PCallExprInitMatchFunctor {
 };
 
 struct PCallExprMatchFunctor {
-  const ir::Call* call_;
+  const ir::CallNode* call_;
   bool matched_{true};
 
-  explicit PCallExprMatchFunctor(const ir::Call* call)
+  explicit PCallExprMatchFunctor(const ir::CallNode* call)
       : call_(call) {}
 
   template<typename T>
@@ -705,7 +705,7 @@ class PCallExpr :
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Call* ptr = node.as<ir::Call>()) {
+    if (const ir::CallNode* ptr = node.as<ir::CallNode>()) {
       if (ptr->args.size() != sizeof...(TArgs)) return false;
       if (ptr->name != Op::kName) return false;
       detail::PCallExprMatchFunctor fmatch(ptr);
@@ -730,8 +730,8 @@ class PCallExpr :
 #define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)        \
   struct OpName {                                                     \
     static Expr Eval(Array<Expr> args) {                              \
-      return ir::Call::make(args[0].dtype(), kName, args,             \
-                            ir::Call::PureIntrinsic);                 \
+      return ir::CallNode::make(args[0].dtype(), kName, args,             \
+                            ir::CallNode::PureIntrinsic);                 \
     }                                                                 \
     static constexpr const char* kName = IntrinStr;                   \
   };                                                                  \
@@ -751,8 +751,8 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 #define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)         \
   struct OpName {                                                     \
     static Expr Eval(Array<Expr> args) {                              \
-      return ir::Call::make(args[0].dtype(), kName, args,             \
-                            ir::Call::PureIntrinsic);                 \
+      return ir::CallNode::make(args[0].dtype(), kName, args,             \
+                            ir::CallNode::PureIntrinsic);                 \
     }                                                                 \
     static constexpr const char* kName = IntrinStr;                   \
   };                                                                  \
@@ -767,9 +767,9 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
 // if_then_else
 struct PIfThenElseOp {
   static Expr Eval(Array<Expr> args) {
-    return ir::Call::make(
+    return ir::CallNode::make(
         args[1].dtype(), kName, args,
-        ir::Call::PureIntrinsic);
+        ir::CallNode::PureIntrinsic);
   }
   static constexpr const char* kName = "tvm_if_then_else";
 };

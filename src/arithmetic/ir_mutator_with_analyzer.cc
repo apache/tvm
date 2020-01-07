@@ -126,7 +126,7 @@ VisitStmt_(const AssertStmt* op) {
 }
 
 Expr IRMutatorWithAnalyzer::
-VisitExpr_(const Call* op) {
+VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
     Expr cond = this->VisitExpr(op->args[0]);
@@ -151,7 +151,7 @@ VisitExpr_(const Call* op) {
         false_value.same_as(op->args[2])) {
       return GetRef<Expr>(op);
     } else {
-      return Call::make(op->dtype, op->name,
+      return CallNode::make(op->dtype, op->name,
                         {cond, true_value, false_value},
                         op->call_type);
     }
@@ -160,7 +160,7 @@ VisitExpr_(const Call* op) {
 }
 
 Expr IRMutatorWithAnalyzer::
-VisitExpr_(const Let* op) {
+VisitExpr_(const LetNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
@@ -172,7 +172,7 @@ VisitExpr_(const Let* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Let::make(op->var, value, body);
+    return LetNode::make(op->var, value, body);
   }
 }
 
@@ -206,7 +206,7 @@ VisitExpr_(const SelectNode* op) {
 }
 
 Expr IRMutatorWithAnalyzer::
-VisitExpr_(const Reduce* op) {
+VisitExpr_(const ReduceNode* op) {
   // Setup the domain information before simplification.
   for (const IterVar& iv : op->axis) {
     analyzer_->Bind(iv->var, iv->dom);

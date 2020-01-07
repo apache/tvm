@@ -55,7 +55,7 @@ class FeatureVisitor : public StmtExprVisitor {
   void VisitStmt_(const AttrStmt* op) final;
 
   // memory access
-  void VisitExpr_(const Load* op) final;
+  void VisitExpr_(const LoadNode* op) final;
   void VisitStmt_(const Store* op) final;
 
   using StmtExprVisitor::VisitStmt_;

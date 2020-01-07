@@ -98,7 +98,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     ExitProducerConsumer();
   }
 
-  void VisitExpr_(const Load* op) final {
+  void VisitExpr_(const LoadNode* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
     return StmtExprVisitor::VisitExpr_(op);
   }
@@ -122,7 +122,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
       // Get the first argument of tvm_struct_get, and continue.
       const auto &iter = defs_.find(V);
       if (iter == defs_.end()) return false;
-      const Call *C = iter->second.as<const Call>();
+      const CallNode *C = iter->second.as<const CallNode>();
       if (!C || C->name != intrinsic::tvm_struct_get) return false;
       V = C->args[0].as<Variable>();
     }

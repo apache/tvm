@@ -48,8 +48,8 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const For* op) override;
-  llvm::Value* CreateIntrinsic(const Call* op) override;
-  llvm::Value* CreateCallExtern(const Call* op) override;
+  llvm::Value* CreateIntrinsic(const CallNode* op) override;
+  llvm::Value* CreateCallExtern(const CallNode* op) override;
 
  protected:
   void AddStartupFunction() final;
@@ -106,9 +106,9 @@ class CodeGenCPU : public CodeGenLLVM {
                                    llvm::Value **ret_tcode, const DataType &r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
-  llvm::Value* CreateCallPacked(const Call* op);
+  llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const Call *op);
+  llvm::Value* CreateCallTracePacked(const CallNode *op);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch

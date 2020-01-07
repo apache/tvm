@@ -126,12 +126,12 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const OrNode* op) override;
   llvm::Value* VisitExpr_(const NotNode* op) override;
   llvm::Value* VisitExpr_(const SelectNode* op) override;
-  llvm::Value* VisitExpr_(const Let* op) override;
-  llvm::Value* VisitExpr_(const Load* op) override;
-  llvm::Value* VisitExpr_(const Call* op) override;
-  llvm::Value* VisitExpr_(const Ramp* op) override;
-  llvm::Value* VisitExpr_(const Shuffle* op) override;
-  llvm::Value* VisitExpr_(const Broadcast* op) override;
+  llvm::Value* VisitExpr_(const LetNode* op) override;
+  llvm::Value* VisitExpr_(const LoadNode* op) override;
+  llvm::Value* VisitExpr_(const CallNode* op) override;
+  llvm::Value* VisitExpr_(const RampNode* op) override;
+  llvm::Value* VisitExpr_(const ShuffleNode* op) override;
+  llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
   void VisitStmt_(const Store* op) override;
   void VisitStmt_(const For* op) override;
@@ -173,13 +173,13 @@ class CodeGenLLVM :
     return res;
   }
   // create intrinstic given call
-  virtual llvm::Value* CreateIntrinsic(const Call* op);
+  virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
-  virtual llvm::Value* CreateCallExtern(const Call* op);
+  virtual llvm::Value* CreateCallExtern(const CallNode* op);
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
-  virtual llvm::Value* CreateStorageSync(const Call* op);
+  virtual llvm::Value* CreateStorageSync(const CallNode* op);
   // apply optimization on the module.
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
@@ -217,7 +217,7 @@ class CodeGenLLVM :
   llvm::Value* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(
-      const Call* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
+      const CallNode* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr

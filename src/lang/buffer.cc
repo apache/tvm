@@ -285,7 +285,7 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, DataType dtype)
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return ir::Ramp::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return ir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
@@ -301,11 +301,11 @@ Expr Buffer::vload(Array<Expr> begin, DataType dtype) const {
   if (dtype == DataType::Bool()) {
     return ir::CastNode::make(
         DataType::Bool(),
-        ir::Load::make(
+        ir::LoadNode::make(
             DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
             const_true()));
   } else {
-    return ir::Load::make(
+    return ir::LoadNode::make(
         dtype, n->data, BufferOffset(n, begin, dtype),
         const_true(dtype.lanes()));
   }
@@ -405,8 +405,8 @@ Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, E
   Array<Expr> acc_args{
     e_dtype, self->data, elem_offset,
         extent, make_const(DataType::Int(32), access_mask)};
-  return ir::Call::make(
-      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);
+  return ir::CallNode::make(
+      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::CallNode::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data,

@@ -35,7 +35,7 @@ class IRSideEffect : public ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     if (!op->is_pure()) {
       has_side_effect_ = true; return;
     } else {
@@ -111,7 +111,7 @@ class VarTouchVisitor : public ExprVisitor {
     Handle(op);
   }
 
-  void VisitExpr_(const Load* op) final {
+  void VisitExpr_(const LoadNode* op) final {
     Handle(op->buffer_var.get());
     ExprVisitor::VisitExpr_(op);
   }

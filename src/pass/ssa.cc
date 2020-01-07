@@ -45,7 +45,7 @@ class IRVerifySSA final : public StmtExprVisitor {
     if (!is_ssa) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr_(const Let* op) final {
+  void VisitExpr_(const LetNode* op) final {
     MarkDef(op->var.get());
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -83,7 +83,7 @@ class IRConvertSSA final : public StmtExprMutator {
       return GetRef<Expr>(op);
     }
   }
-  Expr VisitExpr_(const Let* op) final {
+  Expr VisitExpr_(const LetNode* op) final {
     const VarExpr& v = op->var;
     if (defined_.count(v.get())) {
       Expr value = this->VisitExpr(op->value);
@@ -91,17 +91,17 @@ class IRConvertSSA final : public StmtExprMutator {
       scope_[v.get()].push_back(new_var);
       Expr body = this->VisitExpr(op->body);
       scope_[v.get()].pop_back();
-      return Let::make(new_var, value, body);
+      return LetNode::make(new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
     }
   }
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Load>();
+    op = expr.as<LoadNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return Load::make(
+      return LoadNode::make(
           op->dtype, scope_[op->buffer_var.get()].back(),
           op->index, op->predicate);
     } else {

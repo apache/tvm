@@ -319,7 +319,7 @@ llvm::Value* CodeGenCPU::CreateStructRefPtr(
   }
 }
 
-llvm::Value* CodeGenCPU::CreateCallExtern(const Call* op) {
+llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   std::vector<llvm::Value*> arg_values(op->args.size());
   for (size_t i = 0; i < op->args.size(); ++i) {
     arg_values[i] = MakeValue(op->args[i]);
@@ -701,7 +701,7 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
   return end_block;
 }
 
-llvm::Value *CodeGenCPU::CreateCallPacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallPacked(const CallNode *op) {
   CHECK_EQ(op->args.size(), 5U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
@@ -711,7 +711,7 @@ llvm::Value *CodeGenCPU::CreateCallPacked(const Call *op) {
   return rvalue;
 }
 
-llvm::Value *CodeGenCPU::CreateCallTracePacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallTracePacked(const CallNode *op) {
   using llvm::BasicBlock;
   CHECK_EQ(op->args.size(), 6U);
   llvm::Value *rvalue = nullptr;
@@ -786,7 +786,7 @@ void CodeGenCPU::AddStartupFunction() {
   }
 }
 
-llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
+llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     return CreateCallPacked(op);
   } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed_lowered)) {

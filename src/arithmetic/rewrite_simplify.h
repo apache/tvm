@@ -69,10 +69,10 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const OrNode* op) override;
   Expr VisitExpr_(const NotNode* op) override;
   Expr VisitExpr_(const SelectNode* op) override;
-  Expr VisitExpr_(const Call* op) override;
+  Expr VisitExpr_(const CallNode* op) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const CastNode* op) override;
-  Expr VisitExpr_(const Let* op) override;
+  Expr VisitExpr_(const LetNode* op) override;
 
   std::function<void()> EnterConstraint(const Expr& constraint);
 

@@ -34,7 +34,7 @@ namespace ir {
 // Visitor to find touched set by co-processor scope.
 class CoProcTouchedBuffer : public StmtExprVisitor {
  public:
-  void VisitExpr_(const Load* op) final {
+  void VisitExpr_(const LoadNode* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {
@@ -50,7 +50,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       const Variable* buffer = op->args[1].as<Variable>();
       if (in_scope_) {
@@ -196,10 +196,10 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   std::vector<Stmt> GetSync(std::string sync_name) {
-    return {Evaluate::make(Call::make(
+    return {Evaluate::make(CallNode::make(
         DataType::Int(32),
         sync_name,
-        {}, Call::Intrinsic))};
+        {}, CallNode::Intrinsic))};
   }
 
   const std::unordered_set<const Variable*>& touched_;
@@ -343,9 +343,9 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
         << "Cannot deduce write range of " << wvec[0].buffer;
     Expr min = r->min;
     Expr extent = r->extent;
-    return Evaluate::make(Call::make(
+    return Evaluate::make(CallNode::make(
         DataType::Int(32), func,
-        {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, Call::Intrinsic));
+        {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, CallNode::Intrinsic));
   }
   // Write barrier name
   bool read_barrier_{false};
@@ -586,16 +586,16 @@ class CoProcInstDepDetector : public StmtVisitor {
   }
 
   Stmt MakePush(int from, int to) {
-    return Evaluate::make(Call::make(
+    return Evaluate::make(CallNode::make(
         DataType::Int(32), sync_push_name_,
         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-        Call::Intrinsic));
+        CallNode::Intrinsic));
   }
   Stmt MakePop(int from, int to) {
-    return Evaluate::make(Call::make(
+    return Evaluate::make(CallNode::make(
         DataType::Int(32), sync_pop_name_,
         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
-        Call::Intrinsic));
+        CallNode::Intrinsic));
   }
   // sync states.
   SyncState first_state_, last_state_, curr_state_;

@@ -66,7 +66,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   Stmt VisitStmt_(const Evaluate* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Evaluate>();
-    const Call* call = op->value.as<Call>();
+    const CallNode* call = op->value.as<CallNode>();
     if (call && call->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
       return MakeAllreduce(call);
     } else {
@@ -93,7 +93,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return stmt;
     }
   }
-  Expr VisitExpr_(const Load* op) final {
+  Expr VisitExpr_(const LoadNode* op) final {
     auto it = load_remap_.find(op->buffer_var.get());
     if (it != load_remap_.end()) {
       CHECK(is_zero(op->index));
@@ -115,7 +115,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   };
   // make allreduce.
-  Stmt MakeAllreduce(const Call* call) {
+  Stmt MakeAllreduce(const CallNode* call) {
     CHECK(!reduce_combiner_.empty());
     const CommReducerNode *combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
@@ -210,7 +210,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (size_t idx = 0; idx < size; ++idx) {
       CHECK(!load_remap_.count(buffers[idx]));
       Expr pred = const_true(types[idx].lanes());
-      load_remap_[buffers[idx]] = Load::make(
+      load_remap_[buffers[idx]] = LoadNode::make(
         types[idx], shared_bufs[idx],
         BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
       alloc_remap_[buffers[idx]] = Allocate::make(
@@ -242,10 +242,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     auto freduce = [&](int offset) {
       Array<Expr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        b.push_back(Load::make(types[i], shared_bufs[i],
+        b.push_back(LoadNode::make(types[i], shared_bufs[i],
           BufIndex(reduce_index + offset, group_index, reduce_extent),
           const_true()));
-        a.push_back(Load::make(types[i], shared_bufs[i], buf_index, const_true()));
+        a.push_back(LoadNode::make(types[i], shared_bufs[i], buf_index, const_true()));
       }
       Array<Expr> ret = (*combiner)(a, b);
       std::vector<Stmt> stores(size);
@@ -311,9 +311,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
     return Evaluate::make(
-        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
+        CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync)},
-                   Call::Intrinsic));
+                   CallNode::Intrinsic));
   }
   // The local buffer index.
   static Expr BufIndex(Expr reduce_index, Expr group_index, int reduce_extent) {
