@@ -896,7 +896,7 @@ class TVMRetValue : public TVMPODValue_ {
 
 /*!
  * \brief Export a function with the PackedFunc signature
- *        as a PackedFunc that can loaded by LibraryModule.
+ *        as a PackedFunc that can be loaded by LibraryModule.
  *
  * \param ExportName The symbol name to be exported.
  * \param Function The function with PackedFunc signature.
@@ -935,7 +935,7 @@ class TVMRetValue : public TVMPODValue_ {
 
 /*!
  * \brief Export typed function as a PackedFunc
- *        that can loaded by LibraryModule.
+ *        that can be loaded by LibraryModule.
  *
  * \param ExportName The symbol name to be exported.
  * \param Function The typed function.

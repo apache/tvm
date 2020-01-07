@@ -26,7 +26,7 @@ def test_plugin_module():
     # Failure mode we want to prevent from:
     # We retain an object X whose destructor is within mod.
     # The program will segfault if X get destructed after mod,
-    # because the destructor function has already been unloadd.
+    # because the destructor function has already been unloaded.
     #
     # The easiest way to achieve this is to wrap the
     # logics related to mod inside a function.
