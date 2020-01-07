@@ -34,7 +34,23 @@
 extern "C" {
 #endif
 
-// Backend related functions.
+/*!
+ * \brief Signature for backend functions exported as DLL.
+ *
+ * \param args The arguments
+ * \param type_codes The type codes of the arguments
+ * \param num_args Number of arguments.
+ * \param out_ret_value The output value of the the return value.
+ * \param out_ret_tcode The output type code of the return value.
+ *
+ * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
+ */
+typedef int (*TVMBackendPackedCFunc)(TVMValue* args,
+                                     int* type_codes,
+                                     int num_args,
+                                     TVMValue* out_ret_value,
+                                     int* out_ret_tcode);
+
 /*!
  * \brief Backend function for modules to get function
  *  from its environment mod_node (its imports and global function).
