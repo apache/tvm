@@ -24,7 +24,7 @@ from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 @autotvm.task.register_topi_compute("conv1d_transpose_nchw.cuda")
-def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
+def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype, output_padding=(0,)):
     """Transposed 1D convolution ncw forward operator.
 
     Parameters
@@ -54,10 +54,11 @@ def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
     cfg.stride = stride
     batch, inp_channels, inp_width = get_const_tuple(data.shape)
     _, out_channels, kernel_size = get_const_tuple(kernel.shape)
+    opad = output_padding[0]
     pad_left, pad_right = nn.get_pad_tuple1d(padding, kernel_size)
     out_width = (inp_width - 1) * stride + kernel_size - pad_left - pad_right
     pad_left = kernel_size - 1 - pad_left
-    pad_right = kernel_size - 1 - pad_right
+    pad_right = kernel_size - 1 - pad_right + opad
     dilated_width = stride * (inp_width - 1) + 1
     data = te.compute(
         (batch, inp_channels, pad_left + dilated_width + pad_right),
