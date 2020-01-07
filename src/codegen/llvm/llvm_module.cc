@@ -68,8 +68,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     const std::string& fname = (name == runtime::symbol::tvm_module_main ?
                                 entry_func_ : name);
 
-    BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(GetFunctionAddr(fname));
+    TVMBackendPackedCFunc faddr =
+        reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(fname));
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
   }

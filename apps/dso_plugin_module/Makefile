@@ -15,13 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Minimum Makefile for the extension package
 TVM_ROOT=$(shell cd ../..; pwd)
 PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
 	-I${TVM_ROOT}/3rdparty/dmlc-core/include\
 	-I${TVM_ROOT}/3rdparty/dlpack/include
-
 
 PKG_LDFLAGS =-L${TVM_ROOT}/build
 UNAME_S := $(shell uname -s)
@@ -30,6 +28,6 @@ ifeq ($(UNAME_S), Darwin)
 	PKG_LDFLAGS += -undefined dynamic_lookup
 endif
 
-lib/libtvm_ext.so: src/tvm_ext.cc
+lib/plugin_module.so: plugin_module.cc
 	@mkdir -p $(@D)
 	$(CXX) $(PKG_CFLAGS) -shared -o $@ $^ $(PKG_LDFLAGS)
