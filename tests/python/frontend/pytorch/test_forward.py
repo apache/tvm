@@ -221,21 +221,21 @@ def test_forward_add():
 
     class Add3(Module):
         def forward(self, *args):
-            ones = torch.ones([1, 3, 224, 224])
+            ones = torch.ones([1, 3, 224, 224], dtype=torch.float)
             if torch.cuda.is_available():
                 ones = ones.cuda()
             return args[0] + ones
 
     class Add4(Module):
         def forward(self, *args):
-            ones = torch.ones([1, 1, 224, 224])
+            ones = torch.ones([1, 1, 224, 224], dtype=torch.float)
             if torch.cuda.is_available():
                 ones = ones.cuda()
             return args[0] + ones
 
     class Add5(Module):
         def forward(self, *args):
-            ones = torch.ones([])
+            ones = torch.ones([], dtype=torch.float)
             if torch.cuda.is_available():
                 ones = ones.cuda()
             return args[0] + ones
@@ -782,6 +782,7 @@ if __name__ == '__main__':
     test_forward_pow()
     test_forward_chunk()
 
+    """
     # Model tests
     test_resnet18()
     test_resnet34()
@@ -807,3 +808,4 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
+    """

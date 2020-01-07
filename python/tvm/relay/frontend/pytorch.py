@@ -19,6 +19,7 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
+import torch
 import tvm
 
 from .. import analysis as _analysis
@@ -32,7 +33,7 @@ __all__ = ['from_pytorch']
 
 # operator implementation
 def _elemwise(name):
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data0 = convert_input(inputs[0])
         data1 = convert_input(inputs[1])
 
@@ -45,7 +46,7 @@ def _elemwise(name):
     return _impl
 
 def _unsqueeze():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
 
@@ -53,7 +54,7 @@ def _unsqueeze():
     return _impl
 
 def _concatenate():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
 
@@ -64,7 +65,7 @@ def _concatenate():
     return _impl
 
 def _slice():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         strides = []
 
@@ -88,7 +89,7 @@ def _slice():
     return _impl
 
 def _select():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         inferred_shape = _infer_shape(data)
         end = []
@@ -112,9 +113,7 @@ def _select():
     return _impl
 
 def _ones():
-    def _impl(inputs):
-        fill_value = _expr.const(1, dtype='float32')
-
+    def _impl(inputs, input_types):
         if isinstance(inputs[0], _expr.Var):
             shape = _infer_shape(inputs[0])
         elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
@@ -122,12 +121,19 @@ def _ones():
         else:
             shape = inputs[0].shape
 
-        return get_relay_op('full')(fill_value, shape, 'float32')
+        if input_types[0] == 'int':
+            fill_value = _expr.const(1)
+        elif input_types[0] == 'Float':
+            fill_value = _expr.const(1.0)
+        else:
+            fill_value = _expr.const(1)
+
+        return get_relay_op('full')(fill_value, shape)
     return _impl
 
 
 def _zeros():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         fill_value = _expr.const(0, dtype='float32')
 
         if isinstance(inputs[0], _expr.Var):
@@ -140,14 +146,24 @@ def _zeros():
         return _op.full(fill_value, shape, 'float32')
     return _impl
 
+def _get_fill_value(input_types):
+    if input_types[0] == 'int':
+        fill_value = _expr.const(1)
+    elif input_types[0] == 'Float':
+        fill_value = _expr.const(1.0)
+    else:
+        fill_value = _expr.const(1)
+
+    return fill_value
+
 def _relu():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.nn.relu(data)
     return _impl
 
 def _adaptive_avg_2d():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
@@ -157,7 +173,7 @@ def _adaptive_avg_2d():
     return _impl
 
 def _adaptive_max_2d():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
@@ -167,7 +183,7 @@ def _adaptive_max_2d():
     return _impl
 
 def _maxpool_2d():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         pool_size = _infer_shape(inputs[1])
@@ -180,7 +196,7 @@ def _maxpool_2d():
     return _impl
 
 def _hardtanh():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         a = inputs[0]
         tanh_min = float(inputs[1])
         tanh_max = float(inputs[2])
@@ -188,7 +204,7 @@ def _hardtanh():
     return _impl
 
 def _convolution():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         # Use transpose or normal
         use_transpose = False
         if inputs[6] == '1':
@@ -282,7 +298,7 @@ def _convolution():
     return _impl
 
 def _softmax():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
         if isinstance(axis, str):
@@ -292,19 +308,19 @@ def _softmax():
     return _impl
 
 def _threshold():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.nn.relu(data)
     return _impl
 
 def _contiguous():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
     return _impl
 
 def _batch_norm():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         channels = _infer_shape(data)
@@ -345,7 +361,7 @@ def _batch_norm():
     return _impl
 
 def _transpose():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         if isinstance(data, _expr.Var):
@@ -379,13 +395,13 @@ def _transpose():
     return _impl
 
 def _flatten():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.nn.batch_flatten(data)
     return _impl
 
 def _dense():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         use_bias = False
 
         if isinstance(inputs[0], _expr.Var):
@@ -417,7 +433,7 @@ def _dense():
     return _impl
 
 def _size():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         axis = int(inputs[1])
         if isinstance(inputs[0], _expr.Var):
             shape = _infer_shape(inputs[0])
@@ -427,7 +443,7 @@ def _size():
     return _impl
 
 def _numtotensor():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         val = inputs[0]
         dtype = type(val)
 
@@ -440,7 +456,7 @@ def _numtotensor():
     return _impl
 
 def _view():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         if len(inputs) == 3:
@@ -455,26 +471,26 @@ def _view():
     return _impl
 
 def _clone():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.copy(data)
     return _impl
 
 def _log_softmax():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         axis = int(inputs[1])
         return _op.nn.log_softmax(data, axis)
     return _impl
 
 def _sigmoid():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.sigmoid(data)
     return _impl
 
 def _avg_pool2d():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         pool_size = _infer_shape(inputs[1])
@@ -493,7 +509,7 @@ def _avg_pool2d():
     return _impl
 
 def _dropout():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         rate = float(inputs[1])
 
@@ -507,7 +523,7 @@ def _reduce(name):
     return _impl
 
 def _mean():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         axis = _infer_shape(inputs[1])
 
@@ -518,7 +534,7 @@ def _mean():
     return _impl
 
 def _chunk():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
 
         num_chunks = int(inputs[1])
@@ -566,7 +582,7 @@ def _chunk():
     return _impl
 
 def _matmul():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data0 = inputs[0]
         data1 = inputs[1]
         data1_t = _op.transpose(data1, axes=(1, 0))
@@ -575,7 +591,7 @@ def _matmul():
     return _impl
 
 def _expand():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data_in = inputs[0]
         if isinstance(data_in, _expr.Var):
             shape = _infer_shape(data_in)
@@ -598,29 +614,29 @@ def _expand():
     return _impl
 
 def _int():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         if isinstance(inputs[0], _expr.Call):
             return inputs[0]
         return int(inputs[0])
     return _impl
 
 def _listunpack():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         return inputs[0]
     return _impl
 
 def _to():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         return inputs[0]
     return _impl
 
 def _device():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         return None
     return _impl
 
 def _pad():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         padding = inputs[1]
         pad_width = list(zip(padding, padding))
@@ -629,7 +645,7 @@ def _pad():
     return _impl
 
 def _sqrt():
-    def _impl(inputs):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return _op.tensor.sqrt(data)
     return _impl
@@ -728,6 +744,8 @@ class Graph(object):
         self._consts = {}
         self._ops = {}
         self._op_inputs_r = {}
+        self._op_inputs_types = {}
+        self._op_inputs_otypes = {}
         self._input_shapes = input_shapes if input_shapes else {}
         self._fn_param = []
         self._relay_map = {}
@@ -795,7 +813,11 @@ class Graph(object):
                                         self._relay_map[self._nid_to_node_name[i.debugName()]]
                                     break
 
-                call = _convert_map[operator](self._op_inputs_r[(op_name, operator)])
+                print('op input types')
+                print(op_node)
+                print(self._op_inputs_types[(op_name, operator)])
+
+                call = _convert_map[operator](self._op_inputs_r[(op_name, operator)], self._op_inputs_types[(op_name, operator)])
 
                 self._relay_map[nid] = call
                 self._nid_to_node_name[op_name] = nid
@@ -827,14 +849,11 @@ class Graph(object):
         # Create corresponding shape and add to input
         for input_name, ir_input in zip(self._input_shapes, ir_inputs[1:]):
             input_shape = self._input_shapes[input_name]
-            tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
             ir_input.setDebugName(input_name)
             self._inputs_r[input_name] = _expr.var(input_name,
-                                                   shape=self._input_shapes[input_name],
-                                                   dtype='float32')
+                                                   shape=self._input_shapes[input_name])
             self._fn_param.append(_expr.var(input_name,
-                                            shape=self._input_shapes[input_name],
-                                            dtype='float32'))
+                                            shape=self._input_shapes[input_name]))
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -880,12 +899,10 @@ class Graph(object):
                     self._param_tensors[node_name] = tensor
 
                     self._params[node_name] = _expr.var(node_name,
-                                                        shape=shape,
-                                                        dtype='float32')
+                                                        shape=shape)
 
                     self._fn_param.append(_expr.var(node_name,
-                                                    shape=shape,
-                                                    dtype='float32'))
+                                                    shape=shape))
 
 
     def _parse_ops(self):
@@ -914,7 +931,7 @@ class Graph(object):
                         list_shape.append(int(self._consts[input_node.debugName()]))
                     else:
                         pass
-                self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape, dtype='float32')
+                self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
             elif node.kind() == "prim::GetAttr":
                 continue
 
@@ -940,6 +957,9 @@ class Graph(object):
         """
         self._ops[(op_name, operator)] = op_node
         input_list_r = []
+        input_list_types = []
+        print('parsing')
+        print(op_node)
         for input_node in op_node.inputs():
             if input_node.debugName() in self._inputs_r.keys():
                 input_list_r.append(self._inputs_r[input_node.debugName()])
@@ -954,8 +974,47 @@ class Graph(object):
                 if op_node.kind() == 'prim::ListConstruct':
                     if op_name in self._inputs_r.keys():
                         self._inputs_r.pop(op_name)
+            print(input_node)
+
+            try:
+                input_node_kind = input_node.type().kind()
+                print(input_node_kind)
+                if input_node_kind == 'TensorType':
+                    input_list_types.append(input_node.type().scalarType())
+                    #input_list_types.append(input_node.type())
+                elif input_node_kind == 'ListType':
+                    input_list_types.append(str(input_node.type().getElementType()))
+                    #input_list_types.append(input_node.type())
+                elif input_node_kind == 'IntType':
+                    input_list_types.append(str(input_node.type()))
+                elif input_node_kind == 'FloatType':
+                    input_list_types.append(str(input_node.type()))
+                elif input_node_kind == 'BoolType':
+                    input_list_types.append(str(input_node.type()))
+                elif input_node_kind == 'StringType':
+                    input_list_types.append(str(input_node.type()))
+                elif input_node_kind == 'OptionalType':
+                    input_list_types.append(str(input_node.type()))
+                else:
+                    print('Not a matching type.')
+                    input_list_types.append('UnsupportedType')
+            except:
+                print('Internal PyTorch error. Failed to grab type.')
+
+        print('node formatting')
+        node_str = str(op_node)
+        print(node_str)
+        node_assign = (node_str.split(' = ')[0]).split(' : ')
+        node_type = node_assign[1]
+        print(node_type)
+
+        if op_node.kind() == 'aten::ones':
+            node_type = node_type.split('(')[0]
+            input_list_types[0] = node_type
 
         self._op_inputs_r[(op_name, operator)] = input_list_r
+        self._op_inputs_types[(op_name, operator)] = input_list_types
+
 
     def _parse_import_prerequisites(self):
         """ Calculate the named preconditions from PyTorch graph.
