@@ -23,8 +23,8 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
@@ -74,7 +74,7 @@ MakeLoopNest(const Stage& stage,
     if (bind_iv->thread_tag.length() == 0) {
       // Only generate new loop if we're not bound to a thread.
       if (new_loop_var) {
-        var = Var(iv->var->name_hint + ".init", bind_iv->var.type());
+        var = Var(iv->var->name_hint + ".init", bind_iv->var.dtype());
       }
 
       ForType for_type = ForType::Serial;
@@ -98,7 +98,7 @@ MakeLoopNest(const Stage& stage,
           const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
           Expr pvalue = it_attr->pragma_values[k];
           if (!pvalue.defined()) {
-            pvalue = make_const(Int(32), 1);
+            pvalue = make_const(DataType::Int(32), 1);
           }
           nest[i + 1].emplace_back(
               AttrStmt::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
@@ -114,7 +114,7 @@ MakeLoopNest(const Stage& stage,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
-        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.type());
+        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(
             For::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
@@ -186,24 +186,24 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
 }
 
 // replacer to replace tensors
-class TensorReplacer : public ir::IRMutator {
+class TensorReplacer : public ir::StmtExprMutator {
  public:
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
 
-  Expr Mutate_(const ir::Call* op, const Expr& e) {
+  Expr VisitExpr_(const ir::Call* op) final {
     if (op->call_type == ir::Call::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
         Expr ret = ir::Call::make(
-            op->type, it->second->op->name, op->args,
+            op->dtype, it->second->op->name, op->args,
             op->call_type, it->second->op, it->second->value_index);
         found = true;
-        return IRMutator::Mutate_(ret.as<ir::Call>(), ret);
+        return this->VisitExpr(ret);
       }
     }
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   // whether it is found.
@@ -216,13 +216,13 @@ class TensorReplacer : public ir::IRMutator {
 Stmt ReplaceTensor(Stmt stmt,
                    const std::unordered_map<Tensor, Tensor>& replace) {
   TensorReplacer repl(replace);
-  Stmt ret = repl.Mutate(stmt);
+  Stmt ret = repl(stmt);
   return repl.found ? ret : stmt;
 }
 Expr ReplaceTensor(Expr expr,
                    const std::unordered_map<Tensor, Tensor>& replace) {
   TensorReplacer repl(replace);
-  Expr ret = repl.Mutate(expr);
+  Expr ret = repl(expr);
   return repl.found ? ret : expr;
 }
 

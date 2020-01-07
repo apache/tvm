@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file builtin_fp16.cc
  * \brief Functions for conversion between fp32 and fp16
 */

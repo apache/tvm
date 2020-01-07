@@ -18,22 +18,22 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
- *  Exposre of pass functions.
+ *  Exposure of pass functions.
  * \file api_pass.cc
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/attrs.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/api_registry.h>
+#include <tvm/ir_functor_ext.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 namespace tvm {
 namespace ir {
 
-TVM_REGISTER_API("ir_pass.Simplify")
+TVM_REGISTER_GLOBAL("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {
       if (args.size() > 1) {
@@ -50,7 +50,7 @@ TVM_REGISTER_API("ir_pass.Simplify")
     }
   });
 
-TVM_REGISTER_API("ir_pass.CanonicalSimplify")
+TVM_REGISTER_GLOBAL("ir_pass.CanonicalSimplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {
       if (args.size() > 1) {
@@ -67,7 +67,7 @@ TVM_REGISTER_API("ir_pass.CanonicalSimplify")
     }
   });
 
-TVM_REGISTER_API("ir_pass.Substitute")
+TVM_REGISTER_GLOBAL("ir_pass.Substitute")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {
       *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, Expr>());
@@ -76,7 +76,7 @@ TVM_REGISTER_API("ir_pass.Substitute")
     }
   });
 
-TVM_REGISTER_API("ir_pass.Equal")
+TVM_REGISTER_GLOBAL("ir_pass.Equal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {
       *ret = Equal(args[0].operator Stmt(), args[1].operator Stmt());
@@ -85,7 +85,7 @@ TVM_REGISTER_API("ir_pass.Equal")
     }
   });
 
-TVM_REGISTER_API("ir_pass.StorageFlatten")
+TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args.size() <= 3) {
       *ret = StorageFlatten(args[0], args[1], args[2]);
@@ -94,47 +94,48 @@ TVM_REGISTER_API("ir_pass.StorageFlatten")
     }
   });
 
-TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
-.set_body_typed<Stmt(const Stmt&, const Schedule&, const Map<Tensor, Buffer>&)>
+TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
+.set_body_typed
   ([](const Stmt& stmt, const Schedule& schedule, const Map<Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
 
-TVM_REGISTER_API("ir_pass.AttrsEqual")
-.set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
+TVM_REGISTER_GLOBAL("ir_pass.AttrsEqual")
+.set_body_typed(
+  [](const ObjectRef& lhs, const ObjectRef& rhs) {
     return AttrsEqual()(lhs, rhs);
   });
 
-TVM_REGISTER_API("ir_pass.AttrsHash")
-.set_body_typed<int64_t(const NodeRef&)>([](const NodeRef &node) {
+TVM_REGISTER_GLOBAL("ir_pass.AttrsHash")
+.set_body_typed([](const ObjectRef &node) -> int64_t {
     return AttrsHash()(node);
-  });
+});
 
 
-TVM_REGISTER_API("ir_pass.ExprUseVar")
+TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = ExprUseVar(args[0].operator Expr(), args[1].operator Var());
   });
 
-TVM_REGISTER_API("ir_pass.PostOrderVisit")
+TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
-    ir::PostOrderVisit(args[0], [f](const NodeRef& n) {
+    ir::PostOrderVisit(args[0], [f](const ObjectRef& n) {
         f(n);
       });
   });
 
-TVM_REGISTER_API("ir_pass.LowerStorageAccess")
+TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccess")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   LoweredFunc f = args[0];
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = LowerStorageAccessInfo(f->body);
   *ret = LoweredFunc(n);
 });
 
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
-  TVM_REGISTER_API("ir_pass."#PassName)                           \
+  TVM_REGISTER_GLOBAL("ir_pass."#PassName)                           \
   .set_body_typed(PassName);                                     \
 
 
@@ -160,9 +161,7 @@ REGISTER_PASS(InjectPrefetch);
 REGISTER_PASS(InjectDoubleBuffer);
 REGISTER_PASS(LoopPartition);
 REGISTER_PASS(RemoveNoOp);
-REGISTER_PASS(SplitPipeline);
 REGISTER_PASS(LiftAttrScope);
-REGISTER_PASS(NarrowChannelAccess);
 REGISTER_PASS(LowerThreadAllreduce);
 REGISTER_PASS(LowerWarpMemory);
 REGISTER_PASS(RemapThreadAxis);

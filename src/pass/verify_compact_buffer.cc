@@ -18,14 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file verify_compact_buffer.cc
  * \brief Verify if there was any compact buffer bound to a statement.
  */
 #include <tvm/buffer.h>
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/tensor.h>
 
 #include <unordered_map>
@@ -33,15 +32,15 @@
 namespace tvm {
 namespace ir {
 
-class VerifyBuffer : public IRVisitor {
+class VerifyBuffer : public StmtVisitor {
  public:
   bool Verify(const Stmt& stmt) {
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     return is_compact_;
   }
 
-  void Visit_(const AttrStmt* op) final {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const AttrStmt* op) final {
+    StmtVisitor::VisitStmt_(op);
     if (op->attr_key == attr::buffer_bind_scope) {
       is_compact_ = true;
     }

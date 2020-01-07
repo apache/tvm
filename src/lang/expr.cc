@@ -29,70 +29,11 @@
 
 namespace tvm {
 
-// maximum and min values
-Expr DataType::max() const {
-  using namespace ir;
-  CHECK_EQ(lanes(), 1);
-  if (is_int()) {
-    if (bits() == 64) {
-      return IntImm::make(*this, std::numeric_limits<int64_t>::max());
-    } else if (bits() < 64) {
-      int64_t val = 1;
-      val = (val << (bits() - 1)) - 1;
-      return IntImm::make(*this, val);
-    }
-  } else if (is_uint()) {
-    if (bits() == 64) {
-      return UIntImm::make(*this, std::numeric_limits<uint64_t>::max());
-    } else if (bits() < 64) {
-      uint64_t val = 1;
-      val = (val << static_cast<uint64_t>(bits())) - 1;
-      return UIntImm::make(*this, val);
-    }
-  } else if (is_float()) {
-    if (bits() == 64) {
-      return FloatImm::make(*this, std::numeric_limits<double>::max());
-    } else if (bits() == 32) {
-      return FloatImm::make(*this, std::numeric_limits<float>::max());
-    } else if (bits() == 16) {
-      return FloatImm::make(*this, 65504.0);
-    }
-  }
-  LOG(FATAL) << "Cannot decide max_value for type" << *this;
-  return Expr();
-}
-
-Expr DataType::min() const {
-  using namespace ir;
-  CHECK_EQ(lanes(), 1);
-  if (is_int()) {
-    if (bits() == 64) {
-      return IntImm::make(*this, std::numeric_limits<int64_t>::lowest());
-    } else if (bits() < 64) {
-      int64_t val = 1;
-      val = -(val << (bits() - 1));
-      return IntImm::make(*this, val);
-    }
-  } else if (is_uint()) {
-    return UIntImm::make(*this, 0);
-  } else if (is_float()) {
-    if (bits() == 64) {
-      return FloatImm::make(*this, std::numeric_limits<double>::lowest());
-    } else if (bits() == 32) {
-      return FloatImm::make(*this, std::numeric_limits<float>::lowest());
-    } else if (bits() == 16) {
-      return FloatImm::make(*this, -65504.0);
-    }
-  }
-  LOG(FATAL) << "Cannot decide min_value for type" << *this;
-  return Expr();
-}
-
 Expr::Expr(int32_t value)
-    : Expr(IntImm::make(Int(32), value)) {}
+    : Expr(IntImm::make(DataType::Int(32), value)) {}
 
 Expr::Expr(float value)
-    : Expr(ir::FloatImm::make(Float(32), value)) {}
+    : Expr(ir::FloatImm::make(DataType::Float(32), value)) {}
 
 Expr::Expr(std::string str)
     : Expr(ir::StringImm::make(str)) {}
@@ -101,36 +42,36 @@ Var::Var(std::string name_hint, DataType t)
     : Var(Variable::make(t, name_hint)) {}
 
 Var Variable::make(DataType t, std::string name_hint) {
-  NodePtr<Variable> node = make_node<Variable>();
-  node->type = t;
+  ObjectPtr<Variable> node = make_object<Variable>();
+  node->dtype = t;
   node->name_hint = std::move(name_hint);
   return Var(node);
 }
 
 Range::Range(Expr begin, Expr end)
-    : Range(make_node<RangeNode>(
+    : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
 
-Integer IntImm::make(Type t, int64_t value) {
+Integer IntImm::make(DataType t, int64_t value) {
   CHECK(t.is_int() && t.is_scalar())
       << "ValueError: IntImm can only take scalar.";
-  NodePtr<IntImm> node = make_node<IntImm>();
-  node->type = t;
+  ObjectPtr<IntImm> node = make_object<IntImm>();
+  node->dtype = t;
   node->value = value;
   return Integer(node);
 }
 
 Range Range::make_by_min_extent(Expr min, Expr extent) {
-  return Range(make_node<RangeNode>(min, extent));
+  return Range(make_object<RangeNode>(min, extent));
 }
 
 IterVar IterVarNode::make(Range dom,
                           Var var,
                           IterVarType t,
                           std::string thread_tag) {
-  NodePtr<IterVarNode> n = make_node<IterVarNode>();
+  ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   n->dom = dom;
   n->var = var;
   n->iter_type = t;
@@ -148,51 +89,26 @@ IterVar reduce_axis(Range dom, std::string name) {
       dom, Var(name), kCommReduce);
 }
 
-void Dump(const NodeRef& n) {
+void Dump(const ObjectRef& n) {
   std::cerr << n << "\n";
 }
 
-Var var(std::string name_hint, Type t) {
+Var var(std::string name_hint, DataType t) {
   return Var(name_hint, t);
 }
 
-void IRPrinter::Print(const ObjectRef& ir) {
-  static const FType& f = vtable();
-  if (!ir.defined()) {
-    stream << "(nullptr)";
-  } else {
-    if (f.can_dispatch(ir)) {
-      f(ir, this);
-    } else {
-      // default value, output type key and addr.
-      stream << ir->GetTypeKey() << "(" << ir.get() << ")";
-    }
-  }
-}
-
-void IRPrinter::PrintIndent() {
-  for (int i = 0; i < indent; ++i) {
-    stream << ' ';
-  }
-}
-
-IRPrinter::FType& IRPrinter::vtable() {
-  static FType inst;
-  return inst;
-}
-
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntImm>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<IntImm>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IntImm*>(node.get());
-    if (op->type == Int(32)) {
+    if (op->dtype == DataType::Int(32)) {
       p->stream << op->value;
     } else {
-      p->stream << "(" << op->type << ")" << op->value;
+      p->stream << "(" << op->dtype << ")" << op->value;
     }
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IterVarNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<IterVarNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IterVarNode*>(node.get());
     p->stream << "iter_var(";
     if (op->var->name_hint.length() != 0) {
@@ -207,8 +123,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << ")";
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RangeNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RangeNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const RangeNode*>(node.get());
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });

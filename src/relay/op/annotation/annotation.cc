@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file src/relay/op/annotation/annotation.cc
  * \brief Registration of annotation operators.
@@ -31,7 +30,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -40,9 +39,9 @@ namespace relay {
 // relay.annotation.on_device
 TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
 
-TVM_REGISTER_API("relay.op.annotation._make.on_device")
-.set_body_typed<Expr(Expr, int)>([](Expr data, int device_type) {
-  auto attrs = make_node<OnDeviceAttrs>();
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
+.set_body_typed([](Expr data, int device_type) {
+  auto attrs = make_object<OnDeviceAttrs>();
   attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -63,8 +62,8 @@ Expr StopFusion(Expr data) {
   return CallNode::make(op, {data}, Attrs{}, {});
 }
 
-TVM_REGISTER_API("relay.op.annotation._make.stop_fusion")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.stop_fusion")
+.set_body_typed([](Expr data) {
     return StopFusion(data);
 });
 
@@ -88,7 +87,7 @@ TVM_ADD_FILELINE)
 TVM_REGISTER_NODE_TYPE(CastHintAttrs);
 
 Expr CastHint(Expr data, DataType dtype) {
-  auto attrs = make_node<CastHintAttrs>();
+  auto attrs = make_object<CastHintAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("annotation.cast_hint");
   return CallNode::make(op, {data}, Attrs{attrs}, {});
@@ -145,8 +144,8 @@ Mark the end of bitpacking.
                          return {topi::identity(inputs[0])};
                        });
 
-TVM_REGISTER_API("relay.op.annotation._make.checkpoint")
-.set_body_typed<Expr(Expr)>([](Expr data) {
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpoint")
+.set_body_typed([](Expr data) {
   static const Op& op = Op::Get("annotation.checkpoint");
   return CallNode::make(op, {data}, Attrs{}, {});
 });

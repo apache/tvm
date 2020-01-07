@@ -18,15 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tensor_core.cc
  */
 // IR Passes for TensorCore CodeGen
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
@@ -61,11 +59,11 @@ std::string simplify_name(std::string input) {
   }
 }
 
-Expr unpack_type_cast(const Expr &input, const Type &target_type) {
+Expr unpack_type_cast(const Expr &input, const DataType &target_type) {
   auto cast = input.as<Cast>();
   if (cast == nullptr) {
     return input;
-  } else if (cast->type == target_type) {
+  } else if (cast->dtype == target_type) {
     return cast->value;
   }
   return Expr();
@@ -74,7 +72,7 @@ Expr unpack_type_cast(const Expr &input, const Type &target_type) {
 // MMAMatcher matches C = Cast(A)*Cast(B)+C,
 // where A & B are fp16/int8 local buffers,
 // and C is fp32/int32 local buffer.
-class MMAMatcher: public IRVisitor {
+class MMAMatcher: public StmtVisitor {
  public:
   explicit MMAMatcher(Map<Tensor, Buffer> extern_buffer) {
     for (auto kv : extern_buffer) {
@@ -85,22 +83,21 @@ class MMAMatcher: public IRVisitor {
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
     }
   }
-  using IRVisitor::Visit_;
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::pragma_tensor_core) {
       tensor_core_on_ = true;
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Provide* op) final {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const Provide* op) final {
+    StmtVisitor::VisitStmt_(op);
     auto it = buf_map_.find(TensorKey{op->func, op->value_index});
     if (it == buf_map_.end()) {
       return;
@@ -114,19 +111,19 @@ class MMAMatcher: public IRVisitor {
     }
   }
 
-  void Visit_(const Realize* op) final {
+  void VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       if (!buf_map_.at(key).external) {
         return;
       }
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
       BufferInfo bi;
       bi.name = key.GetName();
-      bi.dtype = op->type;
+      bi.dtype = op->dtype;
       buf_map_[key] = bi;
-      Visit(op->body);
+      this->VisitStmt(op->body);
       buf_map_[key].released = true;
     }
   }
@@ -139,7 +136,7 @@ class MMAMatcher: public IRVisitor {
  private:
   struct BufferInfo {
     std::string name;
-    Type dtype;
+    DataType dtype;
     bool external{false};
     bool released{false};
     bool same_as(const BufferInfo &bi) {
@@ -186,8 +183,8 @@ class MMAMatcher: public IRVisitor {
     BufferInfo buffer_c;
     if (!check_local_buffer_(load_c, &buffer_c)
         || !buffer_c.same_as(store_buffer)
-        || !(buffer_c.dtype == Float(32) ||
-             buffer_c.dtype == Int(32))) {
+        || !(buffer_c.dtype == DataType::Float(32) ||
+             buffer_c.dtype == DataType::Int(32))) {
       return false;
     }
 
@@ -200,8 +197,8 @@ class MMAMatcher: public IRVisitor {
     auto load_a = load_a_expr.as<Call>();
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
-        || !(buffer_a.dtype == Float(16) ||
-             buffer_a.dtype == Int(8))) {
+        || !(buffer_a.dtype == DataType::Float(16) ||
+             buffer_a.dtype == DataType::Int(8))) {
       return false;
     }
 
@@ -209,8 +206,8 @@ class MMAMatcher: public IRVisitor {
     auto load_b = load_b_expr.as<Call>();
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
-        || !(buffer_b.dtype == Float(16) ||
-             buffer_b.dtype == Int(8))) {
+        || !(buffer_b.dtype == DataType::Float(16) ||
+             buffer_b.dtype == DataType::Int(8))) {
       return false;
     }
 
@@ -226,9 +223,9 @@ class MMAMatcher: public IRVisitor {
   }
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
-  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
-  std::unordered_map<const Node*, std::string> buf_name_;
+  std::unordered_map<const Object*, std::string> buf_name_;
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
   bool tensor_core_on_{false};
@@ -237,30 +234,29 @@ class MMAMatcher: public IRVisitor {
 // BodyVisitor visits the body stmt of original ComputeOp
 // to get the access indices of input matrices,
 // if it is recognized as matrix multiply.
-class BodyVisitor : public IRVisitor {
+class BodyVisitor : public StmtExprVisitor {
  public:
   BodyVisitor() {}
-  using IRVisitor::Visit_;
 
-  void Visit_(const Reduce* op) final {
+  void VisitExpr_(const Reduce* op) final {
     auto* comm_add = op->combiner->result[0].as<Add>();
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
     }
     for (Expr source : op->source) {
-      auto mul_0 = unpack_type_cast(source, Float(32)).as<Mul>();
-      auto mul_1 = unpack_type_cast(source, Int(32)).as<Mul>();
+      auto mul_0 = unpack_type_cast(source, DataType::Float(32)).as<Mul>();
+      auto mul_1 = unpack_type_cast(source, DataType::Int(32)).as<Mul>();
       if (mul_0 == nullptr && mul_1 == nullptr) {
         continue;
       }
 
       tensorcore_candidate_ = true;
-      IRVisitor::Visit(source);
+      StmtExprVisitor::VisitExpr(source);
     }
   }
 
-  void Visit_(const Call* op) final {
-    IRVisitor::Visit_(op);
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
     args_.insert(std::make_pair(op->name, op->args));
   }
 
@@ -299,7 +295,7 @@ class ScheduleAnalyser {
 
       BodyVisitor body_visitor;
       for (Expr expr : compute->body) {
-        body_visitor.Visit(expr);
+        body_visitor(expr);
       }
       if (!body_visitor.tensorcore_candidate_) {
         continue;
@@ -366,17 +362,16 @@ class ScheduleAnalyser {
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
-  std::unordered_map<const Node*, std::string> buf_name_;
+  std::unordered_map<const Object*, std::string> buf_name_;
 };
 
 // IndexVisitor visits access index of fragment
 // to record variable for loop scaling
-class IndexVisitor : public IRVisitor {
+class IndexVisitor : public StmtExprVisitor {
  public:
   IndexVisitor() {}
-  using IRVisitor::Visit_;
 
-  void Visit_(const Variable* op) final {
+  void VisitExpr_(const Variable* op) final {
     loop_scaling_.insert(std::make_pair(op, scaling_factor_));
   }
 
@@ -390,7 +385,7 @@ class IndexVisitor : public IRVisitor {
 
 // BufferAnalyser gets buffer info,
 // e.g. thread tile and warp tile, for TensorCore CodeGen
-class BufferAnalyser : public IRVisitor {
+class BufferAnalyser : public StmtExprVisitor {
  public:
   explicit BufferAnalyser(Map<Tensor, Buffer> extern_buffer,
                           const ScheduleAnalyser &schedule_analyser,
@@ -408,9 +403,8 @@ class BufferAnalyser : public IRVisitor {
       buf_map_[TensorKey{kv.first->op, kv.first->value_index}] = bi;
     }
   }
-  using IRVisitor::Visit_;
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
       if (const IntImm* value = op->value.as<IntImm>()) {
         thread_extent_.insert(
@@ -418,10 +412,10 @@ class BufferAnalyser : public IRVisitor {
                 op->node.as<IterVarNode>()->var->name_hint,
                 value->value));
       }
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
       const Call* tuple = op->value.as<Call>();
@@ -433,14 +427,14 @@ class BufferAnalyser : public IRVisitor {
       }
       vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
       vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const Provide* op) final {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const Provide* op) final {
+    StmtExprVisitor::VisitStmt_(op);
     TensorKey key{op->func, op->value_index};
     auto it = buf_map_.find(key);
     CHECK(it != buf_map_.end())
@@ -468,13 +462,13 @@ class BufferAnalyser : public IRVisitor {
       strides = bi.strides;
     } else {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
-        Expr stride = IntImm::make(Int(32), 1);
+        Expr stride = IntImm::make(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
           stride = Mul::make(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
-      strides.push_back(make_const(Int(32), 1));
+      strides.push_back(make_const(DataType::Int(32), 1));
     }
     strides_.insert(std::make_pair(key.GetName(), strides));
 
@@ -504,7 +498,7 @@ class BufferAnalyser : public IRVisitor {
         }
         auto index = rel_index[i];
         auto simplified_index = ir::Simplify(index);
-        index_visitor.Visit(simplified_index);
+        index_visitor(simplified_index);
       }
 
       std::string input_name = simplify_name(bi.name);
@@ -551,8 +545,8 @@ class BufferAnalyser : public IRVisitor {
     }
   }
 
-  void Visit_(const Call* op) final {
-    IRVisitor::Visit_(op);
+  void VisitExpr_(const Call* op) final {
+    StmtExprVisitor::VisitExpr_(op);
     if (op->call_type == Call::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = buf_map_.find(key);
@@ -581,13 +575,13 @@ class BufferAnalyser : public IRVisitor {
         strides = bi.strides;
       } else {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
-          Expr stride = IntImm::make(Int(32), 1);
+          Expr stride = IntImm::make(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
             stride = Mul::make(stride, bi.shape[j]);
           }
           strides.push_back(stride);
         }
-        strides.push_back(make_const(Int(32), 1));
+        strides.push_back(make_const(DataType::Int(32), 1));
       }
       strides_.insert(std::make_pair(key.GetName(), strides));
 
@@ -607,16 +601,16 @@ class BufferAnalyser : public IRVisitor {
         }
         auto index = rel_index[i];
         auto simplified_index = ir::Simplify(index);
-        index_visitor.Visit(simplified_index);
+        index_visitor(simplified_index);
       }
     }
   }
 
-  void Visit_(const Realize* op) final {
+  void VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
-      Visit(op->body);
+      this->VisitStmt(op->body);
     } else {
       // create a buffer entry
       BufferInfo bi;
@@ -632,12 +626,12 @@ class BufferAnalyser : public IRVisitor {
         std::vector<Expr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
         int first_dim = 0;
-        Expr stride = make_const(shape[first_dim].type(), 1);
+        Expr stride = make_const(shape[first_dim].dtype(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
-            Expr factor = make_const(stride.type(), avec[dim].align_factor);
-            Expr offset = make_const(stride.type(), avec[dim].align_offset);
+            Expr factor = make_const(stride.dtype(), avec[dim].align_factor);
+            Expr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + \
               indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
@@ -649,12 +643,12 @@ class BufferAnalyser : public IRVisitor {
       }
 
       bi.name = key.GetName();
-      bi.dtype = op->type;
+      bi.dtype = op->dtype;
       bi.strides = strides;
       bi.shape = shape;
 
       buf_map_[key] = bi;
-      Visit(op->body);
+      this->VisitStmt(op->body);
       buf_map_[key].released = true;
     }
   }
@@ -694,7 +688,7 @@ class BufferAnalyser : public IRVisitor {
 
   struct BufferInfo {
     std::string name;
-    Type dtype;
+    DataType dtype;
     Array<Expr> strides;
     Array<Expr> shape;
     Region bounds;
@@ -746,7 +740,7 @@ class BufferAnalyser : public IRVisitor {
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
   std::unordered_map<TensorKey, std::vector<DimAlignInfo> > dim_align_;
-  std::unordered_map<const Node*, std::string> storage_scope_;
+  std::unordered_map<const Object*, std::string> storage_scope_;
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
@@ -762,16 +756,16 @@ class BufferAnalyser : public IRVisitor {
 };
 
 // ThreadIdxMutator does the thread index unification inside a warp
-class ThreadIdxMutator : public IRMutator {
+class ThreadIdxMutator : public StmtExprMutator {
  public:
   explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
 
-  Expr Mutate_(const Variable* op, const Expr& olde) final {
-    Expr expr = IRMutator::Mutate_(op, olde);
+  Expr VisitExpr_(const Variable* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Variable>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
-        Expr zero = IntImm::make(Int(32), 0);
+        Expr zero = IntImm::make(DataType::Int(32), 0);
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
@@ -789,7 +783,7 @@ class ThreadIdxMutator : public IRMutator {
 
 // TensorCoreIRMutator mutates the AST for TensorCore CodeGen
 // based on tensor core intrinsics
-class TensorCoreIRMutator : public IRMutator {
+class TensorCoreIRMutator : public StmtExprMutator {
  public:
   explicit TensorCoreIRMutator(const ScheduleAnalyser &schedule_analyser,
     const BufferAnalyser &buffer_analyser)
@@ -804,10 +798,10 @@ class TensorCoreIRMutator : public IRMutator {
       warp_tile_(buffer_analyser.warp_tile_),
       warp_threads_y_(buffer_analyser.warp_threads_y_) {}
 
-  Stmt Mutate_(const Realize* op, const Stmt& s) final {
+  Stmt VisitStmt_(const Realize* op) final {
     TensorKey key{op->func, op->value_index};
     bounds_[key] = op->bounds;
-    Stmt stmt = IRMutator::Mutate_(op, s);
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Realize>();
     if (op != nullptr) {
       if (!frag_reg_.count(key.GetName())) {
@@ -828,14 +822,14 @@ class TensorCoreIRMutator : public IRMutator {
           op->bounds[op->bounds.size() - 1]->min, new_extents[1]));
 
       return Realize::make(op->func, op->value_index,
-                           op->type, new_bounds,
+                           op->dtype, new_bounds,
                            op->condition, op->body);
     }
     return stmt;
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const AttrStmt* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (op->attr_key == attr::realize_scope) {
       auto node = op->node.as<OperationNode>();
       if (node != nullptr) {
@@ -847,7 +841,7 @@ class TensorCoreIRMutator : public IRMutator {
         CHECK(it != matrix_abc_.end())
               << "Cannot find matrix info for " << node->name;
         auto matrix_abc = "wmma." + it->second;
-        Stmt body = Mutate(op->body);
+        Stmt body = this->VisitStmt(op->body);
         return AttrStmt::make(op->node,
                               op->attr_key,
                               matrix_abc,
@@ -857,8 +851,8 @@ class TensorCoreIRMutator : public IRMutator {
     return stmt;
   }
 
-  Stmt Mutate_(const Provide* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Provide* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
       const auto &operands = it->second;
@@ -869,9 +863,9 @@ class TensorCoreIRMutator : public IRMutator {
       Expr c = operands[2];
       auto cc = c.as<Call>();
 
-      NodePtr<BufferNode> buffer_node_a = make_node<BufferNode>();
-      NodePtr<BufferNode> buffer_node_b = make_node<BufferNode>();
-      NodePtr<BufferNode> buffer_node_c = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_a = make_object<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_b = make_object<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node_c = make_object<BufferNode>();
 
       auto mma_sync_call =
         [&buffer_node_a, &buffer_node_b]
@@ -879,7 +873,7 @@ class TensorCoreIRMutator : public IRMutator {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
           return Evaluate::make(
-                  Call::make(Handle(),
+                  Call::make(DataType::Handle(),
                         intrinsic::tvm_mma_sync,
                         {buffer->data, buffer->elem_offset,
                         buffer_a->data, buffer_a->elem_offset,
@@ -891,17 +885,17 @@ class TensorCoreIRMutator : public IRMutator {
       auto call_add_c =
         [this, &cc, &buffer_node_c, &mma_sync_call](const Buffer &buffer) {
           return add_buffer_bind_scope_(cc, buffer_node_c,
-            TensorKey{cc->func, cc->value_index}, mma_sync_call, cc->type);
+            TensorKey{cc->func, cc->value_index}, mma_sync_call, cc->dtype);
         };
 
       auto call_add_b =
         [this, &cb, &buffer_node_b, &call_add_c](const Buffer &buffer) {
           return add_buffer_bind_scope_(cb, buffer_node_b,
-            TensorKey{cb->func, cb->value_index}, call_add_c, cb->type);
+            TensorKey{cb->func, cb->value_index}, call_add_c, cb->dtype);
         };
 
       return add_buffer_bind_scope_(ca, buffer_node_a,
-        TensorKey{ca->func, ca->value_index}, call_add_b, ca->type);
+        TensorKey{ca->func, ca->value_index}, call_add_b, ca->dtype);
     }
 
     auto it2 = frag_load_.find(op);
@@ -914,7 +908,7 @@ class TensorCoreIRMutator : public IRMutator {
         auto fill_fragment_call =
           [this, &op](const Buffer &buffer) {
             return Evaluate::make(
-                    Call::make(Handle(),
+                    Call::make(DataType::Handle(),
                               intrinsic::tvm_fill_fragment,
                               {buffer->data,
                               warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -922,10 +916,10 @@ class TensorCoreIRMutator : public IRMutator {
                               Call::Intrinsic));
           };
 
-        NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+        ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
         return add_buffer_bind_scope_(call, buffer_node,
                                       TensorKey{call->func, call->value_index},
-                                      fill_fragment_call, call->type);
+                                      fill_fragment_call, call->dtype);
       }
 
       const Call* value = op->value.as<Call>();
@@ -940,10 +934,10 @@ class TensorCoreIRMutator : public IRMutator {
       Expr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(Int(32), warp_threads_y_);
+      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
-      Expr mutated_value = thread_idx_mutator.Mutate(op->value);
-      Expr src = Call::make(value->type,
+      Expr mutated_value = thread_idx_mutator(op->value);
+      Expr src = Call::make(value->dtype,
                             "&",
                             {mutated_value},
                             Call::Extern);
@@ -964,7 +958,7 @@ class TensorCoreIRMutator : public IRMutator {
       auto load_matrix_call =
         [this, &src, &stride, &matrix_major](const Buffer &buffer) {
         return Evaluate::make(
-                Call::make(Handle(),
+                Call::make(DataType::Handle(),
                           intrinsic::tvm_load_matrix_sync,
                           {buffer->data,
                           warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -972,10 +966,10 @@ class TensorCoreIRMutator : public IRMutator {
                           Call::Intrinsic));
       };
 
-      NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{op->func, op->value_index},
-                                    load_matrix_call, call->type);
+                                    load_matrix_call, call->dtype);
     }
 
     auto it3 = frag_store_.find(op);
@@ -990,10 +984,10 @@ class TensorCoreIRMutator : public IRMutator {
 
       Expr dst = it3->second;
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(Int(32), warp_threads_y_);
+      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
-      dst = thread_idx_mutator.Mutate(dst);
-      dst = Call::make(Handle(),
+      dst = thread_idx_mutator(dst);
+      dst = Call::make(DataType::Handle(),
                        "&",
                        {dst},
                        Call::Extern);
@@ -1003,7 +997,7 @@ class TensorCoreIRMutator : public IRMutator {
       auto store_matrix_call =
         [this, &dst, &stride](const Buffer &buffer) {
           return Evaluate::make(
-                  Call::make(Handle(),
+                  Call::make(DataType::Handle(),
                             intrinsic::tvm_store_matrix_sync,
                             {buffer->data,
                             warp_tile_.m, warp_tile_.n, warp_tile_.k,
@@ -1012,17 +1006,17 @@ class TensorCoreIRMutator : public IRMutator {
                             Call::Intrinsic));
         };
 
-      NodePtr<BufferNode> buffer_node = make_node<BufferNode>();
+      ObjectPtr<BufferNode> buffer_node = make_object<BufferNode>();
       return add_buffer_bind_scope_(call, buffer_node,
                                     TensorKey{call->func, call->value_index},
-                                    store_matrix_call, call->type);
+                                    store_matrix_call, call->dtype);
     }
 
     return stmt;
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const For* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<For>();
     if (op != nullptr) {
       auto it = loop_scaling_.find(op->loop_var.get());
@@ -1033,7 +1027,7 @@ class TensorCoreIRMutator : public IRMutator {
           int ori_extent_value = ori_extent->value;
           scaled_extent_value = ori_extent_value / scale_factor;
         }
-        Expr scaled_extent = make_const(op->extent.type(), scaled_extent_value);
+        Expr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
         stmt = For::make(op->loop_var, op->min, scaled_extent, op->for_type,
           op->device_api, op->body);
       }
@@ -1047,34 +1041,34 @@ class TensorCoreIRMutator : public IRMutator {
       auto it2 = matrix_major_.find(name);
       CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
           << "Cannot find matrix info for " << name;
-      Expr size0 = make_const(Int(32), 16);
-      Expr size1 = make_const(Int(32), 16);
+      Expr size0 = make_const(DataType::Int(32), 16);
+      Expr size1 = make_const(DataType::Int(32), 16);
       if (it->second == "matrix_a" && it2->second == "col_major") {
-        size0 = make_const(Int(32), warp_tile_.k);
-        size1 = make_const(Int(32), warp_tile_.m);
+        size0 = make_const(DataType::Int(32), warp_tile_.k);
+        size1 = make_const(DataType::Int(32), warp_tile_.m);
       }
       if (it->second == "matrix_a" && it2->second == "row_major") {
-        size0 = make_const(Int(32), warp_tile_.m);
-        size1 = make_const(Int(32), warp_tile_.k);
+        size0 = make_const(DataType::Int(32), warp_tile_.m);
+        size1 = make_const(DataType::Int(32), warp_tile_.k);
       }
       if (it->second == "matrix_b" && it2->second == "row_major") {
-        size0 = make_const(Int(32), warp_tile_.k);
-        size1 = make_const(Int(32), warp_tile_.n);
+        size0 = make_const(DataType::Int(32), warp_tile_.k);
+        size1 = make_const(DataType::Int(32), warp_tile_.n);
       }
       if (it->second == "matrix_b" && it2->second == "col_major") {
-        size0 = make_const(Int(32), warp_tile_.n);
-        size1 = make_const(Int(32), warp_tile_.k);
+        size0 = make_const(DataType::Int(32), warp_tile_.n);
+        size1 = make_const(DataType::Int(32), warp_tile_.k);
       }
       if (it->second == "matrix_c") {
-        size0 = make_const(Int(32), warp_tile_.n);
-        size1 = make_const(Int(32), warp_tile_.m);
+        size0 = make_const(DataType::Int(32), warp_tile_.n);
+        size1 = make_const(DataType::Int(32), warp_tile_.m);
       }
       Array<Expr> tile_size = {size0, size1};
       return tile_size;
   }
 
   Stmt add_buffer_bind_scope_(const Call* call,
-      const NodePtr<BufferNode> &buffer_node, const TensorKey &key,
+      const ObjectPtr<BufferNode> &buffer_node, const TensorKey &key,
       const std::function<Stmt(const Buffer &buffer)> &call_back,
       DataType datatype) {
     auto it = bounds_.find(key);
@@ -1095,15 +1089,15 @@ class TensorCoreIRMutator : public IRMutator {
 
     Array<Expr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      Expr stride = IntImm::make(Int(32), 1);
+      Expr stride = IntImm::make(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
         stride = Mul::make(stride, shape[j]);
       }
       strides.push_back(stride);
     }
-    strides.push_back(make_const(Int(32), 1));
+    strides.push_back(make_const(DataType::Int(32), 1));
 
-    Expr elem_offset = IntImm::make(Int(32), 0);
+    Expr elem_offset = IntImm::make(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = Add::make(
@@ -1114,7 +1108,7 @@ class TensorCoreIRMutator : public IRMutator {
     auto it2 = matrix_abc_.find(simplify_name(call->name));
     CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
-    buffer_node->data = Variable::make(Handle(), call->name);
+    buffer_node->data = Variable::make(DataType::Handle(), call->name);
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;
@@ -1125,7 +1119,7 @@ class TensorCoreIRMutator : public IRMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    NodePtr<TensorNode> tensor_node = make_node<TensorNode>();
+    ObjectPtr<TensorNode> tensor_node = make_object<TensorNode>();
     tensor_node->value_index = key.value_index;
     tensor_node->op = Downcast<Operation>(key.f);
     tensor_node->shape = shape;
@@ -1137,11 +1131,11 @@ class TensorCoreIRMutator : public IRMutator {
       args.push_back(call->args[i]);
       args.push_back(shape[i]);
     }
-    auto tuple = Call::make(Handle(),
+    auto tuple = Call::make(DataType::Handle(),
                             intrinsic::tvm_tuple,
                             args,
                             Call::Intrinsic);
-    Array<NodeRef> node = {buffer, tensor};
+    Array<ObjectRef> node = {buffer, tensor};
     return AttrStmt::make(node,
                           "buffer_bind_scope",
                           tuple,
@@ -1178,7 +1172,7 @@ Stmt RewriteForTensorCore(Stmt stmt,
   }
 
   MMAMatcher mma_matcher(extern_buffer);
-  mma_matcher.Visit(stmt);
+  mma_matcher(stmt);
   if (!mma_matcher.Matched()) {
     return stmt;
   }
@@ -1190,12 +1184,12 @@ Stmt RewriteForTensorCore(Stmt stmt,
 
   BufferAnalyser buffer_analyser(extern_buffer,
                                  schedule_analyser, mma_matcher);
-  buffer_analyser.Visit(stmt);
+  buffer_analyser(stmt);
   if (!buffer_analyser.QualifiedForTensorCore()) {
     return stmt;
   }
 
-  return TensorCoreIRMutator(schedule_analyser, buffer_analyser).Mutate(stmt);
+  return TensorCoreIRMutator(schedule_analyser, buffer_analyser)(std::move(stmt));
 }
 
 }  // namespace ir

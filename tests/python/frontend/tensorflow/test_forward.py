@@ -28,7 +28,6 @@ from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
@@ -95,13 +94,14 @@ def vmobj_to_list(o):
 
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
-                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime'):
+                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
+                  cuda_layout="NCHW"):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
     layout = None
     if target == "cuda":
-        layout = "NCHW"
+        layout = cuda_layout
     target_host = None
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
@@ -161,7 +161,8 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 
 
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
-                        no_gpu=False, opt_level=3, mode='graph_runtime'):
+                        no_gpu=False, opt_level=3, mode='graph_runtime',
+                        cuda_layout="NCHW"):
     """Generic function to generate and compare tensorflow and TVM output"""
     def name_without_num(name):
         return name.split(':')[0] if ":" in name else name
@@ -192,7 +193,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        target=device, out_names=out_name,
-                                       num_output=len(out_name), opt_level=opt_level, mode=mode)
+                                       num_output=len(out_name), opt_level=opt_level, mode=mode,
+                                       cuda_layout=cuda_layout)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -238,16 +240,58 @@ def _test_pooling_iteration(input_shape, **kwargs):
 def _test_pooling(input_shape, **kwargs):
     _test_pooling_iteration(input_shape, **kwargs)
 
-    if is_gpu_available() and (len(input_shape) == 4):
-        input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
-        kwargs['data_format'] = 'NCHW'
-        _test_pooling_iteration(input_shape, **kwargs)
+    if is_gpu_available():
+        if len(input_shape) == 4:
+            input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            kwargs['data_format'] = 'NCHW'
+            _test_pooling_iteration(input_shape, **kwargs)
 
 
 def test_forward_pooling():
     """ Pooling """
-
+    # TensorFlow only supports NDHWC for max_pool3d on CPU
     for pool_type in ['AVG', 'MAX']:
+        # NDHWC is the default layout for max_pool3d and avg_pool3d in TensorFlow
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='VALID',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[1, 1, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[1, 1, 1])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
+        # test cases for max_pool3d & avg_pool3d with layout NCDHW
+        # TensorFlow pool3d  doesn't support NCDHW on cpu
+        if is_gpu_available():
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[1, 1, 1],
+                          padding='SAME',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[1, 1, 1],
+                          data_format='NCDHW')
+
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[2, 2, 2],
+                          padding='VALID',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[2, 2, 2],
+                          data_format='NCDHW')
+
         _test_pooling(input_shape=[2, 9, 10, 2],
                       window_shape=[1, 1],
                       padding='SAME',
@@ -362,12 +406,32 @@ def test_forward_convolution():
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution('conv_transpose', [4, 32, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
                           'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 15, 15])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 15, 15])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 16, 16])
         _test_convolution('conv_transpose', [4, 19, 8, 8], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
                           'NCHW', [4, 19, 17, 17])
         _test_convolution('conv_transpose', [4, 19, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
                           'NCHW', [4, 124, 17, 17])
+        _test_convolution('conv_transpose', [4, 19, 17, 17], [3, 3, 124, 19], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 124, 17, 17])
         _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
                           'NCHW', [4, 12, 17, 17])
+        # kernel 2x2, strides (2,2)
+        _test_convolution('conv_transpose', [4, 19, 8, 8], [2, 2, 19, 19], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 19, 16, 16])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 12, 32], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 12, 16, 16])
+        # output channel is 1
+        _test_convolution('conv_transpose', [1, 19, 8, 8], [1, 1, 1, 19], [1, 1], [1, 1], 'VALID',
+                          'NCHW', [1, 1, 8, 8])
 
     _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
@@ -380,12 +444,83 @@ def test_forward_convolution():
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution('conv_transpose', [4, 8, 8, 32], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
                       'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 15, 15, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 15, 15, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 16, 16, 176])
     _test_convolution('conv_transpose', [4, 8, 8, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
                       'NHWC', [4, 17, 17, 19])
     _test_convolution('conv_transpose', [4, 17, 17, 19], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
                       'NHWC', [4, 17, 17, 124])
+    _test_convolution('conv_transpose', [4, 17, 17, 19], [3, 3, 124, 19], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 17, 17, 124])
     _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
                       'NHWC', [4, 17, 17, 12])
+    # kernel 2x2, strides (2,2)
+    _test_convolution('conv_transpose', [4, 8, 8, 19], [2, 2, 19, 19], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 16, 16, 19])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 12, 32], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 16, 16, 12])
+    # output channel is 1
+    _test_convolution('conv_transpose', [1, 8, 8, 19], [1, 1, 1, 19], [1, 1], [1, 1], 'VALID',
+                      'NHWC', [1, 8, 8, 1])
+
+
+#######################################################################
+# Convolution3D
+# -----------
+
+
+def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
+                        dilations, strides, padding, data_format,
+                        deconv_output_shape=[]):
+    """ One iteration of 3D convolution with given shapes and attributes """
+
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(
+            filter_array, shape=filter_in_sizes, dtype='float32')
+        if data_format == 'NDHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
+
+        if opname == 'conv':
+            nn_ops.conv3d(in_data,
+                          in_filter,
+                          strides=strides,
+                          dilations=dilations,
+                          padding=padding,
+                          data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
+
+def test_forward_convolution3d():
+    if is_gpu_available():
+        _test_convolution3d('conv', [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 19, 17, 17, 17], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+        _test_convolution3d('conv', [4, 124, 17, 17, 17], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 12, 17, 17, 17], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+    _test_convolution3d('conv', [4, 8, 8, 8, 176], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 19], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 124], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 12], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
 
 
 #######################################################################
@@ -1422,8 +1557,8 @@ def _test_resize_bilinear_from_tensor(in_shape, align_corners):
 
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(
-            shape=[in_shape[0], in_shape[1], None, None], dtype=data.dtype)
-        to_shape = tf.shape(in_data)[2:]
+            shape=[in_shape[0], None, None, in_shape[3]], dtype=data.dtype)
+        to_shape = tf.shape(in_data)[1:3]
         tf.image.resize_bilinear(
             in_data, to_shape, align_corners=align_corners)
 
@@ -1446,14 +1581,29 @@ def _test_resize_nearest_neighbor(in_shape, to_shape):
         compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
 
 
+def _test_resize_nearest_neighbor_dynamic_shape(in_shape, scale):
+    """ One iteration of resize nearest neighbor for graph with dynamic input shape """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=None, dtype=data.dtype)
+        # multiply input shape by scale factor
+        new_shape = tf.shape(in_data)[1:3] * tf.constant(scale, dtype=tf.int32)
+        tf.image.resize_nearest_neighbor(
+            in_data, new_shape, name='resize_nearest_neighbor')
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
+
+
 def test_forward_resize():
     """ Resize Bilinear, Nearest_Neighbor """
-
-    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
-    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
-    _test_resize_bilinear_from_tensor((4, 16, 32, 32), False)
-    _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
-    _test_resize_nearest_neighbor((6, 32, 64, 64), [20, 20])
+    # TF default layout is NHWC
+    _test_resize_bilinear((4, 32, 32, 3), [50, 50], False)
+    _test_resize_bilinear((6, 32, 32, 3), [20, 20], True)
+    _test_resize_bilinear_from_tensor((4, 32, 32, 3), False)
+    _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
+    _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
+    _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
 
 
 #######################################################################
@@ -2825,7 +2975,6 @@ if __name__ == '__main__':
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
-    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
@@ -2886,5 +3035,3 @@ if __name__ == '__main__':
     test_forward_where()
     test_forward_matmul()
     test_forward_batch_matmul()
-
-    # TODO missing tests: rank

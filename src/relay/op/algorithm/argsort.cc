@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file argsort.cc
  * \brief Argsort operators
  */
@@ -52,7 +51,7 @@ Expr MakeArgsort(Expr data,
                  int axis,
                  bool is_ascend,
                  DataType dtype) {
-  auto attrs = make_node<ArgsortAttrs>();
+  auto attrs = make_object<ArgsortAttrs>();
   attrs->axis = axis;
   attrs->is_ascend = is_ascend;
   attrs->dtype = dtype;
@@ -61,7 +60,7 @@ Expr MakeArgsort(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.argsort")
+TVM_REGISTER_GLOBAL("relay.op._make.argsort")
 .set_body_typed(MakeArgsort);
 
 RELAY_REGISTER_OP("argsort")

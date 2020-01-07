@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/op.cc
  * \brief Resolve incomplete types to complete types.
  */
@@ -68,7 +67,7 @@ const Op& Op::Get(const std::string& name) {
 
 OpRegistry::OpRegistry() {
   OpManager* mgr = OpManager::Global();
-  NodePtr<OpNode> n = make_node<OpNode>();
+  ObjectPtr<OpNode> n = make_object<OpNode>();
   n->index_ = mgr->op_counter++;
   op_ = Op(n);
 }
@@ -136,8 +135,8 @@ void OpRegistry::UpdateAttr(const std::string& key,
 }
 
 // Frontend APIs
-TVM_REGISTER_API("relay.op._ListOpNames")
-.set_body_typed<Array<tvm::Expr>()>([]() {
+TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
+.set_body_typed([]() {
     Array<tvm::Expr> ret;
     for (const std::string& name :
              dmlc::Registry<OpRegistry>::ListAllNames()) {
@@ -146,9 +145,9 @@ TVM_REGISTER_API("relay.op._ListOpNames")
     return ret;
   });
 
-TVM_REGISTER_API("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
+TVM_REGISTER_GLOBAL("relay.op._GetOp").set_body_typed(Op::Get);
 
-TVM_REGISTER_API("relay.op._OpGetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpGetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -158,7 +157,7 @@ TVM_REGISTER_API("relay.op._OpGetAttr")
     }
   });
 
-TVM_REGISTER_API("relay.op._OpSetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpSetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -169,7 +168,7 @@ TVM_REGISTER_API("relay.op._OpSetAttr")
     reg.set_attr(attr_name, value, plevel);
   });
 
-TVM_REGISTER_API("relay.op._OpResetAttr")
+TVM_REGISTER_GLOBAL("relay.op._OpResetAttr")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Op op = args[0];
     std::string attr_name = args[1];
@@ -178,7 +177,7 @@ TVM_REGISTER_API("relay.op._OpResetAttr")
     reg.reset_attr(attr_name);
   });
 
-TVM_REGISTER_API("relay.op._Register")
+TVM_REGISTER_GLOBAL("relay.op._Register")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::string op_name = args[0];
     std::string attr_key = args[1];
@@ -206,17 +205,17 @@ TVM_REGISTER_API("relay.op._Register")
   });
 
 // helper to get internal dev function in objectref.
-struct Op2NodePtr : public ObjectRef {
-  static NodePtr<Node> Get(const Op& op) {
-    return GetDataPtr<Node>(op);
+struct Op2ObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const Op& op) {
+    return GetDataPtr<Object>(op);
   }
 };
 
-NodePtr<Node> CreateOp(const std::string& name) {
+ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
   CHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return Op2NodePtr::Get(op);
+  return Op2ObjectPtr::Get(op);
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode)
@@ -225,8 +224,8 @@ TVM_REGISTER_NODE_TYPE(OpNode)
     return static_cast<const OpNode*>(n)->name;
   });
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<OpNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<OpNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const OpNode*>(ref.get());
     p->stream << "Op(" << node->name << ")";
   });

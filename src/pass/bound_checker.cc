@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,15 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file bounds_checker.cc
  */
 // Instrument checkers for out of the bounds access.
 
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <vector>
 #include <unordered_map>
 #include <utility>
@@ -34,48 +32,48 @@
 namespace tvm {
 namespace ir {
 
-class BoundCollector : public IRVisitor {
+class BoundCollector : public StmtVisitor {
  public:
   BoundCollector() {}
 
-  void Visit_(const AttrStmt *op) {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == ir::attr::buffer_bound) {
       if (const Variable *key = op->node.as<Variable>()) {
         mem_to_shape[key] = op->value;
       }
     }
-    IRVisitor::Visit_(op);
+    StmtVisitor::VisitStmt_(op);
   }
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const Variable *, Expr> mem_to_shape;
 };
 
-class BoundChecker : public IRMutator {
+class BoundChecker : public StmtExprMutator {
  public:
   explicit BoundChecker(
       const std::unordered_map<const Variable *, Expr> &mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt Mutate_(const Allocate *op, const Stmt &s) final {
+  Stmt VisitStmt_(const Allocate* op) final {
     // If the shape was updated we should update the hashtable.
     if (UpdateIsNeeded(op->buffer_var)) {
-      Update(op->buffer_var, op->extents, op->type);
+      Update(op->buffer_var, op->extents, op->dtype);
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr Mutate_(const Call *op, const Expr &ex) final {
+  Expr VisitExpr_(const Call* op) final {
     if (process_store_ && op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       unsafe_rewritten_ = true;
     }
-    return IRMutator::Mutate_(op, ex);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt Mutate_(const Store *op, const Stmt &s) final {
+  Stmt VisitStmt_(const Store* op) final {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
-    IRMutator::Mutate_(op, s);
+    StmtExprMutator::VisitStmt_(op);
     process_store_ = false;
     if (CanInstrument(op->index, op->buffer_var)) {
       Collect(op->index, op->buffer_var);
@@ -93,61 +91,62 @@ class BoundChecker : public IRMutator {
         return body;
       }
     }
-    return s;
+    return GetRef<Stmt>(op);
   }
 
-  Expr Mutate_(const Load *op, const Expr &ex) final {
+  Expr VisitExpr_(const Load* op) final {
     if (CanInstrument(op->index, op->buffer_var)) {
       Collect(op->index, op->buffer_var);
     }
-    return IRMutator::Mutate_(op, ex);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
  private:
-  bool UpdateIsNeeded(const VarExpr &buffer_var) const {
+  bool UpdateIsNeeded(const VarExpr& buffer_var) const {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const VarExpr &buffer_var, const Array<Expr> &new_shape,
-              const Type &type) {
+  void Update(const VarExpr& buffer_var,
+              const Array<Expr>& new_shape,
+              const DataType& type) {
     // Sanity check at first.
     if (!new_shape.size()) {
       return;
     }
 
     for (size_t i = 0; i < new_shape.size(); ++i) {
-      if (!new_shape[0].defined() || !new_shape[i].type().is_scalar() ||
+      if (!new_shape[0].defined() || !new_shape[i].dtype().is_scalar() ||
           is_negative_const(new_shape[i])) {
         return;
       }
     }
 
     // Scalarize the shape.
-    Expr shape = Mul::make(make_const(UInt(64), type.lanes()),
-                           Cast::make(UInt(64), new_shape[0]));
+    Expr shape = Mul::make(make_const(DataType::UInt(64), type.lanes()),
+                           Cast::make(DataType::UInt(64), new_shape[0]));
     for (size_t i = 1; i < new_shape.size(); ++i) {
       // Cast to unsigned to avoid integer overlow at frist.
-      shape = Mul::make(shape, Mul::make(make_const(UInt(64), type.lanes()),
-                                         Cast::make(UInt(64), new_shape[i])));
+      shape = Mul::make(shape, Mul::make(make_const(DataType::UInt(64), type.lanes()),
+                                         Cast::make(DataType::UInt(64), new_shape[i])));
     }
     mem_to_shape_[buffer_var.get()] = shape;
   }
 
-  bool IndexIsValid(const Expr &index) const {
+  bool IndexIsValid(const Expr& index) const {
     if (!index.defined()) {
       return false;
     }
 
     if (const Ramp *ramp_index = index.as<Ramp>()) {
       return ramp_index->base.defined() &&
-             ramp_index->base.type().is_scalar() &&
+             ramp_index->base.dtype().is_scalar() &&
              ramp_index->stride.defined() &&
-             ramp_index->stride.type().is_scalar() && (ramp_index->lanes > 0);
+             ramp_index->stride.dtype().is_scalar() && (ramp_index->lanes > 0);
     }
     return true;
   }
 
-  bool CanInstrument(const Expr &index, const VarExpr &buffer_var) const {
+  bool CanInstrument(const Expr& index, const VarExpr& buffer_var) const {
     return buffer_var.defined() && mem_to_shape_.count(buffer_var.get()) &&
            IndexIsValid(index) && !unsafe_rewritten_;
   }
@@ -169,7 +168,7 @@ class BoundChecker : public IRMutator {
         // Non inclusive range.
         index = Add::make(
             ramp_index->base,
-            Mul::make(ramp_index->stride, make_const(ramp_index->stride.type(),
+            Mul::make(ramp_index->stride, make_const(ramp_index->stride.dtype(),
                                                      ramp_index->lanes - 1)));
       }
 
@@ -178,11 +177,11 @@ class BoundChecker : public IRMutator {
       upper_bound = ir::Simplify(upper_bound);
 
       // Cast to the same type - signed, to be able to check lower bound.
-      index = Cast::make(Int(64), index);
-      upper_bound = Cast::make(Int(64), upper_bound);
+      index = Cast::make(DataType::Int(64), index);
+      upper_bound = Cast::make(DataType::Int(64), upper_bound);
 
       // Looks like a lower bound should always be zero after normalization.
-      Expr lower_bound = make_zero(Int(64));
+      Expr lower_bound = make_zero(DataType::Int(64));
 
       Expr current_condition =
           And::make(GE::make(index, lower_bound), LT::make(index, upper_bound));
@@ -207,8 +206,8 @@ class BoundChecker : public IRMutator {
 Stmt InstrumentBoundCheckers(Stmt stmt) {
   BoundCollector bound_collector;
   // At first walk recursively and collect bound attributes.
-  bound_collector.Visit(stmt);
-  return BoundChecker(bound_collector.mem_to_shape).Mutate(stmt);
+  bound_collector(stmt);
+  return BoundChecker(bound_collector.mem_to_shape)(std::move(stmt));
 }
 }  // namespace ir
 }  // namespace tvm

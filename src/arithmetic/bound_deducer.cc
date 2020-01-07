@@ -18,15 +18,16 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 #include <unordered_set>
 #include <unordered_map>
@@ -39,17 +40,17 @@ using namespace ir;
 
 // a visitor to find the path to the target variable
 // from a expression.
-class VariablePathFinder: public IRVisitor {
+class VariablePathFinder: public ExprVisitor {
  public:
   explicit VariablePathFinder(Expr target) : target_(target) {}
 
-  void Visit(const NodeRef& node) final {
+  void VisitExpr(const Expr& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
     if (!found_) path_.push_back(node.get());
     if (node.same_as(target_)) found_ = true;
-    IRVisitor::Visit(node);
+    ExprVisitor::VisitExpr(node);
     if (!found_) path_.pop_back();
   }
 
@@ -65,14 +66,14 @@ class VariablePathFinder: public IRVisitor {
 // return empty vector to represent failure
 std::vector<const Object*> GetPath(Expr target, Expr expr) {
   VariablePathFinder v(target);
-  v.Visit(expr);
+  v(expr);
   return v.path_;
 }
 
 enum CompareOp {kGreater, kLess, kEqual};
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer: public IRVisitor {
+class BoundDeducer: public ExprVisitor {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
@@ -83,39 +84,39 @@ class BoundDeducer: public IRVisitor {
 
   void Deduce();
 
-  void Visit(const NodeRef& e) final {
+  void VisitExpr(const Expr& e) final {
     if (!success_) return;
     if (e.get() == path_[iter_++]) {
-      IRVisitor::Visit(e);
+      ExprVisitor::VisitExpr(e);
     } else {
       success_ = false;
       return;
     }
   }
 
-  void Visit_(const LT* op) final {
+  void VisitExpr_(const LT* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const LE* op) final {
+  void VisitExpr_(const LE* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const GT* op) final {
+  void VisitExpr_(const GT* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const GE* op) final {
+  void VisitExpr_(const GE* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const Add* op) final {
+  void VisitExpr_(const Add* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
-  void Visit_(const Sub* op) final {
+  void VisitExpr_(const Sub* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -124,16 +125,16 @@ class BoundDeducer: public IRVisitor {
       result_ = - result_;
       comp_op = ReverseOp(comp_op);
     }
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
-  void Visit_(const Mul* op) final {
+  void VisitExpr_(const Mul* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
     Expr target_var = left ? op->a : op->b;
 
     SignType sign_operand;
-    if (operand.type().is_uint()) {
+    if (operand.dtype().is_uint()) {
       sign_operand = kPositive;
     } else {
       sign_operand = expr_map_[operand].sign_type();
@@ -172,7 +173,7 @@ class BoundDeducer: public IRVisitor {
         // ( x <= -3/-2 --> x <= 1)
       }
     }
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
   Expr result_;
@@ -195,17 +196,17 @@ class BoundDeducer: public IRVisitor {
   Analyzer analyzer_;
 };
 
-class BoundDeduceInputChecker: public IRVisitor {
+class BoundDeduceInputChecker: public ExprVisitor {
  public:
   bool Check(BoundDeducer* deducer) {
     deducer_ = deducer;
-    Visit(deducer_->expr_);
+    this->VisitExpr(deducer_->expr_);
     return target_count == 1;
   }
 
-  void Visit(const NodeRef& e) final {
+  void VisitExpr(const Expr& e) final {
     if (e.same_as(deducer_->target_)) ++target_count;
-    IRVisitor::Visit(e);
+    ExprVisitor::VisitExpr(e);
   }
 
  private:
@@ -306,7 +307,7 @@ void BoundDeducer::Deduce() {
   }
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
-  Visit(expr_);
+  this->VisitExpr(expr_);
 }
 
 void BoundDeducer::Relax() {

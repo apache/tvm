@@ -73,6 +73,10 @@ struct GraphCodegen {
     return CallFunc<std::string>("get_graph_json", nullptr);
   }
 
+  Array<tvm::runtime::Module> GetExternalModules() {
+    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
+  }
+
   Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
     return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
   }
@@ -147,6 +151,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "get_lowered_funcs") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
+      });
+    } else if (name == "get_external_modules") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetExternalModules();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -248,7 +256,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay::Function func,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     std::unordered_map<std::string, relay::Var> name_dict;
-    std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+    std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
     for (auto arg : func->params) {
       const auto &name = arg->name_hint();
       if (name_dict.count(name)) {
@@ -258,7 +266,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       }
     }
 
-    std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+    std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
     for (auto &kv : params) {
       if (name_dict.count(kv.first) == 0) {
         continue;
@@ -315,7 +323,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         auto op_node = call_node->op.as<OpNode>();
         if (op_node->name == "cast") {
           auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == Int(32)) {
+          if (attrs->dtype == DataType::Int(32)) {
             *rv = true;
           }
         }
@@ -473,6 +481,20 @@ class RelayBuildModule : public runtime::ModuleNode {
         lowered_funcs,
         target_host_,
         BuildConfig::Current());
+    }
+    Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
+    if (!ext_mods.empty()) {
+      CHECK(lowered_funcs.size() > 0 || ext_mods.size() == 1)
+          << "Expect to have a TVM DSOModule when multiple external runtime modules exist";
+      if (lowered_funcs.size() == 0) {
+        // Execute the whole module using external runtime.
+        ret_.mod = ext_mods[0];
+      } else {
+        // Import all external runtime modules.
+        for (const auto& it : ext_mods) {
+          ret_.mod.Import(it);
+        }
+      }
     }
   }
 

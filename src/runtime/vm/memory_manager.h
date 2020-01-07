@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/memory_manager.h
  * \brief Abstract device memory management API
  */
@@ -121,7 +120,7 @@ class StorageObj : public Object {
                        DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(NDArray::Container* ptr);
+  static void Deleter(Object* ptr);
 
   ~StorageObj() {
     auto alloc = MemoryManager::Global()->GetAllocator(buffer.ctx);
@@ -138,7 +137,7 @@ class Storage : public ObjectRef {
  public:
   explicit Storage(Buffer buffer);
 
-  TVM_DEFINE_OBJECT_REF_METHODS_MUT(Storage, ObjectRef, StorageObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace vm

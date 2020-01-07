@@ -18,14 +18,15 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Logics related to tensorize, used by ComputeOpNode.
  * \file tensorize.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "op_util.h"
 #include "compute_op.h"
 #include "../schedule/message_passing.h"
@@ -158,10 +159,10 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 }
 
 // Remap the tensor placeholder, index and inline things.
-class TensorIntrinMatcher final : public IRMutator {
+class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  Expr Mutate_(const Call* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Call* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Call>();
     if (op->call_type == Call::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
@@ -174,24 +175,24 @@ class TensorIntrinMatcher final : public IRMutator {
           args.push_back(op->args[i] - e.region[i]->min);
         }
         return Call::make(
-            op->type, e.tensor->op->name, args,
+            op->dtype, e.tensor->op->name, args,
             op->call_type, e.tensor->op, e.tensor->value_index);
       }
     }
     return expr;
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      return e;
+      return GetRef<Expr>(op);
     }
   }
 
-  Expr Mutate_(const Reduce* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Reduce* op) final {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Reduce>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
@@ -318,7 +319,7 @@ Array<Expr> MatchTensorizeBody(
   matcher.Init(self, stage, dom_map, out_dom, in_region, intrin, compute_intrin_iter_space);
   Array<Expr> ret;
   for (Expr expr : self->body) {
-    ret.push_back(matcher.Mutate(expr));
+    ret.push_back(matcher(expr));
   }
   return ret;
 }
@@ -342,12 +343,12 @@ void VerifyTensorizeBody(
     lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
     Expr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
     rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
-    if (lhs.type() != rhs.type()) {
+    if (lhs.dtype() != rhs.dtype()) {
       LOG(FATAL)
           << "Failed to match the data type with TensorIntrin "
           << intrin->name << "'s declaration "
-          << " provided=" << lhs.type()
-          << ", intrin=" << rhs.type();
+          << " provided=" << lhs.dtype()
+          << ", intrin=" << rhs.dtype();
     }
     CHECK(Equal(lhs, rhs))
         << "Failed to match the compute with TensorIntrin "
@@ -380,7 +381,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   for (size_t i = 0; i < intrin->inputs.size(); ++i) {
     Tensor tensor = inputs[i];
     Buffer buffer = intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
     auto it = in_region.find(tensor);
     CHECK(it != in_region.end());
     const Array<Range>& region = it->second;
@@ -391,7 +392,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     }
     input_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -408,10 +409,10 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   for (size_t i = intrin->inputs.size(); i < intrin->buffers.size(); ++i) {
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
     output_bind_nest.emplace_back(AttrStmt::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
   }
   // Check variable remap
   std::unordered_map<const Variable*, Expr> vmap;
@@ -431,7 +432,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     IterVar target = intrin_compute->reduce_axis[i - start];
     auto it = out_dom.find(iv);
     CHECK(it != out_dom.end());
-    binder.Bind(target->dom->min, make_const(iv->dom->min.type(), 0),
+    binder.Bind(target->dom->min, make_const(iv->dom->min.dtype(), 0),
                 "tensir_intrin.reduction.min");
     binder.Bind(target->dom->extent, it->second->extent,
                 "tensir_intrin.reduction.extent");
@@ -477,7 +478,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       update = MergeNest(binder.asserts(), update);
       update = Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
-      return MergeNest(common, Block::make(init, update));
+      return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
       // When init op is not available, use body op for reset in the first iter.
       CHECK(intrin->body.defined())
@@ -497,7 +498,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
 }
 
 // Register functions for unittests
-TVM_REGISTER_API("test.op.InferTensorizeRegion")
+TVM_REGISTER_GLOBAL("test.op.InferTensorizeRegion")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     Stage stage = args[0];
     Map<IterVar, Range> dmap = args[1];
@@ -508,11 +509,11 @@ TVM_REGISTER_API("test.op.InferTensorizeRegion")
                          stage,
                          as_unordered_map(dmap),
                          &out_dom, &in_region);
-    *ret = Array<NodeRef>{Map<IterVar, Range>(out_dom),
+    *ret = Array<ObjectRef>{Map<IterVar, Range>(out_dom),
                           Map<Tensor, Array<Range> >(in_region)};
   });
 
-TVM_REGISTER_API("test.op.MatchTensorizeBody")
+TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     Stage stage = args[0];
     Map<IterVar, Range> out_dom = args[1];

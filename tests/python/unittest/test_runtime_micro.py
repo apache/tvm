@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 import os
 
 import numpy as np
@@ -22,44 +21,22 @@ import tvm
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
+from tvm.micro import create_micro_mod
 from tvm.relay.testing import resnet
 
 # Use the host emulated micro device.
-DEVICE_TYPE = "host"
-TOOLCHAIN_PREFIX = ""
+DEV_CONFIG = micro.device.host.default_config()
 
-def create_micro_mod(c_mod, toolchain_prefix):
-    """Produces a micro module from a given module.
-
-    Parameters
-    ----------
-    c_mod : tvm.module.Module
-        module with "c" as its target backend
-
-    toolchain_prefix : str
-        toolchain prefix to be used (see `tvm.micro.Session` docs)
-
-    Return
-    ------
-    micro_mod : tvm.module.Module
-        micro module for the target device
-    """
-    temp_dir = util.tempdir()
-    lib_obj_path = temp_dir.relpath("dev_lib.obj")
-    c_mod.export_library(
-            lib_obj_path,
-            fcompile=tvm.micro.cross_compiler(toolchain_prefix=toolchain_prefix))
-    micro_mod = tvm.module.load(lib_obj_path, "micro_dev")
-    return micro_mod
-
-
-def relay_micro_build(func, toolchain_prefix, params=None):
+def relay_micro_build(func, dev_config, params=None):
     """Create a graph runtime module with a micro device context from a Relay function.
 
     Parameters
     ----------
     func : relay.Function
         function to compile
+
+    dev_config : Dict[str, Any]
+        MicroTVM config dict for the target device
 
     params : dict
         input parameters that do not change during inference
@@ -71,16 +48,12 @@ def relay_micro_build(func, toolchain_prefix, params=None):
     """
     with tvm.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(func, target="c", params=params)
-    micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+    micro_mod = create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
     mod = graph_runtime.create(graph, micro_mod, ctx)
     mod.set_input(**params)
     return mod
 
-
-# TODO(weberlo): Add example program to test scalar double/int TVMValue serialization.
-# TODO(weberlo): How can we test the OpenOCD device?  The CI would need to have OpenOCD
-# and Spike installed.
 
 def test_alloc():
     """Test tensor allocation on the device."""
@@ -88,7 +61,7 @@ def test_alloc():
         return
     shape = (1024,)
     dtype = "float32"
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
+    with micro.Session(DEV_CONFIG):
         ctx = tvm.micro_dev(0)
         np_tensor = np.random.uniform(size=shape).astype(dtype)
         micro_tensor = tvm.nd.array(np_tensor, ctx)
@@ -112,15 +85,14 @@ def test_add():
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+    with micro.Session(DEV_CONFIG):
+        micro_mod = create_micro_mod(c_mod, DEV_CONFIG)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
         c = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         micro_func(a, b, c)
-
         tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + b.asnumpy())
 
@@ -143,8 +115,8 @@ def test_workspace_add():
     func_name = "fadd_two_workspace"
     c_mod = tvm.build(s, [A, C], target="c", name=func_name)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        micro_mod = create_micro_mod(c_mod, TOOLCHAIN_PREFIX)
+    with micro.Session(DEV_CONFIG):
+        micro_mod = create_micro_mod(c_mod, DEV_CONFIG)
         micro_func = micro_mod[func_name]
         ctx = tvm.micro_dev(0)
         a = tvm.nd.array(np.random.uniform(size=shape).astype(dtype), ctx)
@@ -168,8 +140,8 @@ def test_graph_runtime():
     z = relay.add(xx, relay.const(1.0))
     func = relay.Function([x], z)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        mod = relay_micro_build(func, TOOLCHAIN_PREFIX)
+    with micro.Session(DEV_CONFIG):
+        mod = relay_micro_build(func, DEV_CONFIG)
 
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
         mod.run(x=x_in)
@@ -195,9 +167,9 @@ def test_multiple_modules():
     ret = relay.subtract(x, relay.const(1.0))
     sub_const_func = relay.Function([x], ret)
 
-    with micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX):
-        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
-        sub_const_mod = relay_micro_build(sub_const_func, TOOLCHAIN_PREFIX)
+    with micro.Session(DEV_CONFIG):
+        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG)
+        sub_const_mod = relay_micro_build(sub_const_func, DEV_CONFIG)
 
         x_in = np.random.uniform(size=shape[0]).astype(dtype)
         add_const_mod.run(x=x_in)
@@ -223,8 +195,8 @@ def test_interleave_sessions():
     ret = relay.add(x, relay.const(1.0))
     add_const_func = relay.Function([x], ret)
 
-    sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
-    sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_a = micro.Session(DEV_CONFIG)
+    sess_b = micro.Session(DEV_CONFIG)
     with sess_a:
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
         micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
@@ -232,13 +204,13 @@ def test_interleave_sessions():
         np_tensor_b = np.random.uniform(size=shape).astype(dtype)
         micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
     with sess_a:
-        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG)
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(
                 add_result, np_tensor_a + 1.0)
     with sess_b:
-        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG)
         add_const_mod.run(x=micro_tensor_b)
         add_result = add_const_mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(
@@ -257,15 +229,15 @@ def test_nested_sessions():
     ret = relay.add(x, relay.const(1.0))
     add_const_func = relay.Function([x], ret)
 
-    sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
-    sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_a = micro.Session(DEV_CONFIG)
+    sess_b = micro.Session(DEV_CONFIG)
     with sess_a:
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
         micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
         with sess_b:
             np_tensor_b = np.random.uniform(size=shape).astype(dtype)
             micro_tensor_b = tvm.nd.array(np_tensor_b, tvm.micro_dev(0))
-        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG)
         add_const_mod.run(x=micro_tensor_a)
         add_result = add_const_mod.get_output(0).asnumpy()
         tvm.testing.assert_allclose(
@@ -284,12 +256,12 @@ def test_inactive_session_use():
     ret = relay.add(x, relay.const(1.0))
     add_const_func = relay.Function([x], ret)
 
-    sess_a = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
-    sess_b = micro.Session(DEVICE_TYPE, TOOLCHAIN_PREFIX)
+    sess_a = micro.Session(DEV_CONFIG)
+    sess_b = micro.Session(DEV_CONFIG)
     with sess_a:
         np_tensor_a = np.random.uniform(size=shape).astype(dtype)
         micro_tensor_a = tvm.nd.array(np_tensor_a, tvm.micro_dev(0))
-        add_const_mod = relay_micro_build(add_const_func, TOOLCHAIN_PREFIX)
+        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG)
 
     with sess_b:
         # These objects belong to `sess_a`.

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file touch_extractor.cc
  * \brief Extract feature of touch pattern of axes in lowered IR
  */
@@ -45,14 +44,14 @@ int ParallelLevel(AnnotationType ann) {
 }
 
 // get touch pattern from index expression
-class IndexParser: public IRVisitor {
+class IndexParser: public ExprVisitor {
  public:
   void Parse(Expr expr) {
     pattern_map.clear();
-    this->Visit(expr);
+    this->VisitExpr(expr);
   }
 
-  void Visit_(const Variable *op) {
+  void VisitExpr_(const Variable* op) final {
     // TODO(lmzheng): handle more index types (multiple occurrence)
     if (pattern_map.count(op) == 0) {
       pattern_map[op] = TouchPattern();
@@ -61,13 +60,13 @@ class IndexParser: public IRVisitor {
     }
   }
 
-  void Visit_(const Mul *op) {
+  void VisitExpr_(const Mul* op) final {
     if (op->a.as<Variable>()) {
       if (const auto stride = op->b.as<IntImm>()) {
         next_stride_ = stride->value;
       }
     }
-    IRVisitor::Visit_(op);
+    ExprVisitor::VisitExpr_(op);
   }
 
   std::unordered_map<const Variable*, TouchPattern> pattern_map;
@@ -256,10 +255,10 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     feature_row.push_back(Array<Expr>{std::string("_itervar_"), var});
 
     Array<Expr> attr{std::string("_attr_"),
-                     FloatImm::make(Float(32), trans(fea.length)),
-                     IntImm::make(Int(32), fea.nest_level),
-                     FloatImm::make(Float(32), trans(fea.topdown_product)),
-                     FloatImm::make(Float(32), trans(fea.bottomup_product)),
+                     FloatImm::make(DataType::Float(32), trans(fea.length)),
+                     IntImm::make(DataType::Int(32), fea.nest_level),
+                     FloatImm::make(DataType::Float(32), trans(fea.topdown_product)),
+                     FloatImm::make(DataType::Float(32), trans(fea.bottomup_product)),
     };
     // one hot annotation
     for (int i = 0; i < kNum; i++) {
@@ -269,9 +268,9 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
 
     // arithmetic
     feature_row.push_back(Array<Expr>{std::string("_arith_"),
-                                      FloatImm::make(Float(32), trans(fea.add_ct)),
-                                      FloatImm::make(Float(32), trans(fea.mul_ct)),
-                                      FloatImm::make(Float(32), trans(fea.div_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.add_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.mul_ct)),
+                                      FloatImm::make(DataType::Float(32), trans(fea.div_ct)),
     });
 
     // touch map
@@ -283,12 +282,12 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     for (auto k : bufs) {
       TouchPattern &v = fea.touch_feature[k];
       feature_row.push_back(Array<Expr>{k,
-                                        FloatImm::make(Float(32), trans(v.stride)),
-                                        FloatImm::make(Float(32), trans(v.mod)),
-                                        FloatImm::make(Float(32), trans(v.count)),
-                                        FloatImm::make(Float(32), trans(v.reuse)),
-                                        FloatImm::make(Float(32), trans(v.thread_count)),
-                                        FloatImm::make(Float(32), trans(v.thread_reuse)),
+                                        FloatImm::make(DataType::Float(32), trans(v.stride)),
+                                        FloatImm::make(DataType::Float(32), trans(v.mod)),
+                                        FloatImm::make(DataType::Float(32), trans(v.count)),
+                                        FloatImm::make(DataType::Float(32), trans(v.reuse)),
+                                        FloatImm::make(DataType::Float(32), trans(v.thread_count)),
+                                        FloatImm::make(DataType::Float(32), trans(v.thread_reuse)),
       });
     }
 
@@ -486,7 +485,7 @@ void GetCurveSampleFeatureFlatten(Stmt stmt, int sample_n, std::vector<float> *r
 
 
 // register API for front end
-TVM_REGISTER_API("autotvm.feature.GetItervarFeature")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeature")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   bool take_log = args[1];
@@ -498,7 +497,7 @@ TVM_REGISTER_API("autotvm.feature.GetItervarFeature")
 });
 
 
-TVM_REGISTER_API("autotvm.feature.GetItervarFeatureFlatten")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeatureFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   bool take_log = args[1];
@@ -513,7 +512,7 @@ TVM_REGISTER_API("autotvm.feature.GetItervarFeatureFlatten")
 });
 
 
-TVM_REGISTER_API("autotvm.feature.GetCurveSampleFeatureFlatten")
+TVM_REGISTER_GLOBAL("autotvm.feature.GetCurveSampleFeatureFlatten")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   int sample_n = args[1];

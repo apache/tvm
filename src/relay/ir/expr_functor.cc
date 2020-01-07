@@ -340,15 +340,15 @@ class ExprApplyVisit : public ExprVisitor {
 
  private:
   std::function<void(const Expr&)> f_;
-  std::unordered_set<const Node*> visited_;
+  std::unordered_set<const Object*> visited_;
 };
 
 void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_API("relay._analysis.post_order_visit")
-.set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
+TVM_REGISTER_GLOBAL("relay._analysis.post_order_visit")
+.set_body_typed([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
       });
@@ -422,7 +422,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
                                   func->ret_type,
                                   func->type_params,
                                   func->attrs);
-    std::unordered_set<Var, NodeHash, NodeEqual> set;
+    std::unordered_set<Var, ObjectHash, ObjectEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
     }
@@ -443,9 +443,9 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-TVM_REGISTER_API("relay._expr.Bind")
+TVM_REGISTER_GLOBAL("relay._expr.Bind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    NodeRef input = args[0];
+    ObjectRef input = args[0];
     if (input->IsInstance<ExprNode>()) {
       *ret = Bind(Downcast<Expr>(input), args[1]);
     } else {

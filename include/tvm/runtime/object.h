@@ -24,10 +24,11 @@
 #define TVM_RUNTIME_OBJECT_H_
 
 #include <dmlc/logging.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <type_traits>
 #include <string>
 #include <utility>
-#include "c_runtime_api.h"
+
 
 /*!
  * \brief Whether or not use atomic reference counter.
@@ -581,6 +582,14 @@ class ObjectRef {
     return T(std::move(ref.data_));
   }
   /*!
+   * \brief Clear the object ref data field without DecRef
+   *        after we successfully moved the field.
+   * \param ref The reference data.
+   */
+  static void FFIClearAfterMove(ObjectRef* ref) {
+    ref->data_.data_ = nullptr;
+  }
+  /*!
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
    * \note only used for internal dev purpose.
    * \tparam ObjectType The corresponding object type.
@@ -648,7 +657,7 @@ struct ObjectEqual {
     return _GetOrAllocRuntimeTypeIndex();                               \
   }                                                                     \
   static const uint32_t _GetOrAllocRuntimeTypeIndex()  {                \
-    static uint32_t tidx = GetOrAllocRuntimeTypeIndex(                  \
+    static uint32_t tidx = Object::GetOrAllocRuntimeTypeIndex(          \
         TypeName::_type_key,                                            \
         TypeName::_type_index,                                          \
         ParentType::_GetOrAllocRuntimeTypeIndex(),                      \
@@ -668,6 +677,19 @@ struct ObjectEqual {
   TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                    \
 
 
+/*! \brief helper macro to supress unused warning */
+#if defined(__GNUC__)
+#define TVM_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define TVM_ATTRIBUTE_UNUSED
+#endif
+
+#define TVM_STR_CONCAT_(__x, __y) __x##__y
+#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
+
+#define TVM_OBJECT_REG_VAR_DEF                              \
+  static TVM_ATTRIBUTE_UNUSED uint32_t __make_Object_tid
+
 /*!
  * \brief Helper macro to register the object type to runtime.
  *  Makes sure that the runtime type table is correctly populated.
@@ -675,10 +697,15 @@ struct ObjectEqual {
  *  Use this macro in the cc file for each terminal class.
  */
 #define TVM_REGISTER_OBJECT_TYPE(TypeName)                              \
-  static DMLC_ATTRIBUTE_UNUSED uint32_t __make_Object_tidx ## _ ## TypeName ## __ = \
+  TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) =                 \
       TypeName::_GetOrAllocRuntimeTypeIndex()
 
-
+/*
+ * \brief Define object reference methods.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
 #define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
   TypeName() {}                                                         \
   explicit TypeName(                                                    \
@@ -690,16 +717,53 @@ struct ObjectEqual {
   operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
-#define TVM_DEFINE_OBJECT_REF_METHODS_MUT(TypeName, ParentType, ObjectName) \
-  TypeName() {}                                                             \
-  explicit TypeName(                                                        \
-      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)                  \
-      : ParentType(n) {}                                                    \
-  ObjectName* operator->() {                                    \
-    return static_cast<ObjectName*>(data_.get());                     \
-  }                                                                         \
-  operator bool() const { return data_ != nullptr; }                        \
+/*
+ * \brief Define object reference methods of whose content is mutable.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ * \note We recommend making objects immutable when possible.
+ *       This macro is only reserved for objects that stores runtime states.
+ */
+#define TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  TypeName() {}                                                         \
+  explicit TypeName(                                                    \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
+      : ParentType(n) {}                                                \
+  ObjectName* operator->() const {                                      \
+    return static_cast<ObjectName*>(data_.get());                       \
+  }                                                                     \
+  operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
+
+/*!
+ * \brief Define CopyOnWrite function in an ObjectRef.
+ * \param ObjectName The Type of the Node.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWObjectRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
+ */
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)                    \
+  ObjectName* CopyOnWrite() {                                           \
+      CHECK(data_ != nullptr);                                          \
+      if (!data_.unique())  {                                           \
+        auto n = make_object<ObjectName>(*(operator->()));              \
+        ObjectPtr<Object>(std::move(n)).swap(data_);                    \
+      }                                                                 \
+      return static_cast<ObjectName*>(data_.get());                     \
+    }
 
 // Implementations details below
 // Object reference counting.
@@ -810,10 +874,6 @@ inline SubRef Downcast(BaseRef ref) {
 }
 
 }  // namespace runtime
-
-template<typename T>
-using NodePtr = runtime::ObjectPtr<T>;
-
 }  // namespace tvm
 
 #endif  // TVM_RUNTIME_OBJECT_H_

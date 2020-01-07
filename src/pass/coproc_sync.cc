@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file coproc_sync.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "ir_util.h"
@@ -34,25 +32,25 @@ namespace tvm {
 namespace ir {
 
 // Visitor to find touched set by co-processor scope.
-class CoProcTouchedBuffer : public IRVisitor {
+class CoProcTouchedBuffer : public StmtExprVisitor {
  public:
-  void Visit_(const Load* op) final {
+  void VisitExpr_(const Load* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {
       touched_[op->buffer_var.get()].normal = true;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
-  void Visit_(const Store* op) final {
+  void VisitStmt_(const Store* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {
       touched_[op->buffer_var.get()].normal = true;
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
-  void Visit_(const Call* op) final {
+  void VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       const Variable* buffer = op->args[1].as<Variable>();
       if (in_scope_) {
@@ -61,17 +59,17 @@ class CoProcTouchedBuffer : public IRVisitor {
         touched_[buffer].normal = true;
       }
     }
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::coproc_scope && !in_scope_) {
       in_scope_ = true;
       IterVar iv = Downcast<IterVar>(op->node);
       coproc_.insert(iv);
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
       in_scope_ = false;
     } else {
-      IRVisitor::Visit_(op);
+      StmtExprVisitor::VisitStmt_(op);
     }
   }
 
@@ -97,7 +95,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   void Plan(const Stmt& stmt) {
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanSync(scope_.back(), nullptr, true);
     if (sync_.size() == 0) {
       sync_[stmt.get()] = GetSync(coproc_name_ + ".coproc_sync");
@@ -105,7 +103,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   // Write synchronization to be inserted before or after stmt.
-  std::unordered_map<const Node*, std::vector<Stmt> > sync_;
+  std::unordered_map<const Object*, std::vector<Stmt> > sync_;
 
  protected:
   bool Enabled(const Variable* buf,
@@ -199,7 +197,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
 
   std::vector<Stmt> GetSync(std::string sync_name) {
     return {Evaluate::make(Call::make(
-        Int(32),
+        DataType::Int(32),
         sync_name,
         {}, Call::Intrinsic))};
   }
@@ -219,19 +217,19 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     write_barrier_name_ = coproc_name + ".coproc_write_barrier";
   }
 
-  void PlanReadBarrier(Stmt stmt) {
+  void PlanReadBarrier(const Stmt& stmt) {
     read_barrier_ = true;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanReadBarrier(scope_.back(), nullptr);
   }
-  void PlanWriteBarrier(Stmt stmt) {
+  void PlanWriteBarrier(const Stmt& stmt) {
     read_barrier_ = false;
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
     PlanWriteBarrier(scope_.back(), nullptr);
   }
 
-  std::unordered_map<const Node*, std::vector<Stmt> > barrier_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > barrier_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > barrier_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > barrier_after_;
 
  protected:
   bool Enabled(const Variable* buf,
@@ -346,7 +344,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     Expr min = r->min;
     Expr extent = r->extent;
     return Evaluate::make(Call::make(
-        Int(32), func,
+        DataType::Int(32), func,
         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, Call::Intrinsic));
   }
   // Write barrier name
@@ -357,7 +355,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
 };
 
 
-class CoProcInstDepDetector : public IRVisitor {
+class CoProcInstDepDetector : public StmtVisitor {
  public:
   explicit CoProcInstDepDetector(
       const IterVar& coproc_axis,
@@ -367,15 +365,15 @@ class CoProcInstDepDetector : public IRVisitor {
     sync_pop_name_ = coproc_name + ".coproc_dep_pop";
   }
 
-  void Plan(Stmt stmt) {
-    this->Visit(stmt);
+  void Plan(const Stmt& stmt) {
+    this->VisitStmt(stmt);
     if (last_state_.node != nullptr) {
       MatchFixEnterPop(first_state_);
       MatchFixExitPush(last_state_);
     }
   }
 
-  void Visit_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::coproc_scope &&
         op->node.same_as(coproc_axis_)) {
       const IntImm* ctx_id = op->value.as<IntImm>();
@@ -386,15 +384,15 @@ class CoProcInstDepDetector : public IRVisitor {
       curr_state_.exit_ctx.insert(ctx_id->value);
       UpdateState();
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
   }
 
-  void Visit_(const For* op) final {
+  void VisitStmt_(const For* op) final {
     SyncState temp_first, temp_last;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
-    this->Visit(op->body);
+    this->VisitStmt(op->body);
     curr_state_.clear();
     if (last_state_.node != nullptr) {
       curr_state_.node = op;
@@ -413,13 +411,13 @@ class CoProcInstDepDetector : public IRVisitor {
     }
   }
 
-  void Visit_(const IfThenElse* op) final {
+  void VisitStmt_(const IfThenElse* op) final {
     SyncState temp_first, temp_last, curr_state;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
     {
       // then stmt
-      this->Visit(op->then_case);
+      this->VisitStmt(op->then_case);
       if (last_state_.node != nullptr) {
         curr_state.node = op;
         MatchFixEnterPop(first_state_);
@@ -435,7 +433,7 @@ class CoProcInstDepDetector : public IRVisitor {
       last_state_.clear();
     }
     if (op->else_case.defined()) {
-      this->Visit(op->else_case);
+      this->VisitStmt(op->else_case);
       if (last_state_.node != nullptr) {
         curr_state.node = op;
         MatchFixEnterPop(first_state_);
@@ -459,14 +457,14 @@ class CoProcInstDepDetector : public IRVisitor {
 
   // insert before is stored in reverse order
   // the first element is closest to the node.
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_after_;
 
  private:
   // state in the sync entry
   struct SyncState {
     // The statement of the state.
-    const Node* node{nullptr};
+    const Object* node{nullptr};
     // Set of all possible contexts in the entering moment.
     std::unordered_set<int> enter_ctx;
     // Set of all possible contexts in the exit moment.
@@ -589,14 +587,14 @@ class CoProcInstDepDetector : public IRVisitor {
 
   Stmt MakePush(int from, int to) {
     return Evaluate::make(Call::make(
-        Int(32), sync_push_name_,
-        {make_const(Int(32), from), make_const(Int(32), to)},
+        DataType::Int(32), sync_push_name_,
+        {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         Call::Intrinsic));
   }
   Stmt MakePop(int from, int to) {
     return Evaluate::make(Call::make(
-        Int(32), sync_pop_name_,
-        {make_const(Int(32), from), make_const(Int(32), to)},
+        DataType::Int(32), sync_pop_name_,
+        {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         Call::Intrinsic));
   }
   // sync states.
@@ -607,11 +605,11 @@ class CoProcInstDepDetector : public IRVisitor {
 };
 
 
-class CoProcSyncInserter : public IRMutator {
+class CoProcSyncInserter : public StmtMutator {
  public:
   Stmt Insert(Stmt stmt) {
     CoProcTouchedBuffer visitor;
-    visitor.Visit(stmt);
+    visitor(stmt);
     if (visitor.coproc_.size() == 0) return stmt;
     std::unordered_set<const Variable*> touched;
 
@@ -653,40 +651,30 @@ class CoProcSyncInserter : public IRMutator {
       auto& vec = insert_after_[kv.first];
       vec.insert(vec.end(), kv.second.begin(), kv.second.end());
     }
-    return Mutate(stmt);
+    return operator()(std::move(stmt));
   }
 
-  Stmt Mutate(Stmt stmt) final {
-    Stmt before, after;
-    auto it = insert_before_.find(stmt.get());
-    if (it != insert_before_.end()) {
-      before = MergeSeq(std::vector<Stmt>(
-          it->second.rbegin(), it->second.rend()));
-    }
-    it = insert_after_.find(stmt.get());
-    if (it != insert_after_.end()) {
-      after = MergeSeq(it->second);
-    }
-    stmt = IRMutator::Mutate(stmt);
-    if (before.defined()) {
-      stmt = Block::make(before, stmt);
-    }
-    if (after.defined()) {
-      stmt = Block::make(stmt, after);
-    }
-    return stmt;
+  Stmt VisitStmt(const Stmt& stmt) final {
+    auto it_before = insert_before_.find(stmt.get());
+    auto it_after = insert_after_.find(stmt.get());
+    Stmt new_stmt = StmtMutator::VisitStmt(stmt);
+
+    return SeqStmt::Flatten(
+      it_before != insert_before_.end() ? it_before->second : std::vector<Stmt>(),
+      new_stmt,
+      it_after != insert_after_.end() ? it_after->second : std::vector<Stmt>());
   }
 
  private:
   // insert before is stored in reverse order
   // the first element is closest to the node.
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_before_;
-  std::unordered_map<const Node*, std::vector<Stmt> > insert_after_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_before_;
+  std::unordered_map<const Object*, std::vector<Stmt> > insert_after_;
 };
 
 
 Stmt CoProcSync(Stmt stmt) {
-  return CoProcSyncInserter().Insert(stmt);
+  return CoProcSyncInserter().Insert(std::move(stmt));
 }
 
 }  // namespace ir

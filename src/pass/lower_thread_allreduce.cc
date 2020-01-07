@@ -18,12 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Lower allreduce to device implementable ir.
  * \file lower_thread_allreduce.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
@@ -33,19 +32,19 @@
 namespace tvm {
 namespace ir {
 
-class ThreadAllreduceBuilder final : public IRMutator {
+class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
   explicit ThreadAllreduceBuilder(int warp_size)
       : warp_size_(warp_size) {}
 
-  Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt *op) final {
     if (op->attr_key == attr::thread_extent) {
       thread_extents_.push_back(op);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       op = ret.as<AttrStmt>();
       const Variable* v = op->node.as<Variable>();
       if (alloc_remap_.count(v)) {
@@ -57,15 +56,15 @@ class ThreadAllreduceBuilder final : public IRMutator {
       const CommReducerNode *combiner = op->node.as<CommReducerNode>();
       CHECK(combiner);
       reduce_combiner_.push_back(combiner);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       reduce_combiner_.pop_back();
       return ret;
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const Evaluate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Evaluate* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Evaluate>();
     const Call* call = op->value.as<Call>();
     if (call && call->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
@@ -74,8 +73,8 @@ class ThreadAllreduceBuilder final : public IRMutator {
       return stmt;
     }
   }
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<Allocate>();
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
@@ -84,7 +83,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
       stmt = AttrStmt::make(
           repl->buffer_var, attr::volatile_scope, 1, op->body);
       stmt = Allocate::make(
-          repl->buffer_var, repl->type,
+          repl->buffer_var, repl->dtype,
           repl->extents, repl->condition, stmt);
       stmt = AttrStmt::make(
           repl->buffer_var, attr::storage_scope,
@@ -94,13 +93,13 @@ class ThreadAllreduceBuilder final : public IRMutator {
       return stmt;
     }
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
+  Expr VisitExpr_(const Load* op) final {
     auto it = load_remap_.find(op->buffer_var.get());
     if (it != load_remap_.end()) {
-      CHECK(is_zero(op->index)) << e;
+      CHECK(is_zero(op->index));
       return it->second;
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
@@ -126,14 +125,14 @@ class ThreadAllreduceBuilder final : public IRMutator {
     CHECK_EQ(size, size_of_args->value);
     Array<Expr> inits = combiner->identity_element;
     std::vector<Expr> values(size);
-    std::vector<Type> types(size);
+    std::vector<DataType> types(size);
     Expr cond  = call->args[size+1];
     for (size_t idx = 0; idx < size; ++idx) {
       values[idx] = call->args[1+idx];
       if (!is_one(cond)) {
         values[idx] = Select::make(cond, values[idx], inits[idx]);
       }
-      types[idx] = values[idx].type();
+      types[idx] = values[idx].dtype();
     }
     std::vector<const Variable*> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
@@ -186,7 +185,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
         Var buffer_var = Downcast<Var>(call->args[2+size+i]);
         stores[i] = Store::make(buffer_var, values[i], 0, pred);
       }
-      return Block::make(stores);
+      return SeqStmt::Flatten(stores);
     }
     // Whether the threadIdx.x is involved in reduction.
     if (vred[0].scope.dim_index == 0) {
@@ -198,7 +197,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     // previous iteration on the same buffer.
     seq.emplace_back(SyncThread("shared"));
     for (size_t idx = 0; idx < size; ++idx) {
-      shared_bufs[idx] = Var("red_buf"+std::to_string(idx), Handle());
+      shared_bufs[idx] = Var("red_buf"+std::to_string(idx), DataType::Handle());
       Expr pred = const_true(types[idx].lanes());
       seq.emplace_back(Store::make(
           shared_bufs[idx], values[idx],
@@ -213,17 +212,17 @@ class ThreadAllreduceBuilder final : public IRMutator {
       Expr pred = const_true(types[idx].lanes());
       load_remap_[buffers[idx]] = Load::make(
         types[idx], shared_bufs[idx],
-        BufIndex(make_zero(reduce_index.type()), group_index, reduce_extent), pred);
+        BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
       alloc_remap_[buffers[idx]] = Allocate::make(
         shared_bufs[idx], types[idx],
         {Expr(group_extent), Expr(reduce_extent)},
         pred, Evaluate::make(0));
     }
-    return MergeSeq(seq);
+    return SeqStmt::Flatten(seq);
   }
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode *combiner,
-                        const std::vector<Type>& types,
+                        const std::vector<DataType>& types,
                         const Array<Var>& shared_bufs,
                         Expr reduce_index,
                         Expr group_index,
@@ -253,7 +252,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
       for (size_t i = 0; i < size; ++i) {
         stores[i] = Store::make(shared_bufs[i], ret[i], buf_index, const_true());
       }
-      return Block::make(stores);
+      return SeqStmt::Flatten(stores);
     };
     // Step one, check for
     if (reduce_align > reduce_extent) {
@@ -281,11 +280,11 @@ class ThreadAllreduceBuilder final : public IRMutator {
       seq.emplace_back(SyncThread("warp"));
     }
     if (in_warp_seq.size() != 0) {
-      Stmt warp_body = MergeSeq(in_warp_seq);
+      Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
       seq.emplace_back(IfThenElse::make(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
-    return MergeSeq(seq);
+    return SeqStmt::Flatten(seq);
   }
   // Flatten the thread index.
   // Also return a warp number,
@@ -294,7 +293,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
     int& total_extent = *out_total_extent;
     total_extent = 1;
     if (tvec.size() == 0) {
-      return make_zero(Int(32));
+      return make_zero(DataType::Int(32));
     }
 
     Expr ret;
@@ -312,7 +311,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
     return Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_storage_sync,
+        Call::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImm::make(sync)},
                    Call::Intrinsic));
   }
@@ -339,8 +338,8 @@ class ThreadAllreduceBuilder final : public IRMutator {
 LoweredFunc
 LowerThreadAllreduce(LoweredFunc f, int warp_size) {
   CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
-  n->body = ThreadAllreduceBuilder(warp_size).Mutate(n->body);
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
+  n->body = ThreadAllreduceBuilder(warp_size)(n->body);
   return LoweredFunc(n);
 }
 }  // namespace ir

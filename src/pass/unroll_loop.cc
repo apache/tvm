@@ -24,7 +24,7 @@
 // Unrolls the loop as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace ir {
 
-class LoopUnroller : public IRMutator {
+class LoopUnroller : public StmtExprMutator {
  public:
   explicit LoopUnroller(int auto_max_step,
                         int auto_max_depth,
@@ -45,12 +45,12 @@ class LoopUnroller : public IRMutator {
         explicit_unroll_(explicit_unroll) {
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
       int value = 0;
       CHECK(arith::GetConstInt(op->value, &value));
       std::swap(value, auto_max_step_);
-      Stmt ret = this->Mutate(op->body);
+      Stmt ret = this->VisitStmt(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
@@ -58,16 +58,16 @@ class LoopUnroller : public IRMutator {
       CHECK(arith::GetConstInt(op->value, &value));
       bool explicit_unroll = value;
       std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->Mutate(op->body);
+      Stmt ret = this->VisitStmt(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
       return ret;
     } else {
-      return IRMutator::Mutate_(op, stmt);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) {
-    Stmt stmt = IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const For* op) {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<For>();
     int value = GetExtent(op);
     // condition for auto unroll
@@ -110,36 +110,31 @@ class LoopUnroller : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const Store* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const Store* op) final {
     ++step_count_;
-    return IRMutator::Mutate_(op, stmt);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Evaluate* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const Evaluate* op) final {
     ++step_count_;
-    return IRMutator::Mutate_(op, stmt);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Block* op, const Stmt& stmt) final {
-    Stmt first = this->Mutate(op->first);
-    // cleanup state
-    int step_count = step_count_;
-    int unroll_depth = unroll_depth_;
-    int normal_loop_depth = normal_loop_depth_;
-    step_count_ = 0;
-    unroll_depth_ = 0;
-    normal_loop_depth_ = 0;
-    // work on rest part
-    Stmt rest = this->Mutate(op->rest);
-    step_count_ += step_count;
-    normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
-    unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return stmt;
-    } else {
-      return Block::make(first, rest);
-    }
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    auto fmutate = [this](const Stmt& s) {
+      int step_count = step_count_;
+      int unroll_depth = unroll_depth_;
+      int normal_loop_depth = normal_loop_depth_;
+      step_count_ = 0;
+      unroll_depth_ = 0;
+      normal_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      step_count_ += step_count;
+      normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
+      unroll_depth_ = std::max(unroll_depth_, unroll_depth);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
 
   Stmt Unroll(const For* op) {
@@ -149,17 +144,13 @@ class LoopUnroller : public IRMutator {
     if (value == 0) return Evaluate::make(0);
     Stmt body = op->body;
     Map<Var, Expr> vmap;
-    Stmt unrolled;
+    Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.type(), i));
+      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
-      if (unrolled.defined()) {
-        unrolled = Block::make(unrolled, step);
-      } else {
-        unrolled = step;
-      }
+      unrolled.push_back(step);
     }
-    return unrolled;
+    return SeqStmt::Flatten(unrolled);
   }
 
  private:
@@ -204,7 +195,7 @@ Stmt UnrollLoop(Stmt stmt,
       auto_max_step,
       auto_max_depth,
       auto_max_extent,
-      explicit_unroll).Mutate(stmt);
+      explicit_unroll)(stmt);
   if (!ret.same_as(stmt)) {
     return ConvertSSA(ret);
   } else {

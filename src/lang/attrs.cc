@@ -18,11 +18,12 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file attrs.cc
  */
 #include <tvm/attrs.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "attr_functor.h"
 
 namespace tvm {
@@ -40,8 +41,8 @@ void DictAttrsNode::InitByPackedArgs(
   for (int i = 0; i < args.size(); i += 2) {
     std::string key = args[i];
     runtime::TVMArgValue val = args[i + 1];
-    if (val.type_code() == kObjectHandle) {
-      dict.Set(key, val.operator NodeRef());
+    if (val.IsObjectRef<ObjectRef>()) {
+      dict.Set(key, val.operator ObjectRef());
     } else if (val.type_code() == kStr) {
       dict.Set(key, Expr(val.operator std::string()));
     } else {
@@ -54,14 +55,14 @@ Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
   return {};
 }
 
-Attrs DictAttrsNode::make(Map<std::string, NodeRef> dict) {
-  NodePtr<DictAttrsNode> n = make_node<DictAttrsNode>();
+Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
+  ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   return Attrs(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<DictAttrsNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const DictAttrsNode*>(node.get());
     p->stream << op->dict;
 });
@@ -178,7 +179,7 @@ bool AttrsEqualHandler::VisitAttr_(const Not* lhs, const ObjectRef& other) {
 
 bool AttrsEqualHandler::VisitAttr_(const Cast* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<Cast>()) {
-    if (lhs->type != rhs->type) return false;
+    if (lhs->dtype != rhs->dtype) return false;
     return Equal(lhs->value, rhs->value);
   } else {
     return false;
@@ -189,7 +190,7 @@ bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<Call>()) {
     return
         lhs->name == rhs->name &&
-        lhs->type == rhs->type &&
+        lhs->dtype == rhs->dtype &&
         lhs->call_type == rhs->call_type &&
         Equal(lhs->args, rhs->args);
   } else {
@@ -291,7 +292,7 @@ size_t AttrsHashHandler::VisitAttr_(const Cast* op) {
   static size_t key = std::hash<std::string>()(Cast::_type_key);
   AttrsHash hasher;
   size_t res = key;
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->value));
   return res;
 }
@@ -301,7 +302,7 @@ size_t AttrsHashHandler::VisitAttr_(const Call* op) {
   AttrsHash hasher;
   size_t res = key;
   res = Combine(res, hasher(op->name));
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->args));
   return res;
 }
@@ -346,7 +347,7 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
 
-TVM_REGISTER_API("_AttrsListFieldInfo")
+TVM_REGISTER_GLOBAL("_AttrsListFieldInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator Attrs()->ListFieldInfo();
 });

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file nn.cc
  * \brief Property def of nn operators.
  */
@@ -32,8 +31,9 @@
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
 #include <vector>
+#include <string>
 #include "../type_relations.h"
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../op_common.h"
 #include "nn.h"
 
@@ -72,14 +72,14 @@ bool BiasAddRel(const Array<Type>& types,
 Expr MakeBiasAdd(Expr data,
                  Expr bias,
                  int axis) {
-  auto attrs = make_node<BiasAddAttrs>();
+  auto attrs = make_object<BiasAddAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.bias_add");
   return CallNode::make(op, {data, bias}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.bias_add")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.bias_add")
 .set_body_typed(MakeBiasAdd);
 
 
@@ -104,7 +104,7 @@ RELAY_REGISTER_OP("nn.bias_add")
 TVM_REGISTER_NODE_TYPE(FIFOBufferAttrs);
 
 Expr MakeFIFOBuffer(Expr input, Expr buffer, int axis) {
-  auto attrs = make_node<FIFOBufferAttrs>();
+  auto attrs = make_object<FIFOBufferAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.fifo_buffer");
   return CallNode::make(op, {input, buffer}, Attrs(attrs), {});
@@ -142,7 +142,7 @@ bool FIFOBufferRel(const Array<Type>& types,
   return true;
 }
 
-TVM_REGISTER_API("relay.op.nn._make.fifo_buffer")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.fifo_buffer")
 .set_body_typed(MakeFIFOBuffer);
 
 RELAY_REGISTER_OP("nn.fifo_buffer")
@@ -175,7 +175,7 @@ Expr MakeDense(Expr data,
                Expr weight,
                IndexExpr units,
                DataType out_dtype) {
-  auto attrs = make_node<DenseAttrs>();
+  auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
@@ -183,7 +183,7 @@ Expr MakeDense(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.dense")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.dense")
 .set_body_typed(MakeDense);
 
 
@@ -208,14 +208,14 @@ TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 // Positional relay function to create leaky relu operator used by frontend FFI.
 Expr MakeLeakyRelu(Expr data,
                    double alpha) {
-  auto attrs = make_node<LeakyReluAttrs>();
+  auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("nn.leaky_relu");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.leaky_relu")
 .set_body_typed(MakeLeakyRelu);
 
 
@@ -288,14 +288,14 @@ Array<Array<Layout> > PReluInferCorrectLayout(
 Expr MakePRelu(Expr data,
                Expr alpha,
                int axis) {
-  auto attrs = make_node<PReluAttrs>();
+  auto attrs = make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.prelu");
   return CallNode::make(op, {data, alpha}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.prelu")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.prelu")
 .set_body_typed(MakePRelu);
 
 
@@ -325,9 +325,9 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 // relay.softmax
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
-TVM_REGISTER_API("relay.op.nn._make.softmax")
-.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
-  auto attrs = make_node<SoftmaxAttrs>();
+TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax")
+.set_body_typed([](Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.softmax");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -360,9 +360,9 @@ RELAY_REGISTER_OP("nn.softmax")
 
 
 // relay.nn.log_softmax
-TVM_REGISTER_API("relay.op.nn._make.log_softmax")
-.set_body_typed<Call(Expr, int)>([](Expr data, int axis) {
-  auto attrs = make_node<SoftmaxAttrs>();
+TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax")
+.set_body_typed([](Expr data, int axis) {
+  auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.log_softmax");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -405,7 +405,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   if (data == nullptr) return false;
   if (data->shape.size() == 0) return false;
 
-  auto target_dim = make_const(Int(32), 1);
+  auto target_dim = make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
     if (!data->shape[i].as<ir::Any>()) {
@@ -429,7 +429,7 @@ Expr MakeBatchFlatten(Expr data) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.batch_flatten")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_flatten")
 .set_body_typed(MakeBatchFlatten);
 
 
@@ -469,8 +469,8 @@ Example::
 
 
 // relu
-TVM_REGISTER_API("relay.op.nn._make.relu")
-.set_body_typed<Call(Expr)>([](Expr data) {
+TVM_REGISTER_GLOBAL("relay.op.nn._make.relu")
+.set_body_typed([](Expr data) {
     static const Op& op = Op::Get("nn.relu");
     return CallNode::make(op, {data}, Attrs(), {});
   });
@@ -504,7 +504,7 @@ Expr MakeLRN(Expr data,
              double alpha,
              double beta,
              double bias) {
-  auto attrs = make_node<LRNAttrs>();
+  auto attrs = make_object<LRNAttrs>();
   attrs->size = size;
   attrs->axis = axis;
   attrs->alpha = alpha;
@@ -514,7 +514,7 @@ Expr MakeLRN(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.lrn")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.lrn")
 .set_body_typed(MakeLRN);
 
 RELAY_REGISTER_OP("nn.lrn")
@@ -545,14 +545,14 @@ TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
 Expr MakeL2Normalize(Expr data,
                      double eps,
                      Array<Integer> axis) {
-  auto attrs = make_node<L2NormalizeAttrs>();
+  auto attrs = make_object<L2NormalizeAttrs>();
   attrs->eps = eps;
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("nn.l2_normalize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.l2_normalize")
 .set_body_typed(MakeL2Normalize);
 
 RELAY_REGISTER_OP("nn.l2_normalize")
@@ -591,13 +591,13 @@ bool DropoutRel(const Array<Type>& types,
 }
 
 Expr MakeDropout(Expr data, double rate) {
-  auto attrs = make_node<DropoutAttrs>();
+  auto attrs = make_object<DropoutAttrs>();
   attrs->rate = rate;
   static const Op& op = Op::Get("nn.dropout");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.dropout")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.dropout")
 .set_body_typed(MakeDropout);
 
 RELAY_REGISTER_OP("nn.dropout")
@@ -616,6 +616,34 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
+
+Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
+                                                 const Array<Layout>& new_in_layouts,
+                                                 const Array<Layout>& old_in_layouts,
+                                                 const Array<Array<IndexExpr>>& old_in_shapes) {
+  BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
+
+  size_t axis =
+      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
+
+  Layout ret = Layout::Undef();
+
+  // If new_in_layouts are defined, this code tries to modify the layout.
+  if (new_in_layouts.defined() && old_in_layouts.defined()) {
+    // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
+    const auto& bn_dim = old_in_layouts[0][axis];
+    auto new_index = new_in_layouts[0].IndexOf(bn_dim);
+    param->axis = new_index;
+    ret = new_in_layouts[0];
+  } else if (old_in_layouts.defined()) {
+    ret = old_in_layouts[0];
+  }
+  // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
+  Layout c_layout = Layout("C");
+
+  return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
+                              {ret, c_layout, c_layout}};
+}
 
 bool BatchNormRel(const Array<Type>& types,
                   int num_inputs,
@@ -652,7 +680,7 @@ bool BatchNormRel(const Array<Type>& types,
 
 Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,
                    int axis, double epsilon, bool center, bool scale) {
-  auto attrs = make_node<BatchNormAttrs>();
+  auto attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -661,7 +689,7 @@ Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr movi
   return CallNode::make(op, {data, gamma, beta, moving_mean, moving_var}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.batch_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_norm")
 .set_body_typed(MakeBatchNorm);
 
 RELAY_REGISTER_OP("nn.batch_norm")
@@ -708,6 +736,7 @@ axis to be the last item in the input shape.
 .add_argument("beta", "Tensor", "The beta offset factor.")
 .add_argument("moving_mean", "Tensor", "Running mean of input.")
 .add_argument("moving_var", "Tensor", "Running variance of input.")
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", BatchNormInferCorrectLayout)
 .set_support_level(1)
 .add_type_rel("BatchNorm", BatchNormRel);
 
@@ -734,7 +763,7 @@ bool InstanceNormRel(const Array<Type>& types,
 
 Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
                       bool center, bool scale) {
-  auto attrs = make_node<InstanceNormAttrs>();
+  auto attrs = make_object<InstanceNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -743,7 +772,7 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.instance_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 7>(MakeInstanceNorm, args, rv);
   });
@@ -804,7 +833,7 @@ bool LayerNormRel(const Array<Type>& types,
 
 Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
                    bool center, bool scale) {
-  auto attrs = make_node<LayerNormAttrs>();
+  auto attrs = make_object<LayerNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
@@ -813,7 +842,7 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
   return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.layer_norm")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 7>(MakeLayerNorm, args, rv);
   });
@@ -865,7 +894,7 @@ Expr MakeBatchMatmul(Expr x,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.batch_matmul")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul")
 .set_body_typed(MakeBatchMatmul);
 
 
@@ -922,7 +951,7 @@ Expr MakeCrossEntropy(Expr predictions, Expr targets) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.cross_entropy")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.cross_entropy")
 .set_body_typed(MakeCrossEntropy);
 
 
@@ -945,7 +974,7 @@ Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.cross_entropy_with_logits")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.cross_entropy_with_logits")
 .set_body_typed(MakeCrossEntropyWithLogits);
 
 
@@ -960,6 +989,123 @@ Accept logits.
 .set_support_level(10)
 .add_type_rel("CrossEntropy", CrossEntropyRel);
 
+// Depth to space and space to depth
+TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
+
+bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCHW("NCHW");
+
+  const SubPixelAttrs* param = attrs.as<SubPixelAttrs>();
+  CHECK(param != nullptr);
+  const int block_size = param->block_size;
+  const Layout in_layout(param->layout);
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  CHECK(layout_converter.defined())
+      << "DepthToSpace only support input layouts that are convertible from NCHW."
+      << " But got " << in_layout;
+
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
+  oshape.Set(2, oshape[2] * block_size);
+  oshape.Set(3, oshape[3] * block_size);
+
+  // Assign output type
+  reporter->Assign(types[1],
+                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
+
+  return true;
+}
+
+// Positional relay function to create DepthToSpace operator
+// used by frontend FFI
+Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string mode) {
+  auto attrs = make_object<SubPixelAttrs>();
+  attrs->block_size = block_size;
+  attrs->layout = std::move(layout);
+  attrs->mode = std::move(mode);
+  static const Op& op = Op::Get("nn.depth_to_space");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
+
+RELAY_REGISTER_OP("nn.depth_to_space")
+    .describe(R"code(Rearrange input channels into spatial pixels.
+
+- **data**: data is a 4D array of shape
+            (batch, in_channels, in_height, in_width) for NCHW
+
+- **out**: Output is a 4D array of shape
+           (batch, in_channels / block_size * block_size, in_height * block_size, in_width * block_size) for NCHW.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SubPixelAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .set_support_level(5)
+    .add_type_rel("DepthToSpace", DepthToSpaceRel);
+
+bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCHW("NCHW");
+
+  const SubPixelAttrs* param = attrs.as<SubPixelAttrs>();
+  CHECK(param != nullptr);
+  const int block_size = param->block_size;
+  const Layout in_layout(param->layout);
+  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  CHECK(layout_converter.defined())
+      << "SpaceToDepth only support input layouts that are convertible from NCHW."
+      << " But got " << in_layout;
+
+  auto oshape = layout_converter.ForwardShape(data->shape);
+  oshape.Set(1, oshape[1] * (block_size * block_size));
+  oshape.Set(2, indexdiv(oshape[2], block_size));
+  oshape.Set(3, indexdiv(oshape[3], block_size));
+
+  // Assign output type
+  reporter->Assign(types[1],
+                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
+
+  return true;
+}
+
+// Positional relay function to create SpaceToDepth operator
+// used by frontend FFI
+Expr MakeSpaceToDepth(Expr data, int block_size, std::string layout) {
+  auto attrs = make_object<SubPixelAttrs>();
+  attrs->block_size = block_size;
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("nn.space_to_depth");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.space_to_depth").set_body_typed(MakeSpaceToDepth);
+
+RELAY_REGISTER_OP("nn.space_to_depth")
+    .describe(R"code(Rearrange spatial pixels into new output channels.
+
+- **data**: data is a 4D array of shape
+            (batch, in_channels, in_height, in_width) for NCHW
+
+- **out**: Output is a 4D array of shape
+           (batch, in_channels * block_size * block_size, in_height / block_size, in_width / block_size) for NCHW.
+
+)code" TVM_ADD_FILELINE)
+    .set_attrs_type<SubPixelAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor")
+    .set_support_level(5)
+    .add_type_rel("SpaceToDepth", SpaceToDepthRel);
 
 }  // namespace relay
 }  // namespace tvm

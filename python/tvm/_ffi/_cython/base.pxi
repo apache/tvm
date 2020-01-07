@@ -19,7 +19,7 @@ from ..base import get_last_ffi_error
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
-from libc.stdint cimport int32_t, int64_t, uint64_t, uint8_t, uint16_t
+from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
 cdef enum TVMTypeCode:
@@ -78,14 +78,11 @@ ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
 ctypedef void* ObjectHandle
 
+ctypedef struct TVMObject:
+    uint32_t type_index_
+    int32_t ref_counter_
+    void (*deleter_)(TVMObject* self)
 
-ctypedef struct TVMNDArrayContainer:
-    DLTensor dl_tensor
-    void* manager_ctx
-    void (*deleter)(DLManagedTensor* self)
-    int32_t array_type_info
-
-ctypedef TVMNDArrayContainer* TVMNDArrayContainerHandle
 
 ctypedef int (*TVMPackedCFunc)(
     TVMValue* args,

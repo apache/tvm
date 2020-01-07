@@ -37,6 +37,7 @@ TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
+USE_THREADS = $(shell nproc)
 VTA_LIBNAME = libvta_hw
 UNITTEST_NAME = all
 CXX = g++
@@ -92,6 +93,12 @@ else
   cxx_flags += -DVM_TRACE=0
 endif
 
+ifneq ($(USE_THREADS), 0)
+  verilator_opt += -threads $(USE_THREADS)
+  cxx_flags += -DVL_THREADED
+  cxx_objs += $(verilator_build_dir)/verilated_threads.o
+endif
+
 VPATH = $(VERILATOR_INC_DIR):$(verilator_build_dir):$(vta_dir)/hardware/dpi
 
 # The following is to be consistent with cmake
@@ -105,7 +112,7 @@ endif
 default: lint lib
 
 lint:
-	sbt scalafmt
+	sbt scalafmt --test
 
 lib: $(lib_path)
 

@@ -55,35 +55,6 @@ class Tensor : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
 };
 
-
-/*! \brief An object representing a structure or enumeration. */
-class ADTObj : public Object {
- public:
-  /*! \brief The tag representing the constructor used. */
-  size_t tag;
-  /*! \brief The fields of the structure. */
-  std::vector<ObjectRef> fields;
-
-  static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
-  static constexpr const char* _type_key = "vm.ADT";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
-};
-
-/*! \brief reference to algebraic data type objects. */
-class ADT : public ObjectRef {
- public:
-  ADT(size_t tag, std::vector<ObjectRef> fields);
-
-  /*!
-   * \brief construct a tuple object.
-   * \param fields The fields of the tuple.
-   * \return The constructed tuple type.
-   */
-  static ADT Tuple(std::vector<ObjectRef> fields);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ADT, ObjectRef, ADTObj);
-};
-
 /*! \brief An object representing a closure. */
 class ClosureObj : public Object {
  public:

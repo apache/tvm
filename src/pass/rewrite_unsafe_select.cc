@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file unsafe_select_rewrite.cc
  * \brief Rewrite uinsafe select expression.
  */
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 
 namespace tvm {
@@ -110,18 +108,18 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   }
 };
 
-class UnsafeSelectRewriter : public IRMutator {
+class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr Mutate_(const Select* op, const Expr& e) {
-    Expr expr = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Select* op) {
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<Select>();
     UnsafeExprDetector unsafe;
-    bool cond_is_scalar_bool = op->condition.type().is_bool() && op->condition.type().is_scalar();
+    bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
     if ((unsafe.VisitExpr(op->true_value) ||
         unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
       return Call::make(
-          op->type,
+          op->dtype,
           intrinsic::tvm_if_then_else,
           {op->condition, op->true_value, op->false_value},
           Call::Intrinsic);
@@ -132,7 +130,7 @@ class UnsafeSelectRewriter : public IRMutator {
 };
 
 Stmt RewriteUnsafeSelect(Stmt stmt) {
-  return UnsafeSelectRewriter().Mutate(stmt);
+  return UnsafeSelectRewriter()(std::move(stmt));
 }
 
 }  // namespace ir

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file util.cc
  *
@@ -26,6 +25,7 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/pattern_functor.h>
 #include "pass_util.h"
 #include "../ir/type_functor.h"
@@ -35,7 +35,7 @@ namespace relay {
 
 template<typename T>
 struct InsertionSet {
-  std::unordered_set<T, NodeHash, NodeEqual> set;
+  std::unordered_set<T, ObjectHash, ObjectEqual> set;
   std::vector<T> data;
   void Insert(const T& t) {
     if (set.count(t) == 0) {
@@ -274,12 +274,12 @@ tvm::Array<Var> AllVars(const Expr& expr) {
   return VarVisitor().All(expr);
 }
 
-TVM_REGISTER_API("relay._analysis.free_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.free_vars")
 .set_body_typed(FreeVars);
 
-TVM_REGISTER_API("relay._analysis.bound_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       if (x.as<ExprNode>()) {
         *ret = BoundVars(Downcast<Expr>(x));
       } else {
@@ -287,12 +287,12 @@ TVM_REGISTER_API("relay._analysis.bound_vars")
       }
     });
 
-TVM_REGISTER_API("relay._analysis.all_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.all_vars")
 .set_body_typed(AllVars);
 
-TVM_REGISTER_API("relay._analysis.free_type_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    NodeRef x = args[0];
+    ObjectRef x = args[0];
     Module mod = args[1];
     if (x.as<TypeNode>()) {
       *ret = FreeTypeVars(Downcast<Type>(x), mod);
@@ -301,9 +301,9 @@ TVM_REGISTER_API("relay._analysis.free_type_vars")
     }
   });
 
-TVM_REGISTER_API("relay._analysis.bound_type_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       Module mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = BoundTypeVars(Downcast<Type>(x), mod);
@@ -312,9 +312,9 @@ TVM_REGISTER_API("relay._analysis.bound_type_vars")
       }
     });
 
-TVM_REGISTER_API("relay._analysis.all_type_vars")
+TVM_REGISTER_GLOBAL("relay._analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
-      NodeRef x = args[0];
+      ObjectRef x = args[0];
       Module mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = AllTypeVars(Downcast<Type>(x), mod);
@@ -328,11 +328,11 @@ TVM_REGISTER_API("relay._analysis.all_type_vars")
  * \param body The body expression.
  * \return The reference count mapping.
  */
-std::unordered_map<const Node*, size_t>
+std::unordered_map<const Object*, size_t>
 GetExprRefCount(const Expr& body) {
   class ExprRefCounter : private ExprVisitor {
    public:
-    std::unordered_map<const Node*, size_t>
+    std::unordered_map<const Object*, size_t>
     Get(const Expr& body) {
       this->VisitExpr(body);
       return std::move(this->visit_counter_);
@@ -361,13 +361,14 @@ bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
   return true;
 }
 
+// Cache the operators that are checked recursively to reduce lookup overhead.
+static const auto& expand_dims_op = Op::Get("expand_dims");
+static const auto& reshape_op = Op::Get("reshape");
+static const auto& transpose_op = Op::Get("transpose");
+static const auto& squeeze_op = Op::Get("squeeze");
+
 bool IsAllPositiveConstant(const Expr& expr) {
   // peel through a few common transform ops.
-  static const auto& expand_dims = Op::Get("expand_dims");
-  static const auto& reshape = Op::Get("reshape");
-  static const auto& transpose = Op::Get("transpose");
-  static const auto& squeeze = Op::Get("squeeze");
-
   if (const auto* constant = expr.as<ConstantNode>()) {
     const auto& tensor = constant->data;
     const auto& dtype = tensor->dtype;
@@ -390,10 +391,10 @@ bool IsAllPositiveConstant(const Expr& expr) {
     }
   } else if (const auto* op = expr.as<CallNode>()) {
     // tail recursion.
-    if (op->op.same_as(expand_dims) ||
-        op->op.same_as(reshape) ||
-        op->op.same_as(transpose) ||
-        op->op.same_as(squeeze)) {
+    if (op->op == expand_dims_op ||
+        op->op == reshape_op ||
+        op->op == transpose_op ||
+        op->op == squeeze_op) {
       return IsAllPositiveConstant(op->args[0]);
     } else {
       return false;

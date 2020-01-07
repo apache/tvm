@@ -18,15 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
 #include <tvm/ir.h>
 #include <tvm/lowered_func.h>
-#include <tvm/channel.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/runtime/module.h>
 #include <unordered_map>
 
@@ -34,9 +32,9 @@ namespace tvm {
 namespace ir {
 
 // use/def analysis, also delete unreferenced lets
-class IRUseDefAnalysis : public IRMutator {
+class IRUseDefAnalysis : public StmtExprMutator {
  public:
-  Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
@@ -50,82 +48,77 @@ class IRUseDefAnalysis : public IRMutator {
 
       Expr value = op->value;
       if (visit_thread_extent_) {
-        value = this->Mutate(value);
+        value = this->VisitExpr(value);
       }
-      Stmt body = this->Mutate(op->body);
-      if (value.same_as(op->value) && body.same_as(op->body)) return s;
+      Stmt body = this->VisitStmt(op->body);
+      if (value.same_as(op->value) && body.same_as(op->body)) {
+        return GetRef<Stmt>(op);
+      }
       return AttrStmt::make(op->node, op->attr_key, value, body);
-    } else if (op->attr_key == attr::channel_write_scope ||
-               op->attr_key == attr::channel_read_scope) {
-      Channel ch = Downcast<Channel>(op->node);
-      if (!use_count_.count(ch->handle_var.get())) {
-        this->HandleDef(ch->handle_var.get());
-      }
-      return IRMutator::Mutate_(op, s);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const LetStmt *op, const Stmt& s) final {
+  Stmt VisitStmt_(const LetStmt* op) final {
     this->HandleDef(op->var.get());
-    Stmt body = this->Mutate(op->body);
+    Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
     if (use_count_.at(op->var.get()) == 0 &&
         !HasSideEffect(op->value)) {
       return body;
     } else {
-      Expr value = this->Mutate(op->value);
+      Expr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) &&
           value.same_as(op->value)) {
-        return s;
+        return GetRef<Stmt>(op);
       } else {
         return LetStmt::make(op->var, value, body);
       }
     }
   }
 
-  Stmt Mutate_(const For *op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     this->HandleDef(op->loop_var.get());
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Allocate *op, const Stmt& s) final {
+  Stmt VisitStmt_(const Allocate* op) final {
     this->HandleDef(op->buffer_var.get());
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Store *op, const Stmt& s) final {
+  Stmt VisitStmt_(const Store* op) final {
     this->HandleUse(op->buffer_var);
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr Mutate_(const Let *op, const Expr& e) final {
+  Expr VisitExpr_(const Let* op) final {
     this->HandleDef(op->var.get());
-    Expr body = this->Mutate(op->body);
+    Expr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
     if (use_count_.at(op->var.get()) == 0 &&
         !HasSideEffect(op->value)) {
       return body;
     } else {
-      Expr value = this->Mutate(op->value);
+      Expr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) &&
           value.same_as(op->value)) {
-        return e;
+        return GetRef<Expr>(op);
       } else {
         return Let::make(op->var, value, body);
       }
     }
   }
 
-  Expr Mutate_(const Variable *op, const Expr& e) final {
-    this->HandleUse(e);
-    return IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const Variable* op) final {
+    this->HandleUse(GetRef<Expr>(op));
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr Mutate_(const Load *op, const Expr& e) final {
+  Expr VisitExpr_(const Load* op) final {
     this->HandleUse(op->buffer_var);
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
   void HandleDef(const Variable* v) {
@@ -163,20 +156,20 @@ class IRUseDefAnalysis : public IRMutator {
   std::unordered_map<const Variable*, int> def_count_;
 };
 
-class HostDeviceSplitter : public IRMutator {
+class HostDeviceSplitter : public StmtMutator {
  public:
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    handle_data_type_[op->buffer_var.get()] = make_const(op->type, 0);
-    return IRMutator::Mutate_(op, s);
+  Stmt VisitStmt_(const Allocate* op) final {
+    handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
+    return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope ||
         op->attr_key == attr::device_scope) {
-      return SplitDeviceFunc(s);
+      return SplitDeviceFunc(GetRef<Stmt>(op));
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtMutator::VisitStmt_(op);
   }
 
   Array<LoweredFunc> Split(LoweredFunc f) {
@@ -185,9 +178,9 @@ class HostDeviceSplitter : public IRMutator {
       handle_data_type_[kv.first.get()] = kv.second;
     }
     name_ = f->name;
-    NodePtr<LoweredFuncNode> n =
-        make_node<LoweredFuncNode>(*f.operator->());
-    n->body = this->Mutate(f->body);
+    ObjectPtr<LoweredFuncNode> n =
+        make_object<LoweredFuncNode>(*f.operator->());
+    n->body = operator()(f->body);
     n->func_type = kHostFunc;
     Array<LoweredFunc> ret{LoweredFunc(n)};
     for (LoweredFunc x : device_funcs_) {
@@ -200,17 +193,17 @@ class HostDeviceSplitter : public IRMutator {
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
     os << name_ << "_kernel" << device_funcs_.size();
-    NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
+    ObjectPtr<LoweredFuncNode> n = make_object<LoweredFuncNode>();
     // isolate the device function.
     IRUseDefAnalysis m;
     m.visit_thread_extent_ = false;
-    n->body = m.Mutate(body);
+    n->body = m(std::move(body));
     n->name = os.str();
     n->func_type = kDeviceFunc;
     n->thread_axis = m.thread_axis_;
     // Strictly order the arguments: Var pointers, positional arguments.
     for (Var v : m.undefined_) {
-      if (v.type().is_handle()) {
+      if (v.dtype().is_handle()) {
         n->args.push_back(v);
         // mark handle data type.
         auto it = handle_data_type_.find(v.get());
@@ -220,7 +213,7 @@ class HostDeviceSplitter : public IRMutator {
       }
     }
     for (Var v : m.undefined_) {
-      if (!v.type().is_handle()) {
+      if (!v.dtype().is_handle()) {
         n->args.push_back(v);
       }
     }
@@ -235,7 +228,7 @@ class HostDeviceSplitter : public IRMutator {
     }
     device_funcs_.emplace_back(f_device);
     return Evaluate::make(Call::make(
-        Int(32), intrinsic::tvm_call_packed,
+        DataType::Int(32), intrinsic::tvm_call_packed,
         call_args, Call::Intrinsic));
   }
 
@@ -252,7 +245,7 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
   for (Var arg : args) {
     m.use_count_[arg.get()] = 0;
   }
-  m.Mutate(stmt);
+  m(stmt);
   return m.undefined_;
 }
 

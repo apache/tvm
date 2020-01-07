@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors.
  * \file tvm/relay/pass/dependency_graph.h
  * \brief create a dependency graph.
  */
@@ -55,7 +54,7 @@ class DependencyGraph {
   };
 
   /*! \brief Maps a Relay Expr to its node in the dependency graph. */
-  std::unordered_map<Expr, Node*, NodeHash, NodeEqual> expr_node;
+  std::unordered_map<Expr, Node*, ObjectHash, ObjectEqual> expr_node;
 
   /*! \brief The dependency graph in post DFS order. */
   std::vector<Node*> post_dfs_order;

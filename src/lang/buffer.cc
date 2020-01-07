@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file buffer.cc
  */
 #include <tvm/buffer.h>
@@ -43,10 +42,10 @@ Array<Expr> SimplifyArray(Array<Expr> array) {
 }
 
 Buffer decl_buffer(Array<Expr> shape,
-                   Type dtype,
+                   DataType dtype,
                    std::string name) {
   return BufferNode::make(
-      Var(name, Handle()),
+      Var(name, DataType::Handle()),
       dtype,
       shape,
       Array<Expr>(),
@@ -280,30 +279,30 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   return base;
 }
 
-inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, Type dtype) {
+inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, DataType dtype) {
   Expr offset = ElemOffset(n, index);
   if (n->dtype.lanes() != 1) {
-    offset = offset * make_const(offset.type(), dtype.lanes());
+    offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return ir::Ramp::make(offset, make_const(offset.type(), 1), dtype.lanes());
+    return ir::Ramp::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
 }
 
-Expr Buffer::vload(Array<Expr> begin, Type dtype) const {
-  // specially handle bool, stored as Int(8)
+Expr Buffer::vload(Array<Expr> begin, DataType dtype) const {
+  // specially handle bool, stored asDataType::Int(8)
   const BufferNode* n = operator->();
   CHECK(dtype.element_of() == n->dtype.element_of() &&
         dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
-  if (dtype == Bool()) {
+  if (dtype == DataType::Bool()) {
     return ir::Cast::make(
-        Bool(),
+        DataType::Bool(),
         ir::Load::make(
-            Int(8), n->data, BufferOffset(n, begin, Int(8)),
+            DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
             const_true()));
   } else {
     return ir::Load::make(
@@ -313,17 +312,17 @@ Expr Buffer::vload(Array<Expr> begin, Type dtype) const {
 }
 
 Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
-  // specially handle bool, stored as Int(8)
+  // specially handle bool, stored asDataType::Int(8)
   const BufferNode* n = operator->();
-  Type dtype = value.type();
+  DataType dtype = value.dtype();
   CHECK(dtype.element_of() == n->dtype.element_of() &&
         dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
-  if (value.type() == Bool()) {
+  if (value.dtype() == DataType::Bool()) {
     return ir::Store::make(n->data,
-                           ir::Cast::make(Int(8), value),
-                           BufferOffset(n, begin, Int(8)),
+                           ir::Cast::make(DataType::Int(8), value),
+                           BufferOffset(n, begin, DataType::Int(8)),
                            const_true());
   } else {
     return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
@@ -335,7 +334,7 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<Expr> temp;
-  auto n = make_node<BufferNode>(*operator->());
+  auto n = make_object<BufferNode>(*operator->());
   Expr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0 ; --i) {
     temp.push_back(acc);
@@ -382,7 +381,7 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           n->buffer_type);
 }
 
-Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr offset) const {
+Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, Expr offset) const {
   const BufferNode* self = operator->();
   Expr e_dtype;
   Expr extent;
@@ -397,21 +396,21 @@ Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr 
   Expr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = ir::TypeAnnotation(self->dtype.with_lanes(content_lanes));
-    extent = extent / make_const(self->elem_offset.type(), content_lanes);
-    elem_offset = self->elem_offset / make_const(self->elem_offset.type(),
+    extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
+    elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(),
                                                  content_lanes);
   } else {
     e_dtype = ir::TypeAnnotation(self->dtype);
   }
   Array<Expr> acc_args{
     e_dtype, self->data, elem_offset,
-        extent, make_const(Int(32), access_mask)};
+        extent, make_const(DataType::Int(32), access_mask)};
   return ir::Call::make(
       ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data,
-                        Type dtype,
+                        DataType dtype,
                         Array<Expr> shape,
                         Array<Expr> strides,
                         Expr elem_offset,
@@ -420,7 +419,7 @@ Buffer BufferNode::make(Var data,
                         int data_alignment,
                         int offset_factor,
                         BufferType buffer_type) {
-  auto n = make_node<BufferNode>();
+  auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
   n->shape = std::move(shape);
@@ -451,8 +450,8 @@ Buffer BufferNode::make(Var data,
   return Buffer(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BufferNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BufferNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const BufferNode*>(node.get());
     p->stream << "buffer(" << op->name << ", " << op << ")";
 });

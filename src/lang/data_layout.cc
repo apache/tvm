@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */
@@ -69,7 +68,7 @@ const LayoutAxis& LayoutAxis::make(const std::string& name) {
 }
 
 Layout::Layout(const Array<IterVar>& axes) {
-  auto node = make_node<LayoutNode>();
+  auto node = make_object<LayoutNode>();
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
@@ -90,7 +89,7 @@ Layout::Layout(const Array<IterVar>& axes) {
 Layout::Layout(const std::string& name) { // NOLINT(*)
   if (name == "__undef__") return;
 
-  auto node = make_node<LayoutNode>();
+  auto node = make_object<LayoutNode>();
   node->name = name;
 
   if (name.empty()) return;  // scalar
@@ -195,8 +194,8 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   return -1;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<LayoutNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<LayoutNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* l = static_cast<const LayoutNode*>(node.get());
     p->stream << "Layout(" << l->name << ")";
   });
@@ -348,7 +347,7 @@ Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
 
 BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
                                           const Layout& dst_layout) {
-  auto n = make_node<BijectiveLayoutNode>();
+  auto n = make_object<BijectiveLayoutNode>();
 
   n->src_layout = src_layout;
   n->dst_layout = dst_layout;
@@ -362,8 +361,8 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
   return BijectiveLayout(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
     p->stream << "BijectiveLayout(" << b->src_layout.name()
               << "->" << b->dst_layout.name() << ")";

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file yolo.cc
  * \brief Yolo related operators
  */
@@ -63,14 +62,14 @@ bool YoloReorgRel(const Array<Type>& types,
 
 Expr MakeYoloReorg(Expr data,
                    Integer stride) {
-  auto attrs = make_node<YoloReorgAttrs>();
+  auto attrs = make_object<YoloReorgAttrs>();
   attrs->stride = stride;
   static const Op& op = Op::Get("vision.yolo_reorg");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.yolo_reorg")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.yolo_reorg")
 .set_body_typed(MakeYoloReorg);
 
 

@@ -18,15 +18,14 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file lowered_func.cc
  */
 #include <tvm/lowered_func.h>
 
 namespace tvm {
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<LoweredFuncNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<LoweredFuncNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const LoweredFuncNode*>(node.get());
     p->stream << "LoweredFunc(" << op->name << ", " << op << ")";
 });

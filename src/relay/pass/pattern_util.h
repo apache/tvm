@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors.
  *
  * \file tvm/relay/pass/pattern_util.h
  * \brief Header of internal operator functions
@@ -47,37 +46,37 @@ namespace relay {
  *  during runtime.
  */
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == Float(64)) {                              \
+  if (type == DataType::Float(64)) {                              \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(32)) {                       \
+  } else if (type == DataType::Float(32)) {                       \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(16)) {                       \
+  } else if (type == DataType::Float(16)) {                       \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(64)) {                         \
+  } else if (type == DataType::Int(64)) {                         \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(32)) {                         \
+  } else if (type == DataType::Int(32)) {                         \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(16)) {                         \
+  } else if (type == DataType::Int(16)) {                         \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(8)) {                          \
+  } else if (type == DataType::Int(8)) {                          \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(64)) {                        \
+  } else if (type == DataType::UInt(64)) {                        \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(32)) {                        \
+  } else if (type == DataType::UInt(32)) {                        \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(16)) {                        \
+  } else if (type == DataType::UInt(16)) {                        \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(8)) {                         \
+  } else if (type == DataType::UInt(8)) {                         \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
@@ -105,9 +104,9 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
 
-  NodePtr<SqueezeAttrs> squeeze_attrs;
+  ObjectPtr<SqueezeAttrs> squeeze_attrs;
   if (rhs_value != nullptr) {
-    squeeze_attrs = make_node<SqueezeAttrs>();
+    squeeze_attrs = make_object<SqueezeAttrs>();
   }
 
   for (size_t i = 0; i < tlhs->shape.size(); ++i) {
@@ -150,7 +149,7 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
     if (i == axes.size()) {
       int64_t num_pad_axis = target_ndim - axes[i - 1]->value - 1;
       if (num_pad_axis > 0) {
-        auto attrs = make_node<ExpandDimsAttrs>();
+        auto attrs = make_object<ExpandDimsAttrs>();
         attrs->axis = i;
         attrs->num_newaxis = static_cast<int>(num_pad_axis);
         bias = CallNode::make(expand_dims, {bias}, Attrs(attrs), {});
@@ -159,7 +158,7 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
       int64_t diff = axes[i]->value - axes[i - 1]->value;
       CHECK_GE(diff, 0L);
       if (diff > 0) {
-        auto attrs = make_node<ExpandDimsAttrs>();
+        auto attrs = make_object<ExpandDimsAttrs>();
         attrs->axis = i;
         attrs->num_newaxis = static_cast<int>(diff);
         bias = CallNode::make(expand_dims, {bias}, Attrs(attrs), {});
@@ -201,6 +200,28 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
 }
 
 /*!
+ * \brief Is single value tensor (scalar).
+ * \param expr The expr.
+ * \return True if single value tensor.
+ */
+inline bool IsScalar(const Expr& expr) {
+  if (auto tensor_type = expr->checked_type().as<TensorTypeNode>()) {
+    for (auto dim_index_expr : tensor_type->shape) {
+      if (auto dim_index = dim_index_expr.as<IntImm>()) {
+        if (dim_index->value != 1) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
+/*!
  * \brief Create a Constant with a scalar
  *
  * \param dtype The data type.
@@ -209,9 +230,9 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
  */
 template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
-  runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
+  runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
-    if (dtype == Float(16)) {
+    if (dtype == DataType::Float(16)) {
       // convert to float16
       // storage is uint16_t
       *static_cast<DType*>(arr->data) =
@@ -264,13 +285,14 @@ inline Expr Log(Expr e) {
 template <typename T>
 T GetScalarFromConstant(Expr expr) {
   const auto* n = expr.as<ConstantNode>();
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
   CHECK(n->is_scalar());
   return static_cast<T*>(n->data->data)[0];
 }
 
 inline Expr Cast(Expr x, DataType dtype) {
   static const Op& op = Op::Get("cast");
-  auto attrs = make_node<CastAttrs>();
+  auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
   return CallNode::make(op, {x}, Attrs(attrs), {});
 }
@@ -301,7 +323,7 @@ inline Expr Round(Expr x) {
 
 inline Expr Clip(Expr x, double a_min, double a_max) {
   static const Op& op = Op::Get("clip");
-  auto attrs = make_node<ClipAttrs>();
+  auto attrs = make_object<ClipAttrs>();
   attrs->a_min = a_min;
   attrs->a_max = a_max;
   return CallNode::make(op, {x}, Attrs(attrs), {});
@@ -337,7 +359,7 @@ inline Expr ZerosLike(Expr e) {
 }
 
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
@@ -385,7 +407,7 @@ inline Expr Copy(Expr data) {
 
 
 inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_node<ReduceAttrs>();
+  auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
@@ -394,7 +416,7 @@ inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
 }
 
 inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_node<ReduceAttrs>();
+  auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
@@ -416,7 +438,7 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
 static inline Expr Full(Expr fill_value,
                         Array<IndexExpr> shape,
                         DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
@@ -427,7 +449,7 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
                           Array<IndexExpr> padding, Array<IndexExpr> dilation, int groups,
                           IndexExpr channels, Array<IndexExpr> kernel_size, std::string data_layout,
                           std::string kernel_layout, std::string out_layout, DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -446,7 +468,7 @@ static inline Expr Dense(Expr data,
                          Expr weight,
                          IndexExpr units,
                          DataType out_dtype) {
-  auto attrs = make_node<DenseAttrs>();
+  auto attrs = make_object<DenseAttrs>();
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
@@ -454,7 +476,7 @@ static inline Expr Dense(Expr data,
 }
 
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
-  auto attrs = make_node<ReduceAttrs>();
+  auto attrs = make_object<ReduceAttrs>();
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
@@ -463,7 +485,7 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
 }
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
-  auto attrs = make_node<ReshapeAttrs>();
+  auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
@@ -473,7 +495,7 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> padding, std::string layout, bool ceil_mode,
                              bool count_include_pad) {
-  auto attrs = make_node<AvgPool2DAttrs>();
+  auto attrs = make_object<AvgPool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -486,7 +508,7 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
                        std::string pad_mode) {
-  auto attrs = make_node<PadAttrs>();
+  auto attrs = make_object<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
@@ -495,7 +517,7 @@ static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) {
-  auto attrs = make_node<TileAttrs>();
+  auto attrs = make_object<TileAttrs>();
   attrs->reps = reps;
   static const Op& op = Op::Get("tile");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -509,7 +531,7 @@ Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array
 
 Expr MakeStack(Expr data, int axis);
 
-Expr MakeSplit(Expr data, NodeRef indices_or_sections, int axis);
+Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
 

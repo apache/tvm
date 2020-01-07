@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file aocl_module.cc
  */
 #include <dmlc/memory_io.h>
@@ -51,8 +50,7 @@ Module AOCLModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  std::shared_ptr<AOCLModuleNode> n =
-      std::make_shared<AOCLModuleNode>(data, fmt, fmap, source);
+  auto n = make_object<AOCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }

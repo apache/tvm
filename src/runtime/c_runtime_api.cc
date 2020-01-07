@@ -235,7 +235,14 @@ std::string NormalizeError(std::string err_msg) {
     if (!(is >> line)) return false;
     // get filename
     while (is.peek() == ' ') is.get();
+#ifdef _MSC_VER  // handle volume separator ":" in Windows path
+    std::string drive;
+    if (!getline(is, drive, ':')) return false;
     if (!getline(is, file_name, ':')) return false;
+    file_name = drive + ":" + file_name;
+#else
+    if (!getline(is, file_name, ':')) return false;
+#endif
     // get line number
     if (!(is >> line_number)) return false;
     // get rest of the message.

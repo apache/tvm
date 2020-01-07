@@ -29,7 +29,7 @@
 #include <tvm/relay/attrs/memory.h>
 
 #include "../op_common.h"
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -41,9 +41,9 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-TVM_REGISTER_API("relay.op.memory._make.alloc_storage")
-    .set_body_typed<Expr(Expr, Expr, DataType)>([](Expr size, Expr alignment, DataType dtype) {
-      auto attrs = make_node<AllocTensorAttrs>();
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
+    .set_body_typed([](Expr size, Expr alignment, DataType dtype) {
+      auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
       static const Op& op = Op::Get("memory.alloc_storage");
       return CallNode::make(op, {size, alignment}, Attrs(attrs), {});
@@ -55,12 +55,12 @@ bool AllocStorageRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   auto size_type = types[0];
   auto tensor_type = size_type.as<TensorTypeNode>();
   CHECK(tensor_type != nullptr);
-  CHECK_EQ(tensor_type->dtype, Int(64));
+  CHECK_EQ(tensor_type->dtype, DataType::Int(64));
   CHECK_EQ(tensor_type->shape.size(), 0);
   auto align_type = types[1];
   auto align_ttype = align_type.as<TensorTypeNode>();
   CHECK(align_ttype != nullptr);
-  CHECK_EQ(align_ttype->dtype, Int(64));
+  CHECK_EQ(align_ttype->dtype, DataType::Int(64));
   CHECK_EQ(align_ttype->shape.size(), 0);
   auto mod = reporter->GetModule();
   CHECK(mod.defined());
@@ -87,10 +87,10 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                              return {topi::identity(inputs[0])};
                            });
 
-TVM_REGISTER_API("relay.op.memory._make.alloc_tensor")
-    .set_body_typed<Expr(Expr, Expr, DataType, Array<IndexExpr> assert_shape)>(
+TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
+    .set_body_typed(
         [](Expr storage, tvm::relay::Expr shape, DataType dtype, Array<IndexExpr> assert_shape) {
-          auto attrs = make_node<AllocTensorAttrs>();
+          auto attrs = make_object<AllocTensorAttrs>();
           attrs->dtype = dtype;
           if (assert_shape.defined()) {
             attrs->assert_shape = assert_shape;
@@ -208,8 +208,8 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-TVM_REGISTER_API("relay.op.memory._make.invoke_tvm_op")
-    .set_body_typed<Expr(Expr, Expr, Expr)>(
+TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
+    .set_body_typed(
         [](Expr func, Expr inputs, Expr outputs) {
           return CallNode::make(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
         });
@@ -256,11 +256,11 @@ RELAY_REGISTER_OP("memory.kill")
                              return {topi::identity(inputs[0])};
                            });
 
-TVM_REGISTER_API("relay.op.memory._make.shape_func")
-    .set_body_typed<Expr(Expr, Expr, Expr, Array<tvm::Integer>)>(
+TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
+    .set_body_typed(
       [](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
       static const Op& op = Op::Get("memory.shape_func");
-      auto attrs = make_node<ShapeFuncAttrs>();
+      auto attrs = make_object<ShapeFuncAttrs>();
       attrs->is_input = is_input;
       return CallNode::make(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
@@ -309,13 +309,13 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);
-      shape_func_ins.push_back(TensorTypeNode::make(shape, Int(64)));
+      shape_func_ins.push_back(TensorTypeNode::make(shape, DataType::Int(64)));
     }
   }
 
   for (auto out_type : out_types) {
     auto rank_shape = RankShape(out_type->shape);
-    shape_func_outs.push_back(TensorTypeNode::make(rank_shape, Int(64)));
+    shape_func_outs.push_back(TensorTypeNode::make(rank_shape, DataType::Int(64)));
   }
 
   auto input_type = TupleTypeNode::make(shape_func_ins);

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/attrs/reduce.h
  * \brief Auxiliary attributes for reduce operators.
  */

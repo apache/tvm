@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */
@@ -27,8 +26,8 @@
 namespace tvm {
 
 // PlaceholderOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const PlaceholderOpNode*>(node.get());
     p->stream << "placeholder(" << op->name << ", " << op << ")";
 });
@@ -43,7 +42,7 @@ Array<IterVar> PlaceholderOpNode::root_iter_vars() const {
   return {};
 }
 
-Type PlaceholderOpNode::output_dtype(size_t i) const {
+DataType PlaceholderOpNode::output_dtype(size_t i) const {
   CHECK_EQ(i, 0U);
   return dtype;
 }
@@ -55,15 +54,15 @@ Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
 
 Operation PlaceholderOpNode::make(std::string name,
                                   Array<Expr> shape,
-                                  Type dtype) {
-  auto n = make_node<PlaceholderOpNode>();
+                                  DataType dtype) {
+  auto n = make_object<PlaceholderOpNode>();
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
   return Operation(n);
 }
 
-Tensor placeholder(Array<Expr> shape, Type dtype, std::string name) {
+Tensor placeholder(Array<Expr> shape, DataType dtype, std::string name) {
   return PlaceholderOpNode::make(name, shape, dtype).output(0);
 }
 

@@ -31,10 +31,29 @@ def test_coproc_lift():
             with ib.for_range(0, 10, name="j") as j:
                 ib.scope_attr(cp, "coproc_uop_scope", value)
                 A[j] = A[j] + 2
+                A[j] = A[j] + 3
+                A[j] = A[j] + 3
     body = ib.get()
     body = tvm.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
     assert body.body.body.node == cp
 
+    # only able to lift to the common pattern of the last two fors.
+    ib = tvm.ir_builder.create()
+    A = ib.allocate("float32", n, name="A", scope="global")
+    with ib.for_range(0, n, name="i") as i:
+        with ib.for_range(0, 10, name="j") as j:
+            A[j] = A[j] + 1
+        with ib.for_range(0, 10, name="j") as j:
+            ib.scope_attr(cp, "coproc_uop_scope", value)
+            A[i] = A[i] + 1
+        with ib.for_range(0, 10, name="j") as j:
+            ib.scope_attr(cp, "coproc_uop_scope", value)
+            A[i] = A[i] + 2
+
+    body = ib.get()
+    body = tvm.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
+    assert body.body.body.body[1].node == cp
+    assert len(body.body.body.body) == 2
 
 if __name__ == "__main__":
     test_coproc_lift()

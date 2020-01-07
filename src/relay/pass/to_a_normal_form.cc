@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file to_a_normal_form.cc
  *
@@ -111,7 +110,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  private:
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo;
+  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo;
 
   Fill(const DependencyGraph& dg,
        std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) :
@@ -329,7 +328,7 @@ Pass ToANormalForm() {
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToANormalForm")
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm")
 .set_body_typed(ToANormalForm);
 
 }  // namespace transform

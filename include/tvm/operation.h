@@ -60,7 +60,7 @@ class OperationNode : public ir::FunctionBaseNode {
   /*! \brief optional tag of the operation */
   std::string tag;
   /*! \brief additional attributes of the operation*/
-  Map<std::string, NodeRef> attrs;
+  Map<std::string, ObjectRef> attrs;
   /*! \return name of the operation */
   const std::string& func_name() const final {
     return name;
@@ -75,7 +75,7 @@ class OperationNode : public ir::FunctionBaseNode {
    * \param i The output index.
    * \return type of i-th output.
    */
-  virtual Type output_dtype(size_t i) const = 0;
+  virtual DataType output_dtype(size_t i) const = 0;
   /*!
    * \brief Get shape of i-th output tensor.
    * \param i The output index.
@@ -149,7 +149,7 @@ class OperationNode : public ir::FunctionBaseNode {
 
   static constexpr const char* _type_key = "Operation";
 
-  TVM_DECLARE_BASE_NODE_INFO(OperationNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(OperationNode, Object);
 };
 
 /*!
@@ -160,11 +160,11 @@ class PlaceholderOpNode : public OperationNode {
   /*! \brief The shape of the input */
   Array<Expr> shape;
   /*! \brief The data type of the input. */
-  Type dtype;
+  DataType dtype;
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -197,10 +197,10 @@ class PlaceholderOpNode : public OperationNode {
   }
   static Operation make(std::string name,
                         Array<Expr> shape,
-                        Type dtype);
+                        DataType dtype);
 
   static constexpr const char* _type_key = "PlaceholderOp";
-  TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PlaceholderOpNode, OperationNode);
 };
 
 /*!
@@ -228,7 +228,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   virtual size_t num_schedulable_dims() const = 0;
 
   static constexpr const char* _type_key = "BaseComputeOp";
-  TVM_DECLARE_BASE_NODE_INFO(BaseComputeOpNode, OperationNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
 };
 
 
@@ -243,7 +243,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   ComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -269,12 +269,12 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   }
   static Operation make(std::string name,
                         std::string tag,
-                        Map<std::string, NodeRef> attrs,
+                        Map<std::string, ObjectRef> attrs,
                         Array<IterVar> axis,
                         Array<Expr> body);
 
   static constexpr const char* _type_key = "ComputeOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ComputeOpNode, BaseComputeOpNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
@@ -296,7 +296,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   TensorComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -334,7 +334,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
                         Array<Expr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorComputeOp";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, BaseComputeOpNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorComputeOpNode, BaseComputeOpNode);
 };
 
 /*!
@@ -370,7 +370,7 @@ class ScanOpNode : public OperationNode {
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -407,7 +407,7 @@ class ScanOpNode : public OperationNode {
   }
   static Operation make(std::string name,
                         std::string tag,
-                        Map<std::string, NodeRef> attrs,
+                        Map<std::string, ObjectRef> attrs,
                         IterVar axis,
                         Array<Tensor> init,
                         Array<Tensor> update,
@@ -415,7 +415,7 @@ class ScanOpNode : public OperationNode {
                         Array<Tensor> input);
 
   static constexpr const char* _type_key = "ScanOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ScanOpNode, OperationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScanOpNode, OperationNode);
 };
 
 /*!
@@ -437,7 +437,7 @@ class ExternOpNode : public OperationNode {
   // override functions
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -472,14 +472,14 @@ class ExternOpNode : public OperationNode {
   }
   TVM_DLL static Operation make(std::string name,
                                std::string tag,
-                               Map<std::string, NodeRef> attrs,
+                               Map<std::string, ObjectRef> attrs,
                                Array<Tensor> inputs,
                                Array<Buffer> input_placeholders,
                                Array<Buffer> output_placeholders,
                                Stmt body);
 
   static constexpr const char* _type_key = "ExternOp";
-  TVM_DECLARE_NODE_TYPE_INFO(ExternOpNode, OperationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExternOpNode, OperationNode);
 };
 
 /*!
@@ -505,7 +505,7 @@ class HybridOpNode : public OperationNode {
   // override functions
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
-  Type output_dtype(size_t i) const final;
+  DataType output_dtype(size_t i) const final;
   Array<Expr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
@@ -540,13 +540,13 @@ class HybridOpNode : public OperationNode {
   }
   TVM_DLL static Operation make(std::string name,
                                 std::string tag,
-                                Map<std::string, NodeRef> attrs,
+                                Map<std::string, ObjectRef> attrs,
                                 Array<Tensor> inputs,
                                 Array<Tensor> outputs,
                                 Stmt body);
 
   static constexpr const char* _type_key = "HybridOp";
-  TVM_DECLARE_NODE_TYPE_INFO(HybridOpNode, OperationNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(HybridOpNode, OperationNode);
 };
 
 /*! \brief The compute function to specify the input source of a Tensor */
@@ -562,7 +562,7 @@ using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
  * \param name The name of the Tensor.
  */
 TVM_DLL Tensor placeholder(Array<Expr> shape,
-                           Type dtype = Float(32),
+                           DataType dtype = DataType::Float(32),
                            std::string name = "placeholder");
 
 /*!
@@ -578,7 +578,7 @@ TVM_DLL Tensor compute(Array<Expr> shape,
                        FCompute fcompute,
                        std::string name = "tensor",
                        std::string tag = "",
-                       Map<std::string, NodeRef> attrs = {});
+                       Map<std::string, ObjectRef> attrs = {});
 
 /*!
  * \brief Construct a new tensor by computing over shape,
@@ -593,7 +593,7 @@ TVM_DLL Array<Tensor> compute(Array<Expr> shape,
                               FBatchCompute fcompute,
                               std::string name = "tensor",
                               std::string tag = "",
-                              Map<std::string, NodeRef> attrs = {});
+                              Map<std::string, ObjectRef> attrs = {});
 
 /*!
  * \brief Construct new tensors by scan.
@@ -613,14 +613,14 @@ TVM_DLL Array<Tensor> scan(Array<Tensor> init,
                            Array<Tensor> inputs = Array<Tensor>(),
                            std::string name = "scan",
                            std::string tag = "",
-                           Map<std::string, NodeRef> attrs = {});
+                           Map<std::string, ObjectRef> attrs = {});
 
 // same as compute, specialized for different fcompute function
 inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
-                      Map<std::string, NodeRef> attrs = {}) {
+                      Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
   return compute(shape, fc, name, tag, attrs);
 }
@@ -628,7 +628,7 @@ inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
-                      Map<std::string, NodeRef> attrs = {}) {
+                      Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
   return compute(shape, fc, name, tag, attrs);
 }
@@ -636,7 +636,7 @@ inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
-                      Map<std::string, NodeRef> attrs = {}) {
+                      Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
   return  compute(shape, fc, name, tag, attrs);
 }
@@ -644,7 +644,7 @@ inline Tensor compute(Array<Expr> shape,
                       std::function<Expr(Var, Var, Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
-                      Map<std::string, NodeRef> attrs = {}) {
+                      Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
   return compute(shape, fc, name, tag, attrs);
 }

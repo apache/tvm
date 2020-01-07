@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/const_int_bound.cc
  */
 #include <tvm/arithmetic.h>
@@ -36,7 +35,7 @@ TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
 ConstIntBound::ConstIntBound(
     int64_t min_value, int64_t max_value) {
-  auto node = make_node<ConstIntBoundNode>();
+  auto node = make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -52,8 +51,8 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ConstIntBoundNode*>(node.get());
     p->stream << "ConstIntBound[";
     PrintBoundValue(p->stream, op->min_value);
@@ -124,9 +123,9 @@ class ConstIntBoundAnalyzer::Impl :
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Node* op) final {
+  Entry VisitExprDefault_(const Object* op) final {
     return Everything(
-        static_cast<const ExprNode*>(op)->type);
+        static_cast<const ExprNode*>(op)->dtype);
   }
 
   Entry VisitExpr(const Expr& expr) final {
@@ -143,7 +142,7 @@ class ConstIntBoundAnalyzer::Impl :
 
   Entry VisitExpr_(const Cast* op) final {
     Entry a = VisitExpr(op->value);
-    Entry b = Everything(op->type);
+    Entry b = Everything(op->dtype);
     return Intersect(a, b);
   }
 
@@ -155,7 +154,7 @@ class ConstIntBoundAnalyzer::Impl :
     if (op->value <= static_cast<uint64_t>(kPosInf)) {
       return MakeBound(op->value, op->value);
     } else {
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -212,7 +211,7 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -243,7 +242,7 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -279,7 +278,7 @@ class ConstIntBoundAnalyzer::Impl :
     } else if (op->is_intrinsic(Call::bitwise_and)) {
       return VisitBitwiseAnd(op);
     } else {
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -289,7 +288,7 @@ class ConstIntBoundAnalyzer::Impl :
     if (it != var_map_.end()) {
       return it->second;
     } else {
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -312,7 +311,7 @@ class ConstIntBoundAnalyzer::Impl :
       if (a.min_value >= 0) {
         return MakeBound(0, a.max_value);
       }
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
@@ -467,7 +466,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \param dtype The data type.
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Everything(Type dtype) {
+  static Entry Everything(DataType dtype) {
     if (!dtype.is_int() && !dtype.is_uint()) {
       return MakeBound(kNegInf, kPosInf);
     }

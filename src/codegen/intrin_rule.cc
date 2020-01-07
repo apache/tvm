@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_default.cc
  * \brief Default intrinsic rules.
  */
@@ -58,7 +57,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
     const Call* call = e.as<Call>();
     CHECK(call != nullptr);
 
-    auto one = make_const(call->args[0].type(), 1);
+    auto one = make_const(call->args[0].dtype(), 1);
     *rv = one / sqrt(call->args[0]);
   });
 
@@ -71,7 +70,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
     const Call* call = e.as<Call>();
     CHECK(call != nullptr);
 
-    auto one = make_const(call->args[0].type(), 1);
+    auto one = make_const(call->args[0].dtype(), 1);
     *rv = one / (one + exp(-call->args[0]));
   });
 

@@ -47,11 +47,11 @@ static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
-    auto* min_value = as_const_int(dtype.min());
+    auto* min_value = as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else if (dtype.is_uint()) {
-    auto* min_value = as_const_uint(dtype.min());
+    auto* min_value = as_const_uint(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
@@ -64,11 +64,11 @@ static inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int()) {
-    auto* max_value = as_const_int(dtype.max());
+    auto* max_value = as_const_int(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else if (dtype.is_uint()) {
-    auto* max_value = as_const_uint(dtype.max());
+    auto* max_value = as_const_uint(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
@@ -77,21 +77,20 @@ static inline const int32_t GetQmax(const DataType& dtype) {
   }
 }
 
-Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
+Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
+                     const Expr& input_zero_point, const Expr& output_scale,
+                     const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype);
 
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
-                              double input_scale, int32_t input_zero_point, double output_scale,
-                              int32_t output_zero_point, const DataType& out_dtype,
-                              const std::string& rounding = "UPWARD") {
-  auto attrs = make_node<RequantizeAttrs>();
-  attrs->input_scale = std::move(input_scale);
-  attrs->input_zero_point = std::move(input_zero_point);
-  attrs->output_scale = std::move(output_scale);
-  attrs->output_zero_point = std::move(output_zero_point);
+                              const Expr& input_scale, const Expr& input_zero_point,
+                              const Expr& output_scale, const Expr& output_zero_point,
+                              const DataType& out_dtype, const std::string& rounding = "UPWARD") {
+  auto attrs = make_object<RequantizeAttrs>();
   attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
-  return RequantizeLower(data, attrs.operator->(), input_shape, out_dtype);
+  return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
+                         attrs.operator->(), input_shape, out_dtype);
 }
 
 static inline int64_t get_const_int(const tvm::Expr& x) {
@@ -122,9 +121,21 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMultiply(Expr tensor, double multiplier,
-                        const Array<IndexExpr>& input_shape,
+Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
                         const std::string& rounding);
+
+/*
+ * \brief Checks whether an expr type is scalar of a given data type.
+ * \param expr_type The type of expr to be checked.
+ * \param dtype The expected dtype.
+ * \return True if the type is a scalar of given dtype
+ */
+static inline bool IsScalarType(const Type& expr_type, const DataType& dtype) {
+  const auto* scale = expr_type.as<TensorTypeNode>();
+  CHECK_EQ(scale->shape.size(), 0);
+  CHECK(scale->dtype == dtype) << "Expected " << dtype << " but got " << scale->dtype;
+  return true;
+}
 
 }  // namespace qnn
 }  // namespace relay

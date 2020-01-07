@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file nn.cc
  * \brief Property def of nn operators.
  */
@@ -56,7 +55,7 @@ RELAY_REGISTER_OP("debug")
 .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
 Expr MakeDebug(Expr expr, std::string name) {
-  auto dattrs = make_node<DebugAttrs>();
+  auto dattrs = make_object<DebugAttrs>();
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
   } else {
@@ -66,7 +65,7 @@ Expr MakeDebug(Expr expr, std::string name) {
   return CallNode::make(op, {expr}, Attrs(dattrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.debug")
+TVM_REGISTER_GLOBAL("relay.op._make.debug")
 .set_body_typed(MakeDebug);
 
 }  // namespace relay

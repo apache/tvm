@@ -46,10 +46,10 @@ def test_qnn_legalize():
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56), dtype='int8')
         y = relay.qnn.op.requantize(x,
-                                    input_scale=1,
-                                    input_zero_point=0,
-                                    output_scale=1,
-                                    output_zero_point=0,
+                                    input_scale=relay.const(1, 'float32'),
+                                    input_zero_point=relay.const(0, 'int32'),
+                                    output_scale=relay.const(1, 'float32'),
+                                    output_zero_point=relay.const(0, 'int32'),
                                     out_dtype='int8')
         y = relay.Function([x], y)
         return y
@@ -58,10 +58,10 @@ def test_qnn_legalize():
         data = inputs[0]
         data = relay.add(relay.const(0, 'int8'), data)
         y = relay.qnn.op.requantize(data,
-                                    input_scale=1,
-                                    input_zero_point=0,
-                                    output_scale=1,
-                                    output_zero_point=0,
+                                    input_scale=relay.const(1, 'float32'),
+                                    input_zero_point=relay.const(0, 'int32'),
+                                    output_scale=relay.const(1, 'float32'),
+                                    output_zero_point=relay.const(0, 'int32'),
                                     out_dtype='int8')
         return y
 
@@ -69,10 +69,10 @@ def test_qnn_legalize():
         x = relay.var("x", shape=(1, 64, 56, 56), dtype='int8')
         y = relay.add(relay.const(0, 'int8'), x)
         z = relay.qnn.op.requantize(y,
-                                    input_scale=1,
-                                    input_zero_point=0,
-                                    output_scale=1,
-                                    output_zero_point=0,
+                                    input_scale=relay.const(1, 'float32'),
+                                    input_zero_point=relay.const(0, 'int32'),
+                                    output_scale=relay.const(1, 'float32'),
+                                    output_zero_point=relay.const(0, 'int32'),
                                     out_dtype='int8')
         z = relay.Function([x], z)
         return z
@@ -102,10 +102,10 @@ def test_qnn_legalize_qnn_conv2d():
                 dtype=kernel_dtype)
         func = relay.qnn.op.conv2d(
                 data, kernel,
-                input_zero_point=1,
-                kernel_zero_point=1,
-                input_scale=1.0,
-                kernel_scale=1.0,
+                input_zero_point=relay.const(1, 'int32'),
+                kernel_zero_point=relay.const(1, 'int32'),
+                input_scale=relay.const(1.0, 'float32'),
+                kernel_scale=relay.const(1.0, 'float32'),
                 kernel_size=(3, 3),
                 strides=(1, 1),
                 dilation=(1, 1),
@@ -186,10 +186,10 @@ def test_qnn_legalize_qnn_dense():
                 dtype=kernel_dtype)
         func = relay.qnn.op.dense(
                 data, kernel,
-                input_zero_point=1,
-                kernel_zero_point=1,
-                input_scale=1,
-                kernel_scale=1,
+                input_zero_point=relay.const(1, 'int32'),
+                kernel_zero_point=relay.const(1, 'int32'),
+                input_scale=relay.const(1, 'float32'),
+                kernel_scale=relay.const(1, 'float32'),
                 out_dtype='int32')
 
         mod = relay.Function(relay.analysis.free_vars(func), func)

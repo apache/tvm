@@ -96,7 +96,7 @@ the arguments to the call node, as below.
 
 .. code:: c
 
-    TVM_REGISTER_API("relay.op._make.add")
+    TVM_REGISTER_GLOBAL("relay.op._make.add")
         .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
             static const Op& op = Op::Get("add");
           return CallNode::make(op, {lhs, rhs}, Attrs(), {});
@@ -106,7 +106,7 @@ Including a Python API Hook
 ---------------------------
 
 It is generally the convention in Relay, that functions exported
-through ``TVM_REGISTER_API`` should be wrapped in a separate
+through ``TVM_REGISTER_GLOBAL`` should be wrapped in a separate
 Python function rather than called directly in Python. In the case
 of the functions that produce calls to operators, it may be convenient
 to bundle them, as in ``python/tvm/relay/op/tensor.py``, where

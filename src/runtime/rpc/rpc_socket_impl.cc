@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_socket_impl.cc
  * \brief Socket based RPC implementation.
  */

@@ -109,7 +109,7 @@ class PassContextNode : public RelayNode {
   }
 
   static constexpr const char* _type_key = "relay.PassContext";
-  TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, RelayNode);
 };
 
 /*!
@@ -125,10 +125,10 @@ class PassContextNode : public RelayNode {
  *
  * \endcode
  */
-class PassContext : public NodeRef {
+class PassContext : public ObjectRef {
  public:
   PassContext() {}
-  explicit PassContext(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  explicit PassContext(ObjectPtr<::tvm::Object> n) : ObjectRef(n) {}
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -207,10 +207,13 @@ class PassInfoNode : public RelayNode {
                                tvm::Array<tvm::Expr> required);
 
   static constexpr const char* _type_key = "relay.PassInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(PassInfoNode, RelayNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, RelayNode);
 };
 
-TVM_DEFINE_NODE_REF(PassInfo, PassInfoNode)
+class PassInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
+};
 
 class Pass;
 
@@ -251,10 +254,10 @@ class PassNode : public RelayNode {
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.Pass";
-  TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(PassNode, RelayNode);
 };
 
-class Pass : public NodeRef {
+class Pass : public ObjectRef {
  public:
   /*!
    * \brief Transform mod using the default PassContext in the current scope.
@@ -283,7 +286,7 @@ class Pass : public NodeRef {
     return node->operator()(mod, pass_ctx);
   }
 
-  TVM_DEFINE_NODE_REF_METHODS(Pass, NodeRef, PassNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
 };
 
 class SequentialNode;
@@ -309,7 +312,7 @@ class Sequential : public Pass {
   TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
 
   Sequential() = default;
-  explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
+  explicit Sequential(tvm::ObjectPtr<::tvm::Object> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = Sequential;
@@ -533,6 +536,26 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
+ * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
+ * at the start and one at the end.
+ *
+ * This pass is not a part of relay.build and is expected to be called between framework-relay
+ * parser and relay.build call. This is very helpful for hardware backends that support/prefer only
+ * type of data layout.
+ *
+ * RFC - https://discuss.tvm.ai/t/layout-conversion-pass/4009
+ *
+ * This pass uses most of the AlterOpLayout and InferCorrectLayout infrastructure. We can define new
+ * layouts for conv2d ops for now. Most of the other operators try to adapt to their input layout
+ * using the InferCorrectLayout infrastructure.
+ *
+ * \param desired_layout The desired layout.
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+
+/*!
  * \brief Legalizes an expr with another expression.
  * \param legalize_map_attr_name The Op's attr name which corresponds to the legalize rule function.
  * One can collect and isolate similar type of legalize transformations using this param. For
@@ -618,7 +641,7 @@ TVM_DLL Function InferType(const Function& f,
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             const std::string& rewrite_map_attr_name,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
@@ -635,7 +658,7 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr,
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             const FForwardRewrite& rewrite_func,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!

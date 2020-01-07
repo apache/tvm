@@ -14,13 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-"""uTVM module for bare-metal backends.
-
-uTVM (or the micro backend) enables provides support for bare-metal devices.
-Its targets currently include a host-emulated device which is used for testing,
-and JTAG-based openocd device which allows actual interfacing with microdevices.
-"""
+"""MicroTVM module for bare-metal backends"""
 
 from ..contrib import binutil
-from .base import Session, cross_compiler, create_micro_lib
+from .base import Session, create_micro_mod, cross_compiler
+from .base import LibType, get_micro_host_driven_dir, get_micro_device_dir
+from . import device

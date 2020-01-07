@@ -31,8 +31,8 @@ namespace tvm {
 
 using namespace ir;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ScanOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ScanOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ScanOpNode*>(node.get());
     p->stream << "scan(" << op->name << ", " << op << ")";
 });
@@ -53,7 +53,7 @@ Array<IterVar> ScanOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ScanOpNode::output_dtype(size_t i) const {
+DataType ScanOpNode::output_dtype(size_t i) const {
   return update[i]->dtype;
 }
 
@@ -64,16 +64,16 @@ Array<Expr> ScanOpNode::output_shape(size_t i) const {
 
 Operation ScanOpNode::make(std::string name,
                            std::string tag,
-                           Map<std::string, NodeRef> attrs,
+                           Map<std::string, ObjectRef> attrs,
                            IterVar axis,
                            Array<Tensor> init,
                            Array<Tensor> update,
                            Array<Tensor> state_placeholder,
                            Array<Tensor> inputs) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, NodeRef>();
+    attrs = Map<std::string, ObjectRef>();
   }
-  auto n = make_node<ScanOpNode>();
+  auto n = make_object<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
   CHECK_EQ(init.size(), state_placeholder.size());
 
@@ -126,7 +126,7 @@ Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> inputs,
                    std::string name,
                    std::string tag,
-                   Map<std::string, NodeRef> attrs) {
+                   Map<std::string, ObjectRef> attrs) {
   IterVar scan_axis =
       IterVarNode::make(
           Range::make_by_min_extent(
@@ -157,7 +157,7 @@ Operation ScanOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = make_node<ScanOpNode>(*this);
+  auto n = make_object<ScanOpNode>(*this);
   for (size_t i = 0; i < n->init.size(); ++i) {
     if (rmap.count(n->init[i])) {
       n->init.Set(i, rmap.at(n->init[i]));

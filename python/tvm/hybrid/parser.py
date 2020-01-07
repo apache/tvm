@@ -37,6 +37,8 @@ from ..tensor import Tensor, Operation
 from .. import _api_internal as _tvm_internal
 from .. import expr as _expr
 from .. import make as _make
+from .. import stmt as _stmt
+
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
@@ -48,11 +50,7 @@ def concat_list_to_block(lst):
     n = len(lst)
     if n == 1:
         return lst[0]
-    body = lst[n - 1]
-    for i in range(1, n):
-        stmt = lst[n - 1 - i]
-        body = _make.Block(stmt, body)
-    return body
+    return _stmt.SeqStmt(lst)
 
 
 def visit_list_to_block(visit, lst):
@@ -647,9 +645,15 @@ def source_to_op(src, args, symbols, closure_vars):
     parser = parse_python(src, args, symbols, closure_vars)
 
     input_tensors = []
+    def get_input_tensors(arg):
+        if isinstance(arg, Tensor):
+            input_tensors.append(arg)
+        elif isinstance(arg, Array):
+            for i in arg:
+                get_input_tensors(i)
+
     for i in args:
-        if isinstance(i, Tensor):
-            input_tensors.append(i)
+        get_input_tensors(i)
     op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
                                  parser.outputs, parser.parsed_body)
     res = [op.output(i) for i in range(len(parser.outputs))]

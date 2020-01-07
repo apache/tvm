@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/backend/vm/inline_primitives.cc
  * \brief Ensure that primitives only appear in the call position.
  */
@@ -54,7 +53,7 @@ namespace vm {
  */
 struct PrimitiveInliner : ExprMutator {
   Module module_;
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> var_map;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
 
   explicit PrimitiveInliner(const Module& module) : module_(module) {}
 
@@ -143,7 +142,7 @@ Pass InlinePrimitives() {
   return Sequential({inline_pass, DeadCodeElimination()}, "InlinePrimitives");
 }
 
-TVM_REGISTER_API("relay._transform.InlinePrimitives")
+TVM_REGISTER_GLOBAL("relay._transform.InlinePrimitives")
 .set_body_typed(InlinePrimitives);
 
 }  // namespace transform

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-arguments
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -142,7 +142,6 @@ def _find_conv2d_op(op):
             return op_
     return None
 
-
 @reg.register_compute("nn.conv2d")
 def compute_conv2d(attrs, inputs, out_type, target):
     """Compute definition of conv2d"""
@@ -163,9 +162,17 @@ def compute_conv2d(attrs, inputs, out_type, target):
 
     def _get_out_depth():
         weight_shape = get_const_tuple(inputs[1].shape)
+        # NHWC layout
         if kernel_layout.startswith("HW"):
             return weight_shape[2] * weight_shape[3]
-        return weight_shape[0] * weight_shape[1]
+        # NCHW layout.
+        # in ARM CPU contrib_spatial_pack schedule, we will prepack weight layout
+        if len(weight_shape) == 4:
+            return weight_shape[0] * weight_shape[1]
+        else:
+            assert len(weight_shape) == 5
+            C, M, _, _, VC = weight_shape
+            return C * VC * M
 
     if groups == 1:
         out = topi.nn.conv2d(
@@ -245,6 +252,47 @@ def legalize_conv2d(attrs, inputs, types):
     """
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
+
+@reg.register_convert_op_layout("nn.conv2d")
+def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+    """Convert Layout pass registration for conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layout : str
+        The desired layout
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+
+    from tvm import relay
+    data_layout = attrs['data_layout']
+    kernel_layout = attrs['kernel_layout']
+    data, weight = inputs
+    assert desired_layout == 'NCHW', \
+            "Currently only transformation to NCHW layout is supported."
+    if desired_layout == 'NCHW':
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = desired_layout
+        new_attrs['kernel_layout'] = 'OIHW'
+
+        if data_layout == 'NHWC' and kernel_layout == 'HWIO':
+            # Convert (NHWC, HWIO) to (NCHW, OIHW)
+            return relay.nn.conv2d(data, weight, **new_attrs)
+        if data_layout == 'NHWC' and kernel_layout == 'HWOI':
+            # Convert (NHWC, HWOI) to (NCHW, OIHW). Depthwise conv2d.
+            return relay.nn.conv2d(data, weight, **new_attrs)
+    return None
+
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -269,6 +317,50 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     out = topi.nn.pad(out,
                       [0, 0, 0, 0], [0, 0, output_padding[0], output_padding[1]])
     return [out]
+
+
+@reg.register_compute("nn.conv3d")
+def compute_conv3d(attrs, inputs, out_type, target):
+    """Compute definition of conv3d"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCDHW", "NDHWC"]
+    (dilation_d, dilation_h, dilation_w) = dilation
+    if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if groups == 1:
+        out = topi.nn.conv3d(
+            inputs[0], inputs[1], strides, padding,
+            dilation, layout, out_dtype)
+    else:
+        raise ValueError("not support arbitrary group number for now")
+    return [out]
+
+
+@reg.register_schedule("nn.conv3d")
+def schedule_conv3d(attrs, outs, target):
+    """Schedule definition of conv3d"""
+    groups = attrs.groups
+    layout = attrs.data_layout
+
+    with target:
+        if groups == 1 and layout == "NCDHW":
+            return topi.generic.schedule_conv3d_ncdhw(outs)
+        elif groups == 1 and layout == "NDHWC":
+            return topi.generic.schedule_conv3d_ndhwc(outs)
+
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 @reg.register_schedule("nn.conv2d_transpose")
@@ -300,6 +392,37 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 
 reg.register_pattern("nn.conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# conv1d_transpose
+@reg.register_compute("nn.conv1d_transpose")
+def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
+    """Compute definition of conv1d_transpose"""
+    padding = get_const_tuple(attrs.padding)
+    strides = get_const_tuple(attrs.strides)
+    dilation = get_const_tuple(attrs.dilation)
+    groups = attrs.groups
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+    assert layout == "NCW", "conv1d_transpose ncw only supported"
+    assert dilation == (1,), "conv1d_transpose dilation is not supported"
+    assert groups == 1, "conv1d_transpose groups == 1 only supported"
+    out = topi.nn.conv1d_transpose_ncw(
+        inputs[0], inputs[1], strides, padding, out_dtype)
+    output_padding = get_const_tuple(attrs.output_padding)
+    out = topi.nn.pad(out,
+                      [0, 0, 0], [0, 0, output_padding[0]])
+    return [out]
+
+
+@reg.register_schedule("nn.conv1d_transpose")
+def schedule_conv1d_transpose(attrs, outs, target):
+    """Schedule definition of conv1d_transpose"""
+    with target:
+        return topi.generic.schedule_conv1d_transpose_ncw(outs)
+
+reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
+
 # bias_add
 reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
@@ -317,6 +440,18 @@ def schedule_max_pool2d(attrs, outs, target):
 reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# max_pool3d
+@reg.register_schedule("nn.max_pool3d")
+def schedule_max_pool3d(attrs, outs, target):
+    """Schedule definition of max_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # avg_pool2d
 @reg.register_schedule("nn.avg_pool2d")
 def schedule_avg_pool2d(attrs, outs, target):
@@ -325,8 +460,19 @@ def schedule_avg_pool2d(attrs, outs, target):
     with target:
         return topi.generic.schedule_pool(outs, layout)
 
-
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool3d
+@reg.register_schedule("nn.avg_pool3d")
+def schedule_avg_pool3d(attrs, outs, target):
+    """Schedule definition of avg_pool3d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # max_pool2d_grad
@@ -438,6 +584,25 @@ def compute_upsampling(attrs, inputs, out_dtype, target):
     method = attrs.method
     align_corners = attrs.align_corners
     return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
+
+# upsampling3d
+reg.register_schedule("nn.upsampling3d", reg.schedule_injective)
+
+def schedule_upsampling3d(_, outs, target):
+    """Schedule definition of upsampling3d"""
+    with target:
+        return topi.generic.schedule_injective(outs)
+
+@reg.register_compute("nn.upsampling3d")
+def compute_upsampling3d(attrs, inputs, out_dtype, target):
+    scale_d = attrs.scale_d
+    scale_h = attrs.scale_h
+    scale_w = attrs.scale_w
+    layout = attrs.layout
+    method = attrs.method
+    coordinate_transformation_mode = attrs.coordinate_transformation_mode
+    return [topi.nn.upsampling3d(inputs[0], scale_d, scale_h, scale_w, layout, method,\
+        coordinate_transformation_mode)]
 
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
@@ -801,6 +966,28 @@ reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype, target):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
+
+
+@reg.register_compute("nn.depth_to_space")
+def compute_depth_to_space(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    mode = attrs.mode
+    return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
+
+reg.register_schedule("nn.depth_to_space", schedule_injective)
+reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
+
+
+@reg.register_compute("nn.space_to_depth")
+def compute_space_to_depth(attrs, inputs, out_dtype, target):
+    block_size = attrs.block_size
+    layout = attrs.layout
+    return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
+
+reg.register_schedule("nn.space_to_depth", schedule_injective)
+reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
+
 
 # shape func
 @script

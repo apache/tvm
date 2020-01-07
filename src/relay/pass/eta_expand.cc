@@ -49,7 +49,7 @@ class TypeVarReplacer : public TypeMutator {
 
  private:
   /*! \brief variable replacement map to remap old type vars to fresh ones */
-  std::unordered_map<TypeVar, TypeVar, NodeHash, NodeEqual> replace_map_;
+  std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> replace_map_;
 };
 
 /*!
@@ -160,7 +160,7 @@ Pass EtaExpand(bool expand_constructor, bool expand_global_var) {
   return CreateModulePass(pass_func, 1, "EtaExpand", {});
 }
 
-TVM_REGISTER_API("relay._transform.EtaExpand")
+TVM_REGISTER_GLOBAL("relay._transform.EtaExpand")
 .set_body_typed(EtaExpand);
 
 }  // namespace transform

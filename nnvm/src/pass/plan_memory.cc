@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file plan_memory.cc
  * \brief Assign memory tag to each of the data entries.
  */
@@ -26,14 +25,13 @@
 #include <nnvm/pass.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/op_attr_types.h>
-#include <nnvm/top/tensor.h>
 #include <memory>
 #include "graph_algorithm.h"
 
 namespace nnvm {
 namespace pass {
 namespace {
-  using namespace nnvm::top;
+
 // Return bytes of data flag.
 static int GetDTypeSize(int type_flag) {
   switch (type_flag) {
@@ -41,6 +39,7 @@ static int GetDTypeSize(int type_flag) {
     case kInt8:
       return 1;
     case kFloat16:
+    case kBfloat16:
     case kInt16:
     case kUint16:
       return 2;

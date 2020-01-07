@@ -17,15 +17,19 @@
  * under the License.
  */
 
-/*!  Copyright (c) 2019 by Contributors
+/*!
  * \file codegen_hybrid.cc
  */
+#include <tvm/runtime/registry.h>
 #include <iomanip>
 #include <cctype>
 #include "codegen_hybrid.h"
 
 namespace tvm {
 namespace contrib {
+
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
 
 using namespace ir;
 
@@ -57,7 +61,7 @@ std::string CodeGenHybrid::Finish() {
   return stream.str();
 }
 
-void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
+void CodeGenHybrid::PrintType(DataType t, std::ostream &os) {
   if (t.is_float()) {
     os << "float";
     CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
@@ -72,27 +76,27 @@ void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
   os << t.bits();
 }
 
-void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const IntImm* op, std::ostream& os) {  // NOLINT(*)
   os << op->value;
 }
-void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->type, os);
+void CodeGenHybrid::VisitExpr_(const UIntImm* op, std::ostream& os) {  // NOLINT(*)
+  PrintType(op->dtype, os);
   os << "(" << op->value << ")";
 }
-void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  PrintType(op->type, os);
+void CodeGenHybrid::VisitExpr_(const FloatImm* op, std::ostream& os) { // NOLINT(*)
+  PrintType(op->dtype, os);
   os << "(" << std::setprecision(20) << op->value << ")";
 }
-void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const StringImm* op, std::ostream& os) { // NOLINT(*)
   os << "'" << op->value << "'";
 }
 
 template<typename T>
 inline void PrintBinaryExpr(const T* op,
-                            const char *opstr,
+                            const char* opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  CHECK(op->type.lanes() == 1)  << "vec bin op not implemented";
+  CHECK(op->dtype.lanes() == 1)  << "vec bin op not implemented";
   if (isalpha(opstr[0])) {
     os << opstr << '(';
     p->PrintExpr(op->a, os);
@@ -111,10 +115,10 @@ inline void PrintBinaryExpr(const T* op,
 }
 
 inline void PrintBinaryIntrinsitc(const Call* op,
-                                  const char *opstr,
+                                  const char* opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  CHECK(op->type.lanes() == 1)  << "vec bin intrin not implemented";
+  CHECK(op->dtype.lanes() == 1)  << "vec bin intrin not implemented";
   CHECK_EQ(op->args.size(), 2U);
   os << '(';
   p->PrintExpr(op->args[0], os);
@@ -123,87 +127,87 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   os << ')';
 }
 
-void CodeGenHybrid::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type == op->value.type()) {
+void CodeGenHybrid::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
+  if (op->dtype == op->value.dtype()) {
     PrintExpr(op->value, stream);
   } else {
-    PrintType(op->type, os);
+    PrintType(op->dtype, os);
     os << "(";
     PrintExpr(op->value, os);
     os << ")";
   }
 }
 
-void CodeGenHybrid::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Variable* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenHybrid::VisitExpr_(const Add *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Sub* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Mul* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type.is_int())
+void CodeGenHybrid::VisitExpr_(const Div* op, std::ostream& os) {  // NOLINT(*)
+  if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
     PrintBinaryExpr(op, "/", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const FloorDiv *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type.is_int())
+void CodeGenHybrid::VisitExpr_(const FloorDiv* op, std::ostream& os) {  // NOLINT(*)
+  if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
     PrintBinaryExpr(op, "/", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Mod* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const FloorMod *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const FloorMod* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Min* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Max* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const EQ* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const NE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const NE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const LT *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LT* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const LE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const GT *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const GT* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const GE *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const GE* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const And *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const And* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Or* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Not* op, std::ostream& os) {  // NOLINT(*)
   os << "not ";
   PrintExpr(op->a, os);
 }
 
-void CodeGenHybrid::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
   if (op->call_type == Call::Halide) {
     os << GetTensorID(op->func, op->value_index);
     os << "[";
@@ -309,7 +313,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const Realize *op) {
+void CodeGenHybrid::VisitStmt_(const Realize* op) {
   CHECK(alloc_storage_scope_.count(op->func));
   if (!alloc_storage_scope_[op->func].empty()) {
     PrintIndent();
@@ -320,7 +324,7 @@ void CodeGenHybrid::VisitStmt_(const Realize *op) {
     }
     if (op->bounds.size() == 1) stream << ", ";
     stream << "), '";
-    PrintType(op->type, stream);
+    PrintType(op->dtype, stream);
     stream << "', '";
     stream << alloc_storage_scope_[op->func] << "')\n";
   }
@@ -385,19 +389,20 @@ void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const Block *op) {
-  PrintStmt(op->first);
-  if (op->rest.defined()) PrintStmt(op->rest);
+void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    PrintStmt(stmt);
+  }
 }
 
-void CodeGenHybrid::VisitStmt_(const Evaluate *op) {
+void CodeGenHybrid::VisitStmt_(const Evaluate* op) {
   if (is_const(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty())
     stream << str << "\n";
 }
 
-void CodeGenHybrid::VisitStmt_(const ProducerConsumer *op) {
+void CodeGenHybrid::VisitStmt_(const ProducerConsumer* op) {
   PrintStmt(op->body);
 }
 
@@ -408,7 +413,7 @@ void CodeGenHybrid::PrintIndent() {
 std::string CodeGenHybrid::GetVarID(const Variable *v) {
   if (binds_.count(v))
     return binds_[v];
-  auto key = std::make_pair(static_cast<const Node*>(v), 0);
+  auto key = std::make_pair(static_cast<const Object*>(v), 0);
   if (id_map_.count(key)) {
     return id_map_[key];
   }
@@ -472,7 +477,7 @@ void CodeGenHybrid::ReserveKeywords() {
 }
 
 void CodeGenHybrid::DumpStmt(const Stmt &stmt,
-                             const Array<NodeRef> &inputs,
+                             const Array<ObjectRef> &inputs,
                              const Array<Tensor> &outputs,
                              const std::string &name) {
   ReserveKeywords();

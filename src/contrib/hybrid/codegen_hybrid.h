@@ -56,7 +56,7 @@ class CodeGenHybrid :
    * \param outputs Output tensors of this schedule.
    * \param name The name of the function.
    */
-  void DumpStmt(const Stmt &stmt, const Array<NodeRef> &inputs, const Array<Tensor> &outputs,
+  void DumpStmt(const Stmt &stmt, const Array<ObjectRef> &inputs, const Array<Tensor> &outputs,
                 const std::string &name = "hybrid_func");
   /*!
    * \brief Finalize the compilation and return the code.
@@ -131,14 +131,14 @@ class CodeGenHybrid :
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const Evaluate* op) override;
-  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
   /*!
    * \brief Print Type represetnation of type t.
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(Type t, std::ostream& os); // NOLINT(*)
+  virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
 
  private:
   /*! \brief The current indent of the code dump. */
@@ -152,7 +152,7 @@ class CodeGenHybrid :
   /*!
    * \brief Keys are either (tensors, value_index) or (variables, 0).
    *        Values are the corresponding IDs.*/
-  std::map<std::pair<const Node *, int>, std::string> id_map_;
+  std::map<std::pair<const Object *, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
   std::map<const Variable *, std::string> binds_;
   /*!

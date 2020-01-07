@@ -71,7 +71,7 @@ import tvm.contrib.graph_runtime as runtime
 # Define Network
 # --------------
 # First we need to define the network in relay frontend API.
-# We can load some pre-defined network from :code:`nnvm.testing`.
+# We can load some pre-defined network from :code:`tvm.relay.testing`.
 # We can also load models from MXNet, ONNX and TensorFlow.
 
 def get_network(name, batch_size):

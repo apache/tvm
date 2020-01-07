@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file ad.cc
  * \brief API for Automatic Differentiation for the Relay IR.
  */
@@ -134,7 +133,7 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr &)> {
   const OpMap<FPrimalGradient> rev_map = Op::GetAttr<FPrimalGradient>("FPrimalGradient");
   std::vector<std::function<void(LetList* ll)>> backprop_actions;
   // we assume no closure so no need for lexical scoping
-  std::unordered_map<Var, ADValue, NodeHash, NodeEqual> env;
+  std::unordered_map<Var, ADValue, ObjectHash, ObjectEqual> env;
   LetList* ll;
 
   FirstOrderReverseAD(LetList* ll) : ll(ll) { }
@@ -255,7 +254,7 @@ Expr FirstOrderGradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._transform.first_order_gradient")
+TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient")
 .set_body_typed(FirstOrderGradient);
 
 struct ReverseADType : TypeMutator {
@@ -386,7 +385,7 @@ Expr BPEmpty() {
 }
 
 struct ReverseAD : ExprMutator {
-  using ADVarMap = std::unordered_map<Var, Var, NodeHash, NodeEqual>;
+  using ADVarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
 
   Var bp;
   std::shared_ptr<ADVarMap> ad_vars;
@@ -583,7 +582,7 @@ Expr Gradient(const Expr& re, const Module& mod) {
   return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
-TVM_REGISTER_API("relay._transform.gradient")
+TVM_REGISTER_GLOBAL("relay._transform.gradient")
 .set_body_typed(Gradient);
 
 }  // namespace relay

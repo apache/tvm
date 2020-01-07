@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
@@ -57,7 +56,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
     return true;
   }
 
-  TVM_DLL void SetLocation(const NodeRef& ref) final {
+  TVM_DLL void SetLocation(const ObjectRef& ref) final {
     location = ref;
   }
 
@@ -67,7 +66,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
 
  private:
   /*! \brief The location to report unification errors at. */
-  mutable NodeRef location;
+  mutable ObjectRef location;
 
   TypeSolver* solver_;
 };
@@ -96,7 +95,7 @@ class TypeSolver::OccursChecker : public TypeVisitor {
 
 class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit Unifier(TypeSolver* solver, const NodeRef& loc) : solver_(solver), loc(loc) {}
+  explicit Unifier(TypeSolver* solver, const ObjectRef& loc) : solver_(solver), loc(loc) {}
 
   Type Unify(const Type& src, const Type& dst) {
     // Known limitation
@@ -151,8 +150,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   }
 
   // default: unify only if alpha-equal
-  Type VisitTypeDefault_(const Node* op, const Type& tn) final {
-    NodeRef nr = GetRef<NodeRef>(op);
+  Type VisitTypeDefault_(const Object* op, const Type& tn) final {
+    ObjectRef nr = GetRef<ObjectRef>(op);
     Type t1 = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     if (!AlphaEqual(t1, tn)) {
       return Type(nullptr);
@@ -366,7 +365,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
  private:
   TypeSolver* solver_;
-  NodeRef loc;
+  ObjectRef loc;
 };
 
 class TypeSolver::Resolver : public TypeMutator {
@@ -409,8 +408,8 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
     }
   }
 
-  void VisitTypeDefault_(const Node* op) override {
-    NodeRef nr = GetRef<NodeRef>(op);
+  void VisitTypeDefault_(const Object* op) override {
+    ObjectRef nr = GetRef<ObjectRef>(op);
     Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     UpdateRelSet(t);
   }
@@ -493,8 +492,8 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
     }
   }
 
-  void VisitTypeDefault_(const Node* op) override {
-    NodeRef nr = GetRef<NodeRef>(op);
+  void VisitTypeDefault_(const Object* op) override {
+    ObjectRef nr = GetRef<ObjectRef>(op);
     Type t = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
     TransferLinks(t);
   }
@@ -534,7 +533,7 @@ TypeSolver::TypeSolver(
   const GlobalVar& current_func,
   const Module& module,
   ErrorReporter* err_reporter)
-    : reporter_(make_node<Reporter>(this)),
+    : reporter_(make_object<Reporter>(this)),
       current_func(current_func),
       err_reporter_(err_reporter),
       module_(module) {
@@ -559,19 +558,19 @@ void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
 }
 
 // Add equality constraint
-Type TypeSolver::Unify(const Type& dst, const Type& src, const NodeRef& loc) {
+Type TypeSolver::Unify(const Type& dst, const Type& src, const ObjectRef& loc) {
   Unifier unifier(this, loc);
   return unifier.Unify(dst, src);
 }
 
-void TypeSolver::ReportError(const Error& err, const NodeRef& location)  {
+void TypeSolver::ReportError(const Error& err, const ObjectRef& location)  {
   CHECK(location.defined());
   CHECK(current_func.defined());
   err_reporter_->ReportAt(current_func, location, err);
 }
 
 // Add type constraint to the solver.
-void TypeSolver::AddConstraint(const TypeConstraint& constraint, const NodeRef& loc) {
+void TypeSolver::AddConstraint(const TypeConstraint& constraint, const ObjectRef& loc) {
   if (const auto* op = constraint.as<TypeRelationNode>()) {
     // create a new relation node.
     RelationNode* rnode = arena_.make<RelationNode>();
@@ -657,7 +656,7 @@ bool TypeSolver::Solve() {
 }
 
 // Expose type solver only for debugging purposes.
-TVM_REGISTER_API("relay._analysis._test_type_solver")
+TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;

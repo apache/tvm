@@ -23,7 +23,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <utility>
 #include <algorithm>
 #include <unordered_map>
@@ -33,11 +35,11 @@
 namespace tvm {
 namespace arith {
 
-Expr SymbolicLimits::pos_inf_ = Var("pos_inf", Handle());
-Expr SymbolicLimits::neg_inf_ = Var("neg_inf", Handle());
+Expr SymbolicLimits::pos_inf_ = Var("pos_inf", DataType::Handle());
+Expr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 
 IntervalSet::IntervalSet(Expr min_value, Expr max_value) {
-  auto node = make_node<IntervalSetNode>();
+  auto node = make_object<IntervalSetNode>();
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
   data_ = std::move(node);
@@ -47,15 +49,15 @@ IntervalSet MakeIntervalSet(Expr min_value, Expr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_REGISTER_API("arith._make_IntervalSet")
+TVM_REGISTER_GLOBAL("arith._make_IntervalSet")
 .set_body_typed(MakeIntervalSet);
 
 
 IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   Expr max_value = min(a->max_value, b->max_value);
   Expr min_value = max(a->min_value, b->min_value);
-  if ((max_value.type().is_int() || max_value.type().is_uint()) &&
-      (min_value.type().is_int() || min_value.type().is_uint()) &&
+  if ((max_value.dtype().is_int() || max_value.dtype().is_uint()) &&
+      (min_value.dtype().is_int() || min_value.dtype().is_uint()) &&
       analyzer->CanProveGreaterEqual(min_value - max_value, 1)) {
     return IntervalSet::Empty();
   } else {
@@ -105,8 +107,8 @@ inline IntervalSet Combine(Analyzer* analyzer,
     return IntervalSet::SinglePoint(res);
   }
   if (is_logical_op<Op>::value) {
-    return IntervalSet(make_const(a->min_value.type(), 0),
-                       make_const(a->min_value.type(), 1));
+    return IntervalSet(make_const(a->min_value.dtype(), 0),
+                       make_const(a->min_value.dtype(), 1));
   }
   if (a->IsEmpty()) return a;
   if (b->IsEmpty()) return b;
@@ -177,7 +179,7 @@ inline IntervalSet Combine<ir::Mul>(Analyzer* analyzer,
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
       using ir::Select;
-      Expr sign = b->min_value >= make_zero(b->min_value.type().element_of());
+      Expr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       Expr e1 = a->min_value * b->min_value;
       Expr e2 = a->max_value * b->min_value;
       return IntervalSet(Select::make(sign, e1, e2), Select::make(sign, e2, e1));
@@ -212,7 +214,7 @@ inline IntervalSet Combine<ir::Div>(Analyzer* analyzer,
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
       using ir::Select;
-      Expr sign = b->min_value >= make_zero(b->min_value.type().element_of());
+      Expr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       Expr e1 = a->min_value / b->min_value;
       Expr e2 = a->max_value / b->min_value;
       return IntervalSet(Select::make(sign, e1, e2), Select::make(sign, e2, e1));
@@ -242,7 +244,7 @@ inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
     // is the case of our application.
     // TODO(tqchen): add bound constraints for a.
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      return IntervalSet(make_zero(divisor.type()), divisor - 1);
+      return IntervalSet(make_zero(divisor.dtype()), divisor - 1);
     } else {
       Expr bound = abs(divisor) - 1;
       return IntervalSet(-bound, bound);
@@ -278,7 +280,7 @@ inline IntervalSet Combine<ir::FloorDiv>(Analyzer* analyzer,
       return IntervalSet(min_value, max_value);
     } else if (a->HasUpperBound() && a->HasLowerBound()) {
       using ir::Select;
-      Expr sign = b->min_value >= make_zero(b->min_value.type().element_of());
+      Expr sign = b->min_value >= make_zero(b->min_value.dtype().element_of());
       Expr e1 = floordiv(a->min_value, b->min_value);
       Expr e2 = floordiv(a->max_value, b->min_value);
       return IntervalSet(Select::make(sign, e1, e2), Select::make(sign, e2, e1));
@@ -304,7 +306,7 @@ inline IntervalSet Combine<ir::FloorMod>(Analyzer* analyzer,
       LOG(FATAL) << "Modular by zero in CombineInterval Mod";
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      return IntervalSet(make_zero(divisor.type()), divisor - 1);
+      return IntervalSet(make_zero(divisor.dtype()), divisor - 1);
     } else {
       Expr bound = abs(divisor) - 1;
       return IntervalSet(-bound, bound);
@@ -476,7 +478,7 @@ class IntervalSetEvaluator :
     IntervalSet base = Eval(op->base);
     PVar<Integer> stride;
     if (stride.Match(op->stride)) {
-      Type t = op->base.type();
+      DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
       if (vstride> 0) {
         return Combine<Add>(
@@ -505,7 +507,7 @@ class IntervalSetEvaluator :
     return Union(analyzer_, false_set, true_set);
   }
 
-  IntervalSet VisitExprDefault_(const Node* op) final {
+  IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();
   }
@@ -809,8 +811,8 @@ IntSet EvalSet(Range r,
 
 TVM_REGISTER_NODE_TYPE(IntervalSetNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<IntervalSetNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<IntervalSetNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IntervalSetNode*>(node.get());
     p->stream << "IntervalSet"
               << "[" << op->min_value << ", "

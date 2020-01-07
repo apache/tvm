@@ -24,7 +24,6 @@
 // Acknowledgement: Most rewrite-rules are from Halide.
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -69,7 +68,7 @@ using namespace ir;
 // try to prove x equals val
 RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::
 TryCompare(const Expr& x, int64_t val) {
-  Expr diff = Mutate(x);
+  Expr diff = this->VisitExpr(x);
   if (const auto* ptr = diff.as<IntImm>()) {
     if (ptr->value == val) {
       return kEQ;
@@ -117,8 +116,8 @@ Update(const Var& var, const Expr& info, bool override) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Add* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Add* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Add>();
   Expr const_res = TryConstFold<Add>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -129,7 +128,7 @@ Mutate_(const Add* op, const Expr& self) {
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes),
                     ramp(b1 + b2, s1 + s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes),
@@ -140,7 +139,7 @@ Mutate_(const Add* op, const Expr& self) {
                     broadcast(x + y, lanes));
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Index rules
     // cancelation rules
     TVM_TRY_REWRITE((x - y) + y, x);
@@ -232,8 +231,8 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const Expr& const
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Sub* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Sub* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Sub>();
   Expr const_res = TryConstFold<Sub>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -244,7 +243,7 @@ Mutate_(const Sub* op, const Expr& self) {
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes),
                     ramp(b1 - b2, s1 - s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - broadcast(x, lanes),
@@ -255,7 +254,7 @@ Mutate_(const Sub* op, const Expr& self) {
                     broadcast(x - y, lanes));
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Index rules
     // cancelation rules
     TVM_TRY_REWRITE((x + y) - y, x);
@@ -431,8 +430,8 @@ Mutate_(const Sub* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Mul* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Mul* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Mul>();
   Expr const_res = TryConstFold<Mul>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -443,7 +442,7 @@ Mutate_(const Mul* op, const Expr& self) {
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes),
                     broadcast(x * y, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes),
@@ -452,7 +451,7 @@ Mutate_(const Mul* op, const Expr& self) {
                     ramp(b1 * x, s1 * x, lanes));
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // constant simplification rule
     TVM_TRY_REWRITE((x + c1) * c2, x * c2 + c1 * c2);
     TVM_TRY_REWRITE((x * c1) * c2, x * (c1 * c2));
@@ -470,8 +469,8 @@ Mutate_(const Mul* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Div* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Div* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Div>();
   Expr const_res = TryConstFold<Div>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -484,12 +483,12 @@ Mutate_(const Div* op, const Expr& self) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImm* ptr = op->b.as<FloatImm>()) {
-    CHECK(op->type.is_float());
-    return op->a * make_const(op->b.type(), 1.0 / ptr->value);
+    CHECK(op->dtype.is_float());
+    return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
 
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(div(x, y), lanes));
@@ -512,7 +511,7 @@ Mutate_(const Div* op, const Expr& self) {
     }
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Be-aware of the division rules:
     // We adopt the default C division uses truncation instead of floordiv.
     // This means most rules need to check non-negativeness of the operands.
@@ -524,7 +523,7 @@ Mutate_(const Div* op, const Expr& self) {
     if (truncdiv(c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      return make_const(op->type, truncdiv(c1val, c2val));
+      return make_const(op->dtype, truncdiv(c1val, c2val));
     }
 
     // while it is always true for trunc div
@@ -692,8 +691,8 @@ Mutate_(const Div* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Mod* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Mod* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Mod>();
   Expr const_res = TryConstFold<Mod>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -706,7 +705,7 @@ Mutate_(const Mod* op, const Expr& self) {
   PVar<int> lanes;
 
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(truncmod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(truncmod(x, y), lanes));
 
@@ -734,7 +733,7 @@ Mutate_(const Mod* op, const Expr& self) {
     }
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Be-aware of the division rules:
     // We adopt the default C division uses truncation instead of floordiv.
     // This means most rules need to check non-negativeness of the operands.
@@ -762,9 +761,10 @@ Mutate_(const Mod* op, const Expr& self) {
 
     // canonicalization: x % c == x % (-c) for truncated division
     // NOTE: trunc div required
-    TVM_TRY_RECURSIVE_REWRITE_IF(truncmod(x, c1),
-                                 truncmod(x, PConst<Expr>(make_const(op->type, -c1.Eval()->value))),
-                                 c1.Eval()->value < 0);
+    TVM_TRY_RECURSIVE_REWRITE_IF(
+        truncmod(x, c1),
+        truncmod(x, PConst<Expr>(make_const(op->dtype, -c1.Eval()->value))),
+        c1.Eval()->value < 0);
 
     // try modular analysis
     if (truncmod(x, c1).Match(ret)) {
@@ -781,8 +781,8 @@ Mutate_(const Mod* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const FloorDiv* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const FloorDiv* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorDiv>();
   Expr const_res = TryConstFold<FloorDiv>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -794,7 +794,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
   PVar<int> lanes;
 
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
@@ -814,7 +814,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
     }
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Be-aware of the division rules: this is floor division.
     TVM_TRY_REWRITE_IF(floordiv(floordiv(x, c1), c2), floordiv(x, c1 * c2),
                        c1.Eval()->value > 0 && c2.Eval()->value > 0);
@@ -925,8 +925,8 @@ Mutate_(const FloorDiv* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const FloorMod* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const FloorMod* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<FloorMod>();
   Expr const_res = TryConstFold<FloorMod>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -939,7 +939,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
   PVar<int> lanes;
 
   // Vector rules
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(floormod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floormod(x, y), lanes));
 
@@ -964,7 +964,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
     }
   }
 
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     // Be-aware of the division rules: we use floordiv/floormod here
     TVM_TRY_REWRITE_IF(floormod(x * c1, c2), ZeroWithTypeLike(x),
                        c2.Eval()->value != 0 &&
@@ -995,8 +995,8 @@ Mutate_(const FloorMod* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Min* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Min* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Min>();
   Expr const_res = TryConstFold<Min>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1008,13 +1008,13 @@ Mutate_(const Min* op, const Expr& self) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(min(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(min(x, y), lanes));
     TVM_TRY_REWRITE(min(min(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     min(x, broadcast(min(y, z), lanes)));
   }
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     TVM_TRY_REWRITE(min(x, x), x);
 
     // constant int bound
@@ -1180,8 +1180,8 @@ Mutate_(const Min* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Max* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Max* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Max>();
   Expr const_res = TryConstFold<Max>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1193,13 +1193,13 @@ Mutate_(const Max* op, const Expr& self) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(max(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(max(x, y), lanes));
     TVM_TRY_REWRITE(max(max(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     max(x, broadcast(max(y, z), lanes)));
   }
-  if (IsIndexType(op->type)) {
+  if (IsIndexType(op->dtype)) {
     TVM_TRY_REWRITE(max(x, x), x);
 
     // constant int bound
@@ -1353,8 +1353,8 @@ Mutate_(const Max* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const EQ* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const EQ* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<EQ>();
   Expr const_res = TryConstFold<EQ>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1366,17 +1366,17 @@ Mutate_(const EQ* op, const Expr& self) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes),
                     broadcast(x == y, lanes));
   }
 
-  if (IsIndexType(op->a.type())) {
+  if (IsIndexType(op->a.dtype())) {
     CompareResult result = TryCompare(op->a - op->b, 0);
     if (result == kEQ) {
-      return make_const(op->type, true);
+      return make_const(op->dtype, true);
     } else if (result == kNE || result == kGT || result == kLT) {
-      return make_const(op->type, false);
+      return make_const(op->dtype, false);
     }
     TVM_TRY_REWRITE(x - c1 == 0, x == c1);
     TVM_TRY_REWRITE(c1 - x == 0, x == c1);
@@ -1387,28 +1387,28 @@ Mutate_(const EQ* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const NE* op, const Expr& self) {
-  return Mutate(Not::make(op->a == op->b));
+VisitExpr_(const NE* op) {
+  return this->VisitExpr(Not::make(op->a == op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const LE* op, const Expr& self) {
-  return Mutate(Not::make(op->b < op->a));
+VisitExpr_(const LE* op) {
+  return this->VisitExpr(Not::make(op->b < op->a));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const GT* op, const Expr& self) {
-  return Mutate(op->b < op->a);
+VisitExpr_(const GT* op) {
+  return this->VisitExpr(op->b < op->a);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const GE* op, const Expr& self) {
-  return Mutate(Not::make(op->a < op->b));
+VisitExpr_(const GE* op) {
+  return this->VisitExpr(Not::make(op->a < op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const LT* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const LT* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<LT>();
   Expr const_res = TryConstFold<LT>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1420,20 +1420,20 @@ Mutate_(const LT* op, const Expr& self) {
   PVar<int> lanes;
 
   // vector rule
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes),
                     broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes),
                     broadcast(x < y, lanes));
   }
 
-  if (IsIndexType(op->a.type())) {
+  if (IsIndexType(op->a.dtype())) {
     CompareResult result = TryCompare(op->a - op->b, 0);
     if (result == kLT) {
-      return make_const(op->type, true);
+      return make_const(op->dtype, true);
     }
     if (result == kEQ || result == kGT || result == kGE) {
-      return make_const(op->type, false);
+      return make_const(op->dtype, false);
     }
 
     TVM_TRY_REWRITE(x + y < x + z, y < z);
@@ -1563,15 +1563,15 @@ Mutate_(const LT* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Not* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Not* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Not>();
   Expr const_res = TryConstFold<Not>(op->a);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y;
   PVar<int> lanes;
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -1588,8 +1588,8 @@ Mutate_(const Not* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const And* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const And* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<And>();
   Expr const_res = TryConstFold<And>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1600,12 +1600,12 @@ Mutate_(const And* op, const Expr& self) {
   PVar<Integer> c1, c2;
   PVar<int> lanes;
 
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes),
                     broadcast(x && y, lanes));
   }
 
-  auto cfalse = PConst<Expr>(make_const(op->type, false));
+  auto cfalse = PConst<Expr>(make_const(op->dtype, false));
   TVM_TRY_REWRITE(x == y && x != y, cfalse);
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
@@ -1637,8 +1637,8 @@ Mutate_(const And* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Or* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Or* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Or>();
   Expr const_res = TryConstFold<Or>(op->a, op->b);
   if (const_res.defined()) return const_res;
@@ -1649,12 +1649,12 @@ Mutate_(const Or* op, const Expr& self) {
   PVar<Integer> c1, c2;
   PVar<int> lanes;
 
-  if (op->type.lanes() != 1) {
+  if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes),
                     broadcast(x || y, lanes));
   }
 
-  auto ctrue = PConst<Expr>(make_const(op->type, true));
+  auto ctrue = PConst<Expr>(make_const(op->dtype, true));
 
   TVM_TRY_REWRITE(x == y || x != y, ctrue);
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
@@ -1687,8 +1687,8 @@ Mutate_(const Or* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Select* op, const Expr& self) {
-  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
+VisitExpr_(const Select* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Select>();
   if (op == nullptr) return ret;
   // Pattern var to match any expression
@@ -1698,9 +1698,9 @@ Mutate_(const Select* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Call* op, const Expr& self) {
+VisitExpr_(const Call* op) {
   // add condition context to if_then_else
-  Expr ret = IRMutatorWithAnalyzer::Mutate_(op, self);
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Call>();
   if (op == nullptr) return ret;
   if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
@@ -1720,7 +1720,7 @@ Mutate_(const Call* op, const Expr& self) {
     for (const auto& constraint : literal_constraints_) {
       // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
       if (Equal(constraint, op->args[0])) {
-        return make_const(op->type, true);
+        return make_const(op->dtype, true);
       }
     }
   }
@@ -1728,35 +1728,35 @@ Mutate_(const Call* op, const Expr& self) {
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Variable* op, const Expr& self) {
+VisitExpr_(const Variable* op) {
   Var var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {
     return it->second;
   }
-  return self;
+  return GetRef<Expr>(op);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Cast* op, const Expr& self) {
-  Expr ret = IRMutator::Mutate_(op, self);
+VisitExpr_(const Cast* op) {
+  Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<Cast>();
-  return cast(op->type, op->value);
+  return cast(op->dtype, op->value);
 }
 
 Expr RewriteSimplifier::Impl::
-Mutate_(const Let* op, const Expr& self) {
-  Expr value = this->Mutate(op->value);
+VisitExpr_(const Let* op) {
+  Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     // it is fine to discard the let binding
     // because the value will always be inlined in the simplifier.
     analyzer_->Bind(op->var, value);
-    return this->Mutate(op->body);
+    return this->VisitExpr(op->body);
   }
-  Expr body = this->Mutate(op->body);
+  Expr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Let::make(op->var, value, body);
   }
@@ -1767,7 +1767,7 @@ Expr RewriteSimplifier::operator()(const Expr& expr) {
   Expr res = expr;
   int max_iter = 2;
   for (int i = 0; i < max_iter; ++i) {
-    Expr new_expr = impl_->Mutate(res);
+    Expr new_expr = impl_->operator()(res);
     if (new_expr.same_as(res)) return res;
     res = new_expr;
   }

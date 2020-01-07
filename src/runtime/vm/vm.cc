@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/logging.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -47,7 +48,7 @@ namespace vm {
 
 inline Storage make_storage(size_t size, size_t alignment, TVMType dtype_hint, TVMContext ctx) {
   // We could put cache in here, from ctx to storage allocator.
-  auto storage_obj = SimpleObjAllocator().make<StorageObj>();
+  auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
   auto alloc = MemoryManager::Global()->GetAllocator(ctx);
   DCHECK(alloc != nullptr)
     << "allocator must not null";
@@ -582,9 +583,9 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
       break;
     }
     case Opcode::AllocStorage: {
-      os << "alloc_storage " <<
-        instr.dst << " " <<
-        instr.alloc_storage.allocation_size << " " <<
+      os << "alloc_storage $" <<
+        instr.dst << " $" <<
+        instr.alloc_storage.allocation_size << " $" <<
         instr.alloc_storage.alignment << " " <<
         TVMType2String(instr.alloc_storage.dtype_hint);
       break;
@@ -755,7 +756,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* obj = args[i].as<ADTObj>()) {
-      arity += obj->fields.size();
+      arity += obj->size;
     } else {
       ++arity;
     }
@@ -767,14 +768,17 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
   int idx = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* dt_cell = args[i].as<ADTObj>()) {
-      for (auto obj : dt_cell->fields) {
+      for (size_t fi = 0; fi < dt_cell->size; ++fi) {
+        auto obj = (*dt_cell)[fi];
         const auto* tensor = obj.as<TensorObj>();
-        CHECK(tensor != nullptr);
+        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                                 << obj->GetTypeKey();
         setter(idx++, tensor->data);
       }
     } else {
       const auto* tensor = args[i].as<TensorObj>();
-      CHECK(tensor != nullptr);
+      CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                               << args[i]->GetTypeKey();
       setter(idx++, tensor->data);
     }
   }
@@ -798,7 +802,9 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     if (packed_funcs_.size() <= packed_index) {
       packed_funcs_.resize(packed_index + 1);
     }
-    packed_funcs_[packed_index] = lib.GetFunction(packed_name);
+    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
+    CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
+    packed_funcs_[packed_index] = pf;
   }
 }
 
@@ -819,7 +825,8 @@ inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
   int32_t result;
   const auto& obj = ReadRegister(r);
   const auto* tensor = obj.as<TensorObj>();
-  CHECK(tensor != nullptr);
+  CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                           << obj->GetTypeKey();
   NDArray array = tensor->data.CopyTo({kDLCPU, 0});
 
   if (array->dtype.bits <= 8) {
@@ -924,23 +931,16 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::GetField: {
         auto object = ReadRegister(instr.object);
-        const auto* tuple = object.as<ADTObj>();
-        CHECK(tuple != nullptr)
-            << "Object is not data type object, register " << instr.object << ", Object tag "
-            << object->type_index();
-        auto field = tuple->fields[instr.field_index];
+        const auto& tuple = Downcast<ADT>(object);
+        auto field = tuple[instr.field_index];
         WriteRegister(instr.dst, field);
         pc_++;
         goto main_loop;
       }
       case Opcode::GetTag: {
         auto object = ReadRegister(instr.get_tag.object);
-        const auto* data = object.as<ADTObj>();
-        CHECK(data != nullptr)
-            << "Object is not data type object, register "
-            << instr.get_tag.object << ", Object tag "
-            << object->type_index();
-        auto tag = data->tag;
+        const auto& adt = Downcast<ADT>(object);
+        auto tag = adt.tag();
         auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
         WriteRegister(instr.dst, Tensor(tag_tensor));
@@ -987,7 +987,8 @@ void VirtualMachine::RunLoop() {
         cpu_ctx.device_id = 0;
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
         const auto* tensor = shape_tensor_obj.as<TensorObj>();
-        CHECK(tensor != nullptr);
+        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
+                                 << shape_tensor_obj->GetTypeKey();
         NDArray shape_tensor = tensor->data.CopyTo(cpu_ctx);
         const DLTensor* dl_tensor = shape_tensor.operator->();
         CHECK_EQ(dl_tensor->dtype.code, 0u);

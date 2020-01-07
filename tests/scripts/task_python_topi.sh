@@ -24,7 +24,7 @@ export PYTHONPATH=python:topi/python
 # Rebuild cython
 make cython3
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
-rm -rf topi/python/topi/*.pyc topi/python/topi/*/*.pyc topi/python/topi/*/*/*.pyc topi/python/topi/*/*/*/*.pyc
+# cleanup pycache
+find . -type f -path "*.pyc" | xargs rm -f
 
 python3 -m pytest -v topi/tests/python

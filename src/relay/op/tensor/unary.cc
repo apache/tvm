@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file unary.cc
  * \brief Unary operators.
  */
@@ -158,9 +157,9 @@ RELAY_REGISTER_UNARY_OP("copy")
 // relay.clip
 TVM_REGISTER_NODE_TYPE(ClipAttrs);
 
-TVM_REGISTER_API("relay.op._make.clip")
-.set_body_typed<Expr(Expr, double, double)>([](Expr a, double a_min, double a_max) {
-    auto attrs = make_node<ClipAttrs>();
+TVM_REGISTER_GLOBAL("relay.op._make.clip")
+.set_body_typed([](Expr a, double a_min, double a_max) {
+    auto attrs = make_object<ClipAttrs>();
     attrs->a_min = a_min;
     attrs->a_max = a_max;
     static const Op& op = Op::Get("clip");
@@ -301,9 +300,9 @@ Array<Tensor> ShapeOfCompute(const Attrs& attrs,
   return {topi::shape(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_API("relay.op._make.shape_of")
-.set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
-  auto attrs = make_node<ShapeOfAttrs>();
+TVM_REGISTER_GLOBAL("relay.op._make.shape_of")
+.set_body_typed([](Expr data, DataType dtype) {
+  auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("shape_of");
   return CallNode::make(op, {data}, Attrs(attrs), {});
@@ -352,9 +351,9 @@ Array<Tensor> NdarraySizeCompute(const Attrs& attrs,
   return Array<Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_API("relay.op.contrib._make.ndarray_size")
-.set_body_typed<Expr(Expr, DataType)>([](Expr data, DataType dtype) {
-  auto attrs = make_node<NdarraySizeAttrs>();
+TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
+.set_body_typed([](Expr data, DataType dtype) {
+  auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("contrib.ndarray_size");
   return CallNode::make(op, {data}, Attrs(attrs), {});

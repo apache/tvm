@@ -23,7 +23,7 @@ import topi.testing
 import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
-from nnvm.testing.config import ctx_list
+from tvm.relay.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto, mapping
 import scipy
@@ -77,11 +77,14 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         return tvm_output.asnumpy()
 
 
-def get_onnxruntime_output(model, x, dtype='float32'):
+def get_onnxruntime_output(model, inputs, dtype='float32'):
     import onnxruntime.backend
     rep = onnxruntime.backend.prepare(model, 'CPU')
-    x = x.astype(dtype)
-    ort_out = rep.run(x)[0]
+    if isinstance(inputs, list) and len(inputs) > 1:
+        ort_out = rep.run(inputs)
+    else:
+        x = inputs.astype(dtype)
+        ort_out = rep.run(x)[0]
     return ort_out
 
 
@@ -93,23 +96,6 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
-
-
-def verify_super_resolution_example():
-    verify_onnx_forward_impl(
-        super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
-
-
-def verify_squeezenet1_1():
-    verify_onnx_forward_impl(squeezenet1_1, (1, 3, 224, 224), (1, 1000))
-
-
-def verify_lenet():
-    verify_onnx_forward_impl(lenet, (1, 1, 28, 28), (1, 10))
-
-
-def verify_resnet18():
-    verify_onnx_forward_impl(resnet18_1_0, (1, 3, 224, 224), (1, 1000))
 
 
 def test_reshape():
@@ -140,6 +126,46 @@ def test_reshape():
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
+
+def test_expand():
+
+    def _test_expand(name, data, shape, ref_data):
+        shape_array = np.array(shape)
+        shape_node = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['shape'],
+                                    value=onnx.helper.make_tensor(name = 'const_tensor',
+                                                                  data_type = onnx.TensorProto.INT32,
+                                                                  dims = shape_array.shape,
+                                                                  vals = shape_array.flatten().astype('int32')))
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph([shape_node, expand_node],
+                                "expand_test",
+                                inputs = [helper.make_tensor_value_info("in",
+                                                TensorProto.FLOAT, list(data.shape))],
+                                outputs = [helper.make_tensor_value_info("out",
+                                                TensorProto.FLOAT, list(ref_data.shape))])
+
+        model = helper.make_model(graph, producer_name=name)
+
+        for target, ctx in ctx_list():
+            tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, 'float32')
+
+        tvm.testing.assert_allclose(ref_data, tvm_out)
+
+    in_shape = (3, 1)
+    shape = (3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, 4)
+    _test_expand('expand_with_dim_unchanged_test', data, shape, ref_data)
+
+    in_shape = (3, 1)
+    shape = (2, 1, 6)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand('expand_with_dim_changed_test', data, shape, ref_data)
 
 
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
@@ -1706,10 +1732,106 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def verify_conv(x_shape, w_shape, y_shape, p):
+    node = helper.make_node('Conv',
+                            inputs=['x', 'W'],
+                            outputs=['y'],
+                            kernel_shape=[3, 3],
+                            # Default values for other attributes:
+                            # strides=[1, 1],
+                            # dilations=[1, 1],
+                            # groups=1
+                            pads=p,)
+
+    graph = helper.make_graph([node],
+                              'conv_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='conv_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_conv():
+    # Convolution with padding
+    # (1, 1, 5, 5) input tensor
+    # (1, 1, 3, 3) tensor for convolution weights
+    # (1, 1, 5, 5) output tensor
+    # [1, 1, 1, 1] list for pads
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1])
+
+    # Convolution without padding
+    # (1, 1, 5, 5) input tensor
+    # (1, 1, 3, 3) tensor for convolution weights
+    # (1, 1, 3, 3) output tensor
+    # [0, 0, 0, 0] list for pads
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0])
+
+
+def verify_convtranspose(x_shape, w_shape, y_shape, p):
+    node = onnx.helper.make_node("ConvTranspose",
+                                 inputs=["x", "W"],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                 group=1,
+                                 kernel_shape=[3, 3],
+                                 pads=p)
+
+    graph = helper.make_graph([node],
+                              'verify_convtranspose_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='convtranspose_trest')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_convtranspose():
+    # Convolution Transpose with padding
+    # (1, 1, 3, 3) input tensor
+    # (1, 2, 3, 3) tensor for convolution weights
+    # (1, 2, 7, 3) output tensor
+    # [1, 2, 1, 2] list for pads
+    verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
+
+
+def test_unsqueeze_constant():
+    from torch.nn import Linear, Sequential, Module
+    class Flatten(Module):
+        def forward(self, input):
+            return input.view(input.size(0), -1)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile() as fp:
+        file_name = fp.name
+        input_size = (1, 16, 32, 32)
+        dummy_input = torch.randn(*input_size)
+        layer = Sequential(Flatten(), Linear(16 * 32 * 32, 64))
+        torch.onnx.export(layer, dummy_input, file_name, export_params=True)
+
+        onnx_model = onnx.load(file_name)
+        relay.frontend.from_onnx(onnx_model, {'0': input_size})
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
     test_shape()
+    test_expand()
     test_power()
     test_squeeze()
     test_unsqueeze()
@@ -1759,3 +1881,6 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_conv()
+    test_convtranspose()
+    test_unsqueeze_constant()

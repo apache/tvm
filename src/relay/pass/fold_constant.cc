@@ -18,11 +18,11 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file constant_folding.cc
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/attrs/transform.h>
@@ -33,7 +33,6 @@ namespace tvm {
 namespace relay {
 
 using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
-
 
 class ConstantChecker : private ExprVisitor {
  public:
@@ -53,7 +52,7 @@ class ConstantChecker : private ExprVisitor {
   }
 
  private:
-  std::unordered_map<Expr, bool, NodeHash, NodeEqual> memo_;
+  std::unordered_map<Expr, bool, ObjectHash, ObjectEqual> memo_;
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;
@@ -71,7 +70,7 @@ bool ConstantCheck(const Expr& e) {
   return ConstantChecker().Check(e);
 }
 
-TVM_REGISTER_API("relay._analysis.check_constant")
+TVM_REGISTER_GLOBAL("relay._analysis.check_constant")
 .set_body_typed(ConstantCheck);
 
 // TODO(tvm-team) consider combine dead-code with constant folder.
@@ -79,8 +78,14 @@ TVM_REGISTER_API("relay._analysis.check_constant")
 class ConstantFolder : public ExprMutator {
  public:
   explicit ConstantFolder(FInterpreter executor, Module module)
-      : executor_(executor), module_(module) {
-  }
+      : executor_(executor),
+        module_(module),
+        shape_of_op_(Op::Get("shape_of")),
+        invoke_tvm_op_(Op::Get("memory.invoke_tvm_op")),
+        shape_func_op_(Op::Get("memory.shape_func")),
+        alloc_tensor_op_(Op::Get("memory.alloc_tensor")),
+        alloc_storage_op_(Op::Get("memory.alloc_storage")),
+        cast_op_(Op::Get("cast")) {}
 
   Expr VisitExpr_(const LetNode* op) final {
     Expr value = this->Mutate(op->value);
@@ -120,15 +125,15 @@ class ConstantFolder : public ExprMutator {
     // skip stateful ops.
     if (op_stateful.get(GetRef<Op>(op), false)) return res;
     // Try to evaluate shape_of op
-    if (call->op.same_as(Op::Get("shape_of"))) {
+    if (call->op == shape_of_op_) {
       return EvaluateShapeOf(res, origin_args, call->attrs);
     }
 
     // We should think about potentially constant evaluation over these ops too.
-    if (call->op.same_as(Op::Get("memory.invoke_tvm_op")) ||
-        call->op.same_as(Op::Get("memory.shape_func")) ||
-        call->op.same_as(Op::Get("memory.alloc_tensor")) ||
-        call->op.same_as(Op::Get("memory.alloc_storage"))) {
+    if (call->op == invoke_tvm_op_ ||
+        call->op == shape_func_op_ ||
+        call->op == alloc_tensor_op_ ||
+        call->op == alloc_storage_op_) {
       return GetRef<Call>(call);
     }
 
@@ -162,6 +167,14 @@ class ConstantFolder : public ExprMutator {
   ConstantChecker checker_;
   // Module
   Module module_;
+
+  // Cache the following ops for equivalence checking in this pass.
+  const Op& shape_of_op_;
+  const Op& invoke_tvm_op_;
+  const Op& shape_func_op_;
+  const Op& alloc_tensor_op_;
+  const Op& alloc_storage_op_;
+  const Op& cast_op_;
 
   // Convert value to expression.
   Expr ValueToExpr(Value value) {
@@ -227,7 +240,7 @@ class ConstantFolder : public ExprMutator {
     ctx.device_type = kDLCPU;
     ctx.device_id = 0;
     runtime::NDArray value;
-    auto cdtype = Type2TVMType(Int(32));
+    DLDataType cdtype = DataType::Int(32);
     if (ishape.size() == 0) {
       value = runtime::NDArray::Empty({}, cdtype, ctx);
     } else {
@@ -253,10 +266,9 @@ class ConstantFolder : public ExprMutator {
     }
 
     // Cast the constant into correct dtype
-    auto cast_attrs = make_node<CastAttrs>();
+    auto cast_attrs = make_object<CastAttrs>();
     cast_attrs->dtype = param->dtype;
-    static const Op& cast_op = Op::Get("cast");
-    Expr ret = CallNode::make(cast_op, { shape }, Attrs(cast_attrs), {});
+    Expr ret = CallNode::make(cast_op_, { shape }, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
   }
 };
@@ -285,7 +297,7 @@ Pass FoldConstant() {
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
 }
 
-TVM_REGISTER_API("relay._transform.FoldConstant")
+TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
 .set_body_typed(FoldConstant);
 
 }  // namespace transform

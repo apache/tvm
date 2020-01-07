@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file convolution.cc
  * \brief Convolution operators
  */
@@ -28,7 +27,8 @@
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
-#include "../../pass/alter_op_layout.h"
+#include "../../pass/infer_layout_util.h"
+#include "../op_common.h"
 #include "convolution.h"
 
 namespace tvm {
@@ -38,7 +38,7 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 template<typename T>
-Array<Array<Layout> > Conv2DInferCorrectLayout(
+Array<Array<Layout> > ConvInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
@@ -66,7 +66,7 @@ Expr MakeConv2D(Expr data,
                 std::string kernel_layout,
                 std::string out_layout,
                 DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -82,7 +82,7 @@ Expr MakeConv2D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d")
 .set_body_typed(MakeConv2D);
 
 
@@ -105,8 +105,66 @@ with the layer input to produce a tensor of outputs.
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
 .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
+// relay.nn.conv3d
+TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
+
+// Positional relay function to create conv3d operator
+// used by frontend FFI.
+Expr MakeConv3D(Expr data,
+                Expr weight,
+                Array<IndexExpr> strides,
+                Array<IndexExpr> padding,
+                Array<IndexExpr> dilation,
+                int groups,
+                IndexExpr channels,
+                Array<IndexExpr> kernel_size,
+                std::string data_layout,
+                std::string kernel_layout,
+                std::string out_layout,
+                DataType out_dtype) {
+  auto attrs = make_object<Conv3DAttrs>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get("nn.conv3d");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d")
+.set_body_typed(MakeConv3D);
+
+
+RELAY_REGISTER_OP("nn.conv3d")
+.describe(R"code(3D convolution layer (e.g. convolution over 3D image data,
+like Magnetic Resonance Imaging (MRI) data in medicine).
+
+This layer creates a convolution kernel that is convolved
+with the layer input to produce a tensor of outputs.
+
+- **data**: This depends on the `layout` parameter. Input is 5D array of shape
+            (batch_size, in_channels, depth, height, width) if `layout` is `NCDHW`.
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1], kernel_size[2])
+- **out**:  This depends on the `layout` parameter. Output is 5D array of shape
+            (batch_size, channels, out_depth, out_height, out_width) if `layout` is `NCDHW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<Conv3DAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("Conv3D", Conv3DRel<Conv3DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv3DAttrs>);
 
 // relay.nn.conv2d_transpose
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
@@ -191,10 +249,12 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   }
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   oshape.Set(2, (param->strides[0] * (dshape_nchw[2] - 1) + dilated_ksize_y -
-                 2 * param->padding[0] + param->output_padding[0]));
+                 pad_h + param->output_padding[0]));
   oshape.Set(3, (param->strides[1] * (dshape_nchw[3] - 1) + dilated_ksize_x -
-                 2 * param->padding[1] + param->output_padding[1]));
+                 pad_w + param->output_padding[1]));
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
@@ -219,7 +279,7 @@ Expr MakeConv2DTranspose(Expr data,
                          std::string out_layout,
                          Array<IndexExpr> output_padding,
                          DataType out_dtype) {
-  auto attrs = make_node<Conv2DTransposeAttrs>();
+  auto attrs = make_object<Conv2DTransposeAttrs>();
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->strides = std::move(strides);
@@ -236,7 +296,7 @@ Expr MakeConv2DTranspose(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv2d_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
 .set_body_typed(MakeConv2DTranspose);
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
@@ -267,8 +327,164 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                               Conv2DInferCorrectLayout<Conv2DTransposeAttrs>)
+                               ConvInferCorrectLayout<Conv2DTransposeAttrs>)
 .add_type_rel("Conv2DTranspose", Conv2DTransposeRel);
+
+
+// relay.nn.conv1d_transpose
+TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
+
+bool Conv1DTransposeRel(const Array<Type>& types,
+                        int num_inputs,
+                        const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCW("NCW");
+  static const Layout kOIW("OIW");
+
+  const Conv1DTransposeAttrs* param = attrs.as<Conv1DTransposeAttrs>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCW);
+  CHECK(trans_in_layout.defined())
+    << "Conv only support input layouts that are convertible from NCW."
+    << " But got " << in_layout;
+
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIW);
+  CHECK(trans_kernel_layout.defined())
+    << "Conv only support kernel layouts that are convertible from OIW."
+    << " But got "<< kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCW);
+  CHECK(trans_out_layout.defined())
+    << "Conv only support output layouts that are convertible from NCW."
+    << " But got " << out_layout;
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
+
+  auto dshape_ncw = trans_in_layout.ForwardShape(data->shape);
+
+  // infer weight if the kernel_size and channels are defined
+  if (param->kernel_size.defined() && param->channels.defined()) {
+    CHECK_EQ(param->kernel_size.size(), 1);
+    CHECK_EQ(param->dilation.size(), 1);
+
+    Array<IndexExpr> wshape({dshape_ncw[1],
+            indexdiv(param->channels, param->groups),
+            param->kernel_size[0]});
+
+    wshape = trans_kernel_layout.BackwardShape(wshape);
+    dilated_ksize_x = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+    channels = param->channels;
+
+    // assign result to reporter
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+  } else {
+    // use weight to infer the conv shape.
+    if (weight == nullptr) return false;
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
+    if (param->kernel_size.defined()) {
+      CHECK_EQ(param->kernel_size.size(), 1);
+      // check the size
+      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]))
+          << "Conv1D: shape of weight is inconsistent with kernel_size, "
+          << " kernel_size=" << param->kernel_size
+          << " wshape=" << Array<IndexExpr>(wshape);
+    }
+    if (param->channels.defined()) {
+      CHECK(reporter->AssertEQ(param->channels, wshape[1]))
+          << "Conv1D: shape of weight is inconsistent with channels, "
+          << " channels=" << param->channels
+          << " wshape=" << Array<IndexExpr>(wshape);
+    }
+    CHECK(reporter->AssertEQ(indexdiv(dshape_ncw[1], param->groups), wshape[0]));
+    channels = wshape[1];
+    dilated_ksize_x = 1 + (wshape[2] - 1) * param->dilation[0];
+  }
+  // dilation
+  IndexExpr pad_w;
+  GetPaddingWidth(param->padding, &pad_w);
+  Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
+  oshape.Set(2, (param->strides[0] * (dshape_ncw[2] - 1) + dilated_ksize_x -
+                 pad_w + param->output_padding[0]));
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
+
+
+Expr MakeConv1DTranspose(Expr data,
+                         Expr weight,
+                         Array<IndexExpr> strides,
+                         Array<IndexExpr> padding,
+                         Array<IndexExpr> dilation,
+                         int groups,
+                         IndexExpr channels,
+                         Array<IndexExpr> kernel_size,
+                         std::string data_layout,
+                         std::string kernel_layout,
+                         std::string out_layout,
+                         Array<IndexExpr> output_padding,
+                         DataType out_dtype) {
+  auto attrs = make_object<Conv1DTransposeAttrs>();
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get("nn.conv1d_transpose");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
+.set_body_typed(MakeConv1DTranspose);
+
+RELAY_REGISTER_OP("nn.conv1d_transpose")
+.describe(R"code(Transposed 1D convolution layer (sometimes called Deconvolution).
+
+The need for transposed convolutions generally arises
+from the desire to use a transformation going in the opposite direction
+of a normal convolution, i.e., from something that has the shape of the
+output of some convolution to something that has the shape of its input
+while maintaining a connectivity pattern that is compatible with
+said convolution.
+
+- **data**: This depends on the `layout` parameter. Input is 3D array of shape
+            (batch_size, in_channels, width) if `layout` is `NCW`.
+- **weight**: (in_channels, channels, kernel_size[0])
+- **bias**: (channels,)
+- **out**:  This depends on the `layout` parameter. Output is 3D array of shape
+            (batch_size, channels, out_width) if `layout` is `NCW`.
+
+            out_width is calculated as::
+                out_width = (width-1)*strides[0]-2*padding[0]+kernel_size[0]+output_padding[0]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<Conv1DTransposeAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("Conv1DTranspose", Conv1DTransposeRel);
 
 
 // relay.nn.contrib_conv2d_winograd_without_weight_transform
@@ -330,14 +546,16 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
   if (!dshape_nchw[2].as<ir::Any>()) {
-    oshape.Set(2, (dshape_nchw[2] + param->padding[0] * 2
+    oshape.Set(2, (dshape_nchw[2] + pad_h
                    - dilated_ksize_y) / param->strides[0] + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
   if (!dshape_nchw[3].as<ir::Any>()) {
-    oshape.Set(3, (dshape_nchw[3] + param->padding[1] * 2
+    oshape.Set(3, (dshape_nchw[3] + pad_w
                    - dilated_ksize_x) / param->strides[1] + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
@@ -369,7 +587,7 @@ Expr MakeConv2DWinograd(Expr data,
                         std::string kernel_layout,
                         std::string out_layout,
                         DataType out_dtype) {
-  auto attrs = make_node<Conv2DWinogradAttrs>();
+  auto attrs = make_object<Conv2DWinogradAttrs>();
   attrs->tile_size = tile_size;
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -386,7 +604,7 @@ Expr MakeConv2DWinograd(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
 .set_body_typed(MakeConv2DWinograd);
 
 
@@ -409,7 +627,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
 .set_support_level(10)
 .add_type_rel("Conv2DWinograd", Conv2DWinogradRel<Conv2DWinogradAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DWinogradAttrs>);
+        ConvInferCorrectLayout<Conv2DWinogradAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradWeightTransformAttrs);
@@ -442,21 +660,21 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
 
 Expr MakeConv2DWinogradWeightTransform(Expr weight,
                                        int tile_size) {
-  auto attrs = make_node<Conv2DWinogradWeightTransformAttrs>();
+  auto attrs = make_object<Conv2DWinogradWeightTransformAttrs>();
   attrs->tile_size = tile_size;
   static const Op& op = Op::Get("nn.contrib_conv2d_winograd_weight_transform");
   return CallNode::make(op, {weight}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
 .set_body_typed(MakeConv2DWinogradWeightTransform);
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
 .describe(R"code(Weight transformation of winograd fast convolution algorithm.
 
-Separate this into another nnvm symbol in order to enable Precompute Pass to compute the
+Separate this into another operator in order to enable Precompute Pass to compute the
 weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
@@ -482,7 +700,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
                               std::string kernel_layout,
                               std::string out_layout,
                               DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -497,7 +715,7 @@ Expr MakeConv2DWinogradNNPACK(Expr data,
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACK);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
@@ -518,7 +736,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
 .add_type_rel("Conv2DWinogradNNPACKRel", Conv2DWinogradRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradNNPACKWeightTransformAttrs);
@@ -557,14 +775,14 @@ bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types,
 Expr MakeConv2DWinogradNNPACKWeightTransform(Expr weight,
                                              int convolution_algorithm,
                                              DataType out_dtype) {
-  auto attrs = make_node<Conv2DWinogradNNPACKWeightTransformAttrs>();
+  auto attrs = make_object<Conv2DWinogradNNPACKWeightTransformAttrs>();
   attrs->convolution_algorithm = convolution_algorithm;
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("nn.contrib_conv2d_winograd_nnpack_weight_transform");
   return CallNode::make(op, {weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_transform")
 .set_body_typed(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
@@ -595,7 +813,7 @@ Expr MakeConv2DNCHWcInt8(Expr data,
                          std::string kernel_layout,
                          std::string out_layout,
                          DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -610,7 +828,7 @@ Expr MakeConv2DNCHWcInt8(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
 .set_body_typed(MakeConv2DNCHWcInt8);
 
 
@@ -628,7 +846,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc_int8")
 .set_support_level(10)
 .add_type_rel("Conv2DNCHWcInt8", Conv2DWinogradRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 // Positional relay function to create conv2d NCHWc operator
 // used by frontend FFI.
@@ -644,7 +862,7 @@ Expr MakeConv2DNCHWc(Expr data,
                      std::string kernel_layout,
                      std::string out_layout,
                      DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -659,7 +877,7 @@ Expr MakeConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
 .set_body_typed(MakeConv2DNCHWc);
 
 
@@ -677,7 +895,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 .set_support_level(10)
 .add_type_rel("Conv2DNCHWc", Conv2DWinogradRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 
 // Positional relay function to create depthwise conv2d NCHWc operator
@@ -694,7 +912,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
                               std::string kernel_layout,
                               std::string out_layout,
                               DataType out_dtype) {
-  auto attrs = make_node<Conv2DAttrs>();
+  auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -709,7 +927,7 @@ Expr MakeDepthwiseConv2DNCHWc(Expr data,
   return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_depthwise_conv2d_NCHWc")
 .set_body_typed(MakeDepthwiseConv2DNCHWc);
 
 
@@ -727,7 +945,7 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
 .set_support_level(10)
 .add_type_rel("Conv2D", Conv2DRel<Conv2DAttrs>)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        Conv2DInferCorrectLayout<Conv2DAttrs>);
+        ConvInferCorrectLayout<Conv2DAttrs>);
 
 
 bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -788,9 +1006,11 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   // dilation
   Array<IndexExpr> oshape({data->shape[0], channels, 0, 0});
 
-  oshape.Set(2, indexdiv(data->shape[2] + param->padding[0] * 2 - dilated_ksize_y,
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  oshape.Set(2, indexdiv(data->shape[2] + pad_h - dilated_ksize_y,
                          param->strides[0]) + 1);
-  oshape.Set(3, indexdiv(data->shape[3] + param->padding[1] * 2 - dilated_ksize_x,
+  oshape.Set(3, indexdiv(data->shape[3] + pad_w - dilated_ksize_x,
                          param->strides[1]) + 1);
   DataType out_dtype = param->out_dtype;
 
@@ -853,7 +1073,7 @@ Expr MakeDeformableConv2D(Expr data,
                           std::string kernel_layout,
                           std::string out_layout,
                           DataType out_dtype) {
-  auto attrs = make_node<DeformableConv2DAttrs>();
+  auto attrs = make_object<DeformableConv2DAttrs>();
   attrs->strides = strides;
   attrs->padding = padding;
   attrs->dilation = dilation;
@@ -869,7 +1089,7 @@ Expr MakeDeformableConv2D(Expr data,
   return CallNode::make(op, {data, offset, weight}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.deformable_conv2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
 .set_body_typed(MakeDeformableConv2D);
 
 

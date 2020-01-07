@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file sim_tlpp.h
  * \brief TVM VTA multiple thread simulator header file.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file de_duplicate.cc
  * \brief Use a fresh Id for every Var to make the result well-formed.
@@ -38,7 +37,7 @@ Expr DeDup(const Expr& e) {
                        public PatternMutator {
    public:
     TypeVar Fresh(const TypeVar& tv) {
-      TypeVar ret = TypeVarNode::make(tv->var->name_hint, tv->kind);
+      TypeVar ret = TypeVarNode::make(tv->name_hint, tv->kind);
       type_rename_[tv] = ret;
       return ret;
     }
@@ -105,8 +104,8 @@ Expr DeDup(const Expr& e) {
     }
 
    private:
-    std::unordered_map<Var, Var, NodeHash, NodeEqual> rename_;
-    std::unordered_map<TypeVar, TypeVar, NodeHash, NodeEqual> type_rename_;
+    std::unordered_map<Var, Var, ObjectHash, ObjectEqual> rename_;
+    std::unordered_map<TypeVar, TypeVar, ObjectHash, ObjectEqual> type_rename_;
   };
   CHECK(WellFormed(e)) << AsText(e, false);
   Expr ret = DeDupMutator().VisitExpr(e);
@@ -115,7 +114,7 @@ Expr DeDup(const Expr& e) {
   return ret;
 }
 
-TVM_REGISTER_API("relay._transform.dedup")
+TVM_REGISTER_GLOBAL("relay._transform.dedup")
 .set_body_typed(DeDup);
 
 }  // namespace relay

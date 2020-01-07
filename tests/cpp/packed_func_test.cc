@@ -22,6 +22,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/ir.h>
 
 TEST(PackedFunc, Basic) {
@@ -144,15 +145,15 @@ TEST(PackedFunc, Type) {
   using namespace tvm;
   using namespace tvm::runtime;
   auto get_type = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
-      Type x = args[0];
+      DataType x = args[0];
       *rv = x;
     });
   auto get_type2 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       *rv = args[0];
     });
-  CHECK(get_type("int32").operator Type() == Int(32));
-  CHECK(get_type("float").operator Type() == Float(32));
-  CHECK(get_type2("float32x2").operator Type() == Float(32, 2));
+  CHECK(get_type("int32").operator DataType() == DataType::Int(32));
+  CHECK(get_type("float").operator DataType() == DataType::Float(32));
+  CHECK(get_type2("float32x2").operator DataType() == DataType::Float(32, 2));
 }
 
 TEST(TypedPackedFunc, HighOrder) {
@@ -178,55 +179,86 @@ TEST(TypedPackedFunc, HighOrder) {
   CHECK_EQ(f1(3), 4);
 }
 
-// new namespoace
-namespace test {
-// register int vector as extension type
-using IntVector = std::vector<int>;
-}  // namespace test
-
-namespace tvm {
-namespace runtime {
-
-template<>
-struct extension_type_info<test::IntVector> {
-  static const int code = kExtBegin + 1;
-};
-}  // runtime
-}  // tvm
-
-// do registration, this need to be in cc file
-TVM_REGISTER_EXT_TYPE(test::IntVector);
-
-TEST(PackedFunc, ExtensionType) {
-  using namespace tvm;
+TEST(TypedPackedFunc, Deduce) {
   using namespace tvm::runtime;
-  // note: class are copy by value.
-  test::IntVector vec{1, 2, 4};
+  using tvm::runtime::detail::function_signature;
 
-  auto copy_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      // copy by value
-      const test::IntVector& v = args[0].AsExtension<test::IntVector>();
-      CHECK(&v == &vec);
-      test::IntVector v2 = args[0];
-      CHECK_EQ(v2.size(), 3U);
-      CHECK_EQ(v[2], 4);
-      // return copy by value
-      *rv = v2;
-    });
+  TypedPackedFunc<int(float)> x;
+  auto f = [](int x) -> int {
+    return x + 1;
+  };
+  std::function<void(float)> y;
 
-  auto pass_vec = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      // copy by value
-      *rv = args[0];
-    });
-
-  test::IntVector vret1 = copy_vec(vec);
-  test::IntVector vret2 = pass_vec(copy_vec(vec));
-  CHECK_EQ(vret1.size(), 3U);
-  CHECK_EQ(vret2.size(), 3U);
-  CHECK_EQ(vret1[2], 4);
-  CHECK_EQ(vret2[2], 4);
+  static_assert(std::is_same<function_signature<decltype(x)>::FType,
+                int(float)>::value, "invariant1");
+  static_assert(std::is_same<function_signature<decltype(f)>::FType,
+                int(int)>::value, "invariant2");
+  static_assert(std::is_same<function_signature<decltype(y)>::FType,
+                void(float)>::value, "invariant3");
 }
 
+
+TEST(PackedFunc, ObjectConversion) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  TVMRetValue rv;
+  auto x = NDArray::Empty(
+      {}, String2TVMType("float32"),
+      TVMContext{kDLCPU, 0});
+  // assign null
+  rv = ObjectRef();
+  CHECK_EQ(rv.type_code(), kNull);
+
+  // Can assign NDArray to ret type
+  rv = x;
+  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  // Even if we assign base type it still shows as NDArray
+  rv = ObjectRef(x);
+  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  // Check convert back
+  CHECK(rv.operator NDArray().same_as(x));
+  CHECK(rv.operator ObjectRef().same_as(x));
+  CHECK(!rv.IsObjectRef<Expr>());
+
+  auto pf1 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args[0].type_code(), kNDArrayContainer);
+      CHECK(args[0].operator NDArray().same_as(x));
+      CHECK(args[0].operator ObjectRef().same_as(x));
+      CHECK(args[1].operator ObjectRef().get() == nullptr);
+      CHECK(args[1].operator NDArray().get() == nullptr);
+      CHECK(args[1].operator Module().get() == nullptr);
+      CHECK(args[1].operator Array<NDArray>().get() == nullptr);
+      CHECK(!args[0].IsObjectRef<Expr>());
+    });
+  pf1(x, ObjectRef());
+  pf1(ObjectRef(x), NDArray());
+
+  // testcases for modules
+  auto* pf = tvm::runtime::Registry::Get("module.source_module_create");
+  CHECK(pf != nullptr);
+  Module m = (*pf)("", "xyz");
+  rv = m;
+  CHECK_EQ(rv.type_code(), kModuleHandle);
+  // Even if we assign base type it still shows as NDArray
+  rv = ObjectRef(m);
+  CHECK_EQ(rv.type_code(), kModuleHandle);
+  // Check convert back
+  CHECK(rv.operator Module().same_as(m));
+  CHECK(rv.operator ObjectRef().same_as(m));
+  CHECK(!rv.IsObjectRef<NDArray>());
+
+  auto pf2 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args[0].type_code(), kModuleHandle);
+      CHECK(args[0].operator Module().same_as(m));
+      CHECK(args[0].operator ObjectRef().same_as(m));
+      CHECK(args[1].operator ObjectRef().get() == nullptr);
+      CHECK(args[1].operator NDArray().get() == nullptr);
+      CHECK(args[1].operator Module().get() == nullptr);
+      CHECK(!args[0].IsObjectRef<Expr>());
+    });
+  pf2(m, ObjectRef());
+  pf2(ObjectRef(m), Module());
+}
 
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);

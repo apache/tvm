@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file common.h
  * \brief TVM SGX common API.
  */

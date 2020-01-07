@@ -280,7 +280,7 @@ class RewriteAnnotation : public ExprMutator {
    * \return The created call node.
    */
   Call CreateDeviceCopy(const Expr& src, int src_dev_type, int dst_dev_type) {
-    auto attrs = make_node<DeviceCopyAttrs>();
+    auto attrs = make_object<DeviceCopyAttrs>();
     attrs->src_dev_type = src_dev_type;
     attrs->dst_dev_type = dst_dev_type;
     static const Op& op = Op::Get("device_copy");
@@ -560,13 +560,13 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_API("relay._analysis.CollectDeviceInfo")
+TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceInfo")
 .set_body_typed(CollectDeviceInfo);
 
-TVM_REGISTER_API("relay._analysis.RewriteDeviceAnnotation")
+TVM_REGISTER_GLOBAL("relay._analysis.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
-TVM_REGISTER_API("relay._analysis.CollectDeviceAnnotationOps")
+TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
 namespace transform {
@@ -580,7 +580,7 @@ Pass RewriteAnnotatedOps(int fallback_device) {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.RewriteDeviceAnnotation")
+TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")
 .set_body_typed(RewriteAnnotatedOps);
 
 }  // namespace transform

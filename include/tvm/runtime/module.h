@@ -201,6 +201,7 @@ class ModuleNode : public Object {
 
  protected:
   friend class Module;
+  friend class ModuleInternal;
   /*! \brief The modules this module depend on */
   std::vector<Module> imports_;
 
