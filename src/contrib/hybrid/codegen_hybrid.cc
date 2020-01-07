@@ -76,18 +76,18 @@ void CodeGenHybrid::PrintType(DataType t, std::ostream &os) {
   os << t.bits();
 }
 
-void CodeGenHybrid::VisitExpr_(const IntImm* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << op->value;
 }
-void CodeGenHybrid::VisitExpr_(const UIntImm* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const UIntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintType(op->dtype, os);
   os << "(" << op->value << ")";
 }
-void CodeGenHybrid::VisitExpr_(const FloatImm* op, std::ostream& os) { // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
   PrintType(op->dtype, os);
   os << "(" << std::setprecision(20) << op->value << ")";
 }
-void CodeGenHybrid::VisitExpr_(const StringImm* op, std::ostream& os) { // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const StringImmNode* op, std::ostream& os) { // NOLINT(*)
   os << "'" << op->value << "'";
 }
 
@@ -305,7 +305,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmt* op) {
     indent_ -= tab_;
   } else if (op->attr_key == ir::attr::realize_scope) {
     auto v = Downcast<FunctionRef>(op->node);
-    alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+    alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
     PrintStmt(op->body);
   } else {
     // For now we ignore the unsupported AttrStmt

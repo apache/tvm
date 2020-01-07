@@ -30,7 +30,7 @@ namespace autotvm {
 
 // for loop
 void FeatureVisitor::VisitStmt_(const For* op) {
-  const auto *extent = op->extent.as<IntImm>();
+  const auto *extent = op->extent.as<IntImmNode>();
   int64_t loop_extent = -1;
   if (extent != nullptr)
     loop_extent = extent->value;
@@ -61,7 +61,7 @@ void FeatureVisitor::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
     VarExpr var = op->node.as<tvm::IterVarNode>()->var;
-    const auto *extent = op->value.as<IntImm>();
+    const auto *extent = op->value.as<IntImmNode>();
     CHECK(extent);
 
     std::string name = var.get()->name_hint;

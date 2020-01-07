@@ -76,10 +76,10 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::IntImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::UIntImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::FloatImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::StringImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::UIntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
   virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -112,10 +112,10 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     // Set dispatch
     ATTR_FUNCTOR_DISPATCH(StrMapNode);
     ATTR_FUNCTOR_DISPATCH(ArrayNode);
-    ATTR_FUNCTOR_DISPATCH(IntImm);
-    ATTR_FUNCTOR_DISPATCH(UIntImm);
-    ATTR_FUNCTOR_DISPATCH(FloatImm);
-    ATTR_FUNCTOR_DISPATCH(StringImm);
+    ATTR_FUNCTOR_DISPATCH(IntImmNode);
+    ATTR_FUNCTOR_DISPATCH(UIntImmNode);
+    ATTR_FUNCTOR_DISPATCH(FloatImmNode);
+    ATTR_FUNCTOR_DISPATCH(StringImmNode);
     ATTR_FUNCTOR_DISPATCH(VarNode);
     ATTR_FUNCTOR_DISPATCH(AddNode);
     ATTR_FUNCTOR_DISPATCH(SubNode);
@@ -156,10 +156,10 @@ class AttrsEqualHandler :
   bool VisitAttrDefault_(const Object* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::IntImm* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::UIntImm* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::FloatImm* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::StringImm* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::IntImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::UIntImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::FloatImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::StringImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::AddNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::SubNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::MulNode* lhs, const ObjectRef& other) final;
@@ -197,10 +197,10 @@ class AttrsHashHandler :
 
  protected:
   size_t VisitAttrDefault_(const Object* lhs) final;
-  size_t VisitAttr_(const ir::IntImm* lhs) final;
-  size_t VisitAttr_(const ir::UIntImm* lhs) final;
-  size_t VisitAttr_(const ir::FloatImm* lhs) final;
-  size_t VisitAttr_(const ir::StringImm* lhs) final;
+  size_t VisitAttr_(const ir::IntImmNode* lhs) final;
+  size_t VisitAttr_(const ir::UIntImmNode* lhs) final;
+  size_t VisitAttr_(const ir::FloatImmNode* lhs) final;
+  size_t VisitAttr_(const ir::StringImmNode* lhs) final;
   size_t VisitAttr_(const ArrayNode* lhs) final;
   size_t VisitAttr_(const StrMapNode* lhs) final;
   size_t VisitAttr_(const ir::AddNode* op) final;

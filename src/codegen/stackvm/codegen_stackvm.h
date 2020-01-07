@@ -135,10 +135,10 @@ class CodeGenStackVM
   void VisitExpr_(const SelectNode* op) final;
   void VisitExpr_(const RampNode* op) final;
   void VisitExpr_(const BroadcastNode* op) final;
-  void VisitExpr_(const IntImm* op) final;
-  void VisitExpr_(const UIntImm* op) final;
-  void VisitExpr_(const FloatImm* op) final;
-  void VisitExpr_(const StringImm* op) final;
+  void VisitExpr_(const IntImmNode* op) final;
+  void VisitExpr_(const UIntImmNode* op) final;
+  void VisitExpr_(const FloatImmNode* op) final;
+  void VisitExpr_(const StringImmNode* op) final;
   // statment
   void VisitStmt_(const LetStmt* op) final;
   void VisitStmt_(const Store* op) final;

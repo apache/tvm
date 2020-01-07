@@ -79,7 +79,7 @@ TEST(Attrs, Basic) {
   n->InitBySeq("name", "xxx", "expr", 128);
   CHECK_EQ(n->name, "xxx");
   CHECK_EQ(n->axis, 10);
-  CHECK_EQ(n->expr.as<tvm::ir::IntImm>()->value, 128);
+  CHECK_EQ(n->expr.as<tvm::ir::IntImmNode>()->value, 128);
   // Check docstring
   std::ostringstream os;
   n->PrintDocString(os);

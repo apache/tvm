@@ -146,11 +146,11 @@ class ConstIntBoundAnalyzer::Impl :
     return Intersect(a, b);
   }
 
-  Entry VisitExpr_(const IntImm* op) final {
+  Entry VisitExpr_(const IntImmNode* op) final {
     return MakeBound(op->value, op->value);
   }
 
-  Entry VisitExpr_(const UIntImm* op) final {
+  Entry VisitExpr_(const UIntImmNode* op) final {
     if (op->value <= static_cast<uint64_t>(kPosInf)) {
       return MakeBound(op->value, op->value);
     } else {

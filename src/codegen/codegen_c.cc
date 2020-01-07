@@ -359,7 +359,7 @@ void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 
-inline void PrintConst(const IntImm* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
+inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
   if (op->dtype == DataType::Int(32)) {
     std::ostringstream temp;
     temp << op->value;
@@ -372,7 +372,7 @@ inline void PrintConst(const IntImm* op, std::ostream& os, CodeGenC* p) { // NOL
   }
 }
 
-inline void PrintConst(const UIntImm* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
+inline void PrintConst(const UIntImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
   if (op->dtype == DataType::UInt(32)) {
     std::ostringstream temp;
     temp << op->value << "U";
@@ -385,7 +385,7 @@ inline void PrintConst(const UIntImm* op, std::ostream& os, CodeGenC* p) { // NO
   }
 }
 
-inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
+inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
   switch (op->dtype.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
@@ -405,16 +405,16 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenC* p) { // N
   }
 }
 
-void CodeGenC::VisitExpr_(const IntImm* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const UIntImm* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const UIntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const FloatImm* op, std::ostream& os) { // NOLINT(*)
+void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const StringImm* op, std::ostream& os) { // NOLINT(*)
+void CodeGenC::VisitExpr_(const StringImmNode* op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
@@ -562,7 +562,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     CHECK_EQ(op->args.size(), 3U);
     os << GetStructRef(
         op->dtype, op->args[0], op->args[1],
-        op->args[2].as<IntImm>()->value);
+        op->args[2].as<IntImmNode>()->value);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     CHECK_EQ(op->args.size(), 1U);
     os << "(";
@@ -814,7 +814,7 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
   } else if (op->attr_key == ir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
-    alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
+    alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
   } else if (op->attr_key == ir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
@@ -826,7 +826,7 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
 void CodeGenC::VisitStmt_(const AssertStmt* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (const auto* str = op->message.as<StringImm>()) {
+  if (const auto* str = op->message.as<StringImmNode>()) {
     // GLOG style check
     stream << "CHECK(" << cond << ") << \"" << str->value << "\";\n";
   } else {
@@ -894,7 +894,7 @@ void CodeGenC::VisitStmt_(const Evaluate* op) {
           call->args[3].dtype(),
           call->args[0],
           call->args[1],
-          call->args[2].as<IntImm>()->value);
+          call->args[2].as<IntImmNode>()->value);
       this->PrintIndent();
       this->stream << ref << " = " << value << ";\n";
       return;

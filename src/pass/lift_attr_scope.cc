@@ -177,11 +177,11 @@ class AttrScopeLifter : public StmtMutator {
     if (!a.defined() || !b.defined()) return false;
     if (a->type_index() != b->type_index()) return false;
     if (a.dtype() != b.dtype()) return false;
-    if (const IntImm* op = a.as<IntImm>()) {
-      return op->value == b.as<IntImm>()->value;
+    if (const IntImmNode* op = a.as<IntImmNode>()) {
+      return op->value == b.as<IntImmNode>()->value;
     }
-    if (const UIntImm* op = a.as<UIntImm>()) {
-      return op->value == b.as<UIntImm>()->value;
+    if (const UIntImmNode* op = a.as<UIntImmNode>()) {
+      return op->value == b.as<UIntImmNode>()->value;
     }
     return false;
   }

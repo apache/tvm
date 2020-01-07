@@ -46,7 +46,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     } else if (op->attr_key == attr::storage_scope) {
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       op = ret.as<AttrStmt>();
-      const Variable* v = op->node.as<Variable>();
+      const VarNode* v = op->node.as<VarNode>();
       if (alloc_remap_.count(v)) {
         return op->body;
       } else {
@@ -87,7 +87,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           repl->extents, repl->condition, stmt);
       stmt = AttrStmt::make(
           repl->buffer_var, attr::storage_scope,
-          StringImm::make("shared"), stmt);
+          StringImmNode::make("shared"), stmt);
       return stmt;
     } else {
       return stmt;
@@ -120,7 +120,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     const CommReducerNode *combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
 
-    const UIntImm *size_of_args = call->args[0].as<UIntImm>();
+    const UIntImmNode *size_of_args = call->args[0].as<UIntImmNode>();
     CHECK(size_of_args) << call->args[0]->GetTypeKey();
     CHECK_EQ(size, size_of_args->value);
     Array<Expr> inits = combiner->identity_element;
@@ -134,16 +134,16 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
       types[idx] = values[idx].dtype();
     }
-    std::vector<const Variable*> buffers(size);
+    std::vector<const VarNode*> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      const Variable* buffer = call->args[2+size+idx].as<Variable>();
+      const VarNode* buffer = call->args[2+size+idx].as<VarNode>();
       CHECK(buffer);
       buffers[idx] = buffer;
     }
 
-    std::unordered_set<const Variable*> reduce_set;
+    std::unordered_set<const VarNode*> reduce_set;
     for (size_t i = 2 + 2 * size; i < call->args.size(); ++i) {
-      const Variable* v = call->args[i].as<Variable>();
+      const VarNode* v = call->args[i].as<VarNode>();
       CHECK(v);
       reduce_set.insert(v);
     }
@@ -312,7 +312,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   static Stmt SyncThread(const std::string& sync) {
     return Evaluate::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                   {StringImm::make(sync)},
+                   {StringImmNode::make(sync)},
                    CallNode::Intrinsic));
   }
   // The local buffer index.
@@ -330,9 +330,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::vector<const AttrStmt*> thread_extents_;
   std::vector<const CommReducerNode*> reduce_combiner_;
   // The load remap
-  std::unordered_map<const Variable *, Expr> load_remap_;
+  std::unordered_map<const VarNode *, Expr> load_remap_;
   // Allocate remap
-  std::unordered_map<const Variable *, Stmt> alloc_remap_;
+  std::unordered_map<const VarNode *, Stmt> alloc_remap_;
 };
 
 LoweredFunc

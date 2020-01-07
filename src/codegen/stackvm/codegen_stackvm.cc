@@ -101,7 +101,7 @@ int CodeGenStackVM::GetVarID(const VarNode* v) const {
 void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
   this->Push(op->buffer_var);
   StackVM::OpCode code = StackVM::GetLoad(op->dtype);
-  if (const IntImm* index = op->index.as<IntImm>()) {
+  if (const IntImmNode* index = op->index.as<IntImmNode>()) {
     this->PushOp(code, index->value);
   } else {
     this->Push(op->index);
@@ -115,7 +115,7 @@ void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
 void CodeGenStackVM::VisitStmt_(const Store* op) {
   this->Push(op->buffer_var);
   StackVM::OpCode code = StackVM::GetStore(op->value.dtype());
-  if (const IntImm* index = op->index.as<IntImm>()) {
+  if (const IntImmNode* index = op->index.as<IntImmNode>()) {
     this->Push(op->value);
     this->PushOp(code, index->value);
   } else {
@@ -154,9 +154,9 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     this->Push(op->args[0]);
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
-    int kind = op->args[2].as<IntImm>()->value;
+    int kind = op->args[2].as<IntImmNode>()->value;
     this->Push(op->args[0]);
-    const IntImm* index = op->args[1].as<IntImm>();
+    const IntImmNode* index = op->args[1].as<IntImmNode>();
     CHECK(index != nullptr);
     StackVM::Code code;
     code.op_code = StackVM::TVM_STRUCT_GET;
@@ -167,12 +167,12 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     vm_.code.push_back(code);
   } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     CHECK_GE(op->args.size(), 5U);
-    const StringImm* s = op->args[0].as<StringImm>();
+    const StringImmNode* s = op->args[0].as<StringImmNode>();
     CHECK(s != nullptr) << "tvm_call_global expect first argument as function name";
     this->Push(op->args[1]);
     this->Push(op->args[2]);
-    int begin = op->args[3].as<IntImm>()->value;
-    int end = op->args[4].as<IntImm>()->value;
+    int begin = op->args[3].as<IntImmNode>()->value;
+    int end = op->args[4].as<IntImmNode>()->value;
     // find the fuction id.
     const std::string& func_name = s->value;
     auto it = extern_fun_idmap_.find(func_name);
@@ -196,8 +196,8 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     vm_.code.push_back(code);
   } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     CHECK_EQ(op->args.size(), 2U);
-    const std::string& type = op->args[0].as<StringImm>()->value;
-    const IntImm* num = op->args[1].as<IntImm>();
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
+    const IntImmNode* num = op->args[1].as<IntImmNode>();
     CHECK(num != nullptr);
     static_assert(alignof(TVMValue) % alignof(TVMArray) == 0, "invariant");
     // static_assert(alignof(TVMValue) % alignof(tvm_index_t) == 0, "invariant");
@@ -268,25 +268,25 @@ void CodeGenStackVM::PushCast(DataType dst, DataType src) {
   }
 }
 
-void CodeGenStackVM::VisitExpr_(const StringImm* op) {
+void CodeGenStackVM::VisitExpr_(const StringImmNode* op) {
   int sid = this->GetStrID(op->value);
   this->PushOp(StackVM::PUSH_I64, sid);
 }
 
-void CodeGenStackVM::VisitExpr_(const IntImm* op) {
+void CodeGenStackVM::VisitExpr_(const IntImmNode* op) {
   CHECK(op->value >= std::numeric_limits<int>::min() &&
         op->value <= std::numeric_limits<int>::max())
       << "Int constant exceed bound";
     this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
 }
 
-void CodeGenStackVM::VisitExpr_(const UIntImm* op) {
+void CodeGenStackVM::VisitExpr_(const UIntImmNode* op) {
   CHECK(op->value <= std::numeric_limits<int>::max())
       << "Int constant exceed bound";
   this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
 }
 
-void CodeGenStackVM::VisitExpr_(const FloatImm* op) {
+void CodeGenStackVM::VisitExpr_(const FloatImmNode* op) {
   LOG(FATAL) << "Float Imm is not supported";
 }
 
@@ -430,14 +430,14 @@ void CodeGenStackVM::VisitStmt_(const Evaluate *ev) {
     CHECK_EQ(op->args.size(), 4U);
     this->Push(op->args[0]);
     this->Push(op->args[3]);
-    const IntImm* index = op->args[1].as<IntImm>();
+    const IntImmNode* index = op->args[1].as<IntImmNode>();
     CHECK(index != nullptr);
     StackVM::Code code;
     code.op_code = StackVM::TVM_STRUCT_SET;
     vm_.code.push_back(code);
     code.v_int = index->value;
     vm_.code.push_back(code);
-    code.v_int = op->args[2].as<IntImm>()->value;
+    code.v_int = op->args[2].as<IntImmNode>()->value;
     vm_.code.push_back(code);
   } else {
     this->Push(ev->value);
@@ -490,7 +490,7 @@ void CodeGenStackVM::VisitExpr_(const SelectNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const AssertStmt* op) {
-  if (const auto* str = op->message.as<StringImm>()) {
+  if (const auto* str = op->message.as<StringImmNode>()) {
     int sid = this->GetStrID(str->value);
     this->Push(op->condition);
     this->PushOp(StackVM::ASSERT, sid);

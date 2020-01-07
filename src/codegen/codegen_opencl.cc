@@ -178,7 +178,7 @@ void CodeGenOpenCL::PrintVecStore(const VarNode* buffer,
 }
 
 void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -247,7 +247,7 @@ void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOL
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";

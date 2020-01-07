@@ -59,12 +59,12 @@ Stmt MakePipeline(const Stage& s,
   // use attribute to mark scope of the operation.
   pipeline = AttrStmt::make(
       s->op, ir::attr::realize_scope,
-      StringImm::make(s->scope),
+      StringImmNode::make(s->scope),
       pipeline);
 
   if (s->is_opengl) {
     pipeline = AttrStmt::make(
-        s->op, ir::attr::opengl_stage_scope, StringImm::make(""), pipeline);
+        s->op, ir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
   }
   return pipeline;
 }

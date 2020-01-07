@@ -103,12 +103,12 @@ class CodeGenLLVM :
     return llvm::ConstantInt::getSigned(t_int32_, value);
   }
   // override codegen
-  llvm::Value* VisitExpr_(const Variable* op) override;
+  llvm::Value* VisitExpr_(const VarNode* op) override;
   llvm::Value* VisitExpr_(const CastNode* op) override;
-  llvm::Value* VisitExpr_(const IntImm* op) override;
-  llvm::Value* VisitExpr_(const UIntImm* op) override;
-  llvm::Value* VisitExpr_(const FloatImm* op) override;
-  llvm::Value* VisitExpr_(const StringImm* op) override;
+  llvm::Value* VisitExpr_(const IntImmNode* op) override;
+  llvm::Value* VisitExpr_(const UIntImmNode* op) override;
+  llvm::Value* VisitExpr_(const FloatImmNode* op) override;
+  llvm::Value* VisitExpr_(const StringImmNode* op) override;
   llvm::Value* VisitExpr_(const AddNode* op) override;
   llvm::Value* VisitExpr_(const SubNode* op) override;
   llvm::Value* VisitExpr_(const MulNode* op) override;
@@ -211,7 +211,7 @@ class CodeGenLLVM :
   void InitFuncState();
   // Get alignment given index.
   void GetAlignment(
-      DataType t, const Variable* buf_var, const Expr& index,
+      DataType t, const VarNode* buf_var, const Expr& index,
       int* p_alignment, int* p_native_bits);
   // Get constant string
   llvm::Value* GetConstString(const std::string& str);
@@ -223,7 +223,7 @@ class CodeGenLLVM :
   // cast operatpr
   llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
   // comparison op
-  llvm::Value* GetVarValue(const Variable* v) const;
+  llvm::Value* GetVarValue(const VarNode* v) const;
   llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
@@ -245,7 +245,7 @@ class CodeGenLLVM :
                        llvm::Value* stride,
                        const VarExpr& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, DataType type);
+  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, Expr index, DataType type);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -280,9 +280,9 @@ class CodeGenLLVM :
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, StorageInfo> alloc_storage_info_;
+  std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
-  std::unordered_map<const Variable*, llvm::Value*> var_map_;
+  std::unordered_map<const VarNode*, llvm::Value*> var_map_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
   // Whether current function is restricted
@@ -290,9 +290,9 @@ class CodeGenLLVM :
   // The analyzer information
   std::unique_ptr<arith::Analyzer> analyzer_;
   // set of var that are not restricted(can alias)
-  std::unordered_set<const Variable*> alias_var_set_;
+  std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
-  std::unordered_set<const Variable*> volatile_buf_;
+  std::unordered_set<const VarNode*> volatile_buf_;
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
     std::unique_ptr<llvm::DIBuilder> di_builder_;

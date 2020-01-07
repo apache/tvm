@@ -76,21 +76,21 @@ inline bool IsIndexType(const DataType& type) {
 
 
 #define TVM_ARITH_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImm;                                                     \
-  using ir::UIntImm;                                                    \
-  using ir::FloatImm;                                                   \
-  const IntImm* pa = a.as<IntImm>();                                    \
-  const IntImm* pb = b.as<IntImm>();                                    \
-  const FloatImm* fa = a.as<FloatImm>();                                \
-  const FloatImm* fb = b.as<FloatImm>();                                \
+  using ir::IntImmNode;                                                     \
+  using ir::UIntImmNode;                                                    \
+  using ir::FloatImmNode;                                                   \
+  const IntImmNode* pa = a.as<IntImmNode>();                                    \
+  const IntImmNode* pb = b.as<IntImmNode>();                                    \
+  const FloatImmNode* fa = a.as<FloatImmNode>();                                \
+  const FloatImmNode* fb = b.as<FloatImmNode>();                                \
   BODY;
 
 
 #define TVM_INDEX_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImm;                                                     \
-  using ir::UIntImm;                                                    \
-  const IntImm* pa = a.as<IntImm>();                                    \
-  const IntImm* pb = b.as<IntImm>();                                    \
+  using ir::IntImmNode;                                                     \
+  using ir::UIntImmNode;                                                    \
+  const IntImmNode* pa = a.as<IntImmNode>();                                    \
+  const IntImmNode* pb = b.as<IntImmNode>();                                    \
   const DataType& ta = a.dtype();                                       \
   const DataType& tb = b.dtype();                                       \
   if (arith::IsIndexType(ta) && arith::IsIndexType(tb)) {               \
@@ -103,10 +103,10 @@ template<>
 inline Expr TryConstFold<ir::AddNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, pa->value + pb->value);
+      if (pa && pb) return IntImmNode::make(rtype, pa->value + pb->value);
       if (pa && pa->value == 0) return b;
       if (pb && pb->value == 0) return a;
-      if (fa && fb) return FloatImm::make(rtype, fa->value + fb->value);
+      if (fa && fb) return FloatImmNode::make(rtype, fa->value + fb->value);
       if (fa && fa->value == 0) return b;
       if (fb && fb->value == 0) return a;
     });
@@ -117,9 +117,9 @@ template<>
 inline Expr TryConstFold<ir::SubNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, pa->value - pb->value);
+      if (pa && pb) return IntImmNode::make(rtype, pa->value - pb->value);
       if (pb && pb->value == 0) return a;
-      if (fa && fb) return FloatImm::make(rtype, fa->value - fb->value);
+      if (fa && fb) return FloatImmNode::make(rtype, fa->value - fb->value);
       if (fb && fb->value == 0) return a;
     });
   return Expr();
@@ -129,7 +129,7 @@ template<>
 inline Expr TryConstFold<ir::MulNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, pa->value * pb->value);
+      if (pa && pb) return IntImmNode::make(rtype, pa->value * pb->value);
       if (pa) {
         if (pa->value == 1) return b;
         if (pa->value == 0) return a;
@@ -138,7 +138,7 @@ inline Expr TryConstFold<ir::MulNode>(Expr a, Expr b) {
         if (pb->value == 1) return a;
         if (pb->value == 0) return b;
       }
-      if (fa && fb) return FloatImm::make(rtype, fa->value * fb->value);
+      if (fa && fb) return FloatImmNode::make(rtype, fa->value * fb->value);
       if (fa) {
         if (fa->value == 1) return b;
         if (fa->value == 0) return a;
@@ -159,7 +159,7 @@ inline Expr TryConstFold<ir::DivNode>(Expr a, Expr b) {
         // due to division and mod can have different modes
         // NOTE: this will assumes truc div.
         CHECK_NE(pb->value, 0) << "Divide by zero";
-        return IntImm::make(rtype, pa->value / pb->value);
+        return IntImmNode::make(rtype, pa->value / pb->value);
       }
       if (pa) {
         if (pa->value == 0) return a;
@@ -169,7 +169,7 @@ inline Expr TryConstFold<ir::DivNode>(Expr a, Expr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
       if (fa && fb && fb->value != 0) {
-        return FloatImm::make(rtype, fa->value / fb->value);
+        return FloatImmNode::make(rtype, fa->value / fb->value);
       }
       if (fa && fa->value == 0) return a;
       if (fb) {
@@ -185,7 +185,7 @@ inline Expr TryConstFold<ir::ModNode>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
-        return IntImm::make(rtype, pa->value % pb->value);
+        return IntImmNode::make(rtype, pa->value % pb->value);
       }
       if (pa) {
         if (pa->value == 0) return a;
@@ -204,7 +204,7 @@ inline Expr TryConstFold<ir::FloorDivNode>(Expr a, Expr b) {
       const DataType& rtype = a.dtype();
       if (pa && pb) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
-        return IntImm::make(rtype, arith::floordiv(pa->value, pb->value));
+        return IntImmNode::make(rtype, arith::floordiv(pa->value, pb->value));
       }
       if (pa) {
         if (pa->value == 0) return a;
@@ -214,7 +214,7 @@ inline Expr TryConstFold<ir::FloorDivNode>(Expr a, Expr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
       if (fa && fb && fb->value != 0) {
-        return FloatImm::make(rtype, std::floor(fa->value / fb->value));
+        return FloatImmNode::make(rtype, std::floor(fa->value / fb->value));
       }
       if (fa && fa->value == 0) return a;
       if (fb) {
@@ -230,7 +230,7 @@ inline Expr TryConstFold<ir::FloorModNode>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
-        return IntImm::make(rtype, arith::floormod(pa->value, pb->value));
+        return IntImmNode::make(rtype, arith::floormod(pa->value, pb->value));
       }
       if (pa) {
         if (pa->value == 0) return a;
@@ -247,8 +247,8 @@ template<>
 inline Expr TryConstFold<ir::MinNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, std::min(pa->value, pb->value));
-      if (fa && fb) return FloatImm::make(rtype, std::min(fa->value, fb->value));
+      if (pa && pb) return IntImmNode::make(rtype, std::min(pa->value, pb->value));
+      if (fa && fb) return FloatImmNode::make(rtype, std::min(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
   return Expr();
@@ -258,8 +258,8 @@ template<>
 inline Expr TryConstFold<ir::MaxNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, std::max(pa->value, pb->value));
-      if (fa && fb) return FloatImm::make(rtype, std::max(fa->value, fb->value));
+      if (pa && pb) return IntImmNode::make(rtype, std::max(pa->value, pb->value));
+      if (fa && fb) return FloatImmNode::make(rtype, std::max(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
   return Expr();
@@ -268,8 +268,8 @@ inline Expr TryConstFold<ir::MaxNode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::GTNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value > pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value > fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value > pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value > fb->value);
     });
   return Expr();
 }
@@ -277,8 +277,8 @@ inline Expr TryConstFold<ir::GTNode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::GENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value >= pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value >= fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value >= pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value >= fb->value);
     });
   return Expr();
 }
@@ -286,8 +286,8 @@ inline Expr TryConstFold<ir::GENode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::LTNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value < pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value < fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value < pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value < fb->value);
     });
   return Expr();
 }
@@ -295,8 +295,8 @@ inline Expr TryConstFold<ir::LTNode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::LENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value <= pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value <= fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value <= pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value <= fb->value);
     });
   return Expr();
 }
@@ -304,8 +304,8 @@ inline Expr TryConstFold<ir::LENode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::EQNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value == pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value == fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value == pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value == fb->value);
     });
   return Expr();
 }
@@ -313,17 +313,17 @@ inline Expr TryConstFold<ir::EQNode>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::NENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value != pb->value);
-      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value != fb->value);
+      if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value != pb->value);
+      if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value != fb->value);
     });
   return Expr();
 }
 
 template<>
 inline Expr TryConstFold<ir::AndNode>(Expr a, Expr b) {
-  using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
-  const UIntImm* pb = b.as<UIntImm>();
+  using ir::UIntImmNode;
+  const UIntImmNode* pa = a.as<UIntImmNode>();
+  const UIntImmNode* pb = b.as<UIntImmNode>();
   if (pa && pa->value) return b;
   if (pa && !pa->value) return a;
   if (pb && pb->value) return a;
@@ -333,9 +333,9 @@ inline Expr TryConstFold<ir::AndNode>(Expr a, Expr b) {
 
 template<>
 inline Expr TryConstFold<ir::OrNode>(Expr a, Expr b) {
-  using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
-  const UIntImm* pb = b.as<UIntImm>();
+  using ir::UIntImmNode;
+  const UIntImmNode* pa = a.as<UIntImmNode>();
+  const UIntImmNode* pb = b.as<UIntImmNode>();
   if (pa && pa->value) return a;
   if (pa && !pa->value) return b;
   if (pb && pb->value) return b;
@@ -345,10 +345,10 @@ inline Expr TryConstFold<ir::OrNode>(Expr a, Expr b) {
 
 template<>
 inline Expr TryConstFold<ir::NotNode>(Expr a) {
-  using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
+  using ir::UIntImmNode;
+  const UIntImmNode* pa = a.as<UIntImmNode>();
   if (pa) {
-    return UIntImm::make(DataType::UInt(1), !(pa->value));
+    return UIntImmNode::make(DataType::UInt(1), !(pa->value));
   }
   return Expr();
 }

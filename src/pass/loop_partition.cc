@@ -49,10 +49,10 @@ struct PartitionKeyHash {
 // condition cond is proven to have value cond_value (true or false) in interval.
 using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash>;
 
-bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
+bool ExprUseVars(Expr expr, const std::unordered_set<const VarNode*>& vars) {
   bool success = false;
   PostOrderVisit(expr, [&vars, &success](const ObjectRef& node) {
-    if (const Variable* v = node.as<Variable>()) {
+    if (const VarNode* v = node.as<VarNode>()) {
       if (vars.count(v)) {
         success = true;
         return;
@@ -75,7 +75,7 @@ class CandidateSelector final : public StmtExprVisitor {
   void VisitStmt_(const For* op) final {
     // partition const loop when sets split_const_loop_
     if (!is_const(op->min) || !is_const(op->extent) || split_const_loop_) {
-      const Variable* var = op->loop_var.get();
+      const VarNode* var = op->loop_var.get();
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
       if (record_.at(var) && !no_split_) {
@@ -132,7 +132,7 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     if (in_likely_ && record_.count(op)) {
       record_.at(op) = true;
     }
@@ -144,7 +144,7 @@ class CandidateSelector final : public StmtExprVisitor {
   bool in_likely_{false};
   bool no_split_{false};
   bool split_const_loop_{false};
-  std::unordered_map<const Variable*, VarIsUsed> record_;
+  std::unordered_map<const VarNode*, VarIsUsed> record_;
 };
 
 // Populate partitions data structure, i.e., for a specific variable,
@@ -153,8 +153,8 @@ class CandidateSelector final : public StmtExprVisitor {
 class PartitionFinder : public StmtExprVisitor {
  public:
   explicit PartitionFinder(VarExpr current_var,
-    const std::unordered_map<const Variable*, IntSet>& hint_map,
-    const std::unordered_map<const Variable*, IntSet>& relax_map)
+    const std::unordered_map<const VarNode*, IntSet>& hint_map,
+    const std::unordered_map<const VarNode*, IntSet>& relax_map)
       : current_var_(current_var), hint_map_(hint_map),  relax_map_(relax_map) {
         for (const auto& kv : hint_map) {
           out_vars_.insert(kv.first);
@@ -167,7 +167,7 @@ class PartitionFinder : public StmtExprVisitor {
   void VisitStmt_(const For* op) final {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
-    const Variable* var = op->loop_var.get();
+    const VarNode* var = op->loop_var.get();
     hint_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
     relax_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
     StmtExprVisitor::VisitStmt_(op);
@@ -180,7 +180,7 @@ class PartitionFinder : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
-      const Variable* var = thread_axis->var.get();
+      const VarNode* var = thread_axis->var.get();
       IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
@@ -196,7 +196,7 @@ class PartitionFinder : public StmtExprVisitor {
     if (op->is_intrinsic(CallNode::likely)) {
       Expr cond = op->args[0];
       if (ExprUseVars(cond,
-          std::unordered_set<const Variable*>({current_var_.get()}))) {
+          std::unordered_set<const VarNode*>({current_var_.get()}))) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
@@ -249,9 +249,9 @@ class PartitionFinder : public StmtExprVisitor {
   }
 
   VarExpr current_var_;
-  std::unordered_set<const Variable*> out_vars_;
-  std::unordered_map<const Variable*, IntSet> hint_map_;
-  std::unordered_map<const Variable*, IntSet> relax_map_;
+  std::unordered_set<const VarNode*> out_vars_;
+  std::unordered_map<const VarNode*, IntSet> hint_map_;
+  std::unordered_map<const VarNode*, IntSet> relax_map_;
 };
 
 // Replace the set of conditions given by ps with cond_value (true or false)
@@ -374,8 +374,8 @@ class LoopPartitioner : public StmtMutator {
   inline Stmt MakeFor(const Object* op, Expr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
-  std::unordered_map<const Variable*, IntSet> hint_map_;
-  std::unordered_map<const Variable*, IntSet> relax_map_;
+  std::unordered_map<const VarNode*, IntSet> hint_map_;
+  std::unordered_map<const VarNode*, IntSet> relax_map_;
   arith::Analyzer analyzer_;
   CandidateSelector selector;
 };

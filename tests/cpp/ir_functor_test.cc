@@ -66,7 +66,7 @@ TEST(IRF, ExprTransform) {
     int VisitExpr_(const VarNode* op, int b) final {
       return b;
     }
-    int VisitExpr_(const IntImm* op, int b) final {
+    int VisitExpr_(const IntImmNode* op, int b) final {
       return op->value;
     }
     int VisitExpr_(const AddNode* op, int b) final {

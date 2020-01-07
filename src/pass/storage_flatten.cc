@@ -69,7 +69,7 @@ class StorageFlattener : public StmtExprMutator {
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<Variable>());
+      CHECK(it->second.as<VarNode>());
       VarExpr buf_var = Downcast<VarExpr>(it->second);
       return Store::make(buf_var, op->value, op->index, op->predicate);
     } else {
@@ -79,7 +79,7 @@ class StorageFlattener : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
+      storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::double_buffer_scope &&
                op->node->IsInstance<OperationNode>()) {
@@ -109,12 +109,12 @@ class StorageFlattener : public StmtExprMutator {
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       TensorKey key{tensor->op, tensor->value_index};
       auto& vinfo = dim_align_[key];
-      int dim = tuple->args[0].as<IntImm>()->value;
+      int dim = tuple->args[0].as<IntImmNode>()->value;
       if (static_cast<size_t>(dim) >= vinfo.size()) {
         vinfo.resize(dim + 1);
       }
-      vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
-      vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
+      vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
+      vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::opengl_stage_scope) {
       is_opengl_ = true;
@@ -252,7 +252,7 @@ class StorageFlattener : public StmtExprMutator {
       }
       ret = AttrStmt::make(
           e.buffer->data, attr::storage_scope,
-          StringImm::make(e.buffer->scope), ret);
+          StringImmNode::make(e.buffer->scope), ret);
 
       if (create_bound_attributes_ && ShapeIsValid(e.buffer->shape)) {
         ret = AttrStmt::make(e.buffer->data, ir::attr::buffer_bound,
@@ -268,7 +268,7 @@ class StorageFlattener : public StmtExprMutator {
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
-      CHECK(it->second.as<Variable>());
+      CHECK(it->second.as<VarNode>());
       VarExpr buf_var = Downcast<VarExpr>(it->second);
       return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
     } else {
@@ -276,7 +276,7 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
@@ -505,7 +505,7 @@ class StorageFlattener : public StmtExprMutator {
 
   // The buffer assignment map
   // Variable remap
-  std::unordered_map<const Variable*, Expr> var_remap_;
+  std::unordered_map<const VarNode*, Expr> var_remap_;
   // Buffer map
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
   // Dimension alignment

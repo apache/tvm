@@ -553,7 +553,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     }
     ObjectPtr<SumExprNode> n = make_object<SumExprNode>();
     n->dtype = expr.dtype();
-    if (const auto* op = expr.as<IntImm>()) {
+    if (const auto* op = expr.as<IntImmNode>()) {
       n->base = op->value;
       return SumExpr(n);
     } else {
@@ -581,7 +581,7 @@ VisitExpr_(const AddNode* op) {
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImm>()) {
+  if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(op->value);
   } else if (const auto* op = b.as<SumExprNode>()) {
     ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), 1);
@@ -607,7 +607,7 @@ VisitExpr_(const SubNode* op) {
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImm>()) {
+  if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(-op->value);
   } else if (const auto* op = b.as<SumExprNode>()) {
     ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), -1);
@@ -632,10 +632,10 @@ VisitExpr_(const MulNode* op) {
   if (const_res.defined()) return const_res;
 
   // x * c
-  if (a.as<IntImm>()) {
+  if (a.as<IntImmNode>()) {
     std::swap(a, b);
   }
-  if (const auto* bconst = b.as<IntImm>()) {
+  if (const auto* bconst = b.as<IntImmNode>()) {
     if (a.as<SumExprNode>()) {
       SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
@@ -756,7 +756,7 @@ VisitExpr_(const DivNode* op) {
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         lhs.CopyOnWrite()->DivideBy(cval);
         Expr temp = Normalize(extra);
-        if (const auto* pconst = temp.as<IntImm>()) {
+        if (const auto* pconst = temp.as<IntImmNode>()) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
           // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -813,7 +813,7 @@ VisitExpr_(const FloorDivNode* op) {
       // continue simplification.
       lhs.CopyOnWrite()->DivideBy(cval);
       Expr temp = Normalize(extra);
-      if (const auto* pconst = temp.as<IntImm>()) {
+      if (const auto* pconst = temp.as<IntImmNode>()) {
         lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -919,7 +919,7 @@ VisitExpr_(const ModNode* op) {
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         Expr temp = Normalize(extra);
-        if (temp.as<IntImm>()) {
+        if (temp.as<IntImmNode>()) {
           return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
@@ -983,7 +983,7 @@ VisitExpr_(const FloorModNode* op) {
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       Expr temp = Normalize(extra);
-      if (temp.as<IntImm>()) {
+      if (temp.as<IntImmNode>()) {
         return floormod(temp, c1.Eval());
       } else {
         // If temp < cval && temp >=0 then can remove the mod.

@@ -110,8 +110,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   //@}
 
   /// Check if the value of a Variable comes from function argument.
-  bool IsFromFunctionArgs(const Variable *var) const {
-    const Variable *V = var;
+  bool IsFromFunctionArgs(const VarNode *var) const {
+    const VarNode *V = var;
     while (true) {
       CHECK(V) << "Invalid Variable\n";
 
@@ -124,7 +124,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
       if (iter == defs_.end()) return false;
       const CallNode *C = iter->second.as<const CallNode>();
       if (!C || C->name != intrinsic::tvm_struct_get) return false;
-      V = C->args[0].as<Variable>();
+      V = C->args[0].as<VarNode>();
     }
     return false;
   }
@@ -181,7 +181,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   //@}
   LoweredFunc func_{nullptr};  ///< Function to be verified.
   int dev_type_{kDLCPU};       ///< Device type
-  std::unordered_map<const Variable *, Expr> defs_;  ///< Variable definitions
+  std::unordered_map<const VarNode *, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 

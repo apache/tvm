@@ -123,7 +123,7 @@ Stmt IRTransform(Stmt ir_node,
                  const Array<Expr>& only_enable) {
   std::unordered_set<uint32_t> only_type_index;
   for (Expr s : only_enable) {
-    only_type_index.insert(Object::TypeKey2Index(s.as<StringImm>()->value.c_str()));
+    only_type_index.insert(Object::TypeKey2Index(s.as<StringImmNode>()->value.c_str()));
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);
   return transform(std::move(ir_node));
@@ -219,7 +219,7 @@ void StmtVisitor::VisitStmt_(const Evaluate* op) {
   this->VisitExpr(op->value);
 }
 
-void ExprVisitor::VisitExpr_(const Variable* op) {}
+void ExprVisitor::VisitExpr_(const VarNode* op) {}
 
 void ExprVisitor::VisitExpr_(const LoadNode* op) {
   this->VisitExpr(op->index);
@@ -259,10 +259,10 @@ DEFINE_BINOP_VISIT_(GENode);
 DEFINE_BINOP_VISIT_(AndNode);
 DEFINE_BINOP_VISIT_(OrNode);
 
-void ExprVisitor::VisitExpr_(const IntImm* op) {}
-void ExprVisitor::VisitExpr_(const UIntImm* op) {}
-void ExprVisitor::VisitExpr_(const FloatImm* op) {}
-void ExprVisitor::VisitExpr_(const StringImm* op) {}
+void ExprVisitor::VisitExpr_(const IntImmNode* op) {}
+void ExprVisitor::VisitExpr_(const UIntImmNode* op) {}
+void ExprVisitor::VisitExpr_(const FloatImmNode* op) {}
+void ExprVisitor::VisitExpr_(const StringImmNode* op) {}
 
 void ExprVisitor::VisitExpr_(const ReduceNode* op) {
   VisitArray(op->axis, [this](const IterVar& r) {
@@ -593,7 +593,7 @@ Stmt StmtMutator::VisitStmt_(const Free* op) {
 }
 
 
-Expr ExprMutator::VisitExpr_(const Variable* op) {
+Expr ExprMutator::VisitExpr_(const VarNode* op) {
   return GetRef<Expr>(op);
 }
 
@@ -639,10 +639,10 @@ Expr ExprMutator::VisitExpr_(const CallNode* op) {
     return GetRef<Expr>(op);                                      \
   }
 
-DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(IntImm)
-DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(UIntImm)
-DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(FloatImm)
-DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(StringImm)
+DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(IntImmNode)
+DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(UIntImmNode)
+DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(FloatImmNode)
+DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(StringImmNode)
 
 #define DEFINE_BIOP_EXPR_MUTATE_(OP)                                    \
   Expr ExprMutator::VisitExpr_(const OP* op) {                          \

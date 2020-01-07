@@ -59,7 +59,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-  inline Expr VisitExpr_(const FloatImm* imm) final {
+  inline Expr VisitExpr_(const FloatImmNode* imm) final {
     auto type_code = imm->dtype.code();
     auto e = GetRef<Expr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {

@@ -39,7 +39,7 @@ using namespace tvm;
 inline bool is_empty_shape(const Array<Expr>& x) {
   bool is_empty = false;
   for (const auto& dim : x) {
-    if (auto int_dim = dim.as<IntImm>()) {
+    if (auto int_dim = dim.as<IntImmNode>()) {
       if (int_dim->value == 0) {
         is_empty = true;
         break;

@@ -56,7 +56,7 @@ inline Expr BroadcastTo(Expr e, int lanes) {
 //
 class VecAllocAccess : public StmtExprMutator {
  public:
-  VecAllocAccess(const Variable* buf, Var var, int var_lanes)
+  VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
   // Load
   Expr VisitExpr_(const LoadNode* op) final {
@@ -86,7 +86,7 @@ class VecAllocAccess : public StmtExprMutator {
 
  private:
   // buffer var
-  const Variable* buf_;
+  const VarNode* buf_;
   // variable to be replaced
   Var var_;
   // the lanes.
@@ -228,7 +228,7 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // Variable
-  Expr VisitExpr_(const Variable* v) final {
+  Expr VisitExpr_(const VarNode* v) final {
     if (v == var_.get()) {
       return ramp_;
     } else if (lets_.count(v)) {
@@ -452,7 +452,7 @@ class Vectorizer : public StmtExprMutator {
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // The lets
-  std::unordered_map<const Variable*, Expr> lets_;
+  std::unordered_map<const VarNode*, Expr> lets_;
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
   Array<Expr> MutateArray(Array<Expr> arr, int* p_lanes) {

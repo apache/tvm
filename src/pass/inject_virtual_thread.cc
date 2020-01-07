@@ -32,7 +32,7 @@ namespace ir {
 // If expression is touched by var.
 class ExprTouched final : public StmtExprVisitor {
  public:
-  explicit ExprTouched(const std::unordered_set<const Variable*> &touched,
+  explicit ExprTouched(const std::unordered_set<const VarNode*> &touched,
                        bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
 
@@ -50,14 +50,14 @@ class ExprTouched final : public StmtExprVisitor {
     HandleUseVar(op->buffer_var.get());
     StmtExprVisitor::VisitExpr_(op);
   }
-  void VisitExpr_(const Variable *op) final {
+  void VisitExpr_(const VarNode *op) final {
     HandleUseVar(op);
   }
   void VisitExpr_(const CallNode *op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       int rw_mask = 0;
       CHECK(arith::GetConstInt(op->args[4], &rw_mask));
-      const Variable* buffer_var = op->args[1].as<Variable>();
+      const VarNode* buffer_var = op->args[1].as<VarNode>();
       CHECK(buffer_var);
       // read
       if (rw_mask & 1) {
@@ -71,7 +71,7 @@ class ExprTouched final : public StmtExprVisitor {
       StmtExprVisitor::VisitExpr_(op);
     }
   }
-  void HandleUseVar(const Variable* var) {
+  void HandleUseVar(const VarNode* var) {
     auto it = touched_var_.find(var);
     if (it != touched_var_.end()) {
       expr_touched_ = true;
@@ -82,14 +82,14 @@ class ExprTouched final : public StmtExprVisitor {
       used_vars_.push_back(var);
     }
   }
-  void HandleWriteVar(const Variable* var) {
+  void HandleWriteVar(const VarNode* var) {
     write_vars_.push_back(var);
   }
   // the fields.
   bool expr_touched_{false};
-  std::vector<const Variable*> used_vars_;
-  std::vector<const Variable*> write_vars_;
-  const std::unordered_set<const Variable*>& touched_var_;
+  std::vector<const VarNode*> used_vars_;
+  std::vector<const VarNode*> write_vars_;
+  const std::unordered_set<const VarNode*>& touched_var_;
   bool check_write_;
 };
 
@@ -119,7 +119,7 @@ class VarTouchedAnalysis : public StmtVisitor {
   void VisitStmt_(const Evaluate* op) final {
     ExprTouched tc(touched_var_, true);
     tc(op->value);
-    for (const Variable* var : tc.write_vars_) {
+    for (const VarNode* var : tc.write_vars_) {
       Record(var, tc);
     }
   }
@@ -135,13 +135,13 @@ class VarTouchedAnalysis : public StmtVisitor {
     Record(op->buffer_var.get(), tc);
     this->VisitStmt(op->body);
   }
-  void Record(const Variable* var,
+  void Record(const VarNode* var,
               const ExprTouched& tc) {
     if (touched_var_.count(var)) return;
     if (tc.expr_touched_) {
       touched_var_.insert(var);
     } else {
-      for (const Variable* r : tc.used_vars_) {
+      for (const VarNode* r : tc.used_vars_) {
         if (r != var) {
           affect_[r].push_back(var);
         }
@@ -149,18 +149,18 @@ class VarTouchedAnalysis : public StmtVisitor {
     }
   }
 
-  std::unordered_set<const Variable*>
+  std::unordered_set<const VarNode*>
   TouchedVar(const Stmt& stmt,
-             const Variable* var) {
+             const VarNode* var) {
     touched_var_.insert(var);
     this->VisitStmt(stmt);
     // do a DFS to push affect around dependency.
-    std::vector<const Variable*> pending(
+    std::vector<const VarNode*> pending(
         touched_var_.begin(), touched_var_.end());
     while (!pending.empty()) {
-      const Variable* v = pending.back();
+      const VarNode* v = pending.back();
       pending.pop_back();
-      for (const Variable* r : affect_[v]) {
+      for (const VarNode* r : affect_[v]) {
         if (!touched_var_.count(r)) {
           touched_var_.insert(r);
           pending.push_back(r);
@@ -172,10 +172,10 @@ class VarTouchedAnalysis : public StmtVisitor {
 
  private:
   // Whether variable is touched by the thread variable.
-  std::unordered_set<const Variable*> touched_var_;
+  std::unordered_set<const VarNode*> touched_var_;
   // x -> all the buffers x read from
-  std::unordered_map<const Variable*,
-                     std::vector<const Variable*> > affect_;
+  std::unordered_map<const VarNode*,
+                     std::vector<const VarNode*> > affect_;
 };
 
 
@@ -186,7 +186,7 @@ class VTInjector : public StmtExprMutator {
   // constructor
   VTInjector(Var var,
              int num_threads,
-             const std::unordered_set<const Variable*>& touched_var,
+             const std::unordered_set<const VarNode*>& touched_var,
              bool allow_share)
       : var_(var), num_threads_(num_threads),
         touched_var_(touched_var), allow_share_(allow_share) {
@@ -205,7 +205,7 @@ class VTInjector : public StmtExprMutator {
     return stmt;
   }
   // Variable
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     CHECK(!alloc_remap_.count(op))
         << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
@@ -237,7 +237,7 @@ class VTInjector : public StmtExprMutator {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
-      const Variable* buffer = op->args[1].as<Variable>();
+      const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
@@ -470,11 +470,11 @@ class VTInjector : public StmtExprMutator {
   // the counter of loops in after mutation.
   int max_loop_depth_{0};
   // The variables that get touched.
-  const std::unordered_set<const Variable*>& touched_var_;
+  const std::unordered_set<const VarNode*>& touched_var_;
   // Whether allow shareding.
   bool allow_share_;
   // The allocations that get touched -> extent
-  std::unordered_map<const Variable*, Expr> alloc_remap_;
+  std::unordered_map<const VarNode*, Expr> alloc_remap_;
 };
 
 
@@ -486,7 +486,7 @@ class VirtualThreadInjector : public StmtMutator {
     if (op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       bool allow_share = iv->thread_tag == "vthread";
-      int nthread = static_cast<int>(op->value.as<IntImm>()->value);
+      int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
       auto touched = vs.TouchedVar(op->body, iv->var.get());
       VTInjector injecter(iv->var, nthread, touched, allow_share);

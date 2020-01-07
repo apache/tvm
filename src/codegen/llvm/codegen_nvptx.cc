@@ -130,7 +130,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<StringImm>()->value;
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;

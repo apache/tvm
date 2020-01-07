@@ -76,7 +76,7 @@ namespace ir {
 // store warp_mem[m * warp_index + (warp_size * m) * y + x]
 class WarpStoreCoeffFinder : private StmtVisitor {
  public:
-  WarpStoreCoeffFinder(const Variable* buffer,
+  WarpStoreCoeffFinder(const VarNode* buffer,
                        Var warp_index,
                        arith::Analyzer* analyzer)
       : buffer_(buffer),
@@ -129,7 +129,7 @@ class WarpStoreCoeffFinder : private StmtVisitor {
   }
 
   // The buffer variable
-  const Variable* buffer_;
+  const VarNode* buffer_;
   // the warp index
   Var warp_index_;
   // the coefficient
@@ -211,7 +211,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
-  Expr Mutate_(const Variable* op) {
+  Expr Mutate_(const VarNode* op) {
     CHECK(op != buffer_)
         << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
@@ -281,7 +281,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // the warp size
   int warp_size_{0};
   // The buffer variable
-  const Variable* buffer_;
+  const VarNode* buffer_;
   // Warp index
   Var warp_index_;
   // the coefficient m
@@ -325,7 +325,7 @@ class BindVarBoundInfo : public StmtVisitor {
   // internal analyzer.
   arith::Analyzer* analyzer_;
   // variable domain
-  std::unordered_map<const Variable*, Range> var_dom_;
+  std::unordered_map<const VarNode*, Range> var_dom_;
 };
 
 // Mutator to change the read pattern
@@ -357,24 +357,24 @@ class WarpMemoryRewriter : private StmtMutator {
   Stmt VisitStmt_(const AttrStmt* op) {
     using runtime::StorageScope;
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImm>()->value);
+      const VarNode* buf = op->node.as<VarNode>();
+      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
       if (scope.rank == runtime::StorageRank::kWarp) {
         warp_buffer_.insert(buf);
         Stmt ret = StmtMutator::VisitStmt_(op);
         op = ret.as<AttrStmt>();
         return AttrStmt::make(
-            op->node, op->attr_key, StringImm::make("local"), op->body);
+            op->node, op->attr_key, StringImmNode::make("local"), op->body);
       }
     }
     return StmtMutator::VisitStmt_(op);
   }
 
   int warp_size_{0};
-  std::unordered_set<const Variable*> warp_buffer_;
+  std::unordered_set<const VarNode*> warp_buffer_;
   arith::Analyzer analyzer_;
   // variable domain
-  std::unordered_map<const Variable*, Range> var_dom_;
+  std::unordered_map<const VarNode*, Range> var_dom_;
 };
 
 LoweredFunc

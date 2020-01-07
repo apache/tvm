@@ -43,8 +43,8 @@ using namespace tvm;
  */
 inline bool IsConstInt(Expr expr) {
   return
-    expr->IsInstance<tvm::ir::IntImm>() ||
-    expr->IsInstance<tvm::ir::UIntImm>();
+    expr->IsInstance<tvm::ir::IntImmNode>() ||
+    expr->IsInstance<tvm::ir::UIntImmNode>();
 }
 
 /*!
@@ -56,11 +56,11 @@ inline bool IsConstInt(Expr expr) {
  * \return The integer value.
  */
 inline int64_t GetConstInt(Expr expr) {
-  if (expr->IsInstance<tvm::ir::IntImm>()) {
-    return expr.as<tvm::ir::IntImm>()->value;
+  if (expr->IsInstance<tvm::ir::IntImmNode>()) {
+    return expr.as<tvm::ir::IntImmNode>()->value;
   }
-  if (expr->IsInstance<tvm::ir::UIntImm>()) {
-    return expr.as<tvm::ir::UIntImm>()->value;
+  if (expr->IsInstance<tvm::ir::UIntImmNode>()) {
+    return expr.as<tvm::ir::UIntImmNode>()->value;
   }
   LOG(ERROR) << "expr must be a constant integer";
   return -1;

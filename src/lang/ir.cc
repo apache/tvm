@@ -31,26 +31,26 @@ namespace tvm {
 namespace ir {
 
 // constructors
-Expr UIntImm::make(DataType t, uint64_t value) {
+Expr UIntImmNode::make(DataType t, uint64_t value) {
   CHECK(t.is_uint() && t.lanes() == 1)
       << "ValueError: UIntImm can only take scalar";
-  ObjectPtr<UIntImm> node = make_object<UIntImm>();
+  ObjectPtr<UIntImmNode> node = make_object<UIntImmNode>();
   node->dtype = t;
   node->value = value;
   return Expr(node);
 }
 
-Expr FloatImm::make(DataType t, double value) {
+Expr FloatImmNode::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
-  ObjectPtr<FloatImm> node = make_object<FloatImm>();
+  ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = t;
   node->value = value;
   return Expr(node);
 }
 
-Expr StringImm::make(std::string value) {
-  ObjectPtr<StringImm> node = make_object<StringImm>();
+Expr StringImmNode::make(std::string value) {
+  ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
   return Expr(node);
@@ -248,7 +248,7 @@ Expr ShuffleNode::make_concat(Array<Expr> vectors) {
   int index = 0;
   for (const Expr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
-      indices.push_back(IntImm::make(DataType::Int(32), index++));
+      indices.push_back(IntImmNode::make(DataType::Int(32), index++));
     }
   }
   return make(vectors, indices);
@@ -339,7 +339,7 @@ Stmt AttrStmt::make(ObjectRef node,
 Stmt AssertStmt::make(Expr condition, Expr message, Stmt body) {
   CHECK(condition.defined());
   CHECK(message.dtype() == DataType::Int(32) ||
-        message.as<StringImm>())
+        message.as<StringImmNode>())
       << "TypeError: AssertStmt message must be an int or string:"
       << message << "\n";
 
@@ -444,7 +444,7 @@ Stmt Allocate::make(Var buffer_var,
 int32_t Allocate::constant_allocation_size(const Array<Expr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImm *int_size = extents[i].as<IntImm>()) {
+    if (const IntImmNode *int_size = extents[i].as<IntImmNode>()) {
       result *= int_size->value;
       if (result > std::numeric_limits<int32_t>::max()) {
         return 0;
@@ -532,14 +532,14 @@ Stmt Evaluate::make(Expr value) {
 
 // Printers
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<UIntImm>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const UIntImm*>(node.get());
+.set_dispatch<UIntImmNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const UIntImmNode*>(node.get());
     p->stream << "(" << op->dtype << ")" << op->value;
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FloatImm>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const FloatImm*>(node.get());
+.set_dispatch<FloatImmNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const FloatImmNode*>(node.get());
     auto& stream = p->stream;
     switch (op->dtype.bits()) {
       case 64:
@@ -557,8 +557,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<StringImm>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const StringImm*>(node.get());
+.set_dispatch<StringImmNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const StringImmNode*>(node.get());
     auto& stream = p->stream;
     stream << '"';
     for (size_t i = 0; i < op->value.size(); ++i) {
@@ -599,8 +599,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->value);
     p->stream << ')';
   })
-.set_dispatch<Variable>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Variable*>(node.get());
+.set_dispatch<VarNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const VarNode*>(node.get());
     // omit the type
     // stream << op->name << "." << op->type;
     p->stream << op->name_hint;
@@ -1151,12 +1151,12 @@ TVM_REGISTER_NODE_TYPE(CommReducerNode);
 TVM_REGISTER_NODE_TYPE(ReduceNode);
 TVM_REGISTER_NODE_TYPE(Any);
 TVM_REGISTER_NODE_TYPE(AttrStmt);
-TVM_REGISTER_NODE_TYPE(FloatImm);
-TVM_REGISTER_NODE_TYPE(IntImm);
-TVM_REGISTER_NODE_TYPE(UIntImm);
-TVM_REGISTER_NODE_TYPE(StringImm);
+TVM_REGISTER_NODE_TYPE(FloatImmNode);
+TVM_REGISTER_NODE_TYPE(IntImmNode);
+TVM_REGISTER_NODE_TYPE(UIntImmNode);
+TVM_REGISTER_NODE_TYPE(StringImmNode);
 TVM_REGISTER_NODE_TYPE(CastNode);
-TVM_REGISTER_NODE_TYPE(Variable);
+TVM_REGISTER_NODE_TYPE(VarNode);
 TVM_REGISTER_NODE_TYPE(AddNode);
 TVM_REGISTER_NODE_TYPE(SubNode);
 TVM_REGISTER_NODE_TYPE(MulNode);

@@ -89,7 +89,7 @@ class MMAMatcher: public StmtVisitor {
       tensor_core_on_ = true;
       StmtVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
+      storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       this->VisitStmt(op->body);
     } else {
       StmtVisitor::VisitStmt_(op);
@@ -287,11 +287,11 @@ class ScheduleAnalyser {
       if (axis.size() < 2 || reduce_axis.size() != 1) {
         continue;
       }
-      const Variable* axis_var[2];
-      const Variable* reduce_axis_var;
-      axis_var[0] = axis[axis.size()-2]->var.as<Variable>();
-      axis_var[1] = axis[axis.size()-1]->var.as<Variable>();
-      reduce_axis_var = reduce_axis[0]->var.as<Variable>();
+      const VarNode* axis_var[2];
+      const VarNode* reduce_axis_var;
+      axis_var[0] = axis[axis.size()-2]->var.as<VarNode>();
+      axis_var[1] = axis[axis.size()-1]->var.as<VarNode>();
+      reduce_axis_var = reduce_axis[0]->var.as<VarNode>();
 
       BodyVisitor body_visitor;
       for (Expr expr : compute->body) {
@@ -306,8 +306,8 @@ class ScheduleAnalyser {
         if (args.size() < 2) {
           continue;
         }
-        const Variable* var0 = args[args.size() - 2].as<Variable>();
-        const Variable* var1 = args[args.size() - 1].as<Variable>();
+        const VarNode* var0 = args[args.size() - 2].as<VarNode>();
+        const VarNode* var1 = args[args.size() - 1].as<VarNode>();
         if (var0 == nullptr || var1 == nullptr) {
           continue;
         }
@@ -371,7 +371,7 @@ class IndexVisitor : public StmtExprVisitor {
  public:
   IndexVisitor() {}
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     loop_scaling_.insert(std::make_pair(op, scaling_factor_));
   }
 
@@ -379,7 +379,7 @@ class IndexVisitor : public StmtExprVisitor {
   friend class TensorCoreIRMutator;
 
  private:
-  std::unordered_map<const Variable*, unsigned> loop_scaling_;
+  std::unordered_map<const VarNode*, unsigned> loop_scaling_;
   unsigned scaling_factor_{0};
 };
 
@@ -406,7 +406,7 @@ class BufferAnalyser : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent) {
-      if (const IntImm* value = op->value.as<IntImm>()) {
+      if (const IntImmNode* value = op->value.as<IntImmNode>()) {
         thread_extent_.insert(
             std::make_pair(
                 op->node.as<IterVarNode>()->var->name_hint,
@@ -414,19 +414,19 @@ class BufferAnalyser : public StmtExprVisitor {
       }
       StmtExprVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::realize_scope) {
-      storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
+      storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
-      size_t dim = tuple->args[0].as<IntImm>()->value;
+      size_t dim = tuple->args[0].as<IntImmNode>()->value;
       if (dim >= vinfo.size()) {
         vinfo.resize(dim + 1);
       }
-      vinfo[dim].align_factor = tuple->args[1].as<IntImm>()->value;
-      vinfo[dim].align_offset = tuple->args[2].as<IntImm>()->value;
+      vinfo[dim].align_factor = tuple->args[1].as<IntImmNode>()->value;
+      vinfo[dim].align_offset = tuple->args[2].as<IntImmNode>()->value;
       this->VisitStmt(op->body);
     } else {
       StmtExprVisitor::VisitStmt_(op);
@@ -449,7 +449,7 @@ class BufferAnalyser : public StmtExprVisitor {
         return;
       }
       for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
-        const IntImm* shape = bi.shape[i].as<IntImm>();
+        const IntImmNode* shape = bi.shape[i].as<IntImmNode>();
         if (shape == nullptr || shape->value % 16 != 0) {
           invalid_ = true;
           return;
@@ -462,7 +462,7 @@ class BufferAnalyser : public StmtExprVisitor {
       strides = bi.strides;
     } else {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
-        Expr stride = IntImm::make(DataType::Int(32), 1);
+        Expr stride = IntImmNode::make(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
           stride = MulNode::make(stride, bi.shape[j]);
         }
@@ -489,7 +489,7 @@ class BufferAnalyser : public StmtExprVisitor {
       std::vector<int> tile_size;
       for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
         index_visitor.scaling_factor_ = 16;
-        if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
+        if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
           tile_size.push_back(shape->value);
           index_visitor.scaling_factor_ = shape->value;
         } else {
@@ -562,7 +562,7 @@ class BufferAnalyser : public StmtExprVisitor {
           return;
         }
         for (auto i = bi.shape.size() - 1; i + 2 >= bi.shape.size(); --i) {
-          const IntImm* shape = bi.shape[i].as<IntImm>();
+          const IntImmNode* shape = bi.shape[i].as<IntImmNode>();
           if (shape == nullptr || shape->value % 16 != 0) {
             invalid_ = true;
             return;
@@ -575,7 +575,7 @@ class BufferAnalyser : public StmtExprVisitor {
         strides = bi.strides;
       } else {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
-          Expr stride = IntImm::make(DataType::Int(32), 1);
+          Expr stride = IntImmNode::make(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
             stride = MulNode::make(stride, bi.shape[j]);
           }
@@ -596,7 +596,7 @@ class BufferAnalyser : public StmtExprVisitor {
       }
       for (auto i = op->args.size() - 1; i + 2 >= op->args.size(); --i) {
         index_visitor.scaling_factor_ = 16;
-        if (const IntImm* shape = bi.shape[i].as<IntImm>()) {
+        if (const IntImmNode* shape = bi.shape[i].as<IntImmNode>()) {
           index_visitor.scaling_factor_ = shape->value;
         }
         auto index = rel_index[i];
@@ -760,12 +760,12 @@ class ThreadIdxMutator : public StmtExprMutator {
  public:
   explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Variable>();
+    op = expr.as<VarNode>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
-        Expr zero = IntImm::make(DataType::Int(32), 0);
+        Expr zero = IntImmNode::make(DataType::Int(32), 0);
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
@@ -901,8 +901,8 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it2 = frag_load_.find(op);
     if (it2 != frag_load_.end()) {
       Expr dst = it2->second;
-      if (op->value.as<FloatImm>() != nullptr ||
-          op->value.as<IntImm>() != nullptr) {
+      if (op->value.as<FloatImmNode>() != nullptr ||
+          op->value.as<IntImmNode>() != nullptr) {
         auto call = dst.as<CallNode>();
 
         auto fill_fragment_call =
@@ -934,7 +934,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       Expr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
+      Expr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       Expr mutated_value = thread_idx_mutator(op->value);
       Expr src = CallNode::make(value->dtype,
@@ -948,9 +948,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
       CHECK(iter2 != matrix_major_.end())
           << "Can not determine matrix major for " << call->name;
       if (iter2->second == "col_major") {
-        matrix_major = StringImm::make("col_major");
+        matrix_major = StringImmNode::make("col_major");
       } else if (iter2->second == "row_major") {
-        matrix_major = StringImm::make("row_major");
+        matrix_major = StringImmNode::make("row_major");
       } else {
         LOG(FATAL) << "invalid matrix major for " << call->name;
       }
@@ -984,7 +984,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
       Expr dst = it3->second;
       // thread index unification inside a warp
-      Expr warp_y = IntImm::make(DataType::Int(32), warp_threads_y_);
+      Expr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
       dst = CallNode::make(DataType::Handle(),
@@ -1002,7 +1002,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
                             {buffer->data,
                             warp_tile_.m, warp_tile_.n, warp_tile_.k,
                             buffer->elem_offset, dst, stride,
-                            StringImm::make("col_major")},
+                            StringImmNode::make("col_major")},
                             CallNode::Intrinsic));
         };
 
@@ -1023,7 +1023,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       if (it != loop_scaling_.end()) {
         int scale_factor = it->second;
         int scaled_extent_value = 1;
-        if (const IntImm *ori_extent = op->extent.as<IntImm>()) {
+        if (const IntImmNode *ori_extent = op->extent.as<IntImmNode>()) {
           int ori_extent_value = ori_extent->value;
           scaled_extent_value = ori_extent_value / scale_factor;
         }
@@ -1089,7 +1089,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
     Array<Expr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      Expr stride = IntImm::make(DataType::Int(32), 1);
+      Expr stride = IntImmNode::make(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
         stride = MulNode::make(stride, shape[j]);
       }
@@ -1097,7 +1097,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     }
     strides.push_back(make_const(DataType::Int(32), 1));
 
-    Expr elem_offset = IntImm::make(DataType::Int(32), 0);
+    Expr elem_offset = IntImmNode::make(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = AddNode::make(
@@ -1108,7 +1108,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it2 = matrix_abc_.find(simplify_name(call->name));
     CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
-    buffer_node->data = Variable::make(DataType::Handle(), call->name);
+    buffer_node->data = VarNode::make(DataType::Handle(), call->name);
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;
@@ -1147,7 +1147,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
   std::unordered_map<const Provide*, Array<Expr>> mma_sync_;
   std::unordered_map<std::string, Array<Expr>> strides_;
   std::unordered_set<std::string> frag_reg_;
-  std::unordered_map<const Variable*, unsigned> loop_scaling_;
+  std::unordered_map<const VarNode*, unsigned> loop_scaling_;
   std::unordered_map<const Provide*, Expr> frag_load_;
   std::unordered_map<const Provide*, Expr> frag_store_;
   std::unordered_map<TensorKey, Region> bounds_;

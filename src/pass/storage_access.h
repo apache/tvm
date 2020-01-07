@@ -106,7 +106,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \param scope The scope of the buffer.
    * \return Whether the analysis of buffer is enabled.
    */
-  virtual bool Enabled(const Variable* buffer,
+  virtual bool Enabled(const VarNode* buffer,
                        const StorageScope& scope) const {
     return true;
   }
@@ -127,7 +127,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.
    */
-  StorageScope GetScope(const Variable* buf) const;
+  StorageScope GetScope(const VarNode* buf) const;
   // access scope
   std::vector<std::vector<StmtEntry> > scope_;
 
@@ -139,13 +139,13 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // Whether we are inside condition.
   int condition_counter_{0};
   // The current double buffer write scope.
-  const Variable* double_buffer_write_{nullptr};
+  const VarNode* double_buffer_write_{nullptr};
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads
   Array<IterVar> env_threads_;
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
 };
 
 }  // namespace ir

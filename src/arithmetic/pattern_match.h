@@ -283,7 +283,7 @@ class PConstWithTypeLike :
   void InitMatch_() const {}
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::IntImm* ptr = node.as<ir::IntImm>()) {
+    if (const ir::IntImmNode* ptr = node.as<ir::IntImmNode>()) {
       return ptr->value == value_;
     } else {
       return false;

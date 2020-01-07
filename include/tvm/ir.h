@@ -36,11 +36,11 @@
 namespace tvm {
 namespace ir {
 
-using IntImm = tvm::IntImm;
-using Variable = tvm::VarNode;
+using IntImmNode = tvm::IntImmNode;
+using VarNode = tvm::VarNode;
 
 /*! \brief constant unsigned integer. */
-class UIntImm : public ExprNode {
+class UIntImmNode : public ExprNode {
  public:
   /*! \brief The constant value content. */
   uint64_t value;
@@ -53,11 +53,11 @@ class UIntImm : public ExprNode {
   TVM_DLL static Expr make(DataType t, uint64_t value);
 
   static constexpr const char* _type_key = "UIntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImmNode, ExprNode);
 };
 
 /*! \brief Floating point constants. */
-class FloatImm : public ExprNode {
+class FloatImmNode : public ExprNode {
  public:
   /*! \brief The constant value content. */
   double value;
@@ -70,11 +70,11 @@ class FloatImm : public ExprNode {
   TVM_DLL static Expr make(DataType t, double value);
 
   static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, ExprNode);
 };
 
 /*! \brief String constants, only used in asserts. */
-class StringImm : public ExprNode {
+class StringImmNode : public ExprNode {
  public:
   /*! \brief The constant value content. */
   std::string value;
@@ -87,7 +87,7 @@ class StringImm : public ExprNode {
   TVM_DLL Expr static make(std::string value);
 
   static constexpr const char* _type_key = "StringImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StringImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, ExprNode);
 };
 
 /*!
@@ -713,7 +713,7 @@ class Any : public ExprNode {
   void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return Variable::make(DataType::Int(32), "any_dim");
+    return VarNode::make(DataType::Int(32), "any_dim");
   }
 
   TVM_DLL static Expr make();

@@ -60,15 +60,15 @@ LoweredFunc MakeAPI(Stmt body,
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, Expr> vmap;
   ArgBinder binder(&vmap);
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
     Array<Expr> call_args{v_packed_args,
-                          IntImm::make(DataType::Int(32), i),
-                          IntImm::make(DataType::Int(32), intrinsic::kTVMValueContent)};
+                          IntImmNode::make(DataType::Int(32), i),
+                          IntImmNode::make(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
     Expr res = CallNode::make(
@@ -84,7 +84,7 @@ LoweredFunc MakeAPI(Stmt body,
   auto f_arg_decl = [&](int i) {
     std::ostringstream os;
     os << "arg" << i;
-    const Variable* v = api_args[i].as<Variable>();
+    const VarNode* v = api_args[i].as<VarNode>();
     return Var(os.str(), v ? v->dtype: DataType::Handle());
   };
   // ---------------------------
@@ -115,7 +115,7 @@ LoweredFunc MakeAPI(Stmt body,
       seq_init.emplace_back(LetStmt::make(
           tcode, LoadNode::make(
               DataType::Int(32), v_packed_arg_type_ids,
-              IntImm::make(DataType::Int(32), i), const_true(1)),
+              IntImmNode::make(DataType::Int(32), i), const_true(1)),
           nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
@@ -141,7 +141,7 @@ LoweredFunc MakeAPI(Stmt body,
       args.push_back(v_arg);
     }
     // add checks for functions.
-    if (api_args[i].as<Variable>()) {
+    if (api_args[i].as<VarNode>()) {
       var_defs.emplace_back(std::make_pair(Downcast<Var>(api_args[i]), v_arg));
     } else {
       // Buffer checks
@@ -175,10 +175,10 @@ LoweredFunc MakeAPI(Stmt body,
   n->is_restricted = is_restricted;
   body = AttrStmt::make(
       make_zero(DataType::Int(32)), attr::compute_scope,
-      StringImm::make(name + "_compute_"), body);
+      StringImmNode::make(name + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    Expr node = StringImm::make("default");
+    Expr node = StringImmNode::make("default");
     CHECK(vmap.count(device_type.get()));
     seq_check.push_back(AttrStmt::make(
         node, attr::device_context_id, device_id, nop));
@@ -187,7 +187,7 @@ LoweredFunc MakeAPI(Stmt body,
     Stmt set_device = IfThenElse::make(
         device_type != kDLCPU, Evaluate::make(CallNode::make(
             DataType::Int(32), intrinsic::tvm_call_packed,
-            {StringImm::make(runtime::symbol::tvm_set_device),
+            {StringImmNode::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, CallNode::Intrinsic)));
     body = SeqStmt({set_device, body});
   }
@@ -213,7 +213,7 @@ class DeviceTypeBinder: public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::device_context_type) {
-      if (const Variable* var = op->value.as<Variable>()) {
+      if (const VarNode* var = op->value.as<VarNode>()) {
         var_ = var;
         Expr value = make_const(op->value.dtype(), device_type_);
         Stmt body = StmtExprMutator::VisitStmt_(op);
@@ -250,7 +250,7 @@ class DeviceTypeBinder: public StmtExprMutator {
     return res;
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     if (op == var_) {
       return make_const(op->dtype, device_type_);
     } else {
@@ -259,7 +259,7 @@ class DeviceTypeBinder: public StmtExprMutator {
   }
 
  public:
-  const Variable* var_{nullptr};
+  const VarNode* var_{nullptr};
   int device_type_;
 };
 

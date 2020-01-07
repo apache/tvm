@@ -95,7 +95,7 @@ MakeLoopNest(const Stage& stage,
         }
         CHECK_EQ(it_attr->pragma_keys.size(), it_attr->pragma_values.size());
         for (size_t k = 0; k < it_attr->pragma_keys.size(); ++k) {
-          const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
+          const std::string& pkey = it_attr->pragma_keys[k].as<StringImmNode>()->value;
           Expr pvalue = it_attr->pragma_values[k];
           if (!pvalue.defined()) {
             pvalue = make_const(DataType::Int(32), 1);

@@ -161,7 +161,7 @@ using ExprEqual = ObjectEqual;
 
 class Integer;
 /*! \brief ExprNode: constant integer. */
-class IntImm : public ExprNode {
+class IntImmNode : public ExprNode {
  public:
   /*! \brief the Internal value. */
   int64_t value;
@@ -174,7 +174,7 @@ class IntImm : public ExprNode {
   TVM_DLL static Integer make(DataType t, int64_t value);
 
   static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, ExprNode);
 };
 
 /*!
@@ -206,8 +206,8 @@ class Integer : public Expr {
    * \brief Get pointer to the internal value.
    * \return the content of the integer.
    */
-  const IntImm* operator->() const {
-    return static_cast<const IntImm*>(get());
+  const IntImmNode* operator->() const {
+    return static_cast<const IntImmNode*>(get());
   }
   /*!
    * \brief convert to int64_t
@@ -218,7 +218,7 @@ class Integer : public Expr {
     return (*this)->value;
   }
   /*! \brief type indicate the container type */
-  using ContainerType = IntImm;
+  using ContainerType = IntImmNode;
 };
 
 /*! \brief range over one dimension */

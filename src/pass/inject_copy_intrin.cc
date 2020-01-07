@@ -42,8 +42,8 @@ class CopyIntrinInjector : public StmtMutator {
 
   Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      storage_scope_[buf] = op->value.as<StringImm>()->value;
+      const VarNode* buf = op->node.as<VarNode>();
+      storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
       CHECK(MatchCopyPattern(op->body, &ret))
@@ -174,7 +174,7 @@ class CopyIntrinInjector : public StmtMutator {
     return true;
   }
   // Get storage scope
-  std::string GetStorageScope(const Variable* var) const {
+  std::string GetStorageScope(const VarNode* var) const {
     auto it = storage_scope_.find(var);
     if (it != storage_scope_.end()) {
       return it->second;
@@ -187,7 +187,7 @@ class CopyIntrinInjector : public StmtMutator {
   // function to lower copy intrinsics.
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
-  std::unordered_map<const Variable*, std::string> storage_scope_;
+  std::unordered_map<const VarNode*, std::string> storage_scope_;
 };
 
 Stmt InjectCopyIntrin(Stmt stmt,

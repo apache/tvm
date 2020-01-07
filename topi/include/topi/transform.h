@@ -211,7 +211,7 @@ inline Tensor reshape(const Tensor& x,
   Array<Expr> target_shape;
 
   for (const auto &ele : newshape) {
-    if (ele.as<IntImm>()) {
+    if (ele.as<IntImmNode>()) {
       target_shape.push_back(cast(DataType::Int(32), ele));
     } else {
       target_shape.push_back(ele);

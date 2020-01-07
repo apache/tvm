@@ -242,22 +242,22 @@ void CodeGenOpenGL::PrintType(DataType t, std::ostream& os) {
 
 // Codegen for immediate values
 
-void CodeGenOpenGL::VisitExpr_(const IntImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const IntImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const UIntImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const UIntImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const StringImmNode*, std::ostream& os) {
   LOG(FATAL) << "GLSL 3.0 doesn't support strings.";
 }
 

@@ -108,7 +108,7 @@ Stmt MakeCrossThreadReduction(
     body = Allocate::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
     body = AttrStmt::make(
-      res_handles[idx - 1], attr::storage_scope, StringImm::make("local"), body);
+      res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);
   }
   body = op::Substitute(body, value_map);
   return MergeNest(nest, body);

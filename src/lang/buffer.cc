@@ -252,7 +252,7 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   if (n->strides.size() == 0) {
     // Scalar case
     if (n->shape.size() == 0 && index.size() == 1) {
-      auto is_int = index[0].as<IntImm>();
+      auto is_int = index[0].as<IntImmNode>();
       CHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {

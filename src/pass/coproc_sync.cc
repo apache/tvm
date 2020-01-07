@@ -52,7 +52,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
   }
   void VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      const Variable* buffer = op->args[1].as<Variable>();
+      const VarNode* buffer = op->args[1].as<VarNode>();
       if (in_scope_) {
         touched_[buffer].coproc = true;
       } else {
@@ -78,7 +78,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     bool normal{false};
     bool coproc{false};
   };
-  std::unordered_map<const Variable*, TouchEntry> touched_;
+  std::unordered_map<const VarNode*, TouchEntry> touched_;
   std::unordered_set<IterVar> coproc_;
 
  private:
@@ -89,7 +89,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
 class CoProcSyncPlanner : public StorageAccessVisitor {
  public:
   explicit CoProcSyncPlanner(
-      const std::unordered_set<const Variable*>& touched,
+      const std::unordered_set<const VarNode*>& touched,
       const std::string& coproc_name)
       : touched_(touched), coproc_name_(coproc_name) {
   }
@@ -106,7 +106,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   std::unordered_map<const Object*, std::vector<Stmt> > sync_;
 
  protected:
-  bool Enabled(const Variable* buf,
+  bool Enabled(const VarNode* buf,
                const StorageScope& scope) const final {
     return touched_.count(buf);
   }
@@ -202,7 +202,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
         {}, CallNode::Intrinsic))};
   }
 
-  const std::unordered_set<const Variable*>& touched_;
+  const std::unordered_set<const VarNode*>& touched_;
   std::string coproc_name_;
 };
 
@@ -210,7 +210,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
 class CoProcBarrierDetector : public StorageAccessVisitor {
  public:
   explicit CoProcBarrierDetector(
-      const std::unordered_set<const Variable*>& touched,
+      const std::unordered_set<const VarNode*>& touched,
       const std::string& coproc_name)
       : touched_(touched) {
     read_barrier_name_ = coproc_name + ".coproc_read_barrier";
@@ -232,7 +232,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   std::unordered_map<const Object*, std::vector<Stmt> > barrier_after_;
 
  protected:
-  bool Enabled(const Variable* buf,
+  bool Enabled(const VarNode* buf,
                const StorageScope& scope) const final {
     return touched_.count(buf);
   }
@@ -252,7 +252,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   std::vector<AccessEntry> PlanWriteBarrier(
       std::vector<StmtEntry> seq, const For* loop) {
     std::vector<AccessEntry> read_seq;
-    std::unordered_map<const Variable*, std::vector<AccessEntry> > write_set;
+    std::unordered_map<const VarNode*, std::vector<AccessEntry> > write_set;
 
     auto fupdate = [&](size_t i, const AccessEntry& acc) {
       auto it  = write_set.find(acc.buffer.get());
@@ -292,7 +292,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   std::vector<AccessEntry> PlanReadBarrier(
       std::vector<StmtEntry> seq, const For* loop) {
     std::vector<AccessEntry> write_seq;
-    std::unordered_map<const Variable*, std::vector<AccessEntry> > read_set;
+    std::unordered_map<const VarNode*, std::vector<AccessEntry> > read_set;
 
     auto fupdate = [&](size_t i, const AccessEntry& acc) {
       auto it  = read_set.find(acc.buffer.get());
@@ -351,7 +351,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   bool read_barrier_{false};
   std::string read_barrier_name_;
   std::string write_barrier_name_;
-  const std::unordered_set<const Variable*>& touched_;
+  const std::unordered_set<const VarNode*>& touched_;
 };
 
 
@@ -376,7 +376,7 @@ class CoProcInstDepDetector : public StmtVisitor {
   void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::coproc_scope &&
         op->node.same_as(coproc_axis_)) {
-      const IntImm* ctx_id = op->value.as<IntImm>();
+      const IntImmNode* ctx_id = op->value.as<IntImmNode>();
       CHECK(ctx_id != nullptr);
       curr_state_.clear();
       curr_state_.node = op->body.get();
@@ -611,7 +611,7 @@ class CoProcSyncInserter : public StmtMutator {
     CoProcTouchedBuffer visitor;
     visitor(stmt);
     if (visitor.coproc_.size() == 0) return stmt;
-    std::unordered_set<const Variable*> touched;
+    std::unordered_set<const VarNode*> touched;
 
     for (const auto &kv : visitor.touched_) {
       if (kv.second.normal && kv.second.coproc) {

@@ -69,7 +69,7 @@ using namespace ir;
 RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::
 TryCompare(const Expr& x, int64_t val) {
   Expr diff = this->VisitExpr(x);
-  if (const auto* ptr = diff.as<IntImm>()) {
+  if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
       return kEQ;
     } else if (ptr->value > val) {
@@ -482,7 +482,7 @@ VisitExpr_(const DivNode* op) {
   PVar<int> lanes;
 
   // x / 2.0 = x * 0.5
-  if (const FloatImm* ptr = op->b.as<FloatImm>()) {
+  if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
     CHECK(op->dtype.is_float());
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
@@ -1706,12 +1706,12 @@ VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(CallNode::likely) && is_const(op->args[0])) {
     return op->args[0];
   } else if (op->is_intrinsic(CallNode::shift_right)) {
-    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] >> op->args[1];
     }
   } else if (op->is_intrinsic(CallNode::bitwise_and)) {
-    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }

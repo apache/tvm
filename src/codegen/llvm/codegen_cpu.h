@@ -99,7 +99,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
   void UnpackClosureData(llvm::Value*cdata,
                          const Array<Var>& fields,
-                         std::unordered_map<const Variable*, llvm::Value*>* vmap);
+                         std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
   llvm::BasicBlock *MakeCallPacked(const Array<Expr> &args,
                                    llvm::Value **rvalue,

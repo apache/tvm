@@ -380,11 +380,11 @@ class IntervalSetEvaluator :
     return IntervalSet(min_set->min_value, max_set->max_value);
   }
 
-  IntervalSet VisitExpr_(const IntImm* op) final {
+  IntervalSet VisitExpr_(const IntImmNode* op) final {
     return IntervalSet::SinglePoint(GetRef<Expr>(op));
   }
 
-  IntervalSet VisitExpr_(const UIntImm* op) final {
+  IntervalSet VisitExpr_(const UIntImmNode* op) final {
     return IntervalSet::SinglePoint(GetRef<Expr>(op));
   }
 

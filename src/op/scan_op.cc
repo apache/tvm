@@ -241,7 +241,7 @@ void ScanOpNode::GatherBound(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       CHECK(!out_dom_map->count(sp_ax));
       CHECK(fix_pt.count(sp_ax));
-      if (fix_pt[sp_ax].as<ir::IntImm>()->value) {
+      if (fix_pt[sp_ax].as<ir::IntImmNode>()->value) {
         // fix point, we can slice it.
         (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
       } else {

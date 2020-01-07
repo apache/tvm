@@ -842,19 +842,19 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc VisitAttr_(const ir::IntImm* op) final {
+  Doc VisitAttr_(const ir::IntImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::UIntImm* op) final {
+  Doc VisitAttr_(const ir::UIntImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::FloatImm* op) final {
+  Doc VisitAttr_(const ir::FloatImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::StringImm* op) final {
+  Doc VisitAttr_(const ir::StringImmNode* op) final {
     return PrintString(op->value);
   }
 

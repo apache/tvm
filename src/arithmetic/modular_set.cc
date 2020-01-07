@@ -128,11 +128,11 @@ class ModularSetAnalyzer::Impl :
     return VisitExpr(op->value);
   }
 
-  Entry VisitExpr_(const IntImm* op) final {
+  Entry VisitExpr_(const IntImmNode* op) final {
     return Entry(0, op->value);
   }
 
-  Entry VisitExpr_(const UIntImm* op) final {
+  Entry VisitExpr_(const UIntImmNode* op) final {
     if (op->value < std::numeric_limits<int64_t>::max()) {
       return Entry(0, static_cast<int>(op->value));
     } else {

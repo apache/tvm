@@ -72,7 +72,7 @@ Layout::Layout(const Array<IterVar>& axes) {
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
-    if (const auto* factor = axis->dom->extent.as<IntImm>()) {
+    if (const auto* factor = axis->dom->extent.as<IntImmNode>()) {
       CHECK_GT(factor->value, 0);
       repr << factor->value;
     }
@@ -186,7 +186,7 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!this->defined()) return -1;
   for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
-      const auto* factor = itvar->dom->extent.as<IntImm>();
+      const auto* factor = itvar->dom->extent.as<IntImmNode>();
       CHECK(factor);
       return factor->value;
     }
@@ -297,8 +297,8 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
     }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
-        const auto* orig_shape_const = orig_shape.as<IntImm>();
-        const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImm>();
+        const auto* orig_shape_const = orig_shape.as<IntImmNode>();
+        const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImmNode>();
         if (orig_shape_const) {
           CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
             << "Input shape mismatch at index " << i << ". Expected "

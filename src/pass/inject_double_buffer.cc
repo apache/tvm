@@ -35,20 +35,20 @@ class DoubleBufferDetector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::double_buffer_scope) {
-      touched_.insert(op->node.as<Variable>());
+      touched_.insert(op->node.as<VarNode>());
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
   }
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     if (touched_.count(op)) {
       touched_.erase(op);
     }
   }
   // The set of touched variable.
-  std::unordered_set<const Variable*> touched_;
+  std::unordered_set<const VarNode*> touched_;
 };
 
 
@@ -72,7 +72,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     DoubleBufferDetector detector;
     detector(stmt);
     if (detector.touched_.empty()) return stmt;
-    for (const Variable* v : detector.touched_) {
+    for (const VarNode* v : detector.touched_) {
       dbuffer_info_[v] = StorageEntry();
     }
     return ConvertSSA(operator()(std::move(stmt)));
@@ -80,10 +80,10 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
+      const VarNode* buf = op->node.as<VarNode>();
       auto it = dbuffer_info_.find(buf);
       if (it != dbuffer_info_.end()) {
-        it->second.scope = op->value.as<StringImm>()->value;
+        it->second.scope = op->value.as<StringImmNode>()->value;
         return this->VisitStmt(op->body);
       } else {
         return StmtExprMutator::VisitStmt_(op);
@@ -110,7 +110,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       auto& alloc_nest = loop_allocs_[it->second.loop];
       alloc_nest.emplace_back(AttrStmt::make(
           op->buffer_var, attr::storage_scope,
-          StringImm::make(it->second.scope),
+          StringImmNode::make(it->second.scope),
           Evaluate::make(0)));
       alloc_nest.emplace_back(Allocate::make(
           op->buffer_var, op->dtype, new_extents, op->condition,
@@ -139,7 +139,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         Expr outer_ext = new_ext / factor;
         Expr tail_base = outer_ext * factor;
         Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.dtype());
-        std::unordered_map<const Variable*, Expr> vmap;
+        std::unordered_map<const VarNode*, Expr> vmap;
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
           vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.dtype(), i);
@@ -204,7 +204,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     CHECK(!dbuffer_info_.count(op));
     return GetRef<Expr>(op);
   }
@@ -231,7 +231,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     in_double_buffer_scope_ = true;
     Stmt body = this->VisitStmt(op->body);
     in_double_buffer_scope_ = false;
-    std::unordered_map<const Variable*, Expr> vmap;
+    std::unordered_map<const VarNode*, Expr> vmap;
     vmap[e.switch_write_var.get()] = zero;
     vmap[e.loop->loop_var.get()] = zero;
     loop_pre_[e.loop].emplace_back(Substitute(body, vmap));
@@ -266,7 +266,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The stmt to be appended before the loop
   std::unordered_map<const For*, std::vector<Stmt> > loop_pre_;
   // The allocation size of the buffer
-  std::unordered_map<const Variable*, StorageEntry> dbuffer_info_;
+  std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
 };
 
 

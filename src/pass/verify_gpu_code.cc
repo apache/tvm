@@ -93,7 +93,7 @@ class GPUCodeVerifier : public StmtVisitor {
 
   void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::storage_scope) {
-      std::string op_value = op->value.as<StringImm>()->value;
+      std::string op_value = op->value.as<StringImmNode>()->value;
       if (op_value == "local") {
         visited_local_buffers_.insert(op->node.as<tvm::VarNode>());
       } else if (op_value == "shared") {
@@ -101,7 +101,7 @@ class GPUCodeVerifier : public StmtVisitor {
       }
     } else if (op->attr_key == attr::thread_extent) {
       VarExpr var = op->node.as<tvm::IterVarNode>()->var;
-      const auto *extent = op->value.as<IntImm>();
+      const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
       // record the number of threads in a block
@@ -180,7 +180,7 @@ bool VerifyGPUCode(Stmt stmt,
   int64_t max_thread_z = INT64_MAX;
 
   for (auto iter : constraints) {
-    const IntImm* val = iter.second.as<IntImm>();
+    const IntImmNode* val = iter.second.as<IntImmNode>();
     if (iter.first == "max_local_memory_per_block")
       max_local_memory_per_block = val->value;
     else if (iter.first == "max_shared_memory_per_block")

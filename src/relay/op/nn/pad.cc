@@ -80,7 +80,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
 
         // If any pad_width element is not zero, do not change the layout.
         for (auto width : axis_pad_width.at(dual_axis_name)) {
-          if (auto* width_imm = width.as<IntImm>()) {
+          if (auto* width_imm = width.as<IntImmNode>()) {
             if (width_imm->value != 0) {
               is_layout_modified = false;
             }

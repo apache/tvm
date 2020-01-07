@@ -41,7 +41,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   std::unordered_set<const Object*> syncs_inserted_;
 
  protected:
-  bool Enabled(const Variable* buf,
+  bool Enabled(const VarNode* buf,
                const StorageScope& scope) const final {
     return in_device_env() && scope == sync_scope_;
   }
@@ -211,7 +211,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       } else {
         barrier = Evaluate::make(
                 CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                           {StringImm::make(sync_scope_.to_string())},
+                           {StringImmNode::make(sync_scope_.to_string())},
                            CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
@@ -252,9 +252,9 @@ class ThreadSyncInserter : public StmtExprMutator {
       }
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
+      const VarNode* buf = op->node.as<VarNode>();
       storage_scope_[buf] =
-          StorageScope::make(op->value.as<StringImm>()->value);
+          StorageScope::make(op->value.as<StringImmNode>()->value);
       return StmtExprMutator::VisitStmt_(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -266,9 +266,9 @@ class ThreadSyncInserter : public StmtExprMutator {
       Expr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
       CHECK_EQ(op->args.size(), 5U);
-      const Variable* buffer_var = op->args[1].as<Variable>();
+      const VarNode* buffer_var = op->args[1].as<VarNode>();
       Var var(GetRef<Var>(buffer_var));
-      const IntImm* flag = op->args[4].as<IntImm>();
+      const IntImmNode* flag = op->args[4].as<IntImmNode>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
         ++rw_stats_[var].read_count;
@@ -290,7 +290,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     int write_count{0};
   };
   // Get current storage scope.
-  StorageScope GetScope(const Variable* buf) const {
+  StorageScope GetScope(const VarNode* buf) const {
     auto it = storage_scope_.find(buf);
     StorageScope s;
     s.rank = StorageRank::kGlobal;
@@ -300,7 +300,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmt* op) {
     CHECK(op != nullptr);
-    Array<Expr> pargs = {StringImm::make(runtime::symbol::tvm_prepare_global_barrier)};
+    Array<Expr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
@@ -339,7 +339,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     return Evaluate::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
-                   {StringImm::make(sync_scope_.to_string()),
+                   {StringImmNode::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},
                    CallNode::Intrinsic));
   }
@@ -347,7 +347,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   StorageScope sync_scope_;
   const std::unordered_set<const Object*>& syncs_;
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
   // The read write statistics of storage
   std::unordered_map<VarExpr, Entry, ObjectHash, ObjectEqual> rw_stats_;
   // The statistics for global barrier

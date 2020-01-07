@@ -49,10 +49,10 @@ class CodeGenOpenGL final : public CodeGenC {
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
 
   // Codegen for immediate values
-  void VisitExpr_(const IntImm* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const UIntImm* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const FloatImm* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const StringImm* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const UIntImmNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const StringImmNode* op, std::ostream& os) final;  // NOLINT(*)
 
   // Match glsl_texture_store Call.
   void VisitStmt_(const Evaluate* op) final;  // NOLINT(*)

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -62,7 +62,7 @@ class ArgBinder {
    *   ArgBinder will update this def_map when adding new definitions.
    */
   explicit ArgBinder(
-      std::unordered_map<const Variable*, Expr>* def_map)
+      std::unordered_map<const VarNode*, Expr>* def_map)
       : def_map_(def_map) {
   }
   /*!
@@ -144,7 +144,7 @@ class ArgBinder {
              const std::string& arg_name,
              bool with_lets);
   /*! \brief The definition map, can be uses to substitute */
-  std::unordered_map<const Variable*, Expr>* def_map_;
+  std::unordered_map<const VarNode*, Expr>* def_map_;
   /*! \brief defs generated in the current binder */
   std::vector<Var> defs_;
   /*! \brief Initialize nest */

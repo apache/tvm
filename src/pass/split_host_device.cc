@@ -111,7 +111,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     this->HandleUse(GetRef<Expr>(op));
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -121,7 +121,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  void HandleDef(const Variable* v) {
+  void HandleDef(const VarNode* v) {
     CHECK(!def_count_.count(v))
         << "variable " << v->name_hint
         << " has already been defined, the Stmt is not SSA";
@@ -133,7 +133,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
   }
 
   void HandleUse(const Expr& v) {
-    CHECK(v.as<Variable>());
+    CHECK(v.as<VarNode>());
     Var var = Downcast<Var>(v);
     auto it = use_count_.find(var.get());
     if (it != use_count_.end()) {
@@ -152,8 +152,8 @@ class IRUseDefAnalysis : public StmtExprMutator {
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
   Array<Expr> thread_extent_;
-  std::unordered_map<const Variable*, int> use_count_;
-  std::unordered_map<const Variable*, int> def_count_;
+  std::unordered_map<const VarNode*, int> use_count_;
+  std::unordered_map<const VarNode*, int> def_count_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
@@ -219,7 +219,7 @@ class HostDeviceSplitter : public StmtMutator {
     }
     LoweredFunc f_device(n);
     Array<Expr> call_args;
-    call_args.push_back(StringImm::make(f_device->name));
+    call_args.push_back(StringImmNode::make(f_device->name));
     for (Var arg : n->args) {
       call_args.push_back(arg);
     }
@@ -236,7 +236,7 @@ class HostDeviceSplitter : public StmtMutator {
   std::string name_;
   // the device functions
   std::vector<LoweredFunc> device_funcs_;
-  std::unordered_map<const Variable*, Expr> handle_data_type_;
+  std::unordered_map<const VarNode*, Expr> handle_data_type_;
 };
 
 

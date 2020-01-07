@@ -37,7 +37,7 @@ inline Expr ConstInt32(size_t index) {
 }
 
 inline Expr StackAlloca(std::string type, size_t num) {
-  Array<Expr> args = {StringImm::make(type), ConstInt32(num)};
+  Array<Expr> args = {StringImmNode::make(type), ConstInt32(num)};
   return CallNode::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, CallNode::Intrinsic);
 }
 
@@ -124,8 +124,8 @@ class BuiltinLower : public StmtExprMutator {
                    {cast(DataType::Int(32), device_type_),
                     cast(DataType::Int(32), device_id_),
                     cast(DataType::UInt(64), total_bytes),
-                    IntImm::make(DataType::Int(32), op->dtype.code()),
-                    IntImm::make(DataType::Int(32), op->dtype.bits())},
+                    IntImmNode::make(DataType::Int(32), op->dtype.code()),
+                    IntImmNode::make(DataType::Int(32), op->dtype.bits())},
                    CallNode::Extern),
         body);
 
@@ -253,7 +253,7 @@ class BuiltinLower : public StmtExprMutator {
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),
           intrinsic::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
-      if (api_type.is_handle() && arg.as<StringImm>()) {
+      if (api_type.is_handle() && arg.as<StringImmNode>()) {
         arg_tcode = kStr;
       }
       if (IsArrayHandle(arg)) arg_tcode = kArrayHandle;
@@ -336,7 +336,7 @@ class BuiltinLower : public StmtExprMutator {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->is_intrinsic(intrinsic::tvm_struct_get) &&
-          buf->args[2].as<IntImm>()->value == intrinsic::kArrAddr) {
+          buf->args[2].as<IntImmNode>()->value == intrinsic::kArrAddr) {
         return true;
       }
     }

@@ -90,29 +90,29 @@ bool AttrsEqualHandler::VisitAttrDefault_(const Object* lhs, const ObjectRef& ot
   return lhs == other.get();
 }
 
-bool AttrsEqualHandler::VisitAttr_(const IntImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<IntImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const IntImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<IntImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const UIntImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<UIntImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const UIntImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<UIntImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const FloatImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<FloatImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const FloatImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<FloatImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const StringImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<StringImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const StringImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<StringImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
@@ -220,19 +220,19 @@ size_t AttrsHashHandler::VisitAttrDefault_(const Object* value) {
   }
 }
 
-size_t AttrsHashHandler::VisitAttr_(const IntImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const IntImmNode* op) {
   return std::hash<int64_t>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const UIntImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const UIntImmNode* op) {
   return std::hash<uint64_t>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const FloatImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const FloatImmNode* op) {
   return std::hash<double>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const StringImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const StringImmNode* op) {
   return std::hash<std::string>()(op->value);
 }
 

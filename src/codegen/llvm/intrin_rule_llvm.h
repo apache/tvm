@@ -43,8 +43,8 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), num_signature));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), num_signature));
 
   for (Expr arg : call->args) {
     cargs.push_back(arg);
@@ -60,8 +60,8 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), num_signature));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), num_signature));
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }

@@ -103,7 +103,7 @@ Module RemoveUnusedFunctions(const Module& module,
                              Array<tvm::Expr> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
-    auto* str_name = entry.as<ir::StringImm>();
+    auto* str_name = entry.as<ir::StringImmNode>();
     auto funcs = CallTracer(module).Trace(str_name->value);
     called_funcs.insert(funcs.cbegin(), funcs.cend());
   }

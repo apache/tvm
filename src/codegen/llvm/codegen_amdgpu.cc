@@ -154,7 +154,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
-    const std::string& sync = op->args[0].as<StringImm>()->value;
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       return nullptr;
     } else if (sync == "shared") {
@@ -234,7 +234,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   Array<Expr> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto &bitcode : bitcode_files) {
-    std::string path = bitcode.as<StringImm>()->value;
+    std::string path = bitcode.as<StringImmNode>()->value;
     llvm::SMDiagnostic err;
     std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
     if (mlib.get() == nullptr) {

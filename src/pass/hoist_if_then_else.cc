@@ -230,7 +230,7 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
           std::unordered_set<const Object*> new_var_set;
           cond_var_map_.insert({head.get(), new_var_set});
           PostOrderVisit(if_node->condition, [&](const ObjectRef& cond_node) {
-            if (cond_node.as<Variable>()) {
+            if (cond_node.as<VarNode>()) {
               cond_var_map_[head.get()].insert(cond_node.get());
             }
           });

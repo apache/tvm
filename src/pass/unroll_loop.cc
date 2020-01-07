@@ -158,8 +158,8 @@ class LoopUnroller : public StmtExprMutator {
   int GetExtent(const For* op) {
     // constant folding.
     Expr extent = ir::Simplify(op->extent);
-    const IntImm  *v1 = extent.as<IntImm>();
-    const UIntImm *v2 = extent.as<UIntImm>();
+    const IntImmNode  *v1 = extent.as<IntImmNode>();
+    const UIntImmNode *v2 = extent.as<UIntImmNode>();
     int value = -1;
     if (v1 != nullptr) {
       value = static_cast<int>(v1->value);

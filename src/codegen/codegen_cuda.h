@@ -59,7 +59,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const RampNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const ShuffleNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const FloatImm *op, std::ostream& os) final;
+  void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
   void VisitExpr_(const CallNode *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
   void VisitStmt_(const Allocate *op) final;
@@ -83,7 +83,7 @@ class CodeGenCUDA final : public CodeGenC {
 
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
-  friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
   void PrintWmmaScope(
       const std::string& scope, DataType t, const VarNode* variable, std::ostream& os);
   int32_t GetWmmaFragmentSize(

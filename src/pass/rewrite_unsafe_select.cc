@@ -95,11 +95,11 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
     }
     return false;
   }
-  bool VisitExpr_(const Variable* op) final { return false; }
-  bool VisitExpr_(const UIntImm* op) final { return false; }
-  bool VisitExpr_(const IntImm* op) final { return false; }
-  bool VisitExpr_(const FloatImm* op) final { return false; }
-  bool VisitExpr_(const StringImm* op) final { return false; }
+  bool VisitExpr_(const VarNode* op) final { return false; }
+  bool VisitExpr_(const UIntImmNode* op) final { return false; }
+  bool VisitExpr_(const IntImmNode* op) final { return false; }
+  bool VisitExpr_(const FloatImmNode* op) final { return false; }
+  bool VisitExpr_(const StringImmNode* op) final { return false; }
 
  private:
   template<typename T>

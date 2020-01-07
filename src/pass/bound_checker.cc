@@ -38,20 +38,20 @@ class BoundCollector : public StmtVisitor {
 
   void VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == ir::attr::buffer_bound) {
-      if (const Variable *key = op->node.as<Variable>()) {
+      if (const VarNode *key = op->node.as<VarNode>()) {
         mem_to_shape[key] = op->value;
       }
     }
     StmtVisitor::VisitStmt_(op);
   }
   // Hashtable which maps buffer_var to shape.
-  std::unordered_map<const Variable *, Expr> mem_to_shape;
+  std::unordered_map<const VarNode *, Expr> mem_to_shape;
 };
 
 class BoundChecker : public StmtExprMutator {
  public:
   explicit BoundChecker(
-      const std::unordered_map<const Variable *, Expr> &mem_to_shape)
+      const std::unordered_map<const VarNode *, Expr> &mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
   Stmt VisitStmt_(const Allocate* op) final {
@@ -81,12 +81,12 @@ class BoundChecker : public StmtExprMutator {
     // The collector should has at least one item.
     if (store_scope_bound_collector_.size()) {
       Expr condition = MakeCondition();
-      if (!condition.as<StringImm>()) {
+      if (!condition.as<StringImmNode>()) {
         Stmt nop = Evaluate::make(1);
         Stmt then_case =
             Store::make(op->buffer_var, op->value, op->index, op->predicate);
         Stmt else_case =
-            AssertStmt::make(condition, StringImm::make(error_message_), nop);
+            AssertStmt::make(condition, StringImmNode::make(error_message_), nop);
         Stmt body = IfThenElse::make(condition, then_case, else_case);
         return body;
       }
@@ -200,7 +200,7 @@ class BoundChecker : public StmtExprMutator {
   // Error message.
   const char *const error_message_ = "OUT OF THE BOUNDS";
   // Hashtable which maps buffer_var to shape.
-  std::unordered_map<const Variable *, Expr> mem_to_shape_;
+  std::unordered_map<const VarNode *, Expr> mem_to_shape_;
 };
 
 Stmt InstrumentBoundCheckers(Stmt stmt) {

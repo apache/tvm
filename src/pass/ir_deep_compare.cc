@@ -193,8 +193,8 @@ class IRDeepCompare :
   }
 
   // Exprs
-  void VisitExpr_(const Variable* op, const Expr& other) final {
-    const Variable* rhs = other.as<Variable>();
+  void VisitExpr_(const VarNode* op, const Expr& other) final {
+    const VarNode* rhs = other.as<VarNode>();
     auto it = vmap_.find(op);
     if (it != vmap_.end()) op = it->second;
     if (op < rhs) {
@@ -248,20 +248,20 @@ class IRDeepCompare :
     if (CompareArray(op->source, rhs->source) != 0) return;
   }
 
-  void VisitExpr_(const IntImm *op, const Expr& other) final {
-    CompareValue(op->value, other.as<IntImm>()->value);
+  void VisitExpr_(const IntImmNode *op, const Expr& other) final {
+    CompareValue(op->value, other.as<IntImmNode>()->value);
   }
 
-  void VisitExpr_(const UIntImm *op, const Expr& other) final {
-    CompareValue(op->value, other.as<UIntImm>()->value);
+  void VisitExpr_(const UIntImmNode *op, const Expr& other) final {
+    CompareValue(op->value, other.as<UIntImmNode>()->value);
   }
 
-  void VisitExpr_(const FloatImm *op, const Expr& other) final {
-    CompareValue(op->value, other.as<FloatImm>()->value);
+  void VisitExpr_(const FloatImmNode *op, const Expr& other) final {
+    CompareValue(op->value, other.as<FloatImmNode>()->value);
   }
 
-  void VisitExpr_(const StringImm *op, const Expr& other) final {
-    CompareString(op->value, other.as<StringImm>()->value);
+  void VisitExpr_(const StringImmNode *op, const Expr& other) final {
+    CompareString(op->value, other.as<StringImmNode>()->value);
   }
 
   void VisitExpr_(const CastNode *op, const Expr& other) final {
@@ -430,7 +430,7 @@ class IRDeepCompare :
   // Only equality/non-equality information is valid.
   bool tie_def_{false};
   // varaible remap if any
-  std::unordered_map<const Variable*, const Variable*> vmap_;
+  std::unordered_map<const VarNode*, const VarNode*> vmap_;
 };
 
 

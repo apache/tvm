@@ -333,7 +333,7 @@ llvm::Type* CodeGenLLVM::LLVMType(const DataType& t) const {
 // This trick comes from Halide's CodeGen_LLVM
 //
 void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
-                               const Variable* buffer,
+                               const VarNode* buffer,
                                Expr index,
                                DataType type) {
   if (alias_var_set_.count(buffer) != 0) {
@@ -388,7 +388,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
 }
 
 void CodeGenLLVM::GetAlignment(DataType t,
-                               const Variable* buf_var,
+                               const VarNode* buf_var,
                                const Expr& index,
                                int* p_alignment,
                                int* p_native_bits) {
@@ -633,7 +633,7 @@ llvm::Value* CodeGenLLVM::CreateBufferVecPtr(
   return builder_->CreateInBoundsGEP(buffer, index);
 }
 
-llvm::Value* CodeGenLLVM::GetVarValue(const Variable* v) const {
+llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
   auto it = var_map_.find(v);
   CHECK(it != var_map_.end()) << "cannot find variable " << v->name_hint;
   return it->second;
@@ -662,7 +662,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        op->args[0].as<UIntImm>()->value);
+        op->args[0].as<UIntImmNode>()->value);
     const uint64_t *num_signature = as_const_uint(op->args[1]);
     CHECK(num_signature) << "The second argument should be a uint represents number of arguments, "
                          << "but " << op->args[1] << " got!\n";
@@ -793,32 +793,32 @@ void CodeGenLLVM::Scalarize(const Expr& e,
 
 
 // Visitors
-llvm::Value* CodeGenLLVM::VisitExpr_(const Variable* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const VarNode* op) {
   return GetVarValue(op);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CastNode* op) {
   return CreateCast(op->value.dtype(), op->dtype, MakeValue(op->value));
 }
-llvm::Value* CodeGenLLVM::VisitExpr_(const IntImm* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
   return llvm::ConstantInt::getSigned(LLVMType(op->dtype), op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const UIntImm* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const UIntImmNode* op) {
   return llvm::ConstantInt::get(LLVMType(op->dtype), op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImm* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
   return llvm::ConstantFP::get(LLVMType(op->dtype), op->value);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const StringImm* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const StringImmNode* op) {
   return GetConstString(op->value);
 }
 
 #define DEFINE_CODEGEN_BINARY_OP(Op)                                    \
   llvm::Value* CodeGenLLVM::Create ## Op(                               \
-      DataType t, llvm::Value* a, llvm::Value *b) {                         \
+      DataType t, llvm::Value* a, llvm::Value *b) {                     \
     if (t.is_int()) {                                                   \
       if (t.bits() >= 32) {                                             \
         return builder_->CreateNSW ## Op (a, b);                        \
@@ -1180,17 +1180,17 @@ void CodeGenLLVM::VisitStmt_(const AttrStmt* op) {
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].scope =
-        runtime::StorageScope::make(op->value.as<StringImm>()->value);
+        runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == ir::attr::storage_alignment) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].alignment =
-        static_cast<int>(op->value.as<IntImm>()->value);
+        static_cast<int>(op->value.as<IntImmNode>()->value);
   } else if (op->attr_key == ir::attr::volatile_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     volatile_buf_.insert(v);
   }

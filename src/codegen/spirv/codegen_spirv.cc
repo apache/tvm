@@ -107,7 +107,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
 }
 
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
   if (sync == "warp") {
     return value;
@@ -132,19 +132,19 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const VarNode* op) {
   return it->second;
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const IntImm* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const IntImmNode* op) {
   return builder_->IntImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const UIntImm* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const UIntImmNode* op) {
   return builder_->UIntImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImm* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
   return builder_->FloatImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const StringImm* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
   LOG(FATAL) << "StringImm is not supported in Device code";
   return spirv::Value();
 }
@@ -242,7 +242,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic("spirv_glsl450")) {
     CHECK_GE(op->args.size(), 2U);
-    uint32_t inst_id = op->args[0].as<UIntImm>()->value;
+    uint32_t inst_id = op->args[0].as<UIntImmNode>()->value;
     std::vector<spirv::Value> values;
     for (size_t i = 1; i < op->args.size(); ++i) {
       values.push_back(MakeValue(op->args[i]));
@@ -616,7 +616,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].scope =
-        runtime::StorageScope::make(op->value.as<StringImm>()->value);
+        runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == ir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);

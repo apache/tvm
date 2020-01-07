@@ -266,7 +266,7 @@ void CodeGenCUDA::PrintVecElemStore(
 }
 
 void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
   } else if (sync == "shared") {
@@ -348,7 +348,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
     this->PrintExpr(op->args[4], os);
     os << "], ";
     this->PrintExpr(op->args[6], os);
-    if (const StringImm *str = op->args[7].as<StringImm>()) {
+    if (const StringImmNode *str = op->args[7].as<StringImmNode>()) {
       os << ", nvcuda::wmma::mem_" << str->value;
     } else {
       LOG(FATAL) << "Invalid parameters";
@@ -372,11 +372,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
 void CodeGenCUDA::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const StringImm* shape_str = op->value.as<StringImm>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
   } else if (op->attr_key == attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
-    const StringImm* layout_str = op->value.as<StringImm>();
+    const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
   }
   CodeGenC::VisitStmt_(op);
@@ -492,7 +492,7 @@ void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream &os) {
   os << ')';
 }
 
-inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
+inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
   switch (op->dtype.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
@@ -523,7 +523,7 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { /
 }
 
 
-void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenCUDA::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
 

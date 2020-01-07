@@ -408,7 +408,7 @@ Stage& Stage::pragma(IterVar var,
   } else {
     UpdateIterVarAttr(
         operator->(), var, [pragma_type, pragma_value](IterVarAttrNode* n) {
-          n->pragma_keys.push_back(ir::StringImm::make(pragma_type));
+          n->pragma_keys.push_back(ir::StringImmNode::make(pragma_type));
           n->pragma_values.push_back(pragma_value);
         });
   }

@@ -248,9 +248,9 @@ class ConstantFolder : public ExprMutator {
       std::vector<int64_t> cshape = { static_cast<int64_t>(ishape.size()) };
       value = runtime::NDArray::Empty(cshape, cdtype, ctx);
       int32_t* dims = static_cast<int32_t*>(value->data);
-      using ::tvm::ir::IntImm;
+      using ::tvm::ir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
-        if (const IntImm* dim = ishape[i].as<IntImm>()) {
+        if (const IntImmNode* dim = ishape[i].as<IntImmNode>()) {
           dims[i] = dim->value;
         } else {
           return expr;
