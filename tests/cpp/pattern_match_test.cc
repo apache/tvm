@@ -100,13 +100,13 @@ TEST(Pattern, Basic) {
   // cast pattern
   {
     CHECK(!cast(PConst<DataType>(
-        DataType::Int(32)), px).Match(ir::Cast::make(DataType::Float(64), x)));
-    CHECK(cast(pt, px).Match(ir::Cast::make(DataType::Float(64), x)));
+        DataType::Int(32)), px).Match(ir::CastNode::make(DataType::Float(64), x)));
+    CHECK(cast(pt, px).Match(ir::CastNode::make(DataType::Float(64), x)));
     CHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
     CHECK((cast(pt, px) - cast(pt, py)).Match(
-        ir::Cast::make(DataType::Float(64), x) - ir::Cast::make(DataType::Int(64), x)));
-    auto expr = ir::Cast::make(DataType::Int(32), ir::Cast::make(DataType::Float(64), x));
+        ir::CastNode::make(DataType::Float(64), x) - ir::CastNode::make(DataType::Int(64), x)));
+    auto expr = ir::CastNode::make(DataType::Int(32), ir::CastNode::make(DataType::Float(64), x));
     CHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern

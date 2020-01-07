@@ -111,13 +111,13 @@ class Vectorizer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Add* op) final {
+  Expr VisitExpr_(const AddNode* op) final {
     return AddSubVec(op);
   }
-  Expr VisitExpr_(const Sub* op) final {
+  Expr VisitExpr_(const SubNode* op) final {
     return AddSubVec(op);
   }
-  Expr VisitExpr_(const Mul* op) final {
+  Expr VisitExpr_(const MulNode* op) final {
     Expr a = this->VisitExpr(op->a);
     Expr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) &&
@@ -137,14 +137,14 @@ class Vectorizer : public StmtExprMutator {
               b_ramp->base * a, b_ramp->stride * a, b_ramp->lanes);
         }
       }
-      return Mul::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
+      return MulNode::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
     }
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const Div* op) final {
+  Expr VisitExpr_(const DivNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const Mod* op) final {
+  Expr VisitExpr_(const ModNode* op) final {
     return BinaryVec(op);
   }
   Expr VisitExpr_(const FloorDiv* op) final {
@@ -219,12 +219,12 @@ class Vectorizer : public StmtExprMutator {
       return Select::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
     }
   }
-  Expr VisitExpr_(const Cast *op) final {
+  Expr VisitExpr_(const CastNode *op) final {
     Expr value = this->VisitExpr(op->value);
     if (value.same_as(op->value)) {
       return GetRef<Expr>(op);
     } else {
-      return Cast::make(op->dtype.with_lanes(value.dtype().lanes()), value);
+      return CastNode::make(op->dtype.with_lanes(value.dtype().lanes()), value);
     }
   }
   // Variable

@@ -76,7 +76,7 @@ LoweredFunc MakeAPI(Stmt body,
         Call::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
-      res = Cast::make(t, res);
+      res = CastNode::make(t, res);
     }
     return res;
   };

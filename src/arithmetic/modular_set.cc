@@ -124,7 +124,7 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Cast* op) final {
+  Entry VisitExpr_(const CastNode* op) final {
     return VisitExpr(op->value);
   }
 
@@ -140,21 +140,21 @@ class ModularSetAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Add* op) final {
+  Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base + b.base);
   }
 
-  Entry VisitExpr_(const Sub* op) final {
+  Entry VisitExpr_(const SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base - b.base);
   }
 
-  Entry VisitExpr_(const Mul* op) final {
+  Entry VisitExpr_(const MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     // Simplification rule, x, y, z are in Z
@@ -188,7 +188,7 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Div* op) final {
+  Entry VisitExpr_(const DivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);

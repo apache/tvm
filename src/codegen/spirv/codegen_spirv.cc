@@ -149,27 +149,27 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const StringImm* op) {
   return spirv::Value();
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Cast* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
   return builder_->Cast(builder_->GetSType(op->dtype), MakeValue(op->value));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Add* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const AddNode* op) {
   return builder_->Add(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Sub* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const SubNode* op) {
   return builder_->Sub(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Mul* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MulNode* op) {
   return builder_->Mul(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Div* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const DivNode* op) {
   return builder_->Div(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Mod* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const ModNode* op) {
   return builder_->Mod(MakeValue(op->a), MakeValue(op->b));
 }
 

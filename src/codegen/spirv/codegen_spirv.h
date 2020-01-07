@@ -63,16 +63,16 @@ class CodeGenSPIRV:
   }
   // override codegen
   spirv::Value VisitExpr_(const VarNode* op) override;
-  spirv::Value VisitExpr_(const Cast* op) override;
+  spirv::Value VisitExpr_(const CastNode* op) override;
   spirv::Value VisitExpr_(const IntImm* op) override;
   spirv::Value VisitExpr_(const UIntImm* op) override;
   spirv::Value VisitExpr_(const FloatImm* op) override;
   spirv::Value VisitExpr_(const StringImm* op) override;
-  spirv::Value VisitExpr_(const Add* op) override;
-  spirv::Value VisitExpr_(const Sub* op) override;
-  spirv::Value VisitExpr_(const Mul* op) override;
-  spirv::Value VisitExpr_(const Div* op) override;
-  spirv::Value VisitExpr_(const Mod* op) override;
+  spirv::Value VisitExpr_(const AddNode* op) override;
+  spirv::Value VisitExpr_(const SubNode* op) override;
+  spirv::Value VisitExpr_(const MulNode* op) override;
+  spirv::Value VisitExpr_(const DivNode* op) override;
+  spirv::Value VisitExpr_(const ModNode* op) override;
   spirv::Value VisitExpr_(const Min* op) override;
   spirv::Value VisitExpr_(const Max* op) override;
   spirv::Value VisitExpr_(const LT* op) override;

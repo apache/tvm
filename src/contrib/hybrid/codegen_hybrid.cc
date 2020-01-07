@@ -127,7 +127,7 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   os << ')';
 }
 
-void CodeGenHybrid::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->dtype == op->value.dtype()) {
     PrintExpr(op->value, stream);
   } else {
@@ -141,17 +141,17 @@ void CodeGenHybrid::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenHybrid::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenHybrid::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const AddNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Sub* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const SubNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Mul* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const MulNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const Div* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
   if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
@@ -165,7 +165,7 @@ void CodeGenHybrid::VisitExpr_(const FloorDiv* op, std::ostream& os) {  // NOLIN
     PrintBinaryExpr(op, "/", os, this);
 }
 
-void CodeGenHybrid::VisitExpr_(const Mod* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
 

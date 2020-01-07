@@ -325,18 +325,18 @@ class PConstWithTypeLike :
 
 
 // raise ambiguity error for operator overload of / and %
-TVM_PATTERN_BINARY_OP_EX(operator/, ir::Div, DivAmbiguityError(a));
-TVM_PATTERN_BINARY_OP_EX(operator%, ir::Mod, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator/, ir::DivNode, DivAmbiguityError(a));
+TVM_PATTERN_BINARY_OP_EX(operator%, ir::ModNode, DivAmbiguityError(a));
 
 // arithmetic expressions
-TVM_PATTERN_BINARY_OP(operator+, ir::Add);
-TVM_PATTERN_BINARY_OP(operator-, ir::Sub);
-TVM_PATTERN_BINARY_OP(operator*, ir::Mul);
+TVM_PATTERN_BINARY_OP(operator+, ir::AddNode);
+TVM_PATTERN_BINARY_OP(operator-, ir::SubNode);
+TVM_PATTERN_BINARY_OP(operator*, ir::MulNode);
 TVM_PATTERN_BINARY_OP(min, ir::Min);
 TVM_PATTERN_BINARY_OP(max, ir::Max);
-TVM_PATTERN_BINARY_OP(div, ir::Div);
-TVM_PATTERN_BINARY_OP(truncdiv, ir::Div);
-TVM_PATTERN_BINARY_OP(truncmod, ir::Mod);
+TVM_PATTERN_BINARY_OP(div, ir::DivNode);
+TVM_PATTERN_BINARY_OP(truncdiv, ir::DivNode);
+TVM_PATTERN_BINARY_OP(truncmod, ir::ModNode);
 TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDiv);
 TVM_PATTERN_BINARY_OP(floormod, ir::FloorMod);
 
@@ -473,7 +473,7 @@ class PCastExpr :
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Cast* ptr = node.as<ir::Cast>()) {
+    if (const ir::CastNode* ptr = node.as<ir::CastNode>()) {
       if (!dtype_.Match_(ptr->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
       return true;
@@ -483,7 +483,7 @@ class PCastExpr :
   }
 
   Expr Eval() const {
-    return ir::Cast::make(dtype_.Eval(), value_.Eval());
+    return ir::CastNode::make(dtype_.Eval(), value_.Eval());
   }
 
  private:

@@ -122,12 +122,12 @@ class BoundChecker : public StmtExprMutator {
     }
 
     // Scalarize the shape.
-    Expr shape = Mul::make(make_const(DataType::UInt(64), type.lanes()),
-                           Cast::make(DataType::UInt(64), new_shape[0]));
+    Expr shape = MulNode::make(make_const(DataType::UInt(64), type.lanes()),
+                           CastNode::make(DataType::UInt(64), new_shape[0]));
     for (size_t i = 1; i < new_shape.size(); ++i) {
       // Cast to unsigned to avoid integer overlow at frist.
-      shape = Mul::make(shape, Mul::make(make_const(DataType::UInt(64), type.lanes()),
-                                         Cast::make(DataType::UInt(64), new_shape[i])));
+      shape = MulNode::make(shape, MulNode::make(make_const(DataType::UInt(64), type.lanes()),
+                                         CastNode::make(DataType::UInt(64), new_shape[i])));
     }
     mem_to_shape_[buffer_var.get()] = shape;
   }
@@ -166,9 +166,9 @@ class BoundChecker : public StmtExprMutator {
       if (const Ramp *ramp_index = index.as<Ramp>()) {
         // In case index is base + stride * i.
         // Non inclusive range.
-        index = Add::make(
+        index = AddNode::make(
             ramp_index->base,
-            Mul::make(ramp_index->stride, make_const(ramp_index->stride.dtype(),
+            MulNode::make(ramp_index->stride, make_const(ramp_index->stride.dtype(),
                                                      ramp_index->lanes - 1)));
       }
 
@@ -177,8 +177,8 @@ class BoundChecker : public StmtExprMutator {
       upper_bound = ir::Simplify(upper_bound);
 
       // Cast to the same type - signed, to be able to check lower bound.
-      index = Cast::make(DataType::Int(64), index);
-      upper_bound = Cast::make(DataType::Int(64), upper_bound);
+      index = CastNode::make(DataType::Int(64), index);
+      upper_bound = CastNode::make(DataType::Int(64), upper_bound);
 
       // Looks like a lower bound should always be zero after normalization.
       Expr lower_bound = make_zero(DataType::Int(64));

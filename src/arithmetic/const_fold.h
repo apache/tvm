@@ -100,7 +100,7 @@ inline bool IsIndexType(const DataType& type) {
 
 // specialization of constant folders.
 template<>
-inline Expr TryConstFold<ir::Add>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::AddNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value + pb->value);
@@ -114,7 +114,7 @@ inline Expr TryConstFold<ir::Add>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Sub>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::SubNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value - pb->value);
@@ -126,7 +126,7 @@ inline Expr TryConstFold<ir::Sub>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Mul>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::MulNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value * pb->value);
@@ -152,7 +152,7 @@ inline Expr TryConstFold<ir::Mul>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::DivNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -181,7 +181,7 @@ inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Mod>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::ModNode>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {

@@ -41,14 +41,14 @@ class CustomDatatypesLowerer : public StmtExprMutator {
  public:
   explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
-  inline Expr VisitExpr_(const Cast* op) final {
+  inline Expr VisitExpr_(const CastNode* op) final {
     auto type_code = op->dtype.code();
     auto src_type_code = op->value.dtype().code();
     // If either datatype is a registered custom datatype, we must lower.
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Cast>();
+    op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
@@ -96,12 +96,12 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP)                                                        \
-  inline Expr VisitExpr_(const OP* op) final {                                     \
+#define DEFINE_MUTATE__(OP, NodeName)                                              \
+  inline Expr VisitExpr_(const NodeName* op) final {                                     \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
     Expr expr = StmtExprMutator::VisitExpr_(op);                                   \
-    op = expr.as<OP>();                                                            \
+    op = expr.as<NodeName>();                                                            \
     if (toBeLowered) {                                                             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \
       CHECK(lower) << #OP " lowering function for target " << target_ << " type "  \
@@ -111,19 +111,19 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;                                                                   \
   }
 
-  DEFINE_MUTATE__(Add)
-  DEFINE_MUTATE__(Sub)
-  DEFINE_MUTATE__(Mul)
-  DEFINE_MUTATE__(Div)
-  DEFINE_MUTATE__(Mod)
-  DEFINE_MUTATE__(Min)
-  DEFINE_MUTATE__(Max)
-  DEFINE_MUTATE__(EQ)
-  DEFINE_MUTATE__(NE)
-  DEFINE_MUTATE__(LT)
-  DEFINE_MUTATE__(LE)
-  DEFINE_MUTATE__(GT)
-  DEFINE_MUTATE__(GE)
+  DEFINE_MUTATE__(Add, AddNode);
+  DEFINE_MUTATE__(Sub, SubNode);
+  DEFINE_MUTATE__(Mul, MulNode);
+  DEFINE_MUTATE__(Div, DivNode);
+  DEFINE_MUTATE__(Mod, ModNode);
+  DEFINE_MUTATE__(Min, Min);
+  DEFINE_MUTATE__(Max, Max);
+  DEFINE_MUTATE__(EQ, EQ);
+  DEFINE_MUTATE__(NE, NE);
+  DEFINE_MUTATE__(LT, LT);
+  DEFINE_MUTATE__(LE, LE);
+  DEFINE_MUTATE__(GT, GT);
+  DEFINE_MUTATE__(GE, GE);
   // Later changes may need to add more mutate functions as we support workloads with more ops.
 
  private:

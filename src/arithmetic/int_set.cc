@@ -118,7 +118,7 @@ inline IntervalSet Combine(Analyzer* analyzer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Add>(Analyzer* analyer,
+inline IntervalSet Combine<ir::AddNode>(Analyzer* analyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -136,7 +136,7 @@ inline IntervalSet Combine<ir::Add>(Analyzer* analyer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Sub>(Analyzer* analyer,
+inline IntervalSet Combine<ir::SubNode>(Analyzer* analyer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -155,7 +155,7 @@ inline IntervalSet Combine<ir::Sub>(Analyzer* analyer,
 
 
 template<>
-inline IntervalSet Combine<ir::Mul>(Analyzer* analyzer,
+inline IntervalSet Combine<ir::MulNode>(Analyzer* analyzer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -190,7 +190,7 @@ inline IntervalSet Combine<ir::Mul>(Analyzer* analyzer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Div>(Analyzer* analyzer,
+inline IntervalSet Combine<ir::DivNode>(Analyzer* analyzer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -225,7 +225,7 @@ inline IntervalSet Combine<ir::Div>(Analyzer* analyzer,
 }
 
 template<>
-inline IntervalSet Combine<ir::Mod>(Analyzer* analyzer,
+inline IntervalSet Combine<ir::ModNode>(Analyzer* analyzer,
                                     IntervalSet a,
                                     IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
@@ -405,23 +405,23 @@ class IntervalSetEvaluator :
     }
   }
 
-  IntervalSet VisitExpr_(const Add* op) final {
+  IntervalSet VisitExpr_(const AddNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Sub* op) final {
+  IntervalSet VisitExpr_(const SubNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Mul* op) final {
+  IntervalSet VisitExpr_(const MulNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Div* op) final {
+  IntervalSet VisitExpr_(const DivNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
-  IntervalSet VisitExpr_(const Mod* op) final {
+  IntervalSet VisitExpr_(const ModNode* op) final {
     return VisitBinaryExpr_(op);
   }
 
@@ -481,12 +481,12 @@ class IntervalSetEvaluator :
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
       if (vstride> 0) {
-        return Combine<Add>(
+        return Combine<AddNode>(
             analyzer_,
             base,
             IntervalSet(make_zero(t), make_const(t, vstride * op->lanes - 1)));
       } else {
-        return Combine<Add>(
+        return Combine<AddNode>(
             analyzer_,
             base,
             IntervalSet(make_const(t, vstride * op->lanes + 1), make_zero(t)));

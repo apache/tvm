@@ -60,7 +60,7 @@ class LinearEqDetector
     return true;
   }
 
-  LinearEqEntry VisitExpr_(const Add* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const AddNode* op, const Expr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -70,7 +70,7 @@ class LinearEqDetector
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const Sub* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const SubNode* op, const Expr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -80,7 +80,7 @@ class LinearEqDetector
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const Mul* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const MulNode* op, const Expr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);

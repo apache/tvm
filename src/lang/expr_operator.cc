@@ -32,7 +32,7 @@ namespace tvm {
 // simple cast that only checks if type matches and cast
 inline Expr SimpleCast(const DataType& t, Expr value) {
   if (value.dtype() == t) return value;
-  return ir::Cast::make(t, value);
+  return ir::CastNode::make(t, value);
 }
 
 // The public function with a quick checking path.
@@ -176,7 +176,7 @@ Expr cast(const DataType& t, Expr value) {
     } else if (const FloatImm* op = value.as<FloatImm>()) {
       return make_const(t, op->value);
     }
-    return ir::Cast::make(t, value);
+    return ir::CastNode::make(t, value);
   } else {
     if (value.dtype().lanes() == 1) {
       // manually unroll cast
@@ -189,13 +189,13 @@ Expr cast(const DataType& t, Expr value) {
         } else if (const FloatImm* op = value.as<FloatImm>()) {
           value = make_const(vtype, op->value);
         } else {
-          value = ir::Cast::make(vtype, value);
+          value = ir::CastNode::make(vtype, value);
         }
       }
       return ir::Broadcast::make(value, t.lanes());
     } else {
       CHECK(value.dtype().lanes() == t.lanes());
-      return ir::Cast::make(t, value);
+      return ir::CastNode::make(t, value);
     }
   }
 }
@@ -207,9 +207,9 @@ Expr reinterpret(const DataType& t, Expr value) {
 
 Expr operator+(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Add>(a, b);
+  Expr ret = arith::TryConstFold<ir::AddNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Add::make(a, b);
+  return ir::AddNode::make(a, b);
 }
 
 // negation
@@ -225,23 +225,23 @@ Expr operator-(Expr a) {
 
 Expr operator-(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Sub>(a, b);
+  Expr ret = arith::TryConstFold<ir::SubNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Sub::make(a, b);
+  return ir::SubNode::make(a, b);
 }
 
 Expr operator*(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Mul>(a, b);
+  Expr ret = arith::TryConstFold<ir::MulNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Mul::make(a, b);
+  return ir::MulNode::make(a, b);
 }
 
 Expr div(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Div>(a, b);
+  Expr ret = arith::TryConstFold<ir::DivNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Div::make(a, b);
+  return ir::DivNode::make(a, b);
 }
 
 Expr truncdiv(Expr a, Expr b) {
@@ -252,9 +252,9 @@ Expr truncdiv(Expr a, Expr b) {
 
 Expr truncmod(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Mod>(a, b);
+  Expr ret = arith::TryConstFold<ir::ModNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Mod::make(a, b);
+  return ir::ModNode::make(a, b);
 }
 
 Expr operator/(Expr a, Expr b) {
@@ -528,7 +528,7 @@ Expr isnan(Expr x) {
 
 Expr sum(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Add::make(x, y);
+  Expr result = ir::AddNode::make(x, y);
   Expr identity_element = make_zero(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
@@ -575,7 +575,7 @@ Expr min(Expr source, Array<IterVar> rdom) {
 
 Expr prod(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Mul::make(x, y);
+  Expr result = ir::MulNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), 1);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});

@@ -395,7 +395,7 @@ class VTInjector : public StmtExprMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      Expr stride = arith::ComputeReduce<Mul>(
+      Expr stride = arith::ComputeReduce<MulNode>(
           op->extents, Expr()) * op->dtype.lanes();
       Array<Expr> other;
       other.push_back(make_const(op->extents[0].dtype(), num_threads_));

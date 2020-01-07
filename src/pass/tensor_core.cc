@@ -60,7 +60,7 @@ std::string simplify_name(std::string input) {
 }
 
 Expr unpack_type_cast(const Expr &input, const DataType &target_type) {
-  auto cast = input.as<Cast>();
+  auto cast = input.as<CastNode>();
   if (cast == nullptr) {
     return input;
   } else if (cast->dtype == target_type) {
@@ -174,7 +174,7 @@ class MMAMatcher: public StmtVisitor {
 
   // Do the pattern matching
   bool mma_sync_match_(const Provide* op, BufferInfo store_buffer) {
-    auto* add = op->value.as<Add>();
+    auto* add = op->value.as<AddNode>();
     if (add == nullptr) {
       return false;
     }
@@ -188,7 +188,7 @@ class MMAMatcher: public StmtVisitor {
       return false;
     }
 
-    auto mul = unpack_type_cast(add->b, buffer_c.dtype).as<Mul>();
+    auto mul = unpack_type_cast(add->b, buffer_c.dtype).as<MulNode>();
     if (mul == nullptr) {
       return false;
     }
@@ -239,13 +239,13 @@ class BodyVisitor : public StmtExprVisitor {
   BodyVisitor() {}
 
   void VisitExpr_(const Reduce* op) final {
-    auto* comm_add = op->combiner->result[0].as<Add>();
+    auto* comm_add = op->combiner->result[0].as<AddNode>();
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
     }
     for (Expr source : op->source) {
-      auto mul_0 = unpack_type_cast(source, DataType::Float(32)).as<Mul>();
-      auto mul_1 = unpack_type_cast(source, DataType::Int(32)).as<Mul>();
+      auto mul_0 = unpack_type_cast(source, DataType::Float(32)).as<MulNode>();
+      auto mul_1 = unpack_type_cast(source, DataType::Int(32)).as<MulNode>();
       if (mul_0 == nullptr && mul_1 == nullptr) {
         continue;
       }
@@ -464,7 +464,7 @@ class BufferAnalyser : public StmtExprVisitor {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
         Expr stride = IntImm::make(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-          stride = Mul::make(stride, bi.shape[j]);
+          stride = MulNode::make(stride, bi.shape[j]);
         }
         strides.push_back(stride);
       }
@@ -577,7 +577,7 @@ class BufferAnalyser : public StmtExprVisitor {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
           Expr stride = IntImm::make(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
-            stride = Mul::make(stride, bi.shape[j]);
+            stride = MulNode::make(stride, bi.shape[j]);
           }
           strides.push_back(stride);
         }
@@ -769,8 +769,8 @@ class ThreadIdxMutator : public StmtExprMutator {
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
-        Expr div = Div::make(expr, warp_y_);
-        Expr mul = Mul::make(div, warp_y_);
+        Expr div = DivNode::make(expr, warp_y_);
+        Expr mul = MulNode::make(div, warp_y_);
         return mul;
       }
     }
@@ -1091,7 +1091,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     for (size_t i = 1; i < shape.size(); ++i) {
       Expr stride = IntImm::make(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
-        stride = Mul::make(stride, shape[j]);
+        stride = MulNode::make(stride, shape[j]);
       }
       strides.push_back(stride);
     }
@@ -1100,9 +1100,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     Expr elem_offset = IntImm::make(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
-      elem_offset = Add::make(
-        elem_offset, Mul::make(
-          strides[i], Sub::make(call->args[i], min_bound[i])));
+      elem_offset = AddNode::make(
+        elem_offset, MulNode::make(
+          strides[i], SubNode::make(call->args[i], min_bound[i])));
     }
 
     auto it2 = matrix_abc_.find(simplify_name(call->name));

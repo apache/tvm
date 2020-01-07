@@ -577,7 +577,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          Expr sz = arith::ComputeReduce<Mul>(e->allocs[0]->extents,
+          Expr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
                                               make_const(DataType::Int(32), 1));
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {sz},
@@ -592,7 +592,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           Expr combo_size;
           for (const Allocate* op : e->allocs) {
-            Expr sz = arith::ComputeReduce<Mul>(op->extents, make_const(DataType::Int(32), 1));
+            Expr sz = arith::ComputeReduce<MulNode>(op->extents, make_const(DataType::Int(32), 1));
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImm>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {

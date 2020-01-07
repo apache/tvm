@@ -56,10 +56,10 @@ Expr StringImm::make(std::string value) {
   return Expr(node);
 }
 
-Expr Cast::make(DataType t, Expr value) {
+Expr CastNode::make(DataType t, Expr value) {
   CHECK(value.defined());
   CHECK_EQ(t.lanes(), value.dtype().lanes());
-  ObjectPtr<Cast> node = make_object<Cast>();
+  ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
   return Expr(node);
@@ -593,8 +593,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Cast>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Cast*>(node.get());
+.set_dispatch<CastNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const CastNode*>(node.get());
     p->stream << op->dtype << '(';
     p->Print(op->value);
     p->stream << ')';
@@ -605,40 +605,40 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     // stream << op->name << "." << op->type;
     p->stream << op->name_hint;
   })
-.set_dispatch<Add>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Add*>(node.get());
+.set_dispatch<AddNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const AddNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " + ";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Sub>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Sub*>(node.get());
+.set_dispatch<SubNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SubNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " - ";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Mul>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Mul*>(node.get());
+.set_dispatch<MulNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const MulNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << "*";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Div>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Div*>(node.get());
+.set_dispatch<DivNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const DivNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << "/";
     p->Print(op->b);
     p->stream << ')';
   })
-.set_dispatch<Mod>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Mod*>(node.get());
+.set_dispatch<ModNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ModNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " % ";
@@ -1155,13 +1155,13 @@ TVM_REGISTER_NODE_TYPE(FloatImm);
 TVM_REGISTER_NODE_TYPE(IntImm);
 TVM_REGISTER_NODE_TYPE(UIntImm);
 TVM_REGISTER_NODE_TYPE(StringImm);
-TVM_REGISTER_NODE_TYPE(Cast);
+TVM_REGISTER_NODE_TYPE(CastNode);
 TVM_REGISTER_NODE_TYPE(Variable);
-TVM_REGISTER_NODE_TYPE(Add);
-TVM_REGISTER_NODE_TYPE(Sub);
-TVM_REGISTER_NODE_TYPE(Mul);
-TVM_REGISTER_NODE_TYPE(Div);
-TVM_REGISTER_NODE_TYPE(Mod);
+TVM_REGISTER_NODE_TYPE(AddNode);
+TVM_REGISTER_NODE_TYPE(SubNode);
+TVM_REGISTER_NODE_TYPE(MulNode);
+TVM_REGISTER_NODE_TYPE(DivNode);
+TVM_REGISTER_NODE_TYPE(ModNode);
 TVM_REGISTER_NODE_TYPE(FloorDiv);
 TVM_REGISTER_NODE_TYPE(FloorMod);
 TVM_REGISTER_NODE_TYPE(Min);

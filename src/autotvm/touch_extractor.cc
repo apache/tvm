@@ -60,7 +60,7 @@ class IndexParser: public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const Mul* op) final {
+  void VisitExpr_(const MulNode* op) final {
     if (op->a.as<VarNode>()) {
       if (const auto stride = op->b.as<IntImm>()) {
         next_stride_ = stride->value;

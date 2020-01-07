@@ -241,11 +241,11 @@ void ExprVisitor::VisitExpr_(const Call* op) {
     this->VisitExpr(op->b);                               \
   }
 
-DEFINE_BINOP_VISIT_(Add);
-DEFINE_BINOP_VISIT_(Sub);
-DEFINE_BINOP_VISIT_(Mul);
-DEFINE_BINOP_VISIT_(Div);
-DEFINE_BINOP_VISIT_(Mod);
+DEFINE_BINOP_VISIT_(AddNode);
+DEFINE_BINOP_VISIT_(SubNode);
+DEFINE_BINOP_VISIT_(MulNode);
+DEFINE_BINOP_VISIT_(DivNode);
+DEFINE_BINOP_VISIT_(ModNode);
 DEFINE_BINOP_VISIT_(FloorDiv);
 DEFINE_BINOP_VISIT_(FloorMod);
 DEFINE_BINOP_VISIT_(Min);
@@ -273,7 +273,7 @@ void ExprVisitor::VisitExpr_(const Reduce* op) {
   this->VisitExpr(op->condition);
 }
 
-void ExprVisitor::VisitExpr_(const Cast* op) {
+void ExprVisitor::VisitExpr_(const CastNode* op) {
   this->VisitExpr(op->value);
 }
 
@@ -656,11 +656,11 @@ DEFINE_OP_RETURN_SELF_EXPR_MUTATE_(StringImm)
     }                                                                   \
   }
 
-DEFINE_BIOP_EXPR_MUTATE_(Add);
-DEFINE_BIOP_EXPR_MUTATE_(Sub);
-DEFINE_BIOP_EXPR_MUTATE_(Mul);
-DEFINE_BIOP_EXPR_MUTATE_(Div);
-DEFINE_BIOP_EXPR_MUTATE_(Mod);
+DEFINE_BIOP_EXPR_MUTATE_(AddNode);
+DEFINE_BIOP_EXPR_MUTATE_(SubNode);
+DEFINE_BIOP_EXPR_MUTATE_(MulNode);
+DEFINE_BIOP_EXPR_MUTATE_(DivNode);
+DEFINE_BIOP_EXPR_MUTATE_(ModNode);
 DEFINE_BIOP_EXPR_MUTATE_(FloorDiv);
 DEFINE_BIOP_EXPR_MUTATE_(FloorMod);
 DEFINE_BIOP_EXPR_MUTATE_(Min);
@@ -705,12 +705,12 @@ Expr ExprMutator::VisitExpr_(const Reduce* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Cast* op) {
+Expr ExprMutator::VisitExpr_(const CastNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return GetRef<Expr>(op);
   } else {
-    return Cast::make(op->dtype, value);
+    return CastNode::make(op->dtype, value);
   }
 }
 

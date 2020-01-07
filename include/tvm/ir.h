@@ -94,7 +94,7 @@ class StringImm : public ExprNode {
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
  */
-class Cast : public ExprNode {
+class CastNode : public ExprNode {
  public:
   /*! \brief Original data type. */
   Expr value;
@@ -107,7 +107,7 @@ class Cast : public ExprNode {
   TVM_DLL static Expr make(DataType t, Expr v);
 
   static constexpr const char* _type_key = "Cast";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Cast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CastNode, ExprNode);
 };
 
 /*!
@@ -143,19 +143,19 @@ class BinaryOpNode : public ExprNode {
 };
 
 /*! \brief a + b */
-class Add : public BinaryOpNode<Add> {
+class AddNode : public BinaryOpNode<AddNode> {
  public:
   static constexpr const char* _type_key = "Add";
 };
 
 /*! \brief a - b */
-class Sub : public BinaryOpNode<Sub> {
+class SubNode : public BinaryOpNode<SubNode> {
  public:
   static constexpr const char* _type_key = "Sub";
 };
 
 /*! \brief a * b */
-class Mul : public BinaryOpNode<Mul> {
+class MulNode : public BinaryOpNode<MulNode> {
  public:
   static constexpr const char* _type_key = "Mul";
 };
@@ -164,7 +164,7 @@ class Mul : public BinaryOpNode<Mul> {
  * \brief a / b in the C semnatics.
  * \note For integer division, C standard uses trunc div.
  */
-class Div : public BinaryOpNode<Div> {
+class DivNode : public BinaryOpNode<DivNode> {
  public:
   static constexpr const char* _type_key = "Div";
 };
@@ -173,7 +173,7 @@ class Div : public BinaryOpNode<Div> {
  * \brief a % b in the C semnatics.
  * \note For integer division, C standard uses trunc div.
  */
-class Mod : public BinaryOpNode<Mod> {
+class ModNode : public BinaryOpNode<ModNode> {
  public:
   static constexpr const char* _type_key = "Mod";
 };

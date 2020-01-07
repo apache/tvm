@@ -247,7 +247,7 @@ class BuiltinLower : public StmtExprMutator {
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = Cast::make(api_type, arg);
+        arg = CastNode::make(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),
@@ -296,7 +296,7 @@ class BuiltinLower : public StmtExprMutator {
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = Cast::make(api_type, arg);
+        arg = CastNode::make(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),

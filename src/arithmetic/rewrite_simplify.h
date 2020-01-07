@@ -50,11 +50,11 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
       : IRMutatorWithAnalyzer(parent) {}
 
   void Update(const Var& var, const Expr& info, bool override_info);
-  Expr VisitExpr_(const Add* op) override;
-  Expr VisitExpr_(const Sub* op) override;
-  Expr VisitExpr_(const Mul* op) override;
-  Expr VisitExpr_(const Div* op) override;
-  Expr VisitExpr_(const Mod* op) override;
+  Expr VisitExpr_(const AddNode* op) override;
+  Expr VisitExpr_(const SubNode* op) override;
+  Expr VisitExpr_(const MulNode* op) override;
+  Expr VisitExpr_(const DivNode* op) override;
+  Expr VisitExpr_(const ModNode* op) override;
   Expr VisitExpr_(const FloorDiv* op) override;
   Expr VisitExpr_(const FloorMod* op) override;
   Expr VisitExpr_(const Min* op) override;
@@ -71,7 +71,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const Select* op) override;
   Expr VisitExpr_(const Call* op) override;
   Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const Cast* op) override;
+  Expr VisitExpr_(const CastNode* op) override;
   Expr VisitExpr_(const Let* op) override;
 
   std::function<void()> EnterConstraint(const Expr& constraint);

@@ -797,7 +797,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Variable* op) {
   return GetVarValue(op);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Cast* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const CastNode* op) {
   return CreateCast(op->value.dtype(), op->dtype, MakeValue(op->value));
 }
 llvm::Value* CodeGenLLVM::VisitExpr_(const IntImm* op) {
@@ -836,8 +836,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const StringImm* op) {
       return builder_->CreateF ## Op (a, b);                            \
     }                                                                   \
   }                                                                     \
-  llvm::Value* CodeGenLLVM::VisitExpr_(const Op* op) {                  \
-    return Create ## Op(op->dtype, MakeValue(op->a), MakeValue(op->b));  \
+  llvm::Value* CodeGenLLVM::VisitExpr_(const Op ## Node* op) {          \
+    return Create ## Op(op->dtype, MakeValue(op->a), MakeValue(op->b)); \
   }
 
 DEFINE_CODEGEN_BINARY_OP(Add);
@@ -865,7 +865,7 @@ DEFINE_CODEGEN_CMP_OP(LE);
 DEFINE_CODEGEN_CMP_OP(GT);
 DEFINE_CODEGEN_CMP_OP(GE);
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Div* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const DivNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->dtype.is_int()) {
@@ -878,7 +878,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const Div* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Mod* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const ModNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->dtype.is_int()) {

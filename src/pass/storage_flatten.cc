@@ -495,10 +495,10 @@ class StorageFlattener : public StmtExprMutator {
 
   Expr MakeBound(const DataType &type, const Array<Expr> &shape) {
     // We have already checked the shape size to be greater then 0.
-    Expr bound = Mul::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
+    Expr bound = MulNode::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
     for (size_t i = 1; i < shape.size(); ++i) {
-      bound = Mul::make(
-          bound, Mul::make(make_const(bound.dtype(), type.lanes()), shape[i]));
+      bound = MulNode::make(
+          bound, MulNode::make(make_const(bound.dtype(), type.lanes()), shape[i]));
     }
     return bound;
   }

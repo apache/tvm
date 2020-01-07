@@ -98,7 +98,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   Stmt VisitStmt_(const Allocate* op) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
-      it->second.stride = arith::ComputeReduce<Mul>(
+      it->second.stride = arith::ComputeReduce<MulNode>(
           op->extents, Expr()) * op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<Allocate>();

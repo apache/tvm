@@ -115,11 +115,11 @@ class CodeGenStackVM
   void VisitExpr_(const Load* op) final;
   void VisitExpr_(const Let* op) final;
   void VisitExpr_(const Call* op) final;
-  void VisitExpr_(const Add* op) final;
-  void VisitExpr_(const Sub* op) final;
-  void VisitExpr_(const Mul* op) final;
-  void VisitExpr_(const Div* op) final;
-  void VisitExpr_(const Mod* op) final;
+  void VisitExpr_(const AddNode* op) final;
+  void VisitExpr_(const SubNode* op) final;
+  void VisitExpr_(const MulNode* op) final;
+  void VisitExpr_(const DivNode* op) final;
+  void VisitExpr_(const ModNode* op) final;
   void VisitExpr_(const Min* op) final;
   void VisitExpr_(const Max* op) final;
   void VisitExpr_(const EQ* op) final;
@@ -130,7 +130,7 @@ class CodeGenStackVM
   void VisitExpr_(const GE* op) final;
   void VisitExpr_(const And* op) final;
   void VisitExpr_(const Or* op) final;
-  void VisitExpr_(const Cast* op) final;
+  void VisitExpr_(const CastNode* op) final;
   void VisitExpr_(const Not* op) final;
   void VisitExpr_(const Select* op) final;
   void VisitExpr_(const Ramp* op) final;

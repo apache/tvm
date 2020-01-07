@@ -104,16 +104,16 @@ class CodeGenLLVM :
   }
   // override codegen
   llvm::Value* VisitExpr_(const Variable* op) override;
-  llvm::Value* VisitExpr_(const Cast* op) override;
+  llvm::Value* VisitExpr_(const CastNode* op) override;
   llvm::Value* VisitExpr_(const IntImm* op) override;
   llvm::Value* VisitExpr_(const UIntImm* op) override;
   llvm::Value* VisitExpr_(const FloatImm* op) override;
   llvm::Value* VisitExpr_(const StringImm* op) override;
-  llvm::Value* VisitExpr_(const Add* op) override;
-  llvm::Value* VisitExpr_(const Sub* op) override;
-  llvm::Value* VisitExpr_(const Mul* op) override;
-  llvm::Value* VisitExpr_(const Div* op) override;
-  llvm::Value* VisitExpr_(const Mod* op) override;
+  llvm::Value* VisitExpr_(const AddNode* op) override;
+  llvm::Value* VisitExpr_(const SubNode* op) override;
+  llvm::Value* VisitExpr_(const MulNode* op) override;
+  llvm::Value* VisitExpr_(const DivNode* op) override;
+  llvm::Value* VisitExpr_(const ModNode* op) override;
   llvm::Value* VisitExpr_(const Min* op) override;
   llvm::Value* VisitExpr_(const Max* op) override;
   llvm::Value* VisitExpr_(const LT* op) override;

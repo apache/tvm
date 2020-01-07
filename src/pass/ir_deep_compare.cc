@@ -264,8 +264,8 @@ class IRDeepCompare :
     CompareString(op->value, other.as<StringImm>()->value);
   }
 
-  void VisitExpr_(const Cast *op, const Expr& other) final {
-    CompareExpr(op->value, other.as<Cast>()->value);
+  void VisitExpr_(const CastNode *op, const Expr& other) final {
+    CompareExpr(op->value, other.as<CastNode>()->value);
   }
 
   void VisitExpr_(const Not *op, const Expr& other) final {
@@ -298,11 +298,11 @@ class IRDeepCompare :
     if (CompareArray(op->indices, rhs->indices) != 0) return;
   }
 
-  DEFINE_BIOP_EXPR_CMP_(Add)
-  DEFINE_BIOP_EXPR_CMP_(Sub)
-  DEFINE_BIOP_EXPR_CMP_(Mul)
-  DEFINE_BIOP_EXPR_CMP_(Div)
-  DEFINE_BIOP_EXPR_CMP_(Mod)
+  DEFINE_BIOP_EXPR_CMP_(AddNode)
+  DEFINE_BIOP_EXPR_CMP_(SubNode)
+  DEFINE_BIOP_EXPR_CMP_(MulNode)
+  DEFINE_BIOP_EXPR_CMP_(DivNode)
+  DEFINE_BIOP_EXPR_CMP_(ModNode)
   DEFINE_BIOP_EXPR_CMP_(FloorDiv)
   DEFINE_BIOP_EXPR_CMP_(FloorMod)
   DEFINE_BIOP_EXPR_CMP_(Min)

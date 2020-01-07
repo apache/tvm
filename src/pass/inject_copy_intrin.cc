@@ -74,7 +74,7 @@ class CopyIntrinInjector : public StmtMutator {
         if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
         select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
-    const Cast* cast = store->value.as<Cast>();
+    const CastNode* cast = store->value.as<CastNode>();
     const Load* load = store->value.as<Load>();
     if (0 == loops.size()) {
       CHECK(!has_cond);

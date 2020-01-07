@@ -82,11 +82,11 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::StringImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
   virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Add* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Sub* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Mul* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Div* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Mod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::SubNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::MulNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::DivNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::ModNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::FloorDiv* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::FloorMod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Min* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -100,7 +100,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::And* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Or* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Not* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::Cast* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::CastNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Call* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Select* op, Args... args) ATTR_FUNCTOR_DEFAULT;
 
@@ -117,11 +117,11 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(FloatImm);
     ATTR_FUNCTOR_DISPATCH(StringImm);
     ATTR_FUNCTOR_DISPATCH(VarNode);
-    ATTR_FUNCTOR_DISPATCH(Add);
-    ATTR_FUNCTOR_DISPATCH(Sub);
-    ATTR_FUNCTOR_DISPATCH(Mul);
-    ATTR_FUNCTOR_DISPATCH(Div);
-    ATTR_FUNCTOR_DISPATCH(Mod);
+    ATTR_FUNCTOR_DISPATCH(AddNode);
+    ATTR_FUNCTOR_DISPATCH(SubNode);
+    ATTR_FUNCTOR_DISPATCH(MulNode);
+    ATTR_FUNCTOR_DISPATCH(DivNode);
+    ATTR_FUNCTOR_DISPATCH(ModNode);
     ATTR_FUNCTOR_DISPATCH(FloorDiv);
     ATTR_FUNCTOR_DISPATCH(FloorMod);
     ATTR_FUNCTOR_DISPATCH(Min);
@@ -135,7 +135,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(And);
     ATTR_FUNCTOR_DISPATCH(Or);
     ATTR_FUNCTOR_DISPATCH(Not);
-    ATTR_FUNCTOR_DISPATCH(Cast);
+    ATTR_FUNCTOR_DISPATCH(CastNode);
     ATTR_FUNCTOR_DISPATCH(Call);
     ATTR_FUNCTOR_DISPATCH(Select);
     return vtable;
@@ -160,11 +160,11 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ir::UIntImm* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::FloatImm* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::StringImm* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Add* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Sub* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Mul* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Div* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Mod* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::AddNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::SubNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::MulNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::DivNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::ModNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::FloorDiv* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::FloorMod* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::Min* lhs, const ObjectRef& other) final;
@@ -178,7 +178,7 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ir::And* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::Or* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::Not* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::Cast* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const ir::CastNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::Call* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::Select* lhs, const ObjectRef& other) final;
 };
@@ -203,11 +203,11 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::StringImm* lhs) final;
   size_t VisitAttr_(const ArrayNode* lhs) final;
   size_t VisitAttr_(const StrMapNode* lhs) final;
-  size_t VisitAttr_(const ir::Add* op) final;
-  size_t VisitAttr_(const ir::Sub* op) final;
-  size_t VisitAttr_(const ir::Mul* op) final;
-  size_t VisitAttr_(const ir::Div* op) final;
-  size_t VisitAttr_(const ir::Mod* op) final;
+  size_t VisitAttr_(const ir::AddNode* op) final;
+  size_t VisitAttr_(const ir::SubNode* op) final;
+  size_t VisitAttr_(const ir::MulNode* op) final;
+  size_t VisitAttr_(const ir::DivNode* op) final;
+  size_t VisitAttr_(const ir::ModNode* op) final;
   size_t VisitAttr_(const ir::FloorDiv* op) final;
   size_t VisitAttr_(const ir::FloorMod* op) final;
   size_t VisitAttr_(const ir::Min* op) final;
@@ -221,7 +221,7 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::And* op) final;
   size_t VisitAttr_(const ir::Or* op) final;
   size_t VisitAttr_(const ir::Not* op) final;
-  size_t VisitAttr_(const ir::Cast* op) final;
+  size_t VisitAttr_(const ir::CastNode* op) final;
   size_t VisitAttr_(const ir::Call* op) final;
   size_t VisitAttr_(const ir::Select* op) final;
   /*!

@@ -295,28 +295,28 @@ void CodeGenStackVM::VisitExpr_(const VarNode* op) {
   this->PushOp(StackVM::LOAD_HEAP, vid);
 }
 
-void CodeGenStackVM::VisitExpr_(const Cast* op) {
+void CodeGenStackVM::VisitExpr_(const CastNode* op) {
   this->Push(op->value);
   PushCast(op->dtype, op->value.dtype());
 }
 
-void CodeGenStackVM::VisitExpr_(const Add* op) {
+void CodeGenStackVM::VisitExpr_(const AddNode* op) {
   PushBinary(StackVM::ADD_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const Sub* op) {
+void CodeGenStackVM::VisitExpr_(const SubNode* op) {
   PushBinary(StackVM::SUB_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const Mul* op) {
+void CodeGenStackVM::VisitExpr_(const MulNode* op) {
   PushBinary(StackVM::MUL_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const Div* op) {
+void CodeGenStackVM::VisitExpr_(const DivNode* op) {
   PushBinary(StackVM::DIV_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const Mod* op) {
+void CodeGenStackVM::VisitExpr_(const ModNode* op) {
   PushBinary(StackVM::MOD_I64, op->a, op->b);
 }
 

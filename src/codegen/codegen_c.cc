@@ -457,7 +457,7 @@ inline void PrintBinaryIntrinsic(const Call* op,
     p->PrintVecBinaryOp(opstr, op->dtype, op->args[0], op->args[1], os);
   }
 }
-void CodeGenC::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.dtype(), op->dtype);
@@ -465,19 +465,19 @@ void CodeGenC::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeGenC::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const AddNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeGenC::VisitExpr_(const Sub* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const SubNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeGenC::VisitExpr_(const Mul* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const MulNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
-void CodeGenC::VisitExpr_(const Div* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
-void CodeGenC::VisitExpr_(const Mod* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
 void CodeGenC::VisitExpr_(const Min* op, std::ostream& os) {  // NOLINT(*)

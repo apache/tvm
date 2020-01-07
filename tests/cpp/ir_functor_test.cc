@@ -34,7 +34,7 @@ TEST(IRF, Basic) {
   f.set_dispatch<VarNode>([](const ObjectRef& n, int b) {
       return b;
     });
-  f.set_dispatch<Add>([](const ObjectRef& n, int b) {
+  f.set_dispatch<AddNode>([](const ObjectRef& n, int b) {
       return b + 2;
     });
   CHECK_EQ(f(x, 2),  2);
@@ -69,7 +69,7 @@ TEST(IRF, ExprTransform) {
     int VisitExpr_(const IntImm* op, int b) final {
       return op->value;
     }
-    int VisitExpr_(const Add* op, int b) final {
+    int VisitExpr_(const AddNode* op, int b) final {
       return VisitExpr(op->a, b) + VisitExpr(op->b, b);
     }
   };
@@ -152,7 +152,7 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr VisitExpr_(const Add* op) final {
+    Expr VisitExpr_(const AddNode* op) final {
       return op->a;
     }
     Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -191,7 +191,7 @@ TEST(IRF, StmtMutator) {
     // copy because there is additional refs
     CHECK(!arr[0].as<Allocate>()->body.same_as(bref));
     CHECK(arr[0].as<Allocate>()->body.as<Evaluate>()->value.same_as(x));
-    CHECK(bref.as<Evaluate>()->value.as<Add>());
+    CHECK(bref.as<Evaluate>()->value.as<AddNode>());
   }
   {
     Array<Stmt> arr{fmakealloc()};

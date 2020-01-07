@@ -110,13 +110,13 @@ class BoundDeducer: public ExprVisitor {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const Add* op) final {
+  void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const Sub* op) final {
+  void VisitExpr_(const SubNode* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -128,7 +128,7 @@ class BoundDeducer: public ExprVisitor {
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const Mul* op) final {
+  void VisitExpr_(const MulNode* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
     Expr target_var = left ? op->a : op->b;

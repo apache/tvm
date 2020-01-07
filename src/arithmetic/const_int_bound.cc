@@ -140,7 +140,7 @@ class ConstIntBoundAnalyzer::Impl :
     return res;
   }
 
-  Entry VisitExpr_(const Cast* op) final {
+  Entry VisitExpr_(const CastNode* op) final {
     Entry a = VisitExpr(op->value);
     Entry b = Everything(op->dtype);
     return Intersect(a, b);
@@ -158,7 +158,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Add* op) final {
+  Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -167,7 +167,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Sub* op) final {
+  Entry VisitExpr_(const SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -176,13 +176,13 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Mul* op) final {
+  Entry VisitExpr_(const MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return BinaryOpBoundry(a, b, InfAwareMul);
   }
 
-  Entry VisitExpr_(const Div* op) final {
+  Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "divide by zero";
@@ -192,7 +192,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareDiv);
   }
 
-  Entry VisitExpr_(const Mod* op) final {
+  Entry VisitExpr_(const ModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -375,7 +375,7 @@ class ConstIntBoundAnalyzer::Impl :
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
-    if (WillOverflow<Add>(x, y, kNegInf, kPosInf)) {
+    if (WillOverflow<AddNode>(x, y, kNegInf, kPosInf)) {
       if (x > 0) return kPosInf;
       return kNegInf;
     }
@@ -388,7 +388,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \return the result.
    */
   static int64_t InfAwareMul(int64_t x, int64_t y) {
-    if (!WillOverflow<Mul>(x, y, kNegInf, kPosInf)) return x * y;
+    if (!WillOverflow<MulNode>(x, y, kNegInf, kPosInf)) return x * y;
     if ((x > 0 && y > 0) || (x < 0 && y < 0)) return kPosInf;
     return kNegInf;
   }

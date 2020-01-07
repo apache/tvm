@@ -62,10 +62,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const Add* op) final {
-    if (const Mul* mb = op->b.as<Mul>()) {
+  Expr VisitExpr_(const AddNode* op) final {
+    if (const MulNode* mb = op->b.as<MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
-    } else if (const Mul* ma = op->a.as<Mul>()) {
+    } else if (const MulNode* ma = op->a.as<MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
@@ -210,7 +210,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
     if (const Broadcast* bcast = e.as<Broadcast>()) {
-      if (const Cast* cast = bcast->value.as<Cast>()) {
+      if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
           if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
@@ -229,7 +229,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         if (should_swap()) {
           Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
-          return Cast::make(bcast->dtype, new_bcast);
+          return CastNode::make(bcast->dtype, new_bcast);
         }
       }
     }
@@ -237,7 +237,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   Expr MakeFMA(const Expr& a, const Expr& b, const Expr& c,
-               const Add* op) {
+               const AddNode* op) {
     // emit fma instruction: a * b + c
     Expr lhs = SwapBroadcastCast(a);
     Expr rhs = SwapBroadcastCast(b);
@@ -248,8 +248,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        Expr mul = this->VisitExpr(Mul::make(lhs, rhs));
-        return Add::make(mul, this->VisitExpr(c));
+        Expr mul = this->VisitExpr(MulNode::make(lhs, rhs));
+        return AddNode::make(mul, this->VisitExpr(c));
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);

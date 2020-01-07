@@ -151,11 +151,11 @@ bool AttrsEqualHandler::VisitAttr_(const StrMapNode* lhs, const ObjectRef& other
     }                                                                   \
   }                                                                     \
 
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Add);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Sub);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Mul);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Div);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Mod);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(AddNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(SubNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(MulNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(DivNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(ModNode);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorDiv);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorMod);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(Max);
@@ -177,8 +177,8 @@ bool AttrsEqualHandler::VisitAttr_(const Not* lhs, const ObjectRef& other) {
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Cast* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Cast>()) {
+bool AttrsEqualHandler::VisitAttr_(const CastNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<CastNode>()) {
     if (lhs->dtype != rhs->dtype) return false;
     return Equal(lhs->value, rhs->value);
   } else {
@@ -265,11 +265,11 @@ size_t AttrsHashHandler::VisitAttr_(const StrMapNode* lhs) {
     return Combine(key, Combine(Hash(op->a), Hash(op->b)));             \
   }                                                                     \
 
-TVM_DEFINE_ATTRS_BINOP_HASH(Add);
-TVM_DEFINE_ATTRS_BINOP_HASH(Sub);
-TVM_DEFINE_ATTRS_BINOP_HASH(Mul);
-TVM_DEFINE_ATTRS_BINOP_HASH(Div);
-TVM_DEFINE_ATTRS_BINOP_HASH(Mod);
+TVM_DEFINE_ATTRS_BINOP_HASH(AddNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(SubNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(MulNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(DivNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(ModNode);
 TVM_DEFINE_ATTRS_BINOP_HASH(FloorDiv);
 TVM_DEFINE_ATTRS_BINOP_HASH(FloorMod);
 TVM_DEFINE_ATTRS_BINOP_HASH(Max);
@@ -288,8 +288,8 @@ size_t AttrsHashHandler::VisitAttr_(const Not* op) {
   return Combine(key, Hash(op->a));
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Cast* op) {
-  static size_t key = std::hash<std::string>()(Cast::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const CastNode* op) {
+  static size_t key = std::hash<std::string>()(CastNode::_type_key);
   AttrsHash hasher;
   size_t res = key;
   res = Combine(res, hasher(op->dtype));
