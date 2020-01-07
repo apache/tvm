@@ -406,10 +406,8 @@ def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
     assert dilation == (1,), "conv1d_transpose dilation is not supported"
     assert groups == 1, "conv1d_transpose groups == 1 only supported"
     out = topi.nn.conv1d_transpose_ncw(
-        inputs[0], inputs[1], strides, padding, out_dtype)
-    output_padding = get_const_tuple(attrs.output_padding)
-    out = topi.nn.pad(out,
-                      [0, 0, 0], [0, 0, output_padding[0]])
+        inputs[0], inputs[1], strides, padding, out_dtype,
+        get_const_tuple(attrs.output_padding))
     return [out]
 
 
