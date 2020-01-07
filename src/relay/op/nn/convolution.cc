@@ -82,7 +82,7 @@ Expr MakeConv1D(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.nn._make.conv1d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d")
 .set_body_typed(MakeConv1D);
 
 
