@@ -26,6 +26,7 @@ def requantize(data,
                input_zero_point,
                output_scale,
                output_zero_point,
+               axis=-1,
                rounding="UPWARD",
                out_dtype="int8"):
     r"""Requantized operator.
@@ -53,6 +54,9 @@ def requantize(data,
     output_zero_point: tvm.relay.Expr
         The zero point of the output tensor.
 
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     rounding : string, optional
         Defines the rounding direction when the value is midway between two
         representable values.
@@ -71,6 +75,7 @@ def requantize(data,
                             input_zero_point,
                             output_scale,
                             output_zero_point,
+                            axis,
                             rounding,
                             out_dtype)
 
@@ -78,6 +83,7 @@ def requantize(data,
 def quantize(data,
              output_scale,
              output_zero_point,
+             axis=-1,
              out_dtype='int8'):
     r""" Quantize op
     This operator takes float32 as input and produces quantized int8 or unit8 as output.
@@ -95,6 +101,8 @@ def quantize(data,
         The output zero_point.
     output_scale : tvm.relay.Expr
         The output scale.
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
     out_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8]
     Returns
@@ -106,6 +114,7 @@ def quantize(data,
     return _make.quantize(data,
                           output_scale,
                           output_zero_point,
+                          axis,
                           out_dtype)
 
 
