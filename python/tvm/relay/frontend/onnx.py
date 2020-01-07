@@ -292,11 +292,13 @@ class Conv(OnnxOpConverter):
                     pass
                 else:
                     msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                    raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
+                    raise tvm.error.OpAttributeInvalid(
+                        msg.format(attr['auto_pad']))
             else:
                 padding = attr['pads']
 
-            out = _op.nn.conv1d(inputs[0], inputs[1], stride=stride, padding=padding, dilation=dilation, kernel_size=kernel_w)
+            out = _op.nn.conv1d(inputs[0], inputs[1], stride=stride,
+                                padding=padding, dilation=dilation, kernel_size=kernel_w)
 
         # For now only other supported type is 2D
         else:
@@ -319,7 +321,8 @@ class Conv(OnnxOpConverter):
                     pass
                 else:
                     msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                    raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
+                    raise tvm.error.OpAttributeInvalid(
+                        msg.format(attr['auto_pad']))
                 attr.pop('auto_pad')
 
             out = AttrCvt(

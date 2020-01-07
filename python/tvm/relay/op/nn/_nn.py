@@ -140,7 +140,6 @@ def compute_conv1d(attrs, inputs, out_type, target):
     padding = get_const_tuple(attrs.padding)
     dilation = attrs.dilation
     layout = attrs.data_layout
-    kernel_layout = attrs.kernel_layout
     out_dtype = attrs.out_dtype
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
@@ -156,7 +155,6 @@ def compute_conv1d(attrs, inputs, out_type, target):
 def schedule_conv1d(attrs, outs, target):
     """Schedule definition of conv1d"""
     layout = attrs.data_layout
-    kernel_layout = attrs.kernel_layout
 
     with target:
         if layout == "NCW":
