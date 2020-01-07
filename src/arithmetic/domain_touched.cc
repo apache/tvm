@@ -54,7 +54,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const For *op) final {
-    const Variable* var = op->loop_var.get();
+    const VarNode* var = op->loop_var.get();
     dom_map_[var] = IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));
     StmtExprVisitor::VisitStmt_(op);
@@ -73,7 +73,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
-      const Variable* var = thread_axis->var.get();
+      const VarNode* var = thread_axis->var.get();
       dom_map_[var] = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       StmtExprVisitor::VisitStmt_(op);
       dom_map_.erase(var);
@@ -111,7 +111,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   const Tensor &tensor_;
   bool consider_calls_, consider_provides_;
   std::vector<std::vector<IntSet> > bounds_;
-  std::unordered_map<const Variable*, IntSet> dom_map_;
+  std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
 Domain DomainTouched(Stmt stmt, const Tensor &tensor, bool consider_calls, bool consider_provides) {

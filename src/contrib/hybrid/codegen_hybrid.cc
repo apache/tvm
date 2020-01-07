@@ -138,7 +138,7 @@ void CodeGenHybrid::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-void CodeGenHybrid::VisitExpr_(const Variable* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
 void CodeGenHybrid::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
@@ -410,7 +410,7 @@ void CodeGenHybrid::PrintIndent() {
   stream << std::string(indent_, ' ');
 }
 
-std::string CodeGenHybrid::GetVarID(const Variable *v) {
+std::string CodeGenHybrid::GetVarID(const VarNode *v) {
   if (binds_.count(v))
     return binds_[v];
   auto key = std::make_pair(static_cast<const Object*>(v), 0);
@@ -489,7 +489,7 @@ void CodeGenHybrid::DumpStmt(const Stmt &stmt,
     if (auto tensor = inputs[i].as<TensorNode>()) {
       stream << GetTensorID(tensor->op, tensor->value_index);
     } else {
-      auto var = inputs[i].as<Variable>();
+      auto var = inputs[i].as<VarNode>();
       CHECK(var) << "Input should either be a tensor or a variable!";
       stream << GetVarID(var);
     }

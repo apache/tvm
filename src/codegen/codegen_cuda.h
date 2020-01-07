@@ -81,13 +81,13 @@ class CodeGenCUDA final : public CodeGenC {
   // whether need mma.h
   bool need_mma_h_{false};
 
-  std::unordered_map<const Variable*, std::string> fragment_shapes;
-  std::unordered_map<const Variable*, std::string> fragment_layouts;
+  std::unordered_map<const VarNode*, std::string> fragment_shapes;
+  std::unordered_map<const VarNode*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
   void PrintWmmaScope(
-      const std::string& scope, DataType t, const Variable* variable, std::ostream& os);
+      const std::string& scope, DataType t, const VarNode* variable, std::ostream& os);
   int32_t GetWmmaFragmentSize(
-      const std::string &scope, const Variable* variable, int32_t size);
+      const std::string &scope, const VarNode* variable, int32_t size);
 };
 
 }  // namespace codegen

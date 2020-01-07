@@ -45,9 +45,9 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 class VarReplacer : public ir::StmtExprMutator {
  public:
   explicit VarReplacer(
-      const std::unordered_map<const Variable*, Expr>& vsub)
+      const std::unordered_map<const VarNode*, Expr>& vsub)
       : vsub_(vsub) {}
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
     return GetRef<Expr>(op);
@@ -88,7 +88,7 @@ class VarReplacer : public ir::StmtExprMutator {
   }
 
  private:
-  const std::unordered_map<const Variable*, Expr>& vsub_;
+  const std::unordered_map<const VarNode*, Expr>& vsub_;
 };
 
 Expr InjectPredicate(const Array<Expr>& predicates,
@@ -193,8 +193,8 @@ void PrepareAxisMapping(Stage orig_stage,
                         std::unordered_set<IterVar>* p_red_axis,
                         Array<IterVar>* p_new_axis,
                         std::unordered_map<IterVar, Range>* p_dom_map,
-                        std::unordered_map<const Variable*, Expr>* p_vsub,
-                        std::unordered_map<const Variable*, Expr>* p_vsub2newvar,
+                        std::unordered_map<const VarNode*, Expr>* p_vsub,
+                        std::unordered_map<const VarNode*, Expr>* p_vsub2newvar,
                         std::vector<Expr>* p_predicates) {
   auto& red_axis = *p_red_axis;
   auto& new_axis = *p_new_axis;
@@ -305,8 +305,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const Variable*, Expr> vsub;
-  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::unordered_map<const VarNode*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub2newvar;
   std::vector<Expr> predicates;
 
   PrepareAxisMapping(orig_stage, compute,
@@ -386,8 +386,8 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const Variable*, Expr> vsub;
-  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::unordered_map<const VarNode*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub2newvar;
   std::vector<Expr> predicates;
 
   PrepareAxisMapping(orig_stage, tensor_op,
@@ -763,7 +763,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   predicates.push_back(reduce->condition);
   Expr predicate = likely(arith::ComputeReduce<ir::And>(predicates, Expr()));
 
-  std::unordered_map<const Variable*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub;
 
   for (IterVar iv : compute_op->reduce_axis) {
     if (!touch_map.count(iv)) {

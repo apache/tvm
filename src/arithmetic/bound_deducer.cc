@@ -78,8 +78,8 @@ class BoundDeducer: public ExprVisitor {
   friend class BoundDeduceInputChecker;
   friend class Converter;
   BoundDeducer(Expr target, Expr expr,
-               const std::unordered_map<const Variable*, IntSet>& hint_map,
-               const std::unordered_map<const Variable*, IntSet>& relax_map)
+               const std::unordered_map<const VarNode*, IntSet>& hint_map,
+               const std::unordered_map<const VarNode*, IntSet>& relax_map)
   : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
   void Deduce();
@@ -187,8 +187,8 @@ class BoundDeducer: public ExprVisitor {
   CompareOp ReverseOp(CompareOp comp_op);
   Expr target_;
   Expr expr_;
-  const std::unordered_map<const Variable*, IntSet>& hint_map_;
-  const std::unordered_map<const Variable*, IntSet>& relax_map_;
+  const std::unordered_map<const VarNode*, IntSet>& hint_map_;
+  const std::unordered_map<const VarNode*, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
   std::vector<const Object*> path_;
   size_t iter_{0};
@@ -330,8 +330,8 @@ void BoundDeducer::Relax() {
 }
 
 IntSet DeduceBound(Expr v, Expr e,
-  const std::unordered_map<const Variable*, IntSet>& hint_map,
-  const std::unordered_map<const Variable*, IntSet>& relax_map) {
+  const std::unordered_map<const VarNode*, IntSet>& hint_map,
+  const std::unordered_map<const VarNode*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success_) return IntSet::nothing();
@@ -352,11 +352,11 @@ IntSet DeduceBound(Expr v, Expr e,
 IntSet DeduceBound(Expr v, Expr e,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map) {
-  std::unordered_map<const Variable*, IntSet> hmap;
+  std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
     hmap[kv.first.get()] = kv.second;
   }
-  std::unordered_map<const Variable*, IntSet> rmap;
+  std::unordered_map<const VarNode*, IntSet> rmap;
   for (auto kv : relax_map) {
     rmap[kv.first.get()] = kv.second;
   }

@@ -85,7 +85,7 @@ size_t InferTensorizeRegion(
   schedule::PassUpDomain(stage, dom_map, &up_state);
   // Get domains if inputs
   std::unordered_map<Tensor, TensorDom> in_dom;
-  std::unordered_map<const Variable*, IntSet> temp_dmap;
+  std::unordered_map<const VarNode*, IntSet> temp_dmap;
   arith::Analyzer analyzer;
   Array<Tensor> inputs = self->InputTensors();
   for (Tensor t : inputs) {
@@ -119,7 +119,7 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
                              const ComputeLoopNest& n,
                              size_t tloc) {
   // Veirfication step.
-  std::unordered_set<const Variable*> banned;
+  std::unordered_set<const VarNode*> banned;
   CHECK_EQ(n.main_nest.size(), stage->leaf_iter_vars.size() + 1);
   CHECK(n.init_nest.size() == stage->leaf_iter_vars.size() + 1 ||
         n.init_nest.size() == 0);
@@ -182,7 +182,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     return expr;
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
@@ -301,7 +301,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   // input data remap
   std::unordered_map<Tensor, InputEntry> in_remap_;
   // variable remap.
-  std::unordered_map<const Variable*, Expr> var_remap_;
+  std::unordered_map<const VarNode*, Expr> var_remap_;
   // IterVar remap.
   std::unordered_map<IterVar, IterVar> axis_remap_;
 };
@@ -415,7 +415,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
         Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
   }
   // Check variable remap
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, Expr> vmap;
   ir::ArgBinder binder(&vmap);
   CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
       << "Tensorization fail: reduction axis size do not match";

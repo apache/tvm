@@ -229,7 +229,7 @@ Expr ReplaceTensor(Expr expr,
 
 Stmt Substitute(Stmt s,
                 const std::unordered_map<IterVar, Expr>& value_map) {
-  std::unordered_map<const Variable*, Expr> init;
+  std::unordered_map<const VarNode*, Expr> init;
   for (const auto& kv : value_map) {
     init[kv.first->var.get()] = kv.second;
   }

@@ -81,7 +81,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::FloatImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::StringImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
-  virtual R VisitAttr_(const Variable* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Add* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Sub* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Mul* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -116,7 +116,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(UIntImm);
     ATTR_FUNCTOR_DISPATCH(FloatImm);
     ATTR_FUNCTOR_DISPATCH(StringImm);
-    ATTR_FUNCTOR_DISPATCH(Variable);
+    ATTR_FUNCTOR_DISPATCH(VarNode);
     ATTR_FUNCTOR_DISPATCH(Add);
     ATTR_FUNCTOR_DISPATCH(Sub);
     ATTR_FUNCTOR_DISPATCH(Mul);

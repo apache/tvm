@@ -126,7 +126,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
   return value;
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Variable* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const VarNode* op) {
   auto it = var_map_.find(op);
   CHECK(it != var_map_.end()) << "cannot find variable " << op->name_hint;
   return it->second;
@@ -613,12 +613,12 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].scope =
         runtime::StorageScope::make(op->value.as<StringImm>()->value);
   } else if (op->attr_key == ir::attr::volatile_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].is_volatile = true;
   }

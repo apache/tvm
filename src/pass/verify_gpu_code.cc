@@ -95,9 +95,9 @@ class GPUCodeVerifier : public StmtVisitor {
     if (op->attr_key == attr::storage_scope) {
       std::string op_value = op->value.as<StringImm>()->value;
       if (op_value == "local") {
-        visited_local_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_local_buffers_.insert(op->node.as<tvm::VarNode>());
       } else if (op_value == "shared") {
-        visited_shared_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_shared_buffers_.insert(op->node.as<tvm::VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
       VarExpr var = op->node.as<tvm::IterVarNode>()->var;
@@ -140,8 +140,8 @@ class GPUCodeVerifier : public StmtVisitor {
  private:
   int nest_level_{0};
 
-  std::unordered_set<const tvm::Variable *> visited_local_buffers_;
-  std::unordered_set<const tvm::Variable *> visited_shared_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_local_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_shared_buffers_;
   std::unordered_set<std::string> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;

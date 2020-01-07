@@ -70,7 +70,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   Expr VisitExpr_(const Not* op) override;
   Expr VisitExpr_(const Select* op) override;
   Expr VisitExpr_(const Call* op) override;
-  Expr VisitExpr_(const Variable* op) override;
+  Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const Cast* op) override;
   Expr VisitExpr_(const Let* op) override;
 

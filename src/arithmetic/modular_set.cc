@@ -232,7 +232,7 @@ class ModularSetAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Variable* op) final {
+  Entry VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {

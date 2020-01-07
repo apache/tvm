@@ -109,7 +109,7 @@ class OperationNode : public ir::FunctionBaseNode {
   virtual void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const = 0;
   /*!
    * \brief Gather the bound from output tensor.
@@ -173,7 +173,7 @@ class PlaceholderOpNode : public OperationNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -251,7 +251,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
@@ -304,7 +304,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
@@ -379,7 +379,7 @@ class ScanOpNode : public OperationNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -446,7 +446,7 @@ class ExternOpNode : public OperationNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -514,7 +514,7 @@ class HybridOpNode : public OperationNode {
   void PropBoundToInputs(
       const Operation& self,
       arith::Analyzer* analyzer,
-      const std::unordered_map<const Variable*, IntSet>& dom_map,
+      const std::unordered_map<const VarNode*, IntSet>& dom_map,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,

@@ -31,7 +31,7 @@ TEST(IRF, Basic) {
   auto z = x + 1;
 
   NodeFunctor<int(const ObjectRef& n, int b)> f;
-  f.set_dispatch<Variable>([](const ObjectRef& n, int b) {
+  f.set_dispatch<VarNode>([](const ObjectRef& n, int b) {
       return b;
     });
   f.set_dispatch<Add>([](const ObjectRef& n, int b) {
@@ -48,7 +48,7 @@ TEST(IRF, CountVar) {
 
   auto z = x + 1 + y + y;
   ir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
-      if (n.as<Variable>()) ++n_var;
+      if (n.as<VarNode>()) ++n_var;
     });
   CHECK_EQ(n_var, 2);
 }
@@ -63,7 +63,7 @@ TEST(IRF, ExprTransform) {
   class MyExprFunctor
       : public ir::ExprFunctor<int(const Expr&, int)> {
    public:
-    int VisitExpr_(const Variable* op, int b) final {
+    int VisitExpr_(const VarNode* op, int b) final {
       return b;
     }
     int VisitExpr_(const IntImm* op, int b) final {

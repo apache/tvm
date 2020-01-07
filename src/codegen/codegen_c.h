@@ -102,7 +102,7 @@ class CodeGenC :
    */
   virtual void InitFuncState(LoweredFunc f);
   // expression
-  void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
@@ -160,9 +160,9 @@ class CodeGenC :
       const std::string&op, DataType op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const Variable* buffer, Expr base);
+  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, Expr base);
   // print vector store
-  virtual void PrintVecStore(const Variable* buffer,
+  virtual void PrintVecStore(const VarNode* buffer,
                              DataType t, Expr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
@@ -180,28 +180,28 @@ class CodeGenC :
       DataType t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(
-      DataType t, const Variable* buffer, Expr index);
+      DataType t, const VarNode* buffer, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool HandleTypeMatch(const Variable* buf_var, DataType t) const;
+  bool HandleTypeMatch(const VarNode* buf_var, DataType t) const;
   /*!
    * \brief Register the data type of buf_var
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void RegisterHandleType(const Variable* buf_var, DataType t);
+  void RegisterHandleType(const VarNode* buf_var, DataType t);
   // override
   void PrintSSAAssign(
       const std::string& target, const std::string& src, DataType t) final;
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, DataType> handle_data_type_;
+  std::unordered_map<const VarNode*, DataType> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -209,7 +209,7 @@ class CodeGenC :
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
   /*! \brief set of volatile buf access */
-  std::unordered_set<const Variable*> volatile_buf_;
+  std::unordered_set<const VarNode*> volatile_buf_;
 };
 
 }  // namespace codegen

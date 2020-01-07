@@ -371,11 +371,11 @@ void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
 
 void CodeGenCUDA::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == attr::fragment_shape) {
-    const Variable* buffer = op->node.as<Variable>();
+    const VarNode* buffer = op->node.as<VarNode>();
     const StringImm* shape_str = op->value.as<StringImm>();
     fragment_shapes[buffer] = shape_str->value;
   } else if (op->attr_key == attr::fragment_layout) {
-    const Variable* buffer = op->node.as<Variable>();
+    const VarNode* buffer = op->node.as<VarNode>();
     const StringImm* layout_str = op->value.as<StringImm>();
     fragment_layouts[buffer] = layout_str->value;
   }
@@ -397,7 +397,7 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
       << "Can only handle constant size stack allocation for now";
-    const Variable* buffer = op->buffer_var.as<Variable>();
+    const VarNode* buffer = op->buffer_var.as<VarNode>();
     std::string scope = alloc_storage_scope_.at(buffer);
     if (scope.find("wmma.") == 0) {
       if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
@@ -528,7 +528,7 @@ void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*
 }
 
 void CodeGenCUDA::PrintWmmaScope(const std::string &scope, DataType t,
-    const Variable* variable, std::ostream &os) {
+    const VarNode* variable, std::ostream &os) {
   std::stringstream type;
   PrintType(t, type);
   std::string shape_str = fragment_shapes[variable];
@@ -550,7 +550,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string &scope, DataType t,
 }
 
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string &scope,
-                                         const Variable* variable, int32_t size) {
+                                         const VarNode* variable, int32_t size) {
   std::string shape_str = fragment_shapes[variable];
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;

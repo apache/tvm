@@ -388,7 +388,7 @@ class IntervalSetEvaluator :
     return IntervalSet::SinglePoint(GetRef<Expr>(op));
   }
 
-  IntervalSet VisitExpr_(const Variable* op) final {
+  IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto it = dom_map_.find(var);
     if (it != dom_map_.end()) {
@@ -720,7 +720,7 @@ Map<Var, IntSet> ConvertDomMap(const Map<IterVar, IntSet>& dom_map) {
 }
 
 Map<Var, IntSet> ConvertDomMap(
-    const std::unordered_map<const Variable*, IntSet>& dom_map) {
+    const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   Map<Var, IntSet> dmap;
   for (auto kv : dom_map) {
     dmap.Set(GetRef<Var>(kv.first), kv.second);
@@ -746,7 +746,7 @@ IntSet EvalSet(Expr e,
 }
 
 IntSet EvalSet(Expr e,
-               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+               const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   return EvalSet(e, ConvertDomMap(dom_map));
 }
 
@@ -761,12 +761,12 @@ IntSet EvalSet(Range r,
 }
 
 IntSet EvalSet(Range r,
-               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+               const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
 }
 
 IntSet EvalSet(IntSet s,
-               const std::unordered_map<const Variable*, IntSet>& dom_map) {
+               const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   Analyzer ana;
   auto dmap = ConvertDomMap(dom_map);
   IntervalSetEvaluator m(&ana, dmap);
@@ -796,7 +796,7 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
 
 ExprIntSetMap EvalSetForEachSubExpr(
     Expr e,
-    const std::unordered_map<const Variable*, IntSet>& dom_map) {
+    const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   Analyzer ana;
   auto dmap = ConvertDomMap(dom_map);
   SubExprIntervalSetEvaluator m(&ana, dmap);

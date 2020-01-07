@@ -51,7 +51,7 @@ class IndexParser: public ExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     // TODO(lmzheng): handle more index types (multiple occurrence)
     if (pattern_map.count(op) == 0) {
       pattern_map[op] = TouchPattern();
@@ -61,7 +61,7 @@ class IndexParser: public ExprVisitor {
   }
 
   void VisitExpr_(const Mul* op) final {
-    if (op->a.as<Variable>()) {
+    if (op->a.as<VarNode>()) {
       if (const auto stride = op->b.as<IntImm>()) {
         next_stride_ = stride->value;
       }
@@ -69,7 +69,7 @@ class IndexParser: public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<const Variable*, TouchPattern> pattern_map;
+  std::unordered_map<const VarNode*, TouchPattern> pattern_map;
 
  private:
   int64_t next_stride_ = 1;

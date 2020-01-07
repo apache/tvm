@@ -348,7 +348,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
-      if (it.as<Variable>()) {
+      if (it.as<VarNode>()) {
         has_any = true;
         break;
       }

@@ -81,7 +81,7 @@ int CodeGenStackVM::GetStrID(const std::string& key) {
   return sid;
 }
 
-int CodeGenStackVM::AllocVarID(const Variable* v) {
+int CodeGenStackVM::AllocVarID(const VarNode* v) {
   CHECK(!var_idmap_.count(v));
   int vid = static_cast<int>(vm_.heap_size);
   CHECK_EQ(vm_.heap_size, var_idmap_.size());
@@ -91,7 +91,7 @@ int CodeGenStackVM::AllocVarID(const Variable* v) {
   return vid;
 }
 
-int CodeGenStackVM::GetVarID(const Variable* v) const {
+int CodeGenStackVM::GetVarID(const VarNode* v) const {
   auto it = var_idmap_.find(v);
   CHECK(it != var_idmap_.end())
       << "Find undefined Variable " << v->name_hint;
@@ -290,7 +290,7 @@ void CodeGenStackVM::VisitExpr_(const FloatImm* op) {
   LOG(FATAL) << "Float Imm is not supported";
 }
 
-void CodeGenStackVM::VisitExpr_(const Variable* op) {
+void CodeGenStackVM::VisitExpr_(const VarNode* op) {
   int vid = this->GetVarID(op);
   this->PushOp(StackVM::LOAD_HEAP, vid);
 }

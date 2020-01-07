@@ -39,10 +39,10 @@ Expr::Expr(std::string str)
     : Expr(ir::StringImm::make(str)) {}
 
 Var::Var(std::string name_hint, DataType t)
-    : Var(Variable::make(t, name_hint)) {}
+    : Var(VarNode::make(t, name_hint)) {}
 
-Var Variable::make(DataType t, std::string name_hint) {
-  ObjectPtr<Variable> node = make_object<Variable>();
+Var VarNode::make(DataType t, std::string name_hint) {
+  ObjectPtr<VarNode> node = make_object<VarNode>();
   node->dtype = t;
   node->name_hint = std::move(name_hint);
   return Var(node);

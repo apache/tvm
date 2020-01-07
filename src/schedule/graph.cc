@@ -269,7 +269,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
           for (size_t i = 0; i < call->args.size(); ++i) {
             TensorDimKey dkey(call, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
-              const Variable *v = node.as<Variable>();
+              const VarNode *v = node.as<VarNode>();
               auto it = vmap.find(v);
               if (it != vmap.end()) {
                 reach[it->second].push_back(dkey);

@@ -96,13 +96,13 @@ class CodeGenStackVM
    * \param v The variable.
    * \return the heap index of the var.
    */
-  int AllocVarID(const Variable* v);
+  int AllocVarID(const VarNode* v);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the heap index of the var.
    */
-  int GetVarID(const Variable* v) const;
+  int GetVarID(const VarNode* v) const;
   // Push binary operator
   void PushBinary(StackVM::OpCode op_int64,
                   const Expr& a,
@@ -111,7 +111,7 @@ class CodeGenStackVM
   void PushCast(DataType dst, DataType src);
   // overloadable functions
   // expression
-  void VisitExpr_(const Variable* op) final;
+  void VisitExpr_(const VarNode* op) final;
   void VisitExpr_(const Load* op) final;
   void VisitExpr_(const Let* op) final;
   void VisitExpr_(const Call* op) final;
@@ -156,7 +156,7 @@ class CodeGenStackVM
   /*! \brief The vm to be generated */
   StackVM vm_;
   /*! \brief id of each variable */
-  std::unordered_map<const Variable*, int> var_idmap_;
+  std::unordered_map<const VarNode*, int> var_idmap_;
   /*! \brief id of each string */
   std::unordered_map<std::string, int> str_idmap_;
   /*! \brief id of each global function */

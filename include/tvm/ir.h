@@ -37,7 +37,7 @@ namespace tvm {
 namespace ir {
 
 using IntImm = tvm::IntImm;
-using Variable = tvm::Variable;
+using Variable = tvm::VarNode;
 
 /*! \brief constant unsigned integer. */
 class UIntImm : public ExprNode {

@@ -144,7 +144,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
 }
 
-void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, DataType t,
+void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
@@ -160,7 +160,7 @@ void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, DataType t,
   PrintExpr(base, os);
 }
 std::string CodeGenOpenCL::GetVecLoad(
-    DataType t, const Variable* buffer, Expr base) {
+    DataType t, const VarNode* buffer, Expr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -168,7 +168,7 @@ std::string CodeGenOpenCL::GetVecLoad(
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
+void CodeGenOpenCL::PrintVecStore(const VarNode* buffer,
                                   DataType t, Expr base,
                                   const std::string& value) {
   this->PrintIndent();

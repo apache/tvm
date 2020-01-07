@@ -62,7 +62,7 @@ class CodeGenSPIRV:
     return VisitExpr(e);
   }
   // override codegen
-  spirv::Value VisitExpr_(const Variable* op) override;
+  spirv::Value VisitExpr_(const VarNode* op) override;
   spirv::Value VisitExpr_(const Cast* op) override;
   spirv::Value VisitExpr_(const IntImm* op) override;
   spirv::Value VisitExpr_(const UIntImm* op) override;
@@ -139,9 +139,9 @@ class CodeGenSPIRV:
   // Likely branch
   uint32_t weight_likely_branch_{128};
   // the storage scope of allocation
-  std::unordered_map<const Variable*, StorageInfo> storage_info_;
+  std::unordered_map<const VarNode*, StorageInfo> storage_info_;
   // The definition of local variable.
-  std::unordered_map<const Variable*, spirv::Value> var_map_;
+  std::unordered_map<const VarNode*, spirv::Value> var_map_;
   // The analyzer.
   std::unique_ptr<arith::Analyzer> analyzer_;
 };

@@ -212,7 +212,7 @@ Operation ComputeOpNode::ReplaceInputs(
 void ComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
@@ -607,7 +607,7 @@ Stmt TransformUpdate(const Stage& stage,
                      Stmt body,
                      Stmt update) {
   Array<Expr> conds;
-  std::unordered_set<const Variable*> banned;
+  std::unordered_set<const VarNode*> banned;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     IterVar iv = stage->leaf_iter_vars[i];
     auto iit = stage->iter_var_attrs.find(iv);

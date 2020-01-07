@@ -102,7 +102,7 @@ class Var;
  * - Let
  * - LetStmt
  */
-class Variable : public ExprNode {
+class VarNode : public ExprNode {
  public:
   /*!
    * \brief The hint to the variable name.
@@ -118,7 +118,7 @@ class Variable : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Variable, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
 };
 
 /*! \brief a named variable in TVM */
@@ -139,18 +139,18 @@ class Var : public Expr {
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* operator->() const {
+  const VarNode* operator->() const {
     return get();
   }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* get() const {
-    return static_cast<const Variable*>(data_.get());
+  const VarNode* get() const {
+    return static_cast<const VarNode*>(data_.get());
   }
   /*! \brief type indicate the container type */
-  using ContainerType = Variable;
+  using ContainerType = VarNode;
 };
 
 // Backward compatibility, will be removed later.

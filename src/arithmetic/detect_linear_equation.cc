@@ -96,7 +96,7 @@ class LinearEqDetector
     ret.coeff = MulCombine(a.base, b.coeff);
     return ret;
   }
-  LinearEqEntry VisitExpr_(const Variable* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const VarNode* op, const Expr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
       ret.coeff = make_const(op->dtype, 1);
@@ -152,7 +152,7 @@ Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
     base = std::move(ret.base);
   }
 
-  std::unordered_set<const Variable*> vset;
+  std::unordered_set<const VarNode*> vset;
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
@@ -167,11 +167,11 @@ Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
 // Detect clip condition as min max value
 bool DetectClipBound(
     const Expr& cond,
-    std::unordered_map<const Variable*, IntervalEntry>* bmap) {
+    std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
   auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
-    if (const Variable* v = n.as<Variable>()) {
+    if (const VarNode* v = n.as<VarNode>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
           var = Downcast<Var>(n);
@@ -244,7 +244,7 @@ void SplitCommExpr(const Expr& e, std::vector<Expr>* ret) {
 Array<Expr> DetectClipBound(const Expr& e, const Array<Var>& vars) {
   std::vector<Expr> splits;
   SplitCommExpr<ir::And>(e, &splits);
-  std::unordered_map<const Variable*, IntervalEntry> rmap;
+  std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();
   }

@@ -109,7 +109,7 @@ Operation TensorComputeOpNode::ReplaceInputs(
 void TensorComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (size_t i = 0; i < this->inputs.size(); ++i) {
     Tensor t = this->inputs[i];
@@ -182,7 +182,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   }
 
   // Check variable remap
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, Expr> vmap;
   ir::ArgBinder binder(&vmap);
 
   // Map the expressions passed in the call to the TensorIntrin, to the placeholder

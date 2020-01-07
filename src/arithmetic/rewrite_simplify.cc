@@ -1728,7 +1728,7 @@ VisitExpr_(const Call* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Variable* op) {
+VisitExpr_(const VarNode* op) {
   Var var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {

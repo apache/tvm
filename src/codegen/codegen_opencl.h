@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,13 +44,13 @@ class CodeGenOpenCL final : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
-  std::string GetVecLoad(DataType t, const Variable* buffer,
+  std::string GetVecLoad(DataType t, const VarNode* buffer,
                          Expr base) final;
-  void PrintVecStore(const Variable* buffer,
+  void PrintVecStore(const VarNode* buffer,
                      DataType t, Expr base,
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const Variable* buffer, DataType t,
+  void PrintVecAddr(const VarNode* buffer, DataType t,
                     Expr base, std::ostream& os);  // NOLINT(*)
   std::string CastFromTo(std::string value, DataType from, DataType target); // NOLINT(*)
 

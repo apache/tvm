@@ -251,7 +251,7 @@ inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
                                   const Array<IterVar>& src_axis,
                                   const Array<Expr>& transform_rule) {
   Array<Expr> result;
-  std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_map<const VarNode*, Expr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
@@ -287,7 +287,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
-  std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_map<const VarNode*, Expr> bind_map;
   std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];

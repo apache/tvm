@@ -194,7 +194,7 @@ void CodeGenOpenGL::VisitStmt_(const Store* op) {
 }
 
 // texelFetch(tex, ivec2(idx & kTextureRowMask, idx >> kTextureRowBits), 0).r
-std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
+std::string CodeGenOpenGL::TexelFetch(const VarNode* buffer, Expr index) {
   std::ostringstream os;
   os << "texelFetch(" << GetVarID(buffer) << ", ivec2(int(";
   PrintExpr(index, os);
@@ -207,7 +207,7 @@ std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
 // Print a reference expression to a buffer.
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
-    DataType t, const Variable* buffer, Expr index) {
+    DataType t, const VarNode* buffer, Expr index) {
   CHECK_EQ(t.lanes(), 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
@@ -269,7 +269,7 @@ void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
   }
 
   CHECK_EQ(call->args.size(), 2);
-  auto buffer = call->args[0].as<Variable>();
+  auto buffer = call->args[0].as<VarNode>();
   auto value = call->args[1];
 
   // Doesn't support store to vector.

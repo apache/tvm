@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,8 +44,8 @@ class CodeGenOpenGL final : public CodeGenC {
   void InitFuncState(LoweredFunc f) final;
   void BindThreadIndex(const IterVar& iv) final;
   void VisitStmt_(const Store* op) final;
-  std::string TexelFetch(const Variable* buffer, Expr index);
-  std::string GetBufferRef(DataType t, const Variable* buffer, Expr index) final;
+  std::string TexelFetch(const VarNode* buffer, Expr index);
+  std::string GetBufferRef(DataType t, const VarNode* buffer, Expr index) final;
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
 
   // Codegen for immediate values
@@ -58,9 +58,9 @@ class CodeGenOpenGL final : public CodeGenC {
   void VisitStmt_(const Evaluate* op) final;  // NOLINT(*)
 
  private:
-  const Variable* output_{nullptr};
-  std::unordered_set<const Variable*> inputs_;
-  const Variable* output_iter_var_{nullptr};
+  const VarNode* output_{nullptr};
+  std::unordered_set<const VarNode*> inputs_;
+  const VarNode* output_iter_var_{nullptr};
   std::unordered_map<std::string, runtime::OpenGLShader> shaders_;
   std::string thread_extent_var_;
 };

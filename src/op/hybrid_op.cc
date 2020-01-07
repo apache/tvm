@@ -128,7 +128,7 @@ Operation HybridOpNode::ReplaceInputs(
 void HybridOpNode::PropBoundToInputs(
     const Operation &self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet> &dom_map,
+    const std::unordered_map<const VarNode*, IntSet> &dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   auto curr_inputs = InputTensors();
   for (Tensor t : curr_inputs) {
@@ -223,7 +223,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
                  const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
   class LoopSpliter : public StmtExprMutator {
     Expr factor;
-    const Variable *parent;
+    const VarNode *parent;
     IterVar inner, outer;
 
    public:
@@ -249,7 +249,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
 
     Stmt VisitStmt_(const For *op) final {
       if (op->loop_var.get() == parent) {
-        std::unordered_map<const Variable *, Expr> rmap;
+        std::unordered_map<const VarNode *, Expr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = ir::Substitute(op->body, rmap);
         Expr cond = likely(outer * factor < (op->extent - inner));
@@ -267,8 +267,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
 
   class LoopFuser : public StmtExprMutator {
     const IterVar &parent;
-    const Variable *inner;
-    const Variable *outer;
+    const VarNode *inner;
+    const VarNode *outer;
     bool under_outer;
     Expr extent;
 
@@ -283,7 +283,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
     Stmt VisitStmt_(const For* op) final {
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
-        std::unordered_map<const Variable *, Expr> rmap;
+        std::unordered_map<const VarNode *, Expr> rmap;
         rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
@@ -291,7 +291,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (op->loop_var.get() == outer) {
         under_outer = true;
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const Variable *, Expr> rmap;
+        std::unordered_map<const VarNode *, Expr> rmap;
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
@@ -299,7 +299,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
                          op->for_type, op->device_api, body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const Variable *, Expr> rmap;
+        std::unordered_map<const VarNode *, Expr> rmap;
         rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = ir::Substitute(body, rmap);
         extent = extent * op->extent;
@@ -327,11 +327,11 @@ Stmt ApplyLoopShapes(const Stage &stage,
 Stmt ApplyLoopAnnotations(const Stage &stage,
                           const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
   class LoopAnnotator : public StmtMutator {
-    const Variable *var;
+    const VarNode *var;
     const IterVarAttr &attr;
 
    public:
-    LoopAnnotator(const Variable *var_, const IterVarAttr &attr_) : var(var_), attr(attr_) {}
+    LoopAnnotator(const VarNode *var_, const IterVarAttr &attr_) : var(var_), attr(attr_) {}
 
     Stmt VisitStmt_(const For *op) final {
       if (op->loop_var.get() == var) {
@@ -342,7 +342,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
             CHECK(Equal(iter_var->dom->extent, op->extent))
               << "Thread extent and loop extent mismatch!\n";
           }
-          std::unordered_map<const Variable *, Expr> rmap;
+          std::unordered_map<const VarNode *, Expr> rmap;
           rmap[op->loop_var.get()] = iter_var;
           Stmt body = ir::Substitute(op->body, rmap);
           return AttrStmt::make(iter_var, "thread_extent", op->extent, body);
@@ -360,7 +360,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
     int found = 0;
 
     const IterVar &actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
-    const Variable *var = actual->var.get();
+    const VarNode *var = actual->var.get();
     ForType expected = IterVarTypeToForType(iter_var->iter_type);
     IterVarAttr attr;
     if (stage->iter_var_attrs.count(iter_var)) {
@@ -389,7 +389,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
 Stmt ApplyLoopOrder(const Stage &stage,
                     const std::unordered_map<IterVar, Range> &dom_map,
                     const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
-  std::vector<const Variable*> current_order;
+  std::vector<const VarNode*> current_order;
   PostOrderVisit(stmt, [&current_order](const ObjectRef& node) {
     if (const For *op = node.as<For>())
       current_order.push_back(op->loop_var.get());
@@ -397,7 +397,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
   std::reverse(current_order.begin(), current_order.end());
   auto &required_ord = stage->leaf_iter_vars;
   CHECK_EQ(current_order.size(), required_ord.size()) << "Cannot reorder the loops!";
-  std::unordered_map<const Variable *, IterVar> reorder;
+  std::unordered_map<const VarNode *, IterVar> reorder;
   bool need_reorder = false;
   for (size_t i = 0; i < current_order.size(); ++i) {
     auto &current = current_order[i];
@@ -413,12 +413,12 @@ Stmt ApplyLoopOrder(const Stage &stage,
   class LoopReorder : public StmtMutator {
     const Stage &stage;
     const std::unordered_map<IterVar, Range> &dom_map;
-    const std::unordered_map<const Variable *, IterVar> &reorder;
+    const std::unordered_map<const VarNode *, IterVar> &reorder;
 
    public:
     LoopReorder(const Stage &stage,
                 const std::unordered_map<IterVar, Range> &dom_map,
-                const std::unordered_map<const Variable*, IterVar> &reorder)
+                const std::unordered_map<const VarNode*, IterVar> &reorder)
       : stage(stage), dom_map(dom_map), reorder(reorder) {}
 
     Stmt VisitStmt_(const For* op) final {

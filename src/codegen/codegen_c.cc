@@ -146,7 +146,7 @@ void CodeGenC::PrintSSAAssign(
 
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetBufferRef(
-    DataType t, const Variable* buffer, Expr index) {
+    DataType t, const VarNode* buffer, Expr index) {
   std::ostringstream os;
   std::string vid = GetVarID(buffer);
   std::string scope;
@@ -265,13 +265,13 @@ std::string CodeGenC::GetStructRef(
 }
 
 
-bool CodeGenC::HandleTypeMatch(const Variable* buf_var, DataType t) const {
+bool CodeGenC::HandleTypeMatch(const VarNode* buf_var, DataType t) const {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) return false;
   return it->second == t;
 }
 
-void CodeGenC::RegisterHandleType(const Variable* buf_var, DataType t) {
+void CodeGenC::RegisterHandleType(const VarNode* buf_var, DataType t) {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) {
     handle_data_type_[buf_var] = t;
@@ -296,11 +296,11 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
 }
 
 std::string CodeGenC::GetVecLoad(
-    DataType t, const Variable* buffer, Expr base) {
+    DataType t, const VarNode* buffer, Expr base) {
   return GetBufferRef(t, buffer, base);
 }
 
-void CodeGenC::PrintVecStore(const Variable* buffer,
+void CodeGenC::PrintVecStore(const VarNode* buffer,
                              DataType t, Expr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
@@ -462,7 +462,7 @@ void CodeGenC::VisitExpr_(const Cast* op, std::ostream& os) {  // NOLINT(*)
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.dtype(), op->dtype);
 }
-void CodeGenC::VisitExpr_(const Variable* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
 void CodeGenC::VisitExpr_(const Add* op, std::ostream& os) {  // NOLINT(*)
@@ -791,7 +791,7 @@ void CodeGenC::VisitStmt_(const Allocate* op) {
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
         << "Can only handle constant size stack allocation for now";
-    const Variable* buffer = op->buffer_var.as<Variable>();
+    const VarNode* buffer = op->buffer_var.as<VarNode>();
     std::string scope = alloc_storage_scope_.at(buffer);
     PrintStorageScope(scope, stream);
     stream << ' ';
@@ -812,11 +812,11 @@ void CodeGenC::VisitStmt_(const AttrStmt* op) {
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImm>()->value;
   } else if (op->attr_key == ir::attr::volatile_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     volatile_buf_.insert(v);
   }

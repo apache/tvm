@@ -90,7 +90,7 @@ class CodeGenHybrid :
     return os.str();
   }
   // expression
-  void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
@@ -154,7 +154,7 @@ class CodeGenHybrid :
    *        Values are the corresponding IDs.*/
   std::map<std::pair<const Object *, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
-  std::map<const Variable *, std::string> binds_;
+  std::map<const VarNode *, std::string> binds_;
   /*!
    * \brief Find an unallocated name for the given prefix.
    * \param prefix The given prefix.
@@ -166,7 +166,7 @@ class CodeGenHybrid :
    * \brief Get or allocate the ID for the given variable.
    * \param v The given variable.
    */
-  std::string GetVarID(const Variable *v);
+  std::string GetVarID(const VarNode *v);
   /*!
    * \brief Get or allocate the ID for the given tensor.
    * \param func The tensor to allocate a name.

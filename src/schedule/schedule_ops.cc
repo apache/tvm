@@ -292,7 +292,7 @@ class SchedulePostProc : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_value_.find(op);
     if (it != var_value_.end()) {
       return it->second;
@@ -345,7 +345,7 @@ class SchedulePostProc : public StmtExprMutator {
   // The thread extent scope.
   std::unordered_map<const Object*, Expr> thread_extent_scope_;
   // The scan value
-  std::unordered_map<const Variable*, Expr> var_value_;
+  std::unordered_map<const VarNode*, Expr> var_value_;
   // buffer replacement
   std::unordered_map<TensorKey, Tensor> replace_buffer_;
   // buffere realization to be replaced
