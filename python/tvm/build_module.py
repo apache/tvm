@@ -346,7 +346,6 @@ def get_binds(args, compact=False, binds=None):
     return binds, arg_list
 
 
-
 def form_body(sch):
     """According to the given schedule, form the raw body
     Parameters
