@@ -55,7 +55,7 @@ def conv1d_transpose_ncw_cuda(cfg, data, kernel, stride, padding, out_dtype, out
     _, out_channels, kernel_size = get_const_tuple(kernel.shape)
     opad = output_padding[0]
     pad_left, pad_right = nn.get_pad_tuple1d(padding, kernel_size)
-    out_width = (inp_width - 1) * stride + kernel_size - pad_left - pad_right
+    out_width = (inp_width - 1) * stride + kernel_size - pad_left - pad_right + opad
     pad_left = kernel_size - 1 - pad_left
     pad_right = kernel_size - 1 - pad_right + opad
     dilated_width = stride * (inp_width - 1) + 1
