@@ -39,6 +39,15 @@ cd ../..
 TVM_FFI=cython python3 -m pytest -v apps/extension/tests
 TVM_FFI=ctypes python3 -m pytest -v apps/extension/tests
 
+# Test dso plugin
+cd apps/dso_plugin_module
+rm -rf lib
+make
+cd ../..
+TVM_FFI=cython python3 -m pytest -v apps/dso_plugin_module
+TVM_FFI=ctypes python3 -m pytest -v apps/dso_plugin_module
+
+
 TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
 TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
 

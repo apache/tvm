@@ -771,6 +771,23 @@ class TVMRetValue : public TVMPODValue_ {
     *ret_type_code = type_code_;
     type_code_ = kNull;
   }
+  /*!
+   * \brief Construct a new TVMRetValue by
+   *        moving from return value stored via C API.
+   * \param value the value.
+   * \param type_code The type code.
+   * \return The created TVMRetValue.
+   */
+  static TVMRetValue MoveFromCHost(TVMValue value,
+                                   int type_code) {
+    // Can move POD and everything under the object system.
+    CHECK(type_code <= kFuncHandle ||
+          type_code == kNDArrayContainer);
+    TVMRetValue ret;
+    ret.value_ = value;
+    ret.type_code_ = type_code;
+    return ret;
+  }
   /*! \return The value field, if the data is POD */
   const TVMValue& value() const {
     CHECK(type_code_ != kObjectHandle &&
@@ -876,6 +893,104 @@ class TVMRetValue : public TVMPODValue_ {
     type_code_ = kNull;
   }
 };
+
+/*!
+ * \brief Export a function with the PackedFunc signature
+ *        as a PackedFunc that can be loaded by LibraryModule.
+ *
+ * \param ExportName The symbol name to be exported.
+ * \param Function The function with PackedFunc signature.
+ * \sa PackedFunc
+ *
+ * \code
+ *
+ * void AddOne_(TVMArgs args, TVMRetValue* rv) {
+ *   int value = args[0];
+ *   *rv = value + 1;
+ * }
+ * // Expose the function as "AddOne"
+ * TVM_DLL_EXPORT_PACKED_FUNC(AddOne, AddOne_);
+ *
+ * \endcode
+ */
+#define TVM_DLL_EXPORT_PACKED_FUNC(ExportName, Function)                \
+  extern "C" {                                                          \
+  TVM_DLL int ExportName(TVMValue* args,                                \
+                         int* type_code,                                \
+                         int num_args,                                  \
+                         TVMValue* out_value,                           \
+                         int* out_type_code) {                          \
+    try {                                                               \
+      ::tvm::runtime::TVMRetValue rv;                                   \
+      Function(::tvm::runtime::TVMArgs(                                 \
+          args, type_code, num_args), &rv);                             \
+      rv.MoveToCHost(out_value, out_type_code);                         \
+      return 0;                                                         \
+    } catch (const ::std::runtime_error& _except_) {                    \
+      TVMAPISetLastError(_except_.what());                              \
+      return -1;                                                        \
+    }                                                                   \
+  }                                                                     \
+  }
+
+/*!
+ * \brief Export typed function as a PackedFunc
+ *        that can be loaded by LibraryModule.
+ *
+ * \param ExportName The symbol name to be exported.
+ * \param Function The typed function.
+ * \note ExportName and Function must be different,
+ *       see code examples below.
+ *
+ * \sa TypedPackedFunc
+ *
+ * \code
+ *
+ * int AddOne_(int x) {
+ *   return x + 1;
+ * }
+ *
+ * // Expose the function as "AddOne"
+ * TVM_DLL_EXPORT_TYPED_FUNC(AddOne, AddOne_);
+ *
+ * // Expose the function as "SubOne"
+ * TVM_DLL_EXPORT_TYPED_FUNC(SubOne, [](int x) {
+ *   return x - 1;
+ * });
+ *
+ * // The following code will cause compilation error.
+ * // Because the same Function and ExortName
+ * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
+ *
+ * // The following code is OK, assuming the macro
+ * // is in a different namespace from xyz
+ * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, xyz::AddOne_);
+ *
+ * \endcode
+ */
+#define TVM_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                 \
+  extern "C" {                                                          \
+  TVM_DLL int ExportName(TVMValue* args,                                \
+                         int* type_code,                                \
+                         int num_args,                                  \
+                         TVMValue* out_value,                           \
+                         int* out_type_code) {                          \
+    try {                                                               \
+      auto f = Function;                                                \
+      using FType = ::tvm::runtime::detail::                            \
+                    function_signature<decltype(f)>::FType;             \
+      ::tvm::runtime::TVMRetValue rv;                                   \
+      ::tvm::runtime::detail::unpack_call_by_signature<FType>::run(     \
+           f,                                                           \
+           ::tvm::runtime::TVMArgs(args, type_code, num_args), &rv);    \
+      rv.MoveToCHost(out_value, out_type_code);                         \
+      return 0;                                                         \
+    } catch (const ::std::runtime_error& _except_) {                    \
+      TVMAPISetLastError(_except_.what());                              \
+      return -1;                                                        \
+    }                                                                   \
+    }                                                                   \
+  }
 
 // implementation details
 inline const char* TypeCode2Str(int type_code) {
@@ -1217,6 +1332,20 @@ template<typename R, int nargs, typename F>
 inline void unpack_call(const F& f, const TVMArgs& args, TVMRetValue* rv) {
   unpack_call_dispatcher<R, nargs, 0, F>::run(f, args, rv);
 }
+
+template<typename FType>
+struct unpack_call_by_signature {
+};
+
+template<typename R, typename ...Args>
+struct unpack_call_by_signature<R(Args...)> {
+  template<typename F>
+  static void run(const F& f,
+                  const TVMArgs& args,
+                  TVMRetValue* rv) {
+    unpack_call<R, sizeof...(Args)>(f, args, rv);
+  }
+};
 
 template<typename R, typename ...Args>
 inline R call_packed(const PackedFunc& pf, Args&& ...args) {
