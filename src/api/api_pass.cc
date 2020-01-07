@@ -94,7 +94,7 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
         *ret = StorageFlatten(args[0].operator Stmt(), args[1], args[2], args[3]);
       }
     } else {
-      if (args.size() <= 3) {
+        if (args.size() <= 3) {
         *ret = StorageFlatten(args[0].operator Expr(), args[1], args[2]);
       } else {
         *ret = StorageFlatten(args[0].operator Expr(), args[1], args[2], args[3]);
@@ -102,8 +102,8 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
     }
   });
 
-TVM_REGISTER_API("ir_pass.RewriteForTensorCore")
-.set_body_typed<Stmt(const Stmt&, const Schedule&, const Map<Tensor, Buffer>&)>
+TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
+.set_body_typed
   ([](const Stmt& stmt, const Schedule& schedule, const Map<Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
