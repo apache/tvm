@@ -52,6 +52,60 @@ Array<Array<Layout> > ConvInferCorrectLayout(
                                    params->data_layout : params->out_layout}};
 }
 
+// Positional relay function to create conv1d operator
+// used by frontend FFI.
+Expr MakeConv1D(Expr data,
+                Expr weight,
+                int stride,
+                Array<IndexExpr> padding,
+                int dilation,
+                IndexExpr channels,
+                IndexExpr kernel_size,
+                std::string data_layout,
+                std::string kernel_layout,
+                std::string out_layout,
+                DataType out_dtype) {
+  auto attrs = make_object<Conv1DAttrs>();
+  attrs->stride = stride;
+  attrs->padding = std::move(padding);
+  attrs->dilation = dilation;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get("nn.conv1d");
+  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.conv1d")
+.set_body_typed(MakeConv1D);
+
+
+RELAY_REGISTER_OP("nn.conv1d")
+.describe(R"code(1D convolution layer (e.g. spatial convolution over sequences).
+
+This layer creates a convolution kernel that is convolved
+with the layer input to produce a tensor of outputs.
+
+- **data**: This depends on the `layout` parameter. Input is 3D array of shape
+            (batch_size, in_channels, width) if `layout` is `NCW`.
+- **weight**: (channels, in_channels, kernel_size)
+- **out**:  This depends on the `layout` parameter. Output is 3D array of shape
+            (batch_size, channels, out_width) if `layout` is `NCW`.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<Conv1DAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("Conv1D", Conv1DRel<Conv1DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv1DAttrs>);
+
+
 // Positional relay function to create conv2d operator
 // used by frontend FFI.
 Expr MakeConv2D(Expr data,
