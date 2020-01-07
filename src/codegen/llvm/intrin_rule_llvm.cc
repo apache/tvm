@@ -78,7 +78,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
 
   Expr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   Expr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-  *rv = ir::Select::make(
+  *rv = ir::SelectNode::make(
       x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
 });
 

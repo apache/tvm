@@ -266,7 +266,7 @@ inline Expr TryConstFold<ir::MaxNode>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::GT>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::GTNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value > pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value > fb->value);
@@ -275,7 +275,7 @@ inline Expr TryConstFold<ir::GT>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::GE>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::GENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value >= pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value >= fb->value);
@@ -284,7 +284,7 @@ inline Expr TryConstFold<ir::GE>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::LT>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::LTNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value < pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value < fb->value);
@@ -293,7 +293,7 @@ inline Expr TryConstFold<ir::LT>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::LE>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::LENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value <= pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value <= fb->value);
@@ -302,7 +302,7 @@ inline Expr TryConstFold<ir::LE>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::EQ>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::EQNode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value == pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value == fb->value);
@@ -311,7 +311,7 @@ inline Expr TryConstFold<ir::EQ>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::NE>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::NENode>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value != pb->value);
       if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value != fb->value);
@@ -320,7 +320,7 @@ inline Expr TryConstFold<ir::NE>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::And>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::AndNode>(Expr a, Expr b) {
   using ir::UIntImm;
   const UIntImm* pa = a.as<UIntImm>();
   const UIntImm* pb = b.as<UIntImm>();
@@ -332,7 +332,7 @@ inline Expr TryConstFold<ir::And>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Or>(Expr a, Expr b) {
+inline Expr TryConstFold<ir::OrNode>(Expr a, Expr b) {
   using ir::UIntImm;
   const UIntImm* pa = a.as<UIntImm>();
   const UIntImm* pb = b.as<UIntImm>();
@@ -344,7 +344,7 @@ inline Expr TryConstFold<ir::Or>(Expr a, Expr b) {
 }
 
 template<>
-inline Expr TryConstFold<ir::Not>(Expr a) {
+inline Expr TryConstFold<ir::NotNode>(Expr a) {
   using ir::UIntImm;
   const UIntImm* pa = a.as<UIntImm>();
   if (pa) {

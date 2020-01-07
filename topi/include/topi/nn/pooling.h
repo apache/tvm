@@ -265,16 +265,16 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
-          Expr out_idx_lower_h = ir::Select::make(
+          Expr out_idx_lower_h = ir::SelectNode::make(
               pad_inds[height_axis] < kernel_height, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::Select::make(
+          Expr out_idx_lower_w = ir::SelectNode::make(
               pad_inds[width_axis] < kernel_width, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
-              tvm::if_then_else(ir::And::make(
-                  ir::And::make(out_idx[height_axis] >= out_idx_lower_h,
+              tvm::if_then_else(ir::AndNode::make(
+                  ir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
                                 out_idx[width_axis] >= out_idx_lower_w),
                   mp_inds(out_idx) == idx),
                   out_grad(out_idx), make_const(x->dtype, 0)),
@@ -295,10 +295,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
-          Expr out_idx_lower_h = ir::Select::make(
+          Expr out_idx_lower_h = ir::SelectNode::make(
               pad_h_idx < kernel_height, make_const(DataType::Int(32), 0),
               (pad_h_idx - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::Select::make(
+          Expr out_idx_lower_w = ir::SelectNode::make(
               pad_w_idx < kernel_width, make_const(DataType::Int(32), 0),
               (pad_w_idx - kernel_width) / stride_width + 1);
 
@@ -317,10 +317,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
                               make_const(DataType::Int(32), 1));
           }
           return tvm::sum(tvm::if_then_else(
-              ir::And::make(
-                ir::And::make(out_idx[height_axis] >= out_idx_lower_h,
+              ir::AndNode::make(
+                ir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
                               out_idx[height_axis] < out_height),
-                ir::And::make(out_idx[width_axis] >= out_idx_lower_w,
+                ir::AndNode::make(out_idx[width_axis] >= out_idx_lower_w,
                               out_idx[width_axis] < out_width)),
               out_grad(out_idx) / divide_factor, make_const(out_grad->dtype, 0)),
               {windowh, windoww});
@@ -467,7 +467,7 @@ inline Expr end_index(const Var& out_index,
                       const Expr& odim,
                       const Expr& idim) {
   Expr tmp = indexdiv((out_index + 1) * idim, odim);
-  return tvm::ir::Select::make(indexmod((out_index + 1) * idim, odim) == 0,
+  return tvm::ir::SelectNode::make(indexmod((out_index + 1) * idim, odim) == 0,
                                tmp, tmp + 1);
 }
 

@@ -184,9 +184,9 @@ class BoundChecker : public StmtExprMutator {
       Expr lower_bound = make_zero(DataType::Int(64));
 
       Expr current_condition =
-          And::make(GE::make(index, lower_bound), LT::make(index, upper_bound));
+          AndNode::make(GENode::make(index, lower_bound), LTNode::make(index, upper_bound));
       condition =
-          !i ? current_condition : And::make(condition, current_condition);
+          !i ? current_condition : AndNode::make(condition, current_condition);
     }
     return condition;
   }

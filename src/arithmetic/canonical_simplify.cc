@@ -1106,7 +1106,7 @@ VisitExpr_(const Reduce* op) {
     // `(*op->combiner.get())(op->combineop->identity_element, op->source)[op->value_index]`
     // instead of `op->source[op->value_index]`. The former may be more difficult to simplify.
     return this->VisitExpr(
-        Select::make(op->condition,
+        SelectNode::make(op->condition,
                      op->source[op->value_index],
                      op->combiner->identity_element[op->value_index]));
   }

@@ -62,7 +62,7 @@ TEST(Pattern, Basic) {
   CHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
     CHECK(select(px >= pz, py, py + pz).Match(
-        ir::Select::make((x + 1) >= 1, y, y + 1)));
+        ir::SelectNode::make((x + 1) >= 1, y, y + 1)));
     CHECK(ir::Equal(px.Eval(), x + 1));
   }
   // bit intrinsics
@@ -79,16 +79,16 @@ TEST(Pattern, Basic) {
   // select
   {
     CHECK(select(px > pz, py, py + pz).Match(
-      ir::Select::make(x > 1, y, y + 1)));
+      ir::SelectNode::make(x > 1, y, y + 1)));
     CHECK(is_const_int(pz.Eval(), 1));
   }
   CHECK(!select(px > pz, py, py + pz).Match(
-      ir::Select::make(x > 2, y, y + 1)));
+      ir::SelectNode::make(x > 2, y, y + 1)));
   CHECK(!select(px > pz, py, py).Match(
-      ir::Select::make(x > 2, y, y + 1)));
+      ir::SelectNode::make(x > 2, y, y + 1)));
   {
     CHECK(select(px, py, pz).Match(
-        ir::Select::make(x > 2, y, y + 1)));
+        ir::SelectNode::make(x > 2, y, y + 1)));
     CHECK(ir::Equal(pz.Eval(), y + 1));
   }
   // if_then_else

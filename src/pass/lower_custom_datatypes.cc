@@ -118,12 +118,12 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   DEFINE_MUTATE__(Mod, ModNode);
   DEFINE_MUTATE__(Min, MinNode);
   DEFINE_MUTATE__(Max, MaxNode);
-  DEFINE_MUTATE__(EQ, EQ);
-  DEFINE_MUTATE__(NE, NE);
-  DEFINE_MUTATE__(LT, LT);
-  DEFINE_MUTATE__(LE, LE);
-  DEFINE_MUTATE__(GT, GT);
-  DEFINE_MUTATE__(GE, GE);
+  DEFINE_MUTATE__(EQ, EQNode);
+  DEFINE_MUTATE__(NE, NENode);
+  DEFINE_MUTATE__(LT, LTNode);
+  DEFINE_MUTATE__(LE, LENode);
+  DEFINE_MUTATE__(GT, GTNode);
+  DEFINE_MUTATE__(GE, GENode);
   // Later changes may need to add more mutate functions as we support workloads with more ops.
 
  private:

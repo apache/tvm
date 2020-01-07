@@ -341,14 +341,14 @@ TVM_PATTERN_BINARY_OP(floordiv, ir::FloorDivNode);
 TVM_PATTERN_BINARY_OP(floormod, ir::FloorModNode);
 
 // logical expressions
-TVM_PATTERN_BINARY_OP(operator>, ir::GT);
-TVM_PATTERN_BINARY_OP(operator>=, ir::GE);
-TVM_PATTERN_BINARY_OP(operator<, ir::LT);
-TVM_PATTERN_BINARY_OP(operator<=, ir::LE);
-TVM_PATTERN_BINARY_OP(operator==, ir::EQ);
-TVM_PATTERN_BINARY_OP(operator!=, ir::NE);
-TVM_PATTERN_BINARY_OP(operator&&, ir::And);
-TVM_PATTERN_BINARY_OP(operator||, ir::Or);
+TVM_PATTERN_BINARY_OP(operator>, ir::GTNode);
+TVM_PATTERN_BINARY_OP(operator>=, ir::GENode);
+TVM_PATTERN_BINARY_OP(operator<, ir::LTNode);
+TVM_PATTERN_BINARY_OP(operator<=, ir::LENode);
+TVM_PATTERN_BINARY_OP(operator==, ir::EQNode);
+TVM_PATTERN_BINARY_OP(operator!=, ir::NENode);
+TVM_PATTERN_BINARY_OP(operator&&, ir::AndNode);
+TVM_PATTERN_BINARY_OP(operator||, ir::OrNode);
 
 /*!
  * \brief Pattern not expression.
@@ -365,7 +365,7 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Not* ptr = node.as<ir::Not>()) {
+    if (const ir::NotNode* ptr = node.as<ir::NotNode>()) {
       if (!value_.Match_(ptr->a)) return false;
       return true;
     } else {
@@ -374,7 +374,7 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
   }
 
   Expr Eval() const {
-    return ir::Not::make(value_.Eval());
+    return ir::NotNode::make(value_.Eval());
   }
 
  private:
@@ -411,7 +411,7 @@ class PSelectExpr :
   }
 
   bool Match_(const ObjectRef& node) const {
-    if (const ir::Select* ptr = node.as<ir::Select>()) {
+    if (const ir::SelectNode* ptr = node.as<ir::SelectNode>()) {
       if (!condition_.Match_(ptr->condition)) return false;
       if (!true_value_.Match_(ptr->true_value)) return false;
       if (!false_value_.Match_(ptr->false_value)) return false;
@@ -422,7 +422,7 @@ class PSelectExpr :
   }
 
   Expr Eval() const {
-    return ir::Select::make(
+    return ir::SelectNode::make(
         condition_.Eval(), true_value_.Eval(), false_value_.Eval());
   }
 

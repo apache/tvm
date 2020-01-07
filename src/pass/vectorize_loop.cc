@@ -159,28 +159,28 @@ class Vectorizer : public StmtExprMutator {
   Expr VisitExpr_(const MaxNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const EQ* op) final {
+  Expr VisitExpr_(const EQNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const NE* op) final {
+  Expr VisitExpr_(const NENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const LT* op) final {
+  Expr VisitExpr_(const LTNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const LE* op) final {
+  Expr VisitExpr_(const LENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const GT* op) final {
+  Expr VisitExpr_(const GTNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const GE* op) final {
+  Expr VisitExpr_(const GENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const And* op) final {
+  Expr VisitExpr_(const AndNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const Or* op) final {
+  Expr VisitExpr_(const OrNode* op) final {
     return BinaryVec(op);
   }
   Expr VisitExpr_(const Ramp* op) final {
@@ -204,7 +204,7 @@ class Vectorizer : public StmtExprMutator {
     }
     return Shuffle::make_concat(elems);
   }
-  Expr VisitExpr_(const Select *op) final {
+  Expr VisitExpr_(const SelectNode *op) final {
     Expr cond = this->VisitExpr(op->condition);
     Expr t = this->VisitExpr(op->true_value);
     Expr f = this->VisitExpr(op->false_value);
@@ -216,7 +216,7 @@ class Vectorizer : public StmtExprMutator {
       int lanes = std::max(std::max(
           cond.dtype().lanes(),
           t.dtype().lanes()), f.dtype().lanes());
-      return Select::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
+      return SelectNode::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
     }
   }
   Expr VisitExpr_(const CastNode *op) final {

@@ -240,10 +240,10 @@ class DeviceTypeBinder: public StmtExprMutator {
     return res;
   }
 
-  Expr VisitExpr_(const NE* op) final {
+  Expr VisitExpr_(const NENode* op) final {
     // eager check NE for device check
     Expr res = StmtExprMutator::VisitExpr_(op);
-    op = res.as<NE>();
+    op = res.as<NENode>();
     if (ir::Equal(op->a, op->b)) {
       return make_const(op->dtype, false);
     }

@@ -226,24 +226,24 @@ class PartitionFinder : public StmtExprVisitor {
  private:
   Expr InverseCond(const Expr& cond) {
     Expr inverse_cond;
-    if (const LT* op = cond.as<LT>()) {
+    if (const LTNode* op = cond.as<LTNode>()) {
       // a < b -> a >= b
-      inverse_cond = GE::make(op->a, op->b);
-    } else if (const GT* op = cond.as<GT>()) {
+      inverse_cond = GENode::make(op->a, op->b);
+    } else if (const GTNode* op = cond.as<GTNode>()) {
       // a > b -> a <= b
-      inverse_cond = LE::make(op->a, op->b);
-    } else if (const LE* op = cond.as<LE>()) {
+      inverse_cond = LENode::make(op->a, op->b);
+    } else if (const LENode* op = cond.as<LENode>()) {
       // a <= b -> a > b
-      inverse_cond = GT::make(op->a, op->b);
-    } else if (const GE* op = cond.as<GE>()) {
+      inverse_cond = GTNode::make(op->a, op->b);
+    } else if (const GENode* op = cond.as<GENode>()) {
       // a >= b -> a < b
-      inverse_cond = LT::make(op->a, op->b);
-    } else if (const EQ* op = cond.as<EQ>()) {
+      inverse_cond = LTNode::make(op->a, op->b);
+    } else if (const EQNode* op = cond.as<EQNode>()) {
       // a == b -> a != b
-      inverse_cond = NE::make(op->a, op->b);
+      inverse_cond = NENode::make(op->a, op->b);
       // a != b -> a == b
-    } else if (const NE* op = cond.as<NE>()) {
-      inverse_cond = EQ::make(op->a, op->b);
+    } else if (const NENode* op = cond.as<NENode>()) {
+      inverse_cond = EQNode::make(op->a, op->b);
     }
     return inverse_cond;
   }

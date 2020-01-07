@@ -238,7 +238,7 @@ void CodeGenOpenCL::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   /* Return type of ternary expression is not always same as its sub-expressions,
    * add a cast */
   os << "(";

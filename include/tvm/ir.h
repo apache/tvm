@@ -235,43 +235,43 @@ class CmpOpNode : public ExprNode {
 };
 
 /*! \brief a == b */
-class EQ : public CmpOpNode<EQ> {
+class EQNode : public CmpOpNode<EQNode> {
  public:
   static constexpr const char* _type_key = "EQ";
 };
 
 /*! \brief a != b */
-class NE : public CmpOpNode<NE> {
+class NENode : public CmpOpNode<NENode> {
  public:
   static constexpr const char* _type_key = "NE";
 };
 
 /*! \brief a < b */
-class LT : public CmpOpNode<LT> {
+class LTNode : public CmpOpNode<LTNode> {
  public:
   static constexpr const char* _type_key = "LT";
 };
 
 /*! \brief a <= b */
-struct LE : public CmpOpNode<LE> {
+struct LENode : public CmpOpNode<LENode> {
  public:
   static constexpr const char* _type_key = "LE";
 };
 
 /*! \brief a > b */
-class GT : public CmpOpNode<GT> {
+class GTNode : public CmpOpNode<GTNode> {
  public:
   static constexpr const char* _type_key = "GT";
 };
 
 /*! \brief a >= b */
-class GE : public CmpOpNode<GE> {
+class GENode : public CmpOpNode<GENode> {
  public:
   static constexpr const char* _type_key = "GE";
 };
 
 /*! \brief a && b */
-class And : public ExprNode {
+class AndNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   Expr a;
@@ -287,11 +287,11 @@ class And : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "And";
-  TVM_DECLARE_FINAL_OBJECT_INFO(And, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AndNode, ExprNode);
 };
 
 /*! \brief a || b */
-class Or : public ExprNode {
+class OrNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   Expr a;
@@ -307,11 +307,11 @@ class Or : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "Or";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Or, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(OrNode, ExprNode);
 };
 
 /*! \brief !a */
-class Not : public ExprNode {
+class NotNode : public ExprNode {
  public:
   /*! \brief The input operand. */
   Expr a;
@@ -324,7 +324,7 @@ class Not : public ExprNode {
   TVM_DLL static Expr make(Expr a);
 
   static constexpr const char* _type_key = "Not";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Not, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(NotNode, ExprNode);
 };
 
 /*!
@@ -334,7 +334,7 @@ class Not : public ExprNode {
  *       Do not use it to guard against out of bound access,
  *       please use if_then_else instead.
  */
-class Select : public ExprNode {
+class SelectNode : public ExprNode {
  public:
   /*! \brief The condition */
   Expr condition;
@@ -353,7 +353,7 @@ class Select : public ExprNode {
   TVM_DLL static Expr make(Expr condition, Expr true_value, Expr false_value);
 
   static constexpr const char* _type_key = "Select";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Select, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SelectNode, ExprNode);
 };
 
 /*!

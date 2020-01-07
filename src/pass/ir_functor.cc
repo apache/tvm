@@ -250,14 +250,14 @@ DEFINE_BINOP_VISIT_(FloorDivNode);
 DEFINE_BINOP_VISIT_(FloorModNode);
 DEFINE_BINOP_VISIT_(MinNode);
 DEFINE_BINOP_VISIT_(MaxNode);
-DEFINE_BINOP_VISIT_(EQ);
-DEFINE_BINOP_VISIT_(NE);
-DEFINE_BINOP_VISIT_(LT);
-DEFINE_BINOP_VISIT_(LE);
-DEFINE_BINOP_VISIT_(GT);
-DEFINE_BINOP_VISIT_(GE);
-DEFINE_BINOP_VISIT_(And);
-DEFINE_BINOP_VISIT_(Or);
+DEFINE_BINOP_VISIT_(EQNode);
+DEFINE_BINOP_VISIT_(NENode);
+DEFINE_BINOP_VISIT_(LTNode);
+DEFINE_BINOP_VISIT_(LENode);
+DEFINE_BINOP_VISIT_(GTNode);
+DEFINE_BINOP_VISIT_(GENode);
+DEFINE_BINOP_VISIT_(AndNode);
+DEFINE_BINOP_VISIT_(OrNode);
 
 void ExprVisitor::VisitExpr_(const IntImm* op) {}
 void ExprVisitor::VisitExpr_(const UIntImm* op) {}
@@ -277,11 +277,11 @@ void ExprVisitor::VisitExpr_(const CastNode* op) {
   this->VisitExpr(op->value);
 }
 
-void ExprVisitor::VisitExpr_(const Not* op) {
+void ExprVisitor::VisitExpr_(const NotNode* op) {
   this->VisitExpr(op->a);
 }
 
-void ExprVisitor::VisitExpr_(const Select* op) {
+void ExprVisitor::VisitExpr_(const SelectNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->true_value);
   this->VisitExpr(op->false_value);
@@ -665,14 +665,14 @@ DEFINE_BIOP_EXPR_MUTATE_(FloorDivNode);
 DEFINE_BIOP_EXPR_MUTATE_(FloorModNode);
 DEFINE_BIOP_EXPR_MUTATE_(MinNode);
 DEFINE_BIOP_EXPR_MUTATE_(MaxNode);
-DEFINE_BIOP_EXPR_MUTATE_(EQ);
-DEFINE_BIOP_EXPR_MUTATE_(NE);
-DEFINE_BIOP_EXPR_MUTATE_(LT);
-DEFINE_BIOP_EXPR_MUTATE_(LE);
-DEFINE_BIOP_EXPR_MUTATE_(GT);
-DEFINE_BIOP_EXPR_MUTATE_(GE);
-DEFINE_BIOP_EXPR_MUTATE_(And);
-DEFINE_BIOP_EXPR_MUTATE_(Or);
+DEFINE_BIOP_EXPR_MUTATE_(EQNode);
+DEFINE_BIOP_EXPR_MUTATE_(NENode);
+DEFINE_BIOP_EXPR_MUTATE_(LTNode);
+DEFINE_BIOP_EXPR_MUTATE_(LENode);
+DEFINE_BIOP_EXPR_MUTATE_(GTNode);
+DEFINE_BIOP_EXPR_MUTATE_(GENode);
+DEFINE_BIOP_EXPR_MUTATE_(AndNode);
+DEFINE_BIOP_EXPR_MUTATE_(OrNode);
 
 Expr ExprMutator::VisitExpr_(const Reduce* op) {
   auto fitervar =  [this](const IterVar& v) {
@@ -714,16 +714,16 @@ Expr ExprMutator::VisitExpr_(const CastNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Not* op) {
+Expr ExprMutator::VisitExpr_(const NotNode* op) {
   Expr a = this->VisitExpr(op->a);
   if (a.same_as(op->a)) {
     return GetRef<Expr>(op);
   } else {
-    return Not::make(a);
+    return NotNode::make(a);
   }
 }
 
-Expr ExprMutator::VisitExpr_(const Select* op) {
+Expr ExprMutator::VisitExpr_(const SelectNode* op) {
   Expr condition = this->VisitExpr(op->condition);
   Expr true_value = this->VisitExpr(op->true_value);
   Expr false_value = this->VisitExpr(op->false_value);
@@ -732,7 +732,7 @@ Expr ExprMutator::VisitExpr_(const Select* op) {
       false_value.same_as(op->false_value)) {
     return GetRef<Expr>(op);
   } else {
-    return Select::make(condition, true_value, false_value);
+    return SelectNode::make(condition, true_value, false_value);
   }
 }
 

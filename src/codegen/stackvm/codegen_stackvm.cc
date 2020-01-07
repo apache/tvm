@@ -338,34 +338,34 @@ void CodeGenStackVM::VisitExpr_(const MaxNode* op) {
   this->PushOp(StackVM::SELECT);
 }
 
-void CodeGenStackVM::VisitExpr_(const EQ* op) {
+void CodeGenStackVM::VisitExpr_(const EQNode* op) {
   PushBinary(StackVM::EQ_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const LE* op) {
+void CodeGenStackVM::VisitExpr_(const LENode* op) {
   PushBinary(StackVM::LE_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const NE* op) {
+void CodeGenStackVM::VisitExpr_(const NENode* op) {
   PushBinary(StackVM::EQ_I64, op->a, op->b);
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitExpr_(const LT* op) {
+void CodeGenStackVM::VisitExpr_(const LTNode* op) {
   PushBinary(StackVM::LT_I64, op->a, op->b);
 }
 
-void CodeGenStackVM::VisitExpr_(const GE* op) {
+void CodeGenStackVM::VisitExpr_(const GENode* op) {
   PushBinary(StackVM::LT_I64, op->a, op->b);
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitExpr_(const GT* op) {
+void CodeGenStackVM::VisitExpr_(const GTNode* op) {
   PushBinary(StackVM::LE_I64, op->a, op->b);
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitExpr_(const And* op) {
+void CodeGenStackVM::VisitExpr_(const AndNode* op) {
   this->Push(op->a);
   int64_t pc_jump = this->GetPC();
   int64_t opr_index = this->PushOp(StackVM::RJUMP_IF_FALSE, 0);
@@ -375,7 +375,7 @@ void CodeGenStackVM::VisitExpr_(const And* op) {
   this->SetOperand(opr_index, diff);
 }
 
-void CodeGenStackVM::VisitExpr_(const Or* op) {
+void CodeGenStackVM::VisitExpr_(const OrNode* op) {
   this->Push(op->a);
   int64_t pc_jump = this->GetPC();
   int64_t opr_index = this->PushOp(StackVM::RJUMP_IF_TRUE, 0);
@@ -384,7 +384,7 @@ void CodeGenStackVM::VisitExpr_(const Or* op) {
   this->SetOperand(opr_index, diff);
 }
 
-void CodeGenStackVM::VisitExpr_(const Not* op) {
+void CodeGenStackVM::VisitExpr_(const NotNode* op) {
   this->Push(op->a);
   this->PushOp(StackVM::NOT);
 }
@@ -482,7 +482,7 @@ void CodeGenStackVM::VisitExpr_(const Broadcast* op) {
   LOG(FATAL) << "Broadcast is not supported";
 }
 
-void CodeGenStackVM::VisitExpr_(const Select* op) {
+void CodeGenStackVM::VisitExpr_(const SelectNode* op) {
   this->Push(op->true_value);
   this->Push(op->false_value);
   this->Push(op->condition);

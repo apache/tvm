@@ -104,7 +104,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return ir::Select::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+          return ir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -114,7 +114,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
       Expr rdiv = truncdiv(op->a, op->b);
       Expr rmod = truncmod(op->a, op->b);
-      return ir::Select::make(
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rdiv, rdiv - make_const(dtype, 1));
     }
@@ -153,7 +153,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // -> rmod >= 0 ? 0 : b
           return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
         } else {
-          return ir::Select::make(rmod >= 0, rmod, rmod + op->b);
+          return ir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
         }
       }
     } else {
@@ -164,7 +164,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return ir::Select::make(
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rmod, rmod + op->b);
     }
@@ -183,7 +183,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const EQ* op) final {
+  Expr VisitExpr_(const EQNode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     auto e = GetRef<Expr>(op);
@@ -193,7 +193,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const NE* op) final {
+  Expr VisitExpr_(const NENode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     auto e = GetRef<Expr>(op);

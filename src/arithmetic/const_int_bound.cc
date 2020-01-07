@@ -264,7 +264,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Select* op) final {
+  Entry VisitExpr_(const SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);

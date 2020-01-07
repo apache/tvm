@@ -472,8 +472,8 @@ inline Tensor argmin(const Tensor& data,
                      bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
-    result.push_back(tvm::ir::Select::make(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::ir::Select::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
+    result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
@@ -489,8 +489,8 @@ inline Tensor argmin(const Tensor& data,
 inline FCommReduce MakeArgmaxReducer() {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
-    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::ir::Select::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
+    result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {

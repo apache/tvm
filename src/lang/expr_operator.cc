@@ -353,67 +353,67 @@ Expr likely(Expr cond) {
 
 Expr operator>(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GT>(a, b);
+  Expr ret = arith::TryConstFold<ir::GTNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::GT::make(a, b);
+  return ir::GTNode::make(a, b);
 }
 
 Expr operator>=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GE>(a, b);
+  Expr ret = arith::TryConstFold<ir::GENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::GE::make(a, b);
+  return ir::GENode::make(a, b);
 }
 
 Expr operator<(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LT>(a, b);
+  Expr ret = arith::TryConstFold<ir::LTNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::LT::make(a, b);
+  return ir::LTNode::make(a, b);
 }
 
 Expr operator<=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LE>(a, b);
+  Expr ret = arith::TryConstFold<ir::LENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::LE::make(a, b);
+  return ir::LENode::make(a, b);
 }
 
 Expr operator==(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::EQ>(a, b);
+  Expr ret = arith::TryConstFold<ir::EQNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::EQ::make(a, b);
+  return ir::EQNode::make(a, b);
 }
 
 Expr operator!=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::NE>(a, b);
+  Expr ret = arith::TryConstFold<ir::NENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::NE::make(a, b);
+  return ir::NENode::make(a, b);
 }
 
 Expr operator&&(Expr a, Expr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::And>(a, b);
+  Expr ret = arith::TryConstFold<ir::AndNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::And::make(a, b);
+  return ir::AndNode::make(a, b);
 }
 
 Expr operator||(Expr a, Expr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::Or>(a, b);
+  Expr ret = arith::TryConstFold<ir::OrNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Or::make(a, b);
+  return ir::OrNode::make(a, b);
 }
 
 Expr operator!(Expr a) {
   CHECK(a.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::Not>(a);
+  Expr ret = arith::TryConstFold<ir::NotNode>(a);
   if (ret.defined()) return ret;
-  return ir::Not::make(a);
+  return ir::NotNode::make(a);
 }
 
 Expr operator>>(Expr a, Expr b) {
@@ -485,7 +485,7 @@ Expr abs(Expr x) {
     if (px) {
       return ir::IntImm::make(x.dtype(), std::abs(px->value));
     }
-    return ir::Select::make(x >= make_zero(x.dtype()), x, -x);
+    return ir::SelectNode::make(x >= make_zero(x.dtype()), x, -x);
   } else if (x.dtype().is_float()) {
     using ir::FloatImm;
     const FloatImm* fx = x.as<FloatImm>();
@@ -538,7 +538,7 @@ Expr sum(Expr source, Array<IterVar> rdom) {
 Expr all(Expr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::And::make(x, y);
+  Expr result = ir::AndNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), true);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
@@ -548,7 +548,7 @@ Expr all(Expr source, Array<IterVar> rdom) {
 Expr any(Expr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Or::make(x, y);
+  Expr result = ir::OrNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), false);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});

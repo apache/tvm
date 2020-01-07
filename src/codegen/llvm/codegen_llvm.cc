@@ -846,7 +846,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
 
 #define DEFINE_CODEGEN_CMP_OP(Op)                                       \
   llvm::Value* CodeGenLLVM::Create ## Op(                               \
-      DataType t, llvm::Value* a, llvm::Value* b) {                         \
+      DataType t, llvm::Value* a, llvm::Value* b) {                     \
     if (t.is_int()) {                                                   \
       return builder_->CreateICmpS ## Op (a, b);                        \
     } else if (t.is_uint()) {                                           \
@@ -856,7 +856,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
       return builder_->CreateFCmpO ## Op (a, b);                        \
     }                                                                   \
 }                                                                       \
-  llvm::Value* CodeGenLLVM::VisitExpr_(const Op* op) {                  \
+  llvm::Value* CodeGenLLVM::VisitExpr_(const Op ## Node* op) {          \
     return Create ## Op(op->a.dtype(), MakeValue(op->a), MakeValue(op->b)); \
   }
 
@@ -903,7 +903,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MaxNode* op) {
   return builder_->CreateSelect(CreateGT(op->a.dtype(), a, b), a, b);
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const EQ* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const EQNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_int() || op->a.dtype().is_uint()) {
@@ -913,7 +913,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const EQ* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const NE* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const NENode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
   if (op->a.dtype().is_int() || op->a.dtype().is_uint()) {
@@ -923,19 +923,19 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const NE* op) {
   }
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const And* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const AndNode* op) {
   return builder_->CreateAnd(MakeValue(op->a), MakeValue(op->b));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Or* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const OrNode* op) {
   return builder_->CreateOr(MakeValue(op->a), MakeValue(op->b));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Not* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const NotNode* op) {
   return builder_->CreateNot(MakeValue(op->a));
 }
 
-llvm::Value* CodeGenLLVM::VisitExpr_(const Select* op) {
+llvm::Value* CodeGenLLVM::VisitExpr_(const SelectNode* op) {
   return builder_->CreateSelect(
       MakeValue(op->condition),
       MakeValue(op->true_value),

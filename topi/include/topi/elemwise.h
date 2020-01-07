@@ -194,8 +194,8 @@ inline Tensor sign(const Tensor& x,
     Expr zero = make_zero(x->dtype);
     Expr one = make_const(x->dtype, 1);
     Expr minus_one = make_const(x->dtype, -1);
-    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
-    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    auto s1 = tvm::ir::SelectNode::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::ir::SelectNode::make((x(i) > zero), one, s1);
     return s2;
   }, name, tag);
 }

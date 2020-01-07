@@ -1353,10 +1353,10 @@ VisitExpr_(const MaxNode* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const EQ* op) {
+VisitExpr_(const EQNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<EQ>();
-  Expr const_res = TryConstFold<EQ>(op->a, op->b);
+  op = ret.as<EQNode>();
+  Expr const_res = TryConstFold<EQNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1387,30 +1387,30 @@ VisitExpr_(const EQ* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const NE* op) {
-  return this->VisitExpr(Not::make(op->a == op->b));
+VisitExpr_(const NENode* op) {
+  return this->VisitExpr(NotNode::make(op->a == op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const LE* op) {
-  return this->VisitExpr(Not::make(op->b < op->a));
+VisitExpr_(const LENode* op) {
+  return this->VisitExpr(NotNode::make(op->b < op->a));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const GT* op) {
+VisitExpr_(const GTNode* op) {
   return this->VisitExpr(op->b < op->a);
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const GE* op) {
-  return this->VisitExpr(Not::make(op->a < op->b));
+VisitExpr_(const GENode* op) {
+  return this->VisitExpr(NotNode::make(op->a < op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const LT* op) {
+VisitExpr_(const LTNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<LT>();
-  Expr const_res = TryConstFold<LT>(op->a, op->b);
+  op = ret.as<LTNode>();
+  Expr const_res = TryConstFold<LTNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1563,10 +1563,10 @@ VisitExpr_(const LT* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Not* op) {
+VisitExpr_(const NotNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Not>();
-  Expr const_res = TryConstFold<Not>(op->a);
+  op = ret.as<NotNode>();
+  Expr const_res = TryConstFold<NotNode>(op->a);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y;
@@ -1588,10 +1588,10 @@ VisitExpr_(const Not* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const And* op) {
+VisitExpr_(const AndNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<And>();
-  Expr const_res = TryConstFold<And>(op->a, op->b);
+  op = ret.as<AndNode>();
+  Expr const_res = TryConstFold<AndNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1637,10 +1637,10 @@ VisitExpr_(const And* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Or* op) {
+VisitExpr_(const OrNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Or>();
-  Expr const_res = TryConstFold<Or>(op->a, op->b);
+  op = ret.as<OrNode>();
+  Expr const_res = TryConstFold<OrNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1687,9 +1687,9 @@ VisitExpr_(const Or* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Select* op) {
+VisitExpr_(const SelectNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Select>();
+  op = ret.as<SelectNode>();
   if (op == nullptr) return ret;
   // Pattern var to match any expression
   PVar<Expr> x, y;

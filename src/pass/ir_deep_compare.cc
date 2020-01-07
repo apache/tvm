@@ -268,12 +268,12 @@ class IRDeepCompare :
     CompareExpr(op->value, other.as<CastNode>()->value);
   }
 
-  void VisitExpr_(const Not *op, const Expr& other) final {
-    CompareExpr(op->a, other.as<Not>()->a);
+  void VisitExpr_(const NotNode *op, const Expr& other) final {
+    CompareExpr(op->a, other.as<NotNode>()->a);
   }
 
-  void VisitExpr_(const Select *op, const Expr& other) final {
-    const Select* rhs = other.as<Select>();
+  void VisitExpr_(const SelectNode *op, const Expr& other) final {
+    const SelectNode* rhs = other.as<SelectNode>();
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareExpr(op->true_value, rhs->true_value) != 0) return;
     if (CompareExpr(op->false_value, rhs->false_value) != 0) return;
@@ -307,14 +307,14 @@ class IRDeepCompare :
   DEFINE_BIOP_EXPR_CMP_(FloorModNode)
   DEFINE_BIOP_EXPR_CMP_(MinNode)
   DEFINE_BIOP_EXPR_CMP_(MaxNode)
-  DEFINE_BIOP_EXPR_CMP_(EQ)
-  DEFINE_BIOP_EXPR_CMP_(NE)
-  DEFINE_BIOP_EXPR_CMP_(LT)
-  DEFINE_BIOP_EXPR_CMP_(LE)
-  DEFINE_BIOP_EXPR_CMP_(GT)
-  DEFINE_BIOP_EXPR_CMP_(GE)
-  DEFINE_BIOP_EXPR_CMP_(And)
-  DEFINE_BIOP_EXPR_CMP_(Or)
+  DEFINE_BIOP_EXPR_CMP_(EQNode)
+  DEFINE_BIOP_EXPR_CMP_(NENode)
+  DEFINE_BIOP_EXPR_CMP_(LTNode)
+  DEFINE_BIOP_EXPR_CMP_(LENode)
+  DEFINE_BIOP_EXPR_CMP_(GTNode)
+  DEFINE_BIOP_EXPR_CMP_(GENode)
+  DEFINE_BIOP_EXPR_CMP_(AndNode)
+  DEFINE_BIOP_EXPR_CMP_(OrNode)
 
  private:
   int CompareExpr(const Expr& lhs, const Expr& rhs) {

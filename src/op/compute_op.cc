@@ -632,7 +632,7 @@ Stmt TransformUpdate(const Stage& stage,
     }
   }
 
-  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
+  return IfThenElse::make(arith::ComputeReduce<ir::OrNode>(conds, const_true(1)),
                           update, body);
 }
 }  // namespace tvm

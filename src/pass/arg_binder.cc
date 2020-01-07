@@ -237,9 +237,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                    << " expected to be compact array";
     if (conds.size() != 0) {
       Stmt check =
-          AssertStmt::make(arith::ComputeReduce<ir::And>(conds, Expr()),
+          AssertStmt::make(arith::ComputeReduce<ir::AndNode>(conds, Expr()),
                            stride_err_msg.str(), Evaluate::make(0));
-      check = IfThenElse::make(Not::make(is_null), check, Stmt());
+      check = IfThenElse::make(NotNode::make(is_null), check, Stmt());
       asserts_.emplace_back(SeqStmt({check, Evaluate::make(0)}));
     }
   } else if (buffer->buffer_type == kAutoBroadcast) {
@@ -260,7 +260,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   } else {
     std::ostringstream stride_null_err_msg;
     stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
-    asserts_.emplace_back(AssertStmt::make(Not::make(is_null), stride_null_err_msg.str(), nop));
+    asserts_.emplace_back(AssertStmt::make(NotNode::make(is_null), stride_null_err_msg.str(), nop));
 
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;

@@ -188,16 +188,16 @@ bool DetectClipBound(
   if (flag != 1) return false;
   // canonical form: exp >= 0
   Expr canonical;
-  if (const LT* op = cond.as<LT>()) {
+  if (const LTNode* op = cond.as<LTNode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->b - op->a - make_const(op->a.dtype(), 1);
-  } else if (const LE* op = cond.as<LE>()) {
+  } else if (const LENode* op = cond.as<LENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->b - op->a;
-  } else if (const GT* op = cond.as<GT>()) {
+  } else if (const GTNode* op = cond.as<GTNode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b - make_const(op->a.dtype(), 1);
-  } else if (const GE* op = cond.as<GE>()) {
+  } else if (const GENode* op = cond.as<GENode>()) {
     if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;
   } else {
@@ -243,7 +243,7 @@ void SplitCommExpr(const Expr& e, std::vector<Expr>* ret) {
 // e must be connected by and.
 Array<Expr> DetectClipBound(const Expr& e, const Array<Var>& vars) {
   std::vector<Expr> splits;
-  SplitCommExpr<ir::And>(e, &splits);
+  SplitCommExpr<ir::AndNode>(e, &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();

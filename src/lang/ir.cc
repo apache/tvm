@@ -65,45 +65,45 @@ Expr CastNode::make(DataType t, Expr value) {
   return Expr(node);
 }
 
-Expr And::make(Expr a, Expr b) {
+Expr AndNode::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
   CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  ObjectPtr<And> node = make_object<And>();
+  ObjectPtr<AndNode> node = make_object<AndNode>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
 }
 
-Expr Or::make(Expr a, Expr b) {
+Expr OrNode::make(Expr a, Expr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
   CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
 
-  ObjectPtr<Or> node = make_object<Or>();
+  ObjectPtr<OrNode> node = make_object<OrNode>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
   return Expr(node);
 }
 
-Expr Not::make(Expr a) {
+Expr NotNode::make(Expr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(a.dtype().is_bool());
 
-  ObjectPtr<Not> node = make_object<Not>();
+  ObjectPtr<NotNode> node = make_object<NotNode>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   return Expr(node);
 }
 
-Expr Select::make(Expr condition, Expr true_value, Expr false_value) {
+Expr SelectNode::make(Expr condition, Expr true_value, Expr false_value) {
   CHECK(condition.defined()) << "ValueError: condition is undefined";
   CHECK(true_value.defined()) << "ValueError: true_value is undefined";
   CHECK(false_value.defined()) << "ValueError: true_value is undefined";
@@ -111,7 +111,7 @@ Expr Select::make(Expr condition, Expr true_value, Expr false_value) {
   CHECK_EQ(condition.dtype().lanes(), true_value.dtype().lanes());
   CHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
 
-  ObjectPtr<Select> node = make_object<Select>();
+  ObjectPtr<SelectNode> node = make_object<SelectNode>();
   node->dtype = true_value.dtype();
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
@@ -661,48 +661,48 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->b);
     p->stream << ")";
 })
-.set_dispatch<EQ>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const EQ*>(node.get());
+.set_dispatch<EQNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const EQNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " == ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<NE>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const NE*>(node.get());
+.set_dispatch<NENode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const NENode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " != ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<LT>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const LT*>(node.get());
+.set_dispatch<LTNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const LTNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " < ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<LE>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const LE*>(node.get());
+.set_dispatch<LENode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const LENode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " <= ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<GT>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const GT*>(node.get());
+.set_dispatch<GTNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const GTNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " > ";
     p->Print(op->b);
     p->stream << ')';
 })
-.set_dispatch<GE>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const GE*>(node.get());
+.set_dispatch<GENode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const GENode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " >= ";
@@ -723,8 +723,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<And>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const And*>(node.get());
+.set_dispatch<AndNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const AndNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " && ";
@@ -733,8 +733,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Or>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Or*>(node.get());
+.set_dispatch<OrNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const OrNode*>(node.get());
     p->stream << '(';
     p->Print(op->a);
     p->stream << " || ";
@@ -743,15 +743,15 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Not>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Not*>(node.get());
+.set_dispatch<NotNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const NotNode*>(node.get());
     p->stream << '!';
     p->Print(op->a);
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Select>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Select*>(node.get());
+.set_dispatch<SelectNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SelectNode*>(node.get());
     p->stream << "select(";
     p->Print(op->condition);
     p->stream << ", ";
@@ -1166,16 +1166,16 @@ TVM_REGISTER_NODE_TYPE(FloorDivNode);
 TVM_REGISTER_NODE_TYPE(FloorModNode);
 TVM_REGISTER_NODE_TYPE(MinNode);
 TVM_REGISTER_NODE_TYPE(MaxNode);
-TVM_REGISTER_NODE_TYPE(EQ);
-TVM_REGISTER_NODE_TYPE(NE);
-TVM_REGISTER_NODE_TYPE(LT);
-TVM_REGISTER_NODE_TYPE(LE);
-TVM_REGISTER_NODE_TYPE(GT);
-TVM_REGISTER_NODE_TYPE(GE);
-TVM_REGISTER_NODE_TYPE(And);
-TVM_REGISTER_NODE_TYPE(Or);
-TVM_REGISTER_NODE_TYPE(Not);
-TVM_REGISTER_NODE_TYPE(Select);
+TVM_REGISTER_NODE_TYPE(EQNode);
+TVM_REGISTER_NODE_TYPE(NENode);
+TVM_REGISTER_NODE_TYPE(LTNode);
+TVM_REGISTER_NODE_TYPE(LENode);
+TVM_REGISTER_NODE_TYPE(GTNode);
+TVM_REGISTER_NODE_TYPE(GENode);
+TVM_REGISTER_NODE_TYPE(AndNode);
+TVM_REGISTER_NODE_TYPE(OrNode);
+TVM_REGISTER_NODE_TYPE(NotNode);
+TVM_REGISTER_NODE_TYPE(SelectNode);
 TVM_REGISTER_NODE_TYPE(Load);
 TVM_REGISTER_NODE_TYPE(Ramp);
 TVM_REGISTER_NODE_TYPE(Broadcast);

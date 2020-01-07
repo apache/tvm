@@ -35,7 +35,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
-  bool VisitExpr_(const Select* op) {
+  bool VisitExpr_(const SelectNode* op) {
     return VisitExpr(op->condition);
   }
   bool VisitExpr_(const Call* op) {
@@ -66,15 +66,15 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
   bool VisitExpr_(const FloorModNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const MinNode* op) final { return BinaryOp(op); }
   bool VisitExpr_(const MaxNode* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const EQ* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const NE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LT* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GT* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const And* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Or* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Not* op) final {
+  bool VisitExpr_(const EQNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const NENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const LTNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const LENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const GTNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const GENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const AndNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const OrNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const NotNode* op) final {
     return VisitExpr(op->a);
   }
   bool VisitExpr_(const Let* op) final {
@@ -110,9 +110,9 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Select* op) {
+  Expr VisitExpr_(const SelectNode* op) {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Select>();
+    op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
     if ((unsafe.VisitExpr(op->true_value) ||

@@ -130,7 +130,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (size_t idx = 0; idx < size; ++idx) {
       values[idx] = call->args[1+idx];
       if (!is_one(cond)) {
-        values[idx] = Select::make(cond, values[idx], inits[idx]);
+        values[idx] = SelectNode::make(cond, values[idx], inits[idx]);
       }
       types[idx] = values[idx].dtype();
     }

@@ -66,7 +66,7 @@ VisitStmt_(const IfThenElse* op) {
   }
   if (op->else_case.defined()) {
       With<ConstraintContext> ctx(analyzer_,
-                                  analyzer_->rewrite_simplify(Not::make(condition)));
+                                  analyzer_->rewrite_simplify(NotNode::make(condition)));
       else_case = this->VisitStmt(op->else_case);
   }
   if (is_one(condition)) return then_case;
@@ -137,7 +137,7 @@ VisitExpr_(const Call* op) {
     }
     {
       With<ConstraintContext> constraint(analyzer_,
-                                         analyzer_->rewrite_simplify(Not::make(cond)));
+                                         analyzer_->rewrite_simplify(NotNode::make(cond)));
       false_value = this->VisitExpr(op->args[2]);
     }
     if (is_zero(cond)) {
@@ -177,7 +177,7 @@ VisitExpr_(const Let* op) {
 }
 
 Expr IRMutatorWithAnalyzer::
-VisitExpr_(const Select* op) {
+VisitExpr_(const SelectNode* op) {
   Expr cond = this->VisitExpr(op->condition);
   Expr true_value, false_value;
   {
@@ -186,7 +186,7 @@ VisitExpr_(const Select* op) {
   }
   {
     With<ConstraintContext> constraint(analyzer_,
-                                       analyzer_->rewrite_simplify(Not::make(cond)));
+                                       analyzer_->rewrite_simplify(NotNode::make(cond)));
     false_value = VisitExpr(op->false_value);
   }
   if (is_zero(cond)) {
@@ -201,7 +201,7 @@ VisitExpr_(const Select* op) {
       false_value.same_as(op->false_value)) {
     return GetRef<Expr>(op);
   } else {
-    return Select::make(cond, true_value, false_value);
+    return SelectNode::make(cond, true_value, false_value);
   }
 }
 

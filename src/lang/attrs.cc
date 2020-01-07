@@ -160,17 +160,17 @@ TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorDivNode);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorModNode);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(MaxNode);
 TVM_DEFINE_ATTRS_BINOP_EQUAL(MinNode);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(GE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(GT);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(LE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(LT);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(EQ);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(NE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(And);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Or);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(GENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(GTNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(LENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(LTNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(EQNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(NENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(AndNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(OrNode);
 
-bool AttrsEqualHandler::VisitAttr_(const Not* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Not>()) {
+bool AttrsEqualHandler::VisitAttr_(const NotNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<NotNode>()) {
     return Equal(lhs->a, rhs->a);
   } else {
     return false;
@@ -198,8 +198,8 @@ bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Select* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Select>()) {
+bool AttrsEqualHandler::VisitAttr_(const SelectNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<SelectNode>()) {
     return
         Equal(lhs->condition, rhs->condition) &&
         Equal(lhs->true_value, rhs->true_value) &&
@@ -274,17 +274,17 @@ TVM_DEFINE_ATTRS_BINOP_HASH(FloorDivNode);
 TVM_DEFINE_ATTRS_BINOP_HASH(FloorModNode);
 TVM_DEFINE_ATTRS_BINOP_HASH(MaxNode);
 TVM_DEFINE_ATTRS_BINOP_HASH(MinNode);
-TVM_DEFINE_ATTRS_BINOP_HASH(GE);
-TVM_DEFINE_ATTRS_BINOP_HASH(GT);
-TVM_DEFINE_ATTRS_BINOP_HASH(LE);
-TVM_DEFINE_ATTRS_BINOP_HASH(LT);
-TVM_DEFINE_ATTRS_BINOP_HASH(EQ);
-TVM_DEFINE_ATTRS_BINOP_HASH(NE);
-TVM_DEFINE_ATTRS_BINOP_HASH(And);
-TVM_DEFINE_ATTRS_BINOP_HASH(Or);
+TVM_DEFINE_ATTRS_BINOP_HASH(GENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(GTNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(LENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(LTNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(EQNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(NENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(AndNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(OrNode);
 
-size_t AttrsHashHandler::VisitAttr_(const Not* op) {
-  static size_t key = std::hash<std::string>()(Not::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const NotNode* op) {
+  static size_t key = std::hash<std::string>()(NotNode::_type_key);
   return Combine(key, Hash(op->a));
 }
 
@@ -307,8 +307,8 @@ size_t AttrsHashHandler::VisitAttr_(const Call* op) {
   return res;
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Select* op) {
-  static size_t key = std::hash<std::string>()(Select::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const SelectNode* op) {
+  static size_t key = std::hash<std::string>()(SelectNode::_type_key);
   size_t res = key;
   res = Combine(res, Hash(op->condition));
   res = Combine(res, Hash(op->true_value));

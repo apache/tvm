@@ -178,31 +178,31 @@ void CodeGenHybrid::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT
 void CodeGenHybrid::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const EQ* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const EQNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const NE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const NENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const LT* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const LE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const LENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const GT* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const GTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const GE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const GENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const And* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const AndNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Or* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const OrNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenHybrid::VisitExpr_(const Not* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   os << "not ";
   PrintExpr(op->a, os);
 }
@@ -275,7 +275,7 @@ void CodeGenHybrid::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
-void CodeGenHybrid::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenHybrid::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   PrintExpr(op->true_value, os);
   os << " if ";
   PrintExpr(op->condition, os);

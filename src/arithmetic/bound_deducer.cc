@@ -94,19 +94,19 @@ class BoundDeducer: public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const LT* op) final {
+  void VisitExpr_(const LTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const LE* op) final {
+  void VisitExpr_(const LENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const GT* op) final {
+  void VisitExpr_(const GTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const GE* op) final {
+  void VisitExpr_(const GENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
@@ -233,7 +233,7 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
 
 void BoundDeducer::Transform() {
   // We will ensure to set expr_ such that it contains target_
-  if (const LT* op = expr_.as<LT>()) {
+  if (const LTNode* op = expr_.as<LTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a < b -> b >= a + 1
       comp_op = kGreater;
@@ -245,7 +245,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b - 1;
     }
-  } else if (const LE* op = expr_.as<LE>()) {
+  } else if (const LENode* op = expr_.as<LENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a <= b -> b >= a
       comp_op = kGreater;
@@ -256,7 +256,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const GT* op = expr_.as<GT>()) {
+  } else if (const GTNode* op = expr_.as<GTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a > b -> b <= a - 1
       comp_op = kLess;
@@ -268,7 +268,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b + 1;
     }
-  } else if (const GE* op = expr_.as<GE>()) {
+  } else if (const GENode* op = expr_.as<GENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a >= b -> b <= a
       comp_op = kLess;
@@ -279,7 +279,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const EQ* op = expr_.as<EQ>()) {
+  } else if (const EQNode* op = expr_.as<EQNode>()) {
     comp_op = kEqual;
     if (GetPath(target_, op->a).empty()) {
       // if the b == a -> a == b

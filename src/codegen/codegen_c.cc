@@ -486,31 +486,31 @@ void CodeGenC::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeGenC::VisitExpr_(const EQ* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const EQNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeGenC::VisitExpr_(const NE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const NENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeGenC::VisitExpr_(const LT* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeGenC::VisitExpr_(const LE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const LENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeGenC::VisitExpr_(const GT* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const GTNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeGenC::VisitExpr_(const GE* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const GENode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeGenC::VisitExpr_(const And* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const AndNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeGenC::VisitExpr_(const Or* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const OrNode* op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeGenC::VisitExpr_(const Not* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
   os << '!';
   PrintExpr(op->a, os);
 }
@@ -741,7 +741,7 @@ void CodeGenC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
-void CodeGenC::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "(";
   PrintExpr(op->condition, os);
   os << " ? ";

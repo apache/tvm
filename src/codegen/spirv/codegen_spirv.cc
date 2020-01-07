@@ -185,48 +185,48 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const MaxNode* op) {
   return builder_->Select(builder_->GT(a, b), a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const LT* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LTNode* op) {
   return builder_->LT(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const LE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LENode* op) {
   return builder_->LE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const GT* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const GTNode* op) {
   return builder_->GT(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const GE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const GENode* op) {
   return builder_->GE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const EQ* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const EQNode* op) {
   return builder_->EQ(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const NE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const NENode* op) {
   return builder_->NE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const And* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const AndNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->MakeValue(spv::OpLogicalAnd, a.stype, a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Or* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const OrNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->MakeValue(spv::OpLogicalOr, a.stype, a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Not* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const NotNode* op) {
   spirv::Value a = MakeValue(op->a);
   return builder_->MakeValue(spv::OpLogicalNot, a.stype, a);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Select* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const SelectNode* op) {
   return builder_->Select(MakeValue(op->condition),
                           MakeValue(op->true_value),
                           MakeValue(op->false_value));

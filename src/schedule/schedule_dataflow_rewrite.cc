@@ -94,15 +94,15 @@ class VarReplacer : public ir::StmtExprMutator {
 Expr InjectPredicate(const Array<Expr>& predicates,
                      Expr body) {
   using ir::Reduce;
-  using ir::Select;
+  using ir::SelectNode;
   if (predicates.size() == 0) return body;
   const Reduce* reduce = body.as<Reduce>();
   if (reduce) {
     auto n = make_object<Reduce>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates, Expr());
+    n->condition = n->condition && arith::ComputeReduce<ir::AndNode>(predicates, Expr());
     return Expr(n);
   }
-  return Select::make(arith::ComputeReduce<ir::And>(predicates, Expr()),
+  return SelectNode::make(arith::ComputeReduce<ir::AndNode>(predicates, Expr()),
                       body,
                       make_zero(body.dtype()));
 }
@@ -761,7 +761,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const Reduce* reduce = compute_op->body[idx].as<Reduce>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  Expr predicate = likely(arith::ComputeReduce<ir::And>(predicates, Expr()));
+  Expr predicate = likely(arith::ComputeReduce<ir::AndNode>(predicates, Expr()));
 
   std::unordered_map<const VarNode*, Expr> vsub;
 
