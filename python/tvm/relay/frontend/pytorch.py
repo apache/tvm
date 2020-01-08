@@ -19,7 +19,6 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
-import torch
 import tvm
 
 from .. import analysis as _analysis
@@ -822,7 +821,8 @@ class Graph(object):
                                         self._relay_map[self._nid_to_node_name[i.debugName()]]
                                     break
 
-                call = _convert_map[operator](self._op_inputs_r[(op_name, operator)], self._op_inputs_types[(op_name, operator)])
+                call = _convert_map[operator](self._op_inputs_r[(op_name, operator)],
+                                              self._op_inputs_types[(op_name, operator)])
 
                 self._relay_map[nid] = call
                 self._nid_to_node_name[op_name] = nid
@@ -990,7 +990,7 @@ class Graph(object):
                     input_list_types.append(str(input_node.type()))
                 else:
                     input_list_types.append('UnsupportedType')
-            except:
+            except Exception:
                 print('Internal PyTorch error. Failed to grab type.')
 
         node_str = str(op_node)
