@@ -1526,15 +1526,13 @@ def _qnn_mx_mkldnn_fully_connected(inputs, attrs, subgraphs, params):
             max_output_range = attrs.get_float('max_calib_range')
             output_scale = get_mkldnn_requantize_scale_outDtype(min_output_range,
                                                                 max_output_range,
-                                                                data_scale,
-                                                                kernel_scale,
                                                                 out_dtype)
             res = relay.qnn.op.requantize(
                 res,
-                input_scale=input_scale,
-                input_zero_point=0,
-                output_scale=output_scale,
-                output_zero_point=0,
+                input_scale=relay.const(input_scale, 'float32'),
+                input_zero_point=relay.const(0, 'int32'),
+                output_scale=relay.const(output_scale, 'float32'),
+                output_zero_point=relay.const(0, 'int32'),
                 out_dtype=out_dtype)
             return res, min_output_range, max_output_range
         else:
