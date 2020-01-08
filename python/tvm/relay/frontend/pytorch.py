@@ -329,19 +329,42 @@ def _batch_norm():
         if scale:
             gamma = weight
         else:
-            if data_type == 'Float':
+            if data_type == 'Double':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('float64'))
+            elif data_type == 'Float':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
+            elif data_type == 'Half':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('float16'))
+            elif data_type == 'Long':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('int64'))
             elif data_type == 'Int':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int32'))
+            elif data_type == 'Short':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('int16'))
+            elif data_type == 'Char':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('int8'))
+            elif data_type == 'Byte':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('uint8'))
 
         if center:
             beta = beta
         else:
-
-            if data_type == 'Float':
+            if data_type == 'Double':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('float64'))
+            elif data_type == 'Float':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
+            elif data_type == 'Half':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('float16'))
+            elif data_type == 'Long':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('int64'))
             elif data_type == 'Int':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int32'))
+            elif data_type == 'Short':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('int16'))
+            elif data_type == 'Char':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('int8'))
+            elif data_type == 'Byte':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('uint8'))
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
@@ -415,17 +438,41 @@ def _dense():
         alpha = int(inputs[4])
 
         if isinstance(alpha, int) and isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            if data_type == 'Float':
+            if data_type == 'Double':
+                alpha = _expr.const(alpha, dtype='float64')
+            elif data_type == 'Float':
                 alpha = _expr.const(alpha, dtype='float32')
+            elif data_type == 'Half':
+                alpha = _expr.const(alpha, dtype='float16')
+            elif data_type == 'Long':
+                alpha = _expr.const(alpha, dtype='int64')
             elif data_type == 'Int':
                 alpha = _expr.const(alpha, dtype='int32')
+            elif data_type == 'Short':
+                alpha = _expr.const(alpha, dtype='int16')
+            elif data_type == 'Char':
+                alpha = _expr.const(alpha, dtype='int8')
+            elif data_type == 'Byte':
+                alpha = _expr.const(alpha, dtype='uint8')
             data *= alpha
 
         if isinstance(beta, int) and isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
-            if data_type == 'Float':
+            if data_type == 'Double':
+                beta = _expr.const(beta, dtype='float64')
+            elif data_type == 'Float':
                 beta = _expr.const(beta, dtype='float32')
+            elif data_type == 'Half':
+                beta = _expr.const(beta, dtype='float16')
+            elif data_type == 'Long':
+                beta = _expr.const(beta, dtype='int64')
             elif data_type == 'Int':
                 beta = _expr.const(beta, dtype='int32')
+            elif data_type == 'Short':
+                beta = _expr.const(beta, dtype='int16')
+            elif data_type == 'Char':
+                beta = _expr.const(beta, dtype='int8')
+            elif data_type == 'Byte':
+                beta = _expr.const(beta, dtype='uint8')
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
