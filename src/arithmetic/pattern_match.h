@@ -727,18 +727,18 @@ class PCallExpr :
 };
 
 // arithemetic intrinsics
-#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)        \
-  struct OpName {                                                     \
-    static Expr Eval(Array<Expr> args) {                              \
-      return ir::CallNode::make(args[0].dtype(), kName, args,             \
-                            ir::CallNode::PureIntrinsic);                 \
-    }                                                                 \
-    static constexpr const char* kName = IntrinStr;                   \
-  };                                                                  \
-  template<typename TA, typename TB>                                  \
-  inline PCallExpr<OpName, TA, TB>                                    \
-  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {              \
-    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());             \
+#define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)          \
+  struct OpName {                                                       \
+    static Expr Eval(Array<Expr> args) {                                \
+      return ir::CallNode::make(args[0].dtype(), kName, args,           \
+                                ir::CallNode::PureIntrinsic);           \
+    }                                                                   \
+    static constexpr const char* kName = IntrinStr;                     \
+  };                                                                    \
+  template<typename TA, typename TB>                                    \
+  inline PCallExpr<OpName, TA, TB>                                      \
+  FuncName(const Pattern<TA>& a, const Pattern<TB>& b) {                \
+    return PCallExpr<OpName, TA, TB>(a.derived(), b.derived());         \
   }
 
 TVM_PATTERN_BINARY_INTRIN(operator<<, PLeftShiftOp, "shift_left");
@@ -748,18 +748,18 @@ TVM_PATTERN_BINARY_INTRIN(operator|, PBitwiseOrOp, "bitwise_or");
 TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 
 // unary intrinsics
-#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)         \
-  struct OpName {                                                     \
-    static Expr Eval(Array<Expr> args) {                              \
-      return ir::CallNode::make(args[0].dtype(), kName, args,             \
-                            ir::CallNode::PureIntrinsic);                 \
-    }                                                                 \
-    static constexpr const char* kName = IntrinStr;                   \
-  };                                                                  \
-  template<typename TA>                                               \
-  inline PCallExpr<OpName, TA>                                        \
-  FuncName(const Pattern<TA>& a) {                                    \
-    return PCallExpr<OpName, TA>(a.derived());                           \
+#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)           \
+  struct OpName {                                                       \
+    static Expr Eval(Array<Expr> args) {                                \
+      return ir::CallNode::make(args[0].dtype(), kName, args,           \
+                                ir::CallNode::PureIntrinsic);           \
+    }                                                                   \
+    static constexpr const char* kName = IntrinStr;                     \
+  };                                                                    \
+  template<typename TA>                                                 \
+  inline PCallExpr<OpName, TA>                                          \
+  FuncName(const Pattern<TA>& a) {                                      \
+    return PCallExpr<OpName, TA>(a.derived());                          \
   }
 
 TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");

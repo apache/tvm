@@ -48,9 +48,9 @@ inline bool WillOverflow(int64_t x,
 
 template<>
 inline bool WillOverflow<ir::AddNode>(int64_t x,
-                                  int64_t y,
-                                  int64_t min_value,
-                                  int64_t max_value) {
+                                      int64_t y,
+                                      int64_t min_value,
+                                      int64_t max_value) {
   if ((y > 0) && (x > max_value - y)) return true;
   if ((y < 0) && (x < min_value - y)) return true;
   return false;
@@ -58,9 +58,9 @@ inline bool WillOverflow<ir::AddNode>(int64_t x,
 
 template<>
 inline bool WillOverflow<ir::SubNode>(int64_t x,
-                                  int64_t y,
-                                  int64_t min_value,
-                                  int64_t max_value) {
+                                      int64_t y,
+                                      int64_t min_value,
+                                      int64_t max_value) {
   if ((y > 0) && (x < min_value + y)) return true;
   if ((y < 0) && (x > max_value + y)) return true;
   return false;
@@ -68,9 +68,9 @@ inline bool WillOverflow<ir::SubNode>(int64_t x,
 
 template<>
 inline bool WillOverflow<ir::MulNode>(int64_t x,
-                                  int64_t y,
-                                  int64_t min_value,
-                                  int64_t max_value) {
+                                      int64_t y,
+                                      int64_t min_value,
+                                      int64_t max_value) {
   if (y == 0) return false;
   if (y > 0) {
     if (x < min_value / y)  return true;
@@ -85,9 +85,9 @@ inline bool WillOverflow<ir::MulNode>(int64_t x,
 
 template<>
 inline bool WillOverflow<ir::ModNode>(int64_t x,
-                                  int64_t y,
-                                  int64_t min_value,
-                                  int64_t max_value) {
+                                      int64_t y,
+                                      int64_t min_value,
+                                      int64_t max_value) {
   return y == 0;
 }
 

@@ -76,21 +76,21 @@ inline bool IsIndexType(const DataType& type) {
 
 
 #define TVM_ARITH_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImmNode;                                                     \
-  using ir::UIntImmNode;                                                    \
-  using ir::FloatImmNode;                                                   \
-  const IntImmNode* pa = a.as<IntImmNode>();                                    \
-  const IntImmNode* pb = b.as<IntImmNode>();                                    \
-  const FloatImmNode* fa = a.as<FloatImmNode>();                                \
-  const FloatImmNode* fb = b.as<FloatImmNode>();                                \
+  using ir::IntImmNode;                                                 \
+  using ir::UIntImmNode;                                                \
+  using ir::FloatImmNode;                                               \
+  const IntImmNode* pa = a.as<IntImmNode>();                            \
+  const IntImmNode* pb = b.as<IntImmNode>();                            \
+  const FloatImmNode* fa = a.as<FloatImmNode>();                        \
+  const FloatImmNode* fb = b.as<FloatImmNode>();                        \
   BODY;
 
 
 #define TVM_INDEX_CONST_PROPAGATION(BODY)                               \
-  using ir::IntImmNode;                                                     \
-  using ir::UIntImmNode;                                                    \
-  const IntImmNode* pa = a.as<IntImmNode>();                                    \
-  const IntImmNode* pb = b.as<IntImmNode>();                                    \
+  using ir::IntImmNode;                                                 \
+  using ir::UIntImmNode;                                                \
+  const IntImmNode* pa = a.as<IntImmNode>();                            \
+  const IntImmNode* pb = b.as<IntImmNode>();                            \
   const DataType& ta = a.dtype();                                       \
   const DataType& tb = b.dtype();                                       \
   if (arith::IsIndexType(ta) && arith::IsIndexType(tb)) {               \

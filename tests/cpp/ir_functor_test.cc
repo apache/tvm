@@ -95,12 +95,12 @@ TEST(IRF, ExprVisit) {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const Variable* op) final {
+    void VisitExpr_(const VarNode* op) final {
       ++count;
     }
-    void VisitExpr_(const IntImm* op) final {
+    void VisitExpr_(const IntImmNode* op) final {
     }
-    void VisitExpr_(const Add* op) final {
+    void VisitExpr_(const AddNode* op) final {
       VisitExpr(op->a);
       VisitExpr(op->b);
     }
@@ -123,7 +123,7 @@ TEST(IRF, StmtVisitor) {
    public:
     int count = 0;
     // implementation
-    void VisitExpr_(const Variable* op) final {
+    void VisitExpr_(const VarNode* op) final {
       ++count;
     }
   };
@@ -172,7 +172,7 @@ TEST(IRF, StmtMutator) {
   auto fmakeif = [&]() {
     auto z = x + 1;
     Stmt body = EvaluateNode::make(z);
-    return IfThenElseNode::make(x <EvaluateNodeuate::make(0), body);
+    return IfThenElseNode::make(x, EvaluateNode::make(0), body);
   };
 
   MyVisitor v;
@@ -210,7 +210,7 @@ TEST(IRF, StmtMutator) {
   {
     Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr[0].as<IfThenElseNode>()->else_caseEvaluateNodeuate>()->value.same_as(x));
+    CHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });

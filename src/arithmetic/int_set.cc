@@ -119,8 +119,8 @@ inline IntervalSet Combine(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::AddNode>(Analyzer* analyer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value + b->min_value);
   }
@@ -137,8 +137,8 @@ inline IntervalSet Combine<ir::AddNode>(Analyzer* analyer,
 
 template<>
 inline IntervalSet Combine<ir::SubNode>(Analyzer* analyer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value - b->min_value);
   }
@@ -156,8 +156,8 @@ inline IntervalSet Combine<ir::SubNode>(Analyzer* analyer,
 
 template<>
 inline IntervalSet Combine<ir::MulNode>(Analyzer* analyzer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value * b->min_value);
   }
@@ -191,8 +191,8 @@ inline IntervalSet Combine<ir::MulNode>(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::DivNode>(Analyzer* analyzer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(a->min_value / b->min_value);
   }
@@ -226,8 +226,8 @@ inline IntervalSet Combine<ir::DivNode>(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::ModNode>(Analyzer* analyzer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(truncmod(a->min_value, b->min_value));
   }
@@ -257,8 +257,8 @@ inline IntervalSet Combine<ir::ModNode>(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::FloorDivNode>(Analyzer* analyzer,
-                                         IntervalSet a,
-                                         IntervalSet b) {
+                                             IntervalSet a,
+                                             IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floordiv(a->min_value, b->min_value));
   }
@@ -292,8 +292,8 @@ inline IntervalSet Combine<ir::FloorDivNode>(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::FloorModNode>(Analyzer* analyzer,
-                                         IntervalSet a,
-                                         IntervalSet b) {
+                                             IntervalSet a,
+                                             IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(floormod(a->min_value, b->min_value));
   }
@@ -318,8 +318,8 @@ inline IntervalSet Combine<ir::FloorModNode>(Analyzer* analyzer,
 
 template<>
 inline IntervalSet Combine<ir::MaxNode>(Analyzer* analzyer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(max(a->min_value,  b->min_value));
   }
@@ -331,8 +331,8 @@ inline IntervalSet Combine<ir::MaxNode>(Analyzer* analzyer,
 
 template<>
 inline IntervalSet Combine<ir::MinNode>(Analyzer* analzyer,
-                                    IntervalSet a,
-                                    IntervalSet b) {
+                                        IntervalSet a,
+                                        IntervalSet b) {
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     return IntervalSet::SinglePoint(min(a->min_value, b->min_value));
   }
