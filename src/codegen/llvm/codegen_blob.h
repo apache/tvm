@@ -18,33 +18,34 @@
  */
 
 /*!
- *  Implementation of API functions related to Codegen
- * \file c_api_codegen.cc
+ * \file codegen_blob.h
+ * \brief Code Generation of blob data
  */
-#include <tvm/expr.h>
-#include <tvm/ir.h>
-#include <tvm/codegen.h>
-#include <tvm/lowered_func.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
+#ifndef TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
+#define TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
+#ifdef TVM_LLVM_VERSION
+#include <utility>
+#include <memory>
+#include <string>
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {
+/**
+ * \brief Code Generation of blob data
+ *
+ * \param data Blob data
+ * \param system_lib Whether expose as system library.
+ * \param target_triple LLVM target triple
+ *
+ * \return LLVM module and LLVM context
+ */
+std::pair<std::unique_ptr<llvm::Module>,
+          std::shared_ptr<llvm::LLVMContext>> CodeGenBlob(const std::string& data,
+                                                          bool system_lib,
+                                                          const std::string& target_triple);
 
-TVM_REGISTER_GLOBAL("codegen._Build")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsObjectRef<LoweredFunc>()) {
-      *ret = Build({args[0]}, args[1]);
-    } else {
-      *ret = Build(args[0], args[1]);
-    }
-  });
-
-TVM_REGISTER_GLOBAL("module._PackImportsToC")
-.set_body_typed(PackImportsToC);
-
-TVM_REGISTER_GLOBAL("module._PackImportsToLLVM")
-.set_body_typed(PackImportsToLLVM);
 }  // namespace codegen
 }  // namespace tvm
+#endif  // LLVM_VERSION
+#endif  // TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
