@@ -363,7 +363,8 @@ class VirtualMachine(object):
 
 
 def compile(mod, target=None, target_host=None, params=None):
-    """
+    """Compile the module to VM executable.
+
     Parameters
     ----------
     mod : relay.Module
@@ -393,21 +394,19 @@ def compile(mod, target=None, target_host=None, params=None):
         The VM executable that contains both library code and bytecode.
     """
     compiler = VMCompiler()
-
-    target = compiler.update_target(target)
-    target_host = compiler.update_target_host(target, target_host)
     if params:
         compiler.set_params(params)
-    tophub_context = compiler.tophub_context(target)
-    with tophub_context:
-        compiler._compile(mod, target, target_host)
-    return Executable(compiler._get_exec())
+    compiler.lower(mod, target, target_host)
+    compiler.codegen()
+    return compiler.get_exec()
+
 
 class VMCompiler(object):
     """Build Relay module to run on VM runtime."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
-        self._compile = self.mod["compile"]
+        self._lower = self.mod["lower"]
+        self._codegen = self.mod["codegen"]
         self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
 
@@ -420,8 +419,24 @@ class VMCompiler(object):
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
 
-    def update_target(self, target):
-        """Update target"""
+    def lower(self, mod, target=None, target_host=None):
+        """Lower the module to VM bytecode."""
+        target = self._update_target(target)
+        target_host = self._update_target_host(target, target_host)
+        tophub_context = self._tophub_context(target)
+        with tophub_context:
+            self._lower(mod, target, target_host)
+
+    def codegen(self):
+        """Generate the machine code."""
+        self._codegen()
+
+    def get_exec(self):
+        """Return the executable."""
+        return Executable(self._get_exec())
+
+    def _update_target(self, target):
+        """Update target."""
         target = target if target else tvm.target.current_target()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
@@ -439,8 +454,8 @@ class VMCompiler(object):
                             "{}".format(type(target)))
         return tgts
 
-    def update_target_host(self, target, target_host):
-        """Update target host"""
+    def _update_target_host(self, target, target_host):
+        """Update target host."""
         target_host = None if target_host == "" else target_host
         if not target_host:
             for device_type, tgt in target.items():
@@ -453,7 +468,7 @@ class VMCompiler(object):
             target_host = tvm.target.create(target_host)
         return target_host
 
-    def tophub_context(self, target):
+    def _tophub_context(self, target):
         # If current dispatch context is fallback context (the default root context),
         # then load pre-tuned parameters from TopHub
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):

@@ -49,7 +49,9 @@ def _lower(mod,
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 return grc.codegen(mod["main"])
     # default case
-    return relay.vm.compile(mod, target=target, params=params)
+    compiler = relay.vm.VMCompiler()
+    compiler.set_params(params)
+    compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, ops, target, target_host=None,
