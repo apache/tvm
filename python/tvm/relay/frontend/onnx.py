@@ -305,6 +305,7 @@ class Conv(OnnxOpConverter):
                 'pads': ('padding', (0, 0)),
             }
             custom_check = None
+            ignores = ['group']
         #Conv2D
         elif len(input_shape) == 4:
             op_name = dimension_picker('conv')
@@ -314,13 +315,15 @@ class Conv(OnnxOpConverter):
                 'pads': ('padding', (0, 0), revert_caffe2_pad),
                 'group': ('groups', 1)}
             custom_check = dimension_constraint()
+            ignores = None
         else:
             raise ValueError("Only 1D and 2D convolution currently supported.")
 
         out = AttrCvt(
             op_name=op_name,
             transforms=transforms,
-            custom_check=custom_check)(inputs[:2], attr, params)
+            custom_check=custom_check,
+            ignores=ignores)(inputs[:2], attr, params)
 
         use_bias = len(inputs) == 3
         if use_bias:
