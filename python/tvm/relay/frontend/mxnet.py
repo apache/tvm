@@ -1424,38 +1424,22 @@ def _qnn_mx_quantized_pooling(inputs, attrs):
 
 def _qnn_mx_mkldnn_fully_connected(inputs, attrs, subgraphs, params):
 
-    def _get_input_dtype(_data, _is_quantized=True):
-        _data_dtype = _infer_type(_data).checked_type.dtype
-        if _is_quantized:
-            assert _data_dtype in {'int8', 'uint8'}
-        else:
-            assert _data_dtype == 'float32'
-        return _data, _data_dtype
-
-    def _get_input_min_max(_inputs, _has_bias):
+    def _get_input_scale_zp(_data, _inputs, _has_bias):
         data_min_idx, data_max_idx = (3, 4) if _has_bias else (2, 3)
         data_min, data_max = _inputs[data_min_idx], _inputs[data_max_idx]
-        return data_min, data_max
-
-    def _get_input_scale_zp(_data, _inputs, _has_bias):
-        data_min, data_max = _get_input_min_max(_inputs, _has_bias)
-        data_dtype = _get_input_dtype(_data)
+        data_dtype = _infer_type(_data).checked_type.dtype
         data_scale = get_mkldnn_uint8_scale(data_min, data_max) if data_dtype == 'uint8' \
             else get_mkldnn_int8_scale(data_min, data_max)
         data_zp = 0
         return data_scale, data_zp
 
-    def _get_kernel_min_max(_inputs, _has_bias):
+    def _get_kernel_scale_zp(_kernel, _inputs, _has_bias):
+        kernel_dtype = _infer_type(_kernel).checked_type.dtype
         kernel_min_idx, kernel_max_idx = (5, 6) if _has_bias else (4, 5)
         kernel_min_name = _get_name(_inputs[kernel_min_idx])
         kernel_min = params[kernel_min_name].asnumpy()[0]
         kernel_max_name = _get_name(_inputs[kernel_max_idx])
         kernel_max = params[kernel_max_name].asnumpy()[0]
-        return kernel_min, kernel_max
-
-    def _get_kernel_scale_zp(_kernel, _inputs, _has_bias):
-        kernel_dtype = _infer_type(_kernel).checked_type.dtype
-        kernel_min, kernel_max = _get_kernel_min_max(_inputs, _has_bias)
         kernel_scale = get_mkldnn_uint8_scale(kernel_min, kernel_max) if kernel_dtype == 'uint8' \
             else get_mkldnn_int8_scale(kernel_min, kernel_max)
         kernel_zp = 0
@@ -1534,11 +1518,16 @@ def _qnn_mx_mkldnn_fully_connected(inputs, attrs, subgraphs, params):
                 output_scale=relay.const(output_scale, 'float32'),
                 output_zero_point=relay.const(0, 'int32'),
                 out_dtype=out_dtype)
+
+            if with_relu:
+                res = _op.nn.relu(res)
             return res, min_output_range, max_output_range
         else:
             output_scale = np.float32(data_scale * kernel_scale)
             res = relay.qnn.op.dequantize(res, relay.const(output_scale, 'float32'),
                     input_zero_point=relay.const(0, 'int32'))
+            if with_relu:
+                res = _op.nn.relu(res)
             return res
 
 # Note: due to attribute conversion constraint
