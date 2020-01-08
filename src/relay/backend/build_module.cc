@@ -309,6 +309,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     // Run all dialect legalization passes.
     pass_seqs.push_back(relay::qnn::transform::Legalize());
+    pass_seqs.push_back(transform::PrintIR(false));
 
     // Legalize pass is restricted to homogeneous execution for now.
     if (targets.size() == 1) {
