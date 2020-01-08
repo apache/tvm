@@ -142,7 +142,7 @@ def _zeros():
 def _get_fill_value(input_types):
     if input_types[0] == 'int':
         fill_value = _expr.const(1)
-    elif input_types[0] == 'Float':
+    elif input_types[0] == 'float':
         fill_value = _expr.const(1.0)
     else:
         fill_value = _expr.const(1)
@@ -329,41 +329,41 @@ def _batch_norm():
         if scale:
             gamma = weight
         else:
-            if data_type == 'Double':
+            if data_type == 'double':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('float64'))
-            elif data_type == 'Float':
+            elif data_type == 'float':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
-            elif data_type == 'Half':
+            elif data_type == 'half':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('float16'))
-            elif data_type == 'Long':
+            elif data_type == 'long':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int64'))
-            elif data_type == 'Int':
+            elif data_type == 'int':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int32'))
-            elif data_type == 'Short':
+            elif data_type == 'short':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int16'))
-            elif data_type == 'Char':
+            elif data_type == 'char':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int8'))
-            elif data_type == 'Byte':
+            elif data_type == 'byte':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('uint8'))
 
         if center:
             beta = beta
         else:
-            if data_type == 'Double':
+            if data_type == 'double':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('float64'))
-            elif data_type == 'Float':
+            elif data_type == 'float':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
-            elif data_type == 'Half':
+            elif data_type == 'half':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('float16'))
-            elif data_type == 'Long':
+            elif data_type == 'long':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int64'))
-            elif data_type == 'Int':
+            elif data_type == 'int':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int32'))
-            elif data_type == 'Short':
+            elif data_type == 'short':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int16'))
-            elif data_type == 'Char':
+            elif data_type == 'char':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int8'))
-            elif data_type == 'Byte':
+            elif data_type == 'byte':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('uint8'))
 
         moving_mean = inputs[3]
@@ -438,40 +438,40 @@ def _dense():
         alpha = int(inputs[4])
 
         if isinstance(alpha, int) and isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            if data_type == 'Double':
+            if data_type == 'double':
                 alpha = _expr.const(alpha, dtype='float64')
-            elif data_type == 'Float':
+            elif data_type == 'float':
                 alpha = _expr.const(alpha, dtype='float32')
-            elif data_type == 'Half':
+            elif data_type == 'half':
                 alpha = _expr.const(alpha, dtype='float16')
-            elif data_type == 'Long':
+            elif data_type == 'long':
                 alpha = _expr.const(alpha, dtype='int64')
-            elif data_type == 'Int':
+            elif data_type == 'int':
                 alpha = _expr.const(alpha, dtype='int32')
-            elif data_type == 'Short':
+            elif data_type == 'short':
                 alpha = _expr.const(alpha, dtype='int16')
-            elif data_type == 'Char':
+            elif data_type == 'char':
                 alpha = _expr.const(alpha, dtype='int8')
-            elif data_type == 'Byte':
+            elif data_type == 'byte':
                 alpha = _expr.const(alpha, dtype='uint8')
             data *= alpha
 
         if isinstance(beta, int) and isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
-            if data_type == 'Double':
+            if data_type == 'double':
                 beta = _expr.const(beta, dtype='float64')
-            elif data_type == 'Float':
+            elif data_type == 'float':
                 beta = _expr.const(beta, dtype='float32')
-            elif data_type == 'Half':
+            elif data_type == 'half':
                 beta = _expr.const(beta, dtype='float16')
-            elif data_type == 'Long':
+            elif data_type == 'long':
                 beta = _expr.const(beta, dtype='int64')
-            elif data_type == 'Int':
+            elif data_type == 'int':
                 beta = _expr.const(beta, dtype='int32')
-            elif data_type == 'Short':
+            elif data_type == 'short':
                 beta = _expr.const(beta, dtype='int16')
-            elif data_type == 'Char':
+            elif data_type == 'char':
                 beta = _expr.const(beta, dtype='int8')
-            elif data_type == 'Byte':
+            elif data_type == 'byte':
                 beta = _expr.const(beta, dtype='uint8')
             weight *= beta
 
@@ -1028,16 +1028,19 @@ class Graph(object):
             try:
                 input_node_kind = input_node.type().kind()
                 if input_node_kind == 'TensorType':
-                    input_list_types.append(input_node.type().scalarType())
+                    if input_node.type().scalarType() is None:
+                        input_list_types.append('float')
+                    else:
+                        input_list_types.append(input_node.type().scalarType().lower())
                 elif input_node_kind == 'ListType':
-                    input_list_types.append(str(input_node.type().getElementType()))
+                    input_list_types.append(str(input_node.type().getElementType()).lower())
                 elif input_node_kind == 'IntType' or input_node_kind == 'FloatType' or \
                         input_node_kind == 'BoolType' or input_node_kind == 'StringType' or \
                         input_node_kind == 'OptionalType':
-                    input_list_types.append(str(input_node.type()))
+                    input_list_types.append(str(input_node.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
-            except Exception:
+            except Exception as e:
                 print('Internal PyTorch error. Failed to grab type.')
 
         node_str = str(op_node)
@@ -1046,7 +1049,7 @@ class Graph(object):
 
         if op_node.kind() == 'aten::ones':
             node_type = node_type.split('(')[0]
-            input_list_types[0] = node_type
+            input_list_types[0] = node_type.lower()
 
         self._op_inputs_r[(op_name, operator)] = input_list_r
         self._op_inputs_types[(op_name, operator)] = input_list_types
