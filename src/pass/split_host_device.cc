@@ -83,12 +83,12 @@ class IRUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     this->HandleDef(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -158,7 +158,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
 
 class HostDeviceSplitter : public StmtMutator {
  public:
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
     return StmtMutator::VisitStmt_(op);
   }

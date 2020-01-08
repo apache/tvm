@@ -77,7 +77,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   };
   // override visitor pattern
   void VisitExpr_(const LoadNode* op) final;
-  void VisitStmt_(const Store* op) final;
+  void VisitStmt_(const StoreNode* op) final;
   void VisitStmt_(const Evaluate* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const For* op) final;

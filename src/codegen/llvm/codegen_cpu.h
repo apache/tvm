@@ -45,7 +45,7 @@ class CodeGenCPU : public CodeGenLLVM {
   void AddFunction(const LoweredFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
-  void VisitStmt_(const AssertStmt* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const For* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;

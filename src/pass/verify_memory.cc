@@ -103,7 +103,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     return StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const Store* op) final {
+  void VisitStmt_(const StoreNode* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
     return StmtExprVisitor::VisitStmt_(op);
   }

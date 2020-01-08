@@ -132,7 +132,7 @@ TEST(IRF, StmtVisitor) {
     auto z = x + 1;
     Stmt body = Evaluate::make(z);
     Var buffer("b", DataType::Handle());
-    return Allocate::make(buffer, DataType::Float(32), {z, z}, const_true(), body);
+    return AllocateNode::make(buffer, DataType::Float(32), {z, z}, const_true(), body);
   };
   v(fmaketest());
   CHECK_EQ(v.count, 3);
@@ -166,7 +166,7 @@ TEST(IRF, StmtMutator) {
     auto z = x + 1;
     Stmt body = Evaluate::make(z);
     Var buffer("b", DataType::Handle());
-    return Allocate::make(buffer, DataType::Float(32), {1, z}, const_true(), body);
+    return AllocateNode::make(buffer, DataType::Float(32), {1, z}, const_true(), body);
   };
 
   auto fmakeif = [&]() {
@@ -179,18 +179,18 @@ TEST(IRF, StmtMutator) {
   {
     auto body = fmakealloc();
     Stmt body2 = Evaluate::make(1);
-    Stmt bref = body.as<Allocate>()->body;
-    auto* extentptr = body.as<Allocate>()->extents.get();
+    Stmt bref = body.as<AllocateNode>()->body;
+    auto* extentptr = body.as<AllocateNode>()->extents.get();
     Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     CHECK(arr.get() == arrptr);
     // inplace update body
-    CHECK(arr[0].as<Allocate>()->extents[1].same_as(x));
-    CHECK(arr[0].as<Allocate>()->extents.get() == extentptr);
+    CHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    CHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
     // copy because there is additional refs
-    CHECK(!arr[0].as<Allocate>()->body.same_as(bref));
-    CHECK(arr[0].as<Allocate>()->body.as<Evaluate>()->value.same_as(x));
+    CHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
+    CHECK(arr[0].as<AllocateNode>()->body.as<Evaluate>()->value.same_as(x));
     CHECK(bref.as<Evaluate>()->value.as<AddNode>());
   }
   {
@@ -200,8 +200,8 @@ TEST(IRF, StmtMutator) {
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
     CHECK(arr.get() != arrptr);
-    CHECK(arr[0].as<Allocate>()->extents[1].same_as(x));
-    CHECK(!arr2[0].as<Allocate>()->extents[1].same_as(x));
+    CHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    CHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
@@ -226,7 +226,7 @@ TEST(IRF, StmtMutator) {
     auto body = fmakealloc();
     Stmt body2 = Evaluate::make(1);
     auto* ref2 = body2.get();
-    auto* extentptr = body.as<Allocate>()->extents.get();
+    auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
     body = SeqStmt({body, body2});
@@ -234,7 +234,7 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(body));
     // the seq get flattened
     CHECK(body.as<SeqStmtNode>()->size() == 3);
-    CHECK(body.as<SeqStmtNode>()->seq[0].as<Allocate>()->extents.get() == extentptr);
+    CHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
     CHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
@@ -242,14 +242,14 @@ TEST(IRF, StmtMutator) {
     // Cannot cow because of bref
     auto body = fmakealloc();
     Stmt body2 = Evaluate::make(1);
-    auto* extentptr = body.as<Allocate>()->extents.get();
+    auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});
     auto bref = body;
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    CHECK(body.as<SeqStmtNode>()->seq[0].as<Allocate>()->extents.get() != extentptr);
+    CHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
   }
 }
 

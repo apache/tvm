@@ -383,14 +383,14 @@ Stmt For::make(Var loop_var,
   return Stmt(node);
 }
 
-Stmt Store::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
+Stmt StoreNode::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   CHECK(value.defined());
   CHECK(index.defined());
   CHECK(predicate.defined());
   CHECK_EQ(value.dtype().lanes(), index.dtype().lanes());
   CHECK_EQ(value.dtype().lanes(), predicate.dtype().lanes());
 
-  ObjectPtr<Store> node = make_object<Store>();
+  ObjectPtr<StoreNode> node = make_object<StoreNode>();
   node->buffer_var = std::move(buffer_var);
   node->value = std::move(value);
   node->index = std::move(index);
@@ -398,7 +398,7 @@ Stmt Store::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   return Stmt(node);
 }
 
-Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> args) {
+Stmt ProvideNode::make(FunctionRef func, int value_index, Expr value, Array<Expr> args) {
   CHECK(value_index >=0 && value_index < func->num_outputs())
       << "value index output function return value bound";
   CHECK(value.defined()) << "Provide of undefined value\n";
@@ -407,7 +407,7 @@ Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> ar
     CHECK(args[i].defined()) << "Provide to undefined location\n";
   }
 
-  ObjectPtr<Provide> node = make_object<Provide>();
+  ObjectPtr<ProvideNode> node = make_object<ProvideNode>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->value = std::move(value);
@@ -415,7 +415,7 @@ Stmt Provide::make(FunctionRef func, int value_index, Expr value, Array<Expr> ar
   return Stmt(node);
 }
 
-Stmt Allocate::make(Var buffer_var,
+Stmt AllocateNode::make(Var buffer_var,
                     DataType dtype,
                     Array<Expr> extents,
                     Expr condition,
@@ -430,7 +430,7 @@ Stmt Allocate::make(Var buffer_var,
     CHECK(condition.defined());
     CHECK(condition.dtype().is_bool());
 
-    ObjectPtr<Allocate> node = make_object<Allocate>();
+    ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
     node->buffer_var = std::move(buffer_var);
     node->dtype = dtype;
     node->extents = std::move(extents);
@@ -441,7 +441,7 @@ Stmt Allocate::make(Var buffer_var,
     return Stmt(node);
 }
 
-int32_t Allocate::constant_allocation_size(const Array<Expr>& extents) {
+int32_t AllocateNode::constant_allocation_size(const Array<Expr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode *int_size = extents[i].as<IntImmNode>()) {
@@ -456,13 +456,13 @@ int32_t Allocate::constant_allocation_size(const Array<Expr>& extents) {
   return static_cast<int32_t>(result);
 }
 
-Stmt Free::make(Var buffer_var) {
-  ObjectPtr<Free> node = make_object<Free>();
+Stmt FreeNode::make(Var buffer_var) {
+  ObjectPtr<FreeNode> node = make_object<FreeNode>();
   node->buffer_var = buffer_var;
   return Stmt(node);
 }
 
-Stmt Realize::make(FunctionRef func,
+Stmt RealizeNode::make(FunctionRef func,
                    int value_index,
                    DataType dtype,
                    Region bounds,
@@ -478,7 +478,7 @@ Stmt Realize::make(FunctionRef func,
   CHECK(condition.defined());
   CHECK(condition.dtype().is_bool());
 
-  ObjectPtr<Realize> node = make_object<Realize>();
+  ObjectPtr<RealizeNode> node = make_object<RealizeNode>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->dtype = dtype;
@@ -902,8 +902,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Store>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Store*>(node.get());
+.set_dispatch<StoreNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const StoreNode*>(node.get());
     p->PrintIndent();
     p->stream << op->buffer_var << "[";
     p->Print(op->index);
@@ -917,8 +917,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Provide>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Provide*>(node.get());
+.set_dispatch<ProvideNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ProvideNode*>(node.get());
     p->PrintIndent();
     p->stream << op->func->func_name() << "(";
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -935,8 +935,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Allocate>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Allocate*>(node.get());
+.set_dispatch<AllocateNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const AllocateNode*>(node.get());
     p->PrintIndent();
     p->stream << "allocate " << op->buffer_var << "[" << op->dtype;
     for (size_t i = 0; i < op->extents.size(); ++i) {
@@ -953,16 +953,16 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Free>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Free*>(node.get());
+.set_dispatch<FreeNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const FreeNode*>(node.get());
     p->PrintIndent();
     p->stream << "free " << op->buffer_var;
     p->stream << '\n';
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Realize>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Realize*>(node.get());
+.set_dispatch<RealizeNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const RealizeNode*>(node.get());
     p->PrintIndent();
     p->stream << "realize " << op->func->func_name() << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
@@ -1187,11 +1187,11 @@ TVM_REGISTER_NODE_TYPE(LetStmtNode);
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
 TVM_REGISTER_NODE_TYPE(ProducerConsumer);
 TVM_REGISTER_NODE_TYPE(For);
-TVM_REGISTER_NODE_TYPE(Store);
-TVM_REGISTER_NODE_TYPE(Provide);
-TVM_REGISTER_NODE_TYPE(Allocate);
-TVM_REGISTER_NODE_TYPE(Free);
-TVM_REGISTER_NODE_TYPE(Realize);
+TVM_REGISTER_NODE_TYPE(StoreNode);
+TVM_REGISTER_NODE_TYPE(ProvideNode);
+TVM_REGISTER_NODE_TYPE(AllocateNode);
+TVM_REGISTER_NODE_TYPE(FreeNode);
+TVM_REGISTER_NODE_TYPE(RealizeNode);
 TVM_REGISTER_NODE_TYPE(SeqStmtNode);
 TVM_REGISTER_NODE_TYPE(IfThenElse);
 TVM_REGISTER_NODE_TYPE(Evaluate);

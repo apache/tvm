@@ -42,7 +42,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitExpr_(op);
   }
-  void VisitStmt_(const Store* op) final {
+  void VisitStmt_(const StoreNode* op) final {
     if (in_scope_) {
       touched_[op->buffer_var.get()].coproc = true;
     } else {

@@ -54,7 +54,7 @@ class BoundChecker : public StmtExprMutator {
       const std::unordered_map<const VarNode *, Expr> &mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     // If the shape was updated we should update the hashtable.
     if (UpdateIsNeeded(op->buffer_var)) {
       Update(op->buffer_var, op->extents, op->dtype);
@@ -69,7 +69,7 @@ class BoundChecker : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     store_scope_bound_collector_.clear();
     process_store_ = true;
     unsafe_rewritten_ = false;
@@ -84,7 +84,7 @@ class BoundChecker : public StmtExprMutator {
       if (!condition.as<StringImmNode>()) {
         Stmt nop = Evaluate::make(1);
         Stmt then_case =
-            Store::make(op->buffer_var, op->value, op->index, op->predicate);
+            StoreNode::make(op->buffer_var, op->value, op->index, op->predicate);
         Stmt else_case =
             AssertStmtNode::make(condition, StringImmNode::make(error_message_), nop);
         Stmt body = IfThenElse::make(condition, then_case, else_case);

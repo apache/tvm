@@ -57,7 +57,7 @@ class IRVerifySSA final : public StmtExprVisitor {
     MarkDef(op->loop_var.get());
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     MarkDef(op->buffer_var.get());
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -108,11 +108,11 @@ class IRConvertSSA final : public StmtExprMutator {
       return expr;
     }
   }
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return Store::make(
+      return StoreNode::make(
           scope_[op->buffer_var.get()].back(), op->value,
           op->index, op->predicate);
     } else {
@@ -148,15 +148,15 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     const VarExpr& v = op->buffer_var;
     if (defined_.count(v.get())) {
       VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
-      op = stmt.as<Allocate>();
-      return Allocate::make(
+      op = stmt.as<AllocateNode>();
+      return AllocateNode::make(
           new_var, op->dtype, op->extents, op->condition,
           op->body, op->new_expr, op->free_function);
     } else {
@@ -167,11 +167,11 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (const VarNode* v = op->node.as<VarNode>()) {
       if (op->attr_key == attr::storage_scope) {
-        const Allocate* alloc = op->body.as<Allocate>();
+        const AllocateNode* alloc = op->body.as<AllocateNode>();
         if (alloc && op->node.same_as(alloc->buffer_var)) {
           Stmt new_alloc = this->VisitStmt(op->body);
           if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
-          alloc = new_alloc.as<Allocate>();
+          alloc = new_alloc.as<AllocateNode>();
           CHECK(alloc);
           return AttrStmtNode::make(
               alloc->buffer_var, op->attr_key, op->value, new_alloc);

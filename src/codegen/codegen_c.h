@@ -133,10 +133,10 @@ class CodeGenC :
   void VisitExpr_(const StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
   // statment
   void VisitStmt_(const LetStmtNode* op) override;
-  void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const For* op) override;
   void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const Evaluate* op) override;

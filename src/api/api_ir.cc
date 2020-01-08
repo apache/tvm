@@ -95,14 +95,14 @@ TVM_REGISTER_GLOBAL("make.Store")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     Expr value = args[1];
     if (args.size() == 3) {
-      *ret = Store::make(args[0], value, args[2], const_true(value.dtype().lanes()));
+      *ret = StoreNode::make(args[0], value, args[2], const_true(value.dtype().lanes()));
     } else {
-      *ret = Store::make(args[0], value, args[2], args[3]);
+      *ret = StoreNode::make(args[0], value, args[2], args[3]);
     }
   });
 
 TVM_REGISTER_GLOBAL("make.Realize")
-.set_body_typed(Realize::make);
+.set_body_typed(RealizeNode::make);
 
 TVM_REGISTER_GLOBAL("make.Call")
 .set_body_typed([](
@@ -162,9 +162,9 @@ REGISTER_MAKE(LetNode);
 REGISTER_MAKE(LetStmtNode);
 REGISTER_MAKE(AssertStmtNode);
 REGISTER_MAKE(ProducerConsumer);
-REGISTER_MAKE(Provide);
+REGISTER_MAKE(ProvideNode);
 REGISTER_MAKE(Prefetch);
-REGISTER_MAKE(Free);
+REGISTER_MAKE(FreeNode);
 REGISTER_MAKE(IfThenElse);
 REGISTER_MAKE(Evaluate);
 
@@ -174,7 +174,7 @@ TVM_REGISTER_GLOBAL("make.Allocate")
   .set_body_typed([](
     VarExpr buffer_var, DataType type, Array<Expr> extents, Expr condition, Stmt body
   ){
-    return Allocate::make(buffer_var, type, extents, condition, body);
+    return AllocateNode::make(buffer_var, type, extents, condition, body);
   });
 
 // operator overloading, smarter than make

@@ -63,15 +63,15 @@ class StorageFlattener : public StmtExprMutator {
     cache_line_size_ = cache_line_size;
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
       VarExpr buf_var = Downcast<VarExpr>(it->second);
-      return Store::make(buf_var, op->value, op->index, op->predicate);
+      return StoreNode::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
     }
@@ -122,11 +122,11 @@ class StorageFlattener : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Provide* op) final {
+  Stmt VisitStmt_(const ProvideNode* op) final {
     if (create_bound_attributes_)
       shape_collector_.clear();
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Provide>();
+    op = stmt.as<ProvideNode>();
     TensorKey key{op->func, op->value_index};
     auto it = buf_map_.find(key);
     CHECK(it != buf_map_.end())
@@ -158,7 +158,7 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Realize* op) final {
+  Stmt VisitStmt_(const RealizeNode* op) final {
     TensorKey key{op->func, op->value_index};
     if (buf_map_.count(key)) {
       CHECK(buf_map_.at(key).external);
@@ -188,7 +188,7 @@ class StorageFlattener : public StmtExprMutator {
       }
 
       // use small alignment for small arrays
-      int32_t const_size = Allocate::constant_allocation_size(shape);
+      int32_t const_size = AllocateNode::constant_allocation_size(shape);
       int align = GetTempAllocaAlignment(op->dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());
@@ -237,7 +237,7 @@ class StorageFlattener : public StmtExprMutator {
       }
       if (strides.size() != 0) {
         int first_dim = 0;
-        ret = Allocate::make(
+        ret = AllocateNode::make(
             e.buffer->data, storage_type,
             {e.buffer->strides[first_dim] * e.buffer->shape[first_dim]},
             make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
@@ -246,7 +246,7 @@ class StorageFlattener : public StmtExprMutator {
         if (shape.size() == 0) {
           shape.push_back(make_const(DataType::Int(32), 1));
         }
-        ret = Allocate::make(
+        ret = AllocateNode::make(
             e.buffer->data, storage_type, shape,
             make_const(DataType::Bool(e.buffer->dtype.lanes()), true), body);
       }

@@ -101,7 +101,7 @@ void FeatureVisitor::VisitExpr_(const LoadNode* op) {
   ExitMem_();
 }
 
-void FeatureVisitor::VisitStmt_(const Store* op) {
+void FeatureVisitor::VisitStmt_(const StoreNode* op) {
   EnterMem_(op->buffer_var, op->index);
   StmtExprVisitor::VisitStmt_(op);
   ExitMem_();

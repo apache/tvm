@@ -78,9 +78,9 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   // eliminate useless stores
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           Equal(load->index, op->index)) {

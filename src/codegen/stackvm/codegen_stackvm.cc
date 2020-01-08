@@ -112,7 +112,7 @@ void CodeGenStackVM::VisitExpr_(const LoadNode* op) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const Store* op) {
+void CodeGenStackVM::VisitStmt_(const StoreNode* op) {
   this->Push(op->buffer_var);
   StackVM::OpCode code = StackVM::GetStore(op->value.dtype());
   if (const IntImmNode* index = op->index.as<IntImmNode>()) {
@@ -128,7 +128,7 @@ void CodeGenStackVM::VisitStmt_(const Store* op) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const Allocate* op) {
+void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   int vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {

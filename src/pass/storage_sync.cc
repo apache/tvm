@@ -229,7 +229,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     return StmtExprMutator::VisitExpr_(op);
   }
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].write_count;

@@ -102,7 +102,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     Record(op->var.get(), tc);
     this->VisitStmt(op->body);
   }
-  void VisitStmt_(const Store* op) final {
+  void VisitStmt_(const StoreNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     tc(op->index);
@@ -123,7 +123,7 @@ class VarTouchedAnalysis : public StmtVisitor {
       Record(var, tc);
     }
   }
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     ExprTouched tc(touched_var_, false);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       tc(op->extents[i]);
@@ -261,16 +261,16 @@ class VTInjector : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
   // Store
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     if (touched_var_.count(op->buffer_var.get())) {
       visit_touched_var_ = true;
     }
     trigger_base_inject_ = !allow_share_;
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      return Store::make(op->buffer_var,
+      return StoreNode::make(op->buffer_var,
                          op->value,
                          RewriteIndex(op->index, it->second),
                          op->predicate);
@@ -370,7 +370,7 @@ class VTInjector : public StmtExprMutator {
     return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
   // Allocate
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     if (op->new_expr.defined() && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
@@ -417,7 +417,7 @@ class VTInjector : public StmtExprMutator {
         condition.same_as(op->condition)) {
       return GetRef<Stmt>(op);
     } else {
-      return Allocate::make(
+      return AllocateNode::make(
           op->buffer_var, op->dtype,
           extents, condition, body,
           op->new_expr, op->free_function);
@@ -496,7 +496,7 @@ class VirtualThreadInjector : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const Provide* op) final {
+  Stmt VisitStmt_(const ProvideNode* op) final {
     LOG(FATAL) << "Need to call StorageFlatten first";
     return GetRef<Stmt>(op);
   }

@@ -110,7 +110,7 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     ++step_count_;
     return StmtExprMutator::VisitStmt_(op);
   }

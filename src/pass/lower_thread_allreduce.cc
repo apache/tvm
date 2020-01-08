@@ -73,16 +73,16 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     auto it = alloc_remap_.find(op->buffer_var.get());
     if (it != alloc_remap_.end()) {
-      const Allocate* repl = it->second.as<Allocate>();
+      const AllocateNode* repl = it->second.as<AllocateNode>();
       // use volatile access to shared buffer.
       stmt = AttrStmtNode::make(
           repl->buffer_var, attr::volatile_scope, 1, op->body);
-      stmt = Allocate::make(
+      stmt = AllocateNode::make(
           repl->buffer_var, repl->dtype,
           repl->extents, repl->condition, stmt);
       stmt = AttrStmtNode::make(
@@ -183,7 +183,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t i = 0; i < size; ++i) {
         Expr pred = const_true(types[i].lanes());
         Var buffer_var = Downcast<Var>(call->args[2+size+i]);
-        stores[i] = Store::make(buffer_var, values[i], 0, pred);
+        stores[i] = StoreNode::make(buffer_var, values[i], 0, pred);
       }
       return SeqStmt::Flatten(stores);
     }
@@ -199,7 +199,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     for (size_t idx = 0; idx < size; ++idx) {
       shared_bufs[idx] = Var("red_buf"+std::to_string(idx), DataType::Handle());
       Expr pred = const_true(types[idx].lanes());
-      seq.emplace_back(Store::make(
+      seq.emplace_back(StoreNode::make(
           shared_bufs[idx], values[idx],
           BufIndex(reduce_index, group_index, reduce_extent), pred));
     }
@@ -213,7 +213,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       load_remap_[buffers[idx]] = LoadNode::make(
         types[idx], shared_bufs[idx],
         BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent), pred);
-      alloc_remap_[buffers[idx]] = Allocate::make(
+      alloc_remap_[buffers[idx]] = AllocateNode::make(
         shared_bufs[idx], types[idx],
         {Expr(group_extent), Expr(reduce_extent)},
         pred, Evaluate::make(0));
@@ -250,7 +250,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Array<Expr> ret = (*combiner)(a, b);
       std::vector<Stmt> stores(size);
       for (size_t i = 0; i < size; ++i) {
-        stores[i] = Store::make(shared_bufs[i], ret[i], buf_index, const_true());
+        stores[i] = StoreNode::make(shared_bufs[i], ret[i], buf_index, const_true());
       }
       return SeqStmt::Flatten(stores);
     };

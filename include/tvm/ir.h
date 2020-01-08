@@ -850,9 +850,9 @@ class ProducerConsumer : public StmtNode {
  *  buffer[index.v2] = value.v2;
  *
  * \endcode
- * \sa Load
+ * \sa LoadNode
  */
-class Store : public StmtNode {
+class StoreNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
   Var buffer_var;
@@ -876,13 +876,13 @@ class Store : public StmtNode {
                            Expr predicate);
 
   static constexpr const char* _type_key = "Store";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Store, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
 };
 
 /*!
  * \brief Store value into mult-dimensional array defined by func.
  */
-class Provide : public StmtNode {
+class ProvideNode : public StmtNode {
  public:
   /*! \brief The function to be updated. */
   FunctionRef func;
@@ -906,13 +906,13 @@ class Provide : public StmtNode {
                            Array<Expr> args);
 
   static constexpr const char* _type_key = "Provide";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Provide, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProvideNode, StmtNode);
 };
 
 /*!
  * \brief Allocate a buffer that can be used in body.
  */
-class Allocate : public StmtNode {
+class AllocateNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
   Var buffer_var;
@@ -963,11 +963,11 @@ class Allocate : public StmtNode {
       const Array<Expr>& extents);
 
   static constexpr const char* _type_key = "Allocate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Allocate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
 /*! \brief Free the resources in the buffer before the scope ends. */
-class Free : public StmtNode {
+class FreeNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
   Var buffer_var;
@@ -979,14 +979,14 @@ class Free : public StmtNode {
   TVM_DLL static Stmt make(Var buffer_var);
 
   static constexpr const char* _type_key = "Free";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Free, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FreeNode, StmtNode);
 };
 
 /*!
  * \brief Annotate the bounds where func need to be written and read in body.
  *  We will need to allocate space for the corresponding regions.
  */
-class Realize : public StmtNode {
+class RealizeNode : public StmtNode {
  public:
   /*! \brief The function to be realized. */
   FunctionRef func;
@@ -1018,7 +1018,7 @@ class Realize : public StmtNode {
                            Stmt body);
 
   static constexpr const char* _type_key = "Realize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Realize, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RealizeNode, StmtNode);
 };
 
 /*!

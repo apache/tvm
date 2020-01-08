@@ -43,7 +43,7 @@ class CodeGenOpenGL final : public CodeGenC {
 
   void InitFuncState(LoweredFunc f) final;
   void BindThreadIndex(const IterVar& iv) final;
-  void VisitStmt_(const Store* op) final;
+  void VisitStmt_(const StoreNode* op) final;
   std::string TexelFetch(const VarNode* buffer, Expr index);
   std::string GetBufferRef(DataType t, const VarNode* buffer, Expr index) final;
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)

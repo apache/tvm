@@ -112,8 +112,8 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const Allocate* op, const Stmt& other) final {
-    const Allocate* rhs = other.as<Allocate>();
+  void VisitStmt_(const AllocateNode* op, const Stmt& other) final {
+    const AllocateNode* rhs = other.as<AllocateNode>();
     if (tie_def_) {
       vmap_[op->buffer_var.get()] = rhs->buffer_var.get();
     } else {
@@ -127,16 +127,16 @@ class IRDeepCompare :
     if (CompareString(op->free_function, rhs->free_function) != 0) return;
   }
 
-  void VisitStmt_(const Store* op, const Stmt& other) final {
-    const Store* rhs = other.as<Store>();
+  void VisitStmt_(const StoreNode* op, const Stmt& other) final {
+    const StoreNode* rhs = other.as<StoreNode>();
     if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
     if (CompareExpr(op->value, rhs->value) != 0) return;
     if (CompareExpr(op->index, rhs->index) != 0) return;
     if (CompareExpr(op->predicate, rhs->predicate) != 0) return;
   }
 
-  void VisitStmt_(const Free* op, const Stmt& other) final {
-    const Free* rhs = other.as<Free>();
+  void VisitStmt_(const FreeNode* op, const Stmt& other) final {
+    const FreeNode* rhs = other.as<FreeNode>();
     if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
   }
 
@@ -154,16 +154,16 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const Provide* op, const Stmt& other) final {
-    const Provide* rhs = other.as<Provide>();
+  void VisitStmt_(const ProvideNode* op, const Stmt& other) final {
+    const ProvideNode* rhs = other.as<ProvideNode>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
     if (CompareExpr(op->value, rhs->value) != 0) return;
     if (CompareArray(op->args, rhs->args) != 0) return;
   }
 
-  void VisitStmt_(const Realize* op, const Stmt& other) final {
-    const Realize* rhs = other.as<Realize>();
+  void VisitStmt_(const RealizeNode* op, const Stmt& other) final {
+    const RealizeNode* rhs = other.as<RealizeNode>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
     if (CompareType(op->dtype, rhs->dtype) != 0) return;

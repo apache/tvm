@@ -90,7 +90,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const Provide* op) final {
+  void VisitStmt_(const ProvideNode* op) final {
     if (consider_provides_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);

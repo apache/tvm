@@ -71,14 +71,14 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return e;
   }
 
-  inline Stmt VisitStmt_(const Allocate* allocate) final {
+  inline Stmt VisitStmt_(const AllocateNode* allocate) final {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
     Stmt stmt = StmtExprMutator::VisitStmt_(allocate);
-    allocate = stmt.as<Allocate>();
+    allocate = stmt.as<AllocateNode>();
 
     if (toBeLowered) {
       auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
-      return Allocate::make(allocate->buffer_var, new_allocate_type, allocate->extents,
+      return AllocateNode::make(allocate->buffer_var, new_allocate_type, allocate->extents,
                             allocate->condition, allocate->body, allocate->new_expr,
                             allocate->free_function);
     }

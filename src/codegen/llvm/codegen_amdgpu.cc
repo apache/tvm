@@ -70,7 +70,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     CHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
     if (op->new_expr.defined()) {

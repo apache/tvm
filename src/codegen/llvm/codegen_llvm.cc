@@ -1043,7 +1043,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BroadcastNode* op) {
   return CreateBroadcast(MakeValue(op->value), op->lanes);
 }
 
-void CodeGenLLVM::VisitStmt_(const Store* op) {
+void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
   CHECK(is_one(op->predicate));
   DataType t = op->value.dtype();
   bool is_volatile = volatile_buf_.count(op->buffer_var.get());
@@ -1130,7 +1130,7 @@ void CodeGenLLVM::VisitStmt_(const IfThenElse* op) {
 }
 
 
-void CodeGenLLVM::VisitStmt_(const Allocate* op) {
+void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
   if (op->new_expr.defined()) {
@@ -1197,7 +1197,7 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-void CodeGenLLVM::VisitStmt_(const AssertStmt* op) {
+void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
   With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
   this->VisitStmt(op->body);
 }

@@ -91,7 +91,7 @@ class WarpStoreCoeffFinder : private StmtVisitor {
 
  private:
   /// Visitor implementation
-  void VisitStmt_(const Store *op) final {
+  void VisitStmt_(const StoreNode *op) final {
     if (op->buffer_var.get() == buffer_) {
       if (op->value.dtype().lanes() == 1) {
         UpdatePattern(op->index);
@@ -190,7 +190,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the allocate statement which transforms
   // warp memory to local memory.
-  Stmt Rewrite(const Allocate* op) {
+  Stmt Rewrite(const AllocateNode* op) {
     buffer_ = op->buffer_var.get();
     int alloc_size = op->constant_allocation_size();
     CHECK_GT(alloc_size, 0)
@@ -202,7 +202,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     CHECK_EQ(alloc_size % (warp_size_ * warp_coeff_), 0)
         << "Warp memory must be multiple of warp size";
     warp_group_ = alloc_size / (warp_size_ * warp_coeff_);
-    return Allocate::make(
+    return AllocateNode::make(
         op->buffer_var,
         op->dtype,
         {make_const(DataType::Int(32), alloc_size / warp_size_)},
@@ -217,11 +217,11 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const Store* op) {
+  Stmt VisitStmt_(const StoreNode* op) {
     if (op->buffer_var.get() == buffer_) {
       Expr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
-      return Store::make(op->buffer_var, op->value, local_index, op->predicate);
+      return StoreNode::make(op->buffer_var, op->value, local_index, op->predicate);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -345,7 +345,7 @@ class WarpMemoryRewriter : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const Allocate* op) {
+  Stmt VisitStmt_(const AllocateNode* op) {
     if (warp_buffer_.count(op->buffer_var.get())) {
       WarpAccessRewriter rewriter(warp_size_, &analyzer_);
       return rewriter.Rewrite(op);

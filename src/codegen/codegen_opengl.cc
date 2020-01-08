@@ -188,7 +188,7 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   this->stream << "}\n";
 }
 
-void CodeGenOpenGL::VisitStmt_(const Store* op) {
+void CodeGenOpenGL::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Store statement not supported in OpenGL."
              << " Texture store should be a Call statement.";
 }

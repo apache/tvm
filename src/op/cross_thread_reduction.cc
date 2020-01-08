@@ -96,7 +96,7 @@ Stmt MakeCrossThreadReduction(
   std::vector<Stmt> assigns(size);
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
-    assigns[idx] = Provide::make(
+    assigns[idx] = ProvideNode::make(
       stage->op, idx,
       LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
@@ -105,7 +105,7 @@ Stmt MakeCrossThreadReduction(
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
-    body = Allocate::make(
+    body = AllocateNode::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
     body = AttrStmtNode::make(
       res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);

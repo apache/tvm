@@ -382,7 +382,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenCUDA::VisitStmt_(const Allocate* op) {
+void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {

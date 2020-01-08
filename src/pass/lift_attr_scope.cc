@@ -47,16 +47,16 @@ class AttrScopeLifter : public StmtMutator {
   }
 
   // do not go beyond
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     if (attr_node_.defined()) {
       Stmt body = AttrStmtNode::make(
           attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
       attr_node_ = ObjectRef();
       attr_value_ = Expr();
-      return Allocate::make(
+      return AllocateNode::make(
         op->buffer_var, op->dtype,
         op->extents, op->condition, body,
         op->new_expr, op->free_function);

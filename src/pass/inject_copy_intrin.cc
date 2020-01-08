@@ -65,7 +65,7 @@ class CopyIntrinInjector : public StmtMutator {
       loops.push_back(op);
       body = op->body;
     }
-    const Store* store = body.as<Store>();
+    const StoreNode* store = body.as<StoreNode>();
     if (store == nullptr) return false;
     // Expr sel_cond, sel_true_value, sel_false_value;
     // match select or if

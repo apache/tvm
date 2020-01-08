@@ -91,10 +91,10 @@ class CodeGenSPIRV:
   spirv::Value VisitExpr_(const BroadcastNode* op) override;
   spirv::Value VisitExpr_(const LoadNode* op) override;
   // stmt
-  void VisitStmt_(const Store* op) override;
+  void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const For* op) override;
   void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const Allocate* op) override;
+  void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;

@@ -49,7 +49,7 @@ void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void StorageAccessVisitor::VisitStmt_(const Store* op) {
+void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -238,10 +238,10 @@ StorageScope StorageAccessVisitor::GetScope(const VarNode* buf) const {
 
 class StorageAccessInfoLower : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     // For special memory, remove allocate, or use head expr
     auto it = storage_info_.find(op->buffer_var.get());
     if (it != storage_info_.end() && it->second.info.defined()) {
@@ -250,7 +250,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
       CHECK_LE(it->second.alloc_count, 1)
           << "Double allocation of " << it->second.scope.to_string();
       if (info->head_address.defined()) {
-        return Allocate::make(
+        return AllocateNode::make(
             op->buffer_var, op->dtype, op->extents, op->condition,
             op->body, info->head_address, "nop");
       }

@@ -271,7 +271,7 @@ Stmt ScanOpNode::BuildRealize(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = ir::Realize::make(t->op, t->value_index, t->dtype,
+    ret = ir::RealizeNode::make(t->op, t->value_index, t->dtype,
                             bounds, const_true(), ret);
   }
   return ret;

@@ -174,7 +174,7 @@ class InferFragmenter : public StmtMutator {
  public:
   explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     const VarNode* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {

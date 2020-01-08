@@ -95,13 +95,13 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       it->second.stride = arith::ComputeReduce<MulNode>(
           op->extents, Expr()) * op->dtype.lanes();
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<Allocate>();
+      op = stmt.as<AllocateNode>();
       Array<Expr> new_extents{make_const(op->extents[0].dtype(), 2)};
       for (Expr e : op->extents) {
         new_extents.push_back(e);
@@ -112,7 +112,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           op->buffer_var, attr::storage_scope,
           StringImmNode::make(it->second.scope),
           Evaluate::make(0)));
-      alloc_nest.emplace_back(Allocate::make(
+      alloc_nest.emplace_back(AllocateNode::make(
           op->buffer_var, op->dtype, new_extents, op->condition,
           Evaluate::make(0)));
       return op->body;
@@ -170,15 +170,15 @@ class DoubleBufferInjector : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     auto it = dbuffer_info_.find(op->buffer_var.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       CHECK(in_double_buffer_scope_);
       CHECK(e.stride.defined());
-      return Store::make(op->buffer_var,
+      return StoreNode::make(op->buffer_var,
                          op->value,
                          e.switch_write_var * e.stride + op->index,
                          op->predicate);

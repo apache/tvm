@@ -71,11 +71,11 @@ class VecAllocAccess : public StmtExprMutator {
     }
   }
   // Store
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     if (op->buffer_var.get() == buf_) {
-      return Store::make(op->buffer_var,
+      return StoreNode::make(op->buffer_var,
                          op->value,
                          op->index * var_lanes_ + var_,
                          op->predicate);
@@ -328,7 +328,7 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // Provide
-  Stmt VisitStmt_(const Provide* op) final {
+  Stmt VisitStmt_(const ProvideNode* op) final {
     Expr new_value = this->VisitExpr(op->value);
     int lane = new_value.dtype().lanes();
     Array<Expr> new_args = MutateArray(op->args, &lane);
@@ -336,11 +336,11 @@ class Vectorizer : public StmtExprMutator {
       return GetRef<Stmt>(op);
     } else {
       new_value = BroadcastTo(new_value, lane);
-      return Provide::make(op->func, op->value_index, new_value, new_args);
+      return ProvideNode::make(op->func, op->value_index, new_value, new_args);
     }
   }
   // Store
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Expr value = this->VisitExpr(op->value);
     Expr index = this->VisitExpr(op->index);
     Expr pred = this->VisitExpr(op->predicate);
@@ -349,7 +349,7 @@ class Vectorizer : public StmtExprMutator {
     } else {
       int lanes = std::max(value.dtype().lanes(), index.dtype().lanes());
       lanes = std::max(lanes, pred.dtype().lanes());
-      return Store::make(op->buffer_var,
+      return StoreNode::make(op->buffer_var,
                          BroadcastTo(value, lanes),
                          BroadcastTo(index, lanes),
                          BroadcastTo(pred, lanes));
@@ -402,7 +402,7 @@ class Vectorizer : public StmtExprMutator {
     return Scalarize(GetRef<Stmt>(op));
   }
   // Allocate
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     if (op->new_expr.defined()) {
       LOG(WARNING) << "Cannot vectorize with new expr";
       return Scalarize(GetRef<Stmt>(op));
@@ -427,7 +427,7 @@ class Vectorizer : public StmtExprMutator {
     Stmt body = VecAllocAccess(
         op->buffer_var.get(), var_, var_lanes_)(op->body);
     body = this->VisitStmt(body);
-    return Allocate::make(
+    return AllocateNode::make(
         op->buffer_var, op->dtype,
         extents, condition, body,
         op->new_expr, op->free_function);

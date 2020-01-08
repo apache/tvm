@@ -255,7 +255,7 @@ void CodeGenHybrid::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLIN
   LOG(FATAL) << "Phase 0 has no Load(s)!";
 }
 
-void CodeGenHybrid::VisitStmt_(const Store* op) {
+void CodeGenHybrid::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Phase 0 has no Store(s)!";
 }
 
@@ -263,7 +263,7 @@ void CodeGenHybrid::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
   LOG(FATAL) << "Phase 0 has no Let(s)!";
 }
 
-void CodeGenHybrid::VisitStmt_(const Allocate* op) {
+void CodeGenHybrid::VisitStmt_(const AllocateNode* op) {
   LOG(FATAL) << "Phase 0 has no Allocate(s)!";
 }
 
@@ -313,7 +313,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const Realize* op) {
+void CodeGenHybrid::VisitStmt_(const RealizeNode* op) {
   CHECK(alloc_storage_scope_.count(op->func));
   if (!alloc_storage_scope_[op->func].empty()) {
     PrintIndent();
@@ -341,7 +341,7 @@ void CodeGenHybrid::VisitStmt_(const AssertStmtNode* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenHybrid::VisitStmt_(const Provide* op) {
+void CodeGenHybrid::VisitStmt_(const ProvideNode* op) {
   PrintIndent();
   stream << GetTensorID(op->func, op->value_index);
   stream << "[";

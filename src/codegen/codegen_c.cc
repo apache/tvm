@@ -663,7 +663,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   }
 }
 
-void CodeGenC::VisitStmt_(const Store* op) {
+void CodeGenC::VisitStmt_(const StoreNode* op) {
   DataType t = op->value.dtype();
   if (t.lanes() == 1) {
     std::string value = this->PrintExpr(op->value);
@@ -776,7 +776,7 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const Allocate* op) {
+void CodeGenC::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {

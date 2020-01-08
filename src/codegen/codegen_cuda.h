@@ -62,7 +62,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
   void VisitExpr_(const CallNode *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
-  void VisitStmt_(const Allocate *op) final;
+  void VisitStmt_(const AllocateNode *op) final;
   void VisitStmt_(const AttrStmtNode *op) final;
 
  private:

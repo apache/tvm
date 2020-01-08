@@ -147,7 +147,7 @@ Stmt ExternOpNode::BuildRealize(
           Range::make_by_min_extent(
               make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = ir::Realize::make(
+    realize_body = ir::RealizeNode::make(
         t->op, t->value_index, t->dtype,
         bounds, const_true(), realize_body);
   }

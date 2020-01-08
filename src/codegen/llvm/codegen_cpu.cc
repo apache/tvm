@@ -846,7 +846,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
+void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;

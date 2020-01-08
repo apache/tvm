@@ -74,10 +74,10 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // scope level
     size_t level{0};
     // allocation stmt
-    const Allocate* alloc{nullptr};
+    const AllocateNode* alloc{nullptr};
   };
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer_var.get();
     auto it = alloc_info_.find(buf);
@@ -87,7 +87,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     it->second.level = level;
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitStmt_(const Store* op) final {
+  void VisitStmt_(const StoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
@@ -247,8 +247,8 @@ class InplaceOpVerifier : public StmtExprVisitor {
       VisitStmt_(static_cast<const For*>(stmt));
     } else if (stmt->IsInstance<IfThenElse>()) {
       VisitStmt_(static_cast<const IfThenElse*>(stmt));
-    } else if (stmt->IsInstance<Store>()) {
-      VisitStmt_(static_cast<const Store*>(stmt));
+    } else if (stmt->IsInstance<StoreNode>()) {
+      VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else {
       return false;
     }
@@ -273,7 +273,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const Store* op) final {
+  void VisitStmt_(const StoreNode* op) final {
     ++mem_nest_;
     this->VisitExpr(op->index);
     --mem_nest_;
@@ -331,7 +331,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   // it is not safe to inplace when there is nested load like A[B[i]]
   int mem_nest_{0};
   // The current store to be inspected
-  const Store* store_{nullptr};
+  const StoreNode* store_{nullptr};
 };
 
 // Planner to plan and rewrite memory allocation.
@@ -366,12 +366,12 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     return stmt;
   }
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Store>();
+    op = stmt.as<StoreNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return stmt;
-    return Store::make(it->second->alloc_var,
+    return StoreNode::make(it->second->alloc_var,
                        op->value,
                        RemapIndex(op->value.dtype(), op->index, it->second),
                        op->predicate);
@@ -467,7 +467,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     return this->VisitStmt(op->body);
   }
 
@@ -482,7 +482,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The storage scope.
     StorageScope scope;
     // Allocs that shares this entry.
-    std::vector<const Allocate*> allocs;
+    std::vector<const AllocateNode*> allocs;
     // The children of this entry, not including itself.
     std::vector<StorageEntry*> merged_children;
     // The replacement allocation, if any.
@@ -570,7 +570,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         // Get the allocation size;
         e->alloc_var = e->allocs[0]->buffer_var;
         DataType alloc_type = e->allocs[0]->dtype;
-        for (const Allocate* op : e->allocs) {
+        for (const AllocateNode* op : e->allocs) {
           if (op->dtype.lanes() > alloc_type.lanes()) {
             alloc_type = op->dtype;
           }
@@ -579,7 +579,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // simply use the original allocation.
           Expr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
                                               make_const(DataType::Int(32), 1));
-          e->new_alloc = Allocate::make(
+          e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {sz},
               e->allocs[0]->condition, Evaluate::make(0));
           if (e->scope.tag.length() != 0) {
@@ -591,7 +591,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         } else {
           // Build a merged allocation
           Expr combo_size;
-          for (const Allocate* op : e->allocs) {
+          for (const AllocateNode* op : e->allocs) {
             Expr sz = arith::ComputeReduce<MulNode>(op->extents, make_const(DataType::Int(32), 1));
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
@@ -621,7 +621,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
           combo_size = ir::Simplify(combo_size);
-          e->new_alloc = Allocate::make(
+          e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
               Evaluate::make(0));
           if (e->scope.tag.length() != 0) {
@@ -665,7 +665,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     Expr alloc_size = make_const(e->allocs[0]->extents[0].dtype(),
                                  (total_bits + type_bits - 1) / type_bits);
-    e->new_alloc = Allocate::make(
+    e->new_alloc = AllocateNode::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
         Evaluate::make(0));
     if (info.defined()) {
@@ -812,7 +812,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // Allocate new storage entry.
-  StorageEntry* NewAlloc(const Allocate* op,
+  StorageEntry* NewAlloc(const AllocateNode* op,
                          const Object* attach_scope,
                          const StorageScope& scope,
                          size_t const_nbits) {
@@ -828,7 +828,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     return e;
   }
 
-  StorageEntry* FindAlloc(const Allocate* op,
+  StorageEntry* FindAlloc(const AllocateNode* op,
                           const Object* attach_scope,
                           const StorageScope& scope) {
     CHECK(op != nullptr);
@@ -941,7 +941,7 @@ class VectorAllocRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     UpdateTypeMap(op->buffer_var.get(), op->value.dtype());
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -954,9 +954,9 @@ class VectorAllocRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     const auto& tvec = acc_map_[op->buffer_var.get()];
 
     if (tvec.size() == 1 &&
@@ -969,7 +969,7 @@ class VectorAllocRewriter : public StmtExprMutator {
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
                     extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-        return Allocate::make(
+        return AllocateNode::make(
             op->buffer_var, tvec[0], extents,
             op->condition, op->body);
       }

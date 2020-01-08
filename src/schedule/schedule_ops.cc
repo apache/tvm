@@ -247,12 +247,12 @@ class SchedulePostProc : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Realize* op) final {
+  Stmt VisitStmt_(const RealizeNode* op) final {
     TensorKey key{op->func, op->value_index};
     auto it = replace_realize_.find(key);
     if (it != replace_realize_.end()) {
       if (it->second.defined()) {
-        Stmt ret = Realize::make(
+        Stmt ret = RealizeNode::make(
             it->second->op, it->second->value_index,
             op->dtype, op->bounds, op->condition, op->body);
         return this->VisitStmt(ret);
@@ -264,12 +264,12 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Provide* op) final {
+  Stmt VisitStmt_(const ProvideNode* op) final {
     TensorKey key{op->func, op->value_index};
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second;
-      Stmt ret = Provide::make(
+      Stmt ret = ProvideNode::make(
           dst->op, dst->value_index, op->value, op->args);
       return this->VisitStmt(ret);
     } else {

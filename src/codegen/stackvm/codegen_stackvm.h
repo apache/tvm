@@ -141,10 +141,10 @@ class CodeGenStackVM
   void VisitExpr_(const StringImmNode* op) final;
   // statment
   void VisitStmt_(const LetStmtNode* op) final;
-  void VisitStmt_(const Store* op) final;
+  void VisitStmt_(const StoreNode* op) final;
   void VisitStmt_(const For* op) final;
   void VisitStmt_(const IfThenElse* op) final;
-  void VisitStmt_(const Allocate* op) final;
+  void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const Evaluate* op) final;

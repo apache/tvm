@@ -82,10 +82,10 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Allocate* op) {
+  Stmt VisitStmt_(const AllocateNode* op) {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     if (op->new_expr.defined()) return stmt;
     // Get constant allocation bound.
     int64_t dev_type;
@@ -180,7 +180,7 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
-          Store::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
+          StoreNode::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
                       ConstInt32(stack_begin +i), const_true(1)));
     }
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
@@ -258,7 +258,7 @@ class BuiltinLower : public StmtExprMutator {
       }
       if (IsArrayHandle(arg)) arg_tcode = kArrayHandle;
       prep_seq_.emplace_back(
-          Store::make(stack_tcode_,
+          StoreNode::make(stack_tcode_,
                       ConstInt32(arg_tcode),
                       stack_index, const_true(1)));
     }
@@ -304,7 +304,7 @@ class BuiltinLower : public StmtExprMutator {
       int arg_tcode = api_type.code();
       CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
       prep_seq_.emplace_back(
-          Store::make(stack_tcode_,
+          StoreNode::make(stack_tcode_,
                       ConstInt32(arg_tcode),
                       stack_index, const_true(1)));
     }

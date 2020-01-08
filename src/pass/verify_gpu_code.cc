@@ -79,7 +79,7 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {

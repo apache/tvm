@@ -320,12 +320,12 @@ Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return ir::Store::make(n->data,
+    return ir::StoreNode::make(n->data,
                            ir::CastNode::make(DataType::Int(8), value),
                            BufferOffset(n, begin, DataType::Int(8)),
                            const_true());
   } else {
-    return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
+    return ir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
                            const_true(dtype.lanes()));
   }
 }

@@ -434,7 +434,7 @@ void CodeGenSPIRV::Scalarize(const Expr& e,
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const Store* op) {
+void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
   CHECK(is_one(op->predicate));
   auto it = storage_info_.find(op->buffer_var.get());
   CHECK(it != storage_info_.end());
@@ -573,7 +573,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElse* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
+void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   CHECK(!op->new_expr.defined());
   CHECK(!op->dtype.is_handle());

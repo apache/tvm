@@ -282,7 +282,7 @@ Stmt BaseComputeOpNode::BuildRealize(
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i-1);
-    realize = ir::Realize::make(t->op, t->value_index,
+    realize = ir::RealizeNode::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
@@ -332,9 +332,9 @@ void MakeReduction(const ComputeOpNode* op,
   Array<Expr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits.emplace_back(Provide::make(
+    inits.emplace_back(ProvideNode::make(
           t->op, t->value_index, init_value[i], args));
-    provides.emplace_back(Provide::make(
+    provides.emplace_back(ProvideNode::make(
           t->op, t->value_index, update_value[i], args));
   }
   *init = SeqStmt::Flatten(inits);
@@ -351,7 +351,7 @@ Stmt MakeProvide(const ComputeOpNode* op,
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  return Provide::make(t->op, t->value_index, op->body[t->value_index], args);
+  return ProvideNode::make(t->op, t->value_index, op->body[t->value_index], args);
 }
 
 Stmt MakeComputeStmt(const ComputeOpNode* self,

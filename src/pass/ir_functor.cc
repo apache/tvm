@@ -153,7 +153,7 @@ void StmtVisitor::VisitStmt_(const For* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const Allocate* op) {
+void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   VisitArray(op->extents, [this](const Expr& e) { this->VisitExpr(e); });
   this->VisitStmt(op->body);
   this->VisitExpr(op->condition);
@@ -162,7 +162,7 @@ void StmtVisitor::VisitStmt_(const Allocate* op) {
   }
 }
 
-void StmtVisitor::VisitStmt_(const Store* op) {
+void StmtVisitor::VisitStmt_(const StoreNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->index);
   this->VisitExpr(op->predicate);
@@ -176,7 +176,7 @@ void StmtVisitor::VisitStmt_(const IfThenElse* op) {
   }
 }
 
-void StmtVisitor::VisitStmt_(const Free* op) {}
+void StmtVisitor::VisitStmt_(const FreeNode* op) {}
 
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
@@ -188,12 +188,12 @@ void StmtVisitor::VisitStmt_(const ProducerConsumer* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const Provide* op) {
+void StmtVisitor::VisitStmt_(const ProvideNode* op) {
   VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e); });
   this->VisitExpr(op->value);
 }
 
-void StmtVisitor::VisitStmt_(const Realize* op) {
+void StmtVisitor::VisitStmt_(const RealizeNode* op) {
   VisitArray(op->bounds, [this](const Range& r) {
       this->VisitExpr(r->min);
       this->VisitExpr(r->extent);
@@ -389,7 +389,7 @@ Stmt StmtMutator::VisitStmt_(const For* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Allocate* op) {
+Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   Array<Expr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
   Expr condition = this->VisitExpr(op->condition);
@@ -432,7 +432,7 @@ Stmt StmtMutator::VisitStmt_(const IfThenElse* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Store* op) {
+Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
   Expr value = this->VisitExpr(op->value);
   Expr index = this->VisitExpr(op->index);
   Expr predicate = this->VisitExpr(op->predicate);
@@ -449,7 +449,7 @@ Stmt StmtMutator::VisitStmt_(const Store* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Provide* op) {
+Stmt StmtMutator::VisitStmt_(const ProvideNode* op) {
   Array<Expr> args = Internal::Mutate(this, op->args);
   Expr value = this->VisitExpr(op->value);
   if (args.same_as(op->args) &&
@@ -463,7 +463,7 @@ Stmt StmtMutator::VisitStmt_(const Provide* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Realize* op) {
+Stmt StmtMutator::VisitStmt_(const RealizeNode* op) {
   Region bounds = Internal::Mutate(this, op->bounds);
   Stmt body = this->VisitStmt(op->body);
   Expr condition = this->VisitExpr(op->condition);
@@ -588,7 +588,7 @@ Stmt StmtMutator::VisitStmt_(const Evaluate* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Free* op) {
+Stmt StmtMutator::VisitStmt_(const FreeNode* op) {
   return GetRef<Stmt>(op);
 }
 
