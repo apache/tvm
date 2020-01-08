@@ -139,5 +139,3 @@ def schedule_conv3d_ncdhw_cuda(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
-
-
