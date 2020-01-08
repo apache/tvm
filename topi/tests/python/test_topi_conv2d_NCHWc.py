@@ -229,7 +229,7 @@ def test_conv2d_NCHWc():
     verify_conv2d_NCHWc(1,  64,   56,  64,  1, 1, "VALID")
     verify_conv2d_NCHWc(1, 388,   56,  64,  3, 1, "VALID")
     verify_conv2d_NCHWc(1, 512,   19,  64,  1, 1, "SAME")
-    verify_conv2d_NCHWc(1,  64, 2048,  32,  2, 1, "SAME")
+    verify_conv2d_NCHWc(1,  64,   16,  32,  2, 1, "SAME")
     verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, (1, 2, 2, 1), add_relu=True)
     verify_conv2d_NCHWc(1,  64,   56,  64,  5, 2, (1, 3), add_bias=True)
     verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
