@@ -268,9 +268,9 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
 
     // arithmetic
     feature_row.push_back(Array<Expr>{std::string("_arith_"),
-                                      FloatImmNode::make(DataType::Float(32), trans(fea.add_ct)),
-                                      FloatImmNode::make(DataType::Float(32), trans(fea.mul_ct)),
-                                      FloatImmNode::make(DataType::Float(32), trans(fea.div_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.add_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.mul_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.div_ct)),
     });
 
     // touch map
@@ -281,14 +281,15 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     std::sort(bufs.begin(), bufs.end());
     for (auto k : bufs) {
       TouchPattern &v = fea.touch_feature[k];
-      feature_row.push_back(Array<Expr>{k,
-                                        FloatImmNode::make(DataType::Float(32), trans(v.stride)),
-                                        FloatImmNode::make(DataType::Float(32), trans(v.mod)),
-                                        FloatImmNode::make(DataType::Float(32), trans(v.count)),
-                                        FloatImmNode::make(DataType::Float(32), trans(v.reuse)),
-                                        FloatImmNode::make(DataType::Float(32), trans(v.thread_count)),
-                                        FloatImmNode::make(DataType::Float(32), trans(v.thread_reuse)),
-      });
+      feature_row.push_back(
+          Array<Expr>{k,
+                FloatImmNode::make(DataType::Float(32), trans(v.stride)),
+                FloatImmNode::make(DataType::Float(32), trans(v.mod)),
+                FloatImmNode::make(DataType::Float(32), trans(v.count)),
+                FloatImmNode::make(DataType::Float(32), trans(v.reuse)),
+                FloatImmNode::make(DataType::Float(32), trans(v.thread_count)),
+                FloatImmNode::make(DataType::Float(32), trans(v.thread_reuse)),
+                });
     }
 
     ret_feature->push_back(feature_row);

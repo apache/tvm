@@ -349,7 +349,10 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
 
 Expr likely(Expr cond) {
   if (is_const(cond)) return cond;
-  return ir::CallNode::make(cond.dtype(), ir::CallNode::likely, { cond }, ir::CallNode::PureIntrinsic);
+  return ir::CallNode::make(cond.dtype(),
+                            ir::CallNode::likely,
+                            { cond },
+                            ir::CallNode::PureIntrinsic);
 }
 
 Expr operator>(Expr a, Expr b) {

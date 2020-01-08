@@ -355,8 +355,10 @@ class StorageFlattener : public StmtExprMutator {
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        Expr address = CallNode::make(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
-        Expr prefetch = CallNode::make(op->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
+        Expr address = CallNode::make(
+            DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
+        Expr prefetch = CallNode::make(
+            op->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
         stmt = EvaluateNode::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);

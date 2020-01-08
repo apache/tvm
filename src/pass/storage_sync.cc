@@ -312,7 +312,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
     rw_stats_.clear();
     Stmt kinit = EvaluateNode::make(
-        CallNode::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
+        CallNode::make(
+            DataType::Int(32),
+            intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
     body = AttrStmtNode::make(
         op->node, op->attr_key, op->value, body);

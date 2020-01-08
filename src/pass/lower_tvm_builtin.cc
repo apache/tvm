@@ -38,7 +38,10 @@ inline Expr ConstInt32(size_t index) {
 
 inline Expr StackAlloca(std::string type, size_t num) {
   Array<Expr> args = {StringImmNode::make(type), ConstInt32(num)};
-  return CallNode::make(DataType::Handle(), intrinsic::tvm_stack_alloca, args, CallNode::Intrinsic);
+  return CallNode::make(
+      DataType::Handle(),
+      intrinsic::tvm_stack_alloca,
+      args, CallNode::Intrinsic);
 }
 
 // Calculate the statistics of packed function.
@@ -106,36 +109,39 @@ class BuiltinLower : public StmtExprMutator {
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = EvaluateNode::make(CallNode::make(DataType::Int(32),
-                                           intrinsic::tvm_throw_last_error, {},
-                                           CallNode::Intrinsic));
+    Stmt throw_last_error = EvaluateNode::make(
+        CallNode::make(DataType::Int(32),
+                       intrinsic::tvm_throw_last_error, {},
+                       CallNode::Intrinsic));
 
     Stmt body = SeqStmt({
-        IfThenElseNode::make(CallNode::make(DataType::Bool(1),
-                                    intrinsic::tvm_handle_is_null,
-                                    {op->buffer_var}, CallNode::PureIntrinsic),
-                         throw_last_error),
+        IfThenElseNode::make(
+            CallNode::make(DataType::Bool(1),
+                           intrinsic::tvm_handle_is_null,
+                           {op->buffer_var}, CallNode::PureIntrinsic),
+            throw_last_error),
         op->body});
 
     Stmt alloca = LetStmtNode::make(
         op->buffer_var,
         CallNode::make(op->buffer_var.dtype(),
-                   "TVMBackendAllocWorkspace",
-                   {cast(DataType::Int(32), device_type_),
-                    cast(DataType::Int(32), device_id_),
-                    cast(DataType::UInt(64), total_bytes),
-                    IntImmNode::make(DataType::Int(32), op->dtype.code()),
-                    IntImmNode::make(DataType::Int(32), op->dtype.bits())},
-                   CallNode::Extern),
+                       "TVMBackendAllocWorkspace",
+                       {cast(DataType::Int(32), device_type_),
+                        cast(DataType::Int(32), device_id_),
+                        cast(DataType::UInt(64), total_bytes),
+                        IntImmNode::make(DataType::Int(32), op->dtype.code()),
+                        IntImmNode::make(DataType::Int(32), op->dtype.bits())},
+                       CallNode::Extern),
         body);
 
     Expr free_op = CallNode::make(DataType::Int(32),
-                              "TVMBackendFreeWorkspace",
-                              {cast(DataType::Int(32), device_type_),
-                                    cast(DataType::Int(32), device_id_),
-                                    op->buffer_var},
-                              CallNode::Extern);
-    Stmt free_stmt = IfThenElseNode::make(free_op != make_zero(DataType::Int(32)), throw_last_error);
+                                  "TVMBackendFreeWorkspace",
+                                  {cast(DataType::Int(32), device_type_),
+                                   cast(DataType::Int(32), device_id_),
+                                   op->buffer_var},
+                                  CallNode::Extern);
+    Stmt free_stmt = IfThenElseNode::make(
+        free_op != make_zero(DataType::Int(32)), throw_last_error);
     body = SeqStmt({alloca, free_stmt});
     body = AttrStmtNode::make(
         op->buffer_var, attr::storage_alignment,

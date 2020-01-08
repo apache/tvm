@@ -154,7 +154,9 @@ Stmt TensorComputeOpNode::BuildProvide(
     }
     input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // output binding
@@ -178,7 +180,9 @@ Stmt TensorComputeOpNode::BuildProvide(
 
     output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap

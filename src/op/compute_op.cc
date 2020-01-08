@@ -295,7 +295,9 @@ Stmt BaseComputeOpNode::BuildRealize(
                                attr->dim_align_offset};
           realize = ir::AttrStmtNode::make(
               t, ir::attr::buffer_dim_align,
-              CallNode::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, CallNode::Intrinsic),
+              CallNode::make(DataType::Handle(),
+                             ir::intrinsic::tvm_tuple,
+                             tuple, CallNode::Intrinsic),
               realize);
         }
       }

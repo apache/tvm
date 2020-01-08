@@ -96,14 +96,16 @@ Expr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), ctpop_id));
   vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt8_args.push_back(input8);
-  Expr vcnt8 = ir::CallNode::make(uint8_type,  "llvm_intrin", vcnt8_args, CallNode::PureIntrinsic);
+  Expr vcnt8 = ir::CallNode::make(
+    uint8_type,  "llvm_intrin", vcnt8_args, CallNode::PureIntrinsic);
 
   // Accumulation 8->16bit
   Array<Expr> vcnt16_args;
   vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt16_args.push_back(vcnt8);
-  Expr vcnt16 = ir::CallNode::make(uint16_type, "llvm_intrin", vcnt16_args, CallNode::PureIntrinsic);
+  Expr vcnt16 = ir::CallNode::make(
+    uint16_type, "llvm_intrin", vcnt16_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 16) {
     return vcnt16;
   }
@@ -113,7 +115,8 @@ Expr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt32_args.push_back(vcnt16);
-  Expr vcnt32 = ir::CallNode::make(uint32_type,  "llvm_intrin", vcnt32_args, CallNode::PureIntrinsic);
+  Expr vcnt32 = ir::CallNode::make(
+    uint32_type,  "llvm_intrin", vcnt32_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 32) {
     return vcnt32;
   }
@@ -123,7 +126,8 @@ Expr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt64_args.push_back(vcnt32);
-  return ir::CallNode::make(call->dtype,  "llvm_intrin", vcnt64_args, CallNode::PureIntrinsic);
+  return ir::CallNode::make(
+    call->dtype,  "llvm_intrin", vcnt64_args, CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
