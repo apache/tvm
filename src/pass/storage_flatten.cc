@@ -181,7 +181,7 @@ class StorageFlattener : public StmtExprMutator {
       e.bounds = op->bounds;
       Array<Expr> shape;
       for (auto r : e.bounds) {
-        auto extent = StmtExprMutator::VisitExpr(r->extent);
+        Expr extent = StmtExprMutator::VisitExpr(r->extent);
         if (r->extent.same_as(extent)) {
           shape.push_back(r->extent);
           continue;
