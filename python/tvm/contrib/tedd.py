@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tensor Expression Debug Display (TEDD), visualizing Tensor Expression"""
-import tvm
+import html
 from graphviz import Digraph
 from graphviz import Source
 from IPython.display import display
 from IPython.display import SVG
-import html
+import tvm
 
 TVMDD_TABLE_BODY_WIDTH = 30
 # Must match enum IterVarType defined in include/tvm/expr.h
@@ -39,7 +39,7 @@ ITERVAR_TYPE_STRING_MAP = {
 
 def get_or_create_dot_id(obj, prefix="", assert_on_missing=False):
     """If obj's ID has been registered, return it.
-       If not, either assert or create a unique and legal ID, register and 
+       If not, either assert or create a unique and legal ID, register and
        return it, according to assert_on_missing.
        ID must be a unique and legal Dotty ID.
 
@@ -49,7 +49,7 @@ def get_or_create_dot_id(obj, prefix="", assert_on_missing=False):
                     Serve as the key to the ID.
 
         prefix : string
-                    Prefix to attach to the ID.  Usually use obj's non-unique 
+                    Prefix to attach to the ID.  Usually use obj's non-unique
                     name as prefix.
 
         assert_on_missing : bool
@@ -59,21 +59,21 @@ def get_or_create_dot_id(obj, prefix="", assert_on_missing=False):
     if not hasattr(get_or_create_dot_id, "obj_id_dict"):
         get_or_create_dot_id.obj_id_dict = {}
     if obj not in get_or_create_dot_id.obj_id_dict:
-        if (assert_on_missing):
+        if assert_on_missing:
             assert False, 'dot_id ' + str(obj) + ' has not been registered.'
         else:
             get_or_create_dot_id.obj_id_dict[obj] = prefix + hex(id(obj))
     return get_or_create_dot_id.obj_id_dict[obj]
 
 
-def get_port_id(stage, is_input, index):
+def get_port_id(is_input, index):
     return 'I_' + str(index) if is_input else 'O_' + str(index)
 
 
-def get_itervar_type_info(type):
-    assert type < len(
-        ITERVAR_TYPE_STRING_MAP), 'Unknown IterVar type: ' + str(type)
-    return ITERVAR_TYPE_STRING_MAP[type]
+def get_itervar_type_info(iter_type):
+    assert iter_type < len(
+        ITERVAR_TYPE_STRING_MAP), 'Unknown IterVar type: ' + str(iter_type)
+    return ITERVAR_TYPE_STRING_MAP[iter_type]
 
 
 def get_itervar_label_color(itervar, iv_type):
@@ -82,17 +82,18 @@ def get_itervar_label_color(itervar, iv_type):
 
 
 def linebrk(s, n):
-    ss = ''
+    """ Break input string s with <br/> for every n charactors."""
+    result = ''
     j = 0
-    for i in range(len(s)):
+    for i, c in enumerate(s):
         if j == n and i != len(s) - 1:
-            ss = ss + '\n'
+            result = result + '\n'
             j = 0
         j = j + 1
-        ss = ss + s[i]
-    ss = html.escape(str(ss), quote=True)
-    ss = ss.replace('\n', '<br/>')
-    return ss
+        result = result + c
+    result = html.escape(str(result), quote=True)
+    result = result.replace('\n', '<br/>')
+    return result
 
 
 def create_graph(name="", rankdir='BT'):
@@ -129,20 +130,30 @@ def legend_dot(g):
         subgraph.node('legend', label, shape='none', margin='0')
 
 
-def dump_graph(DotString, showdot=True, dotfilepath=''):
+def dump_graph(dot_string,
+               showsvg=True,
+               dotfilepath='',
+               outputdotstring=False):
+    """Output dot_string in various formats."""
     if dotfilepath:
         try:
-            DotFile = open(dotfilepath, "w+")
-            DotFile.write(DotString)
-            DotFile.close()
-        except Exception:
+            dot_file = open(dotfilepath, "w+")
+            dot_file.write(dot_string)
+            dot_file.close()
+        except IOError:
             print('Cannot open file: ' + dotfilepath)
-    if showdot:
-        src = Source(DotString)
+    if showsvg:
+        src = Source(dot_string)
         display(SVG(src.pipe(format='svg')))
+    if outputdotstring:
+        return dot_string
+    return None
 
 
-def viz_schedule_tree(sch, showdot=False, dotfilepath=''):
+def viz_schedule_tree(sch,
+                      showsvg=False,
+                      dotfilepath='',
+                      outputdotstring=False):
     """Top level API to render schedule tree
 
         Parameters
@@ -150,11 +161,31 @@ def viz_schedule_tree(sch, showdot=False, dotfilepath=''):
         sch : schedule
                     The schedule object to visualize
 
-        showdot : bool
+        showsvg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
         dotfilepath : string
-                    Dotty file to save the graph.
+                    Dot file to save the graph.
+
+        outputdotstring : bool
+                    Return dot file content or an empty string.
+
+        Returns
+        -------
+        dotstring : string
+            dot file content or an empty string according to outputdotstring
+
+        Examples
+        --------
+        The following code writes a schedule tree to a dot file.
+
+        .. code-block:: python
+            tedd.viz_schedule_tree(s, dotfilepath = '/tmp/example.dot')
+
+        Use the following code to render a SVG graph in a Jupyter notebook.
+
+        .. code-block:: python
+            tedd.viz_schedule_tree(s, showsvg = True)
     """
     def create_schedule_tree_graph(name=""):
         return create_graph(name=name, rankdir='BT')
@@ -181,15 +212,17 @@ def viz_schedule_tree(sch, showdot=False, dotfilepath=''):
             if leafiv in stage.iter_var_attrs:
                 # binding
                 bind_thread = stage.iter_var_attrs[leafiv].bind_thread
-                if bind_thread != None:
+                if bind_thread is not None:
                     var_attr_label = var_attr_label + " (" + str(
                         bind_thread.var) + ")"
                 # tensorization
                 tensor_intrin = stage.iter_var_attrs[leafiv].tensor_intrin
-                if tensor_intrin != None:
+                if tensor_intrin is not None:
                     var_attr_label = var_attr_label + \
                         " (tensor_intrin:" + \
-                        str(stage.iter_var_attrs[leafiv].tensor_intrin.name) + ")"
+                        linebrk(str(
+                            stage.iter_var_attrs[leafiv].tensor_intrin.body),
+                                TVMDD_TABLE_BODY_WIDTH) + ")"
                 iv_type = stage.iter_var_attrs[leafiv].iter_type
             var_label, color = get_itervar_label_color(leafiv, iv_type)
             label += itervar_label(leafiv, index, color,
@@ -221,23 +254,42 @@ def viz_schedule_tree(sch, showdot=False, dotfilepath=''):
     for stage in sch.stages:
         compute_at_dot(graph, stage)
     root_dot(graph)
-    dump_graph(graph.source, showdot, dotfilepath)
-    return graph.source
+    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)
 
 
-def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
+def viz_itervar_relationship_graph(sch,
+                                   showsvg=False,
+                                   dotfilepath='',
+                                   outputdotstring=False):
     """Top level API to render IterVar relationship graph
 
         Parameters
         ----------
         sch : schedule
                     The schedule object to visualize
-                    
-        showdot : bool
+
+        showsvg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
         dotfilepath : string
-                    Dotty file to save the graph.
+                    Dot file to save the graph.
+
+        outputdotstring : bool
+                    Return dot file content or an empty string.
+
+        Examples
+        --------
+        The following code writes Ian tervar relationship graph to a dot file.
+
+        .. code-block:: python
+            tedd.viz_def viz_itervar_relationship_graph(sch,
+                (s, dotfilepath = '/tmp/example.dot')
+
+        Use the following code to render a SVG graph in a Jupyter notebook.
+
+        .. code-block:: python
+            tedd.viz_def viz_itervar_relationship_graph(sch,
+                (s, showsvg = True)
     """
     def create_itervar_relation_graph(name=""):
         return create_graph(name=name, rankdir='TB')
@@ -253,27 +305,27 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
     def itervar_node_label(itervar, iv_type, index):
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
             'CELLPADDING="4">' + itervar_label(
-            itervar, index,
-            get_itervar_label_color(itervar, iv_type)[1],
-            get_itervar_label_color(itervar, iv_type)[0]) + '</TABLE>>'
+                itervar, index,
+                get_itervar_label_color(itervar, iv_type)[1],
+                get_itervar_label_color(itervar, iv_type)[0]) + '</TABLE>>'
         return label
 
-    def itervar_relation_node_dot(g, node_type, node_id, node_label, inputs,
-                                  outputs):
-        label = itervar_relation_node_label(node_type, node_id, node_label,
-                                            inputs, outputs)
+    def itervar_relation_node_dot(g, node_id, node_label, input_ports,
+                                  output_ports):
+        label = itervar_relation_node_label(node_label,
+                                            input_ports, output_ports)
         g.node(node_id, label, shape='none', margin='0')
 
-    def itervar_relation_node_label(node_type, node_id, node_label, inputs,
-                                    outputs):
+    def itervar_relation_node_label(node_label, input_ports,
+                                    output_ports):
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
             'CELLPADDING="4">' + '<TR>'
-        max_port_num = max(len(inputs), len(outputs))
+        max_port_num = max(len(input_ports), len(output_ports))
         for i in range(max_port_num):
-            if (i < len(inputs)):
-                input = inputs[i]
-                label += '<TD BGCOLOR="lightgrey" PORT="' + input + '">' \
-                        + input + '</TD>'
+            if i < len(input_ports):
+                input_port = input_ports[i]
+                label += '<TD BGCOLOR="lightgrey" PORT="' + input_port + '">' \
+                        + input_port + '</TD>'
             else:
                 label += '<TD BGCOLOR="white"></TD>'
         label += '</TR>'
@@ -281,10 +333,10 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
             max_port_num) + '" PORT="relation">' + node_label + '</TD></TR>'
         label += '<TR>'
         for i in range(max_port_num):
-            if (i < len(outputs)):
-                output = outputs[i]
-                label += '<TD BGCOLOR="lightgrey" PORT="' + output + '">' \
-                    + output + '</TD>'
+            if i < len(output_ports):
+                output_port = output_ports[i]
+                label += '<TD BGCOLOR="lightgrey" PORT="' + output_port + '">' \
+                    + output_port + '</TD>'
             else:
                 label += '<TD BGCOLOR="white"></TD>'
         label += '</TR>'
@@ -295,7 +347,7 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
         node_type = type(node)
         if node_type is tvm.schedule.Split:
             node_type = 'Split'
-            itervar_relation_node_dot(g, node_type, node_id, node_type,
+            itervar_relation_node_dot(g, node_id, node_type,
                                       ['Input'], ['Outer', 'Inner'])
             parent = get_or_create_dot_id(node.parent, str(node.parent.var),
                                           True)
@@ -306,7 +358,7 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
             g.edge(node_id + ':Inner', inner + ':itervar')
         elif node_type is tvm.schedule.Fuse:
             node_type = 'Fuse'
-            itervar_relation_node_dot(g, node_type, node_id, node_type,
+            itervar_relation_node_dot(g, node_id, node_type,
                                       ['Outer', 'Inner'], ['Fused'])
             fused = get_or_create_dot_id(node.fused, str(node.fused.var), True)
             outer = get_or_create_dot_id(node.outer, str(node.outer.var), True)
@@ -316,10 +368,10 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
             g.edge(node_id + ':Fused', fused + ':itervar')
         elif node_type is tvm.schedule.Singleton:
             node_type = 'Singleton'
-            itervar_relation_node_dot(g, node_type, node_id, node_type, [],
+            itervar_relation_node_dot(g, node_id, node_type, [],
                                       ['Iter'])
-            iter = get_or_create_dot_id(node.iter, str(node.iter.var), True)
-            g.edge(node_id + ':Iter', iter + ':itervar')
+            itervar = get_or_create_dot_id(node.iter, str(node.iter.var), True)
+            g.edge(node_id + ':Iter', itervar + ':itervar')
         else:
             assert False, 'Unknown IterVarRelationNode: ' + node_type
 
@@ -334,15 +386,15 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
                 name='cluster_' +
                 get_or_create_dot_id(stage.op, stage.op.name)) as subgraph:
             subgraph.attr(label=stage.op.name)
-            if (len(stage.all_iter_vars) > 0):
+            if len(stage.all_iter_vars) > 0:
                 for i in range(len(stage.all_iter_vars)):
-                    iv = stage.all_iter_vars[i]
-                    if iv in stage.iter_var_attrs:
-                        iv_type = stage.iter_var_attrs[iv].iter_type
+                    itervar = stage.all_iter_vars[i]
+                    if itervar in stage.iter_var_attrs:
+                        iv_type = stage.iter_var_attrs[itervar].iter_type
                     else:
-                        iv_type = iv.iter_type
-                    itervar_node_dot(subgraph, iv, iv_type,
-                                     get_leaf_itervars_index(stage, iv))
+                        iv_type = itervar.iter_type
+                    itervar_node_dot(subgraph, itervar, iv_type,
+                                     get_leaf_itervars_index(stage, itervar))
                 for i in range(len(stage.relations)):
                     node_id = get_or_create_dot_id(
                         stage.relations[i], stage.op.name + "_rel_" + str(i))
@@ -355,24 +407,40 @@ def viz_itervar_relationship_graph(sch, showdot=False, dotfilepath=''):
     for stage in sch.stages:
         stage_node_dot(graph, stage)
 
-    dump_graph(graph.source, showdot, dotfilepath)
-    return graph.source
+    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)
 
 
-def viz_dataflow_graph(sch, showdot=False, dotfilepath=''):
+def viz_dataflow_graph(sch,
+                       showsvg=False,
+                       dotfilepath='',
+                       outputdotstring=False):
     """Top level API to render dataflow graph
 
         Parameters
         ----------
         sch : schedule
                     The schedule object to visualize
-                    
-        showdot : bool
+
+        showsvg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
         dotfilepath : string
-                    Dotty file to save the graph.
-    """
+                    Dot file to save the graph.
+
+        outputdotstring : bool
+                    Return dot file content or an empty string.
+
+        Examples
+        --------
+        The following code writes a dataflow graph to a dot file.
+
+        .. code-block:: python
+            tedd.viz_dataflow_graph(s, dotfilepath = '/tmp/example.dot')
+
+        Use the following code to render a SVG graph in a Jupyter notebook.
+
+        .. code-block:: python
+            tedd.viz_dataflow_graph(s, showsvg = True)    """
     def create_dataflow_graph(name=""):
         return create_graph(name=name, rankdir='LR')
 
@@ -391,23 +459,23 @@ def viz_dataflow_graph(sch, showdot=False, dotfilepath=''):
             'CELLPADDING="4">'
         for i in range(rows):
             label += '<TR>'
-            if (i < len(op.input_tensors)):
-                port_id = get_port_id(op, True, i)
+            if i < len(op.input_tensors):
+                port_id = get_port_id(True, i)
                 label += '<TD BGCOLOR="lightgrey" COLSPAN="2" PORT="' \
                     + port_id + '">' + str(
-                    i) + ':' + str(op.input_tensors[i].shape) + '::' + str(
-                        op.input_tensors[i].dtype) + '</TD>'
+                        i) + ':' + str(op.input_tensors[i].shape) + '::' + str(
+                            op.input_tensors[i].dtype) + '</TD>'
             else:
                 label += '<TD BGCOLOR="white" COLSPAN="2"></TD>'
-            if (i == 0):
+            if i == 0:
                 label += '<TD BGCOLOR="white" COLSPAN="2" ROWSPAN="' + str(
                     rows) + '">' + stage_label(stage) + '</TD>'
-            if (i < op.num_outputs):
-                port_id = get_port_id(op, False, i)
+            if i < op.num_outputs:
+                port_id = get_port_id(False, i)
                 label += '<TD BGCOLOR="lightgrey" COLSPAN="2" PORT="' \
                     + port_id + '">' + str(
-                    i) + ':' + str(op.output(0).shape) + '::' + str(
-                        op.output(0).dtype) + '</TD>'
+                        i) + ':' + str(op.output(0).shape) + '::' + str(
+                            op.output(0).dtype) + '</TD>'
             else:
                 label += '<TD BGCOLOR="white" COLSPAN="2"></TD>'
             label += '</TR>'
@@ -423,10 +491,10 @@ def viz_dataflow_graph(sch, showdot=False, dotfilepath=''):
                 source_op = source_tensor.op
                 src = get_or_create_dot_id(source_op, source_op.name,
                                            True) + ':' + get_port_id(
-                                               source_op, False, 0)
+                                               False, 0)
                 dst = get_or_create_dot_id(dest_op, dest_op.name,
                                            True) + ':' + get_port_id(
-                                               dest_op, True, i)
+                                               True, i)
                 g.edge(src, dst)
 
     graph = create_dataflow_graph("Dataflow Graph")
@@ -435,5 +503,4 @@ def viz_dataflow_graph(sch, showdot=False, dotfilepath=''):
 
     dfg_dot(graph, sch)
 
-    dump_graph(graph.source, showdot, dotfilepath)
-    return graph.source
+    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)

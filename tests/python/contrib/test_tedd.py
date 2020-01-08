@@ -34,7 +34,7 @@ def test_dfg():
     s = tvm.create_schedule([B.op])
 
     def verify():
-        str = tedd.viz_dataflow_graph(s, False, '')
+        str = tedd.viz_dataflow_graph(s, False, '', True)
         # Check all edges are available
         findany("digraph \"Dataflow Graph\"", str)
         findany("A0x[\da-f]+:O_0 -> T_softmax_maxelem0x[\da-f]+:I_0", str)
@@ -62,10 +62,10 @@ def test_itervar_relationship_graph():
     B = tvm.compute((n, ), lambda i: tvm.sum(A[i, k], axis=k), name="B")
 
     s = tvm.create_schedule(B.op)
-    ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
+    s[B].split(B.op.reduce_axis[0], factor=16)
 
     def verify():
-        str = tedd.viz_itervar_relationship_graph(s, False, '')
+        str = tedd.viz_itervar_relationship_graph(s, False, '', True)
         findany("digraph \"IterVar Relationship Graph\"", str)
         findany("subgraph cluster_legend", str)
         # Check subgraphs for stages
@@ -107,12 +107,12 @@ def test_schedule_tree():
     s[C].bind(s[C].op.axis[1], thread_x)
 
     def verify():
-        str = tedd.viz_schedule_tree(s, False, '')
+        str = tedd.viz_schedule_tree(s, False, '', True)
         findany("digraph \"Schedule Tree\"", str)
         findany("subgraph cluster_legend", str)
         # Check the A_shared stage, including memory scope, itervars, 
         # and compute
-        findany("A_shared0x[\da-f]+.*A\.shared<br/>scope: shared.+>0.+>" \
+        findany("A_shared0x[\da-f]+.*A\.shared<br/>Scope: shared.+>0.+>" \
             "ax0\(kDataPar\).+>1.+ax1\(kDataPar\).+>2.+>ax2\(kDataPar\).+>" \
             "\[A\(ax0, ax1, ax2\)\]", str)
         # Check itervars of types different from KDataPar
