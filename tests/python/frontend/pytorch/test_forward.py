@@ -515,14 +515,6 @@ def test_mnasnet0_5():
 def test_mnasnet1_0():
     verify_model('mnasnet1_0')
 
-"""
-def test_shufflenet_v2_x0_5():
-    verify_model('shufflenet_v2_x0_5')
-
-def test_shufflenet_v2_x1_0():
-    verify_model('shufflenet_v2_x1_0')
-"""
-
 if __name__ == '__main__':
 
     # Single operator tests
