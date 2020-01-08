@@ -1732,22 +1732,34 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, p, kernel_shape):
-    node = helper.make_node('Conv',
-                            inputs=['x', 'W'],
-                            outputs=['y'],
-                            kernel_shape=kernel_shape,
-                            # Default values for other attributes:
-                            # strides=[1, 1],
-                            # dilations=[1, 1],
-                            # groups=1
-                            pads=p,)
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
+    if padding is None:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                auto_pad=auto_pad)
+    else:                                
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                pads=padding)
 
     graph = helper.make_graph([node],
                               'conv_test',
                               inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
                                       helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
-                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))]
+                              )
 
     model = helper.make_model(graph, producer_name='conv_test')
 
@@ -1761,25 +1773,95 @@ def verify_conv(x_shape, w_shape, y_shape, p, kernel_shape):
 
 def test_conv():
     # Convolution with padding
-    # (1, 1, 5, 5) input tensor
-    # (1, 1, 3, 3) tensor for convolution weights
-    # (1, 1, 5, 5) output tensor
-    # [1, 1, 1, 1] list for pads
-    # [3, 3] kernel shape
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1], [3, 3])
-    # 1D version
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [1, 1], [3])
+    # Conv2D
+    verify_conv(x_shape=(1, 1, 5, 5),
+                w_shape=(1, 1, 3, 3),
+                y_shape=(1, 1, 5, 5),
+                padding=[1, 1, 1, 1],
+                kernel_shape=[3, 3],
+                strides=[1, 1],
+                dilations=[1, 1])
+    # Conv1D
+    verify_conv(x_shape=(1, 1, 5),
+                w_shape=(1, 1, 3),
+                y_shape=(1, 1, 5),
+                padding=[1, 1],
+                kernel_shape=[3,],
+                strides=[1,],
+                dilations=[1,])
 
     # Convolution without padding
-    # (1, 1, 5, 5) input tensor
-    # (1, 1, 3, 3) tensor for convolution weights
-    # (1, 1, 3, 3) output tensor
-    # [0, 0, 0, 0] list for pads
-    # [3, 3] kernel shape
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0], [3, 3])
-    # 1D version
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), [0, 0], [3])
+    # Conv2D
+    verify_conv(x_shape=(1, 1, 5, 5),
+                w_shape=(1, 1, 3, 3),
+                y_shape=(1, 1, 3, 3),
+                padding=[0, 0, 0, 0],
+                kernel_shape=[3, 3],
+                strides=[1, 1],
+                dilations=[1, 1])
+    # Conv1D
+    verify_conv(x_shape=(1, 1, 5),
+                w_shape=(1, 1, 3),
+                y_shape=(1, 1, 3),
+                padding=[0, 0],
+                kernel_shape=[3,],
+                strides=[1,],
+                dilations=[1,])
 
+    # Convolution with autopadding
+    verify_conv(x_shape=(1, 1, 5, 5),
+                w_shape=(1, 1, 3, 3),
+                y_shape=(1, 1, 5, 5),
+                kernel_shape=[3, 3],
+                strides=[1, 1],
+                dilations=[1, 1],
+                padding=None,
+                auto_pad="SAME_UPPER")
+    # Conv1D
+    verify_conv(x_shape=(1, 1, 5),
+                w_shape=(1, 1, 3),
+                y_shape=(1, 1, 5),
+                kernel_shape=[3,],
+                strides=[1,],
+                dilations=[1,],
+                padding=None,
+                auto_pad="SAME_UPPER")
+
+    # Convolution with non uniform stride
+    verify_conv(x_shape=(1, 1, 5, 5),
+                w_shape=(1, 1, 3, 3),
+                y_shape=(1, 1, 3, 3),
+                kernel_shape=[3, 3],
+                strides=[2, 2],
+                dilations=[1, 1],
+                padding=None,
+                auto_pad="SAME_UPPER")
+    # Conv1D
+    verify_conv(x_shape=(1, 1, 5),
+                w_shape=(1, 1, 3),
+                y_shape=(1, 1, 3),
+                kernel_shape=[3,],
+                strides=[2,],
+                dilations=[1,],
+                padding=None,
+                auto_pad="SAME_UPPER")
+
+    # Convolution with dilation
+    verify_conv(x_shape=(1, 1, 5, 5),
+                w_shape=(1, 1, 3, 3),
+                y_shape=(1, 1, 5, 5),
+                kernel_shape=[3, 3],
+                strides=[1, 1],
+                dilations=[2, 2],
+                padding=[2, 2, 2, 2])
+    # Conv1D
+    verify_conv(x_shape=(1, 1, 5),
+                w_shape=(1, 1, 3),
+                y_shape=(1, 1, 5),
+                kernel_shape=[3,],
+                strides=[1,],
+                dilations=[2,],
+                padding=[2, 2])
 
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):

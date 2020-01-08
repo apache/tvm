@@ -20,7 +20,7 @@ import tvm
 from tvm import autotvm
 
 from .. import nn, generic
-from ..util import traverse_inline
+from ..util import traverse_inline, get_const_tuple
 
 
 @autotvm.register_topi_compute(nn.conv1d, ['cuda', 'gpu'], ['direct'])
@@ -184,6 +184,10 @@ def schedule_conv1d_ncw(cfg, outs):
             s[output].pragma(kernel_scope, 'unroll_explicit',
                              cfg['unroll_explicit'].val)
 
+            N, CO, OW = get_const_tuple(output.shape)
+            _, CI, KW = get_const_tuple(kernel.shape)
+            cfg.add_flop(2 * N, * OW * CO * KW * CI)
+
     traverse_inline(s, outs[0].op, _callback)
 
     return s
@@ -294,6 +298,10 @@ def schedule_conv1d_nwc(cfg, outs):
                              cfg['auto_unroll_max_step'].val)
             s[output].pragma(kernel_scope, 'unroll_explicit',
                              cfg['unroll_explicit'].val)
+
+            N, OW, CO = get_const_tuple(output.shape)
+            KW, CI, _ = get_const_tuple(kernel.shape)
+            cfg.add_flop(2 * N, * OW * CO * KW * CI)
 
     traverse_inline(s, outs[0].op, _callback)
 

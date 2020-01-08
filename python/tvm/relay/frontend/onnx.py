@@ -269,70 +269,58 @@ class Conv(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Use shape of input to determine convolution type.
         input_shape = infer_shape(inputs[0])
-        # If input shape is 3 dimensional then convert to conv1d.
+
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                pad_tuple = ()
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    dilation = attr['dilations'][axis]
+                    dilated_kernel = (kernel - 1) * dilation + 1
+                    pad = get_pad_pair(axis_shape, dilated_kernel, stride)
+                    for p in pad:
+                        pad_tuple += (p, )
+                attr['pads'] = pad_tuple
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = tuple([0 for i in range(len(input_shape) - 2)])
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
+                raise tvm.error.OpAttributeInvalid(
+                    msg.format(attr['auto_pad']))
+            attr.pop('auto_pad')
+
+        # Handle attribute conversion for different convolution types
+
+        # Conv1D
         if len(input_shape) == 3:
-            if 'strides' in attr:
-                stride = attr['strides'][0]
-            else:
-                stride = 1
-            if 'dilation' in attr:
-                dilation = attr['dilations'][0]
-            else:
-                dilation = 1
-            kernel_w = attr['kernel_shape'][0]
-            # infer pads for auto_pad
-            if 'auto_pad' in attr:
-                if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
-                    in_w = input_shape[2]
-                    dilated_kernel = (kernel_w - 1) * dilation + 1
-                    padding = get_pad_pair(in_w, dilated_kernel, stride)
-                elif attr['auto_pad'] == 'VALID':
-                    padding = (0, 0)
-                elif attr['auto_pad'] == 'NOTSET':
-                    pass
-                else:
-                    msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                    raise tvm.error.OpAttributeInvalid(
-                        msg.format(attr['auto_pad']))
-            else:
-                padding = attr['pads']
-
-            out = _op.nn.conv1d(inputs[0], inputs[1], stride=stride,
-                                padding=padding, dilation=dilation, kernel_size=kernel_w)
-
-        # For now only other supported type is 2D
+            op_name = 'conv1d'
+            transforms = {
+                'kernel_shape': 'kernel_size',
+                'dilations': ('dilation', (1, )),
+                'pads': ('padding', (0, 0)),
+            }
+            custom_check=None
+        #Conv2D
+        elif len(input_shape) == 4:
+            op_name=dimension_picker('conv')
+            transforms={
+                'kernel_shape': 'kernel_size',
+                'dilations': ('dilation', (0, 0)),
+                'pads': ('padding', (0, 0), revert_caffe2_pad),
+                'group': ('groups', 1)}
+            custom_check=dimension_constraint()
         else:
-            if 'auto_pad' in attr:
-                attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
-                if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
-                    input_shape = infer_shape(inputs[0])
-                    in_h, in_w = input_shape[2], input_shape[3]
-                    stride_h, stride_w = attr['strides']
-                    kernel_h, kernel_w = attr['kernel_shape']
-                    dilation_h, dilation_w = attr['dilations']
-                    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-                    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-                    pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
-                    pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
-                    attr['pads'] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
-                elif attr['auto_pad'] == 'VALID':
-                    attr['pads'] = (0, 0)
-                elif attr['auto_pad'] == 'NOTSET':
-                    pass
-                else:
-                    msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
-                    raise tvm.error.OpAttributeInvalid(
-                        msg.format(attr['auto_pad']))
-                attr.pop('auto_pad')
+            raise ValueError("Only 1D and 2D convolution currently supported.")
 
-            out = AttrCvt(
-                op_name=dimension_picker('conv'),
-                transforms={
-                    'kernel_shape': 'kernel_size',
-                    'dilations': ('dilation', (0, 0)),
-                    'pads': ('padding', (0, 0), revert_caffe2_pad),
-                    'group': ('groups', 1)},
-                custom_check=dimension_constraint())(inputs[:2], attr, params)
+        out = AttrCvt(
+            op_name=op_name,
+            transforms=transforms,
+            custom_check=custom_check)(inputs[:2], attr, params)
 
         use_bias = len(inputs) == 3
         if use_bias:
