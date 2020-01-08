@@ -113,7 +113,7 @@ Operation ExternOpNode::ReplaceInputs(
 void ExternOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (Tensor t : this->inputs) {
     auto it = out_dom_map->find(t);
@@ -147,7 +147,7 @@ Stmt ExternOpNode::BuildRealize(
           Range::make_by_min_extent(
               make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = ir::Realize::make(
+    realize_body = ir::RealizeNode::make(
         t->op, t->value_index, t->dtype,
         bounds, const_true(), realize_body);
   }
@@ -159,7 +159,7 @@ Stmt ExternOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmt::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
     Array<Expr> tuple;
@@ -169,9 +169,9 @@ Stmt ExternOpNode::BuildProvide(
       tuple.push_back(make_const(buffer->shape[k].dtype(), 0));
       tuple.push_back(buffer->shape[k]);
     }
-    ret = AttrStmt::make(
+    ret = AttrStmtNode::make(
         bind_spec, attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
+        CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {
     f_push_bind(output_placeholders[i - 1], stage->op.output(i - 1));

@@ -56,7 +56,7 @@ class GPUCodeVerifier : public StmtVisitor {
     return valid_;
   }
 
-  void VisitStmt_(const ProducerConsumer* op) final {
+  void VisitStmt_(const ProducerConsumerNode* op) final {
     if (nest_level_ == 0) {
       // enter a new kernel, reset statistics
       Reset_();
@@ -79,7 +79,7 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
@@ -91,17 +91,17 @@ class GPUCodeVerifier : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      std::string op_value = op->value.as<StringImm>()->value;
+      std::string op_value = op->value.as<StringImmNode>()->value;
       if (op_value == "local") {
-        visited_local_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_local_buffers_.insert(op->node.as<tvm::VarNode>());
       } else if (op_value == "shared") {
-        visited_shared_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_shared_buffers_.insert(op->node.as<tvm::VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
       VarExpr var = op->node.as<tvm::IterVarNode>()->var;
-      const auto *extent = op->value.as<IntImm>();
+      const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
       // record the number of threads in a block
@@ -140,8 +140,8 @@ class GPUCodeVerifier : public StmtVisitor {
  private:
   int nest_level_{0};
 
-  std::unordered_set<const tvm::Variable *> visited_local_buffers_;
-  std::unordered_set<const tvm::Variable *> visited_shared_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_local_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_shared_buffers_;
   std::unordered_set<std::string> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;
@@ -180,7 +180,7 @@ bool VerifyGPUCode(Stmt stmt,
   int64_t max_thread_z = INT64_MAX;
 
   for (auto iter : constraints) {
-    const IntImm* val = iter.second.as<IntImm>();
+    const IntImmNode* val = iter.second.as<IntImmNode>();
     if (iter.first == "max_local_memory_per_block")
       max_local_memory_per_block = val->value;
     else if (iter.first == "max_shared_memory_per_block")

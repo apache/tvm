@@ -54,7 +54,7 @@ TVM_REGISTER_GLOBAL("_const")
   });
 
 TVM_REGISTER_GLOBAL("_str")
-.set_body_typed(ir::StringImm::make);
+.set_body_typed(ir::StringImmNode::make);
 
 
 TVM_REGISTER_GLOBAL("_Array")
@@ -198,7 +198,7 @@ TVM_REGISTER_GLOBAL("_MapItems")
       auto* n = static_cast<const StrMapNode*>(ptr);
       auto rkvs = make_object<ArrayNode>();
       for (const auto& kv : n->data) {
-        rkvs->data.push_back(ir::StringImm::make(kv.first));
+        rkvs->data.push_back(ir::StringImmNode::make(kv.first));
         rkvs->data.push_back(kv.second);
       }
       *ret = Array<ObjectRef>(rkvs);

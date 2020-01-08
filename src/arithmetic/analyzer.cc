@@ -78,7 +78,7 @@ void ConstraintContext::ExitWithScope() {
 }
 
 bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
-  if (const auto* ptr = expr.as<ir::IntImm>()) {
+  if (const auto* ptr = expr.as<ir::IntImmNode>()) {
     return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -87,15 +87,15 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
 }
 
 bool Analyzer::CanProve(const Expr& expr) {
-  if (const auto* ptr = expr.as<ir::UIntImm>()) {
+  if (const auto* ptr = expr.as<ir::UIntImmNode>()) {
     return ptr->value != 0;
   }
   auto res = this->rewrite_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImm>()) {
+  if (const auto* ptr = res.as<ir::UIntImmNode>()) {
     return ptr->value != 0;
   }
   res = this->canonical_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImm>()) {
+  if (const auto* ptr = res.as<ir::UIntImmNode>()) {
     return ptr->value != 0;
   }
   return false;

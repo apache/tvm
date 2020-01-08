@@ -92,31 +92,31 @@ class TouchExtractor : public FeatureVisitor {
   }
 
   // arithmetic stats
-  void VisitExpr_(const Add* op) final {
+  void VisitExpr_(const AddNode* op) final {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
     FeatureVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const Sub* op) final {
+  void VisitExpr_(const SubNode* op) final {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
     FeatureVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const Mul* op) final {
+  void VisitExpr_(const MulNode* op) final {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].mul_ct++;
     FeatureVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const Div* op) final {
+  void VisitExpr_(const DivNode* op) final {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
     FeatureVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const Mod* op) final {
+  void VisitExpr_(const ModNode* op) final {
     if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
     FeatureVisitor::VisitExpr_(op);

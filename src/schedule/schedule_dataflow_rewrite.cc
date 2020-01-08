@@ -45,9 +45,9 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 class VarReplacer : public ir::StmtExprMutator {
  public:
   explicit VarReplacer(
-      const std::unordered_map<const Variable*, Expr>& vsub)
+      const std::unordered_map<const VarNode*, Expr>& vsub)
       : vsub_(vsub) {}
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
     return GetRef<Expr>(op);
@@ -71,14 +71,14 @@ class VarReplacer : public ir::StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const ir::Reduce* op) final {
+  Expr VisitExpr_(const ir::ReduceNode* op) final {
     Expr new_e = StmtExprMutator::VisitExpr_(op);
-    const ir::Reduce* new_reduce = new_e.as<ir::Reduce>();
+    const ir::ReduceNode* new_reduce = new_e.as<ir::ReduceNode>();
     ir::CommReducer new_combiner = MutateCommReducer(op->combiner);
     if (op->combiner.same_as(new_combiner)) {
       return new_e;
     } else {
-      return ir::Reduce::make(
+      return ir::ReduceNode::make(
         new_combiner,
         new_reduce->source,
         new_reduce->axis,
@@ -88,21 +88,21 @@ class VarReplacer : public ir::StmtExprMutator {
   }
 
  private:
-  const std::unordered_map<const Variable*, Expr>& vsub_;
+  const std::unordered_map<const VarNode*, Expr>& vsub_;
 };
 
 Expr InjectPredicate(const Array<Expr>& predicates,
                      Expr body) {
-  using ir::Reduce;
-  using ir::Select;
+  using ir::ReduceNode;
+  using ir::SelectNode;
   if (predicates.size() == 0) return body;
-  const Reduce* reduce = body.as<Reduce>();
+  const ReduceNode* reduce = body.as<ReduceNode>();
   if (reduce) {
-    auto n = make_object<Reduce>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates, Expr());
+    auto n = make_object<ReduceNode>(*reduce);
+    n->condition = n->condition && arith::ComputeReduce<ir::AndNode>(predicates, Expr());
     return Expr(n);
   }
-  return Select::make(arith::ComputeReduce<ir::And>(predicates, Expr()),
+  return SelectNode::make(arith::ComputeReduce<ir::AndNode>(predicates, Expr()),
                       body,
                       make_zero(body.dtype()));
 }
@@ -130,7 +130,7 @@ void ReplaceDataFlow(const Array<Stage>& stages,
   }
 }
 
-inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+inline bool ReduceEqual(const ir::ReduceNode* a, const ir::ReduceNode* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
          (a->axis.same_as(b->axis)) &&
@@ -193,8 +193,8 @@ void PrepareAxisMapping(Stage orig_stage,
                         std::unordered_set<IterVar>* p_red_axis,
                         Array<IterVar>* p_new_axis,
                         std::unordered_map<IterVar, Range>* p_dom_map,
-                        std::unordered_map<const Variable*, Expr>* p_vsub,
-                        std::unordered_map<const Variable*, Expr>* p_vsub2newvar,
+                        std::unordered_map<const VarNode*, Expr>* p_vsub,
+                        std::unordered_map<const VarNode*, Expr>* p_vsub2newvar,
                         std::vector<Expr>* p_predicates) {
   auto& red_axis = *p_red_axis;
   auto& new_axis = *p_new_axis;
@@ -305,8 +305,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const Variable*, Expr> vsub;
-  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::unordered_map<const VarNode*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub2newvar;
   std::vector<Expr> predicates;
 
   PrepareAxisMapping(orig_stage, compute,
@@ -314,18 +314,18 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
 
   Expr body;
   Array<Expr> body_list;
-  const ir::Reduce* first_reduce = nullptr;
+  const ir::ReduceNode* first_reduce = nullptr;
   for (auto cbody : compute->body) {
     body = VarReplacer(vsub)(cbody);
     body = InjectPredicate(predicates, body);
     body = VarReplacer(vsub2newvar)(body);
     // Reduce nodes in ONE computeOp must be the same except value_index
     // This is right only if the original body ensures Reduce nodes are the same
-    if (body->IsInstance<ir::Reduce>()) {
-      const ir::Reduce* reduce_body = body.as<ir::Reduce>();
+    if (body->IsInstance<ir::ReduceNode>()) {
+      const ir::ReduceNode* reduce_body = body.as<ir::ReduceNode>();
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
-        body = ir::Reduce::make(first_reduce->combiner,
+        body = ir::ReduceNode::make(first_reduce->combiner,
                                 first_reduce->source,
                                 first_reduce->axis,
                                 first_reduce->condition,
@@ -386,8 +386,8 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const Variable*, Expr> vsub;
-  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::unordered_map<const VarNode*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub2newvar;
   std::vector<Expr> predicates;
 
   PrepareAxisMapping(orig_stage, tensor_op,
@@ -573,25 +573,25 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
           }
-          if (new_body[j][0]->IsInstance<ir::Reduce>()) {
+          if (new_body[j][0]->IsInstance<ir::ReduceNode>()) {
             // specially handle reduction inline for multiplre reductions.
-            const ir::Reduce* reduce = new_body[j][0].as<ir::Reduce>();
+            const ir::ReduceNode* reduce = new_body[j][0].as<ir::ReduceNode>();
             for (size_t k = 1; k < new_body[j].size(); ++k) {
-              const ir::Reduce* reduce_ = new_body[j][k].as<ir::Reduce>();
+              const ir::ReduceNode* reduce_ = new_body[j][k].as<ir::ReduceNode>();
               CHECK(reduce_);
               CHECK(ReduceEqual(reduce_, reduce))
                   << "The Reduce inputs of ComputeOp should "
                   << "have the same attribute except value_index";
             }
-            Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][0]),
-                                        stage->op, args, body).as<ir::Evaluate>()->value;
+            Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][0]),
+                                        stage->op, args, body).as<ir::EvaluateNode>()->value;
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
-              const ir::Reduce* r = new_value.as<ir::Reduce>();
+              const ir::ReduceNode* r = new_value.as<ir::ReduceNode>();
               CHECK_EQ(new_body[j].size(), r->source.size());
               CHECK(r != nullptr);
               for (size_t k = 0; k < new_body[j].size(); ++k) {
-                auto n = make_object<ir::Reduce>(*r);
+                auto n = make_object<ir::ReduceNode>(*r);
                 n->value_index = static_cast<int>(k);
                 n->dtype = r->source[k].dtype();
                 new_body[j].Set(k, Expr(n));
@@ -599,8 +599,8 @@ void InjectInline(ScheduleNode* sch) {
             }
           } else {
             for (size_t k = 0; k < new_body[j].size(); ++k) {
-              Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][k]),
-                                          stage->op, args, body).as<ir::Evaluate>()->value;
+              Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][k]),
+                                          stage->op, args, body).as<ir::EvaluateNode>()->value;
               if (!new_value.same_as(new_body[j][k])) {
                 new_body[j].Set(k, new_value);
                 changed[j] = true;
@@ -677,7 +677,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
                                 const IterVar& axis,
                                 int factor_axis) {
   (*this)->InvalidateCache();
-  using ir::Reduce;
+  using ir::ReduceNode;
   CHECK_EQ(axis->iter_type, kCommReduce)
       << "Can only factor reduction axis";
   Stage reduce_stage = operator[](tensor->op);
@@ -758,12 +758,12 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   }
   // predicate generation, copy not touched axis.
   int idx = tensor->value_index;
-  const Reduce* reduce = compute_op->body[idx].as<Reduce>();
+  const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  Expr predicate = likely(arith::ComputeReduce<ir::And>(predicates, Expr()));
+  Expr predicate = likely(arith::ComputeReduce<ir::AndNode>(predicates, Expr()));
 
-  std::unordered_map<const Variable*, Expr> vsub;
+  std::unordered_map<const VarNode*, Expr> vsub;
 
   for (IterVar iv : compute_op->reduce_axis) {
     if (!touch_map.count(iv)) {
@@ -792,7 +792,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
 
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
-    body.emplace_back(Reduce::make(reduce->combiner,
+    body.emplace_back(ReduceNode::make(reduce->combiner,
                                    new_source,
                                    n->reduce_axis,
                                    new_pred,
@@ -861,7 +861,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       Array<IterVar> axis = {repl_red_axis};
       Expr cond = const_true();
       for (int idx = 0; idx < size; ++idx) {
-        reductions.push_back(Reduce::make(reduce->combiner,
+        reductions.push_back(ReduceNode::make(reduce->combiner,
           factor_exprs, axis, cond, idx));
       }
       return reductions;

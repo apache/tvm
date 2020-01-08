@@ -51,7 +51,7 @@ class IndexParser: public ExprVisitor {
     this->VisitExpr(expr);
   }
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     // TODO(lmzheng): handle more index types (multiple occurrence)
     if (pattern_map.count(op) == 0) {
       pattern_map[op] = TouchPattern();
@@ -60,16 +60,16 @@ class IndexParser: public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const Mul* op) final {
-    if (op->a.as<Variable>()) {
-      if (const auto stride = op->b.as<IntImm>()) {
+  void VisitExpr_(const MulNode* op) final {
+    if (op->a.as<VarNode>()) {
+      if (const auto stride = op->b.as<IntImmNode>()) {
         next_stride_ = stride->value;
       }
     }
     ExprVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<const Variable*, TouchPattern> pattern_map;
+  std::unordered_map<const VarNode*, TouchPattern> pattern_map;
 
  private:
   int64_t next_stride_ = 1;
@@ -255,10 +255,10 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     feature_row.push_back(Array<Expr>{std::string("_itervar_"), var});
 
     Array<Expr> attr{std::string("_attr_"),
-                     FloatImm::make(DataType::Float(32), trans(fea.length)),
-                     IntImm::make(DataType::Int(32), fea.nest_level),
-                     FloatImm::make(DataType::Float(32), trans(fea.topdown_product)),
-                     FloatImm::make(DataType::Float(32), trans(fea.bottomup_product)),
+                     FloatImmNode::make(DataType::Float(32), trans(fea.length)),
+                     IntImmNode::make(DataType::Int(32), fea.nest_level),
+                     FloatImmNode::make(DataType::Float(32), trans(fea.topdown_product)),
+                     FloatImmNode::make(DataType::Float(32), trans(fea.bottomup_product)),
     };
     // one hot annotation
     for (int i = 0; i < kNum; i++) {
@@ -268,9 +268,9 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
 
     // arithmetic
     feature_row.push_back(Array<Expr>{std::string("_arith_"),
-                                      FloatImm::make(DataType::Float(32), trans(fea.add_ct)),
-                                      FloatImm::make(DataType::Float(32), trans(fea.mul_ct)),
-                                      FloatImm::make(DataType::Float(32), trans(fea.div_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.add_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.mul_ct)),
+            FloatImmNode::make(DataType::Float(32), trans(fea.div_ct)),
     });
 
     // touch map
@@ -281,14 +281,15 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     std::sort(bufs.begin(), bufs.end());
     for (auto k : bufs) {
       TouchPattern &v = fea.touch_feature[k];
-      feature_row.push_back(Array<Expr>{k,
-                                        FloatImm::make(DataType::Float(32), trans(v.stride)),
-                                        FloatImm::make(DataType::Float(32), trans(v.mod)),
-                                        FloatImm::make(DataType::Float(32), trans(v.count)),
-                                        FloatImm::make(DataType::Float(32), trans(v.reuse)),
-                                        FloatImm::make(DataType::Float(32), trans(v.thread_count)),
-                                        FloatImm::make(DataType::Float(32), trans(v.thread_reuse)),
-      });
+      feature_row.push_back(
+          Array<Expr>{k,
+                FloatImmNode::make(DataType::Float(32), trans(v.stride)),
+                FloatImmNode::make(DataType::Float(32), trans(v.mod)),
+                FloatImmNode::make(DataType::Float(32), trans(v.count)),
+                FloatImmNode::make(DataType::Float(32), trans(v.reuse)),
+                FloatImmNode::make(DataType::Float(32), trans(v.thread_count)),
+                FloatImmNode::make(DataType::Float(32), trans(v.thread_reuse)),
+                });
     }
 
     ret_feature->push_back(feature_row);

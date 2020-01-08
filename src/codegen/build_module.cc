@@ -65,39 +65,39 @@ Target CreateTarget(const std::string& target_name,
   std::string device_flag = "-device=";
   std::string keys_flag = "-keys=";
   for (auto& item : options) {
-    t->options_array.push_back(ir::StringImm::make(item));
+    t->options_array.push_back(ir::StringImmNode::make(item));
 
     if (item.find(libs_flag) == 0) {
       std::stringstream ss(item.substr(libs_flag.length()));
       std::string lib_item;
       while (std::getline(ss, lib_item, ',')) {
-        t->libs_array.push_back(ir::StringImm::make(lib_item));
+        t->libs_array.push_back(ir::StringImmNode::make(lib_item));
       }
     } else if (item.find(device_flag) == 0) {
       t->device_name = item.substr(device_flag.length());
-      t->keys_array.push_back(ir::StringImm::make(t->device_name));
+      t->keys_array.push_back(ir::StringImmNode::make(t->device_name));
     } else if (item.find(keys_flag) == 0) {
       std::stringstream ss(item.substr(keys_flag.length()));
       std::string key_item;
       while (std::getline(ss, key_item, ',')) {
-        t->keys_array.push_back(ir::StringImm::make(key_item));
+        t->keys_array.push_back(ir::StringImmNode::make(key_item));
       }
     }
   }
 
   if (t->device_name.length() > 0) {
-    t->keys_array.push_back(ir::StringImm::make(t->device_name));
+    t->keys_array.push_back(ir::StringImmNode::make(t->device_name));
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "c" && t->device_name == "micro_dev") {
     t->device_type = kDLMicroDev;
   } else if (target_name == "c" || target_name == "llvm") {
-    t->keys_array.push_back(ir::StringImm::make("cpu"));
+    t->keys_array.push_back(ir::StringImmNode::make("cpu"));
   } else if (target_name == "cuda" || target_name == "nvptx") {
     t->device_type = kDLGPU;
-    t->keys_array.push_back(ir::StringImm::make("cuda"));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->keys_array.push_back(ir::StringImmNode::make("cuda"));
+    t->keys_array.push_back(ir::StringImmNode::make("gpu"));
     t->max_num_threads = 1024;
     t->thread_warp_size = 32;
   } else if (target_name == "rocm" || target_name == "opencl") {
@@ -107,8 +107,8 @@ Target CreateTarget(const std::string& target_name,
     } else {
       t->device_type = kDLROCM;
     }
-    t->keys_array.push_back(ir::StringImm::make(target_name));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->keys_array.push_back(ir::StringImmNode::make(target_name));
+    t->keys_array.push_back(ir::StringImmNode::make("gpu"));
     t->max_num_threads = 256;
     if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
@@ -119,20 +119,20 @@ Target CreateTarget(const std::string& target_name,
     } else {
       t->device_type = kDLVulkan;
     }
-    t->keys_array.push_back(ir::StringImm::make(target_name));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
+    t->keys_array.push_back(ir::StringImmNode::make(target_name));
+    t->keys_array.push_back(ir::StringImmNode::make("gpu"));
     t->max_num_threads = 256;
   } else if (target_name == "sdaccel") {
     t->device_type = kDLOpenCL;
-    t->keys_array.push_back(ir::StringImm::make("sdaccel"));
-    t->keys_array.push_back(ir::StringImm::make("hls"));
+    t->keys_array.push_back(ir::StringImmNode::make("sdaccel"));
+    t->keys_array.push_back(ir::StringImmNode::make("hls"));
   } else if (target_name == "aocl" || target_name == "aocl_sw_emu") {
     t->device_type = kDLAOCL;
-    t->keys_array.push_back(ir::StringImm::make("aocl"));
-    t->keys_array.push_back(ir::StringImm::make("hls"));
+    t->keys_array.push_back(ir::StringImmNode::make("aocl"));
+    t->keys_array.push_back(ir::StringImmNode::make("hls"));
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
-    t->keys_array.push_back(ir::StringImm::make("opengl"));
+    t->keys_array.push_back(ir::StringImmNode::make("opengl"));
   } else if (target_name == "stackvm") {
     t->device_type = kDLCPU;
   } else if (target_name == "ext_dev") {
@@ -168,7 +168,7 @@ TVM_REGISTER_GLOBAL("_TargetFromString")
 std::vector<std::string> TargetNode::keys() const {
   std::vector<std::string> result;
   for (auto& expr : keys_array) {
-    result.push_back(expr.as<ir::StringImm>()->value);
+    result.push_back(expr.as<ir::StringImmNode>()->value);
   }
   return result;
 }
@@ -176,7 +176,7 @@ std::vector<std::string> TargetNode::keys() const {
 std::vector<std::string> TargetNode::options() const {
   std::vector<std::string> result;
   for (auto& expr : options_array) {
-    result.push_back(expr.as<ir::StringImm>()->value);
+    result.push_back(expr.as<ir::StringImmNode>()->value);
   }
   return result;
 }
@@ -184,7 +184,7 @@ std::vector<std::string> TargetNode::options() const {
 std::unordered_set<std::string> TargetNode::libs() const {
   std::unordered_set<std::string> result;
   for (auto& expr : libs_array) {
-    result.insert(expr.as<ir::StringImm>()->value);
+    result.insert(expr.as<ir::StringImmNode>()->value);
   }
   return result;
 }
@@ -348,7 +348,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
-      if (it.as<Variable>()) {
+      if (it.as<VarNode>()) {
         has_any = true;
         break;
       }
@@ -860,7 +860,7 @@ TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
 
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
-    tags_vector.push_back(tag.as<tvm::ir::StringImm>()->value);
+    tags_vector.push_back(tag.as<tvm::ir::StringImmNode>()->value);
   }
 
   generic_func

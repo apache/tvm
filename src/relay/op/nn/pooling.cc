@@ -139,7 +139,7 @@ bool Pool2DRel(const Array<Type>& types,
     oshape.push_back(e);
   }
 
-  if (dshape[hidx].as<ir::Any>()) {
+  if (dshape[hidx].as<ir::AnyNode>()) {
     oshape[hidx] = dshape[hidx];
   } else {
     if (param->ceil_mode) {
@@ -149,7 +149,7 @@ bool Pool2DRel(const Array<Type>& types,
       oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
     }
   }
-  if (dshape[widx].as<ir::Any>()) {
+  if (dshape[widx].as<ir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
@@ -796,7 +796,7 @@ bool Pool3DRel(const Array<Type>& types,
   std::vector<int> idxes = {didx, hidx, widx};
   for (int i = 0; i < 3; i++) {
     int ii = idxes[i];
-    if (dshape[ii].as<ir::Any>()) {
+    if (dshape[ii].as<ir::AnyNode>()) {
       oshape[ii] = dshape[ii];
     } else {
       if (param->ceil_mode) {

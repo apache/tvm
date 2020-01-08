@@ -31,8 +31,8 @@
 namespace tvm {
 namespace ir {
 
-void StorageAccessVisitor::VisitExpr_(const Load* op) {
-  const Variable* buf = op->buffer_var.as<Variable>();
+void StorageAccessVisitor::VisitExpr_(const LoadNode* op) {
+  const VarNode* buf = op->buffer_var.as<VarNode>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
     CHECK(allow_append_);
@@ -49,11 +49,11 @@ void StorageAccessVisitor::VisitExpr_(const Load* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-void StorageAccessVisitor::VisitStmt_(const Store* op) {
+void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
-  const Variable* buf = op->buffer_var.as<Variable>();
+  const VarNode* buf = op->buffer_var.as<VarNode>();
   StorageScope scope = GetScope(buf);
   if (Enabled(buf, scope)) {
     AccessEntry e;
@@ -74,7 +74,7 @@ void StorageAccessVisitor::VisitStmt_(const Store* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::VisitStmt_(const Evaluate* op) {
+void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -87,15 +87,15 @@ void StorageAccessVisitor::VisitStmt_(const Evaluate* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::VisitStmt_(const AttrStmt* op) {
+void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::storage_scope) {
-    const Variable* buf = op->node.as<Variable>();
+    const VarNode* buf = op->node.as<VarNode>();
     storage_scope_[buf] =
-        StorageScope::make(op->value.as<StringImm>()->value);
+        StorageScope::make(op->value.as<StringImmNode>()->value);
     StmtExprVisitor::VisitStmt_(op);
   } else if (op->attr_key == attr::double_buffer_write) {
     CHECK(double_buffer_write_ == nullptr);
-    double_buffer_write_ = op->node.as<Variable>();
+    double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
     StmtExprVisitor::VisitStmt_(op);
     StmtEntry s;
@@ -136,7 +136,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmt* op) {
   }
 }
 
-void StorageAccessVisitor::VisitStmt_(const For* op) {
+void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
   scope_.push_back(std::vector<StmtEntry>());
   StmtExprVisitor::VisitStmt_(op);
   StmtEntry s;
@@ -145,7 +145,7 @@ void StorageAccessVisitor::VisitStmt_(const For* op) {
   scope_.pop_back();
   if (s.access.size() != 0) {
     // relax the touched set to contain all ranges in the loop.
-    std::unordered_map<const Variable*, arith::IntSet> relax_map;
+    std::unordered_map<const VarNode*, arith::IntSet> relax_map;
     relax_map[op->loop_var.get()] = arith::IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
@@ -160,7 +160,7 @@ void StorageAccessVisitor::VisitStmt_(const For* op) {
   }
 }
 
-void StorageAccessVisitor::VisitStmt_(const IfThenElse* op) {
+void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
   ++condition_counter_;
   this->VisitExpr(op->condition);
   scope_.push_back(std::vector<StmtEntry>());
@@ -179,17 +179,17 @@ void StorageAccessVisitor::VisitStmt_(const IfThenElse* op) {
   --condition_counter_;
 }
 
-void StorageAccessVisitor::VisitExpr_(const Call* op) {
+void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-    const Load *l = op->args[0].as<Load>();
+    const LoadNode *l = op->args[0].as<LoadNode>();
     StmtExprVisitor::VisitExpr_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
-    const Variable* buffer = op->args[1].as<Variable>();
+    const VarNode* buffer = op->args[1].as<VarNode>();
     Expr offset = op->args[2];
     Expr extent = op->args[3];
-    const IntImm* flag = op->args[4].as<IntImm>();
+    const IntImmNode* flag = op->args[4].as<IntImmNode>();
     StorageScope scope = GetScope(buffer);
     // The buffer scope.
     if (Enabled(buffer, scope)) {
@@ -213,7 +213,7 @@ void StorageAccessVisitor::VisitExpr_(const Call* op) {
     StmtExprVisitor::VisitExpr_(op);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     CHECK(allow_append_);
-    const std::string& s = op->args[0].as<StringImm>()->value;
+    const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::make(s);
       AccessEntry e;
@@ -227,7 +227,7 @@ void StorageAccessVisitor::VisitExpr_(const Call* op) {
   }
 }
 
-StorageScope StorageAccessVisitor::GetScope(const Variable* buf) const {
+StorageScope StorageAccessVisitor::GetScope(const VarNode* buf) const {
   auto it = storage_scope_.find(buf);
   StorageScope s;
   s.rank = StorageRank::kGlobal;
@@ -238,10 +238,10 @@ StorageScope StorageAccessVisitor::GetScope(const Variable* buf) const {
 
 class StorageAccessInfoLower : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Allocate>();
+    op = stmt.as<AllocateNode>();
     // For special memory, remove allocate, or use head expr
     auto it = storage_info_.find(op->buffer_var.get());
     if (it != storage_info_.end() && it->second.info.defined()) {
@@ -250,7 +250,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
       CHECK_LE(it->second.alloc_count, 1)
           << "Double allocation of " << it->second.scope.to_string();
       if (info->head_address.defined()) {
-        return Allocate::make(
+        return AllocateNode::make(
             op->buffer_var, op->dtype, op->extents, op->condition,
             op->body, info->head_address, "nop");
       }
@@ -259,14 +259,14 @@ class StorageAccessInfoLower : public StmtExprMutator {
       return stmt;
     }
   }
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      StorageScope scope = StorageScope::make(op->value.as<StringImm>()->value);
+      const VarNode* buf = op->node.as<VarNode>();
+      StorageScope scope = StorageScope::make(op->value.as<StringImmNode>()->value);
       StorageEntry e;
       e.scope = scope;
       if (scope.tag.length() != 0) {
-        e.info = GetMemoryInfo(op->value.as<StringImm>()->value);
+        e.info = GetMemoryInfo(op->value.as<StringImmNode>()->value);
         CHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
       }
       storage_info_[buf] = e;
@@ -277,7 +277,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       return MakeAccessPtr(op);
     } else {
@@ -287,13 +287,13 @@ class StorageAccessInfoLower : public StmtExprMutator {
 
  private:
   // tvm_access_ptr
-  Expr MakeAccessPtr(const Call* op) {
+  Expr MakeAccessPtr(const CallNode* op) {
     // Specially handle the buffer packed intrinsic
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
-    const Variable* buffer = op->args[1].as<Variable>();
+    const VarNode* buffer = op->args[1].as<VarNode>();
     Var buffer_var = Downcast<Var>(op->args[1]);
     Expr offset = op->args[2];
     auto it = storage_info_.find(buffer);
@@ -333,7 +333,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
     int alloc_count{0};
   };
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageEntry> storage_info_;
+  std::unordered_map<const VarNode*, StorageEntry> storage_info_;
 };
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {

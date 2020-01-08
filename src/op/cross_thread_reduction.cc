@@ -46,9 +46,9 @@ Stmt MakeCrossThreadReduction(
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);
-  std::vector<const Reduce*> reduces(size);
+  std::vector<const ReduceNode*> reduces(size);
   for (size_t i = 0; i < size; ++i) {
-    const Reduce* reduce = self->body[i].as<Reduce>();
+    const ReduceNode* reduce = self->body[i].as<ReduceNode>();
     CHECK(reduce);
     reduces[i] = reduce;
   }
@@ -84,11 +84,11 @@ Stmt MakeCrossThreadReduction(
     thread_head_check.emplace_back(stage->store_predicate);
   }
 
-  Stmt reduce_body = Evaluate::make(Call::make(
+  Stmt reduce_body = EvaluateNode::make(CallNode::make(
       DataType::Handle(),
       ir::intrinsic::tvm_thread_allreduce,
-      freduce_args, Call::Intrinsic));
-  reduce_body = AttrStmt::make(
+      freduce_args, CallNode::Intrinsic));
+  reduce_body = AttrStmtNode::make(
       reduces[0]->combiner,
       attr::reduce_scope,
       make_zero(DataType::Handle()),
@@ -96,19 +96,19 @@ Stmt MakeCrossThreadReduction(
   std::vector<Stmt> assigns(size);
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
-    assigns[idx] = Provide::make(
+    assigns[idx] = ProvideNode::make(
       stage->op, idx,
-      Load::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
+      LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
   assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
   assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
-    body = Allocate::make(
+    body = AllocateNode::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
-    body = AttrStmt::make(
-      res_handles[idx - 1], attr::storage_scope, StringImm::make("local"), body);
+    body = AttrStmtNode::make(
+      res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);
   }
   body = op::Substitute(body, value_map);
   return MergeNest(nest, body);

@@ -208,7 +208,7 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
 inline bool IsScalar(const Expr& expr) {
   if (auto tensor_type = expr->checked_type().as<TensorTypeNode>()) {
     for (auto dim_index_expr : tensor_type->shape) {
-      if (auto dim_index = dim_index_expr.as<IntImm>()) {
+      if (auto dim_index = dim_index_expr.as<IntImmNode>()) {
         if (dim_index->value != 1) {
           return false;
         }

@@ -102,46 +102,46 @@ class CodeGenC :
    */
   virtual void InitFuncState(LoweredFunc f);
   // expression
-  void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Add* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Sub* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Mul* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Div* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Mod* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Min* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Max* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const EQ* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const NE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LT* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GT* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const And* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Or* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Cast* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Not* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Select* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Shuffle* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const StringImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const AddNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const SubNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MulNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const DivNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const ModNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MinNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MaxNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const EQNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const NENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LTNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GTNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const AndNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const OrNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CastNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const NotNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const UIntImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
   // statment
-  void VisitStmt_(const LetStmt* op) override;
-  void VisitStmt_(const Store* op) override;
-  void VisitStmt_(const For* op) override;
-  void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const Allocate* op) override;
-  void VisitStmt_(const AttrStmt* op) override;
-  void VisitStmt_(const AssertStmt* op) override;
-  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
+  void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const ProducerConsumerNode* op) override;
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
@@ -154,15 +154,15 @@ class CodeGenC :
    */
   virtual void BindThreadIndex(const IterVar& iv); // NOLINT(*)
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os); // NOLINT(*)
-  virtual void PrintStorageSync(const Call* op);  // NOLINT(*)
+  virtual void PrintStorageSync(const CallNode* op);  // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(
       const std::string&op, DataType op_type,
       Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const Variable* buffer, Expr base);
+  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, Expr base);
   // print vector store
-  virtual void PrintVecStore(const Variable* buffer,
+  virtual void PrintVecStore(const VarNode* buffer,
                              DataType t, Expr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
@@ -180,28 +180,28 @@ class CodeGenC :
       DataType t, const Expr& buffer, const Expr& index, int kind);
   // print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(
-      DataType t, const Variable* buffer, Expr index);
+      DataType t, const VarNode* buffer, Expr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool HandleTypeMatch(const Variable* buf_var, DataType t) const;
+  bool HandleTypeMatch(const VarNode* buf_var, DataType t) const;
   /*!
    * \brief Register the data type of buf_var
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void RegisterHandleType(const Variable* buf_var, DataType t);
+  void RegisterHandleType(const VarNode* buf_var, DataType t);
   // override
   void PrintSSAAssign(
       const std::string& target, const std::string& src, DataType t) final;
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
+  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const Variable*, DataType> handle_data_type_;
+  std::unordered_map<const VarNode*, DataType> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -209,7 +209,7 @@ class CodeGenC :
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
   /*! \brief set of volatile buf access */
-  std::unordered_set<const Variable*> volatile_buf_;
+  std::unordered_set<const VarNode*> volatile_buf_;
 };
 
 }  // namespace codegen

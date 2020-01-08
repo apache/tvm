@@ -40,7 +40,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   };
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
       Expr ctx = op->args[0];
@@ -50,7 +50,7 @@ class ContextCallCombiner final : public StmtExprMutator {
       } else {
         CHECK(ctx.dtype().is_handle());
         std::string name;
-        if (const Call* call = ctx.as<Call>()) {
+        if (const CallNode* call = ctx.as<CallNode>()) {
           name = call->name + "_cache";
         } else {
           name = "ctx_cache_";
@@ -64,7 +64,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
@@ -78,7 +78,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Parallel) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
@@ -99,7 +99,7 @@ class ContextCallCombiner final : public StmtExprMutator {
   static Stmt BuildContext(const std::map<Expr, Var, CompareExpr>& cmap,
                            Stmt body) {
     for (const auto& kv : cmap) {
-      body = LetStmt::make(kv.second, kv.first, body);
+      body = LetStmtNode::make(kv.second, kv.first, body);
     }
     return body;
   }

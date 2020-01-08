@@ -194,8 +194,8 @@ inline Tensor sign(const Tensor& x,
     Expr zero = make_zero(x->dtype);
     Expr one = make_const(x->dtype, 1);
     Expr minus_one = make_const(x->dtype, -1);
-    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
-    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    auto s1 = tvm::ir::SelectNode::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::ir::SelectNode::make((x(i) > zero), one, s1);
     return s2;
   }, name, tag);
 }
@@ -264,7 +264,7 @@ inline Tensor cast(const Tensor& x,
       if (expr.dtype().lanes() == type.lanes()) {
         return expr;
       } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
-        return tvm::ir::Broadcast::make(expr, type.lanes());
+        return tvm::ir::BroadcastNode::make(expr, type.lanes());
       }
     }
 
@@ -286,8 +286,8 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
                           std::string tag = kElementWise) {
   return compute(x->shape,
                  [&](const Array<Var>& i) {
-                   return tvm::ir::Call::make(type, "reinterpret", {x(i)},
-                                              tvm::ir::Call::PureIntrinsic);
+                   return tvm::ir::CallNode::make(type, "reinterpret", {x(i)},
+                                              tvm::ir::CallNode::PureIntrinsic);
                  },
                  name, tag);
 }

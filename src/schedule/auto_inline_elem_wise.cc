@@ -38,7 +38,7 @@ class ElemWiseDetector : public ir::ExprVisitor {
     ExprVisitor::VisitExpr(e);
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     Array<Expr> axis = op->args;
     if (axis_.size() != axis.size()) {
       is_elem_wise_ = false;

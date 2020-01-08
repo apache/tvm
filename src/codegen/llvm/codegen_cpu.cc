@@ -319,7 +319,7 @@ llvm::Value* CodeGenCPU::CreateStructRefPtr(
   }
 }
 
-llvm::Value* CodeGenCPU::CreateCallExtern(const Call* op) {
+llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   std::vector<llvm::Value*> arg_values(op->args.size());
   for (size_t i = 0; i < op->args.size(); ++i) {
     arg_values[i] = MakeValue(op->args[i]);
@@ -417,7 +417,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 
-void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
+void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // There are two reasons why we create another function for compute_scope
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
@@ -436,12 +436,12 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
   llvm::Function* fcompute =
       llvm::Function::Create(ftype,
                              llvm::Function::PrivateLinkage,
-                             op->value.as<StringImm>()->value,
+                             op->value.as<StringImmNode>()->value,
                              module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(
       builder_->CreateCall(fcompute, arg_values));
   // setup compute fuinction.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   size_t idx = 0;
   for (auto it = fcompute->arg_begin();
        it != fcompute->arg_end(); ++it, ++idx) {
@@ -497,7 +497,7 @@ llvm::Value* CodeGenCPU::PackClosureData(const Array<Var>& vfields, uint64_t* nu
 
 void CodeGenCPU::UnpackClosureData(llvm::Value* cdata,
                                    const Array<Var>& vfields,
-                                   std::unordered_map<const Variable*, llvm::Value*>* vmap) {
+                                   std::unordered_map<const VarNode*, llvm::Value*>* vmap) {
   for (size_t i = 0; i < vfields.size(); ++i) {
     (*vmap)[vfields[i].get()] =
         builder_->CreateLoad(builder_->CreateInBoundsGEP(
@@ -528,7 +528,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   llvm::Value* penv = &(*it++);
   cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
   // setup new variable map, swap it with current var context.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   // setup parallel env
   ParallelEnv par_env;
@@ -594,7 +594,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   auto it = f->arg_begin();
   cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
   // setup new variable map, swap it with current var context.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   CHECK(parallel_env_.penv == nullptr);
   std::swap(function_, f);
@@ -673,7 +673,7 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
                            llvm::Value **ret_tcode, const DataType &r_type,
                            const int64_t begin, const int64_t end) {
   using llvm::BasicBlock;
-  std::string func_name = args[0].as<StringImm>()->value;
+  std::string func_name = args[0].as<StringImmNode>()->value;
   llvm::Value *handle = GetPackedFuncHandle(func_name);
   // call the function
   int64_t nargs = end - begin;
@@ -701,24 +701,24 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
   return end_block;
 }
 
-llvm::Value *CodeGenCPU::CreateCallPacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallPacked(const CallNode *op) {
   CHECK_EQ(op->args.size(), 5U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
   MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype,
-                 op->args[3].as<IntImm>()->value,
-                 op->args[4].as<IntImm>()->value);
+                 op->args[3].as<IntImmNode>()->value,
+                 op->args[4].as<IntImmNode>()->value);
   return rvalue;
 }
 
-llvm::Value *CodeGenCPU::CreateCallTracePacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallTracePacked(const CallNode *op) {
   using llvm::BasicBlock;
   CHECK_EQ(op->args.size(), 6U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
   BasicBlock *end_block = MakeCallPacked(
-      op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImm>()->value,
-      op->args[4].as<IntImm>()->value);
+      op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImmNode>()->value,
+      op->args[4].as<IntImmNode>()->value);
   // Get traced value.
   llvm::Value *traced_value = MakeValue(op->args[5]);
   // The update_block handles case when we need to update the return value.
@@ -786,7 +786,7 @@ void CodeGenCPU::AddStartupFunction() {
   }
 }
 
-llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
+llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     return CreateCallPacked(op);
   } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed_lowered)) {
@@ -798,7 +798,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     return ConstInt32(-1);
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
-    int kind = op->args[2].as<IntImm>()->value;
+    int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* ref = this->CreateStructRefPtr(
         op->dtype, MakeValue(op->args[0]),
         MakeValue(op->args[1]), kind);
@@ -809,7 +809,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     }
   } else if (op->is_intrinsic(intrinsic::tvm_struct_set)) {
     CHECK_EQ(op->args.size(), 4U);
-    int kind = op->args[2].as<IntImm>()->value;
+    int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     llvm::Value* ref = this->CreateStructRefPtr(
         op->args[3].dtype(), MakeValue(op->args[0]),
@@ -823,7 +823,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     return ConstInt32(0);
   } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     CHECK_EQ(op->args.size(), 2U);
-    const std::string& type = op->args[0].as<StringImm>()->value;
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
         const int64_t* pval = as_const_int(op->args[1]);
         CHECK(pval) << "require stack alloca to contain constant value";
@@ -846,13 +846,13 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
+void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;
   os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImm>()) {
-    os << ", " << op->message.as<StringImm>()->value;
+  if (op->message.as<StringImmNode>()) {
+    os << ", " << op->message.as<StringImmNode>()->value;
   }
   llvm::Value* msg = GetConstString(os.str());
   BasicBlock* fail_block = BasicBlock::Create(
@@ -869,9 +869,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
   CodeGenLLVM::VisitStmt_(op);
 }
 
-void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
+void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == ir::attr::coproc_uop_scope) {
-    this->CreateStaticInit(op->value.as<StringImm>()->value, op->body);
+    this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
   } else  if (op->attr_key == ir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (attr::IsPragmaKey(op->attr_key)) {
@@ -893,7 +893,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
           RuntimeTVMParallelBarrier(),
           {MakeValue(parallel_env_.task_id),  parallel_env_.penv});
     } else if (op->attr_key == ir::attr::pragma_import_llvm) {
-      const StringImm* value = op->value.as<StringImm>();
+      const StringImmNode* value = op->value.as<StringImmNode>();
       CHECK(value != nullptr);
       this->HandleImport(value->value);
       this->VisitStmt(op->body);
@@ -906,7 +906,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const For* op) {
+void CodeGenCPU::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   if (op->for_type == ForType::Serial ||
       op->for_type == ForType::Unrolled) {
@@ -914,7 +914,7 @@ void CodeGenCPU::VisitStmt_(const For* op) {
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
       CreateParallelLaunch(
-          For::make(
+          ForNode::make(
               op->loop_var, op->min, op->extent,
               op->for_type, op->device_api, op->body), 0);
     } else {
@@ -936,8 +936,8 @@ void CodeGenCPU::VisitStmt_(const For* op) {
                         op->body);
       } else {
         Expr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        Expr begin = Min::make(task_id * step, op->extent);
-        Expr end = Min::make((task_id + make_const(t, 1)) * step, op->extent);
+        Expr begin = MinNode::make(task_id * step, op->extent);
+        Expr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
                         ConstInt32(1),

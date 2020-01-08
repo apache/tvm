@@ -93,7 +93,7 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::VisitStmt_(const ir::For* op) {
+void CodeGenCUDA::VisitStmt_(const ir::ForNode* op) {
   CHECK(is_const_int(op->min, 0));
   if (op->for_type == ir::ForType::Unrolled) {
     PrintIndent();
@@ -265,8 +265,8 @@ void CodeGenCUDA::PrintVecElemStore(
   }
 }
 
-void CodeGenCUDA::PrintStorageSync(const Call* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
   } else if (sync == "shared") {
@@ -314,7 +314,7 @@ void CodeGenCUDA::PrintStorageScope(
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
   if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
     need_mma_h_ = true;
     CHECK_EQ(op->args.size(), 6U);
@@ -348,7 +348,7 @@ void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
     this->PrintExpr(op->args[4], os);
     os << "], ";
     this->PrintExpr(op->args[6], os);
-    if (const StringImm *str = op->args[7].as<StringImm>()) {
+    if (const StringImmNode *str = op->args[7].as<StringImmNode>()) {
       os << ", nvcuda::wmma::mem_" << str->value;
     } else {
       LOG(FATAL) << "Invalid parameters";
@@ -369,20 +369,20 @@ void CodeGenCUDA::VisitExpr_(const Call *op, std::ostream& os) {
   }
 }
 
-void CodeGenCUDA::VisitStmt_(const AttrStmt* op) {
+void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::fragment_shape) {
-    const Variable* buffer = op->node.as<Variable>();
-    const StringImm* shape_str = op->value.as<StringImm>();
+    const VarNode* buffer = op->node.as<VarNode>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
   } else if (op->attr_key == attr::fragment_layout) {
-    const Variable* buffer = op->node.as<Variable>();
-    const StringImm* layout_str = op->value.as<StringImm>();
+    const VarNode* buffer = op->node.as<VarNode>();
+    const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
   }
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenCUDA::VisitStmt_(const Allocate* op) {
+void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {
@@ -397,7 +397,7 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
       << "Can only handle constant size stack allocation for now";
-    const Variable* buffer = op->buffer_var.as<Variable>();
+    const VarNode* buffer = op->buffer_var.as<VarNode>();
     std::string scope = alloc_storage_scope_.at(buffer);
     if (scope.find("wmma.") == 0) {
       if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
@@ -425,9 +425,9 @@ void CodeGenCUDA::VisitStmt_(const Allocate* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
+void CodeGenCUDA::VisitStmt_(const EvaluateNode *op) {
   if (is_const(op->value)) return;
-  const Call* call = op->value.as<Call>();
+  const CallNode* call = op->value.as<CallNode>();
   if (call && call->is_intrinsic(intrinsic::tvm_global_barrier_kinit)) {
     PrintIndent();
     stream << "__shared__ unsigned " << vid_global_barrier_expect_ << ";\n";
@@ -442,7 +442,7 @@ void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
   }
 }
 
-void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
+void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   os << "((make_int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";
@@ -452,7 +452,7 @@ void CodeGenCUDA::VisitExpr_(const Ramp* op, std::ostream& os) {
   os << "))";
 }
 
-void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   if (op->dtype.is_int() && op->dtype.bits() == 8 && op->lanes == 4) {
     // make_int8x4
     const int64_t *p = as_const_int(op->value);
@@ -474,7 +474,7 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
   os << ')';
 }
 
-void CodeGenCUDA::VisitExpr_(const Shuffle* op, std::ostream &os) {
+void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream &os) {
   std::vector<std::string> to_shuffle(op->vectors.size());
   for (int i = 0, e = op->vectors.size(); i < e; ++i) {
     CHECK(op->vectors[i].dtype().lanes() == 1) << "Only scalars can be shuffled in CUDA!";
@@ -492,7 +492,7 @@ void CodeGenCUDA::VisitExpr_(const Shuffle* op, std::ostream &os) {
   os << ')';
 }
 
-inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
+inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
   switch (op->dtype.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
@@ -523,12 +523,12 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { /
 }
 
 
-void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenCUDA::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
 
 void CodeGenCUDA::PrintWmmaScope(const std::string &scope, DataType t,
-    const Variable* variable, std::ostream &os) {
+    const VarNode* variable, std::ostream &os) {
   std::stringstream type;
   PrintType(t, type);
   std::string shape_str = fragment_shapes[variable];
@@ -550,7 +550,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string &scope, DataType t,
 }
 
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string &scope,
-                                         const Variable* variable, int32_t size) {
+                                         const VarNode* variable, int32_t size) {
   std::string shape_str = fragment_shapes[variable];
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;

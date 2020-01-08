@@ -46,7 +46,7 @@ TEST(IRSIMPLIFY, Mod) {
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = tvm::ir::CanonicalSimplify(tvm::ir::Mod::make(x, y));
+  auto mod = tvm::ir::CanonicalSimplify(tvm::ir::ModNode::make(x, y));
   auto es = tvm::ir::CanonicalSimplify(mod - x);
   CHECK(is_zero(es));
 }

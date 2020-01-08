@@ -408,7 +408,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   auto target_dim = make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<ir::Any>()) {
+    if (!data->shape[i].as<ir::AnyNode>()) {
       target_dim = target_dim * data->shape[i];
     } else {
       target_dim = data->shape[i];

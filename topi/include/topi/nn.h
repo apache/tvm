@@ -94,7 +94,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     [&](const tvm::Array<tvm::Var>& i) {
       auto value = t(i);
       auto calpha = tvm::make_const(value.dtype(), alpha);
-      return tvm::ir::Select::make(value > 0, value, value * calpha);
+      return tvm::ir::SelectNode::make(value > 0, value, value * calpha);
     },
     name,
     tag);
@@ -125,7 +125,7 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
   return tvm::compute(x->shape,
                      [&](const tvm::Array<tvm::Var> &indices) {
                         auto xval = x(indices);
-                        return tvm::ir::Select::make(
+                        return tvm::ir::SelectNode::make(
                             xval > 0,
                             xval,
                             xval * slope(indices[axis]));
@@ -243,10 +243,10 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
-            detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+            detail::Map(sel, tvm::ir::AndNode::make), t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
-            detail::Map(sel, tvm::ir::And::make), t(indices), t(pad_idx));
+            detail::Map(sel, tvm::ir::AndNode::make), t(indices), t(pad_idx));
       }
     }
     return t(indices);

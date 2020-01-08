@@ -501,7 +501,7 @@ std::vector<Expr> MakeBoundCheck(
   PassUpBoundCheck(stage, dom_map, &bound_state, &analyzer);
 
   std::vector<Expr> preds;
-  std::unordered_map<const Variable*, IntSet> iset_dmap;
+  std::unordered_map<const VarNode*, IntSet> iset_dmap;
 
   // setup domain map for set analysis
   for (const auto& kv : dom_map) {

@@ -50,7 +50,7 @@ TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode *op);
 
-inline bool ReduceEqual(const ir::Reduce* a, const ir::Reduce* b) {
+inline bool ReduceEqual(const ir::ReduceNode* a, const ir::ReduceNode* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
          (a->axis.same_as(b->axis)) &&
@@ -148,8 +148,8 @@ Operation ComputeOpNode::make(std::string name,
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->IsInstance<ir::Reduce>()) {
-    const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
+  if (n->body[0]->IsInstance<ir::ReduceNode>()) {
+    const ir::ReduceNode* reduce = n->body[0].as<ir::ReduceNode>();
     n->reduce_axis = reduce->axis;
   }
   VerifyComputeOp(n.get());
@@ -162,7 +162,7 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
     ir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
-        const ir::Call *call = n.as<ir::Call>();
+        const ir::CallNode *call = n.as<ir::CallNode>();
         if (call != nullptr && call->func.defined()) {
           Tensor t = Downcast<Operation>(call->func).output(call->value_index);
           if (!visited.count(t)) {
@@ -181,14 +181,14 @@ Operation ComputeOpNode::ReplaceInputs(
   CHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
   Array<Expr> arr;
-  if (this->body[0]->IsInstance<ir::Reduce>()) {
+  if (this->body[0]->IsInstance<ir::ReduceNode>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
     Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
-      const ir::Reduce* r = new_reduce.as<ir::Reduce>();
+      const ir::ReduceNode* r = new_reduce.as<ir::ReduceNode>();
       for (size_t k = 0; k < this->body.size(); ++k) {
-        auto n = make_object<ir::Reduce>(*r);
+        auto n = make_object<ir::ReduceNode>(*r);
         n->value_index = static_cast<int>(k);
         n->dtype = r->source[k].dtype();
         arr.push_back(Expr(n));
@@ -212,11 +212,11 @@ Operation ComputeOpNode::ReplaceInputs(
 void ComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
-    auto *call = n.as<ir::Call>();
+    auto *call = n.as<ir::CallNode>();
     if (call != nullptr && call->func.defined()) {
       Tensor t = Downcast<Operation>(call->func).output(call->value_index);
       if (t->op.defined() && out_dom_map->count(t)) {
@@ -282,7 +282,7 @@ Stmt BaseComputeOpNode::BuildRealize(
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i-1);
-    realize = ir::Realize::make(t->op, t->value_index,
+    realize = ir::RealizeNode::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
@@ -293,9 +293,11 @@ Stmt BaseComputeOpNode::BuildRealize(
           Array<Expr> tuple = {static_cast<int>(i),
                                attr->dim_align_factor,
                                attr->dim_align_offset};
-          realize = ir::AttrStmt::make(
+          realize = ir::AttrStmtNode::make(
               t, ir::attr::buffer_dim_align,
-              Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
+              CallNode::make(DataType::Handle(),
+                             ir::intrinsic::tvm_tuple,
+                             tuple, CallNode::Intrinsic),
               realize);
         }
       }
@@ -320,7 +322,7 @@ void MakeReduction(const ComputeOpNode* op,
   std::vector<Stmt> inits, provides;
 
   size_t size = op->body.size();
-  const Reduce* reduce = op->body[0].as<Reduce>();
+  const ReduceNode* reduce = op->body[0].as<ReduceNode>();
   CHECK(reduce);
   const CommReducerNode* combiner = reduce->combiner.as<CommReducerNode>();
   CHECK(combiner);
@@ -332,15 +334,15 @@ void MakeReduction(const ComputeOpNode* op,
   Array<Expr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
-    inits.emplace_back(Provide::make(
+    inits.emplace_back(ProvideNode::make(
           t->op, t->value_index, init_value[i], args));
-    provides.emplace_back(Provide::make(
+    provides.emplace_back(ProvideNode::make(
           t->op, t->value_index, update_value[i], args));
   }
   *init = SeqStmt::Flatten(inits);
   *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElse::make(reduce->condition, *provide);
+    *provide = IfThenElseNode::make(reduce->condition, *provide);
   }
 }
 
@@ -351,7 +353,7 @@ Stmt MakeProvide(const ComputeOpNode* op,
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
-  return Provide::make(t->op, t->value_index, op->body[t->value_index], args);
+  return ProvideNode::make(t->op, t->value_index, op->body[t->value_index], args);
 }
 
 Stmt MakeComputeStmt(const ComputeOpNode* self,
@@ -543,7 +545,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
   /// Special member functions
   //@{
   explicit ComputeVerifier(const ComputeOpNode* compute)
-      : compute_(compute), reduce_(compute->body[0].as<ir::Reduce>()) {}
+      : compute_(compute), reduce_(compute->body[0].as<ir::ReduceNode>()) {}
   virtual ~ComputeVerifier() = default;
   ComputeVerifier(const ComputeVerifier&) = delete;
   ComputeVerifier(ComputeVerifier&&) = delete;
@@ -555,7 +557,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
   void Run() {
     for (const Expr e : compute_->body) {
       // Check for consistency of top level reductions
-      const ir::Reduce* reduce = e.as<ir::Reduce>();
+      const ir::ReduceNode* reduce = e.as<ir::ReduceNode>();
       CHECK((reduce && reduce_) || (!reduce && !reduce_))
           << "All ComputeOp should be consistent "
           << "with being Reduce operation or not.";
@@ -580,7 +582,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
     --level_;
   }
 
-  void VisitExpr_(const ir::Reduce* op) final {
+  void VisitExpr_(const ir::ReduceNode* op) final {
     // Check for non top level reductions
     CHECK(0 == level_)
         << "Reductions are only allowed at the top level of compute. "
@@ -590,7 +592,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
 
  private:
   const ComputeOpNode* compute_{nullptr};  ///< ComputeOpNode to verify
-  const ir::Reduce* reduce_{nullptr};      ///< Top level Reduce operation
+  const ir::ReduceNode* reduce_{nullptr};      ///< Top level Reduce operation
   int level_{0};                           ///< Level of op being processed
 };
 }  // namespace
@@ -607,7 +609,7 @@ Stmt TransformUpdate(const Stage& stage,
                      Stmt body,
                      Stmt update) {
   Array<Expr> conds;
-  std::unordered_set<const Variable*> banned;
+  std::unordered_set<const VarNode*> banned;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     IterVar iv = stage->leaf_iter_vars[i];
     auto iit = stage->iter_var_attrs.find(iv);
@@ -632,7 +634,7 @@ Stmt TransformUpdate(const Stage& stage,
     }
   }
 
-  return IfThenElse::make(arith::ComputeReduce<ir::Or>(conds, const_true(1)),
+  return IfThenElseNode::make(arith::ComputeReduce<ir::OrNode>(conds, const_true(1)),
                           update, body);
 }
 }  // namespace tvm

@@ -188,13 +188,13 @@ void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   this->stream << "}\n";
 }
 
-void CodeGenOpenGL::VisitStmt_(const Store* op) {
+void CodeGenOpenGL::VisitStmt_(const StoreNode* op) {
   LOG(FATAL) << "Store statement not supported in OpenGL."
              << " Texture store should be a Call statement.";
 }
 
 // texelFetch(tex, ivec2(idx & kTextureRowMask, idx >> kTextureRowBits), 0).r
-std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
+std::string CodeGenOpenGL::TexelFetch(const VarNode* buffer, Expr index) {
   std::ostringstream os;
   os << "texelFetch(" << GetVarID(buffer) << ", ivec2(int(";
   PrintExpr(index, os);
@@ -207,7 +207,7 @@ std::string CodeGenOpenGL::TexelFetch(const Variable* buffer, Expr index) {
 // Print a reference expression to a buffer.
 // Format: texelFetch(buffer, index, 0).r
 std::string CodeGenOpenGL::GetBufferRef(
-    DataType t, const Variable* buffer, Expr index) {
+    DataType t, const VarNode* buffer, Expr index) {
   CHECK_EQ(t.lanes(), 1) << "Vector type not supported.";
   CHECK(HandleTypeMatch(buffer, t)) << "Type mismatch not supported.";
 
@@ -242,34 +242,34 @@ void CodeGenOpenGL::PrintType(DataType t, std::ostream& os) {
 
 // Codegen for immediate values
 
-void CodeGenOpenGL::VisitExpr_(const IntImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const IntImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::Int(32)) << "GLSL 3.0 only supports 32-bit ints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const UIntImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const UIntImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::UInt(32)) << "GLSL 3.0 only supports 32-bit uints.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const FloatImm* op, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {
   CHECK_EQ(op->dtype, DataType::Float(32)) << "GLSL 3.0 only supports 32-bit floats.";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenGL::VisitExpr_(const StringImm*, std::ostream& os) {
+void CodeGenOpenGL::VisitExpr_(const StringImmNode*, std::ostream& os) {
   LOG(FATAL) << "GLSL 3.0 doesn't support strings.";
 }
 
-void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
-  auto call = op->value.as<Call>();
-  if (call == nullptr || call->name != Call::glsl_texture_store) {
+void CodeGenOpenGL::VisitStmt_(const EvaluateNode* op) {
+  auto call = op->value.as<CallNode>();
+  if (call == nullptr || call->name != CallNode::glsl_texture_store) {
     // Fallback to normal logic.
     CodeGenC::VisitStmt_(op);
   }
 
   CHECK_EQ(call->args.size(), 2);
-  auto buffer = call->args[0].as<Variable>();
+  auto buffer = call->args[0].as<VarNode>();
   auto value = call->args[1];
 
   // Doesn't support store to vector.

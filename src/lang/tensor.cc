@@ -34,14 +34,14 @@ Expr Tensor::operator()(Array<Var> indices) const {
 }
 
 Expr Tensor::operator()(Array<Expr> indices) const {
-  using ir::Call;
+  using ir::CallNode;
   if (ndim() != 0) {
     CHECK_EQ(ndim(), indices.size())
         << "Tensor dimension mismatch in read"
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
-  auto n = Call::make(
-      (*this)->dtype, (*this)->op->name, indices, Call::Halide,
+  auto n = CallNode::make(
+      (*this)->dtype, (*this)->op->name, indices, CallNode::Halide,
       (*this)->op, (*this)->value_index);
   return n;
 }
