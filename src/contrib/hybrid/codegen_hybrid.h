@@ -90,49 +90,49 @@ class CodeGenHybrid :
     return os.str();
   }
   // expression
-  void VisitExpr_(const Variable* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Load* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Let* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Call* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Add* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Sub* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Mul* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Div* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Mod* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloorDiv* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloorMod* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Min* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Max* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const EQ* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const NE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LT* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const LE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GT* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const GE* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const And* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Or* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Cast* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Not* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Select* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Ramp* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const IntImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const UIntImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const FloatImm* op, std::ostream& os) override;  // NOLINT(*)
-  void VisitExpr_(const StringImm* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LetNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const AddNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const SubNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MulNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const DivNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const ModNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloorDivNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloorModNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MinNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const MaxNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const EQNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const NENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LTNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const LENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GTNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const GENode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const AndNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const OrNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const CastNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const NotNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const RampNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const IntImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const UIntImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const FloatImmNode* op, std::ostream& os) override;  // NOLINT(*)
+  void VisitExpr_(const StringImmNode* op, std::ostream& os) override;  // NOLINT(*)
   // statment
-  void VisitStmt_(const LetStmt* op) override;
-  void VisitStmt_(const Store* op) override;
-  void VisitStmt_(const Provide* op) override;
-  void VisitStmt_(const For* op) override;
-  void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const Allocate* op) override;
-  void VisitStmt_(const Realize* op) override;
-  void VisitStmt_(const AttrStmt* op) override;
-  void VisitStmt_(const AssertStmt* op) override;
-  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const LetStmtNode* op) override;
+  void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const ProvideNode* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const RealizeNode* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
+  void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const ProducerConsumerNode* op) override;
   /*!
    * \brief Print Type represetnation of type t.
    * \param t The type representation.
@@ -154,7 +154,7 @@ class CodeGenHybrid :
    *        Values are the corresponding IDs.*/
   std::map<std::pair<const Object *, int>, std::string> id_map_;
   /*! \brief Variables (keys) binded to the threads (values). */
-  std::map<const Variable *, std::string> binds_;
+  std::map<const VarNode *, std::string> binds_;
   /*!
    * \brief Find an unallocated name for the given prefix.
    * \param prefix The given prefix.
@@ -166,7 +166,7 @@ class CodeGenHybrid :
    * \brief Get or allocate the ID for the given variable.
    * \param v The given variable.
    */
-  std::string GetVarID(const Variable *v);
+  std::string GetVarID(const VarNode *v);
   /*!
    * \brief Get or allocate the ID for the given tensor.
    * \param func The tensor to allocate a name.

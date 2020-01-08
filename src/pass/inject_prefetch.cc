@@ -35,9 +35,9 @@ using arith::DomainTouched;
 
 class PrefetchInjector : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtMutator::VisitStmt_(op);
-    op = ret.as<AttrStmt>();
+    op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
       Tensor ts = Downcast<Tensor>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);
@@ -58,13 +58,13 @@ class PrefetchInjector : public StmtMutator {
 
       vectorized_.erase(iter_var);
 
-      Stmt prefetch = Prefetch::make(ts->op, ts->value_index, ts->dtype, region);
+      Stmt prefetch = PrefetchNode::make(ts->op, ts->value_index, ts->dtype, region);
       return SeqStmt({prefetch, op->body});
     }
     return ret;
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     auto &var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
@@ -80,7 +80,7 @@ class PrefetchInjector : public StmtMutator {
 
  private:
   std::vector<VarExpr> loop_nest_;
-  std::unordered_map<const Variable *, IntSet> vectorized_;
+  std::unordered_map<const VarNode *, IntSet> vectorized_;
   static const Range none;
 };
 

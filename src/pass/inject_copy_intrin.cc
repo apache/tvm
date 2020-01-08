@@ -40,10 +40,10 @@ class CopyIntrinInjector : public StmtMutator {
         flower_copy_fromto_(flower_copy_fromto) {
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      storage_scope_[buf] = op->value.as<StringImm>()->value;
+      const VarNode* buf = op->node.as<VarNode>();
+      storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
       CHECK(MatchCopyPattern(op->body, &ret))
@@ -59,13 +59,13 @@ class CopyIntrinInjector : public StmtMutator {
     Stmt body = stmt;
 
     // strip the loops
-    std::vector<const For*> loops;
-    while (const For* op = body.as<For>()) {
+    std::vector<const ForNode*> loops;
+    while (const ForNode* op = body.as<ForNode>()) {
       if (!is_zero(op->min)) return false;
       loops.push_back(op);
       body = op->body;
     }
-    const Store* store = body.as<Store>();
+    const StoreNode* store = body.as<StoreNode>();
     if (store == nullptr) return false;
     // Expr sel_cond, sel_true_value, sel_false_value;
     // match select or if
@@ -74,23 +74,23 @@ class CopyIntrinInjector : public StmtMutator {
         if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
         select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
-    const Cast* cast = store->value.as<Cast>();
-    const Load* load = store->value.as<Load>();
+    const CastNode* cast = store->value.as<CastNode>();
+    const LoadNode* load = store->value.as<LoadNode>();
     if (0 == loops.size()) {
       CHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
-      load = sel_true_value.Eval().as<Load>();
+      load = sel_true_value.Eval().as<LoadNode>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {
-      load = cast->value.as<Load>();
+      load = cast->value.as<LoadNode>();
     }
     if (load == nullptr) return false;
     if (load->dtype.lanes() != 1) return false;
     Array<Var> loop_vars;
-    for (const For* op : loops) {
+    for (const ForNode* op : loops) {
       loop_vars.push_back(op->loop_var);
     }
     Array<Expr> store_strides =
@@ -103,7 +103,7 @@ class CopyIntrinInjector : public StmtMutator {
     if (loop_var_size == 0) {
       dst_shape.push_back(make_const(DataType::Int(32), 1));
     } else {
-      for (const For* op : loops) {
+      for (const ForNode* op : loops) {
         dst_shape.push_back(op->extent);
       }
     }
@@ -124,7 +124,7 @@ class CopyIntrinInjector : public StmtMutator {
         DataType t = loop_vars[i].dtype();
         Expr svalue = src_shape[i];
         if (min_value.defined()) {
-          Expr pbefore = Simplify(Max::make(min_value, make_zero(t)));
+          Expr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -132,7 +132,7 @@ class CopyIntrinInjector : public StmtMutator {
           pad_before.push_back(make_zero(t));
         }
         if (max_value.defined()) {
-          Expr pafter = Simplify(Max::make(loops[i]->extent - max_value - make_const(t, 1),
+          Expr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
                                            make_zero(t)));
           svalue = svalue - pafter;
           pad_after.push_back(pafter);
@@ -174,7 +174,7 @@ class CopyIntrinInjector : public StmtMutator {
     return true;
   }
   // Get storage scope
-  std::string GetStorageScope(const Variable* var) const {
+  std::string GetStorageScope(const VarNode* var) const {
     auto it = storage_scope_.find(var);
     if (it != storage_scope_.end()) {
       return it->second;
@@ -187,7 +187,7 @@ class CopyIntrinInjector : public StmtMutator {
   // function to lower copy intrinsics.
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
-  std::unordered_map<const Variable*, std::string> storage_scope_;
+  std::unordered_map<const VarNode*, std::string> storage_scope_;
 };
 
 Stmt InjectCopyIntrin(Stmt stmt,

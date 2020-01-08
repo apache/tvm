@@ -51,12 +51,12 @@ enum AnnotationType {
 class FeatureVisitor : public StmtExprVisitor {
  public:
   // for loop
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
 
   // memory access
-  void VisitExpr_(const Load* op) final;
-  void VisitStmt_(const Store* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
 
   using StmtExprVisitor::VisitStmt_;
   using StmtExprVisitor::VisitExpr_;

@@ -56,7 +56,7 @@ TensorType ConstantNode::tensor_type() const {
     CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
     CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(
-        tvm::ir::IntImm::make(DataType::Int(32), data->shape[i]));
+        tvm::ir::IntImmNode::make(DataType::Int(32), data->shape[i]));
   }
 
   return TensorTypeNode::make(shape, dtype);
@@ -158,7 +158,7 @@ FuncType FunctionNode::func_type_annotation() const {
 
 bool FunctionNode::IsPrimitive() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
-  const ir::IntImm* pval = res.as<ir::IntImm>();
+  const ir::IntImmNode* pval = res.as<ir::IntImmNode>();
   return pval && pval->value != 0;
 }
 
@@ -184,7 +184,7 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionGetParams")
 
 bool FunctionNode::UseDefaultCompiler() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
-  const ir::StringImm* pval = res.as<ir::StringImm>();
+  const ir::StringImmNode* pval = res.as<ir::StringImmNode>();
   return pval == nullptr || pval->value == "default";
 }
 

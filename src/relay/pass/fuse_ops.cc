@@ -983,7 +983,7 @@ Pass FuseOps(int fuse_opt_level) {
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
   return CreateFunctionPass(pass_func, 1, "FuseOps",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps")

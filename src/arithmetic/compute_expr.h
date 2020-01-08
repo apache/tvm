@@ -77,37 +77,37 @@ inline bool GetConstInt(Expr e, int* out) {
 }
 
 template<>
-inline Expr Compute<ir::Add>(Expr a, Expr b) {
+inline Expr Compute<ir::AddNode>(Expr a, Expr b) {
   return a + b;
 }
 
 template<>
-inline Expr Compute<ir::Sub>(Expr a, Expr b) {
+inline Expr Compute<ir::SubNode>(Expr a, Expr b) {
   return a - b;
 }
 
 template<>
-inline Expr Compute<ir::Mul>(Expr a, Expr b) {
+inline Expr Compute<ir::MulNode>(Expr a, Expr b) {
   return a * b;
 }
 
 template<>
-inline Expr Compute<ir::Div>(Expr a, Expr b) {
+inline Expr Compute<ir::DivNode>(Expr a, Expr b) {
   return truncdiv(a, b);
 }
 
 template<>
-inline Expr Compute<ir::Mod>(Expr a, Expr b) {
+inline Expr Compute<ir::ModNode>(Expr a, Expr b) {
   return truncmod(a, b);
 }
 
 template<>
-inline Expr Compute<ir::Max>(Expr a, Expr b) {
+inline Expr Compute<ir::MaxNode>(Expr a, Expr b) {
   return max(a, b);
 }
 
 template<>
-inline Expr Compute<ir::Min>(Expr a, Expr b) {
+inline Expr Compute<ir::MinNode>(Expr a, Expr b) {
   return min(a, b);
 }
 

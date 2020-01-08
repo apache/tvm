@@ -38,13 +38,13 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
     return analyzer_.Simplify(expr);
   }
 
-  void VisitStmt_(const For* op) {
+  void VisitStmt_(const ForNode* op) {
     analyzer_.Bind(op->loop_var,
                    Range::make_by_min_extent(op->min, op->extent));
     return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const AttrStmt* op) {
+  void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
@@ -57,7 +57,7 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Reduce* op) {
+  void VisitExpr_(const ReduceNode* op) {
     // Setup the domain information before simplification.
     for (const IterVar& iv : op->axis) {
       analyzer_.Bind(iv->var, iv->dom);

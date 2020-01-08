@@ -169,7 +169,7 @@ TEST(Array, Iterator) {
   using namespace tvm;
   Array<Expr> array{1, 2, 3};
   std::vector<Expr> vector(array.begin(), array.end());
-  CHECK(vector[1].as<IntImm>()->value == 2);
+  CHECK(vector[1].as<IntImmNode>()->value == 2);
 }
 
 TEST(Map, Expr) {
@@ -222,7 +222,7 @@ TEST(Map, Iterator) {
   Map<Expr, Expr> map1{{a, b}};
   std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>
       map2(map1.begin(), map1.end());
-  CHECK(map2[a].as<IntImm>()->value == 2);
+  CHECK(map2[a].as<IntImmNode>()->value == 2);
 }
 
 int main(int argc, char** argv) {

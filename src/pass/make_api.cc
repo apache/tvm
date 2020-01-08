@@ -36,7 +36,7 @@ namespace tvm {
 namespace ir {
 
 inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
-  return AssertStmt::make(lhs == rhs, msg, Evaluate::make(0));
+  return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
 }
 
 LoweredFunc MakeAPI(Stmt body,
@@ -44,7 +44,7 @@ LoweredFunc MakeAPI(Stmt body,
                     Array<ObjectRef> api_args,
                     int num_unpacked_args,
                     bool is_restricted) {
-  const Stmt nop = Evaluate::make(0);
+  const Stmt nop = EvaluateNode::make(0);
   int num_args = static_cast<int>(api_args.size());
   CHECK_LE(num_unpacked_args, num_args);
   int num_packed_args = num_args - num_unpacked_args;
@@ -62,23 +62,23 @@ LoweredFunc MakeAPI(Stmt body,
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, Expr> vmap;
   ArgBinder binder(&vmap);
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
     Array<Expr> call_args{v_packed_args,
-                          IntImm::make(DataType::Int(32), i),
-                          IntImm::make(DataType::Int(32), intrinsic::kTVMValueContent)};
+                          IntImmNode::make(DataType::Int(32), i),
+                          IntImmNode::make(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    Expr res = Call::make(
+    Expr res = CallNode::make(
         api_type, intrinsic::tvm_struct_get, call_args,
-        Call::PureIntrinsic);
+        CallNode::PureIntrinsic);
     // cast to the target version.
     if (api_type != t) {
-      res = Cast::make(t, res);
+      res = CastNode::make(t, res);
     }
     return res;
   };
@@ -86,7 +86,7 @@ LoweredFunc MakeAPI(Stmt body,
   auto f_arg_decl = [&](int i) {
     std::ostringstream os;
     os << "arg" << i;
-    const Variable* v = api_args[i].as<Variable>();
+    const VarNode* v = api_args[i].as<VarNode>();
     return Var(os.str(), v ? v->dtype: DataType::Handle());
   };
   // ---------------------------
@@ -110,40 +110,40 @@ LoweredFunc MakeAPI(Stmt body,
     Var v_arg = f_arg_decl(i);
     if (i < num_packed_args) {
       // Value loads
-      seq_init.emplace_back(LetStmt::make(
+      seq_init.emplace_back(LetStmtNode::make(
           v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
       Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
-      seq_init.emplace_back(LetStmt::make(
-          tcode, Load::make(
+      seq_init.emplace_back(LetStmtNode::make(
+          tcode, LoadNode::make(
               DataType::Int(32), v_packed_arg_type_ids,
-              IntImm::make(DataType::Int(32), i), const_true(1)),
+              IntImmNode::make(DataType::Int(32), i), const_true(1)),
           nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
-            AssertStmt::make(tcode == kHandle ||
+            AssertStmtNode::make(tcode == kHandle ||
                              tcode == kNDArrayContainer ||
                              tcode == kArrayHandle ||
                              tcode == kNull, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be int";
-        seq_check.emplace_back(AssertStmt::make(tcode == kDLInt, msg.str(), nop));
+        seq_check.emplace_back(AssertStmtNode::make(tcode == kDLInt, msg.str(), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be float";
         seq_check.emplace_back(
-            AssertStmt::make(tcode == kDLFloat, msg.str(), nop));
+            AssertStmtNode::make(tcode == kDLFloat, msg.str(), nop));
       }
     } else {
       args.push_back(v_arg);
     }
     // add checks for functions.
-    if (api_args[i].as<Variable>()) {
+    if (api_args[i].as<VarNode>()) {
       var_defs.emplace_back(std::make_pair(Downcast<Var>(api_args[i]), v_arg));
     } else {
       // Buffer checks
@@ -184,22 +184,22 @@ LoweredFunc MakeAPI(Stmt body,
   n->handle_data_type = binder.def_handle_dtype();
   n->is_packed_func = num_unpacked_args == 0;
   n->is_restricted = is_restricted;
-  body = AttrStmt::make(
+  body = AttrStmtNode::make(
       make_zero(DataType::Int(32)), attr::compute_scope,
-      StringImm::make(name + "_compute_"), body);
+      StringImmNode::make(name + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    Expr node = StringImm::make("default");
+    Expr node = StringImmNode::make("default");
     CHECK(vmap.count(device_type.get()));
-    seq_check.push_back(AttrStmt::make(
+    seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_id, device_id, nop));
-    seq_check.push_back(AttrStmt::make(
+    seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_type, device_type, nop));
-    Stmt set_device = IfThenElse::make(
-        device_type != kDLCPU, Evaluate::make(Call::make(
+    Stmt set_device = IfThenElseNode::make(
+        device_type != kDLCPU, EvaluateNode::make(CallNode::make(
             DataType::Int(32), intrinsic::tvm_call_packed,
-            {StringImm::make(runtime::symbol::tvm_set_device),
-             device_type, device_id}, Call::Intrinsic)));
+            {StringImmNode::make(runtime::symbol::tvm_set_device),
+             device_type, device_id}, CallNode::Intrinsic)));
     body = SeqStmt({set_device, body});
   }
   n->body = MergeNest(
@@ -222,28 +222,28 @@ class DeviceTypeBinder: public StmtExprMutator {
   explicit DeviceTypeBinder(int device_type)
       : device_type_(device_type) {}
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_context_type) {
-      if (const Variable* var = op->value.as<Variable>()) {
+      if (const VarNode* var = op->value.as<VarNode>()) {
         var_ = var;
         Expr value = make_const(op->value.dtype(), device_type_);
         Stmt body = StmtExprMutator::VisitStmt_(op);
         var_ = nullptr;
         std::ostringstream os;
         os << "device_type need to be " << device_type_;
-        return AssertStmt::make(op->value == value, os.str(), body);
+        return AssertStmtNode::make(op->value == value, os.str(), body);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const IfThenElse* op) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     // eager simplify if guard.
     Stmt res = StmtExprMutator::VisitStmt_(op);
-    op = res.as<IfThenElse>();
+    op = res.as<IfThenElseNode>();
     if (is_zero(op->condition)) {
       if (op->else_case.defined()) return op->else_case;
-      return Evaluate::make(0);
+      return EvaluateNode::make(0);
     }
     if (is_one(op->condition)) {
       return op->then_case;
@@ -251,17 +251,17 @@ class DeviceTypeBinder: public StmtExprMutator {
     return res;
   }
 
-  Expr VisitExpr_(const NE* op) final {
+  Expr VisitExpr_(const NENode* op) final {
     // eager check NE for device check
     Expr res = StmtExprMutator::VisitExpr_(op);
-    op = res.as<NE>();
+    op = res.as<NENode>();
     if (ir::Equal(op->a, op->b)) {
       return make_const(op->dtype, false);
     }
     return res;
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     if (op == var_) {
       return make_const(op->dtype, device_type_);
     } else {
@@ -270,7 +270,7 @@ class DeviceTypeBinder: public StmtExprMutator {
   }
 
  public:
-  const Variable* var_{nullptr};
+  const VarNode* var_{nullptr};
   int device_type_;
 };
 

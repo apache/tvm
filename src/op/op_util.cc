@@ -45,7 +45,7 @@ MakeLoopNest(const Stage& stage,
              std::unordered_map<IterVar, Expr>* p_value_map,
              bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
-  Stmt no_op = Evaluate::make(0);
+  Stmt no_op = EvaluateNode::make(0);
   // create the loop nest
   std::vector<std::vector<Stmt> > nest;
   nest.resize(leaf_iter_vars.size() + 1);
@@ -95,33 +95,33 @@ MakeLoopNest(const Stage& stage,
         }
         CHECK_EQ(it_attr->pragma_keys.size(), it_attr->pragma_values.size());
         for (size_t k = 0; k < it_attr->pragma_keys.size(); ++k) {
-          const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
+          const std::string& pkey = it_attr->pragma_keys[k].as<StringImmNode>()->value;
           Expr pvalue = it_attr->pragma_values[k];
           if (!pvalue.defined()) {
             pvalue = make_const(DataType::Int(32), 1);
           }
           nest[i + 1].emplace_back(
-              AttrStmt::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
+              AttrStmtNode::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         nest[i + 1].emplace_back(
-            LetStmt::make(var, dom->min, no_op));
+            LetStmtNode::make(var, dom->min, no_op));
         value_map[iv] = dom->min;
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(
-            For::make(var, 0, dom->extent,
+            ForNode::make(var, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(
-            For::make(idx, 0, dom->extent,
+            ForNode::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
         Expr new_value = dom->min + idx;
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(
-            LetStmt::make(var, new_value, no_op));
+            LetStmtNode::make(var, new_value, no_op));
       }
       if (it_attr.defined() && it_attr->prefetch_data.size() != 0) {
         CHECK(!is_one(dom->extent))
@@ -130,7 +130,7 @@ MakeLoopNest(const Stage& stage,
                  it_attr->prefetch_offset.size());
         for (size_t j = 0; j < it_attr->prefetch_data.size(); ++j) {
           nest[i + 1].emplace_back(
-              AttrStmt::make(it_attr->prefetch_data[j],
+              AttrStmtNode::make(it_attr->prefetch_data[j],
                              ir::attr::prefetch_scope,
                              it_attr->prefetch_offset[j], no_op));
         }
@@ -143,7 +143,7 @@ MakeLoopNest(const Stage& stage,
       CHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(bind_iv, ir::attr::virtual_thread, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, ir::attr::virtual_thread, dom->extent, no_op));
       value_map[iv] = var;
     } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
@@ -151,14 +151,14 @@ MakeLoopNest(const Stage& stage,
       CHECK(is_one(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(bind_iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
       value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmt::make(bind_iv, ir::attr::thread_extent, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, ir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
@@ -168,7 +168,7 @@ MakeLoopNest(const Stage& stage,
     // annotate the extent of the IterVar
     if (!new_loop_var) {
       nest[i + 1].emplace_back(
-          AttrStmt::make(iv, attr::loop_scope, iv->var, no_op));
+          AttrStmtNode::make(iv, attr::loop_scope, iv->var, no_op));
     }
   }
   // message passing to get offset of root iter vars.
@@ -177,10 +177,10 @@ MakeLoopNest(const Stage& stage,
 }
 
 std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
-  Stmt no_op = Evaluate::make(0);
+  Stmt no_op = EvaluateNode::make(0);
   std::vector<Stmt> nest;
   for (const Expr& cond : predicates) {
-    nest.emplace_back(IfThenElse::make(cond, no_op));
+    nest.emplace_back(IfThenElseNode::make(cond, no_op));
   }
   return nest;
 }
@@ -191,12 +191,12 @@ class TensorReplacer : public ir::StmtExprMutator {
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
 
-  Expr VisitExpr_(const ir::Call* op) final {
-    if (op->call_type == ir::Call::Halide) {
+  Expr VisitExpr_(const ir::CallNode* op) final {
+    if (op->call_type == ir::CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
-        Expr ret = ir::Call::make(
+        Expr ret = ir::CallNode::make(
             op->dtype, it->second->op->name, op->args,
             op->call_type, it->second->op, it->second->value_index);
         found = true;
@@ -229,7 +229,7 @@ Expr ReplaceTensor(Expr expr,
 
 Stmt Substitute(Stmt s,
                 const std::unordered_map<IterVar, Expr>& value_map) {
-  std::unordered_map<const Variable*, Expr> init;
+  std::unordered_map<const VarNode*, Expr> init;
   for (const auto& kv : value_map) {
     init[kv.first->var.get()] = kv.second;
   }

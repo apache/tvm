@@ -53,15 +53,15 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     return ret;
   }
 
-  void VisitStmt_(const For *op) final {
-    const Variable* var = op->loop_var.get();
+  void VisitStmt_(const ForNode *op) final {
+    const VarNode* var = op->loop_var.get();
     dom_map_[var] = IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));
     StmtExprVisitor::VisitStmt_(op);
     dom_map_.erase(var);
   }
 
-  void VisitStmt_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmtNode* op) final {
     dom_map_[op->var.get()] =
         arith::EvalSet(op->value, dom_map_);
     StmtExprVisitor::VisitStmt_(op);
@@ -69,11 +69,11 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   }
 
   /* TODO: Thread extent unitest not generated.*/
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
-      const Variable* var = thread_axis->var.get();
+      const VarNode* var = thread_axis->var.get();
       dom_map_[var] = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       StmtExprVisitor::VisitStmt_(op);
       dom_map_.erase(var);
@@ -82,7 +82,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     if (consider_calls_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);
@@ -90,7 +90,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const Provide* op) final {
+  void VisitStmt_(const ProvideNode* op) final {
     if (consider_provides_ && tensor_->op.same_as(op->func)
         && tensor_->value_index == op->value_index) {
       Touch(op->args);
@@ -111,7 +111,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   const Tensor &tensor_;
   bool consider_calls_, consider_provides_;
   std::vector<std::vector<IntSet> > bounds_;
-  std::unordered_map<const Variable*, IntSet> dom_map_;
+  std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
 Domain DomainTouched(Stmt stmt, const Tensor &tensor, bool consider_calls, bool consider_provides) {

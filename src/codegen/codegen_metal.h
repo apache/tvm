@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -40,7 +40,7 @@ class CodeGenMetal final : public CodeGenC {
   void PrintArgUnionDecl();
   void InitFuncState(LoweredFunc f) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
-  void PrintStorageSync(const Call* op) final;  // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // print load of single element
@@ -50,10 +50,10 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(
       const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
-  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
 
   // overload visitor
-  void VisitExpr_(const Call* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final; // NOLINT(*)
 
  private:
   int thread_index_bits_{32};

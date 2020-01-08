@@ -42,7 +42,7 @@
 
 namespace tvm {
 namespace relay {
-using ir::IntImm;
+using ir::IntImmNode;
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -695,8 +695,8 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<ir::Any>()) {
-      newshape.push_back(val.as<ir::Any>()->ToVar());
+    if (val->IsInstance<ir::AnyNode>()) {
+      newshape.push_back(val.as<ir::AnyNode>()->ToVar());
     } else {
       newshape.push_back(val);
     }
@@ -800,7 +800,7 @@ bool ReshapeLikeRel(const Array<Type>& types,
   // Only check When input data has static shape.
   bool is_static_shape = true;
   for (size_t i = 0; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<IntImm>()) {
+    if (!data->shape[i].as<IntImmNode>()) {
       is_static_shape = false;
       break;
     }
@@ -852,7 +852,7 @@ bool ArgWhereRel(const Array<Type>& types,
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
   result_shape.push_back(Any::make());
-  result_shape.push_back(IntImm::make(DataType::Int(32), input_rank));
+  result_shape.push_back(IntImmNode::make(DataType::Int(32), input_rank));
   reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
   return true;
 }
@@ -1384,7 +1384,7 @@ bool TileRel(const Array<Type>& types,
     << "repetition array is not defined. data.ndim = " << ndim;
   const size_t rndim = reps.size();
   for (size_t i = 0; i < rndim; ++i) {
-    if (const tvm::ir::IntImm* val = reps[i].as<tvm::ir::IntImm>()) {
+    if (const tvm::ir::IntImmNode* val = reps[i].as<tvm::ir::IntImmNode>()) {
       CHECK_GT(val->value, 0)
           << "Tile reps value should always be larger than 0, but get: " << val->value;
     }
@@ -1425,7 +1425,7 @@ bool TileRel(const Array<Type>& types,
   oshape.reserve(tndim);
   for (size_t i = 0; i < tndim; ++i) {
     // Save Any if it is dynamic shape
-    if (!data_shape[i].as<IntImm>()) {
+    if (!data_shape[i].as<IntImmNode>()) {
       oshape.emplace_back(Any::make());
     } else {
       oshape.emplace_back(data_shape[i] * reps_shape[i]);
@@ -1649,7 +1649,7 @@ bool SqueezeRel(const Array<Type>& types,
   // if axes is None, squeeze all axes of dimension 1
   if (!param->axis.defined()) {
     for (const auto& e : data->shape) {
-      if (!e.as<IntImm>()) {
+      if (!e.as<IntImmNode>()) {
         LOG(FATAL) << "axis needs to be defined for dynamic input.";
       }
       const int64_t* axis_ptr = as_const_int(e);
@@ -1838,7 +1838,7 @@ RELAY_REGISTER_OP("broadcast_to_like")
 // Adapter function to make int array.
 Array<Integer> GetIntArray(Array<IndexExpr> arr) {
   for (size_t i = 0; i < arr.size(); ++i) {
-    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+    CHECK(!arr[i].defined() || arr[i].as<IntImmNode>())
       << "Expect an int array";
   }
   return Downcast<Array<Integer> >(arr);
@@ -1988,7 +1988,7 @@ Array<Array<Layout> > StridedSliceInferCorrectLayout(
         }
         int64_t begin = params->begin[i].defined() ? params->begin[i]->value : 0;
         int64_t end = params->end[i].defined() ? params->end[i]->value :
-            shape[i].as<IntImm>()->value;
+            shape[i].as<IntImmNode>()->value;
         if (begin % factor || end % factor) {
           // transform to original layout
           return {{Layout::Undef()}, {Layout::Undef()}};
@@ -2139,7 +2139,7 @@ bool SplitRel(const Array<Type>& types,
   CHECK_GE(axis, 0)
     << "axis should be within the input dimension range.";
 
-  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     CHECK(reporter->Assert(indexmod(data->shape[axis],
                                     sections->value) == make_zero(DataType::Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
@@ -2182,7 +2182,7 @@ Array<Tensor> SplitCompute(const Attrs& attrs,
   const auto param = attrs.as<SplitAttrs>();
   CHECK(param != nullptr);
 
-  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     int64_t num_sections = sections->value;
     return Array<Tensor>{
       topi::split_sections(inputs[0], num_sections, param->axis) };
@@ -2489,7 +2489,7 @@ bool GatherNDRel(const Array<Type>& types,
     return false;
   }
   const size_t ndim = data->shape.size();
-  const IntImm* mdim = indices->shape[0].as<IntImm>();
+  const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
   const size_t kdim = indices->shape.size() - 1;
   CHECK(size_t(mdim->value) <= ndim)
         << "GatherND: indices shape does satisfy.";

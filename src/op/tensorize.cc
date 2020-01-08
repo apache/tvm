@@ -85,7 +85,7 @@ size_t InferTensorizeRegion(
   schedule::PassUpDomain(stage, dom_map, &up_state);
   // Get domains if inputs
   std::unordered_map<Tensor, TensorDom> in_dom;
-  std::unordered_map<const Variable*, IntSet> temp_dmap;
+  std::unordered_map<const VarNode*, IntSet> temp_dmap;
   arith::Analyzer analyzer;
   Array<Tensor> inputs = self->InputTensors();
   for (Tensor t : inputs) {
@@ -119,18 +119,18 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
                              const ComputeLoopNest& n,
                              size_t tloc) {
   // Veirfication step.
-  std::unordered_set<const Variable*> banned;
+  std::unordered_set<const VarNode*> banned;
   CHECK_EQ(n.main_nest.size(), stage->leaf_iter_vars.size() + 1);
   CHECK(n.init_nest.size() == stage->leaf_iter_vars.size() + 1 ||
         n.init_nest.size() == 0);
   auto f_push_banned = [&banned](const Stmt& s) {
-    if (const For* op = s.as<For>()) {
+    if (const ForNode* op = s.as<ForNode>()) {
         banned.insert(op->loop_var.get());
-    } else if (const AttrStmt* op = s.as<AttrStmt>()) {
+    } else if (const AttrStmtNode* op = s.as<AttrStmtNode>()) {
       if (const IterVarNode* iv = op->node.as<IterVarNode>()) {
         banned.insert(iv->var.get());
       }
-    } else if (const LetStmt* op = s.as<LetStmt>()) {
+    } else if (const LetStmtNode* op = s.as<LetStmtNode>()) {
       banned.insert(op->var.get());
     }
   };
@@ -161,10 +161,10 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 // Remap the tensor placeholder, index and inline things.
 class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
-    if (op->call_type == Call::Halide) {
+    op = expr.as<CallNode>();
+    if (op->call_type == CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = in_remap_.find(t);
       if (it != in_remap_.end()) {
@@ -174,7 +174,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         for (size_t i = e.start; i < e.region.size(); ++i) {
           args.push_back(op->args[i] - e.region[i]->min);
         }
-        return Call::make(
+        return CallNode::make(
             op->dtype, e.tensor->op->name, args,
             op->call_type, e.tensor->op, e.tensor->value_index);
       }
@@ -182,7 +182,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     return expr;
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
@@ -191,9 +191,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const Reduce* op) final {
+  Expr VisitExpr_(const ReduceNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Reduce>();
+    op = expr.as<ReduceNode>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
       auto it = axis_remap_.find(op->axis[i]);
@@ -201,7 +201,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         axis.push_back(it->second);
       }
     }
-    return Reduce::make(
+    return ReduceNode::make(
         op->combiner, op->source, axis, op->condition, op->value_index);
   }
 
@@ -301,7 +301,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   // input data remap
   std::unordered_map<Tensor, InputEntry> in_remap_;
   // variable remap.
-  std::unordered_map<const Variable*, Expr> var_remap_;
+  std::unordered_map<const VarNode*, Expr> var_remap_;
   // IterVar remap.
   std::unordered_map<IterVar, IterVar> axis_remap_;
 };
@@ -372,7 +372,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.
-  Stmt nop = Evaluate::make(0);
+  Stmt nop = EvaluateNode::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = self->InputTensors();
   CHECK_EQ(inputs.size(), intrin->inputs.size())
@@ -390,9 +390,11 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt::make(
+    input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
   // output binding
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
@@ -410,12 +412,14 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     Tensor tensor = stage->op.output(i - intrin->inputs.size());
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
-    output_bind_nest.emplace_back(AttrStmt::make(
+    output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
   // Check variable remap
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, Expr> vmap;
   ir::ArgBinder binder(&vmap);
   CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
       << "Tensorization fail: reduction axis size do not match";

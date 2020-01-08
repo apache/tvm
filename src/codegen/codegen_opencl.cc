@@ -144,7 +144,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
 }
 
-void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, DataType t,
+void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
@@ -160,7 +160,7 @@ void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, DataType t,
   PrintExpr(base, os);
 }
 std::string CodeGenOpenCL::GetVecLoad(
-    DataType t, const Variable* buffer, Expr base) {
+    DataType t, const VarNode* buffer, Expr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -168,7 +168,7 @@ std::string CodeGenOpenCL::GetVecLoad(
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
+void CodeGenOpenCL::PrintVecStore(const VarNode* buffer,
                                   DataType t, Expr base,
                                   const std::string& value) {
   this->PrintIndent();
@@ -177,8 +177,8 @@ void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
   stream << ");\n";
 }
 
-void CodeGenOpenCL::PrintStorageSync(const Call* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -215,7 +215,7 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
   return os.str();
 }
 
-void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
   PrintType(op->dtype, os);
@@ -227,7 +227,7 @@ void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const CallNode *op, std::ostream& os) {  // NOLINT(*)
   /* Return type of ternary expression is not always same as its sub-expressions,
    * add a cast */
   if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
@@ -238,7 +238,7 @@ void CodeGenOpenCL::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   /* Return type of ternary expression is not always same as its sub-expressions,
    * add a cast */
   os << "(";
@@ -247,7 +247,7 @@ void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";

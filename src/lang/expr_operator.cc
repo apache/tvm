@@ -32,7 +32,7 @@ namespace tvm {
 // simple cast that only checks if type matches and cast
 inline Expr SimpleCast(const DataType& t, Expr value) {
   if (value.dtype() == t) return value;
-  return ir::Cast::make(t, value);
+  return ir::CastNode::make(t, value);
 }
 
 // The public function with a quick checking path.
@@ -41,9 +41,9 @@ void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
   if (ltype.lanes() == 1 && rtype.lanes() != 1) {
-    lhs = ir::Broadcast::make(lhs, rtype.lanes());
+    lhs = ir::BroadcastNode::make(lhs, rtype.lanes());
   } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
-    rhs = ir::Broadcast::make(rhs, ltype.lanes());
+    rhs = ir::BroadcastNode::make(rhs, ltype.lanes());
   } else {
     CHECK(ltype.lanes() == rtype.lanes())
         << "Cannot match type " << ltype << " vs " << rtype;
@@ -85,27 +85,27 @@ Expr max_value(const DataType& dtype) {
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
-      return IntImm::make(dtype, std::numeric_limits<int64_t>::max());
+      return IntImmNode::make(dtype, std::numeric_limits<int64_t>::max());
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = (val << (dtype.bits() - 1)) - 1;
-      return IntImm::make(dtype, val);
+      return IntImmNode::make(dtype, val);
     }
   } else if (dtype.is_uint()) {
     if (dtype.bits() == 64) {
-      return UIntImm::make(dtype, std::numeric_limits<uint64_t>::max());
+      return UIntImmNode::make(dtype, std::numeric_limits<uint64_t>::max());
     } else if (dtype.bits() < 64) {
       uint64_t val = 1;
       val = (val << static_cast<uint64_t>(dtype.bits())) - 1;
-      return UIntImm::make(dtype, val);
+      return UIntImmNode::make(dtype, val);
     }
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
-      return FloatImm::make(dtype, std::numeric_limits<double>::max());
+      return FloatImmNode::make(dtype, std::numeric_limits<double>::max());
     } else if (dtype.bits() == 32) {
-      return FloatImm::make(dtype, std::numeric_limits<float>::max());
+      return FloatImmNode::make(dtype, std::numeric_limits<float>::max());
     } else if (dtype.bits() == 16) {
-      return FloatImm::make(dtype, 65504.0);
+      return FloatImmNode::make(dtype, 65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
@@ -117,21 +117,21 @@ Expr min_value(const DataType& dtype) {
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
-      return IntImm::make(dtype, std::numeric_limits<int64_t>::lowest());
+      return IntImmNode::make(dtype, std::numeric_limits<int64_t>::lowest());
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = -(val << (dtype.bits() - 1));
-      return IntImm::make(dtype, val);
+      return IntImmNode::make(dtype, val);
     }
   } else if (dtype.is_uint()) {
-    return UIntImm::make(dtype, 0);
+    return UIntImmNode::make(dtype, 0);
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
-      return FloatImm::make(dtype, std::numeric_limits<double>::lowest());
+      return FloatImmNode::make(dtype, std::numeric_limits<double>::lowest());
     } else if (dtype.bits() == 32) {
-      return FloatImm::make(dtype, std::numeric_limits<float>::lowest());
+      return FloatImmNode::make(dtype, std::numeric_limits<float>::lowest());
     } else if (dtype.bits() == 16) {
-      return FloatImm::make(dtype, -65504.0);
+      return FloatImmNode::make(dtype, -65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
@@ -153,9 +153,9 @@ inline bool ConstPowerHelper(ValueType val, int *shift) {
 }
 
 bool is_const_power_of_two_integer(const Expr& x, int* shift) {
-  if (const auto* op = x.as<ir::IntImm>()) {
+  if (const auto* op = x.as<ir::IntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
-  } else if (const auto* op = x.as<ir::UIntImm>()) {
+  } else if (const auto* op = x.as<ir::UIntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
   } else {
     return false;
@@ -163,85 +163,86 @@ bool is_const_power_of_two_integer(const Expr& x, int* shift) {
 }
 
 Expr cast(const DataType& t, Expr value) {
-  using ir::IntImm;
-  using ir::UIntImm;
-  using ir::FloatImm;
+  using ir::IntImmNode;
+  using ir::UIntImmNode;
+  using ir::FloatImmNode;
   if (value.dtype() == t) return value;
   // const fold IntImm as they are used in index computations
   if (t.lanes() == 1) {
-    if (const IntImm* op = value.as<IntImm>()) {
+    if (const IntImmNode* op = value.as<IntImmNode>()) {
       return make_const(t, op->value);
-    } else if (const UIntImm* op = value.as<UIntImm>()) {
+    } else if (const UIntImmNode* op = value.as<UIntImmNode>()) {
       return make_const(t, op->value);
-    } else if (const FloatImm* op = value.as<FloatImm>()) {
+    } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return make_const(t, op->value);
     }
-    return ir::Cast::make(t, value);
+    return ir::CastNode::make(t, value);
   } else {
     if (value.dtype().lanes() == 1) {
       // manually unroll cast
       DataType vtype = t.element_of();
       if (value.dtype() != vtype) {
-        if (const IntImm* op = value.as<IntImm>()) {
+        if (const IntImmNode* op = value.as<IntImmNode>()) {
           value = make_const(vtype, op->value);
-        } else if (const UIntImm* op = value.as<UIntImm>()) {
+        } else if (const UIntImmNode* op = value.as<UIntImmNode>()) {
           return make_const(t, op->value);
-        } else if (const FloatImm* op = value.as<FloatImm>()) {
+        } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
           value = make_const(vtype, op->value);
         } else {
-          value = ir::Cast::make(vtype, value);
+          value = ir::CastNode::make(vtype, value);
         }
       }
-      return ir::Broadcast::make(value, t.lanes());
+      return ir::BroadcastNode::make(value, t.lanes());
     } else {
       CHECK(value.dtype().lanes() == t.lanes());
-      return ir::Cast::make(t, value);
+      return ir::CastNode::make(t, value);
     }
   }
 }
 
 Expr reinterpret(const DataType& t, Expr value) {
   if (value.dtype() == t) return value;
-  return ir::Call::make(t, ir::Call::reinterpret, { value }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    t, ir::CallNode::reinterpret, { value }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator+(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Add>(a, b);
+  Expr ret = arith::TryConstFold<ir::AddNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Add::make(a, b);
+  return ir::AddNode::make(a, b);
 }
 
 // negation
 Expr operator-(Expr a) {
-  using ir::IntImm;
-  using ir::FloatImm;
-  const IntImm* pa = a.as<IntImm>();
-  const FloatImm* fa = a.as<FloatImm>();
-  if (pa) return ir::IntImm::make(a.dtype(), -pa->value);
-  if (fa) return ir::FloatImm::make(a.dtype(), -fa->value);
+  using ir::IntImmNode;
+  using ir::FloatImmNode;
+  const IntImmNode* pa = a.as<IntImmNode>();
+  const FloatImmNode* fa = a.as<FloatImmNode>();
+  if (pa) return ir::IntImmNode::make(a.dtype(), -pa->value);
+  if (fa) return ir::FloatImmNode::make(a.dtype(), -fa->value);
   return make_zero(a.dtype()) - a;
 }
 
 Expr operator-(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Sub>(a, b);
+  Expr ret = arith::TryConstFold<ir::SubNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Sub::make(a, b);
+  return ir::SubNode::make(a, b);
 }
 
 Expr operator*(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Mul>(a, b);
+  Expr ret = arith::TryConstFold<ir::MulNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Mul::make(a, b);
+  return ir::MulNode::make(a, b);
 }
 
 Expr div(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Div>(a, b);
+  Expr ret = arith::TryConstFold<ir::DivNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Div::make(a, b);
+  return ir::DivNode::make(a, b);
 }
 
 Expr truncdiv(Expr a, Expr b) {
@@ -252,9 +253,9 @@ Expr truncdiv(Expr a, Expr b) {
 
 Expr truncmod(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Mod>(a, b);
+  Expr ret = arith::TryConstFold<ir::ModNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Mod::make(a, b);
+  return ir::ModNode::make(a, b);
 }
 
 Expr operator/(Expr a, Expr b) {
@@ -278,18 +279,18 @@ Expr floordiv(Expr a, Expr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorDiv>(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorDivNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::FloorDiv::make(a, b);
+  return ir::FloorDivNode::make(a, b);
 }
 
 Expr floormod(Expr a, Expr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorMod>(a, b);
+  Expr ret = arith::TryConstFold<ir::FloorModNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::FloorMod::make(a, b);
+  return ir::FloorModNode::make(a, b);
 }
 
 Expr min(Expr a, Expr b) {
@@ -301,9 +302,9 @@ Expr min(Expr a, Expr b) {
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Min>(a, b);
+  Expr ret = arith::TryConstFold<ir::MinNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Min::make(a, b);
+  return ir::MinNode::make(a, b);
 }
 
 Expr max(Expr a, Expr b) {
@@ -315,184 +316,194 @@ Expr max(Expr a, Expr b) {
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::Max>(a, b);
+  Expr ret = arith::TryConstFold<ir::MaxNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Max::make(a, b);
+  return ir::MaxNode::make(a, b);
 }
 
 Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
-  using ir::IntImm;
-  using ir::UIntImm;
+  using ir::IntImmNode;
+  using ir::UIntImmNode;
   CHECK(cond.dtype() == DataType::Bool(1))
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value);
-  if (const UIntImm* op = cond.as<UIntImm>()) {
+  if (const UIntImmNode* op = cond.as<UIntImmNode>()) {
     if (op->value != 0) {
       return true_value;
     } else {
       return false_value;
     }
-  } else if (const IntImm* op = cond.as<IntImm>()) {
+  } else if (const IntImmNode* op = cond.as<IntImmNode>()) {
     if (op->value != 0) {
       return true_value;
     } else {
       return false_value;
     }
   }
-  return ir::Call::make(
+  return ir::CallNode::make(
       true_value.dtype(),
       ir::intrinsic::tvm_if_then_else,
       {cond, true_value, false_value},
-      ir::Call::PureIntrinsic);
+      ir::CallNode::PureIntrinsic);
 }
 
 Expr likely(Expr cond) {
   if (is_const(cond)) return cond;
-  return ir::Call::make(cond.dtype(), ir::Call::likely, { cond }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(cond.dtype(),
+                            ir::CallNode::likely,
+                            { cond },
+                            ir::CallNode::PureIntrinsic);
 }
 
 Expr operator>(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GT>(a, b);
+  Expr ret = arith::TryConstFold<ir::GTNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::GT::make(a, b);
+  return ir::GTNode::make(a, b);
 }
 
 Expr operator>=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GE>(a, b);
+  Expr ret = arith::TryConstFold<ir::GENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::GE::make(a, b);
+  return ir::GENode::make(a, b);
 }
 
 Expr operator<(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LT>(a, b);
+  Expr ret = arith::TryConstFold<ir::LTNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::LT::make(a, b);
+  return ir::LTNode::make(a, b);
 }
 
 Expr operator<=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LE>(a, b);
+  Expr ret = arith::TryConstFold<ir::LENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::LE::make(a, b);
+  return ir::LENode::make(a, b);
 }
 
 Expr operator==(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::EQ>(a, b);
+  Expr ret = arith::TryConstFold<ir::EQNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::EQ::make(a, b);
+  return ir::EQNode::make(a, b);
 }
 
 Expr operator!=(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::NE>(a, b);
+  Expr ret = arith::TryConstFold<ir::NENode>(a, b);
   if (ret.defined()) return ret;
-  return ir::NE::make(a, b);
+  return ir::NENode::make(a, b);
 }
 
 Expr operator&&(Expr a, Expr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::And>(a, b);
+  Expr ret = arith::TryConstFold<ir::AndNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::And::make(a, b);
+  return ir::AndNode::make(a, b);
 }
 
 Expr operator||(Expr a, Expr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::Or>(a, b);
+  Expr ret = arith::TryConstFold<ir::OrNode>(a, b);
   if (ret.defined()) return ret;
-  return ir::Or::make(a, b);
+  return ir::OrNode::make(a, b);
 }
 
 Expr operator!(Expr a) {
   CHECK(a.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::Not>(a);
+  Expr ret = arith::TryConstFold<ir::NotNode>(a);
   if (ret.defined()) return ret;
-  return ir::Not::make(a);
+  return ir::NotNode::make(a);
 }
 
 Expr operator>>(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, (pa->value >> pb->value));
+      if (pa && pb) return IntImmNode::make(rtype, (pa->value >> pb->value));
       if (pb) {
         if (pb->value == 0) return a;
       }
     });
-  return ir::Call::make(a.dtype(), ir::Call::shift_right, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::shift_right, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator<<(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, (pa->value << pb->value));
+      if (pa && pb) return IntImmNode::make(rtype, (pa->value << pb->value));
       if (pb) {
         if (pb->value == 0) return a;
       }
     });
-  return ir::Call::make(a.dtype(), ir::Call::shift_left, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::shift_left, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator&(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, (pa->value & pb->value));
+      if (pa && pb) return IntImmNode::make(rtype, (pa->value & pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_and, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::bitwise_and, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator|(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, (pa->value | pb->value));
+      if (pa && pb) return IntImmNode::make(rtype, (pa->value | pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_or, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::bitwise_or, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator^(Expr a, Expr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImm::make(rtype, (pa->value ^ pb->value));
+      if (pa && pb) return IntImmNode::make(rtype, (pa->value ^ pb->value));
     });
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_xor, { a, b }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::bitwise_xor, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
 Expr operator~(Expr a) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  return ir::Call::make(a.dtype(), ir::Call::bitwise_not, { a }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    a.dtype(), ir::CallNode::bitwise_not, { a }, ir::CallNode::PureIntrinsic);
 }
 
 Expr pow(Expr x, Expr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "power only applies to float";
-  return ir::Call::make(x.dtype(), "pow", { x, y }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(
+    x.dtype(), "pow", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
 Expr abs(Expr x) {
   if (x.dtype().is_int()) {
-    using ir::IntImm;
-    const IntImm* px = x.as<IntImm>();
+    using ir::IntImmNode;
+    const IntImmNode* px = x.as<IntImmNode>();
     if (px) {
-      return ir::IntImm::make(x.dtype(), std::abs(px->value));
+      return ir::IntImmNode::make(x.dtype(), std::abs(px->value));
     }
-    return ir::Select::make(x >= make_zero(x.dtype()), x, -x);
+    return ir::SelectNode::make(x >= make_zero(x.dtype()), x, -x);
   } else if (x.dtype().is_float()) {
-    using ir::FloatImm;
-    const FloatImm* fx = x.as<FloatImm>();
+    using ir::FloatImmNode;
+    const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
-      return ir::FloatImm::make(x.dtype(), std::fabs(fx->value));
+      return ir::FloatImmNode::make(x.dtype(), std::fabs(fx->value));
     }
-    return ir::Call::make(x.dtype(), "fabs", {x}, ir::Call::PureIntrinsic);
+    return ir::CallNode::make(x.dtype(), "fabs", {x}, ir::CallNode::PureIntrinsic);
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
@@ -507,17 +518,17 @@ Expr isnan(Expr x) {
   if (x.dtype().is_int() || x.dtype().is_uint()) {
     return make_const(t, false);
   } else if (x.dtype().is_float()) {
-    using ir::FloatImm;
-    const FloatImm* fx = x.as<FloatImm>();
+    using ir::FloatImmNode;
+    const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
       return make_const(t, std::isnan(fx->value));
     }
     if (x.dtype().bits() == 16) {
-      return ir::Call::make(t, ir::Call::isnan,
+      return ir::CallNode::make(t, ir::CallNode::isnan,
                                {cast(DataType::Float(32, t.lanes()), std::move(x))},
-                               ir::Call::PureIntrinsic);
+                               ir::CallNode::PureIntrinsic);
     } else {
-      return ir::Call::make(t, ir::Call::isnan, {x}, ir::Call::PureIntrinsic);
+      return ir::CallNode::make(t, ir::CallNode::isnan, {x}, ir::CallNode::PureIntrinsic);
     }
   } else {
     LOG(FATAL) << "Data type " << x.dtype()
@@ -528,102 +539,102 @@ Expr isnan(Expr x) {
 
 Expr sum(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Add::make(x, y);
+  Expr result = ir::AddNode::make(x, y);
   Expr identity_element = make_zero(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr all(Expr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::And::make(x, y);
+  Expr result = ir::AndNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), true);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr any(Expr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Or::make(x, y);
+  Expr result = ir::OrNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), false);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr max(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Max::make(x, y);
+  Expr result = ir::MaxNode::make(x, y);
   Expr identity_element = min_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr min(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Min::make(x, y);
+  Expr result = ir::MinNode::make(x, y);
   Expr identity_element = max_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr prod(Expr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::Mul::make(x, y);
+  Expr result = ir::MulNode::make(x, y);
   Expr identity_element = make_const(source.dtype(), 1);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
-  return ir::Reduce::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
+  return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
 Expr fmod(Expr x, Expr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "fmod only applies to float";
-  return ir::Call::make(x.dtype(), "fmod", { x, y }, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "fmod", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
 Expr floor(Expr x) {
-  using ir::FloatImm;
-  const FloatImm* fx = x.as<FloatImm>();
-  if (fx) return FloatImm::make(x.dtype(), std::floor(fx->value));
-  return ir::Call::make(x.dtype(), "floor", {x}, ir::Call::PureIntrinsic);
+  using ir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
+  if (fx) return FloatImmNode::make(x.dtype(), std::floor(fx->value));
+  return ir::CallNode::make(x.dtype(), "floor", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr ceil(Expr x) {
-  using ir::FloatImm;
-  const FloatImm* fx = x.as<FloatImm>();
-  if (fx) return FloatImm::make(x.dtype(), std::ceil(fx->value));
-  return ir::Call::make(x.dtype(), "ceil", {x}, ir::Call::PureIntrinsic);
+  using ir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
+  if (fx) return FloatImmNode::make(x.dtype(), std::ceil(fx->value));
+  return ir::CallNode::make(x.dtype(), "ceil", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr round(Expr x) {
-  using ir::FloatImm;
-  const FloatImm* fx = x.as<FloatImm>();
-  if (fx) return FloatImm::make(x.dtype(), std::nearbyint(fx->value));
-  return ir::Call::make(x.dtype(), "round", {x}, ir::Call::PureIntrinsic);
+  using ir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
+  if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
+  return ir::CallNode::make(x.dtype(), "round", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr nearbyint(Expr x) {
-  using ir::FloatImm;
-  const FloatImm* fx = x.as<FloatImm>();
-  if (fx) return FloatImm::make(x.dtype(), std::nearbyint(fx->value));
-  return ir::Call::make(x.dtype(), "nearbyint", {x}, ir::Call::PureIntrinsic);
+  using ir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
+  if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
+  return ir::CallNode::make(x.dtype(), "nearbyint", {x}, ir::CallNode::PureIntrinsic);
 }
 
 Expr trunc(Expr x) {
-  using ir::FloatImm;
-  const FloatImm* fx = x.as<FloatImm>();
+  using ir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {
-    return FloatImm::make(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) :
+    return FloatImmNode::make(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) :
                                      std::floor(fx->value)));
   }
-  return ir::Call::make(x.dtype(), "trunc", {x}, ir::Call::PureIntrinsic);
+  return ir::CallNode::make(x.dtype(), "trunc", {x}, ir::CallNode::PureIntrinsic);
 }
 
 }  // namespace tvm

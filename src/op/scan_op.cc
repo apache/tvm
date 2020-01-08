@@ -177,7 +177,7 @@ Operation ScanOpNode::ReplaceInputs(
 void ScanOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   for (size_t i = 0, sp_idx = 0; i < this->init.size(); ++i) {
@@ -241,7 +241,7 @@ void ScanOpNode::GatherBound(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       CHECK(!out_dom_map->count(sp_ax));
       CHECK(fix_pt.count(sp_ax));
-      if (fix_pt[sp_ax].as<ir::IntImm>()->value) {
+      if (fix_pt[sp_ax].as<ir::IntImmNode>()->value) {
         // fix point, we can slice it.
         (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
       } else {
@@ -271,7 +271,7 @@ Stmt ScanOpNode::BuildRealize(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = ir::Realize::make(t->op, t->value_index, t->dtype,
+    ret = ir::RealizeNode::make(t->op, t->value_index, t->dtype,
                             bounds, const_true(), ret);
   }
   return ret;
@@ -282,12 +282,12 @@ Stmt ScanOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt provide = AttrStmt::make(
+  Stmt provide = AttrStmtNode::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
-      Evaluate::make(0));
-  Stmt init = AttrStmt::make(
+      EvaluateNode::make(0));
+  Stmt init = AttrStmtNode::make(
       stage->op, attr::scan_init_scope, 0,
-      Evaluate::make(0));
+      EvaluateNode::make(0));
   size_t begin_scan = 0;
   for (size_t  i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     if (stage->leaf_iter_vars[i]->iter_type == kThreadIndex) {

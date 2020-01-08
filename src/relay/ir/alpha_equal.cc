@@ -196,7 +196,7 @@ class AlphaEqualHandler:
     }
   }
   using AttrsEqualHandler::VisitAttr_;
-  bool VisitAttr_(const Variable* lhs, const ObjectRef& other) final {
+  bool VisitAttr_(const tvm::VarNode* lhs, const ObjectRef& other) final {
     return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 

@@ -125,12 +125,12 @@ class IfThenElseHoist {
 // in a For stmt.
 bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
   std::vector<const Object*> if_node_list;
-  const For* for_node = for_stmt.as<For>();
+  const ForNode* for_node = for_stmt.as<ForNode>();
   CHECK(for_node);
-  CHECK(if_stmt.as<IfThenElse>());
+  CHECK(if_stmt.as<IfThenElseNode>());
 
   PostOrderVisit(for_node->body, [&](const ObjectRef& node) {
-    if (node.as<IfThenElse>()) {
+    if (node.as<IfThenElseNode>()) {
       if_node_list.push_back(node.get());
     }
   });
@@ -142,12 +142,12 @@ bool is_first_if(const Stmt& for_stmt, const Stmt& if_stmt) {
 // in the main VisitAndMutate function.
 Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
   const Object* top_for_node;
-  const For* parent_for_node = parent_for_stmt.as<For>();
+  const ForNode* parent_for_node = parent_for_stmt.as<ForNode>();
   CHECK(parent_for_node);
-  CHECK(new_if_stmt.as<IfThenElse>());
+  CHECK(new_if_stmt.as<IfThenElseNode>());
 
   PostOrderVisit(parent_for_node->body, [&](const ObjectRef& node) {
-    if (node.as<For>()) {
+    if (node.as<ForNode>()) {
       top_for_node = node.get();
     }
   });
@@ -169,13 +169,13 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
 std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
   Stmt then_for;
   Stmt else_for;
-  CHECK(if_stmt.as<IfThenElse>());
+  CHECK(if_stmt.as<IfThenElseNode>());
 
   PackedFunc replace_then_case = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
       const ObjectRef& node  = args[0];
       if (node == if_stmt) {
-        *ret = node.as<IfThenElse>()->then_case;
+        *ret = node.as<IfThenElseNode>()->then_case;
       }
     });
 
@@ -183,13 +183,13 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
     [&](TVMArgs args, TVMRetValue *ret){
       const ObjectRef& node  = args[0];
       if (node == if_stmt) {
-        *ret = node.as<IfThenElse>()->else_case;
+        *ret = node.as<IfThenElseNode>()->else_case;
       }
     });
 
   then_for = IRTransform(for_stmt, nullptr, replace_then_case,
                          {Expr("IfThenElse")});
-  if (if_stmt.as<IfThenElse>()->else_case) {
+  if (if_stmt.as<IfThenElseNode>()->else_case) {
     else_for = IRTransform(for_stmt, nullptr, replace_else_case,
                            {Expr("IfThenElse")});
   }
@@ -200,7 +200,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 // Locate all For nodes and capture child IfThenElse nodes.
 void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
   PostOrderVisit(stmt, [&](const ObjectRef& node){
-    const For* for_node = node.as<For>();
+    const ForNode* for_node = node.as<ForNode>();
     if (!for_node) return;
 
     std::queue<Stmt> tracker;
@@ -210,16 +210,16 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
     while (!tracker.empty()) {
       Stmt head = tracker.front();
       tracker.pop();
-      if (head->IsInstance<For>()) {
+      if (head->IsInstance<ForNode>()) {
         for (const auto& if_stmt : for2if_map_.at(head.get())) {
           for2if_map_[for_stmt.get()].push_back(if_stmt);
         }
-      } else if (head->IsInstance<AttrStmt>()) {
-        const AttrStmt* attr_node = head.as<AttrStmt>();
+      } else if (head->IsInstance<AttrStmtNode>()) {
+        const AttrStmtNode* attr_node = head.as<AttrStmtNode>();
         tracker.push(attr_node->body);
-      } else if (head->IsInstance<IfThenElse>()) {
+      } else if (head->IsInstance<IfThenElseNode>()) {
         for2if_map_[for_stmt.get()].push_back(head);
-        const IfThenElse* if_node = head.as<IfThenElse>();
+        const IfThenElseNode* if_node = head.as<IfThenElseNode>();
         tracker.push(if_node->then_case);
         if (if_node->else_case) {
           tracker.push(if_node->else_case);
@@ -230,7 +230,7 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
           std::unordered_set<const Object*> new_var_set;
           cond_var_map_.insert({head.get(), new_var_set});
           PostOrderVisit(if_node->condition, [&](const ObjectRef& cond_node) {
-            if (cond_node.as<Variable>()) {
+            if (cond_node.as<VarNode>()) {
               cond_var_map_[head.get()].insert(cond_node.get());
             }
           });
@@ -252,7 +252,7 @@ void IfThenElseHoist::LocateTopFor() {
   // Create IfThenElse -> For map.
   for (const Stmt& for_stmt : ordered_for_list_) {
     std::vector<Stmt> if_list = for2if_map_[for_stmt.get()];
-    const For* for_node = for_stmt.as<For>();
+    const ForNode* for_node = for_stmt.as<ForNode>();
     CHECK(for_node);
     top_for_var_map_.insert({for_node->loop_var.get(), if_list});
     for (const Stmt& if_stmt : if_list) {
@@ -268,7 +268,7 @@ void IfThenElseHoist::LocateTopFor() {
     std::vector<Stmt> for_list = item.second;
     for (size_t i = 0; i < for_list.size(); ++i) {
       const Stmt& for_stmt = for_list.at(i);
-      const For* for_node = for_stmt.as<For>();
+      const ForNode* for_node = for_stmt.as<ForNode>();
       CHECK(for_node);
       std::vector<Stmt> new_for_list{for_stmt};
       for_tracking_map_.insert({for_stmt.get(), new_for_list});
@@ -282,13 +282,13 @@ void IfThenElseHoist::LocateTopFor() {
         top_for = for_stmt;
       }
     }
-    if (top_for.as<For>()) {
+    if (top_for.as<ForNode>()) {
       if_position_map.insert({if_stmt, top_for});
     }
   }
 
   for (const auto& item : if_position_map) {
-    top_for_var_set.insert(item.second.as<For>()->loop_var.get());
+    top_for_var_set.insert(item.second.as<ForNode>()->loop_var.get());
   }
 
   std::vector<const Object*> removed_for_var_list;
@@ -354,9 +354,9 @@ Stmt IfThenElseHoist::HoistIf(const Stmt& if_stmt) {
       for_tracking_map_[for_stmt.get()].push_back(else_for);
     }
 
-    const IfThenElse* new_if_node = new_if.as<IfThenElse>();
+    const IfThenElseNode* new_if_node = new_if.as<IfThenElseNode>();
     CHECK(new_if_node);
-    new_if = IfThenElse::make(new_if_node->condition, then_for, else_for);
+    new_if = IfThenElseNode::make(new_if_node->condition, then_for, else_for);
     if (i < if2for_map_[if_stmt.get()].size() - 1) {
       const Stmt& original_next_for = if2for_map_[if_stmt.get()].at(i + 1);
       const Stmt& actual_next_for =
@@ -375,7 +375,7 @@ Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
   PackedFunc replace_top_for = PackedFunc(
     [&](TVMArgs args, TVMRetValue *ret){
       const ObjectRef& current_for = args[0];
-      const For* for_node = current_for.as<For>();
+      const ForNode* for_node = current_for.as<ForNode>();
       if (!for_node) return;
 
       if (top_for_var_map_.count(for_node->loop_var.get())) {
@@ -385,27 +385,27 @@ Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
           new_if_list.emplace_back(HoistIf(if_stmt));
         }
 
-        const IfThenElse* next_if_node;
-        const IfThenElse* current_if_node =
-          new_if_list.back().as<IfThenElse>();
+        const IfThenElseNode* next_if_node;
+        const IfThenElseNode* current_if_node =
+          new_if_list.back().as<IfThenElseNode>();
         Stmt new_for = Stmt();
         for (size_t i = new_if_list.size() - 1; i > 0; --i) {
           CHECK(current_if_node);
           const Stmt current_if_stmt =
-            IfThenElse::make(current_if_node->condition,
+            IfThenElseNode::make(current_if_node->condition,
                              current_if_node->then_case,
                              current_if_node->else_case);
-          next_if_node = new_if_list[i - 1].as<IfThenElse>();
+          next_if_node = new_if_list[i - 1].as<IfThenElseNode>();
           CHECK(next_if_node);
-          new_for = IfThenElse::make(next_if_node->condition, current_if_stmt,
+          new_for = IfThenElseNode::make(next_if_node->condition, current_if_stmt,
                                      next_if_node->else_case);
-          current_if_node = new_for.as<IfThenElse>();
+          current_if_node = new_for.as<IfThenElseNode>();
         }
 
         if (!new_for.get()) {
-          const IfThenElse* first_if_node = new_if_list[0].as<IfThenElse>();
+          const IfThenElseNode* first_if_node = new_if_list[0].as<IfThenElseNode>();
           CHECK(first_if_node);
-          new_for = IfThenElse::make(first_if_node->condition,
+          new_for = IfThenElseNode::make(first_if_node->condition,
                                      first_if_node->then_case,
                                      first_if_node->else_case);
         }

@@ -35,14 +35,14 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
-  bool VisitExpr_(const Select* op) {
+  bool VisitExpr_(const SelectNode* op) {
     return VisitExpr(op->condition);
   }
-  bool VisitExpr_(const Call* op) {
+  bool VisitExpr_(const CallNode* op) {
     if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
       return VisitExpr(op->args[0]);
     } else if (op->is_intrinsic(intrinsic::tvm_address_of)) {
-      const Load* l = op->args[0].as<Load>();
+      const LoadNode* l = op->args[0].as<LoadNode>();
       return this->VisitExpr(l->index);
     } else if (op->is_pure()) {
       for (Expr e : op->args) {
@@ -53,53 +53,53 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
       return true;
     }
   }
-  bool VisitExpr_(const Load* op) {
+  bool VisitExpr_(const LoadNode* op) {
     // Load is considered unsafe.
     return true;
   }
-  bool VisitExpr_(const Add* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Sub* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Mul* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Div* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Mod* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorDiv* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const FloorMod* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Min* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Max* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const EQ* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const NE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LT* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const LE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GT* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const GE* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const And* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Or* op) final { return BinaryOp(op); }
-  bool VisitExpr_(const Not* op) final {
+  bool VisitExpr_(const AddNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const SubNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const MulNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const DivNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const ModNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const FloorDivNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const FloorModNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const MinNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const MaxNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const EQNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const NENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const LTNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const LENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const GTNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const GENode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const AndNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const OrNode* op) final { return BinaryOp(op); }
+  bool VisitExpr_(const NotNode* op) final {
     return VisitExpr(op->a);
   }
-  bool VisitExpr_(const Let* op) final {
+  bool VisitExpr_(const LetNode* op) final {
     return VisitExpr(op->body) || VisitExpr(op->value);
   }
-  bool VisitExpr_(const Cast* op) final {
+  bool VisitExpr_(const CastNode* op) final {
     return VisitExpr(op->value);
   }
-  bool VisitExpr_(const Broadcast* op) final {
+  bool VisitExpr_(const BroadcastNode* op) final {
     return VisitExpr(op->value);
   }
-  bool VisitExpr_(const Ramp* op) final {
+  bool VisitExpr_(const RampNode* op) final {
     return VisitExpr(op->base) && VisitExpr(op->stride);
   }
-  bool VisitExpr_(const Shuffle* op) final {
+  bool VisitExpr_(const ShuffleNode* op) final {
     for (Expr e : op->vectors) {
       if (VisitExpr(e)) return true;
     }
     return false;
   }
-  bool VisitExpr_(const Variable* op) final { return false; }
-  bool VisitExpr_(const UIntImm* op) final { return false; }
-  bool VisitExpr_(const IntImm* op) final { return false; }
-  bool VisitExpr_(const FloatImm* op) final { return false; }
-  bool VisitExpr_(const StringImm* op) final { return false; }
+  bool VisitExpr_(const VarNode* op) final { return false; }
+  bool VisitExpr_(const UIntImmNode* op) final { return false; }
+  bool VisitExpr_(const IntImmNode* op) final { return false; }
+  bool VisitExpr_(const FloatImmNode* op) final { return false; }
+  bool VisitExpr_(const StringImmNode* op) final { return false; }
 
  private:
   template<typename T>
@@ -110,19 +110,19 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Select* op) {
+  Expr VisitExpr_(const SelectNode* op) {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Select>();
+    op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
     if ((unsafe.VisitExpr(op->true_value) ||
         unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call::make(
+      return CallNode::make(
           op->dtype,
           intrinsic::tvm_if_then_else,
           {op->condition, op->true_value, op->false_value},
-          Call::Intrinsic);
+          CallNode::Intrinsic);
     } else {
       return expr;
     }
