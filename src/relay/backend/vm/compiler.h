@@ -100,7 +100,7 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Compile functions in a Module
+   * \brief Lower the functions in a Module
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating context
