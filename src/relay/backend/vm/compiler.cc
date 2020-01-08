@@ -749,7 +749,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
       Module mod = args[0];
       this->Lower(mod, args[1], args[2]);
     });
-  } if (name == "codegen") {
+  } else if (name == "codegen") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 0);
       this->Codegen();
@@ -997,7 +997,7 @@ void VMCompiler::Codegen() {
       }
     }
   }
-  exec_->lib = mod;  
+  exec_->lib = mod;
 }
 
 runtime::Module CreateVMCompiler() {
