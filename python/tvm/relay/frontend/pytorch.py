@@ -440,7 +440,7 @@ def _dense():
         beta = inputs[3]
         alpha = inputs[4]
 
-        if not isinstance(alpha, ( _expr.Var, _expr.Call, _expr.TupleGetItem)):
+        if not isinstance(alpha, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
             if data_type == 'double':
                 alpha = _expr.const(np.float64(alpha), dtype='float64')
             elif data_type == 'float':
@@ -459,7 +459,7 @@ def _dense():
                 alpha = _expr.const(np.uint8(alpha), dtype='uint8')
             data *= alpha
 
-        if not isinstance(beta, ( _expr.Var, _expr.Call, _expr.TupleGetItem)):
+        if not isinstance(beta, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
             if data_type == 'double':
                 beta = _expr.const(np.foat64(beta), dtype='float64')
             elif data_type == 'float':
