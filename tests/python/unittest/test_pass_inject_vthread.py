@@ -32,7 +32,7 @@ def test_vthread():
             ib.scope_attr(ty, "virtual_thread", nthread)
             B = ib.allocate("float32", m, name="B", scope="shared")
             B[i] = A[i * nthread + tx]
-            bbuffer = tvm.decl_buffer((m,), dtype=B.dtype, data=B.asnode())
+            bbuffer = tvm.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
             ib.emit(tvm.call_extern("int32", "Run",
                                     bbuffer.access_ptr("r"),
                                     tvm.call_pure_intrin("int32", "tvm_context_id")))
@@ -60,9 +60,9 @@ def test_vthread_extern():
             A = ib.allocate("float32", m, name="A", scope="shared")
             B = ib.allocate("float32", m, name="B", scope="shared")
             C = ib.allocate("float32", m, name="C", scope="shared")
-            cbuffer = tvm.decl_buffer((m,), dtype=C.dtype, data=C.asnode())
-            abuffer = tvm.decl_buffer((m,), dtype=A.dtype, data=A.asnode())
-            bbuffer = tvm.decl_buffer((m,), dtype=B.dtype, data=B.asnode())
+            cbuffer = tvm.decl_buffer((m,), dtype=C.dtype, data=C.asobject())
+            abuffer = tvm.decl_buffer((m,), dtype=A.dtype, data=A.asobject())
+            bbuffer = tvm.decl_buffer((m,), dtype=B.dtype, data=B.asobject())
             A[tx] = tx + 1.0
             B[ty] = ty + 1.0
             ib.emit(tvm.call_extern("int32", "Run",

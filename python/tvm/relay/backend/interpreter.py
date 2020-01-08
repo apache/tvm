@@ -24,12 +24,12 @@ from . import _backend
 from .. import _make, analysis, transform
 from .. import module
 from ... import nd
-from ..base import NodeBase, register_relay_node
+from ..base import Object, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
 
 @register_relay_node
-class TupleValue(NodeBase):
+class TupleValue(Object):
     """A tuple value produced by the interpreter."""
     def __init__(self, *fields):
         self.__init_handle_by_constructor__(
@@ -54,24 +54,24 @@ class TupleValue(NodeBase):
 
 
 @register_relay_node
-class Closure(NodeBase):
+class Closure(Object):
     """A closure produced by the interpreter."""
 
 
 @register_relay_node
-class RecClosure(NodeBase):
+class RecClosure(Object):
     """A recursive closure produced by the interpreter."""
 
 
 @register_relay_node
-class ConstructorValue(NodeBase):
+class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(
             _make.ConstructorValue, tag, fields, constructor)
 
 
 @register_relay_node
-class RefValue(NodeBase):
+class RefValue(Object):
     def __init__(self, value):
         self.__init_handle_by_constructor__(
             _make.RefValue, value)
@@ -189,7 +189,7 @@ class Executor(object):
 
         Returns
         -------
-        val : Union[function, NodeBase]
+        val : Union[function, Object]
             The evaluation result.
         """
         if binds:
