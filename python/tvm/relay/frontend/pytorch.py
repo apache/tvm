@@ -320,12 +320,10 @@ def _batch_norm():
         channels = _infer_shape(data)
 
         if isinstance(inputs[1], _expr.Var) and isinstance(inputs[2], _expr.Var):
-            print('scale, center, true')
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
         else:
-            print('scale, center, false')
             scale = center = False
 
         if scale:
@@ -796,7 +794,6 @@ class Graph(object):
     def __init__(self, trace, input_shapes):
 
         self._trace = trace
-        print(trace.graph)
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
