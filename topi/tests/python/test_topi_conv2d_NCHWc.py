@@ -236,5 +236,6 @@ def test_conv2d_NCHWc():
     verify_conv2d_NCHWc(1,  32,    8,  32, 24, 1, "SAME", add_bias=True, add_relu=True)
 
 
+
 if __name__ == "__main__":
     test_conv2d_NCHWc()
