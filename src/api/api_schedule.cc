@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Implementation of API functions related to schedule pass.
  * \file api_schedule.cc
  */
@@ -26,20 +25,22 @@
 #include <tvm/tensor.h>
 #include <tvm/schedule.h>
 #include <tvm/schedule_pass.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "../schedule/graph.h"
 
 namespace tvm {
 namespace schedule {
 
-TVM_REGISTER_API("schedule.AutoInlineElemWise")
+TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise")
 .set_body_typed(AutoInlineElemWise);
 
 
-TVM_REGISTER_API("schedule.AutoInlineInjective")
+TVM_REGISTER_GLOBAL("schedule.AutoInlineInjective")
 .set_body_typed(AutoInlineInjective);
 
-TVM_REGISTER_API("schedule.ScheduleOps")
+TVM_REGISTER_GLOBAL("schedule.ScheduleOps")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   if (args.size() == 2)
     *ret = ScheduleOps(args[0], args[1], false);
@@ -48,7 +49,7 @@ TVM_REGISTER_API("schedule.ScheduleOps")
 });
 
 #define REGISTER_SCHEDULE_PASS(PassName)                          \
-  TVM_REGISTER_API("schedule."#PassName)                          \
+  TVM_REGISTER_GLOBAL("schedule."#PassName)                          \
   .set_body_typed(PassName);                                     \
 
 

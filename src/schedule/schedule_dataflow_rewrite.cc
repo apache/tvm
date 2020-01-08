@@ -18,12 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file schedule_dataflow_rewrite.cc
  */
 #include <tvm/schedule.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "message_passing.h"
@@ -35,7 +34,7 @@ namespace tvm {
 // find first occurance location in leaf
 template<typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
-  const Node* n = v.get();
+  const Object* n = v.get();
   for (size_t i = 0; i < array_node->data.size(); ++i) {
     if (array_node->data[i].get() == n) return i;
   }
@@ -43,24 +42,24 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 }
 
 // The replacer of cache.
-class VarReplacer : public ir::IRMutator {
+class VarReplacer : public ir::StmtExprMutator {
  public:
   explicit VarReplacer(
       const std::unordered_map<const Variable*, Expr>& vsub)
       : vsub_(vsub) {}
-  Expr Mutate_(const Variable* op, const Expr& e) {
+  Expr VisitExpr_(const Variable* op) final {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
-    return e;
+    return GetRef<Expr>(op);
   }
 
   ir::CommReducer MutateCommReducer(ir::CommReducer combiner) {
     // Replace free variables in combiner
     auto new_identity = ir::UpdateArray(combiner->identity_element, [this] (const Expr& e) {
-      return this->Mutate(e);
+      return this->VisitExpr(e);
       });
     auto new_result = ir::UpdateArray(combiner->result, [this] (const Expr& e) {
-      return this->Mutate(e);
+      return this->VisitExpr(e);
       });
 
     if (combiner->identity_element.same_as(new_identity) &&
@@ -72,8 +71,8 @@ class VarReplacer : public ir::IRMutator {
     }
   }
 
-  Expr Mutate_(const ir::Reduce* op, const Expr& e) {
-    Expr new_e = IRMutator::Mutate_(op, e);
+  Expr VisitExpr_(const ir::Reduce* op) final {
+    Expr new_e = StmtExprMutator::VisitExpr_(op);
     const ir::Reduce* new_reduce = new_e.as<ir::Reduce>();
     ir::CommReducer new_combiner = MutateCommReducer(op->combiner);
     if (op->combiner.same_as(new_combiner)) {
@@ -99,13 +98,13 @@ Expr InjectPredicate(const Array<Expr>& predicates,
   if (predicates.size() == 0) return body;
   const Reduce* reduce = body.as<Reduce>();
   if (reduce) {
-    auto n = make_node<Reduce>(*reduce);
+    auto n = make_object<Reduce>(*reduce);
     n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates, Expr());
     return Expr(n);
   }
   return Select::make(arith::ComputeReduce<ir::And>(predicates, Expr()),
                       body,
-                      make_zero(body.type()));
+                      make_zero(body.dtype()));
 }
 
 // Replace data flow appears in all stages given the tensor change.
@@ -178,7 +177,7 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos + 1,
-                      cache_stage.node_);
+                      cache_stage);
   (*this)->stage_map.Set(cache->op, cache_stage);
   // Update group
   cache_stage->group = op_stage->group;
@@ -281,7 +280,7 @@ Array<Tensor> ReplaceOriginalOp(Schedule sch,
   cache_stage.set_scope(scope);
   CHECK_LT(pos, stages->data.size());
   stages->data.insert(stages->data.begin() + pos,
-                      cache_stage.node_);
+                      cache_stage);
   sch->stage_map.Set(cache_op, cache_stage);
   // Update group
   cache_stage->group = orig_stage->group;
@@ -317,12 +316,12 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Array<Expr> body_list;
   const ir::Reduce* first_reduce = nullptr;
   for (auto cbody : compute->body) {
-    body = VarReplacer(vsub).Mutate(cbody);
+    body = VarReplacer(vsub)(cbody);
     body = InjectPredicate(predicates, body);
-    body = VarReplacer(vsub2newvar).Mutate(body);
+    body = VarReplacer(vsub2newvar)(body);
     // Reduce nodes in ONE computeOp must be the same except value_index
     // This is right only if the original body ensures Reduce nodes are the same
-    if (body->is_type<ir::Reduce>()) {
+    if (body->IsInstance<ir::Reduce>()) {
       const ir::Reduce* reduce_body = body.as<ir::Reduce>();
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
@@ -405,8 +404,8 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   for (Region old_region : tensor_op->input_regions) {
     Region region;
     for (Range r : old_region) {
-      Expr min = VarReplacer(vsub2newvar).Mutate(r->min);
-      Expr extent = VarReplacer(vsub2newvar).Mutate(r->extent);
+      Expr min = VarReplacer(vsub2newvar)(r->min);
+      Expr extent = VarReplacer(vsub2newvar)(r->extent);
       region.push_back(Range::make_by_min_extent(min, extent));
     }
     new_regions.push_back(region);
@@ -414,7 +413,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
 
   Array<Expr> new_scalar_inputs;
   for (Expr old_input : tensor_op->scalar_inputs) {
-    new_scalar_inputs.push_back(VarReplacer(vsub2newvar).Mutate(old_input));
+    new_scalar_inputs.push_back(VarReplacer(vsub2newvar)(old_input));
   }
 
   Operation cache_op = TensorComputeOpNode::make(
@@ -486,10 +485,9 @@ Tensor Schedule::cache_write(const Tensor& tensor,
                              const std::string& scope) {
   // support original compute and tensor compute both
   (*this)->InvalidateCache();
-  const char* type_key = tensor->op->type_key();
-  if (!strcmp(type_key, "ComputeOp")) {
+  if (tensor->op.as<ComputeOpNode>()) {
     return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
-  } else if (!strcmp(type_key, "TensorComputeOp")) {
+  } else if (tensor->op.as<TensorComputeOpNode>()) {
     return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
   } else {
     LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
@@ -521,7 +519,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
         }
-        leaf_vars->data[idx] = rebased.node_;
+        leaf_vars->data[idx] = rebased;
         rebase_map[iv] = rebased;
       }
     }
@@ -575,7 +573,7 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
           }
-          if (new_body[j][0]->is_type<ir::Reduce>()) {
+          if (new_body[j][0]->IsInstance<ir::Reduce>()) {
             // specially handle reduction inline for multiplre reductions.
             const ir::Reduce* reduce = new_body[j][0].as<ir::Reduce>();
             for (size_t k = 1; k < new_body[j].size(); ++k) {
@@ -593,9 +591,9 @@ void InjectInline(ScheduleNode* sch) {
               CHECK_EQ(new_body[j].size(), r->source.size());
               CHECK(r != nullptr);
               for (size_t k = 0; k < new_body[j].size(); ++k) {
-                auto n = make_node<ir::Reduce>(*r);
+                auto n = make_object<ir::Reduce>(*r);
                 n->value_index = static_cast<int>(k);
-                n->type = r->source[k].type();
+                n->dtype = r->source[k].dtype();
                 new_body[j].Set(k, Expr(n));
               }
             }
@@ -736,11 +734,11 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const int factor_axis_pos = \
       factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
-  auto n = make_node<ComputeOpNode>();
+  auto n = make_object<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
   {
     // axis relacement.
-    auto iv_node = make_node<IterVarNode>();
+    auto iv_node = make_object<IterVarNode>();
     iv_node->dom = dom_map.at(axis);
     CHECK(is_zero(iv_node->dom->min))
         << "Can only factor reduction domain starting from 0";
@@ -781,16 +779,16 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv) && !iv.same_as(axis)) {
       CHECK_EQ(iv->iter_type, kCommReduce);
-      auto ncpy = make_node<IterVarNode>(*iv.operator->());
+      auto ncpy = make_object<IterVarNode>(*iv.operator->());
       ncpy->dom = dom_map.at(iv);
       n->reduce_axis.push_back(IterVar(ncpy));
     }
   }
   VarReplacer replacer(vsub);
   Array<Expr> new_source = ir::UpdateArray(reduce->source,
-    [&replacer] (const Expr& e) { return replacer.Mutate(e); });
+    [&replacer] (const Expr& e) { return replacer(e); });
 
-  Expr new_pred = replacer.Mutate(predicate);
+  Expr new_pred = replacer(predicate);
 
   std::vector<Expr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
@@ -826,7 +824,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   factor_stage->relations = rels;
   CHECK_LT(stage_pos, stages->data.size());
   stages->data.insert(stages->data.begin() + stage_pos,
-                      factor_stage.node_);
+                      factor_stage);
   (*this)->stage_map.Set(factor_op, factor_stage);
   factor_stage->group = reduce_stage->group;
   if (factor_stage->group.defined()) {

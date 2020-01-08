@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ir_util.cc
  * \brief Helper functions to construct and compose IR nodes.
  */
@@ -32,38 +31,38 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
   for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<For>()) {
-      auto n = make_node<For>(*for_);
+      auto n = make_object<For>(*for_);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* let = s.as<LetStmt>()) {
-      auto n = make_node<LetStmt>(*let);
+      auto n = make_object<LetStmt>(*let);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* attr = s.as<AttrStmt>()) {
-      auto n = make_node<AttrStmt>(*attr);
+      auto n = make_object<AttrStmt>(*attr);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* ite = s.as<IfThenElse>()) {
-      auto n = make_node<IfThenElse>(*ite);
+      auto n = make_object<IfThenElse>(*ite);
       CHECK(is_no_op(n->then_case));
       CHECK(!n->else_case.defined());
       n->then_case = body;
       body = Stmt(n);
-    } else if (const auto* block = s.as<Block>()) {
-      auto n = make_node<Block>(*block);
-      CHECK(is_no_op(n->rest));
-      n->rest = body;
+    } else if (const auto* seq = s.as<SeqStmtNode>()) {
+      auto n = make_object<SeqStmtNode>(*seq);
+      CHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
+      n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
     } else if (const auto* assert_ = s.as<AssertStmt>()) {
-      auto n = make_node<AssertStmt>(*assert_);
+      auto n = make_object<AssertStmt>(*assert_);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* alloc = s.as<Allocate>()) {
-      auto n = make_node<Allocate>(*alloc);
+      auto n = make_object<Allocate>(*alloc);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
@@ -77,15 +76,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
 Stmt MergeNest(const std::vector<std::vector<Stmt> >& nest, Stmt body) {
   for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
     body = MergeNest(*ri, body);
-  }
-  return body;
-}
-
-Stmt MergeSeq(const std::vector<Stmt>& seq) {
-  if (seq.size() == 0) return Evaluate::make(0);
-  Stmt body = seq[0];
-  for (size_t i = 1; i < seq.size(); ++i) {
-    body = Block::make(body, seq[i]);
   }
   return body;
 }

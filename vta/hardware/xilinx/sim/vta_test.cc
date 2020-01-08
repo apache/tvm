@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file vta_test.cpp
  * \brief Simulation tests for the VTA design.
  */

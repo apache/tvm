@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,5 +25,8 @@ export DYLD_LIBRARY_PATH=../../build:${DYLD_LIBRARY_PATH}
 echo "Run the deployment with all in one packed library..."
 lib/cpp_deploy_pack
 
-echo "Run the deployment with all in normal library..."
+echo "Run the cpp deployment with all in normal library..."
 lib/cpp_deploy_normal
+
+echo "Run the python deployment with all in normal library..."
+python3 python_deploy.py

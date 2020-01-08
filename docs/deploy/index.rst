@@ -38,7 +38,7 @@ on a Linux based embedded system such as Raspberry Pi:
 
 .. code:: bash
 
-    git clone --recursive https://github.com/dmlc/tvm
+    git clone --recursive https://github.com/apache/incubator-tvm tvm
     cd tvm
     mkdir build
     cp cmake/config.cmake build
@@ -67,5 +67,4 @@ target device without relying on RPC. see the following resources on how to do s
 
    cpp_deploy
    android
-   nnvm
    integrate

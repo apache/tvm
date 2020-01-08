@@ -24,8 +24,8 @@
 #include <tvm/operation.h>
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_set>
 #include <string>
 #include <utility>
@@ -39,8 +39,9 @@ namespace tvm {
 
 using namespace ir;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ComputeOpNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ComputeOpNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ComputeOpNode*>(node.get());
     p->stream << "compute(" << op->name << ", " << op << ")";
 });
 
@@ -69,9 +70,9 @@ Array<IterVar> BaseComputeOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ComputeOpNode::output_dtype(size_t idx) const {
+DataType ComputeOpNode::output_dtype(size_t idx) const {
   CHECK_LT(idx, num_outputs());
-  return body[idx].type();
+  return body[idx].dtype();
 }
 
 Array<Expr> BaseComputeOpNode::output_shape(size_t idx) const {
@@ -89,8 +90,8 @@ Tensor compute(Array<Expr> shape,
                FCompute fcompute,
                std::string name,
                std::string tag,
-               Map<std::string, NodeRef> attrs) {
-  auto op_node = make_node<ComputeOpNode>();
+               Map<std::string, ObjectRef> attrs) {
+  auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -99,7 +100,7 @@ Tensor compute(Array<Expr> shape,
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
+        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -111,8 +112,8 @@ Array<Tensor> compute(Array<Expr> shape,
                       FBatchCompute fcompute,
                       std::string name,
                       std::string tag,
-                      Map<std::string, NodeRef> attrs) {
-  auto op_node = make_node<ComputeOpNode>();
+                      Map<std::string, ObjectRef> attrs) {
+  auto op_node = make_object<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -121,7 +122,7 @@ Array<Tensor> compute(Array<Expr> shape,
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].type()), kDataPar));
+        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -135,19 +136,19 @@ Array<Tensor> compute(Array<Expr> shape,
 
 Operation ComputeOpNode::make(std::string name,
                               std::string tag,
-                              Map<std::string, NodeRef> attrs,
+                              Map<std::string, ObjectRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, NodeRef>();
+    attrs = Map<std::string, ObjectRef>();
   }
-  auto n = make_node<ComputeOpNode>();
+  auto n = make_object<ComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
   n->axis = std::move(axis);
   n->body = std::move(body);
-  if (n->body[0]->is_type<ir::Reduce>()) {
+  if (n->body[0]->IsInstance<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
     n->reduce_axis = reduce->axis;
   }
@@ -160,10 +161,10 @@ Array<Tensor> ComputeOpNode::InputTensors() const {
   Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
   for (auto& e : body) {
-    ir::PostOrderVisit(e, [&ret, &visited](const NodeRef& n) {
+    ir::PostOrderVisit(e, [&ret, &visited](const ObjectRef& n) {
         const ir::Call *call = n.as<ir::Call>();
         if (call != nullptr && call->func.defined()) {
-          Tensor t = Operation(call->func.node_).output(call->value_index);
+          Tensor t = Downcast<Operation>(call->func).output(call->value_index);
           if (!visited.count(t)) {
             ret.push_back(t);
             visited.insert(t);
@@ -180,16 +181,16 @@ Operation ComputeOpNode::ReplaceInputs(
   CHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
   Array<Expr> arr;
-  if (this->body[0]->is_type<ir::Reduce>()) {
+  if (this->body[0]->IsInstance<ir::Reduce>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
     Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
       const ir::Reduce* r = new_reduce.as<ir::Reduce>();
       for (size_t k = 0; k < this->body.size(); ++k) {
-        auto n = make_node<ir::Reduce>(*r);
+        auto n = make_object<ir::Reduce>(*r);
         n->value_index = static_cast<int>(k);
-        n->type = r->source[k].type();
+        n->dtype = r->source[k].dtype();
         arr.push_back(Expr(n));
       }
     } else {
@@ -214,10 +215,10 @@ void ComputeOpNode::PropBoundToInputs(
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
-  auto fvisit = [&dom_map, out_dom_map, analyzer](const NodeRef& n) {
+  auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
     auto *call = n.as<ir::Call>();
     if (call != nullptr && call->func.defined()) {
-      Tensor t = Operation(call->func.node_).output(call->value_index);
+      Tensor t = Downcast<Operation>(call->func).output(call->value_index);
       if (t->op.defined() && out_dom_map->count(t)) {
         TensorDom& dom = out_dom_map->at(t);
         for (size_t i = 0; i < t.ndim(); ++i) {
@@ -228,7 +229,7 @@ void ComputeOpNode::PropBoundToInputs(
           IntSet arg_intset = EvalSet(call->args[i], dom_map);
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
-            Expr shape_i_min_value = make_zero(t->shape[i].type());
+            Expr shape_i_min_value = make_zero(t->shape[i].dtype());
             Expr shape_i_max_value = t->shape[i] - 1;
             Expr min_value = arg_interval->min_value;
             Expr max_value = arg_interval->max_value;
@@ -294,7 +295,7 @@ Stmt BaseComputeOpNode::BuildRealize(
                                attr->dim_align_offset};
           realize = ir::AttrStmt::make(
               t, ir::attr::buffer_dim_align,
-              Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
+              Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic),
               realize);
         }
       }
@@ -336,8 +337,8 @@ void MakeReduction(const ComputeOpNode* op,
     provides.emplace_back(Provide::make(
           t->op, t->value_index, update_value[i], args));
   }
-  *init = Block::make(inits);
-  *provide = Block::make(provides);
+  *init = SeqStmt::Flatten(inits);
+  *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
     *provide = IfThenElse::make(reduce->condition, *provide);
   }
@@ -381,7 +382,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     if (debug_keep_trivial_loop) {
       provide = MergeNest(common, provide);
     } else {
-      provide = MergeNest(common, Block::make(init, provide));
+      provide = MergeNest(common, SeqStmt::Flatten(init, provide));
     }
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
@@ -391,7 +392,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     for (size_t i = 0; i < self->body.size(); ++i) {
       provides.emplace_back(MakeProvide(self, stage->op.output(i)));
     }
-    Stmt provide = Block::make(provides);
+    Stmt provide = SeqStmt::Flatten(provides);
     provide = MergeNest(n.main_nest, provide);
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
@@ -537,7 +538,7 @@ namespace {
  *      must be Reduce as well; and their inputs should have the
  *      same attribute except value_index.
  */
-class ComputeVerifier final : protected ir::IRVisitor {
+class ComputeVerifier final : protected ir::ExprVisitor {
  public:
   /// Special member functions
   //@{
@@ -566,20 +567,20 @@ class ComputeVerifier final : protected ir::IRVisitor {
       }
 
       level_ = 0;
-      ir::IRVisitor::Visit(e);
+      ExprVisitor::VisitExpr(e);
     }
   }
 
  protected:
   /// Visitor implementation
   //@{
-  void Visit(const NodeRef& n) final {
+  void VisitExpr(const Expr& n) final {
     ++level_;
-    ir::IRVisitor::Visit(n);
+    ExprVisitor::VisitExpr(n);
     --level_;
   }
 
-  void Visit_(const ir::Reduce* op) final {
+  void VisitExpr_(const ir::Reduce* op) final {
     // Check for non top level reductions
     CHECK(0 == level_)
         << "Reductions are only allowed at the top level of compute. "

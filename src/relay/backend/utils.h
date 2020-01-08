@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/utils.h
  * \brief Utils function for backend
  */
@@ -48,25 +47,37 @@ namespace backend {
 inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
   return tvm::runtime::Registry::Get(func_name);
 }
+
+/*!
+ * \brief Get a typed packed function.
+ *
+ * \param func_name
+ * \return const PackedFunc*
+ */
+template <typename R, typename... Args>
+inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::string& func_name) {
+  auto *pf = GetPackedFunc(func_name);
+  CHECK(pf != nullptr) << "can not find packed function";
+  return runtime::TypedPackedFunc<R(Args...)>(*pf);
+}
 /*!
  * \brief Convert type to string
  *
  * \param typ
  * \return std::string string format of type
  */
-inline std::string DType2String(const tvm::Type typ) {
+inline std::string DType2String(const tvm::DataType dtype) {
   std::ostringstream os;
-  auto tvm_type = Type2TVMType(typ);
-  if (tvm_type.code == kDLFloat) {
+  if (dtype.is_float()) {
     os << "float";
-  } else if (tvm_type.code == kDLInt) {
+  } else if (dtype.is_int()) {
     os << "int";
-  } else if (tvm_type.code == kDLUInt) {
+  } else if (dtype.is_uint()) {
     os << "uint";
   } else {
     LOG(FATAL) << "Unknown type";
   }
-  os << typ.bits();
+  os << dtype.bits();
   return os.str();
 }
 

@@ -121,7 +121,7 @@ AllocTensor
 Allocate a tensor value of the appropriate shape (stored in `shape_register`) and `dtype`. The result
 is saved to register `dst`.
 
-AllocDatatype
+AllocADT
 ^^^^^^^^^^^^^
 **Arguments**:
 ::
@@ -176,7 +176,7 @@ GetTagi
   RegName object
   RegName dst
 
-Get the object tag for Datatype object in register `object`. And saves the reult to register `dst`.
+Get the object tag for ADT object in register `object`. And saves the reult to register `dst`.
 
 Fatal
 ^^^^^
@@ -251,9 +251,9 @@ Currently, we support 3 types of objects: tensors, data types, and closures.
 
 ::
 
-    VMObject VMTensor(const tvm::runtime::NDArray& data);
-    VMObject VMDatatype(size_t tag, const std::vector<VMObject>& fields);
-    VMObject VMClosure(size_t func_index, std::vector<VMObject> free_vars);
+    Object Tensor(const tvm::runtime::NDArray& data);
+    Object ADT(size_t tag, const std::vector<Object>& fields);
+    Object Closure(size_t func_index, std::vector<Object> free_vars);
 
 
 Stack and State

@@ -55,8 +55,17 @@ class DenseAttrs(Attrs):
 
 
 @register_relay_attr_node
+class FIFOBufferAttrs(Attrs):
+    """Attributes for nn.fifo_buffer"""
+
+
+@register_relay_attr_node
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
+
+@register_relay_attr_node
+class UpSampling3DAttrs(Attrs):
+    """Attributes for nn.upsampling3d"""
 
 @register_relay_attr_node
 class PadAttrs(Attrs):
@@ -267,6 +276,16 @@ class AvgPool2DAttrs(Attrs):
 
 
 @register_relay_attr_node
+class MaxPool3DAttrs(Attrs):
+    """Attributes used in max_pool3d operators"""
+
+
+@register_relay_attr_node
+class AvgPool3DAttrs(Attrs):
+    """Attributes used in avg_pool3d operators"""
+
+
+@register_relay_attr_node
 class BitPackAttrs(Attrs):
     """Attributes used in bitpack operator"""
 
@@ -279,3 +298,13 @@ class BinaryConv2DAttrs(Attrs):
 @register_relay_attr_node
 class BinaryDenseAttrs(Attrs):
     """Attributes used in bitserial dense operators"""
+
+
+@register_relay_attr_node
+class Conv2DTransposeAttrs(Attrs):
+    """Attributes used in Transposed Conv2D operators"""
+
+
+@register_relay_attr_node
+class SubPixelAttrs(Attrs):
+    """Attributes used in depth to space and space to depth operators"""

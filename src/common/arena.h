@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright 2018 by Contributors
  *
  * \file arena.h
  * \brief Arena allocator that allocates

@@ -14,27 +14,70 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os
+
+import numpy as np
+
+import tvm
 from tvm import relay
-import tvm.relay.module as _module
 import tvm.relay.transform as _transform
 
-def test_eta_expand_basic():
-    x = relay.var('x', 'int32')
-    orig = relay.Function([x], x)
-    mod = _module.Module.from_expr(orig)
-    seq = _transform.Sequential([_transform.EtaExpand()])
+def test_eta_expand_global_var():
+    mod = relay.fromtext(r"""
+        v0.0.4
+        def @aux(%x: Tensor[(), int32]) -> Tensor[(), int32] {
+            %x
+        }
+        def @main() -> (fn(Tensor[(), int32]) -> Tensor[(), int32]) {
+            @aux
+        }
+    """)
+    seq = _transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
     with _transform.PassContext(opt_level=3):
         mod = seq(mod)
+    expected = relay.fromtext(r"""
+        v0.0.4
+        def @aux(%x: Tensor[(), int32]) -> Tensor[(), int32] {
+            %x
+        }
+        def @main() -> (fn(Tensor[(), int32]) -> Tensor[(), int32]) {
+            fn (%x: Tensor[(), int32]) -> Tensor[(), int32] {
+                @aux(%x)
+            }
+        }
+    """)
+    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
 
-    got = mod["main"]
 
-    y = relay.var('y', 'int32')
-    expected = relay.Function([y], orig(y))
-    gv = relay.GlobalVar("gv")
-    mod[gv] = expected
-    mod = _transform.InferType()(mod)
-    expected = mod["gv"]
-    assert(relay.analysis.alpha_equal(got, expected))
+def test_eta_expand_constructor():
+    mod = relay.fromtext(r"""
+        v0.0.4
+        type List[A] {
+            Cons(A, List[A]),
+            Nil,
+        }
+        def @main[A]() -> (fn(A, List[A]) -> List[A]) {
+            Cons
+        }
+    """)
+    seq = _transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
+    with _transform.PassContext(opt_level=3):
+        mod = seq(mod)
+    expected = relay.fromtext(r"""
+        v0.0.4
+        type List[A] {
+            Cons(A, List[A]),
+            Nil,
+        }
+        def @main[A]() -> (fn(A, List[A]) -> List[A]) {
+            fn [A](%x: A, %xs: List[A]) -> List[A] {
+                Cons(%x, %xs)
+            }
+        }
+    """)
+    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
 
-if __name__ == "__main__":
-    test_eta_expand_basic()
+
+if __name__ == '__main__':
+    test_eta_expand_global_var()
+    test_eta_expand_constructor()

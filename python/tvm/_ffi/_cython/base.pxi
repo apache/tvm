@@ -19,7 +19,7 @@ from ..base import get_last_ffi_error
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
-from libc.stdint cimport int32_t, int64_t, uint64_t, uint8_t, uint16_t
+from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
 cdef enum TVMTypeCode:
@@ -31,13 +31,12 @@ cdef enum TVMTypeCode:
     kTVMType = 5
     kTVMContext = 6
     kArrayHandle = 7
-    kNodeHandle = 8
+    kObjectHandle = 8
     kModuleHandle = 9
     kFuncHandle = 10
     kStr = 11
     kBytes = 12
     kNDArrayContainer = 13
-    kObjectCell = 14
     kExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -78,15 +77,12 @@ ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
 ctypedef void* ObjectHandle
-ctypedef void* NodeHandle
 
-ctypedef struct TVMNDArrayContainer:
-    DLTensor dl_tensor
-    void* manager_ctx
-    void (*deleter)(DLManagedTensor* self)
-    int32_t array_type_info
+ctypedef struct TVMObject:
+    uint32_t type_index_
+    int32_t ref_counter_
+    void (*deleter_)(TVMObject* self)
 
-ctypedef TVMNDArrayContainer* TVMNDArrayContainerHandle
 
 ctypedef int (*TVMPackedCFunc)(
     TVMValue* args,
@@ -130,19 +126,9 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMArrayToDLPack(DLTensorHandle arr_from,
                          DLManagedTensor** out)
     void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor)
-    int TVMGetObjectTag(ObjectHandle obj, int* tag)
+    int TVMObjectFree(ObjectHandle obj)
+    int TVMObjectGetTypeIndex(ObjectHandle obj, unsigned* out_index)
 
-cdef extern from "tvm/c_dsl_api.h":
-    int TVMNodeFree(NodeHandle handle)
-    int TVMNodeTypeKey2Index(const char* type_key,
-                             int* out_index)
-    int TVMNodeGetTypeIndex(NodeHandle handle,
-                            int* out_index)
-    int TVMNodeGetAttr(NodeHandle handle,
-                       const char* key,
-                       TVMValue* out_value,
-                       int* out_type_code,
-                       int* out_success)
 
 cdef inline py_str(const char* x):
     if PY_MAJOR_VERSION < 3:

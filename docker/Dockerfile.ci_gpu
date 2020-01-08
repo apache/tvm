@@ -16,8 +16,8 @@
 # under the License.
 
 # CI docker GPU env
-# tag: v0.54
-FROM nvidia/cuda:8.0-cudnn7-devel
+# tag: v0.56
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 
 # Base scripts
 RUN apt-get update --fix-missing
@@ -87,7 +87,7 @@ RUN bash /install/ubuntu_install_caffe2.sh
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
-RUN pip3 install Pillow
+RUN pip3 install "Pillow<7"
 
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
@@ -108,8 +108,8 @@ ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}
 ENV CPLUS_INCLUDE_PATH=/usr/local/cuda/include:${CPLUS_INCLUDE_PATH}
 ENV C_INCLUDE_PATH=/usr/local/cuda/include:${C_INCLUDE_PATH}
-ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LIBRARY_PATH}
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+ENV LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compact:${LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/cuda/compact:${LD_LIBRARY_PATH}
 
 ENV LD_LIBRARY_PATH=/opt/rocm/lib:${LD_LIBRARY_PATH}
 ENV PATH=/node_modules/.bin:${PATH}

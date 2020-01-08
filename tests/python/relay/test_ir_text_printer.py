@@ -218,6 +218,27 @@ def test_zeros():
     x = relay.op.zeros([], "float32")
     astext(x)
 
+
+def test_unapplied_constructor():
+    type_def_str = r"""
+type List[A] {
+  Cons(A, List[A]),
+  Nil,
+}
+    """
+    main_def_str = r"""
+def @main[A]() -> fn (A, List[A]) -> List[A] {
+  Cons
+}
+    """
+    mod = relay.fromtext(SEMVER + type_def_str + main_def_str)
+    mod_str = str(mod)
+    # ensure constructors are printed correctly in type definitions (with their
+    # signature) and as exprs (without their signature)
+    assert type_def_str.strip() in mod_str
+    assert main_def_str.strip() in mod_str
+
+
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -239,3 +260,4 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
+    test_unapplied_constructor()

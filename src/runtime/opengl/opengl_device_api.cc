@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opengl_device_api.cc
  */
 #include <tvm/runtime/registry.h>
@@ -117,6 +116,7 @@ void OpenGLWorkspace::GetAttr(
     case kMaxClockRate: return;
     case kMultiProcessorCount: return;
     case kMaxThreadDimensions: return;
+    case kGcnArch: return;
   }
 }
 

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/op/nn/nn.h
  * \brief Properties def of nn operators for sharing.
  */
@@ -49,7 +48,11 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // validate the weight shape is proper if defined
     // Assign weight type
     Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    // It is possible for weight to be nullptr in which case we will use
+    // data dtype as the weight dtype. However if weight dtype is explicitly
+    // present we will use that.
+    auto weight_dtype = (weight == nullptr ? data->dtype : weight->dtype);
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;

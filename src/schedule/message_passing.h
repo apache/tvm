@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file message_passing.h
  * \brief Common utilities to do message passing
  *  on the schedule hyper graph.

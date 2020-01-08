@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ring_buffer.h
  * \brief this file aims to provide a wrapper of sockets
  */

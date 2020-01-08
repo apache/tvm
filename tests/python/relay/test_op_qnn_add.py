@@ -27,12 +27,12 @@ def test_tflite_same_io_qnn_params():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.00784314,
-                         lhs_zero_point=127,
-                         rhs_scale=0.00784314,
-                         rhs_zero_point=127,
-                         output_scale=0.00784314,
-                         output_zero_point=127)
+                         lhs_scale=relay.const(0.00784314, 'float32'),
+                         lhs_zero_point=relay.const(127, 'int32'),
+                         rhs_scale=relay.const(0.00784314, 'float32'),
+                         rhs_zero_point=relay.const(127, 'int32'),
+                         output_scale=relay.const(0.00784314, 'float32'),
+                         output_zero_point=relay.const(127, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
@@ -65,12 +65,12 @@ def test_tflite_different_io_qnn_params():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.0156863,
-                         lhs_zero_point=127,
-                         rhs_scale=0.0117647,
-                         rhs_zero_point=85,
-                         output_scale=0.0235294,
-                         output_zero_point=128)
+                         lhs_scale=relay.const(0.0156863, 'float32'),
+                         lhs_zero_point=relay.const(127, 'int32'),
+                         rhs_scale=relay.const(0.0117647, 'float32'),
+                         rhs_zero_point=relay.const(85, 'int32'),
+                         output_scale=relay.const(0.0235294, 'float32'),
+                         output_zero_point=relay.const(128, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
@@ -103,12 +103,12 @@ def test_saturation():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.125,
-                         lhs_zero_point=0,
-                         rhs_scale=0.125,
-                         rhs_zero_point=0,
-                         output_scale=0.125,
-                         output_zero_point=0)
+                         lhs_scale=relay.const(0.125, 'float32'),
+                         lhs_zero_point=relay.const(0, 'int32'),
+                         rhs_scale=relay.const(0.125, 'float32'),
+                         rhs_zero_point=relay.const(0, 'int32'),
+                         output_scale=relay.const(0.125, 'float32'),
+                         output_zero_point=relay.const(0, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
@@ -125,12 +125,12 @@ def test_saturation():
 
     # Same params, different scale
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.125,
-                         lhs_zero_point=0,
-                         rhs_scale=0.125,
-                         rhs_zero_point=0,
-                         output_scale=0.25,
-                         output_zero_point=0)
+                         lhs_scale=relay.const(0.125, 'float32'),
+                         lhs_zero_point=relay.const(0, 'int32'),
+                         rhs_scale=relay.const(0.125, 'float32'),
+                         rhs_zero_point=relay.const(0, 'int32'),
+                         output_scale=relay.const(0.25, 'float32'),
+                         output_zero_point=relay.const(0, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
@@ -147,12 +147,12 @@ def test_saturation():
 
     # Same io params, different output scale
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.125,
-                         lhs_zero_point=0,
-                         rhs_scale=0.125,
-                         rhs_zero_point=0,
-                         output_scale=0.25,
-                         output_zero_point=0)
+                         lhs_scale=relay.const(0.125, 'float32'),
+                         lhs_zero_point=relay.const(0, 'int32'),
+                         rhs_scale=relay.const(0.125, 'float32'),
+                         rhs_zero_point=relay.const(0, 'int32'),
+                         output_scale=relay.const(0.25, 'float32'),
+                         output_zero_point=relay.const(0, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)
@@ -169,12 +169,12 @@ def test_saturation():
 
     # All params different
     z = relay.qnn.op.add(lhs=x, rhs=y,
-                         lhs_scale=0.5,
-                         lhs_zero_point=0,
-                         rhs_scale=0.25,
-                         rhs_zero_point=0,
-                         output_scale=0.125,
-                         output_zero_point=0)
+                         lhs_scale=relay.const(0.5, 'float32'),
+                         lhs_zero_point=relay.const(0, 'int32'),
+                         rhs_scale=relay.const(0.25, 'float32'),
+                         rhs_zero_point=relay.const(0, 'int32'),
+                         output_scale=relay.const(0.125, 'float32'),
+                         output_zero_point=relay.const(0, 'int32'))
 
     func = relay.Function([x, y], z)
     mod = relay.Module.from_expr(func)

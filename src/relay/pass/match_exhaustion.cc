@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file match_exhaustion.cc
  * \brief Checking Relay match expression exhaustiveness.
  *
@@ -327,8 +326,8 @@ Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
 }
 
 // expose for testing only
-TVM_REGISTER_API("relay._analysis.unmatched_cases")
-.set_body_typed<Array<Pattern>(const Match&, const Module&)>(
+TVM_REGISTER_GLOBAL("relay._analysis.unmatched_cases")
+.set_body_typed(
   [](const Match& match, const Module& mod_ref) {
     Module call_mod = mod_ref;
     if (!call_mod.defined()) {

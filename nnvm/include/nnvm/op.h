@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/op.h
  * \brief Operator information structor.
  */

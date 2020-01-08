@@ -73,6 +73,10 @@ struct GraphCodegen {
     return CallFunc<std::string>("get_graph_json", nullptr);
   }
 
+  Array<tvm::runtime::Module> GetExternalModules() {
+    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
+  }
+
   Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
     return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
   }
@@ -115,7 +119,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return The corresponding member function.
    */
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+                         const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_graph_json") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetGraphJSON();
@@ -147,6 +151,15 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "get_lowered_funcs") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
           *rv = this->graph_codegen_->GetLoweredFunc();
+      });
+    } else if (name == "get_external_modules") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->graph_codegen_->GetExternalModules();
+      });
+    } else if (name == "optimize") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        CHECK_EQ(args.num_args, 2);
+        *rv = this->Optimize(args[0], args[1], this->params_);
       });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
@@ -243,7 +256,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       relay::Function func,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     std::unordered_map<std::string, relay::Var> name_dict;
-    std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+    std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
     for (auto arg : func->params) {
       const auto &name = arg->name_hint();
       if (name_dict.count(name)) {
@@ -253,7 +266,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       }
     }
 
-    std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+    std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
     for (auto &kv : params) {
       if (name_dict.count(kv.first) == 0) {
         continue;
@@ -273,19 +286,25 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Optimize a Relay module.
+   * \brief Optimize a Relay Function.
    *
-   * \param relay_module The input Relay module where optmization will be
-   *        applied on.
+   * \param func The input Function where optmization will be applied on.
    * \param targets The device type to `Target` mapping.
    * \param params The param name to value mapping.
    *
    * \return relay::Module The updated Relay module after optimization.
    */
   relay::Module Optimize(
-      relay::Module relay_module,
+      Function func,
       const TargetsMap& targets,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
+    if (params.size()) {
+      func = BindParamsByName(func, params);
+    }
+
+    // Perform Module->Module optimizations.
+    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
+
     Array<Pass> pass_seqs;
 
     // Run all dialect legalization passes.
@@ -304,7 +323,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         auto op_node = call_node->op.as<OpNode>();
         if (op_node->name == "cast") {
           auto attrs = call_node->attrs.as<CastAttrs>();
-          if (attrs->dtype == Int(32)) {
+          if (attrs->dtype == DataType::Int(32)) {
             *rv = true;
           }
         }
@@ -328,10 +347,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Create a sequential pass and perform optimizations.
     transform::Pass seq = transform::Sequential(pass_seqs);
     if (targets.size() == 1) {
-      for (const auto& kv : targets) {
-        With<Target> tctx(kv.second);
-        relay_module = seq(relay_module);
-      }
+      const auto& it = targets.begin();
+      With<Target> tctx((*it).second);
+      relay_module = seq(relay_module);
     } else {
       relay_module = seq(relay_module);
     }
@@ -346,6 +364,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
     relay_module = transform::InferType()(relay_module);
+    CHECK(relay_module.defined());
 
     return relay_module;
   }
@@ -441,14 +460,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   void BuildRelay(
       Function func,
       const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    if (params.size()) {
-      func = BindParamsByName(func, params);
-    }
-
-    // Perform Module->Module optimizations.
-    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
-    relay_module = Optimize(relay_module, targets_, params);
-    CHECK(relay_module.defined());
+    // Optimize input Relay Function and returns Relay Module
+    relay::Module relay_module = Optimize(func, targets_, params);
     // Get the updated function.
     func = relay_module->Lookup("main");
 
@@ -461,11 +474,27 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.params = graph_codegen_->GetParams();
 
     auto lowered_funcs = graph_codegen_->GetLoweredFunc();
-    if (lowered_funcs.size() != 0) {
+    if (lowered_funcs.size() == 0) {
+      LOG(WARNING) << "no lowered funcs exist in the compiled module";
+    } else {
       ret_.mod = tvm::build(
         lowered_funcs,
         target_host_,
         BuildConfig::Current());
+    }
+    Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
+    if (!ext_mods.empty()) {
+      CHECK(lowered_funcs.size() > 0 || ext_mods.size() == 1)
+          << "Expect to have a TVM DSOModule when multiple external runtime modules exist";
+      if (lowered_funcs.size() == 0) {
+        // Execute the whole module using external runtime.
+        ret_.mod = ext_mods[0];
+      } else {
+        // Import all external runtime modules.
+        for (const auto& it : ext_mods) {
+          ret_.mod.Import(it);
+        }
+      }
     }
   }
 
@@ -482,7 +511,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 };
 
 runtime::Module RelayBuildCreate() {
-  std::shared_ptr<RelayBuildModule> exec = std::make_shared<RelayBuildModule>();
+  auto exec = make_object<RelayBuildModule>();
   return runtime::Module(exec);
 }
 

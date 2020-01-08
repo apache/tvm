@@ -45,15 +45,15 @@ class UIntImm : public ExprNode {
   /*! \brief The constant value content. */
   uint64_t value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, uint64_t value);
+  TVM_DLL static Expr make(DataType t, uint64_t value);
 
   static constexpr const char* _type_key = "UIntImm";
-  TVM_DECLARE_NODE_TYPE_INFO(UIntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImm, ExprNode);
 };
 
 /*! \brief Floating point constants. */
@@ -62,15 +62,15 @@ class FloatImm : public ExprNode {
   /*! \brief The constant value content. */
   double value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, double value);
+  TVM_DLL static Expr make(DataType t, double value);
 
   static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_NODE_TYPE_INFO(FloatImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImm, ExprNode);
 };
 
 /*! \brief String constants, only used in asserts. */
@@ -79,15 +79,15 @@ class StringImm : public ExprNode {
   /*! \brief The constant value content. */
   std::string value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
   TVM_DLL Expr static make(std::string value);
 
   static constexpr const char* _type_key = "StringImm";
-  TVM_DECLARE_NODE_TYPE_INFO(StringImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(StringImm, ExprNode);
 };
 
 /*!
@@ -99,15 +99,15 @@ class Cast : public ExprNode {
   /*! \brief Original data type. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
-  TVM_DLL static Expr make(Type t, Expr v);
+  TVM_DLL static Expr make(DataType t, Expr v);
 
   static constexpr const char* _type_key = "Cast";
-  TVM_DECLARE_NODE_TYPE_INFO(Cast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Cast, ExprNode);
 };
 
 /*!
@@ -122,8 +122,8 @@ class BinaryOpNode : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &(this->type));
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -131,15 +131,15 @@ class BinaryOpNode : public ExprNode {
   static Expr make(Expr a, Expr b) {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.type() == b.type()) << "TypeError: mismatched types\n";
-    NodePtr<T> node = make_node<T>();
-    node->type = a.type();
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
+    ObjectPtr<T> node = make_object<T>();
+    node->dtype = a.dtype();
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
   }
 
-  TVM_DECLARE_NODE_TYPE_INFO(T, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(T, ExprNode);
 };
 
 /*! \brief a + b */
@@ -214,8 +214,8 @@ class CmpOpNode : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &(this->type));
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -223,15 +223,15 @@ class CmpOpNode : public ExprNode {
   static Expr make(Expr a, Expr b) {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
-    CHECK(a.type() == b.type()) << "TypeError: mismatched types\n";
-    NodePtr<T> node = make_node<T>();
-    node->type = Bool(a.type().lanes());
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n";
+    ObjectPtr<T> node = make_object<T>();
+    node->dtype = DataType::Bool(a.dtype().lanes());
     node->a = std::move(a);
     node->b = std::move(b);
     return Expr(node);
   }
 
-  TVM_DECLARE_NODE_TYPE_INFO(T, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(T, ExprNode);
 };
 
 /*! \brief a == b */
@@ -278,8 +278,8 @@ class And : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &(this->type));
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &(this->dtype));
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -287,7 +287,7 @@ class And : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "And";
-  TVM_DECLARE_NODE_TYPE_INFO(And, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(And, ExprNode);
 };
 
 /*! \brief a || b */
@@ -298,8 +298,8 @@ class Or : public ExprNode {
   /*! \brief The right operand. */
   Expr b;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("a", &a);
     v->Visit("b", &b);
   }
@@ -307,7 +307,7 @@ class Or : public ExprNode {
   TVM_DLL static Expr make(Expr a, Expr b);
 
   static constexpr const char* _type_key = "Or";
-  TVM_DECLARE_NODE_TYPE_INFO(Or, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Or, ExprNode);
 };
 
 /*! \brief !a */
@@ -316,15 +316,15 @@ class Not : public ExprNode {
   /*! \brief The input operand. */
   Expr a;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("a", &a);
   }
 
   TVM_DLL static Expr make(Expr a);
 
   static constexpr const char* _type_key = "Not";
-  TVM_DECLARE_NODE_TYPE_INFO(Not, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Not, ExprNode);
 };
 
 /*!
@@ -343,8 +343,8 @@ class Select : public ExprNode {
   /*! \brief value to be returned when condition is false. */
   Expr false_value;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("condition", &condition);
     v->Visit("true_value", &true_value);
     v->Visit("false_value", &false_value);
@@ -353,7 +353,7 @@ class Select : public ExprNode {
   TVM_DLL static Expr make(Expr condition, Expr true_value, Expr false_value);
 
   static constexpr const char* _type_key = "Select";
-  TVM_DECLARE_NODE_TYPE_INFO(Select, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Select, ExprNode);
 };
 
 /*!
@@ -380,17 +380,17 @@ class Load : public ExprNode {
   /*! \brief The predicate to mask which lanes would be loaded. */
   Expr predicate;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("buffer_var", &buffer_var);
     v->Visit("index", &index);
     v->Visit("predicate", &predicate);
   }
 
-  TVM_DLL static Expr make(Type type, Var buffer_var, Expr index, Expr predicate);
+  TVM_DLL static Expr make(DataType dtype, Var buffer_var, Expr index, Expr predicate);
 
   static constexpr const char* _type_key = "Load";
-  TVM_DECLARE_NODE_TYPE_INFO(Load, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Load, ExprNode);
 };
 
 /*!
@@ -411,8 +411,8 @@ class Ramp : public ExprNode {
   /*! \brief Total number of lanes. */
   int lanes;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("base", &base);
     v->Visit("stride", &stride);
     v->Visit("lanes", &lanes);
@@ -421,7 +421,7 @@ class Ramp : public ExprNode {
   TVM_DLL static Expr make(Expr base, Expr stride, int lanes);
 
   static constexpr const char* _type_key = "Ramp";
-  TVM_DECLARE_NODE_TYPE_INFO(Ramp, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Ramp, ExprNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
@@ -429,11 +429,11 @@ class Broadcast : public ExprNode {
  public:
   /*! \brief The base value. */
   Expr value;
-  /*! \brief The numerb of lanes. */
+  /*! \brief The number of lanes. */
   int lanes;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
     v->Visit("lanes", &lanes);
   }
@@ -441,7 +441,7 @@ class Broadcast : public ExprNode {
   TVM_DLL static Expr make(Expr value, int lanes);
 
   static constexpr const char* _type_key = "Broadcast";
-  TVM_DECLARE_NODE_TYPE_INFO(Broadcast, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Broadcast, ExprNode);
 };
 
 /*!
@@ -456,8 +456,8 @@ class Let : public ExprNode {
   /*! \brief The result expression. */
   Expr body;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -466,7 +466,7 @@ class Let : public ExprNode {
   TVM_DLL static Expr make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "Let";
-  TVM_DECLARE_NODE_TYPE_INFO(Let, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Let, ExprNode);
 };
 
 // Call node, represent a function call or a multi-dimensional array load.
@@ -477,7 +477,7 @@ class Let : public ExprNode {
 // We should move most information into function itself and remove name.
 
 /*! \brief Base node of internal functions. */
-class FunctionBaseNode : public Node {
+class FunctionBaseNode : public Object {
  public:
   /*! \return the name of the function */
   virtual const std::string& func_name() const = 0;
@@ -486,9 +486,9 @@ class FunctionBaseNode : public Node {
 };
 
 /*! \brief reference to a function */
-class FunctionRef : public NodeRef {
+class FunctionRef : public ObjectRef {
  public:
-  TVM_DEFINE_NODE_REF_METHODS(FunctionRef, NodeRef, FunctionBaseNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(FunctionRef, ObjectRef, FunctionBaseNode);
 };
 
 /*!
@@ -522,8 +522,8 @@ class Call : public ExprNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index{0};
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("call_type", &call_type);
@@ -531,7 +531,7 @@ class Call : public ExprNode {
     v->Visit("value_index", &value_index);
   }
 
-  TVM_DLL static Expr make(Type type,
+  TVM_DLL static Expr make(DataType dtype,
                            std::string name,
                            Array<Expr> args,
                            CallType call_type,
@@ -560,7 +560,7 @@ class Call : public ExprNode {
   bool is_vectorizable() const;
 
   static constexpr const char* _type_key = "Call";
-  TVM_DECLARE_NODE_TYPE_INFO(Call, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Call, ExprNode);
 
   // Build-in intrinsics
   static constexpr const char* reinterpret = "reinterpret";
@@ -592,7 +592,7 @@ class Shuffle : public ExprNode {
   /*! \brief The indices of each element. */
   Array<Expr> indices;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("vectors", &vectors);
     v->Visit("indices", &indices);
   }
@@ -602,16 +602,16 @@ class Shuffle : public ExprNode {
   TVM_DLL static Expr make_extract_element(Expr vector, int index);
 
   static constexpr const char* _type_key = "Shuffle";
-  TVM_DECLARE_NODE_TYPE_INFO(Shuffle, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Shuffle, ExprNode);
 };
 
 // Reduce operator
 class CommReducerNode;
 
-class CommReducer : public NodeRef {
+class CommReducer : public ObjectRef {
  public:
   CommReducer() {}
-  explicit CommReducer(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CommReducer(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -630,7 +630,7 @@ class CommReducer : public NodeRef {
  * \brief A commutative reducer node to represent a commutative
  *  binary operator with identity element
  */
-class CommReducerNode : public Node {
+class CommReducerNode : public Object {
  public:
   /*! \brief The left argument of reducer */
   Array<Var> lhs;
@@ -652,7 +652,7 @@ class CommReducerNode : public Node {
                                   Array<Expr> result,
                                   Array<Expr> identity_element);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("lhs", &lhs);
     v->Visit("rhs", &rhs);
     v->Visit("result", &result);
@@ -660,14 +660,14 @@ class CommReducerNode : public Node {
   }
 
   static constexpr const char* _type_key = "CommReducer";
-  TVM_DECLARE_NODE_TYPE_INFO(CommReducerNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
 };
 
 inline const CommReducerNode* CommReducer::get() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return static_cast<const CommReducerNode*>(data_.get());
 }
 inline const CommReducerNode* CommReducer::operator->() const {
-  return static_cast<CommReducerNode*>(node_.get());
+  return get();
 }
 
 /*! \brief Reduction operator operator */
@@ -694,8 +694,8 @@ class Reduce : public ExprNode {
                            Expr condition,
                            int value_index);
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("dtype", &type);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
     v->Visit("combiner", &combiner);
     v->Visit("source", &source);
     v->Visit("axis", &axis);
@@ -704,22 +704,22 @@ class Reduce : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Reduce";
-  TVM_DECLARE_NODE_TYPE_INFO(Reduce, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Reduce, ExprNode);
 };
 
 /*! \brief Any shape. */
 class Any : public ExprNode {
  public:
-  void VisitAttrs(AttrVisitor* v) final {}
+  void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return Variable::make(Int(32), "any_dim");
+    return Variable::make(DataType::Int(32), "any_dim");
   }
 
   TVM_DLL static Expr make();
 
   static constexpr const char* _type_key = "Any";
-  TVM_DECLARE_NODE_TYPE_INFO(Any, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Any, ExprNode);
 };
 
 // Statements
@@ -735,7 +735,7 @@ class LetStmt : public StmtNode {
   /*! \brief The body block. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -744,7 +744,7 @@ class LetStmt : public StmtNode {
   TVM_DLL static Stmt make(Var var, Expr value, Stmt body);
 
   static constexpr const char* _type_key = "LetStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(LetStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetStmt, StmtNode);
 };
 
 /*!
@@ -760,7 +760,7 @@ class LetStmt : public StmtNode {
 class AttrStmt : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
-  NodeRef node;
+  ObjectRef node;
   /*! \brief the type key of the attribute */
   std::string attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
@@ -768,20 +768,20 @@ class AttrStmt : public StmtNode {
   /*! \brief The body statement to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("node", &node);
     v->Visit("attr_key", &attr_key);
     v->Visit("value", &value);
     v->Visit("body", &body);
   }
 
-  TVM_DLL static Stmt make(NodeRef node,
+  TVM_DLL static Stmt make(ObjectRef node,
                            std::string type_key,
                            Expr value,
                            Stmt body);
 
   static constexpr const char* _type_key = "AttrStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(AttrStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmt, StmtNode);
 };
 
 /*!
@@ -799,7 +799,7 @@ class AssertStmt : public StmtNode {
    */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("condition", &condition);
     v->Visit("message", &message);
     v->Visit("body", &body);
@@ -808,7 +808,7 @@ class AssertStmt : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Expr message, Stmt body);
 
   static constexpr const char* _type_key = "AssertStmt";
-  TVM_DECLARE_NODE_TYPE_INFO(AssertStmt, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmt, StmtNode);
 };
 
 // TODO(tvm-team): consider consolidate with AttrStmt.
@@ -822,7 +822,7 @@ class ProducerConsumer : public StmtNode {
   /*! \brief Body to be executed. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("is_producer", &is_producer);
     v->Visit("body", &body);
@@ -831,7 +831,7 @@ class ProducerConsumer : public StmtNode {
   TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
 
   static constexpr const char* _type_key = "ProducerConsumer";
-  TVM_DECLARE_NODE_TYPE_INFO(ProducerConsumer, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumer, StmtNode);
 };
 
 /*!
@@ -840,7 +840,7 @@ class ProducerConsumer : public StmtNode {
  *  Equivalent to ((DType*)buffer_var)[index] = value.
  *  where DType is the type specified by type().element_of().
  *
- *  For example, if type = float32x3, then the load will corresponds to
+ *  For example, if type = float32x3, then the store will corresponds to
  *
  * \code
  *
@@ -863,7 +863,7 @@ class Store : public StmtNode {
   /*! \brief The predicate to mask which lanes would be stored. */
   Expr predicate;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("value", &value);
     v->Visit("index", &index);
@@ -876,7 +876,7 @@ class Store : public StmtNode {
                            Expr predicate);
 
   static constexpr const char* _type_key = "Store";
-  TVM_DECLARE_NODE_TYPE_INFO(Store, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Store, StmtNode);
 };
 
 /*!
@@ -893,7 +893,7 @@ class Provide : public StmtNode {
   /*! \brief The index arguments of the function. */
   Array<Expr> args;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
     v->Visit("value", &value);
@@ -906,7 +906,7 @@ class Provide : public StmtNode {
                            Array<Expr> args);
 
   static constexpr const char* _type_key = "Provide";
-  TVM_DECLARE_NODE_TYPE_INFO(Provide, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Provide, StmtNode);
 };
 
 /*!
@@ -917,7 +917,7 @@ class Allocate : public StmtNode {
   /*! \brief The buffer variable. */
   Var buffer_var;
   /*! \brief The type of the buffer. */
-  DataType type;
+  DataType dtype;
   /*! \brief The extents of the buffer. */
   Array<Expr> extents;
   /*! \brief Only allocate buffer when condition is satisfied. */
@@ -929,16 +929,16 @@ class Allocate : public StmtNode {
   Expr new_expr;
   std::string free_function;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
   }
 
   TVM_DLL static Stmt make(Var buffer_var,
-                           DataType type,
+                           DataType dtype,
                            Array<Expr> extents,
                            Expr condition,
                            Stmt body,
@@ -963,7 +963,7 @@ class Allocate : public StmtNode {
       const Array<Expr>& extents);
 
   static constexpr const char* _type_key = "Allocate";
-  TVM_DECLARE_NODE_TYPE_INFO(Allocate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Allocate, StmtNode);
 };
 
 /*! \brief Free the resources in the buffer before the scope ends. */
@@ -972,14 +972,14 @@ class Free : public StmtNode {
   /*! \brief The buffer variable. */
   Var buffer_var;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
   }
 
   TVM_DLL static Stmt make(Var buffer_var);
 
   static constexpr const char* _type_key = "Free";
-  TVM_DECLARE_NODE_TYPE_INFO(Free, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Free, StmtNode);
 };
 
 /*!
@@ -993,7 +993,7 @@ class Realize : public StmtNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index;
   /*! \brief The data type of the array. */
-  DataType type;
+  DataType dtype;
   /*! \brief Bounds to be realized. */
   Region bounds;
   /*! \brief Only realize if condition holds. */
@@ -1001,10 +1001,10 @@ class Realize : public StmtNode {
   /*! \brief The body of realization. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("bounds", &bounds);
     v->Visit("condition", &condition);
     v->Visit("body", &body);
@@ -1012,35 +1012,122 @@ class Realize : public StmtNode {
 
   TVM_DLL static Stmt make(FunctionRef func,
                            int value_index,
-                           DataType type,
+                           DataType dtype,
                            Region bounds,
                            Expr condition,
                            Stmt body);
 
   static constexpr const char* _type_key = "Realize";
-  TVM_DECLARE_NODE_TYPE_INFO(Realize, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Realize, StmtNode);
 };
 
 /*!
- * \brief A sequence of statements.
+ * \brief The container of seq statement.
+ *        Represent a sequence of statements.
  */
-class Block : public StmtNode {
+class SeqStmtNode : public StmtNode {
  public:
-  /*! \brief The first statement. */
-  Stmt first;
-  /*! \brief The restof statments. */
-  Stmt rest;
+  /*! \brief internal sequence content. */
+  Array<Stmt> seq;
 
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("first", &first);
-    v->Visit("rest", &rest);
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return seq.size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return seq[index];
   }
 
-  TVM_DLL static Stmt make(Stmt first, Stmt rest);
-  TVM_DLL static Stmt make(const std::vector<Stmt> &stmts);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("seq", &seq);
+  }
 
-  static constexpr const char* _type_key = "Block";
-  TVM_DECLARE_NODE_TYPE_INFO(Block, StmtNode);
+  static constexpr const char* _type_key = "SeqStmt";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
+};
+
+/*! \brief Sequence statement. */
+class SeqStmt : public Stmt {
+ public:
+  /*!
+   * \brief Construct SeqStmt.
+   * \param seq The sequence.
+   */
+  TVM_DLL explicit SeqStmt(Array<Stmt> seq);
+
+  /*! \return get the size of the sequence */
+  size_t size() const {
+    return operator->()->size();
+  }
+  /*!
+   * \brief Get the index-th element in the sequence.
+   */
+  Stmt operator[](size_t index) const {
+    return (*(operator->()))[index];
+  }
+  /*!
+   * \brief Construct a sequence statement by flattening
+   *        all the arrays and sequences in the arguments
+   *        recursively.
+   *
+   * - When an argument is nullptr, it will be ignored.
+   * - When an argument is an array or a SeqStmt, it will be flattened recursively.
+   * - When an argument is a consumer block in ProducerConsumer, the consumer
+   *   tag will be dropped as such information is not useful in lowering.
+   * - A normal Stmt will be appended to the end of the sequence.
+   *
+   * \note This function can directly return an element
+   *       if it is the only element in the sequence.
+   *
+   * \param seq_args The list of arguments to be flattened.
+   * \tparam Args arguments
+   * \return The constructed statement
+   */
+  template<typename ...Args>
+  static Stmt Flatten(Args&&... seq_args) {
+    Array<Stmt> seq;
+    runtime::detail::for_each(
+        Flattener(&seq), std::forward<Args>(seq_args)...);
+    if (seq.size() == 1) return seq[0];
+    return SeqStmt(seq);
+  }
+  /*! \brief Helper class to flatten sequence of arguments into Array. */
+  class Flattener {
+   public:
+    explicit Flattener(Array<Stmt>* seq)
+        : seq_(seq) {}
+
+    void operator()(size_t i, const Stmt& stmt) const {
+      if (!stmt.defined()) return;
+      if (auto* op = stmt.as<SeqStmtNode>()) {
+        operator()(0, op->seq);
+      } else if (auto* op = stmt.as<ProducerConsumer>()) {
+        // NOTE: The consumer block annotation was not as useful and can be safely dropped.
+        if (!op->is_producer) {
+          operator()(0, op->body);
+        } else {
+          seq_->push_back(stmt);
+        }
+      } else {
+        seq_->push_back(stmt);
+      }
+    }
+
+    template<typename T>
+    void operator()(size_t i, const T& seq) const {
+      for (auto v : seq) {
+        this->operator()(0, v);
+      }
+    }
+
+   private:
+    Array<Stmt>* seq_;
+  };
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SeqStmt, Stmt, SeqStmtNode);
 };
 
 /*!
@@ -1055,7 +1142,7 @@ class IfThenElse : public StmtNode {
   /*! \brief The branch to be executed when condition is false, can be null. */
   Stmt else_case;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("condition", &condition);
     v->Visit("then_case", &then_case);
     v->Visit("else_case", &else_case);
@@ -1064,7 +1151,7 @@ class IfThenElse : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Stmt then_case, Stmt else_case = Stmt());
 
   static constexpr const char* _type_key = "IfThenElse";
-  TVM_DECLARE_NODE_TYPE_INFO(IfThenElse, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElse, StmtNode);
 };
 
 /*!
@@ -1078,14 +1165,14 @@ class Evaluate : public StmtNode {
   /*! \brief The expression to be evaluated. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
   }
 
   TVM_DLL static Stmt make(Expr v);
 
   static constexpr const char* _type_key = "Evaluate";
-  TVM_DECLARE_NODE_TYPE_INFO(Evaluate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Evaluate, StmtNode);
 };
 
 /*! \brief Additional annotation of for loop. */
@@ -1142,7 +1229,7 @@ class For : public StmtNode {
                            DeviceAPI device_api,
                            Stmt body);
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
     v->Visit("min", &min);
     v->Visit("extent", &extent);
@@ -1152,7 +1239,7 @@ class For : public StmtNode {
   }
 
   static constexpr const char* _type_key = "For";
-  TVM_DECLARE_NODE_TYPE_INFO(For, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(For, StmtNode);
 };
 
 /*!
@@ -1165,24 +1252,24 @@ class Prefetch : public StmtNode {
   /*! \brief The output value index if func's value is a tuple. */
   int value_index;
   /*! \brief The data type of the array. */
-  DataType type;
+  DataType dtype;
   /*! \brief Bounds to be prefetched. */
   Region bounds;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("value_index", &value_index);
-    v->Visit("type", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("bounds", &bounds);
   }
 
   TVM_DLL static Stmt make(FunctionRef func,
                            int value_index,
-                           DataType type,
+                           DataType dtype,
                            Region bounds);
 
   static constexpr const char* _type_key = "Prefetch";
-  TVM_DECLARE_NODE_TYPE_INFO(Prefetch, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(Prefetch, StmtNode);
 };
 
 /*!
@@ -1248,6 +1335,8 @@ constexpr const char* reduce_scope = "reduce_scope";
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Try to modify the AST to support Tensor Core */
+constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope
@@ -1309,6 +1398,16 @@ constexpr const char* opengl_stage_scope = "opengl_stage_scope";
  * \brief Mark that it is in the device scope.
  */
 constexpr const char* device_scope = "device_scope";
+
+/*!
+ * \brief Mark that the shape of TensorCore fragment
+ */
+constexpr const char* fragment_shape = "fragment_shape";
+
+/*!
+ * \brief Mark that the layout of TensorCore fragment
+ */
+constexpr const char* fragment_layout = "fragment_layout";
 
 /*!
  * \brief Check if attr_key is a pragma key extension
@@ -1552,6 +1651,54 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  *  }
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
+/*!
+ * \brief tvm intrinsic for tensor core load operators.
+ *
+ *  void tvm_load_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                            Expr index, Expr buffer_ptr, Expr stride,
+ *                            StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment.
+ *    // Determine fragment layout(column-major or row major) by layout.
+ *    // fragments must be in 'wmma.matrix_a' or 'wmma.matrix_b' scope.
+ *    nvcuda::wmma::load_matrix_sync(fragment[index], buffer_ptr, stride);
+ *  }
+ */
+constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
+/*!
+ * \brief tvm intrinsic for tensor core mma_sync operators.
+ *
+ *  void tvm_mma_sync(Var fragment_d, Expr index_d,
+ *                    Var fragment_a, Expr index_a,
+ *                    Var fragment_b, Expr index_b,
+ *                    Var fragment_c, Expr index_c) {
+ *    nvcuda::wmma::mma_sync(fragment_d[index_d], fragment_a[index_a],
+ *                           fragment_b[index_b], fragment_c[index_c]);
+ *  }
+ */
+constexpr const char* tvm_mma_sync = "tvm_mma_sync";
+/*!
+ * \brief tvm intrinsic for tensor core fill_fragment operators.
+ *
+ *  void tvm_fill_fragment(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                         Expr index, Expr value) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::fill_fragment(fragment[index], value);
+ *  }
+ */
+constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
+/*!
+ * \brief tvm intrinsic for tensor core store operators.
+ *
+ *  void tvm_store_matrix_sync(Var fragment, UIntImm m, UIntImm, n, UIntImm k,
+ *                             Expr index, Expr buffer_ptr, Expr stride,
+ *                             StringImm layout) {
+ *    // m, n, k are the shape of wmma fragment
+ *    // fragments must be in 'wmma.accumulator' scope.
+ *    nvcuda::wmma::store_matrix_sync(fragment[index], buffer_ptr, stride, layout);
+ *  }
+ */
+constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
 
 }   // namespace intrinsic
 
@@ -1560,7 +1707,7 @@ constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
  * \param dtype The data type
  * \return Expr a expression with dtype.
  */
-inline Expr TypeAnnotation(Type dtype) {
+inline Expr TypeAnnotation(DataType dtype) {
   return ir::Call::make(dtype,
                         "type_annotation", {},
                         ir::Call::PureIntrinsic);
@@ -1576,7 +1723,7 @@ namespace std {
 template <>
 struct hash<::tvm::ir::TensorKey> {
   std::size_t operator()(const ::tvm::ir::TensorKey& k) const {
-    size_t lhs = k.f.hash();
+    size_t lhs = ::tvm::ObjectHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index);
     lhs ^= rhs + 0x9e3779b9 + (lhs << 6) + (lhs >> 2);
     return lhs;

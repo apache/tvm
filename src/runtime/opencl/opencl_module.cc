@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opencl_module.cc
  */
 #include <dmlc/memory_io.h>
@@ -36,7 +35,7 @@ class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
   void Init(OpenCLModuleNode* m,
-            std::shared_ptr<ModuleNode> sptr,
+            ObjectPtr<Object> sptr,
             OpenCLModuleNode::KTRefEntry entry,
             std::string func_name,
             std::vector<size_t> arg_size,
@@ -88,7 +87,7 @@ class OpenCLWrappedFunc {
   // The module
   OpenCLModuleNode* m_;
   // resource handle
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // global kernel id in the kernel table.
   OpenCLModuleNode::KTRefEntry entry_;
   // The name of the function.
@@ -122,7 +121,7 @@ const std::shared_ptr<cl::OpenCLWorkspace>& OpenCLModuleNode::GetGlobalWorkspace
 
 PackedFunc OpenCLModuleNode::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main)
       << "Device function do not have main";
@@ -251,8 +250,7 @@ Module OpenCLModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  std::shared_ptr<OpenCLModuleNode> n =
-      std::make_shared<OpenCLModuleNode>(data, fmt, fmap, source);
+  auto n = make_object<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }

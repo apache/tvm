@@ -40,7 +40,7 @@ class DebugResult(object):
     Parameters
     ----------
     graph_json : str
-        The graph to be deployed in json format output by nnvm graph. Each operator (tvm_op)
+        The graph to be deployed in json format output by graph compiler. Each operator (tvm_op)
         in the graph will have a one to one mapping with the symbol in libmod which is used
         to construct a "PackedFunc" .
 
@@ -57,12 +57,12 @@ class DebugResult(object):
         self.dump_graph_json(graph_json)
 
     def _parse_graph(self, graph_json):
-        """Parse and extract the NNVM graph and update the nodes, shapes and dltype.
+        """Parse and extract the JSON graph and update the nodes, shapes and dltype.
 
         Parameters
         ----------
         graph_json : str or graph class
-           The graph to be deployed in json format output by nnvm graph.
+           The graph to be deployed in json format output by JSON graph.
         """
         json_obj = json.loads(graph_json)
         self._nodes_list = json_obj['nodes']
@@ -197,16 +197,15 @@ class DebugResult(object):
         Parameters
         ----------
         graph : json format
-            json formatted NNVM graph contain list of each node's
+            json formatted JSON graph contain list of each node's
             name, shape and type.
         """
         graph_dump_file_name = GRAPH_DUMP_FILE_NAME
         with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
             json.dump(graph, outfile, indent=4, sort_keys=False)
 
-    def display_debug_result(self):
-        """Displays the debugger result"
-        """
+    def get_debug_result(self, sort_by_time=True):
+        """Return the debugger result"""
         header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
         lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
         eid = 0
@@ -228,6 +227,14 @@ class DebugResult(object):
                 node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
                 data.append(node_data)
                 eid += 1
+
+        if sort_by_time:
+            # Sort on the basis of execution time. Prints the most expensive ops in the start.
+            data = sorted(data, key=lambda x: x[2], reverse=True)
+            # Insert a row for total time at the end.
+            rounded_total_time = round(total_time * 1000000, 3)
+            data.append(["Total_time", "-", rounded_total_time, "-", "-", "-", "-", "-"])
+
         fmt = ""
         for i, _ in enumerate(header):
             max_len = len(header[i])
@@ -236,10 +243,15 @@ class DebugResult(object):
                 if item_len > max_len:
                     max_len = item_len
             fmt = fmt + "{:<" + str(max_len + 2) + "}"
-        print(fmt.format(*header))
-        print(fmt.format(*lines))
+        log = [fmt.format(*header)]
+        log.append(fmt.format(*lines))
         for row in data:
-            print(fmt.format(*row))
+            log.append(fmt.format(*row))
+        return '\n'.join(log)
+
+    def display_debug_result(self, sort_by_time=True):
+        """Displays the debugger result"""
+        print(self.get_debug_result(sort_by_time))
 
 def save_tensors(params):
     """Save parameter dictionary to binary bytes.

@@ -289,20 +289,23 @@ class Realize(Stmt):
 
 
 @register_node
-class Block(Stmt):
-    """Block node.
+class SeqStmt(Stmt):
+    """Sequence of statements.
 
     Parameters
     ----------
-    first : Stmt
-        The first statement.
-
-    rest : Stmt
-        The following statement.
+    seq : List[Stmt]
+        The statements
     """
-    def __init__(self, first, rest):
+    def __init__(self, seq):
         self.__init_handle_by_constructor__(
-            _make.Block, first, rest)
+            _make.SeqStmt, seq)
+
+    def __getitem__(self, i):
+        return self.seq[i]
+
+    def __len__(self):
+        return len(self.seq)
 
 
 @register_node
@@ -375,12 +378,14 @@ def stmt_seq(*args):
     stmt : Stmt
         The combined statement.
     """
-    ret = None
+    ret = []
     for value in args:
         if not isinstance(value, Stmt):
             value = Evaluate(value)
-        ret = value if ret is None else Block(ret, value)
-    return ret if ret else Evaluate(0)
+        ret.append(value)
+    if len(ret) == 1:
+        return ret[0]
+    return SeqStmt(ret)
 
 
 def stmt_list(stmt):
@@ -395,12 +400,14 @@ def stmt_list(stmt):
     stmt_list : list of Stmt
          The unpacked list of statements
     """
-    if isinstance(stmt, Block):
-        return stmt_list(stmt.first) + stmt_list(stmt.rest)
+    if isinstance(stmt, SeqStmt):
+        res = []
+        for x in stmt:
+            res += stmt_list(x)
+        return res
     if isinstance(stmt, ProducerConsumer):
         return stmt_list(stmt.body)
     return [stmt]
 
 
 _make.stmt_list = stmt_list
-_make.stmt_seq = stmt_seq

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/compile_engine.h
  * \brief Internal compialtion engine handle function cache.
  *  and interface to low level code generation.
@@ -27,6 +26,7 @@
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
 #include <tvm/lowered_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
@@ -45,7 +45,7 @@ enum ShapeFuncParamState {
 };
 
 /*! \brief Node container to represent a cached function. */
-struct CachedFuncNode : public Node {
+struct CachedFuncNode : public Object {
   /* \brief compiled target */
   tvm::Target target;
   /*! \brief Function name */
@@ -59,7 +59,7 @@ struct CachedFuncNode : public Node {
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("target", &target);
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
@@ -69,22 +69,24 @@ struct CachedFuncNode : public Node {
   }
 
   static constexpr const char* _type_key = "relay.CachedFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(CachedFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CachedFuncNode, Object);
 };
 
-TVM_DEFINE_NODE_REF(CachedFunc, CachedFuncNode);
-
+class CachedFunc : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(CachedFunc, ObjectRef, CachedFuncNode);
+};
 
 class CCacheKey;
 /*! \brief Compile cache key */
-class CCacheKeyNode : public Node {
+class CCacheKeyNode : public Object {
  public:
   /*! \brief The source function to be lowered. */
   Function source_func;
   /*! \brief The hardware target.*/
   Target target;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source_func", &source_func);
     v->Visit("target", &target);
   }
@@ -106,7 +108,7 @@ class CCacheKeyNode : public Node {
                                 Target target);
 
   static constexpr const char* _type_key = "relay.CCacheKey";
-  TVM_DECLARE_NODE_TYPE_INFO(CCacheKeyNode, tvm::Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CCacheKeyNode, tvm::Object);
 
  private:
   /*!
@@ -116,12 +118,12 @@ class CCacheKeyNode : public Node {
 };
 
 /*! \brief cache entry used in compile engine */
-class CCacheKey : public NodeRef {
+class CCacheKey : public ObjectRef {
  public:
   CCacheKey() {}
-  explicit CCacheKey(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CCacheKey(ObjectPtr<Object> n) : ObjectRef(n) {}
   const CCacheKeyNode* operator->() const {
-    return static_cast<CCacheKeyNode*>(node_.get());
+    return static_cast<const CCacheKeyNode*>(get());
   }
   // comparator
   inline bool operator==(const CCacheKey& other) const {
@@ -132,7 +134,7 @@ class CCacheKey : public NodeRef {
 };
 
 /*! \brief Node container for compile cache. */
-class CCacheValueNode : public Node {
+class CCacheValueNode : public Object {
  public:
   /*! \brief The corresponding function */
   CachedFunc cached_func;
@@ -141,24 +143,24 @@ class CCacheValueNode : public Node {
   /*! \brief usage statistics */
   int use_count{0};
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("cached_func", &cached_func);
     v->Visit("use_count", &use_count);
   }
   static constexpr const char* _type_key = "relay.CCacheValue";
-  TVM_DECLARE_NODE_TYPE_INFO(CCacheValueNode, tvm::Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CCacheValueNode, tvm::Object);
 };
 
 /*! \brief cache entry used in compile engine */
-class CCacheValue : public NodeRef {
+class CCacheValue : public ObjectRef {
  public:
   CCacheValue() {}
-  explicit CCacheValue(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CCacheValue(ObjectPtr<Object> n) : ObjectRef(n) {}
   CCacheValueNode* operator->() {
-    return static_cast<CCacheValueNode*>(node_.get());
+    return static_cast<CCacheValueNode*>(get_mutable());
   }
   const CCacheValueNode* operator->() const {
-    return static_cast<const CCacheValueNode*>(node_.get());
+    return static_cast<const CCacheValueNode*>(get());
   }
   using ContainerType = CCacheValueNode;
 };
@@ -167,7 +169,7 @@ class CCacheValue : public NodeRef {
  * \brief Backend compilation engine for
  *        low level code generation.
  */
-class CompileEngineNode : public Node {
+class CompileEngineNode : public Object {
  public:
   /*!
    * \brief Get lowered result.
@@ -187,23 +189,29 @@ class CompileEngineNode : public Node {
    * \return The result.
    */
   virtual CachedFunc LowerShapeFunc(const CCacheKey& key) = 0;
+  /*!
+   * \brief Lower the external function using external codegen tools.
+   * \return The runtime moduels for each needed external codegen tool.
+   */
+  virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
+
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
 
   // VisitAttrs
-  void VisitAttrs(AttrVisitor*) final {}
+  void VisitAttrs(AttrVisitor*) {}
 
   static constexpr const char* _type_key = "relay.CompileEngine";
-  TVM_DECLARE_NODE_TYPE_INFO(CompileEngineNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CompileEngineNode, Object);
 };
 
 /*! \brief cache entry used in compile engine */
-class CompileEngine : public NodeRef {
+class CompileEngine : public ObjectRef {
  public:
   CompileEngine() {}
-  explicit CompileEngine(NodePtr<Node> n) : NodeRef(n) {}
+  explicit CompileEngine(ObjectPtr<Object> n) : ObjectRef(n) {}
   CompileEngineNode* operator->() {
-    return static_cast<CompileEngineNode*>(node_.get());
+    return static_cast<CompileEngineNode*>(get_mutable());
   }
   using ContainerType = CompileEngineNode;
   /*! \brief The global compile engine. */

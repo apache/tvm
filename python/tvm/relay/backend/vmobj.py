@@ -18,32 +18,37 @@
 from __future__ import absolute_import as _abs
 import numpy as _np
 
-from tvm._ffi.vmobj import Object, ObjectTag, register_object
+from tvm._ffi.object import Object, register_object, getitem_helper
 from tvm import ndarray as _nd
 from . import _vmobj
 
-# TODO(@icemelon9): Add ClosureObject
 
-@register_object
-class TensorObject(Object):
-    """Tensor object."""
-    tag = ObjectTag.TENSOR
+@register_object("vm.Tensor")
+class Tensor(Object):
+    """Tensor object.
 
-    def __init__(self, handle):
-        """Constructs a Tensor object
+    Parameters
+    ----------
+    arr : numpy.ndarray or tvm.nd.NDArray
+        The source array.
 
-        Parameters
-        ----------
-        handle : object
-            Object handle
+    ctx :  TVMContext, optional
+        The device context to create the array
+    """
+    def __init__(self, arr, ctx=None):
+        if isinstance(arr, _np.ndarray):
+            ctx = ctx if ctx else _nd.cpu(0)
+            self.__init_handle_by_constructor__(
+                _vmobj.Tensor, _nd.array(arr, ctx=ctx))
+        elif isinstance(arr, _nd.NDArray):
+            self.__init_handle_by_constructor__(
+                _vmobj.Tensor, arr)
+        else:
+            raise RuntimeError("Unsupported type for tensor object.")
 
-        Returns
-        -------
-        obj : TensorObject
-            A tensor object.
-        """
-        super(TensorObject, self).__init__(handle)
-        self.data = _vmobj.GetTensorData(self)
+    @property
+    def data(self):
+        return _vmobj.GetTensorData(self)
 
     def asnumpy(self):
         """Convert data to numpy array
@@ -56,69 +61,38 @@ class TensorObject(Object):
         return self.data.asnumpy()
 
 
-@register_object
-class DatatypeObject(Object):
-    """Datatype object."""
-    tag = ObjectTag.DATATYPE
-
-    def __init__(self, handle):
-        """Constructs a Datatype object
-
-        Parameters
-        ----------
-        handle : object
-            Object handle
-
-        Returns
-        -------
-        obj : DatatypeObject
-            A Datatype object.
-        """
-        super(DatatypeObject, self).__init__(handle)
-        self.tag = _vmobj.GetDatatypeTag(self)
-        num_fields = _vmobj.GetDatatypeNumberOfFields(self)
-        self.fields = []
-        for i in range(num_fields):
-            self.fields.append(_vmobj.GetDatatypeFields(self, i))
-
-    def __getitem__(self, idx):
-        return self.fields[idx]
-
-    def __len__(self):
-        return len(self.fields)
-
-    def __iter__(self):
-        return iter(self.fields)
-
-# TODO(icemelon9): Add closure object
-
-def tensor_object(arr, ctx=_nd.cpu(0)):
-    """Create a tensor object from source arr.
+@register_object("vm.ADT")
+class ADT(Object):
+    """Algebatic data type(ADT) object.
 
     Parameters
     ----------
-    arr : numpy.ndarray or tvm.nd.NDArray
-        The source array.
+    tag : int
+        The tag of ADT.
 
-    ctx :  TVMContext, optional
-        The device context to create the array
-
-    Returns
-    -------
-    ret : TensorObject
-        The created object.
+    fields : list[Object] or tuple[Object]
+        The source tuple.
     """
-    if isinstance(arr, _np.ndarray):
-        tensor = _vmobj.Tensor(_nd.array(arr, ctx))
-    elif isinstance(arr, _nd.NDArray):
-        tensor = _vmobj.Tensor(arr)
-    else:
-        raise RuntimeError("Unsupported type for tensor object.")
-    return tensor
+    def __init__(self, tag, fields):
+        for f in fields:
+            assert isinstance(f, Object)
+        self.__init_handle_by_constructor__(
+            _vmobj.ADT, tag, *fields)
+
+    @property
+    def tag(self):
+        return _vmobj.GetADTTag(self)
+
+    def __getitem__(self, idx):
+        return getitem_helper(
+            self, _vmobj.GetADTFields, len(self), idx)
+
+    def __len__(self):
+        return _vmobj.GetADTNumberOfFields(self)
 
 
 def tuple_object(fields):
-    """Create a datatype object from source tuple.
+    """Create a ADT object from source tuple.
 
     Parameters
     ----------
@@ -127,30 +101,9 @@ def tuple_object(fields):
 
     Returns
     -------
-    ret : DatatypeObject
+    ret : ADT
         The created object.
     """
     for f in fields:
         assert isinstance(f, Object)
     return _vmobj.Tuple(*fields)
-
-
-def datatype_object(tag, fields):
-    """Create a datatype object from tag and source fields.
-
-    Parameters
-    ----------
-    tag : int
-        The tag of datatype.
-
-    fields : list[Object] or tuple[Object]
-        The source tuple.
-
-    Returns
-    -------
-    ret : DatatypeObject
-        The created object.
-    """
-    for f in fields:
-        assert isinstance(f, Object)
-    return _vmobj.Datatype(tag, *fields)

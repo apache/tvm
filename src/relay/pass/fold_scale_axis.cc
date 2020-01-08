@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
- *
  * \file fold_scale_axis.cc
  *
  * \brief Fold axis scaling into weights of
@@ -97,13 +95,16 @@ class MessageNode : public RelayNode {
   static Message make(const AxesSet& axes, bool require_positive);
 
   static constexpr const char* _type_key = "relay.pass.fold_scale_axis.Message";
-  TVM_DECLARE_NODE_TYPE_INFO(MessageNode, RelayNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MessageNode, RelayNode);
 };
 
-RELAY_DEFINE_NODE_REF(Message, MessageNode, NodeRef);
+class Message : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Message, ObjectRef, MessageNode);
+};
 
 Message MessageNode::make(const AxesSet& axes, bool require_positive)  {
-  auto n = make_node<MessageNode>();
+  auto n = make_object<MessageNode>();
   n->axes = axes;
   n->require_positive = require_positive;
   return Message(n);
@@ -178,14 +179,14 @@ class ScaledExprNode : public TempExprNode {
     return value;
   }
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("axes", &axes);
     v->Visit("scale", &scale);
   }
 
   static constexpr const char* _type_key = "relay.fold_scale_axis.ScaledExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(ScaledExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ScaledExprNode, TempExprNode);
 };
 
 using FForwardRewrite = TypedPackedFunc<
@@ -198,7 +199,7 @@ using FForwardRewrite = TypedPackedFunc<
 //----------------------------------------------
 class ForwardPrep : private ExprVisitor {
  public:
-  std::unordered_map<const Node*, Message>
+  std::unordered_map<const Object*, Message>
   Prepare(const Expr& body) {
     this->Update(body, NullValue<Message>());
     this->VisitExpr(body);
@@ -217,7 +218,7 @@ class ForwardPrep : private ExprVisitor {
   // The invoke list
   std::vector<std::function<void()> > flist_;
   // The message on each node.
-  std::unordered_map<const Node*, Message> message_;
+  std::unordered_map<const Object*, Message> message_;
   // Update the message stored at node.
   void Update(const Expr& node, const Message& message) {
     // We run intersection of messages:
@@ -230,7 +231,7 @@ class ForwardPrep : private ExprVisitor {
     // because %z2 will propagate null to %y,
     // the AxesSet on %y is also null,
     // and the forward folding won't be triggered.
-    const Node* key = node.get();
+    const Object* key = node.get();
     if (message_.count(key)) {
       message_[key] = Intersect(message_[key], message);
     } else {
@@ -325,7 +326,7 @@ Expr ReluForwardRewrite(const Call& ref_call,
   const auto* input = new_args[0].as<ScaledExprNode>();
   if (input == nullptr) return Expr(nullptr);
   // return transformed conv2d
-  auto rnode = make_node<ScaledExprNode>();
+  auto rnode = make_object<ScaledExprNode>();
   rnode->value = CallNode::make(
       ref_call->op, {input->value}, ref_call->attrs, ref_call->type_args);
   rnode->scale = input->scale;
@@ -368,7 +369,7 @@ Expr AddSubForwardRewrite(const Call& ref_call,
   if (!slhs && !srhs) return Expr();
   const auto* tlhs = ref_call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = ref_call->args[1]->type_as<TensorTypeNode>();
-  auto rnode = make_node<ScaledExprNode>();
+  auto rnode = make_object<ScaledExprNode>();
 
   if (slhs != nullptr) {
     CHECK(srhs == nullptr);
@@ -424,7 +425,7 @@ Expr MultiplyForwardRewrite(const Call& ref_call,
   const auto* trhs = ref_call->args[1]->type_as<TensorTypeNode>();
   Expr lhs = new_args[0];
   Expr rhs = new_args[1];
-  auto rnode = make_node<ScaledExprNode>();
+  auto rnode = make_object<ScaledExprNode>();
 
   if (MatchBroadcastToLeftAxes(tlhs, trhs, expected_out_axes, &rhs) &&
       (!message->require_positive || IsAllPositiveConstant(rhs))) {
@@ -533,12 +534,12 @@ RELAY_REGISTER_OP("nn.conv2d")
 
 Expr ForwardFoldScaleAxis(const Expr& data) {
   auto message = ForwardPrep().Prepare(data);
-  auto fcontext = [&](const Call& call) -> NodeRef{
+  auto fcontext = [&](const Call& call) -> ObjectRef{
     auto it = message.find(call.get());
     if (it != message.end()) {
       return it->second;
     } else {
-      return NodeRef(nullptr);
+      return ObjectRef(nullptr);
     }
   };
   return ForwardRewrite(
@@ -573,7 +574,7 @@ using FBackwardTransform = TypedPackedFunc<
 class BackwardPrep : private ExprVisitor {
  public:
   // The message on each node.
-  std::unordered_map<const Node*, Message>
+  std::unordered_map<const Object*, Message>
   Prepare(const Expr& body) {
     ref_counter_ = GetExprRefCount(body);
     this->VisitExpr(body);
@@ -582,9 +583,9 @@ class BackwardPrep : private ExprVisitor {
 
  private:
   // The message on each node.
-  std::unordered_map<const Node*, Message> message_;
+  std::unordered_map<const Object*, Message> message_;
   // reference counter of an internal expr
-  std::unordered_map<const Node*, size_t> ref_counter_;
+  std::unordered_map<const Object*, size_t> ref_counter_;
   // Visit the expression.
   void VisitExpr_(const CallNode* call) {
     ExprVisitor::VisitExpr_(call);
@@ -614,7 +615,7 @@ class BackwardPrep : private ExprVisitor {
 };
 
 class BackwardTransformerNode :
-      public Node,
+      public Object,
       private ExprMutator {
  public:
   // Run forward transform.
@@ -666,14 +667,14 @@ class BackwardTransformerNode :
   }
 
   // solver is not serializable.
-  void VisitAttrs(tvm::AttrVisitor* v) final {}
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.fold_scale_axis.FBackwardTransformer";
-  TVM_DECLARE_NODE_TYPE_INFO(BackwardTransformerNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BackwardTransformerNode, Object);
 
  private:
   // Valid axes on each node.
-  std::unordered_map<const Node*, Message> message_;
+  std::unordered_map<const Object*, Message> message_;
   // Override mutation of call.
   Expr VisitExpr_(const CallNode* call_node) final {
     return Transform(call_node, NullValue<Message>(), NullValue<Expr>());
@@ -682,14 +683,14 @@ class BackwardTransformerNode :
   Expr Transform(const CallNode* call_node, Message message, Expr scale);
 };
 
-class BackwardTransformer : public NodeRef {
+class BackwardTransformer : public ObjectRef {
  public:
   BackwardTransformer() {}
   explicit BackwardTransformer(
-      ::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+      ::tvm::ObjectPtr<::tvm::Object> n) : ObjectRef(n) {
   }
   BackwardTransformerNode* operator->() const {
-    return static_cast<BackwardTransformerNode*>(node_.get());
+    return static_cast<BackwardTransformerNode*>(get_mutable());
   }
   using ContainerType = BackwardTransformerNode;
 };
@@ -940,7 +941,7 @@ RELAY_REGISTER_OP("nn.conv2d")
 .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
 
 Expr BackwardFoldScaleAxis(const Expr& data) {
-  return make_node<BackwardTransformerNode>()->Fold(data);
+  return make_object<BackwardTransformerNode>()->Fold(data);
 }
 
 }  // namespace fold_scale_axis
@@ -957,7 +958,7 @@ Pass ForwardFoldScaleAxis() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.ForwardFoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
 .set_body_typed(ForwardFoldScaleAxis);
 
 Pass BackwardFoldScaleAxis() {
@@ -970,7 +971,7 @@ Pass BackwardFoldScaleAxis() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.BackwardFoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")
 .set_body_typed(BackwardFoldScaleAxis);
 
 Pass FoldScaleAxis() {
@@ -982,7 +983,7 @@ Pass FoldScaleAxis() {
   return pass;
 }
 
-TVM_REGISTER_API("relay._transform.FoldScaleAxis")
+TVM_REGISTER_GLOBAL("relay._transform.FoldScaleAxis")
 .set_body_typed(FoldScaleAxis);
 
 }  // namespace transform

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file nms.cc
  * \brief Non-maximum suppression operators
  */
@@ -41,7 +40,7 @@ bool GetValidCountRel(const Array<Type>& types,
 
   std::vector<IndexExpr> oshape({data->shape[0]});
   std::vector<Type> fields;
-  fields.push_back(TensorTypeNode::make(oshape, Int(32)));
+  fields.push_back(TensorTypeNode::make(oshape, DataType::Int(32)));
   fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
 
   // assign output type
@@ -53,7 +52,7 @@ Expr MakeGetValidCounts(Expr data,
                         double score_threshold,
                         int id_index,
                         int score_index) {
-  auto attrs = make_node<GetValidCountsAttrs>();
+  auto attrs = make_object<GetValidCountsAttrs>();
   attrs->score_threshold = score_threshold;
   attrs->id_index = id_index;
   attrs->score_index = score_index;
@@ -62,7 +61,7 @@ Expr MakeGetValidCounts(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.get_valid_counts")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.get_valid_counts")
 .set_body_typed(MakeGetValidCounts);
 
 
@@ -96,7 +95,7 @@ bool NMSRel(const Array<Type>& types,
   // assign output type
   if (param->return_indices) {
     std::vector<IndexExpr> oshape({dshape[0], dshape[1]});
-    reporter->Assign(types[2], TensorTypeNode::make(oshape, Int(32)));
+    reporter->Assign(types[2], TensorTypeNode::make(oshape, DataType::Int(32)));
   } else {
     reporter->Assign(types[2], TensorTypeNode::make(dshape, data->dtype));
   }
@@ -115,7 +114,7 @@ Expr MakeNMS(Expr data,
              int id_index,
              bool return_indices,
              bool invalid_to_bottom) {
-  auto attrs = make_node<NonMaximumSuppressionAttrs>();
+  auto attrs = make_object<NonMaximumSuppressionAttrs>();
   attrs->max_output_size = max_output_size;
   attrs->iou_threshold = iou_threshold;
   attrs->force_suppress = force_suppress;
@@ -130,7 +129,7 @@ Expr MakeNMS(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.non_max_suppression")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.non_max_suppression")
 .set_body_typed(MakeNMS);
 
 

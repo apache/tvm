@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file param_dict.h
  * \brief Definitions for serializing and deserializing parameter dictionaries.
  */
@@ -41,21 +40,23 @@ constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 /*!
  * \brief Wrapper node for naming `NDArray`s.
  */
-struct NamedNDArrayNode : public ::tvm::Node {
+struct NamedNDArrayNode : public ::tvm::Object {
   std::string name;
   tvm::runtime::NDArray array;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("array", &array);
   }
 
   static constexpr const char* _type_key = "NamedNDArray";
-  TVM_DECLARE_NODE_TYPE_INFO(NamedNDArrayNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(NamedNDArrayNode, Object);
 };
 
-TVM_DEFINE_NODE_REF(NamedNDArray, NamedNDArrayNode);
-
+class NamedNDArray : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(NamedNDArray, ObjectRef, NamedNDArrayNode);
+};
 }  // namespace relay
 }  // namespace tvm
 

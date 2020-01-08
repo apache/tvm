@@ -51,7 +51,7 @@ inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
 
   tvm::schedule::AutoInlineInjective(s);
   for (auto out : outs) {
-    if (out->op->derived_from<ExternOpNode>()) {
+    if (out->op->IsInstance<ExternOpNode>()) {
       continue;
     }
     tvm::GenericFunc::Get("schedule_injective_from_existing")(s, out);

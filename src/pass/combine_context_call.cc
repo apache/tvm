@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,13 +18,12 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Combine calls into context related function into one.
  *
  * \file combine_context_call.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <map>
 
@@ -33,7 +32,7 @@ namespace ir {
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class ContextCallCombiner final : public IRMutator {
+class ContextCallCombiner final : public StmtExprMutator {
  public:
   struct CompareExpr {
     bool operator()(const Expr& lhs, const Expr& rhs) const {
@@ -41,7 +40,7 @@ class ContextCallCombiner final : public IRMutator {
     }
   };
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  Expr VisitExpr_(const Call* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
       Expr ctx = op->args[0];
@@ -49,51 +48,51 @@ class ContextCallCombiner final : public IRMutator {
       if (it != ctx_map_.end()) {
         return it->second;
       } else {
-        CHECK(ctx.type().is_handle());
+        CHECK(ctx.dtype().is_handle());
         std::string name;
         if (const Call* call = ctx.as<Call>()) {
           name = call->name + "_cache";
         } else {
           name = "ctx_cache_";
         }
-        Var ctx_var(name, ctx.type());
+        Var ctx_var(name, ctx.dtype());
         ctx_map_[ctx] = ctx_var;
         return std::move(ctx_var);
       }
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmt* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
       return BuildContext(temp, stmt);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const For* op) final {
     if (op->for_type == ForType::Parallel) {
       // Map of comparison expression to variable
       std::map<Expr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
       return BuildContext(temp, stmt);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
   Stmt Combine(Stmt stmt) {
-    return BuildContext(ctx_map_, this->Mutate(stmt));
+    return BuildContext(ctx_map_, this->VisitStmt(stmt));
   }
 
  private:
@@ -109,7 +108,7 @@ class ContextCallCombiner final : public IRMutator {
 };
 
 LoweredFunc CombineContextCall(LoweredFunc f) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = ContextCallCombiner().Combine(n->body);
   return LoweredFunc(n);
 }

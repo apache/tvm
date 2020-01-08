@@ -115,7 +115,7 @@ setup(name='topi',
           "decorator",
       ],
       packages=find_packages(),
-      url='https://github.com/dmlc/tvm',
+      url='https://github.com/apache/incubator-tvm',
       **setup_kwargs)
 
 

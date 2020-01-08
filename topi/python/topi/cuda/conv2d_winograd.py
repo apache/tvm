@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """Winograd template for cuda backend"""
 
+import logging
 import tvm
 from tvm import autotvm
 
@@ -26,6 +27,8 @@ from ..util import get_const_int, get_const_tuple, traverse_inline
 from ..generic import schedule_conv2d_winograd_without_weight_transform
 from ..nn.winograd_util import winograd_transform_matrices
 
+
+logger = logging.getLogger('conv2d_winograd')
 
 def _infer_tile_size(data, kernel):
     N, CI, H, W = get_const_tuple(data.shape)
@@ -42,35 +45,34 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     N, CI, H, W = get_const_tuple(data.shape)
 
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+    HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
+
     if not pre_computed: # kernel tensor is raw tensor, do strict check
-        if isinstance(dilation, int):
-            dilation_h = dilation_w = dilation
-        else:
-            dilation_h, dilation_w = dilation
         if dilation_h != 1 or dilation_w != 1:
-            kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
-
+            kernel = dilation(kernel, (1, 1, dilation_h, dilation_w))
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
-        HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
-        HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
+        alpha = KW + tile_size - 1
         assert HSTR == 1 and WSTR == 1 and KH == KW
-    else:                   # kernel tensor is pre-transfomred. this op is created by
-                            # alter op layout, do not check
+    else:
+        # kernel tensor is pre-transfomred. this op is created by alter op layout.
         # dilation is not supported
-        HSTR = WSTR = 1
-        HPAD = WPAD = 1
-        KH = KW = 3
-        _, _, CI, CO = get_const_tuple(kernel.shape)
+        alpha, _, CI, CO = get_const_tuple(kernel.shape)
+        KH = KW = alpha + 1 - tile_size
+        assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
-    data_pad = nn.pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
+    pt, pl, pb, pr = nn.get_pad_tuple(padding, (KH, KW))
+    data_pad = nn.pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
 
     r = KW
     m = tile_size
-    alpha = m + r - 1
     A, B, G = winograd_transform_matrices(m, r, out_dtype)
 
-    H = (H + 2 * HPAD - KH) // HSTR + 1
-    W = (W + 2 * WPAD - KW) // WSTR + 1
+    H = (H + pt + pb - KH) // HSTR + 1
+    W = (W + pl + pr - KW) // WSTR + 1
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 
@@ -161,7 +163,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         eps, nu, ci, co = s[kernel_pack].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # skip this part during tuning to make recrods accurate
-            # this part will be pre-computed during NNVM's pre-compute optimization pass
+            # this part will be pre-computed during pre-compute optimization pass
             s[G].pragma(s[G].op.axis[0], 'debug_skip_region')
             s[kernel_pack].pragma(eps, 'debug_skip_region')
         else:
@@ -309,19 +311,19 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+    attrs : tvm.attrs.Attrs
         Attributes of current convolution
-    inputs : nnvm.symbol or tvm.relay.Expr
+    inputs : tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
     F: symbol
-        The context, can be either nnvm.sym or relay.op
+        The context, can be relay.op
 
     Note
     ----
     Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
     """
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
@@ -329,9 +331,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     copy_inputs = [s for s in inputs]
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
-    if F.__name__ == 'tvm.relay.op':
-        # Derive channels for frontends (e.g ONNX) that miss "channel" field.
-        new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
+
+    new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
 
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
@@ -384,7 +385,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
             return F.nn.conv2d(*copy_inputs, **new_attrs)
 
         if attrs.get_int_tuple("dilation") != (1, 1):
-            warnings.warn("Does not support weight pre-transform for dilated convolution.")
+            logger.warning("Does not support weight pre-transform for dilated convolution.")
             return None
 
         # pre-compute weight transformation in winograd

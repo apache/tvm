@@ -44,7 +44,7 @@ class LoweredFuncNode;
 class LoweredFunc : public ir::FunctionRef {
  public:
   LoweredFunc() {}
-  explicit LoweredFunc(NodePtr<Node> n) : FunctionRef(n) {}
+  explicit LoweredFunc(ObjectPtr<Object> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -119,7 +119,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
   int num_outputs() const final {
     return 1;
   }
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("args", &args);
     v->Visit("thread_axis", &thread_axis);
@@ -131,22 +131,19 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
   }
 
   static constexpr const char* _type_key = "LoweredFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(LoweredFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoweredFuncNode, Object);
 };
 
 // Implementations of inline functions
 inline const LoweredFuncNode* LoweredFunc::operator->() const {
-  return static_cast<const LoweredFuncNode*>(node_.get());
+  return static_cast<const LoweredFuncNode*>(get());
 }
 
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::LoweredFunc> {
-  std::size_t operator()(const ::tvm::LoweredFunc& k) const {
-    return k.hash();
-  }
+struct hash<::tvm::LoweredFunc> : public tvm::ObjectHash {
 };
 }
 

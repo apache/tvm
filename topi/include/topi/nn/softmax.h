@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Softmax op constructions
  * \file nn/softmax.h
  */
@@ -62,7 +61,7 @@ inline Tensor softmax(const Tensor &x,
   auto k2 = tvm::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
-  tvm::Map<std::string, NodeRef> attrs;
+  tvm::Map<std::string, ObjectRef> attrs;
   attrs.Set("axis", Integer(axis));
 
   auto insert_reduce_index = [axis, ndim](const Array<Var> &indices,

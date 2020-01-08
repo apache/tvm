@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file virtual_memory.h
  * \brief The virtual memory manager for device simulation
  */

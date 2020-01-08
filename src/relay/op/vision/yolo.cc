@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file yolo.cc
  * \brief Yolo related operators
  */
@@ -63,14 +62,14 @@ bool YoloReorgRel(const Array<Type>& types,
 
 Expr MakeYoloReorg(Expr data,
                    Integer stride) {
-  auto attrs = make_node<YoloReorgAttrs>();
+  auto attrs = make_object<YoloReorgAttrs>();
   attrs->stride = stride;
   static const Op& op = Op::Get("vision.yolo_reorg");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.yolo_reorg")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.yolo_reorg")
 .set_body_typed(MakeYoloReorg);
 
 
@@ -80,7 +79,7 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_num_inputs(1)
 .set_support_level(5)
-.set_attrs_type_key("relay.attrs.YoloReorgAttrs")
+.set_attrs_type<YoloReorgAttrs>()
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,

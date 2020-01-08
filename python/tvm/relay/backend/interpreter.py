@@ -73,6 +73,11 @@ class Closure(Value):
 
 
 @register_relay_node
+class RecClosure(Value):
+    """A recursive closure produced by the interpreter."""
+
+
+@register_relay_node
 class ConstructorValue(Value):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(

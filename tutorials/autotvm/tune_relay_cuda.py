@@ -31,7 +31,7 @@ the best knob values for all required operators. When the TVM compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some NVIDIA GPUs. You can go to
-`NVIDIA GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#nvidia-gpu>`_
+`NVIDIA GPU Benchmark <https://github.com/apache/incubator-tvm/wiki/Benchmark#nvidia-gpu>`_
 to see the results.
 """
 
@@ -71,7 +71,7 @@ import tvm.contrib.graph_runtime as runtime
 # Define Network
 # --------------
 # First we need to define the network in relay frontend API.
-# We can load some pre-defined network from :code:`nnvm.testing`.
+# We can load some pre-defined network from :code:`tvm.relay.testing`.
 # We can also load models from MXNet, ONNX and TensorFlow.
 
 def get_network(name, batch_size):

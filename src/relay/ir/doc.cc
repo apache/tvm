@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/tvm/relay/doc.cc
  * \brief Doc ADT used for pretty printing.
  * Based on Section 1 of https://homepages.inf.ed.ac.uk/wadler/papers/prettier/prettier.pdf.
@@ -109,7 +108,7 @@ Doc PrintBool(bool value) {
 }
 
 Doc PrintDType(DataType dtype) {
-  return Doc(runtime::TVMType2String(Type2TVMType(dtype)));
+  return Doc(runtime::TVMType2String(dtype));
 }
 
 Doc PrintString(const std::string& value) {

@@ -23,7 +23,7 @@ from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..nn.util import infer_pad
 from ..generic import conv2d as conv2d_generic
 from ..util import get_const_tuple
-from .tensor_intrin import dot_16x1x16_int8_int8_int32
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -209,4 +209,4 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     return conv2d_generic.schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last,
                                                               int32_lanes=16,
-                                                              intrin=dot_16x1x16_int8_int8_int32())
+                                                              intrin=dot_16x1x16_uint8_int8_int32())

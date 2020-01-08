@@ -26,7 +26,7 @@ See [Installation](http://docs.tvm.ai/install/)
 TVM's relation to Other IR/DSL Projects
 ---------------------------------------
 There are usually two levels of abstractions of IR in the deep learning systems.
-NNVM, TensorFlow's XLA and Intel's ngraph uses computation graph representation.
+TensorFlow's XLA and Intel's ngraph uses computation graph representation.
 This representation is high level, and can be helpful to perform generic optimizations
 such as memory reuse, layout transformation and automatic differentiation.
 
@@ -45,5 +45,5 @@ TVM's relation to libDNN cuDNN
 TVM can incorporate these library as external calls. One goal of TVM is to be able to
 generate high performing kernels. We will evolve TVM an incremental manner as
 we learn from the technics of manual kernel crafting and add these as primitives in DSL.
-See also [TVM Operator Inventory](https://github.com/dmlc/tvm/tree/master/topi) for
+See also [TVM Operator Inventory](https://github.com/apache/incubator-tvm/tree/master/topi) for
 recipes of operators in TVM.

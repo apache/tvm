@@ -118,7 +118,7 @@ class ErrorReporter {
    * \param node The expression or type to report the error at.
    * \param err The error message to report.
    */
-  inline void ReportAt(const GlobalVar& global, const NodeRef& node, std::stringstream& err) {
+  inline void ReportAt(const GlobalVar& global, const ObjectRef& node, std::stringstream& err) {
     std::string err_msg = err.str();
     this->ReportAt(global, node, Error(err_msg));
   }
@@ -134,7 +134,7 @@ class ErrorReporter {
    * \param node The expression or type to report the error at.
    * \param err The error to report.
    */
-  void ReportAt(const GlobalVar& global, const NodeRef& node, const Error& err);
+  void ReportAt(const GlobalVar& global, const ObjectRef& node, const Error& err);
 
   /*! \brief Render all reported errors and exit the program.
    *
@@ -154,8 +154,8 @@ class ErrorReporter {
 
  private:
   std::vector<Error> errors_;
-  std::unordered_map<NodeRef, std::vector<size_t>, NodeHash, NodeEqual> node_to_error_;
-  std::unordered_map<NodeRef, GlobalVar, NodeHash, NodeEqual> node_to_gv_;
+  std::unordered_map<ObjectRef, std::vector<size_t>, ObjectHash, ObjectEqual> node_to_error_;
+  std::unordered_map<ObjectRef, GlobalVar, ObjectHash, ObjectEqual> node_to_gv_;
 };
 
 }  // namespace relay

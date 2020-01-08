@@ -22,7 +22,6 @@
  */
 #include <tvm/schedule.h>
 #include <tvm/operation.h>
-#include <tvm/ir_mutator.h>
 #include <unordered_set>
 #include "graph.h"
 
@@ -33,7 +32,7 @@ namespace {
 // find first occurance location in leaf
 template<typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
-  const Node* n = v.get();
+  const Object* n = v.get();
   for (size_t i = 0; i < array_node->data.size(); ++i) {
     if (array_node->data[i].get() == n) return i;
   }
@@ -77,18 +76,18 @@ void Split(StageNode* self,
   size_t pos = FindLeafVar(all_vars, leaf_vars, parent);
   self->relations.push_back(SplitNode::make(parent, outer, inner, factor, nparts));
   // add vars to all vars
-  all_vars->data.push_back(outer.node_);
-  all_vars->data.push_back(inner.node_);
+  all_vars->data.push_back(outer);
+  all_vars->data.push_back(inner);
   // replace the position.
   leaf_vars->data.erase(leaf_vars->data.begin() + pos);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner.node_);
-  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer.node_);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, inner);
+  leaf_vars->data.insert(leaf_vars->data.begin() + pos, outer);
 }
 
 }  // namespace
 
 Stage::Stage(Operation op) {
-  auto n = make_node<StageNode>();
+  auto n = make_object<StageNode>();
   n->op = op;
   n->origin_op = op;
   n->all_iter_vars = op->root_iter_vars();
@@ -102,7 +101,7 @@ Stage::Stage(Operation op) {
   } else {
     n->leaf_iter_vars = clean;
   }
-  node_ = n;
+  data_ = std::move(n);
 }
 
 bool Stage::is_scheduled() const {
@@ -182,16 +181,16 @@ Stage& Stage::bind(IterVar ivar, IterVar thread_ivar) {   // NOLINT(*)
   FindLeafVar(all_vars, leaf_vars, ivar);
 
   auto it = self->iter_var_attrs.find(ivar);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
     if (n->bind_thread.defined() &&
         !n->bind_thread.same_as(thread_ivar)) {
       LOG(WARNING) << "Axis " << ivar
                    << " is already bind to another thread " << n->bind_thread;
     }
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   n->bind_thread = thread_ivar;
   self->iter_var_attrs.Set(ivar, IterVarAttr(n));
@@ -206,9 +205,9 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
       << "Already set env_threads";
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
-  std::vector<NodePtr<Node> > temp;
+  std::vector<ObjectRef> temp;
   for (IterVar iv : threads) {
-    temp.push_back(iv.node_);
+    temp.push_back(iv);
   }
   leaf_vars->data.insert(
       leaf_vars->data.begin(), temp.begin(), temp.end());
@@ -253,7 +252,7 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
       outer->var->name_hint + "." + inner->var->name_hint + ".fused";
 
   IterVar fused = IterVarNode::make(
-      Range(), Var(fused_name, outer->var.type()), iter_type);
+      Range(), Var(fused_name, outer->var.dtype()), iter_type);
 
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -265,13 +264,13 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
     std::swap(pos_inner, pos_outer);
   }
   self->relations.push_back(FuseNode::make(outer, inner, fused));
-  all_vars->data.push_back(fused.node_);
+  all_vars->data.push_back(fused);
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
   leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
                         leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
-                         fused.node_);
+                         fused);
   *p_target = fused;
   return *this;
 }
@@ -289,12 +288,12 @@ Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*
     // insert at the outer most loop
     IterVar singleton = IterVarNode::make(
         Range::make_by_min_extent(0, 1),
-        Var("singleton", Int(32)), kDataPar);
+        Var("singleton", DataType::Int(32)), kDataPar);
     self->relations.push_back(SingletonNode::make(singleton));
     ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
     ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
-    all_vars->data.push_back(singleton.node_);
-    leaf_vars->data.insert(leaf_vars->data.begin(), singleton.node_);
+    all_vars->data.push_back(singleton);
+    leaf_vars->data.insert(leaf_vars->data.begin(), singleton);
     *p_target = singleton;
   }
   return *this;
@@ -321,7 +320,7 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
   for (size_t i = 0; i < order.size(); ++i) {
     pos.push_back(FindLeafVar(all_vars, leaf_vars, order[i]));
   }
-  std::vector<NodePtr<Node> > temp;
+  std::vector<ObjectRef> temp;
   for (size_t i = 0; i < pos.size(); ++i) {
     temp.emplace_back(leaf_vars->data[pos[i]]);
   }
@@ -353,11 +352,11 @@ inline void UpdateIterVarAttr(StageNode* self,
     FindLeafVar(all_vars, leaf_vars, var);
   }
   auto it = self->iter_var_attrs.find(var);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   fupdate(n.get());
   self->iter_var_attrs.Set(var, IterVarAttr(n));
@@ -422,11 +421,11 @@ Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
   FindLeafVar(all_vars, leaf_vars, var);
   auto it = self->iter_var_attrs.find(var);
-  NodePtr<IterVarAttrNode> n;
+  ObjectPtr<IterVarAttrNode> n;
   if (it != self->iter_var_attrs.end()) {
-    n = make_node<IterVarAttrNode>(*(*it).second.operator->());
+    n = make_object<IterVarAttrNode>(*(*it).second.operator->());
   } else {
-    n = make_node<IterVarAttrNode>();
+    n = make_object<IterVarAttrNode>();
   }
   n->prefetch_data.push_back(tensor);
   n->prefetch_offset.push_back(offset);
@@ -493,16 +492,16 @@ Stage& Stage::opengl() {
 }
 
 Stage CopyStage(const Stage& s) {
-  NodePtr<StageNode> n =
-      make_node<StageNode>(*s.operator->());
+  ObjectPtr<StageNode> n =
+      make_object<StageNode>(*s.operator->());
   return Stage(n);
 }
 
 Schedule Schedule::copy() const {
   // map of stages.
   const ScheduleNode* self = operator->();
-  std::unordered_map<Stage, Stage, NodeHash, NodeEqual> smap;
-  NodePtr<ScheduleNode> n = make_node<ScheduleNode>();
+  std::unordered_map<Stage, Stage, ObjectHash, ObjectEqual> smap;
+  ObjectPtr<ScheduleNode> n = make_object<ScheduleNode>();
   n->outputs = self->outputs;
   // Copy the stages.
   for (Stage s : self->stages) {
@@ -605,7 +604,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
     int count{0};
   };
   // Map of group->touched counter
-  std::unordered_map<Stage, Entry, NodeHash, NodeEqual> counter;
+  std::unordered_map<Stage, Entry, ObjectHash, ObjectEqual> counter;
   // The parent group;
   Stage parent_group;
   // Detect common parent and child.
@@ -624,7 +623,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
     }
   }
   // Create the new group stage.
-  Stage gstage(make_node<StageNode>());
+  Stage gstage(make_object<StageNode>());
   gstage->group = parent_group;
   if (parent_group.defined()) {
     ++parent_group->num_child_stages;
@@ -716,7 +715,7 @@ bool ScheduleNode::Contain(const Operation& op) const {
 }
 
 Schedule ScheduleNode::make(Array<Operation> ops) {
-  auto n = make_node<ScheduleNode>();
+  auto n = make_object<ScheduleNode>();
   Schedule sch(n);
   n->outputs = ops;
   auto g = schedule::CreateReadGraph(n->outputs);
@@ -759,7 +758,7 @@ IterVarRelation SplitNode::make(IterVar parent,
                                 IterVar inner,
                                 Expr factor,
                                 Expr nparts) {
-  auto n = make_node<SplitNode>();
+  auto n = make_object<SplitNode>();
   n->parent = parent;
   n->outer = outer;
   n->inner = inner;
@@ -770,7 +769,7 @@ IterVarRelation SplitNode::make(IterVar parent,
 
 IterVarRelation FuseNode::make(
     IterVar outer, IterVar inner, IterVar fused) {
-  auto n = make_node<FuseNode>();
+  auto n = make_object<FuseNode>();
   n->outer = outer;
   n->inner = inner;
   n->fused = fused;
@@ -778,14 +777,14 @@ IterVarRelation FuseNode::make(
 }
 
 IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
-  auto n = make_node<RebaseNode>();
+  auto n = make_object<RebaseNode>();
   n->parent = parent;
   n->rebased = rebased;
   return IterVarRelation(n);
 }
 
 IterVarRelation SingletonNode::make(IterVar iter) {
-  auto n = make_node<SingletonNode>();
+  auto n = make_object<SingletonNode>();
   n->iter = iter;
   return IterVarRelation(n);
 }
@@ -799,18 +798,21 @@ TVM_REGISTER_NODE_TYPE(SingletonNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 // Printer
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<StageNode>([](const StageNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<StageNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const StageNode*>(node.get());
     if (op->op.defined()) {
       p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
     } else {
       p->stream << "group-stage(" << op << ")";
     }
 })
-.set_dispatch<IterVarAttrNode>([](const IterVarAttrNode *op, IRPrinter *p) {
+.set_dispatch<IterVarAttrNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const IterVarAttrNode*>(node.get());
     p->stream << IterVarType2String(op->iter_type);
 })
-.set_dispatch<SplitNode>([](const SplitNode *op, IRPrinter *p) {
+.set_dispatch<SplitNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SplitNode*>(node.get());
     p->stream << "split(parent=";
     p->Print(op->parent);
     p->stream << ", outer=";
@@ -819,7 +821,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->Print(op->inner);
     p->stream << ')';
 })
-.set_dispatch<FuseNode>([](const FuseNode *op, IRPrinter *p) {
+.set_dispatch<FuseNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const FuseNode*>(node.get());
     p->stream << "split(";
     p->stream << "outer=";
     p->Print(op->outer);
@@ -829,7 +832,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->Print(op->fused);
     p->stream << ')';
 })
-.set_dispatch<RebaseNode>([](const RebaseNode *op, IRPrinter *p) {
+.set_dispatch<RebaseNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const RebaseNode*>(node.get());
     p->stream << "rebase(";
     p->stream << "parent=";
     p->Print(op->parent);
@@ -837,12 +841,14 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->Print(op->rebased);
     p->stream << ')';
 })
-.set_dispatch<SingletonNode>([](const SingletonNode *op, IRPrinter *p) {
+.set_dispatch<SingletonNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SingletonNode*>(node.get());
     p->stream << "singleton(";
     p->Print(op->iter);
     p->stream << ')';
 })
-.set_dispatch<ScheduleNode>([](const ScheduleNode *op, IRPrinter *p) {
+.set_dispatch<ScheduleNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
   });
 }  // namespace tvm

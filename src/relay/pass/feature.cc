@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  * \file feature.cc
  * \brief Detect features used in Expr/Module
  */
@@ -37,7 +36,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
-    std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
     FeatureSet fs = FeatureSet::No();
 
     void VisitExpr(const Expr& expr) final {
@@ -105,7 +104,7 @@ Array<Integer> PyDetectFeature(const Expr& expr, const Module& mod) {
   return static_cast<Array<Integer>>(fs);
 }
 
-TVM_REGISTER_API("relay._analysis.detect_feature")
+TVM_REGISTER_GLOBAL("relay._analysis.detect_feature")
 .set_body_typed(PyDetectFeature);
 
 }  // namespace relay

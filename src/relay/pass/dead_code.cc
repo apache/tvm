@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file dead_code.cc
  *
@@ -37,8 +36,8 @@ namespace tvm {
 namespace relay {
 
 template<typename X>
-using VarMap = std::unordered_map<Var, X, NodeHash, NodeEqual>;
-using VarSet = std::unordered_set<Var, NodeHash, NodeEqual>;
+using VarMap = std::unordered_map<Var, X, ObjectHash, ObjectEqual>;
+using VarSet = std::unordered_set<Var, ObjectHash, ObjectEqual>;
 
 class CalcDep;
 class FindDef : private ExprVisitor {
@@ -148,7 +147,7 @@ Pass DeadCodeElimination(bool inline_once) {
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_API("relay._transform.DeadCodeElimination")
+TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination")
 .set_body_typed(DeadCodeElimination);
 
 }  // namespace transform

@@ -26,6 +26,7 @@
 #include <tvm/operation.h>
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
+#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <mutex>
@@ -33,11 +34,17 @@
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(TargetNode);
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+using runtime::PackedFunc;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
-  p->stream << op->str();
+TVM_REGISTER_NODE_TYPE(TargetNode);
+TVM_REGISTER_NODE_TYPE(GenericFuncNode);
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TargetNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const TargetNode*>(node.get());
+    p->stream << op->str();
   });
 
 
@@ -51,9 +58,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 */
 Target CreateTarget(const std::string& target_name,
                     const std::vector<std::string>& options) {
-  auto target = Target(make_node<TargetNode>());
-  auto t = static_cast<TargetNode*>(target.node_.get());
-
+  auto t = make_object<TargetNode>();
   t->target_name = target_name;
 
   std::string libs_flag = "-libs=";
@@ -85,7 +90,9 @@ Target CreateTarget(const std::string& target_name,
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
-  if (target_name == "c" || target_name == "llvm") {
+  if (target_name == "c" && t->device_name == "micro_dev") {
+    t->device_type = kDLMicroDev;
+  } else if (target_name == "c" || target_name == "llvm") {
     t->keys_array.push_back(ir::StringImm::make("cpu"));
   } else if (target_name == "cuda" || target_name == "nvptx") {
     t->device_type = kDLGPU;
@@ -137,10 +144,10 @@ Target CreateTarget(const std::string& target_name,
     return target::stackvm();
   }
 
-  return target;
+  return Target(t);
 }
 
-TVM_REGISTER_API("_TargetCreate")
+TVM_REGISTER_GLOBAL("_TargetCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_name = args[0];
   std::vector<std::string> options;
@@ -152,7 +159,7 @@ TVM_REGISTER_API("_TargetCreate")
   *ret = CreateTarget(target_name, options);
   });
 
-TVM_REGISTER_API("_TargetFromString")
+TVM_REGISTER_GLOBAL("_TargetFromString")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_str = args[0];
   *ret = Target::Create(target_str);
@@ -307,6 +314,10 @@ Target intel_graphics(const std::vector<std::string>& options) {
 Target stackvm(const std::vector<std::string>& options) {
   return CreateTarget("stackvm", options);
 }
+
+Target ext_dev(const std::vector<std::string>& options) {
+  return CreateTarget("ext_dev", options);
+}
 }  // namespace target
 
 bool LLVMEnabled() {
@@ -328,34 +339,46 @@ Target DefaultTargetHost(Target target) {
 }
 
 Buffer BufferWithOffsetAlignment(Array<Expr> shape,
-                                 Type dtype,
+                                 DataType dtype,
                                  std::string name,
                                  int data_alignment,
-                                 int offset_factor) {
-  auto data = Var(name, Handle());
+                                 int offset_factor,
+                                 bool compact) {
+  auto data = Var(name, DataType::Handle());
+  bool has_any = false;
+  if (!compact) {
+    for (const auto& it : shape) {
+      if (it.as<Variable>()) {
+        has_any = true;
+        break;
+      }
+    }
+  }
+  BufferType buffer_type = has_any ? kAutoBroadcast : kDefault;
 
   Expr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].type());
+    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
   } else {
     elem_offset = Expr();
   }
 
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-    data_alignment, offset_factor, kDefault);
+    data_alignment, offset_factor, buffer_type);
 }
 
 void GetBinds(const Array<Tensor>& args,
+              bool compact,
               const std::unordered_map<Tensor, Buffer>& binds,
               Map<Tensor, Buffer>* out_binds,
-              Array<NodeRef>* out_arg_list,
+              Array<ObjectRef>* out_arg_list,
               const BuildConfig& config) {
   *out_binds = binds;
 
   for (const auto &x : args) {
     if (out_binds->find(x) == out_binds->end()) {
       auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
-        config->data_alignment, config->offset_factor);
+        config->data_alignment, config->offset_factor, compact);
       out_binds->Set(x, buf);
       out_arg_list->push_back(buf);
     } else {
@@ -378,17 +401,18 @@ Stmt BuildStmt(Schedule sch,
                const Array<Tensor>& args,
                const std::unordered_map<Tensor, Buffer>& binds,
                bool loop_partition,
-               Array<NodeRef> *out_arg_list,
+               Array<ObjectRef> *out_arg_list,
                const BuildConfig& config) {
-  Map<Tensor, Buffer> out_binds;
-  GetBinds(args, binds, &out_binds, out_arg_list, config);
-
   sch = sch.normalize();
 
   // Phase 0
   auto bounds = schedule::InferBound(sch);
   auto stmt = schedule::ScheduleOps(sch, bounds, false);
   stmt = ir::InjectPrefetch(stmt);
+
+  bool compact = ir::VerifyCompactBuffer(stmt);
+  Map<Tensor, Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
 
   // Phase 1
   stmt = ir::StorageFlatten(stmt, out_binds, 64,
@@ -410,7 +434,6 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 2
   stmt = ir::Simplify(stmt);
-  stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
@@ -427,7 +450,7 @@ Array<LoweredFunc> lower(Schedule sch,
                          const std::string& name,
                          const std::unordered_map<Tensor, Buffer>& binds,
                          const BuildConfig& config) {
-  Array<NodeRef> out_arg_list;
+  Array<ObjectRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
@@ -505,6 +528,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -512,6 +536,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
@@ -598,7 +623,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 }
 
 BuildConfig BuildConfig::Create() {
-  return BuildConfig(make_node<BuildConfigNode>());
+  return BuildConfig(make_object<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -640,8 +665,9 @@ tvm::BuildConfig BuildConfig::Current() {
 
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BuildConfigNode>([](const ObjectRef& node, NodePrinter* p) {
+  auto* op = static_cast<const BuildConfigNode*>(node.get());
   p->stream << "build_config(";
   p->stream << "data_alignment=" << op->data_alignment << ", ";
   p->stream << "offset_factor=" << op->offset_factor << ", ";
@@ -657,11 +683,12 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
   p->stream << "disable_vectorize=" << op->disable_vectorize;
+  p->stream << "disable_assert=" << op->disable_assert;
   p->stream << ")";
 });
 
 struct GenericFunc::Manager {
-  std::unordered_map<std::string, NodePtr<Node> > fmap;
+  std::unordered_map<std::string, GenericFunc> fmap;
   // mutex
   std::mutex mutex;
 
@@ -679,12 +706,13 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
-    auto f = make_node<GenericFuncNode>();
+    auto f = make_object<GenericFuncNode>();
     f->name_ = name;
-    m->fmap[name] = f;
-    return GenericFunc(f);
+    auto gf = GenericFunc(f);
+    m->fmap[name] = gf;
+    return gf;
   } else {
-    return GenericFunc(it->second);
+    return it->second;
   }
 }
 
@@ -694,12 +722,12 @@ void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name)
   auto it = m->fmap.find(name);
   CHECK(it == m->fmap.end()) << "GenericFunc already registered " << name;
   func->name_ = name;
-  m->fmap[name] = func.node_;
+  m->fmap[name] = func;
 }
 
 GenericFunc& GenericFunc::set_default(const PackedFunc value,
-                                           bool allow_override) {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+                                      bool allow_override) {
+  auto node = static_cast<GenericFuncNode*>(operator->());
   if (!allow_override) {
     CHECK(node->generic_func_ == nullptr)
       << "Generic function already registered for " << node->name_;
@@ -723,7 +751,7 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 }
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+  auto node = static_cast<const GenericFuncNode*>(get());
   auto target = Target::Current(true);
   PackedFunc func;
 
@@ -745,7 +773,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_GetCurrentBuildConfig")
+TVM_REGISTER_GLOBAL("_GetCurrentBuildConfig")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = BuildConfig::Current();
   });
@@ -760,13 +788,13 @@ class BuildConfig::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterBuildConfigScope")
+TVM_REGISTER_GLOBAL("_EnterBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitBuildConfigScope")
+TVM_REGISTER_GLOBAL("_ExitBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::ExitScope);
 
-TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
+TVM_REGISTER_GLOBAL("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
   std::vector< std::pair<int, PackedFunc> > add_lower_pass;
@@ -779,7 +807,7 @@ TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
   cfg->add_lower_pass = add_lower_pass;
   });
 
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
+TVM_REGISTER_GLOBAL("_BuildConfigGetAddLowerPassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   // Return one of the following:
   //  * Size of add_lower_pass if num_args == 1
@@ -800,18 +828,18 @@ TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
   }
   });
 
-TVM_REGISTER_API("_GenericFuncCreate")
+TVM_REGISTER_GLOBAL("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = GenericFunc(make_node<GenericFuncNode>());
+  *ret = GenericFunc(make_object<GenericFuncNode>());
   });
 
-TVM_REGISTER_API("_GenericFuncGetGlobal")
+TVM_REGISTER_GLOBAL("_GenericFuncGetGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
   });
 
-TVM_REGISTER_API("_GenericFuncSetDefault")
+TVM_REGISTER_GLOBAL("_GenericFuncSetDefault")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -822,7 +850,7 @@ TVM_REGISTER_API("_GenericFuncSetDefault")
     .set_default(*func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncRegisterFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -839,7 +867,7 @@ TVM_REGISTER_API("_GenericFuncRegisterFunc")
     .register_func(tags_vector, *func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncCallFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncCallFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
@@ -848,7 +876,7 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
     .CallPacked(func_args, ret);
   });
 
-TVM_REGISTER_API("_GetCurrentTarget")
+TVM_REGISTER_GLOBAL("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
   *ret = Target::Current(allow_not_defined);
@@ -864,10 +892,10 @@ class Target::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterTargetScope")
+TVM_REGISTER_GLOBAL("_EnterTargetScope")
 .set_body_typed(Target::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitTargetScope")
+TVM_REGISTER_GLOBAL("_ExitTargetScope")
 .set_body_typed(Target::Internal::ExitScope);
 
 }  // namespace tvm

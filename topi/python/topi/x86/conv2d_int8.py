@@ -25,6 +25,7 @@ from tvm.autotvm.task.topi_integration import deserialize_args
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .. import generic, tag
 from ..generic import conv2d as conv2d_generic
+from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d_NCHWc_int8
 from .. import nn
@@ -57,16 +58,14 @@ def _is_int8_hw_support(data_dtype, kernel_dtype):
     is_dtype_support = data_dtype == 'uint8' and kernel_dtype == 'int8'
 
     # 2) Check LLVM support
-    llvm_intrin_fast_int8 = "llvm.x86.avx512.pmaddubs.w.512"
-    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(llvm_intrin_fast_int8)
-    is_llvm_support = llvm_id != 0
+    llvm_version = tvm.codegen.llvm_version_major()
+    is_llvm_support = llvm_version >= 8
 
     # 3) Check target
-    target = tvm.target.current_target()
+    mcpu = tvm.target.current_target().mcpu
     is_target_support = False
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            is_target_support = True
+    if mcpu == 'skylake-avx512' or mcpu == 'cascadelake':
+        is_target_support = True
 
     return is_dtype_support and is_llvm_support and is_target_support
 
@@ -94,10 +93,10 @@ def _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, lay
                          "schedule template.".format(layout))
 
     is_kernel_1x1 = kh == 1 and kw == 1
-    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    oh = (h - kh + 2 * ph) // sh + 1
-    ow = (w - kw + 2 * pw) // sw + 1
+    oh = (h - kh + pt + pb) // sh + 1
+    ow = (w - kw + pl + pr) // sw + 1
 
     # Create schedule config
     cfg.define_split('tile_ic', ic, num_outputs=2, filter=lambda y: y.size[-1] % 4 == 0)

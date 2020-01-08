@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to Codegen
  * \file c_api_codegen.cc
  */
@@ -26,21 +25,23 @@
 #include <tvm/ir.h>
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 namespace tvm {
 namespace codegen {
 
-TVM_REGISTER_API("codegen._Build")
+TVM_REGISTER_GLOBAL("codegen._Build")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsNodeType<LoweredFunc>()) {
+    if (args[0].IsObjectRef<LoweredFunc>()) {
       *ret = Build({args[0]}, args[1]);
     } else {
       *ret = Build(args[0], args[1]);
     }
   });
 
-TVM_REGISTER_API("module._PackImportsToC")
+TVM_REGISTER_GLOBAL("module._PackImportsToC")
 .set_body_typed(PackImportsToC);
 }  // namespace codegen
 }  // namespace tvm

@@ -38,7 +38,8 @@ def test_prelude():
         Feature.fLet,
         Feature.fIf,
         Feature.fConstructor,
-        Feature.fMatch
+        Feature.fMatch,
+        Feature.fGraph
     ])
 
 

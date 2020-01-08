@@ -99,6 +99,10 @@ class CompileEngine(NodeBase):
             msg += "--------------------------\n"
             raise RuntimeError(msg)
 
+    def lower_shape_func(self, source_func, target=None):
+        key = _get_cache_key(source_func, target)
+        return _backend._CompileEngineLowerShapeFunc(self, key)
+
     def jit(self, source_func, target=None):
         """JIT a source_func to a tvm.Function.
 
@@ -112,8 +116,8 @@ class CompileEngine(NodeBase):
 
         Returns
         -------
-        cached_func: CachedFunc
-            The result of lowering.
+        jited_func: tvm.Function
+            The result of jited function.
         """
         key = _get_cache_key(source_func, target)
         return _backend._CompileEngineJIT(self, key)

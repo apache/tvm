@@ -68,7 +68,7 @@ class ModuleNode : public RelayNode {
 
   ModuleNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
@@ -76,7 +76,8 @@ class ModuleNode : public RelayNode {
   }
 
   TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs,
-                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs);
+                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
+                             std::unordered_set<std::string> imports = {});
 
   /*!
    * \brief Add a function to the global environment.
@@ -144,6 +145,13 @@ class ModuleNode : public RelayNode {
   TVM_DLL bool ContainGlobalVar(const std::string& name) const;
 
   /*!
+   * \brief Check if the global_type_var_map_ contains a global type variable.
+   * \param name The variable name.
+   * \returns true if contains, otherise false.
+   */
+  TVM_DLL bool ContainGlobalTypeVar(const std::string& name) const;
+
+  /*!
    * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
@@ -198,13 +206,6 @@ class ModuleNode : public RelayNode {
   TVM_DLL TypeData LookupDef(const std::string& var) const;
 
   /*!
-   * \brief Check if a global type definition exists
-   * \param var The name of the global type definition.
-   * \return Whether the definition exists.
-   */
-  TVM_DLL bool HasDef(const std::string& var) const;
-
-  /*!
    * \brief Look up a constructor by its tag.
    * \param tag The tag for the constructor.
    * \return The constructor object.
@@ -235,6 +236,11 @@ class ModuleNode : public RelayNode {
    */
   TVM_DLL void ImportFromStd(const std::string& path);
 
+  /*!
+   * \brief The set of imported files.
+   */
+  TVM_DLL std::unordered_set<std::string> Imports() const;
+
   /*! \brief Construct a module from a standalone expression.
    *
    * Allows one to optionally pass a global function map and
@@ -252,7 +258,7 @@ class ModuleNode : public RelayNode {
     const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   static constexpr const char* _type_key = "relay.Module";
-  TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
 
  private:
   /*! \brief Helper function for registering a typedef's constructors */
@@ -279,12 +285,12 @@ class ModuleNode : public RelayNode {
   std::unordered_set<std::string> import_set_;
 };
 
-struct Module : public NodeRef {
+struct Module : public ObjectRef {
   Module() {}
-  explicit Module(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Module(ObjectPtr<::tvm::Object> p) : ObjectRef(p) {}
 
-  inline ModuleNode* operator->() const {
-    return static_cast<ModuleNode*>(node_.get());
+  ModuleNode* operator->() const {
+    return static_cast<ModuleNode*>(get_mutable());
   }
 
   using ContainerType = ModuleNode;

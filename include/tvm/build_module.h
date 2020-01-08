@@ -39,7 +39,7 @@ namespace tvm {
 * \brief Container for target device information.
 *   Use target::llvm, target::cuda etc functions instead of constructing directly.
 */
-class TargetNode : public Node {
+class TargetNode : public Object {
  public:
   /*! \brief The name of the target device */
   std::string target_name;
@@ -61,7 +61,7 @@ class TargetNode : public Node {
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("target_name", &target_name);
     v->Visit("device_name", &device_name);
     v->Visit("device_type", &device_type);
@@ -82,7 +82,7 @@ class TargetNode : public Node {
   TVM_DLL std::unordered_set<std::string> libs() const;
 
   static constexpr const char* _type_key = "Target";
-  TVM_DECLARE_NODE_TYPE_INFO(TargetNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
 
  private:
   /*! \brief Internal string repr. */
@@ -90,10 +90,10 @@ class TargetNode : public Node {
 };
 
 /*! \brief reference cpass to the target. */
-class Target : public NodeRef {
+class Target : public ObjectRef {
  public:
   Target() {}
-  explicit Target(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Target(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
   * \brief Create a Target given a string
   * \param target_str the string to parse
@@ -110,7 +110,7 @@ class Target : public NodeRef {
   TVM_DLL static tvm::Target Current(bool allow_not_defined = true);
 
   const TargetNode* operator->() const {
-      return static_cast<const TargetNode*>(node_.get());
+      return static_cast<const TargetNode*>(get());
   }
 
   using ContainerType = TargetNode;
@@ -170,12 +170,15 @@ TVM_DLL Target intel_graphics(const std::vector<std::string>& options =
 TVM_DLL Target stackvm(const std::vector<std::string>& options =
                       std::vector<std::string>());
 
+/*! \return A target for external device */
+TVM_DLL Target ext_dev(const std::vector<std::string>& options =
+                   std::vector<std::string>());
 }  // namespace target
 
 /*!
  * \brief Container for build configuration options
  */
-class BuildConfigNode : public Node {
+class BuildConfigNode : public Object {
  public:
   /*!
    * \brief The data alignment to use when constructing buffers. If this is set to
@@ -229,7 +232,10 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to disable loop vectorization. */
   bool disable_vectorize = false;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  /*! \brief Whether to disable assert stmt generation. */
+  bool disable_assert = false;
+
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
     v->Visit("double_buffer_split_loop", &double_buffer_split_loop);
@@ -244,24 +250,25 @@ class BuildConfigNode : public Node {
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
     v->Visit("disable_select_rewriting", &disable_select_rewriting);
     v->Visit("disable_vectorize", &disable_vectorize);
+    v->Visit("disable_assert", &disable_assert);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
-  TVM_DECLARE_NODE_TYPE_INFO(BuildConfigNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BuildConfigNode, Object);
 };
 
 /*!
  * \brief Build configuration for compilations.
  */
-class BuildConfig : public ::tvm::NodeRef {
+class BuildConfig : public ::tvm::ObjectRef {
  public:
   BuildConfig() {}
-  explicit BuildConfig(NodePtr<::tvm::Node> n) : NodeRef(n) {}
+  explicit BuildConfig(ObjectPtr<Object> n) : ObjectRef(n) {}
   const BuildConfigNode* operator->() const {
-    return static_cast<const BuildConfigNode*>(node_.get());
+    return static_cast<const BuildConfigNode*>(get());
   }
   BuildConfigNode* operator->() {
-    return static_cast<BuildConfigNode*>(node_.get());
+    return static_cast<BuildConfigNode*>(get_mutable());
   }
   /*!
    * \brief Construct a BuildConfig containing a empty build config node.
@@ -368,10 +375,10 @@ class GenericFuncNode;
 /*!
  * \brief Generic function that can be specialized on a per-target basis.
  */
-class GenericFunc : public NodeRef {
+class GenericFunc : public ObjectRef {
  public:
   GenericFunc() {}
-  explicit GenericFunc(NodePtr<Node> n) : NodeRef(n) {}
+  explicit GenericFunc(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*!
    * \brief Set the default function implementaiton.
@@ -464,7 +471,7 @@ inline runtime::TVMRetValue GenericFunc::operator()(Args&& ...args) const {
 /*!
  * \brief Represents a generic function that can be specialized on a per-target basis.
  */
-class GenericFuncNode : public Node {
+class GenericFuncNode : public Object {
  public:
   /*! \brief name of the function */
   std::string name_;
@@ -473,15 +480,17 @@ class GenericFuncNode : public Node {
   /* \brief map from keys to registered functions */
   std::unordered_map<std::string, runtime::PackedFunc> dispatch_dict_;
 
+  void VisitAttrs(AttrVisitor* v) {}
+
   static constexpr const char* _type_key = "GenericFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(GenericFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(GenericFuncNode, Object);
 };
 
 inline GenericFuncNode* GenericFunc::operator->() {
-  return static_cast<GenericFuncNode*>(node_.get());
+  return static_cast<GenericFuncNode*>(get_mutable());
 }
 
-#define TVM_GENERIC_FUNC_REG_VAR_DEF                               \
+#define TVM_GENERIC_FUNC_REG_VAR_DEF                            \
   static TVM_ATTRIBUTE_UNUSED ::tvm::GenericFunc& __mk_ ## TVM
 
 /*!

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief gotvm package source for TVMFunction interface.
  * \file function.go
  */

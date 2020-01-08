@@ -69,6 +69,7 @@ List of operators
    topi.nn.conv2d_hwcn
    topi.nn.depthwise_conv2d_nchw
    topi.nn.depthwise_conv2d_nhwc
+   topi.nn.fifo_buffer
    topi.max
    topi.sum
    topi.min
@@ -91,6 +92,7 @@ List of operators
    topi.greater_equal
    topi.less_equal
    topi.all
+   topi.any
    topi.logical_and
    topi.logical_or
    topi.logical_not
@@ -151,6 +153,7 @@ topi
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
 .. autofunction:: topi.all
+.. autofunction:: topi.any
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min
@@ -160,7 +163,9 @@ topi
 .. autofunction:: topi.subtract
 .. autofunction:: topi.multiply
 .. autofunction:: topi.divide
+.. autofunction:: topi.floor_divide
 .. autofunction:: topi.mod
+.. autofunction:: topi.floor_mod
 .. autofunction:: topi.maximum
 .. autofunction:: topi.minimum
 .. autofunction:: topi.power
@@ -197,6 +202,7 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+.. autofunction:: topi.nn.fifo_buffer
 
 topi.image
 ~~~~~~~~~~

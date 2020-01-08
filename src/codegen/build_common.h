@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Common build utilities
  * \file build_common.h
  */
@@ -26,6 +25,7 @@
 #define TVM_CODEGEN_BUILD_COMMON_H_
 
 #include <tvm/codegen.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/ir.h>
 #include <unordered_map>
 #include <string>
@@ -40,7 +40,7 @@ ExtractFuncInfo(const Array<LoweredFunc>& funcs) {
   for (LoweredFunc f : funcs) {
     runtime::FunctionInfo info;
     for (size_t i = 0; i < f->args.size(); ++i) {
-      info.arg_types.push_back(Type2TVMType(f->args[i].type()));
+      info.arg_types.push_back(f->args[i].dtype());
     }
     for (size_t i = 0; i < f->thread_axis.size(); ++i) {
       info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);

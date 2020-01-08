@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file to_cps.cc
  *
@@ -90,10 +89,10 @@ Type CPSType(const Type& t, const TypeVar& answer) {
 }
 
 // transform global functions into cps form.
-using CPSMap = std::unordered_map<GlobalVar, GlobalVar, NodeHash, NodeEqual>;
+using CPSMap = std::unordered_map<GlobalVar, GlobalVar, ObjectHash, ObjectEqual>;
 
 // transform vars from the original program into new vars, so their type will be correct.
-using VarMap = std::unordered_map<Var, Var, NodeHash, NodeEqual>;
+using VarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
 
 /*
  * The meta continuation.
@@ -335,7 +334,7 @@ Function UnCPS(const Function& f) {
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
-    new_type_params.push_back(TypeVarNode::make(tp->var->name_hint, tp->kind));
+    new_type_params.push_back(TypeVarNode::make(tp->name_hint, tp->kind));
   }
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();
@@ -360,10 +359,10 @@ Function UnCPS(const Function& f) {
                             f->attrs);
 }
 
-TVM_REGISTER_API("relay._transform.to_cps")
+TVM_REGISTER_GLOBAL("relay._transform.to_cps")
 .set_body_typed(static_cast<Function (*)(const Function&, const Module&)>(ToCPS));
 
-TVM_REGISTER_API("relay._transform.un_cps")
+TVM_REGISTER_GLOBAL("relay._transform.un_cps")
 .set_body_typed(UnCPS);
 
 namespace transform {
@@ -376,7 +375,7 @@ Pass ToCPS() {
   return CreateFunctionPass(pass_func, 1, "ToCPS", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToCPS")
+TVM_REGISTER_GLOBAL("relay._transform.ToCPS")
 .set_body_typed(ToCPS);
 
 
@@ -388,7 +387,7 @@ Pass UnCPS() {
   return CreateFunctionPass(pass_func, 1, "UnCPS", {});
 }
 
-TVM_REGISTER_API("relay._transform.UnCPS")
+TVM_REGISTER_GLOBAL("relay._transform.UnCPS")
 .set_body_typed(UnCPS);
 
 }  // namespace transform

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,13 +18,13 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file canonicalize_ops.cc
  * \brief Canonicalize special operators to basic operators.
     This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/transform.h>
 #include "pattern_util.h"
@@ -34,10 +34,11 @@ namespace relay {
 
 class BiasAddSimplifier : public ExprMutator {
  public:
+  BiasAddSimplifier() : bias_add_op_(Op::Get("nn.bias_add")) {}
+
   Expr VisitExpr_(const CallNode* n) {
-    static const Op& bias_add = Op::Get("nn.bias_add");
     auto new_n = ExprMutator::VisitExpr_(n);
-    if (n->op.same_as(bias_add)) {
+    if (n->op == bias_add_op_) {
       Call call = Downcast<Call>(new_n);
       CHECK_EQ(call->args.size(), 2);
       const BiasAddAttrs* param = call->attrs.as<BiasAddAttrs>();
@@ -55,6 +56,10 @@ class BiasAddSimplifier : public ExprMutator {
     }
     return new_n;
   }
+
+ private:
+  // Cache the bias_add for equivalence checking.
+  const Op& bias_add_op_;
 };
 
 Expr CanonicalizeOps(const Expr& e) {
@@ -72,7 +77,7 @@ Pass CanonicalizeOps() {
                             {ir::StringImm::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CanonicalizeOps")
+TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps")
 .set_body_typed(CanonicalizeOps);
 
 }  // namespace transform

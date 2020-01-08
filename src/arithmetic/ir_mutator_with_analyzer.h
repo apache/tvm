@@ -24,9 +24,9 @@
 #ifndef TVM_ARITHMETIC_IR_MUTATOR_WITH_ANALYZER_H_
 #define TVM_ARITHMETIC_IR_MUTATOR_WITH_ANALYZER_H_
 
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-
+#include <utility>
 
 namespace tvm {
 namespace arith {
@@ -40,23 +40,24 @@ namespace arith {
  *
  * \sa src/arithmetic/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public ir::IRMutator {
+class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
  public:
   explicit IRMutatorWithAnalyzer(Analyzer* analyzer)
       : analyzer_(analyzer) {}
 
-  using IRMutator::Mutate_;
+  using StmtExprMutator::VisitStmt_;
+  using StmtExprMutator::VisitExpr_;
 
   // override functions that need to populate the context information.
-  Stmt Mutate_(const ir::For* op, const Stmt& self) override;
-  Stmt Mutate_(const ir::LetStmt* op, const Stmt& self) override;
-  Stmt Mutate_(const ir::IfThenElse* op, const Stmt& self) override;
-  Stmt Mutate_(const ir::AttrStmt* op, const Stmt& self) override;
-  Stmt Mutate_(const ir::AssertStmt* op, const Stmt& self) override;
-  Expr Mutate_(const ir::Let* op, const Expr& self) override;
-  Expr Mutate_(const ir::Select* op, const Expr& self) override;
-  Expr Mutate_(const ir::Call* op, const Expr& self) override;
-  Expr Mutate_(const ir::Reduce* op, const Expr& self) override;
+  Stmt VisitStmt_(const ir::For* op) override;
+  Stmt VisitStmt_(const ir::LetStmt* op) override;
+  Stmt VisitStmt_(const ir::IfThenElse* op) override;
+  Stmt VisitStmt_(const ir::AttrStmt* op) override;
+  Stmt VisitStmt_(const ir::AssertStmt* op) override;
+  Expr VisitExpr_(const ir::Let* op) override;
+  Expr VisitExpr_(const ir::Select* op) override;
+  Expr VisitExpr_(const ir::Call* op) override;
+  Expr VisitExpr_(const ir::Reduce* op) override;
 
  protected:
   /*! \brief internal analyzer field. */

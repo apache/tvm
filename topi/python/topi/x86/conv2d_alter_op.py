@@ -28,6 +28,7 @@ from ..util import get_const_tuple, get_shape
 from ..nn import conv2d_legalize
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_NCHWc_int8, conv2d_alter_layout
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
+from ..nn.util import get_pad_tuple
 
 logger = logging.getLogger('topi')
 
@@ -39,7 +40,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     out_dtype = attrs["out_dtype"]
-    layout_name = 'layout' if F.__name__ == 'nnvm.symbol' else 'data_layout'
+    layout_name = 'data_layout'
     data_layout = attrs[layout_name]
     kh, kw = attrs.get_int_tuple("kernel_size")
 
@@ -109,9 +110,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
             [new_data, new_kernel, strides, padding, dilation, new_attrs[layout_name],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
         dispatch_ctx.update(target, new_workload, cfg)
-        if F.__name__ == 'nnvm.symbol':
-            logging.warning("Use native layout for depthwise convolution on NNVM.")
-            return None
+
         return F.nn.contrib_depthwise_conv2d_nchwc(*copy_inputs, **new_attrs)
 
     if _is_int8_hw_support(data_dtype, kernel_dtype):
@@ -153,9 +152,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
                                                       out_dtype],
                                                      conv2d_NCHWc_int8)
         dispatch_ctx.update(target, new_workload, cfg)
-        if F.__name__ == 'nnvm.symbol':
-            logging.warning("Use native layout for int8 convolution on NNVM.")
-            return None
         return F.nn.contrib_conv2d_nchwc_int8(*copy_inputs, **new_attrs)
 
     # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
@@ -168,8 +164,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
          new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
     dispatch_ctx.update(target, new_workload, cfg)
 
-    if F.__name__ == 'nnvm.symbol':
-        return F.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
     return F.nn.contrib_conv2d_nchwc(*copy_inputs, **new_attrs)
 
 
@@ -192,23 +186,78 @@ def _conv2d_legalize(attrs, inputs, arg_types):
         The legalized expr
     """
 
+    # Dilation not supported yet. Return None if dilation is not (1, 1)
+    dilation = attrs.get_int_tuple("dilation")
+    if not (dilation[0] == 1 and dilation[1] == 1):
+        return None
+
+    # No legalization for depthwise convolutions yet.
+    groups = attrs.get_int("groups")
+    if groups != 1:
+        return None
+
     # Collect the input tensors.
     data_tensor, kernel_tensor = arg_types[0], arg_types[1]
+    data_dtype = data_tensor.dtype
+    kernel_dtype = kernel_tensor.dtype
 
     # Collect the output tensor.
     output_tensor = arg_types[2]
+
+    # Collect the input exprs.
+    data, kernel = inputs
+
+    # Get the conv attrs
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    is_int8_inputs = False
+    # If both the inputs are int8, we can add 128 to make the input dtype uint8, and then adjust the
+    # output. This will help picking up Intel VNNI instructions.
+    # Original --> C = A (conv) B
+    # A and B are int8
+    #   C = (A + 128 - 128) (conv) B
+    #   C = (A' conv B) - 128 (conv) B
+    # where A' = A + 128
+    # and 128 (conv) B is basically a reduce on CRS axis for weights.
+    if data_tensor.dtype == 'int8' and kernel_tensor.dtype == 'int8':
+        is_int8_inputs = True
+        padding = attrs.get_int_tuple("padding")
+        kh, kw = attrs.get_int_tuple("kernel_size")
+        pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
+
+        if attrs['data_layout'] == 'NHWC' and attrs['kernel_layout'] == 'HWIO':
+            adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(0, 1, 2))
+            pad_width = ((0, 0), (pt, pb), (pl, pr), (0, 0))
+        elif attrs['data_layout'] == 'NCHW' and attrs['kernel_layout'] == 'OIHW':
+            pad_width = ((0, 0), (0, 0), (pt, pb), (pl, pr))
+            adjust_shift = relay.sum(relay.cast(kernel, dtype='int32'), axis=(1, 2, 3))
+            adjust_shift = relay.expand_dims(adjust_shift, axis=1, num_newaxis=2)
+        else:
+            return None
+
+        data = relay.cast(data, 'int32')
+        data = relay.add(data, relay.const(128, 'int32'))
+        data = relay.cast(data, 'uint8')
+
+        # Do external padding as pad value has to be 128.
+        if not (padding[0] == 0 and padding[1] == 0):
+            data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
+        new_attrs['padding'] = (0, 0)
+
+        # The data type is now shifted to uint8
+        data_dtype = 'uint8'
+
+        # Multiply 128 to adjust shift.
+        adjust_shift = relay.multiply(adjust_shift, relay.const(128, 'int32'))
 
     # Legalize if the datatypes are suitable for fast Int8 instructions.  Int8 instructions require
     # input channel to be a multiple of 4 and output channels to be a multiple of 16. For input
     # channels, we pad both the inputs and weights input channels. For output channels, we pad the
     # weight and stride_slice the output.
-    if _is_int8_hw_support(data_tensor.dtype, kernel_tensor.dtype):
+    if _is_int8_hw_support(data_dtype, kernel_dtype):
         # Flags to remember if the expr is modified
         ic_modified = False
         oc_modified = False
-
-        # Collect the input exprs.
-        data, kernel = inputs
 
         # Find the value of input and output channel.
         in_channel = -1
@@ -250,16 +299,16 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             else:
                 return None
 
-        if not (ic_modified or oc_modified):
-            return None
-
-        if ic_modified and not oc_modified:
-            return relay.nn.conv2d(data, kernel, **attrs)
-
         if oc_modified:
-            new_attrs = {k: attrs[k] for k in attrs.keys()}
             new_attrs['channels'] = new_out_channel
             out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
             original_out_shape = [x.value for x in output_tensor.shape]
-            return relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+            out = relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+        else:
+            out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+        if is_int8_inputs:
+            out = relay.subtract(out, adjust_shift)
+
+        return out
     return None

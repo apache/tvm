@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sgx_module.cc
  * \brief SGX enclave module.
  */

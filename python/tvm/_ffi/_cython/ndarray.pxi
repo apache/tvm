@@ -68,6 +68,11 @@ cdef class NDArrayBase:
         def __set__(self, value):
             self._set_handle(value)
 
+    @property
+    def shape(self):
+        """Shape of this array"""
+        return tuple(self.chandle.shape[i] for i in range(self.chandle.ndim))
+
     def __init__(self, handle, is_view):
         self._set_handle(handle)
         self.c_is_view = is_view
@@ -75,6 +80,11 @@ cdef class NDArrayBase:
     def __dealloc__(self):
         if self.c_is_view == 0:
             CALL(TVMArrayFree(self.chandle))
+
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        CALL(TVMArrayCopyFromTo(self.chandle, (<NDArrayBase>target_nd).chandle, NULL))
+        return target_nd
 
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
@@ -90,17 +100,34 @@ cdef class NDArrayBase:
         return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, _c_dlpack_deleter)
 
 
+# Import limited object-related function from C++ side to improve the speed
+# NOTE: can only use POD-C compatible object in FFI.
+cdef extern from "tvm/runtime/ndarray.h" namespace "tvm::runtime":
+    cdef void* TVMArrayHandleToObjectHandle(DLTensorHandle handle)
+
+
 cdef c_make_array(void* chandle, is_view, is_container):
     global _TVM_ND_CLS
-    cdef int32_t array_type_info
-    fcreate = _CLASS_NDARRAY
-    if is_container and len(_TVM_ND_CLS) > 0:
-        array_type_info = (<TVMNDArrayContainerHandle>chandle).array_type_info
-        if array_type_info > 0:
-            fcreate = _TVM_ND_CLS[array_type_info]
-    ret = fcreate(None, is_view)
-    (<NDArrayBase>ret).chandle = <DLTensor*>chandle
-    return ret
+
+    if is_container:
+        tindex = (
+            <TVMObject*>TVMArrayHandleToObjectHandle(<DLTensorHandle>chandle)).type_index_
+        if tindex < len(_TVM_ND_CLS):
+            cls = _TVM_ND_CLS[tindex]
+            if cls is not None:
+                ret = cls.__new__(cls)
+            else:
+                ret = _CLASS_NDARRAY.__new__(_CLASS_NDARRAY)
+        else:
+            ret = _CLASS_NDARRAY.__new__(_CLASS_NDARRAY)
+        (<NDArrayBase>ret).chandle = <DLTensor*>chandle
+        (<NDArrayBase>ret).c_is_view = <int>is_view
+        return ret
+    else:
+        ret = _CLASS_NDARRAY.__new__(_CLASS_NDARRAY)
+        (<NDArrayBase>ret).chandle = <DLTensor*>chandle
+        (<NDArrayBase>ret).c_is_view = <int>is_view
+        return ret
 
 
 cdef _TVM_COMPATS = ()
@@ -113,11 +140,16 @@ def _reg_extension(cls, fcreate):
     if fcreate:
         _TVM_EXT_RET[cls._tvm_tcode] = fcreate
 
-cdef _TVM_ND_CLS = {}
+cdef list _TVM_ND_CLS = []
 
-def _reg_ndarray(cls, fcreate):
+cdef _register_ndarray(int index, object cls):
+    """register object class"""
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_code] = fcreate
+    while len(_TVM_ND_CLS) <= index:
+        _TVM_ND_CLS.append(None)
+
+    _TVM_ND_CLS[index] = cls
+
 
 def _make_array(handle, is_view, is_container):
     cdef unsigned long long ptr

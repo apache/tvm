@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file ir_builder.h
  * \brief Utility for building SPIRV code block
  */
@@ -99,7 +98,7 @@ class CodeGenSPIRV:
   void VisitStmt_(const AttrStmt* op) override;
   void VisitStmt_(const AssertStmt* op) override;
   void VisitStmt_(const LetStmt* op) override;
-  void VisitStmt_(const Block* op) override;
+  void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const Evaluate* op) override;
   void VisitStmt_(const ProducerConsumer* op) override;
 
@@ -113,10 +112,10 @@ class CodeGenSPIRV:
     /*! \brief Whether it is volatile */
     bool content_fixed{false};
     /*! \brief Current content type */
-    Type content_type{Handle()};
+    DataType content_type{DataType::Handle()};
 
     // Update content type if it hasn't beenupdated.
-    void UpdateContentType(Type type) {
+    void UpdateContentType(DataType type) {
       if (content_fixed) {
         CHECK_EQ(type, content_type)
             << "Cannot use two different content type in GLSL model";

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file print_graph_ir.cc
  * \brief Print the graph IR in LLVM style human readable format.
  */

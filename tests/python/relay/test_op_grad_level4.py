@@ -29,17 +29,20 @@ def test_sum_grad():
     verify_sum_grad((4, 2))
     verify_sum_grad((4, 2), axis=-1, keepdims=True)
     verify_sum_grad((4, 2, 1), axis=(1, 2), exclude=True)
+    verify_sum_grad((4, 2, 1), axis=1)
+
+
+def verify_max_grad(d_shape, axis=None, keepdims=False, exclude=False):
+    data = relay.var("data", relay.TensorType(d_shape, "float32"))
+    fwd_func = relay.Function([data], relay.max(data, axis=axis, keepdims=keepdims, exclude=exclude))
+    check_grad(fwd_func, scale=1e-3)
 
 
 def test_max_grad():
-    s = (10, 10)
-    t = relay.TensorType(s)
-    x = relay.var("x", t)
-    axis = 0
-    z = relay.max(x, axis)
-
-    fwd_func = relay.Function([x], z)
-    check_grad(fwd_func, scale=1e-3)
+    verify_max_grad((10, 10), axis=None)
+    verify_max_grad((10, 10), axis=-1)
+    verify_max_grad((6, 3, 2), axis=(1, 2), keepdims=True)
+    verify_max_grad((5, 4, 3), axis=(0, 2), exclude=True)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tcl_socket.cc
  */
 #include <string>
@@ -43,7 +42,8 @@ void TclSocket::Connect(tvm::common::SockAddr addr) {
 }
 
 void TclSocket::SendCommand() {
-  cmd_builder_ << kCommandTerminateToken;
+  const char terminate_token = kCommandTerminateToken;
+  cmd_builder_ << terminate_token;
   std::string full_cmd = cmd_builder_.str();
   CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
     << "failed to send command";
@@ -64,9 +64,9 @@ void TclSocket::SendCommand() {
       last_read = reply_buf_[bytes_read - 1];
     } while (bytes_read == kReplyBufSize - 1);
     CHECK(bytes_read != -1) << "failed to read command reply";
-  } while (last_read != kCommandTerminateToken);
+  } while (last_read != terminate_token);
   last_reply_ = reply_builder_.str();
-  CHECK_EQ(last_reply_[last_reply_.length()-1], kCommandTerminateToken)
+  CHECK_EQ(last_reply_[last_reply_.length()-1], terminate_token)
     << "missing command terminator";
 }
 

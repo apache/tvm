@@ -24,6 +24,8 @@
 #ifndef TVM_RELAY_OP_H_
 #define TVM_RELAY_OP_H_
 
+#include <dmlc/registry.h>
+
 #include <functional>
 #include <limits>
 #include <string>
@@ -82,7 +84,7 @@ class OpNode : public relay::ExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);
@@ -104,7 +106,7 @@ class OpNode : public relay::ExprNode {
   }
 
   static constexpr const char* _type_key = "relay.Op";
-  TVM_DECLARE_NODE_TYPE_INFO(OpNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, ExprNode);
 
  private:
   // friend class
@@ -138,7 +140,7 @@ class Op : public relay::Expr {
   /*! \brief default constructor  */
   Op() {}
   /*! \brief constructor from node pointer */
-  explicit Op(NodePtr<Node> n) : Expr(n) {}
+  explicit Op(ObjectPtr<Object> n) : Expr(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -221,11 +223,12 @@ class OpRegistry {
                                     const Attrs&,
                                     const TypeReporter&)> type_rel_func);
   /*!
-   * \brief Set the type key of attributes.
-   * \param type_key The type of of the attrs field.
+   * \brief Set the the attrs type key and index to be AttrsType.
+   * \tparam AttrsType the attribute type to b set.
    * \return reference to self.
    */
-  inline OpRegistry& set_attrs_type_key(const std::string& type_key);
+  template<typename AttrsType>
+  inline OpRegistry& set_attrs_type();
   /*!
    * \brief Set the num_inputs
    * \param n The number of inputs to be set.
@@ -254,6 +257,12 @@ class OpRegistry {
   template <typename ValueType>
   inline OpRegistry& set_attr(const std::string& attr_name,  // NOLINT(*)
                               const ValueType& value, int plevel = 10);
+
+  /*!
+   * \brief Resets an attr of the registry.
+   * \param attr_name The name of the attribute.
+   */
+  inline void reset_attr(const std::string& attr_name);
 
   // set the name of the op to be the same as registry
   inline OpRegistry& set_name() {  // NOLINT(*)
@@ -397,7 +406,7 @@ class OpMap {
 
 // implementations
 inline const OpNode* Op::operator->() const {
-  return static_cast<const OpNode*>(node_.get());
+  return static_cast<const OpNode*>(get());
 }
 
 template <typename ValueType>
@@ -422,7 +431,7 @@ inline OpRegistry& OpRegistry::describe(
 inline OpRegistry& OpRegistry::add_argument(const std::string& name,
                                             const std::string& type,
                                             const std::string& description) {
-  auto n = make_node<AttrFieldInfoNode>();
+  auto n = make_object<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;
@@ -496,10 +505,10 @@ inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline OpRegistry& OpRegistry::set_attrs_type_key(  // NOLINT(*)
-    const std::string& type_key) {
-  get()->attrs_type_key = type_key;
-  get()->attrs_type_index = Node::TypeKey2Index(type_key.c_str());
+template<typename AttrsType>
+inline OpRegistry& OpRegistry::set_attrs_type() {  // NOLINT(*)
+  get()->attrs_type_key = AttrsType::_type_key;
+  get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
   return *this;
 }
 
@@ -585,12 +594,11 @@ inline ValueType OpMap<ValueType>::get(const Expr& expr,
   return map_.get<ValueType>(expr, def_value);
 }
 
-
 /*!
- * \brief Check that an expression is a "primtive operator".
+ * \brief Check that an expression is a "primitive operator".
  *
  * Will return true if the expression is an operator which
- * matches the form of primtive operators registered directly
+ * matches the form of primitive operators registered directly
  * by the Relay codebase.
  *
  * That is the arguments are all type variables, and there is a single

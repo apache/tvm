@@ -31,6 +31,6 @@ def compute_resize(attrs, inputs, out_type, target):
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
-    align_corners = attrs.align_corners
+    coord_trans = attrs.coordinate_transformation_mode
     out_dtype = attrs.out_dtype
-    return [topi.image.resize(inputs[0], size, layout, method, align_corners, out_dtype)]
+    return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]

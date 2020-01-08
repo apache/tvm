@@ -19,15 +19,27 @@
 import tvm
 
 
-def dot_16x1x16_int8_int8_int32():
+def dot_16x1x16_uint8_int8_int32():
+    """Dispatch the most optimized intrin depending on the target"""
+    mcpu = tvm.target.current_target().mcpu
+
+    assert mcpu in ("skylake-avx512", "cascadelake"), \
+            "An old Intel machine that does not have fast Int8 support."
+    if mcpu == "skylake-avx512":
+        return dot_16x1x16_uint8_int8_int32_skylake()
+    # cascadelake
+    return dot_16x1x16_uint8_int8_int32_cascadelake()
+
+
+def dot_16x1x16_uint8_int8_int32_skylake():
     """
     Int8 dot product by every 4 elements using AVX512 Skylake instructions.
-    This function takes two arrays of int8 datatype -- data[4] and
+    This function takes two arrays of uint8 and int8 datatype -- data[4] and
     kernel[16][4] -- and computes a dot product of data[4] with every
     4 elements of kernels, resulting in output[16] of int32 datatype.
     The pseudo code is as follows.
     .. code-block:: c
-        void dot_16x1x16_int8_int8_int32(int8 data[4], int8 kernel[16][4],
+        void dot_16x1x16_uint8_int8_int32(uint8 data[4], int8 kernel[16][4],
                 int32 output[16]){
             for (int i = 0; i < 16; i++){
                 output[i] = 0;
@@ -100,15 +112,15 @@ def dot_16x1x16_int8_int8_int32():
         return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
-def dot_16x1x16_int8_int8_int16():
+def dot_16x1x16_uint8_int8_int16():
     """
     Int8 dot product by every 2 elements using AVX512 Skylake instructions.
-    This function takes two arrays of int8 datatype -- data[2] and
+    This function takes two arrays of uint8 and int8 datatype -- data[2] and
     kernel[4][32][2] -- and computes a dot product of data[2] with every
     2 elements of kernels, resulting in output[4][32] of int16 datatype.
     The pseudo code is as follows.
     .. code-block:: c
-        void dot_16x1x16_int8_int8_int16(int8 data[2], int8 kernel[32*4][2],
+        void dot_16x1x16_uint8_int8_int16(uint8 data[2], int8 kernel[32*4][2],
                 int16 output[32*4]){
             for (int i = 0; i< 4; i++){
                 for (int j = 0; j < 32; j++){
@@ -182,15 +194,15 @@ def dot_16x1x16_int8_int8_int16():
         return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
-def dot_16x1x16_int8_int8_int32_vnni():
+def dot_16x1x16_uint8_int8_int32_cascadelake():
     """
     Int8 dot product by every 4 elements using AVX512VNNI Cascade Lake instructions.
-    This function takes two arrays of int8 datatype -- data[4] and
+    This function takes two arrays of uint8 and int8 datatype -- data[4] and
     kernel[16][4] -- and computes a dot product of data[4] with every
     4 elements of kernels, resulting in output[16] of int32 datatype.
     The pseudo code is as follows.
     .. code-block:: c
-        void dot_16x1x16_int8_int8_int32_vnni(int8 data[4], int8 kernel[16][4],
+        void dot_16x1x16_uint8_int8_int32_cascadelake(uint8 data[4], int8 kernel[16][4],
                 int32 output[16]){
             for (int i = 0; i < 16; i++){
                 output[i] = 0;

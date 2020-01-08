@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ir_deep_compare.cc
  */
 #include <tvm/ir_pass.h>
@@ -64,7 +63,7 @@ class IRDeepCompare :
     if (order_ != 0) return;
     if (n.same_as(other)) return;
     if (CompareValue(n->type_index(), other->type_index()) != 0) return;
-    if (CompareType(n.type(), other.type()) != 0) return;
+    if (CompareType(n.dtype(), other.dtype()) != 0) return;
     ExprComparator::VisitExpr(n, other);
   }
 
@@ -120,7 +119,7 @@ class IRDeepCompare :
     } else {
       if (CompareExpr(op->buffer_var, rhs->buffer_var) != 0) return;
     }
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareArray(op->extents, rhs->extents) != 0) return;
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
@@ -167,7 +166,7 @@ class IRDeepCompare :
     const Realize* rhs = other.as<Realize>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareRegion(op->bounds, rhs->bounds) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
@@ -176,14 +175,16 @@ class IRDeepCompare :
     const Prefetch* rhs = other.as<Prefetch>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
-    if (CompareType(op->type, rhs->type) != 0) return;
+    if (CompareType(op->dtype, rhs->dtype) != 0) return;
     if (CompareRegion(op->bounds, rhs->bounds) != 0) return;
   }
 
-  void VisitStmt_(const Block* op, const Stmt& other) final {
-    const Block* rhs = other.as<Block>();
-    if (CompareStmt(op->first, rhs->first) != 0) return;
-    if (CompareStmt(op->rest, rhs->rest) != 0) return;
+  void VisitStmt_(const SeqStmtNode* op, const Stmt& other) final {
+    const SeqStmtNode* rhs = other.as<SeqStmtNode>();
+    if (CompareValue(op->size(), rhs->size()) != 0) return;
+    for (size_t i = 0; i < op->size(); ++i) {
+      if (CompareStmt(op->seq[i], rhs->seq[i]) != 0) return;
+    }
   }
 
   void VisitStmt_(const Evaluate* op, const Stmt& other) final {
@@ -359,7 +360,7 @@ class IRDeepCompare :
     return order_;
   }
 
-  int CompareNodeRef(const NodeRef& lhs, const NodeRef& rhs) {
+  int CompareNodeRef(const ObjectRef& lhs, const ObjectRef& rhs) {
     if (order_ != 0) return order_;
     if (lhs.get() < rhs.get()) {
       order_ = -1; return order_;
@@ -370,7 +371,7 @@ class IRDeepCompare :
     return order_;
   }
 
-  int CompareType(const Type& lhs, const Type& rhs) {
+  int CompareType(const DataType& lhs, const DataType& rhs) {
     if (order_ != 0) return order_;
     if (lhs == rhs) return order_;
     if (CompareValue(lhs.code(), rhs.code()) != 0) return order_;

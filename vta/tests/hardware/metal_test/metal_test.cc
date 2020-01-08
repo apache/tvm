@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file metal_test.cpp
  * \brief Bare-metal test to test driver and VTA design.
  */

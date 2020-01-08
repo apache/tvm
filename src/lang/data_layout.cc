@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */
@@ -69,8 +68,7 @@ const LayoutAxis& LayoutAxis::make(const std::string& name) {
 }
 
 Layout::Layout(const Array<IterVar>& axes) {
-  node_ = make_node<LayoutNode>();
-  LayoutNode *node = operator->();
+  auto node = make_object<LayoutNode>();
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
@@ -85,13 +83,13 @@ Layout::Layout(const Array<IterVar>& axes) {
     repr << axis->var.get()->name_hint;
   }
   node->name = repr.str();
+  data_ = std::move(node);
 }
 
 Layout::Layout(const std::string& name) { // NOLINT(*)
   if (name == "__undef__") return;
 
-  node_ = make_node<LayoutNode>();
-  LayoutNode *node = operator->();
+  auto node = make_object<LayoutNode>();
   node->name = name;
 
   if (name.empty()) return;  // scalar
@@ -140,6 +138,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
                                       << std::toupper(axis);
     }
   }
+  data_ = std::move(node);
 }
 
 Layout LayoutNode::make(const std::string& layout) {
@@ -195,8 +194,9 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   return -1;
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<LayoutNode>([](const LayoutNode* l, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<LayoutNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* l = static_cast<const LayoutNode*>(node.get());
     p->stream << "Layout(" << l->name << ")";
   });
 
@@ -288,16 +288,22 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
   std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
+    if (orig_shape.as<ir::Any>()) {
+      symbolic_var_set.insert(i);
+    }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
         const auto* orig_shape_const = orig_shape.as<IntImm>();
         const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImm>();
-        CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
-          << "Input shape mismatch at index " << i << ". Expected "
-          << orig_axis->dom->extent << ", get " << orig_shape;
+        if (orig_shape_const) {
+          CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
+            << "Input shape mismatch at index " << i << ". Expected "
+            << orig_axis->dom->extent << ", get " << orig_shape;
+        }
       }
       bind_map[orig_axis->var.get()] = Expr(0);
     } else {
@@ -315,7 +321,11 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
     } else {
-      result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
+      if (symbolic_var_set.count(i)) {
+        result.push_back(ir::Any::make());
+      } else {
+        result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
+      }
     }
   }
   return result;
@@ -337,7 +347,7 @@ Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
 
 BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
                                           const Layout& dst_layout) {
-  auto n = make_node<BijectiveLayoutNode>();
+  auto n = make_object<BijectiveLayoutNode>();
 
   n->src_layout = src_layout;
   n->dst_layout = dst_layout;
@@ -351,8 +361,9 @@ BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
   return BijectiveLayout(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BijectiveLayoutNode>([](const BijectiveLayoutNode* b, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BijectiveLayoutNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* b = static_cast<const BijectiveLayoutNode*>(node.get());
     p->stream << "BijectiveLayout(" << b->src_layout.name()
               << "->" << b->dst_layout.name() << ")";
   });

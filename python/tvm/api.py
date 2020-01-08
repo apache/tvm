@@ -21,6 +21,7 @@ from __future__ import absolute_import as _abs
 from numbers import Integral as _Integral
 
 from ._ffi.base import string_types
+from ._ffi.object import register_object, Object
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.node_generic import _scalar_type_inference
@@ -178,7 +179,7 @@ def var(name="tindex", dtype=int32):
     name : str
         The name
 
-    dtype : int
+    dtype : str
         The data type
 
     Returns

@@ -17,7 +17,7 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 import tvm
 import numpy as np
-from topi.x86.tensor_intrin import dot_16x1x16_int8_int8_int16
+from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
 
 
 def benchmark_fc_int8_acc16():
@@ -40,7 +40,7 @@ def benchmark_fc_int8_acc16():
         ctx = tvm.context(target, 0)
         X = tvm.placeholder((m, k), name='X', dtype="uint8")
         W = tvm.placeholder((n, k), name='W', dtype="int8")
-        pc = dot_16x1x16_int8_int8_int16()
+        pc = dot_16x1x16_uint8_int8_int16()
         ak = tvm.reduce_axis((0, k), name='k')
 
         packedW = tvm.placeholder((n//128, 128*(k//2), 2), name='packedW', dtype="int8")

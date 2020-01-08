@@ -35,9 +35,10 @@ def schedule_bitserial_conv2d(cfg, outs):
         if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
-            for tensor in op.input_tensors and tensor.op not in scheduled_ops:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
-                    traverse(tensor.op)
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors and (tensor.op not in scheduled_ops):
+                    if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                        traverse(tensor.op)
 
         elif 'spatial_bitserial_conv_nchw' in op.tag or 'spatial_bitserial_conv_nhwc' in op.tag:
             conv_out = op.input_tensors[0]

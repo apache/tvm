@@ -362,7 +362,7 @@ def _convert_flatten(inexpr, keras_layer, _):
 def _convert_pooling(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     pool_type = type(keras_layer).__name__
-    # global pool in keras = global pool + flatten in nnvm/relay
+    # global pool in keras = global pool + flatten in relay
     if pool_type == 'GlobalMaxPooling2D':
         return _convert_flatten(_op.nn.global_max_pool2d(inexpr), keras_layer, etab)
     if pool_type == 'GlobalAveragePooling2D':
@@ -398,13 +398,14 @@ def _convert_upsample(inexpr, keras_layer, _):
     params = {}
     if upsample_type == 'UpSampling1D':
         h = keras_layer.size
-        params['scale'] = h
+        params['scale_h'] = h
     elif upsample_type == 'UpSampling2D':
         h, w = keras_layer.size
         if h != w:
             raise tvm.error.OpAttributeInvalid(
                 'Height must equal width for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
 
         if hasattr(keras_layer, 'interpolation'):
             interpolation = keras_layer.interpolation
@@ -418,7 +419,8 @@ def _convert_upsample(inexpr, keras_layer, _):
         if h != w or w != d:
             raise tvm.error.OpAttributeInvalid(
                 'Height, width, and depth must all be equal for operator Upsample.')
-        params['scale'] = h
+        params['scale_h'] = h
+        params['scale_w'] = h
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
@@ -458,6 +460,11 @@ def _convert_batchnorm(inexpr, keras_layer, etab):
     moving_var = keras_layer.get_weights()[idx + 1]
     params['moving_mean'] = etab.new_const(moving_mean)
     params['moving_var'] = etab.new_const(moving_var)
+    # in case beta or gamma is not defined
+    params['beta'] = etab.new_const(np.zeros(moving_mean.shape)) if \
+                     'beta' not in params else params['beta']
+    params['gamma'] = etab.new_const(np.ones(moving_mean.shape)) if \
+                      'gamma' not in params else params['gamma']
     result, moving_mean, moving_var = _op.nn.batch_norm(inexpr, **params)
     return result
 
@@ -653,6 +660,9 @@ _convert_map = {
     'Concatenate'              : _convert_concat,
     'BatchNormalization'       : _convert_batchnorm,
 
+    # Specific tf.Keras terminology for batch normalization
+    'BatchNormalizationV1'     : _convert_batchnorm,
+
     'Add'                      : _convert_merge,
     'Subtract'                 : _convert_merge,
     'Multiply'                 : _convert_merge,
@@ -735,7 +745,7 @@ def from_keras(model, shape=None):
 
     Parameters
     ----------
-    model : keras.engine.training.Model
+    model : keras.engine.training.Model or tensorflow.keras.models.Model
         The keras model to be converted.
 
     shape: dict of str to int list/tuple
@@ -749,25 +759,42 @@ def from_keras(model, shape=None):
     params : dict of str to tvm.NDArray
         The parameter dict to be used by Relay.
     """
-    try:
-        import keras
-    except ImportError:
-        raise ImportError('Keras must be installed')
-    assert isinstance(model, keras.engine.training.Model)
-    if keras.backend.backend() != 'tensorflow':
-        raise ValueError("Keras frontend currently supports tensorflow backend only.")
-    if keras.backend.image_data_format() != 'channels_last':
-        raise ValueError("Keras frontend currently supports data_format = channels_last only.")
-    _check_unsupported_layers(model)
+    def _check_model_is_tf_keras():
+        return type(model).__module__.startswith("tensorflow.python.keras")
 
     def _convert_input_layer(keras_layer):
         input_name = keras_layer.name
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
+    is_tf_keras = _check_model_is_tf_keras()
+
+    if not is_tf_keras:
+        # Importing from Keras
+        try:
+            import keras
+        except ImportError:
+            raise ImportError("Keras must be installed")
+        if keras.backend.backend() != 'tensorflow':
+            raise ValueError("Keras frontend currently supports tensorflow backend only.")
+        if keras.backend.image_data_format() != 'channels_last':
+            raise ValueError("Keras frontend currently supports data_format = channels_last only.")
+        expected_model_class = keras.engine.training.Model
+        input_layer_class = keras.engine.InputLayer
+    else:
+        # Importing from Tensorflow Keras (tf.keras)
+        try:
+            from tensorflow import keras as tf_keras
+        except ImportError:
+            raise ImportError("Tensorflow must be installed")
+        expected_model_class = tf_keras.models.Model
+        input_layer_class = tf_keras.layers.InputLayer
+
+    assert isinstance(model, expected_model_class)
+
     etab = ExprTable()
     for keras_layer in model.layers:
-        if isinstance(keras_layer, keras.engine.InputLayer):
+        if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
         else:
             inbound_nodes = keras_layer.inbound_nodes if hasattr(keras_layer, 'inbound_nodes') \
@@ -777,10 +804,13 @@ def from_keras(model, shape=None):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node_idx, node in enumerate(inbound_nodes):
-                # If some nodes in imported model is not relevant to the current model,
-                # skip such layers. model._network_nodes contains keys of all nodes relevant
-                # to the current model.
-                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                # If some nodes in imported model are not relevant to the current model,
+                # skip such layers.
+                # - In Keras, model._network_nodes contains keys of all nodes relevant to the
+                #   current model;
+                # - In tf.Keras, this is already done as part of tensorflow.keras.network.get_config
+                if not is_tf_keras and \
+                   not model._node_key(keras_layer, node_idx) in model._network_nodes:
                     continue
                 inexpr = []
                 # Since Keras allows creating multiple layers from the same name instance,
@@ -790,7 +820,7 @@ def from_keras(model, shape=None):
                 # they are named uniquely to input_1, input_2, input_3... by default.
                 zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
                 for n_idx, t_idx, inbound_layer in zip_node:
-                    if isinstance(inbound_layer, keras.engine.InputLayer):
+                    if isinstance(inbound_layer, input_layer_class):
                         expr_name = inbound_layer.name
                         _convert_input_layer(inbound_layer)
                     else:

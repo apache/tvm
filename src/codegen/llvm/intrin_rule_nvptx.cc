@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,15 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_nvptx.cc
  */
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <sstream>
 
 namespace tvm {
@@ -36,11 +37,11 @@ inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   using namespace ir;
   const Call* call = e.as<Call>();
   CHECK(call != nullptr);
-  CHECK(call->type.bits() == 32 || call->type.bits() == 64) << "Only support float32 or float64.";
+  CHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64) << "Only support float32 or float64.";
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << call->name;
-  if (call->type.bits() == 32) intrinsic_name << "f";
-  *rv = Call::make(call->type, intrinsic_name.str(), call->args,
+  if (call->dtype.bits() == 32) intrinsic_name << "f";
+  *rv = Call::make(call->dtype, intrinsic_name.str(), call->args,
                    Call::PureExtern);
 }
 

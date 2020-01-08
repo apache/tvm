@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file annotate.cc
  *
@@ -41,7 +40,7 @@ class QAnnotateExprNode : public TempExprNode {
   Expr expr;
   QAnnotateKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("expr", &expr);
     v->Visit("kind", &kind);
   }
@@ -51,10 +50,13 @@ class QAnnotateExprNode : public TempExprNode {
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QAnnotateExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QAnnotateExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QAnnotateExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
+class QAnnotateExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
+};
 
 
 Expr QAnnotateExprNode::Realize() const {
@@ -62,13 +64,13 @@ Expr QAnnotateExprNode::Realize() const {
 }
 
 QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
-  auto rnode = make_node<QAnnotateExprNode>();
+  auto rnode = make_object<QAnnotateExprNode>();
   rnode->expr = expr;
   rnode->kind = kind;
   return QAnnotateExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.make_annotate_expr")
+TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QAnnotateExprNode::make(args[0],
       static_cast<QAnnotateKind>(args[1].operator int()));
@@ -79,7 +81,7 @@ Pass QuantizeAnnotate() {
   // TODO(tvm-teams): since partition has added cast_hint in different
   // branches, try to remove this in the future.
   std::function<Expr(const Expr&)> fmulti_ref = [](const Expr& e) {
-    if (e->derived_from<TempExprNode>()) {
+    if (e->IsInstance<TempExprNode>()) {
       const auto* n = e.as<QAnnotateExprNode>();
       CHECK(n);
       const PackedFunc* f =
@@ -106,8 +108,10 @@ Pass QuantizeAnnotate() {
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate")
 .set_body_typed(QuantizeAnnotate);
+
+TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);
 
 }  // namespace quantize
 }  // namespace relay

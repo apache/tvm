@@ -129,7 +129,7 @@ def _darknet_shortcut(inputs, params, attrs, prefix):
 
     if input_0_size > input_1_size:
         scale = int(input_0_size/input_1_size)
-        input_1 = get_relay_op('upsampling')(input_1, scale=scale)
+        input_1 = get_relay_op('upsampling')(input_1, scale_h=scale, scale_w=scale)
 
     elif input_0_size < input_1_size:
         stride = int(input_1_size/input_0_size)
@@ -196,7 +196,8 @@ def _darknet_reshape(inputs, params, attrs, prefix):
 def _darknet_upsampling(inputs, params, attrs, prefix):
     """Process the upsampling operation."""
     new_attrs = {}
-    new_attrs['scale'] = attrs.get('scale', 1)
+    new_attrs['scale_h'] = attrs.get('scale', 1)
+    new_attrs['scale_w'] = attrs.get('scale', 1)
     return get_relay_op('upsampling')(*inputs, **new_attrs)
 
 def _darknet_l2normalize(inputs, params, attrs, prefix):

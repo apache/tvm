@@ -65,7 +65,7 @@ namespace tvm {
  */
 #define TVM_DECLARE_ATTRS(ClassName, TypeKey)                   \
   static constexpr const char* _type_key = TypeKey;             \
-  TVM_DECLARE_NODE_TYPE_INFO(ClassName, ::tvm::BaseAttrsNode)   \
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode)   \
   template<typename FVisit>                                     \
   void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
 
@@ -83,9 +83,9 @@ namespace tvm {
  * \tparam TNodeRef the type to be created.
  * \return A instance that will represent None.
  */
-template<typename TNodeRef>
-inline TNodeRef NullValue() {
-  return TNodeRef(NodePtr<Node>(nullptr));
+template<typename TObjectRef>
+inline TObjectRef NullValue() {
+  return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 
 template<>
@@ -106,7 +106,7 @@ struct AttrError : public dmlc::Error {
 /*!
  * \brief Information about attribute fields in string representations.
  */
-class AttrFieldInfoNode : public Node {
+class AttrFieldInfoNode : public Object {
  public:
   /*! \brief name of the field */
   std::string name;
@@ -115,17 +115,20 @@ class AttrFieldInfoNode : public Node {
   /*! \brief detailed description of the type */
   std::string description;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("type_info", &type_info);
     v->Visit("description", &description);
   }
   static constexpr const char* _type_key = "AttrFieldInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(AttrFieldInfoNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
 /*! \brief AttrFieldInfo */
-TVM_DEFINE_NODE_REF(AttrFieldInfo, AttrFieldInfoNode);
+class AttrFieldInfo : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
+};
 
 class AttrsHashHandler;
 class AttrsEqualHandler;
@@ -159,11 +162,11 @@ class AttrsEqual {
   bool operator()(const std::string& lhs, const std::string& rhs) const {
     return lhs == rhs;
   }
-  bool operator()(const Type& lhs, const Type& rhs) const {
+  bool operator()(const DataType& lhs, const DataType& rhs) const {
     return lhs == rhs;
   }
   // node comparator
-  TVM_DLL bool operator()(const NodeRef& lhs, const NodeRef& rhs) const;
+  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
 
  protected:
   friend class AttrsEqualHandler;
@@ -197,13 +200,13 @@ class AttrsHash {
   size_t operator()(const std::string& value) const {
     return std::hash<std::string>()(value);
   }
-  size_t operator()(const Type& value) const {
+  size_t operator()(const DataType& value) const {
     return std::hash<int>()(
         static_cast<int>(value.code()) |
         (static_cast<int>(value.bits()) << 8) |
         (static_cast<int>(value.lanes()) << 16));
   }
-  TVM_DLL size_t operator()(const NodeRef& value) const;
+  TVM_DLL size_t operator()(const ObjectRef& value) const;
 
  private:
   friend class AttrsHashHandler;
@@ -217,10 +220,12 @@ class AttrsHash {
  *       subclass AttrsNode instead.
  * \sa AttrsNode
  */
-class BaseAttrsNode : public Node {
+class BaseAttrsNode : public Object {
  public:
   using TVMArgs = runtime::TVMArgs;
   using TVMRetValue = runtime::TVMRetValue;
+  // visit function
+  virtual void VisitAttrs(AttrVisitor* v) {}
   /*!
    * \brief Initialize the attributes by sequence of arguments
    * \param args The postional arguments in the form
@@ -260,7 +265,7 @@ class BaseAttrsNode : public Node {
    * \return The comparison result.
    */
   TVM_DLL virtual bool ContentEqual(
-      const Node* other, AttrsEqual equal) const = 0;
+      const Object* other, AttrsEqual equal) const = 0;
   /*!
    * \brief Content aware hash.
    * \param hasher The hasher to run the hash.
@@ -269,16 +274,16 @@ class BaseAttrsNode : public Node {
   TVM_DLL virtual size_t ContentHash(AttrsHash hasher) const = 0;
 
   static constexpr const char* _type_key = "Attrs";
-  TVM_DECLARE_BASE_NODE_INFO(BaseAttrsNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
 /*! \brief Base attribute container for all attributes */
-class Attrs : public NodeRef {
+class Attrs : public ObjectRef {
  public:
   // normal constructor
   Attrs() {}
   // construct from shared ptr.
-  explicit Attrs(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Attrs(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*! \return The attribute node */
   const BaseAttrsNode* operator->() const {
@@ -290,7 +295,7 @@ class Attrs : public NodeRef {
  private:
   /*! \return the internal attribute node */
   const BaseAttrsNode* ptr() const {
-    return static_cast<const BaseAttrsNode*>(node_.get());
+    return static_cast<const BaseAttrsNode*>(get());
   }
 };
 
@@ -303,23 +308,23 @@ class Attrs : public NodeRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<std::string, NodeRef> dict;
+  Map<std::string, ObjectRef> dict;
   /*!
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    * \return The dict attributes.
    */
-  TVM_DLL static Attrs make(Map<std::string, NodeRef> dict);
+  TVM_DLL static Attrs make(Map<std::string, ObjectRef> dict);
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
-  bool ContentEqual(const Node* other, AttrsEqual equal) const final;
+  bool ContentEqual(const Object* other, AttrsEqual equal) const final;
   size_t ContentHash(AttrsHash hasher) const final;
   // type info
   static constexpr const char* _type_key = "DictAttrs";
-  TVM_DECLARE_NODE_TYPE_INFO(DictAttrsNode, BaseAttrsNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
 
@@ -369,7 +374,7 @@ class AttrsEqualVisitor {
  public:
   bool result_{true};
   // constructor
-  AttrsEqualVisitor(const Node* lhs, const Node* rhs, const AttrsEqual& equal)
+  AttrsEqualVisitor(const Object* lhs, const Object* rhs, const AttrsEqual& equal)
       : lhs_(lhs), rhs_(rhs), equal_(equal) {
   }
   template<typename T>
@@ -387,8 +392,8 @@ class AttrsEqualVisitor {
   }
 
  private:
-  const Node* lhs_;
-  const Node* rhs_;
+  const Object* lhs_;
+  const Object* rhs_;
   const AttrsEqual& equal_;
 };
 
@@ -488,7 +493,7 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
     } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
       *ptr = static_cast<T>(op->value);
     } else {
-      LOG(FATAL) << "Expect int value, but get " << expr->type_key();
+      LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
     }
   }
 }
@@ -504,8 +509,8 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   }
 }
 template<>
-inline void SetValue(Type* ptr, const TVMArgValue& val) {
-  *ptr = val.operator Type();
+inline void SetValue(DataType* ptr, const TVMArgValue& val) {
+  *ptr = val.operator DataType();
 }
 template<>
 inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
@@ -521,7 +526,7 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
     } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
       *ptr = static_cast<double>(op->value);
     } else {
-      LOG(FATAL) << "Expect float value, but get " << expr->type_key();
+      LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();
     }
   }
 }
@@ -609,7 +614,7 @@ struct TypeName<uint64_t> {
 };
 
 template<>
-struct TypeName<Type> {
+struct TypeName<DataType> {
   static constexpr const char* value = "Type";
 };
 
@@ -637,7 +642,7 @@ class AttrDocEntry {
  public:
   using TSelf = AttrDocEntry;
 
-  explicit AttrDocEntry(NodePtr<AttrFieldInfoNode> info)
+  explicit AttrDocEntry(ObjectPtr<AttrFieldInfoNode> info)
       : info_(info) {
   }
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
@@ -661,15 +666,15 @@ class AttrDocEntry {
   }
 
  private:
-  NodePtr<AttrFieldInfoNode> info_;
+  ObjectPtr<AttrFieldInfoNode> info_;
 };
 
 class AttrDocVisitor {
  public:
   template<typename T>
   AttrDocEntry operator()(const char* key, T* v) {
-    NodePtr<AttrFieldInfoNode> info
-        = make_node<AttrFieldInfoNode>();
+    ObjectPtr<AttrFieldInfoNode> info
+        = make_object<AttrFieldInfoNode>();
     info->name = key;
     info->type_info = TypeName<T>::value;
     fields_.push_back(AttrFieldInfo(info));
@@ -753,12 +758,12 @@ class AttrNonDefaultVisitor {
 template<typename DerivedType>
 class AttrsNode : public BaseAttrsNode {
  public:
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNormalVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
 
-  void VisitNonDefaultAttrs(AttrVisitor* v) final {
+  void VisitNonDefaultAttrs(AttrVisitor* v) {
     ::tvm::detail::AttrNonDefaultVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
@@ -827,7 +832,7 @@ class AttrsNode : public BaseAttrsNode {
     return visitor.fields_;
   }
 
-  bool ContentEqual(const Node* other, AttrsEqual equal) const final {
+  bool ContentEqual(const Object* other, AttrsEqual equal) const final {
     DerivedType* pself = self();
     if (pself == other) return true;
     if (other == nullptr) return false;
@@ -839,7 +844,7 @@ class AttrsNode : public BaseAttrsNode {
 
   size_t ContentHash(AttrsHash hasher) const final {
     ::tvm::detail::AttrsHashVisitor visitor(hasher);
-    visitor.result_ = std::hash<std::string>()(this->type_key());
+    visitor.result_ = this->GetTypeKeyHash();
     self()->__VisitAttrs__(visitor);
     return visitor.result_;
   }

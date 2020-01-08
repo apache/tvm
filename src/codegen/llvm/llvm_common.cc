@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file llvm_common.cc
  */
 #ifdef TVM_LLVM_VERSION

@@ -18,18 +18,19 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file llvm_module.cc
  * \brief LLVM runtime module for TVM
  */
 #ifdef TVM_LLVM_VERSION
+
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/codegen.h>
 #include <mutex>
 #include "llvm_common.h"
 #include "codegen_llvm.h"
 #include "../../runtime/file_util.h"
-#include "../../runtime/module_util.h"
+#include "../../runtime/library_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -54,7 +55,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "__tvm_is_system_module") {
       bool flag =
           (mptr_->getFunction("__tvm_module_startup") != nullptr);
@@ -67,8 +68,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     const std::string& fname = (name == runtime::symbol::tvm_module_main ?
                                 entry_func_ : name);
 
-    BackendPackedCFunc faddr =
-        reinterpret_cast<BackendPackedCFunc>(GetFunctionAddr(fname));
+    TVMBackendPackedCFunc faddr =
+        reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(fname));
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
   }
@@ -92,9 +93,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
 #endif
       pass.run(*m);
@@ -110,9 +115,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
 #endif
       pass.run(*m);
@@ -153,9 +162,13 @@ class LLVMModuleNode final : public runtime::ModuleNode {
           CHECK(tm_->addPassesToEmitFile(
               pass, rso, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
               << "Cannot emit target CGFT_AssemblyFile";
-    #else
+    #elif TVM_LLVM_VERSION <= 90
           CHECK(tm_->addPassesToEmitFile(
               pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #else
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, nullptr, llvm::CGFT_AssemblyFile) == 0)
               << "Cannot emit target CGFT_AssemblyFile";
     #endif
           pass.run(*m);
@@ -275,7 +288,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       *ctx_addr = this;
     }
     runtime::InitContextFunctions([this](const char *name) {
-        return GetGlobalAddr(name);
+        return reinterpret_cast<void*>(GetGlobalAddr(name));
       });
   }
   // Get global address from execution engine.
@@ -318,33 +331,33 @@ unsigned LookupLLVMIntrinsic(const std::string& name) {
   return llvm::Function::lookupIntrinsicID(name);
 }
 
-TVM_REGISTER_API("codegen.llvm_lookup_intrinsic_id")
+TVM_REGISTER_GLOBAL("codegen.llvm_lookup_intrinsic_id")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
   });
 
-TVM_REGISTER_API("codegen.build_llvm")
+TVM_REGISTER_GLOBAL("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
+    auto n = make_object<LLVMModuleNode>();
     n->Init(args[0], args[1]);
     *rv = runtime::Module(n);
   });
 
-TVM_REGISTER_API("codegen.llvm_version_major")
+TVM_REGISTER_GLOBAL("codegen.llvm_version_major")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::ostringstream os;
     int major = TVM_LLVM_VERSION / 10;
     *rv = major;
   });
 
-TVM_REGISTER_API("module.loadfile_ll")
+TVM_REGISTER_GLOBAL("module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
+    auto n = make_object<LLVMModuleNode>();
     n->LoadIR(args[0]);
     *rv = runtime::Module(n);
   });
 
-TVM_REGISTER_API("codegen.llvm_target_enabled")
+TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     InitializeLLVM();
     *rv = (GetLLVMTargetMachine(args[0], true) != nullptr);

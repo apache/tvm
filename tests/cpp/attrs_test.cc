@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,7 +41,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
         .describe("name of the field");
     TVM_ATTR_FIELD(expr)
         .describe("expression field")
-        .set_default(make_const(Int(32), 1));
+        .set_default(make_const(DataType::Int(32), 1));
     TVM_ATTR_FIELD(learning_rate)
         .describe("learning_rate")
         .set_default(0.1);
@@ -53,7 +53,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 TEST(Attrs, Basic) {
   using namespace tvm;
   using namespace tvm::test;
-  std::shared_ptr<TestAttrs> n = std::make_shared<TestAttrs>();
+  ObjectPtr<TestAttrs> n = make_object<TestAttrs>();
   try {
     n->InitBySeq("axis", 10);
     LOG(FATAL) << "bad";

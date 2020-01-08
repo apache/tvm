@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application deployment over tvm.
  * \file simple.go
  */

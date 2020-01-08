@@ -46,11 +46,11 @@ class OperationNode;
  * \brief Tensor structure representing a possible input,
  *  or intermediate computation result.
  */
-class Tensor : public NodeRef {
+class Tensor : public ObjectRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Tensor(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -141,7 +141,7 @@ class Operation : public ir::FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(NodePtr<Node> n) : FunctionRef(n) {}
+  explicit Operation(ObjectPtr<Object> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -158,12 +158,12 @@ class Operation : public ir::FunctionRef {
 };
 
 /*! \brief Node to represent a tensor */
-class TensorNode : public Node {
+class TensorNode : public Object {
  public:
   /*! \brief The shape of the tensor */
   Array<Expr> shape;
   /*! \brief data type in the content of the tensor */
-  Type dtype;
+  DataType dtype;
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -171,25 +171,25 @@ class TensorNode : public Node {
   /*! \brief constructor */
   TensorNode() {}
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
   TVM_DLL static Tensor make(Array<Expr> shape,
-                             Type dtype,
+                             DataType dtype,
                              Operation op,
                              int value_index);
 
   static constexpr const char* _type_key = "Tensor";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, Object);
 };
 
 
 // Implementations of inline functions
 inline const TensorNode* Tensor::operator->() const {
-  return static_cast<const TensorNode*>(node_.get());
+  return static_cast<const TensorNode*>(get());
 }
 
 inline size_t Tensor::ndim() const {
@@ -250,19 +250,17 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
 namespace std {
 template <>
-struct hash<::tvm::Operation> {
-  std::size_t operator()(const ::tvm::Operation& k) const {
-    return k.hash();
-  }
+struct hash<::tvm::Operation> : public ::tvm::ObjectHash {
 };
 
 template <>
 struct hash<::tvm::Tensor> {
   std::size_t operator()(const ::tvm::Tensor& k) const {
+    ::tvm::ObjectHash hasher;
     if (k.defined() && k->op.defined()) {
-      return k->op.hash();
+      return hasher(k->op);
     } else{
-      return k.hash();
+      return hasher(k);
     }
   }
 };

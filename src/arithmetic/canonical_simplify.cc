@@ -23,7 +23,6 @@
  */
 #include <tvm/arithmetic.h>
 #include <tvm/expr_operator.h>
-#include <tvm/ir_mutator.h>
 #include "const_fold.h"
 #include "pattern_match.h"
 #include "rewrite_simplify.h"
@@ -43,6 +42,7 @@ class SplitExpr;
  */
 class CanonicalExprNode : public BaseExprNode {
  public:
+  virtual ~CanonicalExprNode() {}
   /*!
    * \brief Return the normal Expr that is equivalent to self.
    * \note Can mutate the internal data structure.
@@ -51,11 +51,11 @@ class CanonicalExprNode : public BaseExprNode {
   virtual Expr Normalize() const = 0;
 
   // overrides
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
-  TVM_DECLARE_BASE_NODE_INFO(CanonicalExprNode, BaseExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, BaseExprNode);
 };
 
 enum DivMode {
@@ -114,7 +114,7 @@ class SplitExprNode : public CanonicalExprNode {
 
   Expr NormalizeWithScale(int64_t sscale) const {
     Expr res = this->index;
-    Type dtype = this->type;
+    DataType dtype = this->dtype;
     if (this->scale == 0) {
       return make_const(dtype, 0);
     }
@@ -146,10 +146,14 @@ class SplitExprNode : public CanonicalExprNode {
   /*! \brief positive infty */
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static constexpr const char* _type_key = "arith.SplitExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(SplitExprNode, CanonicalExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SplitExprNode, CanonicalExprNode);
 };
 
-TVM_DEFINE_COW_NODE_REF(SplitExpr, Expr, SplitExprNode);
+class SplitExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SplitExpr, Expr, SplitExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SplitExprNode);
+};
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
@@ -189,9 +193,9 @@ class SumExprNode : public CanonicalExprNode {
   Expr Normalize() const final {
     // quick path 1.
     if (this->args.size() == 0) {
-      return make_const(this->type, this->base);
+      return make_const(this->dtype, this->base);
     }
-    return Normalize_(this->type,
+    return Normalize_(this->dtype,
                       SimplifySplitExprs(args),
                       base);
   }
@@ -271,7 +275,7 @@ class SumExprNode : public CanonicalExprNode {
   void AddToSelf(const SumExpr& other, int64_t scale);
 
   static constexpr const char* _type_key = "arith.SumExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(SumExprNode, CanonicalExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SumExprNode, CanonicalExprNode);
 
  private:
   /*!
@@ -378,7 +382,7 @@ class SumExprNode : public CanonicalExprNode {
     std::stable_sort(args.begin(), args.end(), fcompare);
     return args;
   }
-  static Expr Normalize_(Type dtype,
+  static Expr Normalize_(DataType dtype,
                          const std::vector<SplitExpr>& args,
                          int64_t base) {
     // Positive scales first
@@ -404,7 +408,11 @@ class SumExprNode : public CanonicalExprNode {
   }
 };
 
-TVM_DEFINE_COW_NODE_REF(SumExpr, Expr, SumExprNode);
+class SumExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SumExpr, Expr, SumExprNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SumExprNode);
+};
 
 void SumExprNode::AddToSelf(const SumExpr& other, int64_t scale) {
   // NOTE: it is rare to have a balanced long expression,
@@ -426,30 +434,30 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 
 
   Expr CanonicalSimplify(Expr expr) {
-    expr =  Mutate(expr);
+    expr = operator()(expr);
     return expr;
   }
 
   // override the original mutate function.
-  Expr Mutate(Expr expr) final {
-    expr = IRMutator::Mutate(expr);
+  Expr VisitExpr(const Expr& input_expr) final {
+    auto expr = Rewriter::VisitExpr(input_expr);
     return Normalize(expr);
   }
 
   // Normal mutation without normalization.
   Expr CanonicalMutate(Expr expr) {
-    return IRMutator::Mutate(expr);
+    return Rewriter::VisitExpr(expr);
   }
 
-  using Rewriter::Mutate_;
-  Expr Mutate_(const Add* op, const Expr& self) final;
-  Expr Mutate_(const Sub* op, const Expr& self) final;
-  Expr Mutate_(const Mul* op, const Expr& self) final;
-  Expr Mutate_(const Div* op, const Expr& self) final;
-  Expr Mutate_(const Mod* op, const Expr& self) final;
-  Expr Mutate_(const FloorDiv* op, const Expr& self) final;
-  Expr Mutate_(const FloorMod* op, const Expr& self) final;
-  Expr Mutate_(const Reduce* op, const Expr& self) final;
+  using Rewriter::VisitExpr_;
+  Expr VisitExpr_(const Add* op) final;
+  Expr VisitExpr_(const Sub* op) final;
+  Expr VisitExpr_(const Mul* op) final;
+  Expr VisitExpr_(const Div* op) final;
+  Expr VisitExpr_(const Mod* op) final;
+  Expr VisitExpr_(const FloorDiv* op) final;
+  Expr VisitExpr_(const FloorMod* op) final;
+  Expr VisitExpr_(const Reduce* op) final;
 
  private:
   /*!
@@ -485,7 +493,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
    * \return Normalized expr.
    */
   Expr Normalize(Expr expr) {
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       return op->Normalize();
     } else {
       return expr;
@@ -503,11 +511,11 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       if (op->base == 0 && op->args.size() == 1) return op->args[0];
     }
-    if (const auto* op = expr.as_derived<CanonicalExprNode>()) {
+    if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
-    NodePtr<SplitExprNode> n = make_node<SplitExprNode>();
-    n->type = expr.type();
+    ObjectPtr<SplitExprNode> n = make_object<SplitExprNode>();
+    n->dtype = expr.dtype();
     n->index = std::move(expr);
     n->div_mode = kTruncDiv;
     return SplitExpr(n);
@@ -543,8 +551,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<SumExprNode>()) {
       return GetRef<SumExpr>(op);
     }
-    NodePtr<SumExprNode> n = make_node<SumExprNode>();
-    n->type = expr.type();
+    ObjectPtr<SumExprNode> n = make_object<SumExprNode>();
+    n->dtype = expr.dtype();
     if (const auto* op = expr.as<IntImm>()) {
       n->base = op->value;
       return SumExpr(n);
@@ -558,9 +566,9 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 };
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Add* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const Add* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   // normalize
   Expr a = this->CanonicalMutate(op->a);
@@ -584,9 +592,9 @@ Mutate_(const Add* op, const Expr& self) {
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Sub* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const Sub* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   // normalize
   Expr a = this->CanonicalMutate(op->a);
@@ -611,9 +619,9 @@ Mutate_(const Sub* op, const Expr& self) {
 
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Mul* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const Mul* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   // normalize
   Expr a = this->CanonicalMutate(op->a);
@@ -629,7 +637,7 @@ Mutate_(const Mul* op, const Expr& self) {
   }
   if (const auto* bconst = b.as<IntImm>()) {
     if (a.as<SumExprNode>()) {
-      SumExpr ret(std::move(a.node_));
+      SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
       return std::move(ret);
     } else {
@@ -643,7 +651,7 @@ Mutate_(const Mul* op, const Expr& self) {
   a = Normalize(a);
   b = Normalize(b);
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Mul::make(a, b);
   }
@@ -654,10 +662,10 @@ SeparateDivisibleParts(const SumExprNode* psum,
                        int64_t coeff,
                        SumExpr* out_divisible,
                        SumExpr* out_non_divisible) {
-  auto divisible = make_node<SumExprNode>();
-  auto non_divisible = make_node<SumExprNode>();
-  divisible->type = psum->type;
-  non_divisible->type = psum->type;
+  auto divisible = make_object<SumExprNode>();
+  auto non_divisible = make_object<SumExprNode>();
+  divisible->dtype = psum->dtype;
+  non_divisible->dtype = psum->dtype;
 
   if (psum->base % coeff == 0) {
     divisible->base = psum->base;
@@ -697,11 +705,11 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
       return lhs;
     } else if (lhs->upper_factor <= (lhs->lower_factor * scaled_cval)) {
       // (x % c1) / c2  => 0 when c2 >= c1
-      return ToSplitExpr(make_zero(lhs.type()));
+      return ToSplitExpr(make_zero(lhs.dtype()));
     } else {
       // move the upper_factor modular into index.
       lhs.CopyOnWrite()->index =
-          ModImpl(lhs->index, make_const(lhs.type(), lhs->upper_factor), div_mode);
+          ModImpl(lhs->index, make_const(lhs.dtype(), lhs->upper_factor), div_mode);
       lhs.CopyOnWrite()->upper_factor = SplitExprNode::kPosInf;
       lhs.CopyOnWrite()->scale = 1;
       lhs.CopyOnWrite()->lower_factor *= scaled_cval;
@@ -718,9 +726,9 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Div* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const Div* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
 
   Expr a = this->CanonicalMutate(op->a);
@@ -763,7 +771,7 @@ Mutate_(const Div* op, const Expr& self) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
@@ -772,16 +780,16 @@ Mutate_(const Div* op, const Expr& self) {
   a = Normalize(a);
   b = Normalize(b);
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Div::make(a, b);
   }
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const FloorDiv* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const FloorDiv* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   Expr a = this->CanonicalMutate(op->a);
   Expr b = this->CanonicalMutate(op->b);
@@ -819,7 +827,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kFloorDiv);
@@ -828,7 +836,7 @@ Mutate_(const FloorDiv* op, const Expr& self) {
   a = Normalize(a);
   b = Normalize(b);
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return FloorDiv::make(a, b);
   }
@@ -857,8 +865,8 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
       // Do a recursive call to simplify the mod with the new factor.
       if (new_upper_factor < lhs->upper_factor &&
           lhs->upper_factor != SplitExprNode::kPosInf) {
-        auto updated = ToSplitExpr(Mutate(ModImpl(
-            lhs->index, make_const(lhs.type(), new_upper_factor), div_mode)));
+        auto updated = ToSplitExpr(this->VisitExpr(ModImpl(
+            lhs->index, make_const(lhs.dtype(), new_upper_factor), div_mode)));
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           return SplitDivConst(updated, lhs->lower_factor, div_mode);
@@ -885,9 +893,9 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Mod* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const Mod* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   // normalize
   Expr a = this->CanonicalMutate(op->a);
@@ -905,7 +913,7 @@ Mutate_(const Mod* op, const Expr& self) {
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       if (extra->IsZero()) {
-        return make_zero(a.type());
+        return make_zero(a.dtype());
       }
       // both lhs and extra are non-negative
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
@@ -931,7 +939,7 @@ Mutate_(const Mod* op, const Expr& self) {
       int64_t new_base = psum->base % cval;
       if (cbound->min_value >= 0 &&
           cbound->min_value - psum->base + new_base >= 0) {
-        SumExpr sum_expr(std::move(a.node_));
+        SumExpr sum_expr = Downcast<SumExpr>(a);
         sum_expr.CopyOnWrite()->base = new_base;
         return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kTruncDiv);
       }
@@ -948,16 +956,16 @@ Mutate_(const Mod* op, const Expr& self) {
   a = Normalize(a);
   b = Normalize(b);
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return Mod::make(a, b);
   }
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const FloorMod* op, const Expr& self) {
-  if (!IsIndexType(op->type)) {
-    return Rewriter::Mutate_(op, self);
+VisitExpr_(const FloorMod* op) {
+  if (!IsIndexType(op->dtype)) {
+    return Rewriter::VisitExpr_(op);
   }
   // normalize
   Expr a = this->CanonicalMutate(op->a);
@@ -992,7 +1000,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
       // Simplify the offset constant if necessary.
       // floormod(x - 5, 3) => floormod(x + 1, 3)
       int64_t new_base = floormod(psum->base, cval);
-      SumExpr sum_expr(std::move(a.node_));
+      SumExpr sum_expr = Downcast<SumExpr>(std::move(a));
       sum_expr.CopyOnWrite()->base = new_base;
       return SplitModConst(ToSplitExpr(std::move(sum_expr)), cval, kFloorDiv);
     } else {
@@ -1008,7 +1016,7 @@ Mutate_(const FloorMod* op, const Expr& self) {
   a = Normalize(a);
   b = Normalize(b);
   if (op->a.same_as(a) && op->b.same_as(b)) {
-    return self;
+    return GetRef<Expr>(op);
   } else {
     return FloorMod::make(a, b);
   }
@@ -1020,7 +1028,7 @@ SimplifyReduceCombiner(const Reduce* op) {
   // First simplify the results
   Array<Expr> simplified_result;
   for (const auto& res : op->combiner->result) {
-    Expr new_res = Mutate(res);
+    Expr new_res = this->VisitExpr(res);
     simplified_result.push_back(new_res);
   }
 
@@ -1069,7 +1077,7 @@ SimplifyReduceCombiner(const Reduce* op) {
     if (used[i]) {
       // We simplify the result and identity, but not the source
       new_result.push_back(simplified_result[i]);
-      new_identity.push_back(Mutate(op->combiner->identity_element[i]));
+      new_identity.push_back(this->VisitExpr(op->combiner->identity_element[i]));
       new_lhs.push_back(op->combiner->lhs[i]);
       new_rhs.push_back(op->combiner->rhs[i]);
       new_source.push_back(op->source[i]);
@@ -1086,9 +1094,9 @@ SimplifyReduceCombiner(const Reduce* op) {
 }
 
 Expr CanonicalSimplifier::Impl::
-Mutate_(const Reduce* op, const Expr& self) {
+VisitExpr_(const Reduce* op) {
   // Recursively call simplification when necessary.
-  Expr ret = RewriteSimplifier::Impl::Mutate_(op, self);
+  Expr ret = RewriteSimplifier::Impl::VisitExpr_(op);
   op = ret.as<Reduce>();
   // already been simplified by const reduction axis removal
   if (op == nullptr) return ret;
@@ -1097,7 +1105,7 @@ Mutate_(const Reduce* op, const Expr& self) {
     // assumption we would have to perform a single iteration of the loop, i.e. use
     // `(*op->combiner.get())(op->combineop->identity_element, op->source)[op->value_index]`
     // instead of `op->source[op->value_index]`. The former may be more difficult to simplify.
-    return Mutate(
+    return this->VisitExpr(
         Select::make(op->condition,
                      op->source[op->value_index],
                      op->combiner->identity_element[op->value_index]));

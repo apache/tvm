@@ -50,7 +50,7 @@ use tvm_common::ffi;
 use crate::{function, TVMArgValue};
 
 /// Device type can be from a supported device name. See the supported devices
-/// in [TVM](https://github.com/dmlc/tvm).
+/// in [TVM](https://github.com/apache/incubator-tvm).
 ///
 /// ## Example
 ///

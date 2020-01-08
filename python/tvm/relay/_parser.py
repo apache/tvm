@@ -21,8 +21,20 @@ from __future__ import absolute_import
 
 import sys
 from ast import literal_eval
-from typing import Any, Deque, Dict, List, Optional, TypeVar, Tuple, Union
 from collections import deque
+
+try:
+    # no typing.Deque in Python 3.5
+    # https://bugs.python.org/issue29011
+    from typing import Any, Dict, List, Optional, TypeVar, Tuple, Union, MutableSequence, T, Deque
+except ImportError:
+    class Deque(deque, MutableSequence[T], extra=deque):
+
+        def __new__(cls, *args, **kwds):
+            if _geqv(cls, Deque):
+                raise TypeError("Type Deque cannot be instantiated; "
+                                "use deque() instead")
+            return deque.__new__(cls, *args, **kwds)
 
 import tvm
 
@@ -123,12 +135,15 @@ FUNC_OPS = {
     "nn.dense": op.nn.dense,
     "nn.bias_add": op.nn.bias_add,
     "nn.max_pool2d": op.nn.max_pool2d,
+    "nn.max_pool3d": op.nn.max_pool3d,
     "nn.global_max_pool2d": op.nn.global_max_pool2d,
     "nn.avg_pool2d": op.nn.avg_pool2d,
+    "nn.avg_pool3d": op.nn.avg_pool3d,
     "nn.global_avg_pool2d": op.nn.global_avg_pool2d,
     "nn.softmax": op.nn.softmax,
     "reshape": op.reshape,
     "nn.conv2d_transpose": op.nn.conv2d_transpose,
+    "nn.conv1d_transpose": op.nn.conv1d_transpose,
     "concatenate": op.concatenate,
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
@@ -215,7 +230,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_global_var(self, name: str) -> expr.GlobalVar:
         """Create a new GlobalVar and add it to the GlobalVar scope."""
         if name in self.global_vars:
-            raise ParseError(f"duplicate global var \"{name}\"")
+            raise ParseError("duplicate global var \"{0}\"".format(name))
         var = expr.GlobalVar(name)
         self.global_vars[name] = var
         return var
@@ -252,14 +267,15 @@ class ParseTreeToRelayIR(RelayVisitor):
             new_typ_name = self._type_expr_name(new_expr)
             existing_typ_name = self._type_expr_name(self.global_type_vars[name])
             raise ParseError(
-                f"{new_typ_name} `{name}` conflicts with existing {existing_typ_name}")
+                "{0} `{1}` conflicts with existing {2}".format(new_typ_name,\
+                                                                name, existing_typ_name))
 
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
-            return f"`{e.belong_to.var.name}` ADT constructor"
+            return "`{0}` ADT constructor".format(e.belong_to.name_hint)
         elif isinstance(e, ty.GlobalTypeVar):
             if e.kind == ty.Kind.AdtHandle:
-                return f"ADT definition"
+                return "ADT definition"
         return "function definition"
 
     def visitProjection(self, ctx):
@@ -282,7 +298,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError("unrecognized BOOL_LIT: `{}`".format(node_text))
         if node_type == RelayLexer.QUOTED_STRING:
             return literal_eval(node_text)
-        raise ParseError(f"unhandled terminal \"{node_text}\" of type `{node_type}`")
+        raise ParseError("unhandled terminal \"{0}\" of type `{1}`".format(node_text, node_type))
 
     def visitGeneralIdent(self, ctx):
         name = ctx.getText()
@@ -310,14 +326,14 @@ class ParseTreeToRelayIR(RelayVisitor):
         var_name = ctx.CNAME().getText()
         global_var = self.global_vars.get(var_name, None)
         if global_var is None:
-            raise ParseError(f"unbound global var `{var_name}`")
+            raise ParseError("unbound global var `{0}`".format(var_name))
         return global_var
 
     def visitLocalVar(self, ctx):
         var_name = ctx.CNAME().getText()
         local_var = lookup(self.var_scopes, var_name)
         if local_var is None:
-            raise ParseError(f"unbound local var `{var_name}`")
+            raise ParseError("unbound local var `{0}`".format(var_name))
         return local_var
 
     def visitGraphVar(self, ctx):
@@ -557,7 +573,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         elif match_type == "match?":
             complete_match = False
         else:
-            raise RuntimeError(f"unknown match type {match_type}")
+            raise RuntimeError("unknown match type {0}".format(match_type))
 
         match_data = self.visit(ctx.expr())
         match_clauses = ctx.matchClauseList()

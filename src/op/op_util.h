@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file op_util.h
  * \brief Common utility used in operator construction.
  */

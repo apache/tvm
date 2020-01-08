@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief gotvm package source for common utilities
  * \file util.go
  */

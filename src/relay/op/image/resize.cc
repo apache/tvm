@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file resize.cc
  * \brief Image operators
  */
@@ -72,20 +71,20 @@ Expr MakeResize(Expr data,
                 Array<IndexExpr> size,
                 std::string layout,
                 std::string method,
-                bool align_corners,
+                std::string coordinate_transformation_mode,
                 DataType out_dtype) {
-  auto attrs = make_node<ResizeAttrs>();
+  auto attrs = make_object<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);
   attrs->method = std::move(method);
-  attrs->align_corners = align_corners;
+  attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.image._make.resize")
+TVM_REGISTER_GLOBAL("relay.op.image._make.resize")
 .set_body_typed(MakeResize);
 
 
@@ -103,7 +102,7 @@ RELAY_REGISTER_OP("image.resize")
            for layout NHWC
            (batch_size, size[0], size[1], channels)
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ResizeAttrs")
+.set_attrs_type<ResizeAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(5)

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief External function interface to rocBLAS libraries
  * \file tags.h
  */

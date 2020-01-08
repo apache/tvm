@@ -134,7 +134,7 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
                 data = data_pad.op.input_tensors[0]
             _schedule(cfg, s, data, data_pad, kernel, output)
 
-        if op.tag == 'spatial_depthwise_conv_nchw_output':
+        if op.tag == 'spatial_depthwise_conv2d_nchw_output':
             output = op.output(0)
             conv = op.input_tensors[0]
             data_vec = conv.op.input_tensors[0]
@@ -316,7 +316,7 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype,
                          conv[n,
                               idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
                               idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
-                         name='output_unpack', tag='spatial_depthwise_conv_nchw_output')
+                         name='output_unpack', tag='spatial_depthwise_conv2d_nchw_output')
     return output
 
 def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,

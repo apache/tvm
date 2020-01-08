@@ -278,7 +278,7 @@ def hybrid_nms(data, sorted_index, valid_count,
         # Only return max_output_size valid boxes
         num_valid_boxes = 0
         if max_output_size > 0:
-            for j in parallel(valid_count[i]):
+            for j in range(valid_count[i]):
                 if output[i, j, 0] >= zero:
                     if num_valid_boxes == max_output_size:
                         for k in range(box_data_length):

@@ -103,7 +103,7 @@ Because the direct board-to-computer connection prevents the board from directly
 mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 cd <mountpoint>
-git clone --recursive https://github.com/dmlc/tvm
+git clone --recursive https://github.com/apache/incubator-tvm tvm
 # When finished, you can leave the moutpoint and unmount the directory
 cd ~
 sudo umount <mountpoint>
@@ -229,7 +229,7 @@ Now you can connect the power cable and serial port to boot the Angstrom Linux.
 > In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. 
 > For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage).
 
-After connecting he usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
+After connecting the usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
 
 ``` bash
 # NOTE: root privilege is typically required to run the following command.
@@ -375,7 +375,7 @@ Once the compilation completes, the generated bitstream can be found under `<tvm
 
 ### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/dmlc/tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
 For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
 

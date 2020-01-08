@@ -146,9 +146,25 @@ def test_fold_shape_of():
         assert relay.analysis.graph_equal(zz, zexpected)
 
 
+def test_fold_full():
+    c_shape = (8, 9, 10)
+    def before():
+        dtype = 'float32'
+        return relay.full(relay.const(1.0, dtype), c_shape, dtype=dtype)
+
+    def expected():
+        # expect no changes
+        return before()
+
+    zz = run_opt_pass(before(), transform.FoldConstant())
+    zexpected = run_opt_pass(expected(), transform.InferType())
+    assert relay.analysis.graph_equal(zz, zexpected)
+
+
 if __name__ == "__main__":
     test_fold_const()
     test_fold_let()
     test_fold_tuple()
     test_fold_concat()
     test_fold_shape_of()
+    test_fold_full()

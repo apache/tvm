@@ -18,8 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
- *
  * \brief Tiny graph runtime that can run graph
  *        containing only tvm PackedFunc.
  * \file graph_runtime.h
@@ -83,7 +81,7 @@ class GraphRuntime : public ModuleNode {
    * \return The corresponding member function.
    */
   virtual PackedFunc GetFunction(const std::string& name,
-                                 const std::shared_ptr<ModuleNode>& sptr_to_self);
+                                 const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.
