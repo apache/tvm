@@ -304,7 +304,7 @@ class Conv(OnnxOpConverter):
                 'dilations': ('dilation', (1, )),
                 'pads': ('padding', (0, 0)),
             }
-            custom_check=None
+            custom_check = None
         #Conv2D
         elif len(input_shape) == 4:
             op_name = dimension_picker('conv')
