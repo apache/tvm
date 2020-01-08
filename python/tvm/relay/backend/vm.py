@@ -363,7 +363,7 @@ class VirtualMachine(object):
 
 
 def compile(mod, target=None, target_host=None, params=None):
-    """Compile the module to VM executable.
+    """Compile the module to VM executable. A helper function for VMCompiler.
 
     Parameters
     ----------
@@ -402,7 +402,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
 
 class VMCompiler(object):
-    """Build Relay module to run on VM runtime."""
+    """Compiler that compiles Relay module to VM executable."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
         self._lower = self.mod["lower"]
@@ -411,7 +411,14 @@ class VMCompiler(object):
         self._set_params_func = self.mod["set_params"]
 
     def set_params(self, params):
-        """Set constant parameters for the model"""
+        """Set constant parameters for the model.
+
+        Parameters
+        ----------
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+        """
         inputs = {}
         for name, param in params.items():
             if isinstance(param, np.ndarray):
@@ -420,7 +427,27 @@ class VMCompiler(object):
         self._set_params_func(inputs)
 
     def lower(self, mod, target=None, target_host=None):
-        """Lower the module to VM bytecode."""
+        """Lower the module to VM bytecode.
+        
+        Parameters
+        ----------
+        mod : relay.Module
+            The Relay module to build.
+
+        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+            device/context name) to str/tvm.target.Target, optional
+            For heterogeneous compilation, it is a dictionary indicating context
+            to target mapping. For homogeneous compilation, it is a build target.
+
+        target_host : str or :any:`tvm.target.Target`, optional
+            Host compilation target, if target is device.
+            When TVM compiles device specific program such as CUDA,
+            we also need host(CPU) side code to interact with the driver
+            to setup the dimensions and parameters correctly.
+            target_host is used to specify the host side codegen target.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
+        """
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
         tophub_context = self._tophub_context(target)
@@ -428,11 +455,17 @@ class VMCompiler(object):
             self._lower(mod, target, target_host)
 
     def codegen(self):
-        """Generate the machine code."""
+        """Generate the kernel library."""
         self._codegen()
 
     def get_exec(self):
-        """Return the executable."""
+        """Get the VM executable.
+
+        Returns
+        -------
+        exec : Executable
+            The VM executable that contains both library code and bytecode.
+        """
         return Executable(self._get_exec())
 
     def _update_target(self, target):
@@ -469,6 +502,7 @@ class VMCompiler(object):
         return target_host
 
     def _tophub_context(self, target):
+        """Get the autotvm context."""
         # If current dispatch context is fallback context (the default root context),
         # then load pre-tuned parameters from TopHub
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
