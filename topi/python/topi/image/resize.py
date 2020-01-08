@@ -119,8 +119,8 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1).astype('float')
-        w_scale = in_w.astype('float') / (target_width - 1).astype('float')
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
@@ -265,8 +265,8 @@ def resize_bilinear(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1).astype('float')
-        w_scale = in_w.astype('float') / (target_width - 1).astype('float')
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
@@ -425,8 +425,8 @@ def resize_bicubic(indices, data, image_height, image_width,
 
         in_h = (image_height - 1) * (y2 - y1)
         in_w = (image_width - 1) * (x2 - x1)
-        h_scale = in_h.astype('float') / (target_height - 1).astype('float')
-        w_scale = in_w.astype('float') / (target_width - 1).astype('float')
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
 
         in_y = y1 * (image_height - 1) + h_scale * y
         in_x = x1 * (image_width - 1) + w_scale * x
@@ -626,8 +626,8 @@ def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
         or [num_boxes, crop_height, crop_width, channel]
     """
     method = method.lower()
-    target_h = crop_size[0].astype("int32")
-    target_w = crop_size[1].astype("int32")
+    target_h = crop_size[0]
+    target_w = crop_size[1]
 
     if layout == 'NHWC':
         output_shape = [box_indices.shape[0], crop_size[0], crop_size[1], data.shape[3]]

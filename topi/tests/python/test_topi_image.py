@@ -98,7 +98,7 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
             'Layout not supported {} '.format(layout))
 
     B = topi.image.resize3d(A, (out_depth, out_height, out_width), layout=layout,
-                                coordinate_transformation_mode=coordinate_transformation_mode, method=method)
+                            coordinate_transformation_mode=coordinate_transformation_mode, method=method)
 
     if method == "trilinear":
         b_np = topi.testing.trilinear_resize3d_python(a_np, (out_depth, out_height, out_width), layout,
@@ -140,7 +140,6 @@ def test_resize3d():
     # Nearest neighbor
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, 'NCDHW', method="nearest_neighbor")
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, 'NDHWC', method="nearest_neighbor")
-
 
 
 def test_crop_and_resize():
@@ -187,15 +186,15 @@ def test_crop_and_resize():
 
             tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
 
-        for device in ['llvm', 'cuda']:
+        for device in get_all_backend():
             check_device(device)
 
     boxes_1 = np.array([[.2, .3, .7, .9]], dtype="float32")
     boxes_2 = np.array([[.2, .3, .7, .9], [0, .1, .8, 1]], dtype="float32")
     indices_1 = np.array([0], dtype="int32")
     indices_2 = np.array([1, 0], dtype="int32")
-    size_1 = np.array([7, 11], dtype="int32")
-    size_2 = np.array([90, 60], dtype="int32")
+    size_1 = (7, 11)
+    size_2 = (90, 60)
 
     verify_crop_and_resize((1, 255, 255, 3), boxes_1, indices_1, size_1, layout="NHWC")
     verify_crop_and_resize((10, 224, 224, 5), boxes_2, indices_2,
