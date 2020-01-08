@@ -51,23 +51,23 @@ struct BiasAddAttrs : public tvm::AttrsNode<BiasAddAttrs> {
 
 /*! \brief Attributes used in 1D convolution operators */
 struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
-  int stride;
+  Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  int dilation;
+  Array<IndexExpr> dilation;
   IndexExpr channels;
-  IndexExpr kernel_size;
+  Array<IndexExpr> kernel_size;
   std::string data_layout;
   std::string kernel_layout;
   std::string out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv1DAttrs, "relay.attrs.Conv1DAttrs") {
-    TVM_ATTR_FIELD(stride).set_default(1)
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, }))
         .describe("Specifies the stride of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
         .describe("If padding is non-zero, then the input is implicitly zero-padded"
                   "on both sides for padding number of points");
-    TVM_ATTR_FIELD(dilation).set_default(1)
+    TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, }))
         .describe("Specifies the dilation rate to use for dilated convolution.");
     TVM_ATTR_FIELD(channels)
         .describe("The number of output channels in the convolution."
@@ -75,7 +75,7 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
         .set_default(NullValue<IndexExpr>());
     TVM_ATTR_FIELD(kernel_size)
         .describe("Specifies the dimensions of the convolution window.")
-        .set_default(NullValue<IndexExpr>());
+        .set_default(NullValue<Array<IndexExpr> >());
     TVM_ATTR_FIELD(data_layout).set_default("NCW")
         .describe("Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
                   "'N', 'C', 'W' stands for batch, channel, and width"

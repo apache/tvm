@@ -71,11 +71,11 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->kernel_size.defined() && param->channels.defined()) {
     Array<IndexExpr> wshape;
 
-    wshape = {{param->channels, dshape_ncw[1], param->kernel_size}};
+    wshape = {{param->channels, dshape_ncw[1], param->kernel_size[0]}};
 
     wshape = trans_kernel_layout.BackwardShape(wshape);
     channels = param->channels;
-    dilated_ksize = 1 + (param->kernel_size - 1) * param->dilation;
+    dilated_ksize = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     DataType weight_dtype = data->dtype;
     if (weight != nullptr) {
       weight_dtype = weight->dtype;
@@ -88,7 +88,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
     if (param->kernel_size.defined()) {
       // check the size
-      CHECK(reporter->AssertEQ(param->kernel_size, wshape[2]) )
+      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) )
           << "Conv1D: shape of weight is inconsistent with kernel_size, "
           << " kernel_size=" << param->kernel_size << " wshape=" << wshape;
     }
@@ -99,14 +99,14 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     CHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
     channels = wshape[0];
-    dilated_ksize = 1 + (wshape[2] - 1) * param->dilation;
+    dilated_ksize = 1 + (wshape[2] - 1) * param->dilation[0];
   }
   // dilation
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
 
   if (!dshape_ncw[2].as<ir::Any>()) {
     oshape.Set(2, indexdiv(dshape_ncw[2] + param->padding[0] + param->padding[1] - dilated_ksize,
-                           param->stride) + 1);
+                           param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncw[2]);
   }

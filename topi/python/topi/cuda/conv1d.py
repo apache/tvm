@@ -27,7 +27,7 @@ from ..util import traverse_inline
 def conv1d_cuda(cfg,
                 data,
                 kernel,
-                stride,
+                strides,
                 padding,
                 dilation,
                 layout='NCW',
@@ -47,13 +47,13 @@ def conv1d_cuda(cfg,
         3-D kernel with shape [num_filter, in_channel, filter_size] for layout == 'NCW'
         and [filter_size, in_channel, num_filter] for layout == 'NWC'
 
-    stride : int
+    strides : int or tuple
         The spatial stride along width
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
-    dilation : int
+    dilation : int or tuple
         Dilation rate if convolution should be dilated.
 
     layout : str
@@ -64,16 +64,16 @@ def conv1d_cuda(cfg,
     """
     if out_dtype is None:
         out_dtype = data.dtype
-    if isinstance(stride, (tuple, list)):
-        stride = stride[0]
+    if isinstance(strides, (tuple, list)):
+        strides = strides[0]
     if isinstance(dilation, (tuple, list)):
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return nn.conv1d_ncw(data, kernel, stride, padding, dilation,
+        return nn.conv1d_ncw(data, kernel, strides, padding, dilation,
                              out_dtype)
     if layout == 'NWC':
-        return nn.conv1d_nwc(data, kernel, stride, padding, dilation,
+        return nn.conv1d_nwc(data, kernel, strides, padding, dilation,
                              out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 

@@ -23,7 +23,7 @@ from . import _make
 
 def conv1d(data,
            weight,
-           stride=1,
+           strides=1,
            padding=(0, 0),
            dilation=1,
            channels=None,
@@ -47,7 +47,7 @@ def conv1d(data,
     .. math::
 
         \mbox{out}[b, c, w] = \sum_{dw, k}
-           \mbox{data}[b, k, \mbox{strides}[1] * w + dw] *
+           \mbox{data}[b, k, \mbox{strides}[0] * w + dw] *
            \mbox{weight}[c, k, dw]
 
     Padding and dilation are applied to data and weight respectively before the computation.
@@ -65,19 +65,19 @@ def conv1d(data,
     weight : tvm.relay.Expr
         The weight expressions.
 
-    stride : Optional[int]
+    strides : Optional[int, Tuple[int]]
         The strides of convolution.
 
     padding : Optional[Tuple[int]]
         The padding of convolution on both sides of the input before convolution.
 
-    dilation : Optional[int]
+    dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
     channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : Optional[int]
+    kernel_size : Optional[int, Tuple[int]]
         The spatial dimension of the convolution kernel.
 
     data_layout : Optional[str]
@@ -97,7 +97,13 @@ def conv1d(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.conv1d(data, weight, stride, padding, dilation,
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, )
+    if isinstance(strides, int):
+        strides = (strides, )
+    if isinstance(dilation, int):
+        dilation = (dilation, )
+    return _make.conv1d(data, weight, strides, padding, dilation,
                         channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
 

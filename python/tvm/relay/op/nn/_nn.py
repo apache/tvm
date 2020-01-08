@@ -136,19 +136,19 @@ reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 @reg.register_compute("nn.conv1d")
 def compute_conv1d(attrs, inputs, out_type, target):
     """Compute definition of conv1d"""
-    stride = attrs.stride
+    strides = get_const_tuple(attrs.strides)
     padding = get_const_tuple(attrs.padding)
-    dilation = attrs.dilation
+    dilation = get_const_tuple(attrs.dilation)
     layout = attrs.data_layout
     out_dtype = attrs.out_dtype
     out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                  else out_dtype)
 
     assert layout in ["NCW", "NWC"]
-    if dilation < 1:
+    if dilation[0] < 1:
         raise ValueError("dilation should be a positive value")
 
-    return [topi.nn.conv1d(inputs[0], inputs[1], stride, padding, dilation, layout, out_dtype)]
+    return [topi.nn.conv1d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)]
 
 
 @reg.register_schedule("nn.conv1d")

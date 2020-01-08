@@ -58,19 +58,19 @@ TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 // used by frontend FFI.
 Expr MakeConv1D(Expr data,
                 Expr weight,
-                int stride,
+                Array<IndexExpr> strides,
                 Array<IndexExpr> padding,
-                int dilation,
+                Array<IndexExpr> dilation,
                 IndexExpr channels,
-                IndexExpr kernel_size,
+                Array<IndexExpr> kernel_size,
                 std::string data_layout,
                 std::string kernel_layout,
                 std::string out_layout,
                 DataType out_dtype) {
   auto attrs = make_object<Conv1DAttrs>();
-  attrs->stride = stride;
+  attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
-  attrs->dilation = dilation;
+  attrs->dilation = std::move(dilation);
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->data_layout = std::move(data_layout);

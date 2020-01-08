@@ -26,7 +26,7 @@ from .util import get_pad_tuple1d
 @tvm.target.generic_func
 def conv1d(data,
            kernel,
-           stride=1,
+           strides=1,
            padding='VALID',
            dilation=1,
            layout='NCW',
@@ -43,13 +43,13 @@ def conv1d(data,
         3-D kernel with shape [num_filter, in_channel, filter_size] for layout == 'NCW'
         and [filter_size, in_channel, num_filter] for layout == 'NWC'
 
-    stride : int
+    strides : int or tuple
         The spatial stride along width
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
-    dilation : int
+    dilation : int or tuple
         Dilation rate if convolution should be dilated.
 
     layout : str
@@ -60,21 +60,21 @@ def conv1d(data,
     """
     if out_dtype is None:
         out_dtype = data.dtype
-    if isinstance(stride, (tuple, list)):
-        stride = stride[0]
+    if isinstance(strides, (tuple, list)):
+        strides = strides[0]
     if isinstance(dilation, (tuple, list)):
         dilation = dilation[0]
 
     if layout == 'NCW':
-        return conv1d_ncw(data, kernel, stride, padding, dilation, out_dtype)
+        return conv1d_ncw(data, kernel, strides, padding, dilation, out_dtype)
     if layout == 'NWC':
-        return conv1d_nwc(data, kernel, stride, padding, dilation, out_dtype)
+        return conv1d_nwc(data, kernel, strides, padding, dilation, out_dtype)
     raise ValueError("This layout is not yet supported: {}".format(layout))
 
 
 def conv1d_ncw(data,
                kernel,
-               stride=1,
+               strides=1,
                padding='VALID',
                dilation=1,
                out_dtype=None):
@@ -88,14 +88,14 @@ def conv1d_ncw(data,
     kernel : tvm.Tensor
         3-D with shape [num_filter, in_channel, filter_size]
 
-    stride : int
+    strides : int or tuple
         The spatial stride along width
 
     padding : int, tuple, or str
         Padding size can be an integer for equal padding,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
-    dilation : int
+    dilation : int or tuple
         Dilation rate if convolution should be dilated.
 
     out_dtype : str
@@ -109,7 +109,7 @@ def conv1d_ncw(data,
     pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // strides + 1)
 
     # Apply padding
     pad_before = [0, 0, pad_left]
@@ -123,7 +123,7 @@ def conv1d_ncw(data,
     return tvm.compute(
         (batch, out_channels, out_width),
         lambda b, c, w: tvm.sum(
-            temp[b, rc, w * stride + rw * dilation].astype(out_dtype)
+            temp[b, rc, w * strides + rw * dilation].astype(out_dtype)
             * kernel[c, rc, rw].astype(out_dtype),
             axis=[rc, rw]),
         tag="conv1d_ncw")
@@ -131,7 +131,7 @@ def conv1d_ncw(data,
 
 def conv1d_nwc(data,
                kernel,
-               stride=1,
+               strides=1,
                padding='VALID',
                dilation=1,
                out_dtype=None):
@@ -145,14 +145,14 @@ def conv1d_nwc(data,
     kernel : tvm.Tensor
         3-D with shape [filter_size, in_channel, num_filter]
 
-    stride : int
+    strides : int or tuple
         The spatial stride along width
 
     padding : int, tuple, or str
         Padding size can be an integer for equal padding,
         a tuple of (left, right) or a string in ['VALID', 'SAME'].
 
-    dilation : int
+    dilation : int or tuple
         Dilation rate if convolution should be dilated.
 
     out_dtype : str
@@ -166,7 +166,7 @@ def conv1d_nwc(data,
     pad_left, pad_right = get_pad_tuple1d(padding, (dilated_kernel_size, ))
     out_channels = simplify(out_channels)
     out_width = simplify(
-        (data_width - dilated_kernel_size + pad_left + pad_right) // stride + 1)
+        (data_width - dilated_kernel_size + pad_left + pad_right) // strides + 1)
 
     # Apply padding
     pad_before = [0, pad_left, 0]
@@ -180,7 +180,7 @@ def conv1d_nwc(data,
     return tvm.compute(
         (batch, out_width, out_channels),
         lambda b, w, c: tvm.sum(
-            temp[b, w * stride + rw * dilation, rc].astype(out_dtype)
+            temp[b, w * strides + rw * dilation, rc].astype(out_dtype)
             * kernel[rw, rc, c].astype(out_dtype),
             axis=[rc, rw]),
         tag="conv1d_nwc")
