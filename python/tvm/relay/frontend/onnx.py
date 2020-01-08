@@ -307,13 +307,13 @@ class Conv(OnnxOpConverter):
             custom_check=None
         #Conv2D
         elif len(input_shape) == 4:
-            op_name=dimension_picker('conv')
-            transforms={
+            op_name = dimension_picker('conv')
+            transforms = {
                 'kernel_shape': 'kernel_size',
                 'dilations': ('dilation', (0, 0)),
                 'pads': ('padding', (0, 0), revert_caffe2_pad),
                 'group': ('groups', 1)}
-            custom_check=dimension_constraint()
+            custom_check = dimension_constraint()
         else:
             raise ValueError("Only 1D and 2D convolution currently supported.")
 
