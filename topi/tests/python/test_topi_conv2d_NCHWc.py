@@ -220,20 +220,21 @@ def test_conv2d_NCHWc():
     verify_conv2d_NCHWc(1,  256,   3, 126, 3, 1, 1)
 
     # Asymmetric padding
-    verify_conv2d_NCHWc(1,   3,  224,  64,  7, 2, (0, 0, 1, 1))
-    verify_conv2d_NCHWc(1,  64,   56, 128,  3, 1, (3, 3, 2, 2))
-    verify_conv2d_NCHWc(1,  64,   56,  64,  1, 1, (1, 2, 2, 1))
-    verify_conv2d_NCHWc(1,  64,  288, 192,  1, 1, (1, 2))
-    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, (3, 1))
-    verify_conv2d_NCHWc(1, 128,   56, 384,  3, 1, (0, 2))
-    verify_conv2d_NCHWc(1,  64,   56,  64,  1, 1, "VALID")
-    verify_conv2d_NCHWc(1, 388,   56,  64,  3, 1, "VALID")
-    verify_conv2d_NCHWc(1, 512,   19,  64,  1, 1, "SAME")
-    verify_conv2d_NCHWc(1,  64,   16,  32,  2, 1, "SAME")
-    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, (1, 2, 2, 1), add_relu=True)
-    verify_conv2d_NCHWc(1,  64,   56,  64,  5, 2, (1, 3), add_bias=True)
-    verify_conv2d_NCHWc(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
-    verify_conv2d_NCHWc(1,  64,   56,  64, 24, 1, "SAME", add_bias=True, add_relu=True)
+    verify_conv2d_NCHWc(1,  32,   17,  64,  7, 2, (0, 0, 1, 1))
+    verify_conv2d_NCHWc(1,  32,   35, 128,  3, 1, (3, 3, 2, 2))
+    verify_conv2d_NCHWc(1,  32,   35,  32,  1, 1, (1, 2, 2, 1))
+    verify_conv2d_NCHWc(1,  32,   17, 192,  1, 1, (1, 2))
+    verify_conv2d_NCHWc(1,  32,    8,  32,  3, 1, (3, 1))
+    verify_conv2d_NCHWc(1, 128,    8, 384,  3, 1, (0, 2))
+    verify_conv2d_NCHWc(1,  32,    8,  32,  1, 1, "VALID")
+    verify_conv2d_NCHWc(1, 388,    8,  32,  3, 1, "VALID")
+    verify_conv2d_NCHWc(1, 512,   19,  32,  1, 1, "SAME")
+    verify_conv2d_NCHWc(1,  32,   10,  32,  2, 1, "SAME")
+    verify_conv2d_NCHWc(1,  32,    8,  32,  3, 1, (1, 2, 2, 1), add_relu=True)
+    verify_conv2d_NCHWc(1,  32,    8,  32,  5, 2, (1, 3), add_bias=True)
+    verify_conv2d_NCHWc(1,  32,    8,  32,  3, 1, "VALID", add_bias=True, add_relu=True)
+    verify_conv2d_NCHWc(1,  32,    8,  32, 24, 1, "SAME", add_bias=True, add_relu=True)
+
 
 
 if __name__ == "__main__":
