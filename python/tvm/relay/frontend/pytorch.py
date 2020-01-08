@@ -320,10 +320,12 @@ def _batch_norm():
         channels = _infer_shape(data)
 
         if isinstance(inputs[1], _expr.Var) and isinstance(inputs[2], _expr.Var):
+            print('scale, center, true')
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
         else:
+            print('scale, center, false')
             scale = center = False
 
         if scale:
@@ -434,45 +436,46 @@ def _dense():
         data = inputs[1]
         data_type = input_types[1]
         weight = inputs[2]
-        beta = int(inputs[3])
-        alpha = int(inputs[4])
 
-        if isinstance(alpha, int) and isinstance(data, (_expr.Call, _expr.TupleGetItem)):
+        beta = inputs[3]
+        alpha = inputs[4]
+
+        if not isinstance(alpha, ( _expr.Var, _expr.Call, _expr.TupleGetItem)):
             if data_type == 'double':
-                alpha = _expr.const(alpha, dtype='float64')
+                alpha = _expr.const(np.float64(alpha), dtype='float64')
             elif data_type == 'float':
-                alpha = _expr.const(alpha, dtype='float32')
+                alpha = _expr.const(np.float32(alpha), dtype='float32')
             elif data_type == 'half':
-                alpha = _expr.const(alpha, dtype='float16')
+                alpha = _expr.const(np.float16(alpha), dtype='float16')
             elif data_type == 'long':
-                alpha = _expr.const(alpha, dtype='int64')
+                alpha = _expr.const(np.int64(alpha), dtype='int64')
             elif data_type == 'int':
-                alpha = _expr.const(alpha, dtype='int32')
+                alpha = _expr.const(np.int32(alpha), dtype='int32')
             elif data_type == 'short':
-                alpha = _expr.const(alpha, dtype='int16')
+                alpha = _expr.const(np.int16(alpha), dtype='int16')
             elif data_type == 'char':
-                alpha = _expr.const(alpha, dtype='int8')
+                alpha = _expr.const(np.int8(alpha), dtype='int8')
             elif data_type == 'byte':
-                alpha = _expr.const(alpha, dtype='uint8')
+                alpha = _expr.const(np.uint8(alpha), dtype='uint8')
             data *= alpha
 
-        if isinstance(beta, int) and isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
+        if not isinstance(beta, ( _expr.Var, _expr.Call, _expr.TupleGetItem)):
             if data_type == 'double':
-                beta = _expr.const(beta, dtype='float64')
+                beta = _expr.const(np.foat64(beta), dtype='float64')
             elif data_type == 'float':
-                beta = _expr.const(beta, dtype='float32')
+                beta = _expr.const(np.float32(beta), dtype='float32')
             elif data_type == 'half':
-                beta = _expr.const(beta, dtype='float16')
+                beta = _expr.const(np.float16(beta), dtype='float16')
             elif data_type == 'long':
-                beta = _expr.const(beta, dtype='int64')
+                beta = _expr.const(np.int64(beta), dtype='int64')
             elif data_type == 'int':
-                beta = _expr.const(beta, dtype='int32')
+                beta = _expr.const(np.int32(beta), dtype='int32')
             elif data_type == 'short':
-                beta = _expr.const(beta, dtype='int16')
+                beta = _expr.const(np.int16(beta), dtype='int16')
             elif data_type == 'char':
-                beta = _expr.const(beta, dtype='int8')
+                beta = _expr.const(np.int8(beta), dtype='int8')
             elif data_type == 'byte':
-                beta = _expr.const(beta, dtype='uint8')
+                beta = _expr.const(np.uint8(beta), dtype='uint8')
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
@@ -793,6 +796,7 @@ class Graph(object):
     def __init__(self, trace, input_shapes):
 
         self._trace = trace
+        print(trace.graph)
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
