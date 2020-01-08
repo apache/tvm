@@ -700,11 +700,11 @@ def _test_neg(data):
     return _test_unary_elemwise(math_ops.neg, data)
 #######################################################################
 
-def _test_forward_unary_elemwise(testop):
+def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
-    if testop in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
-        testop(np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)))
-        testop(np.arange(6.0, dtype=np.int32).reshape((2, 1, 3)))
+    if test_op in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
+        test_op(np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)))
+        test_op(np.arange(6.0, dtype=np.int32).reshape((2, 1, 3)))
     else:
         np.array(np.random.uniform(-5, 5, (3, 1)), dtype=np.int32)
 
