@@ -150,9 +150,6 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 def verify_model(model_name, input_data=[]):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-
-    print(model_name)
-
     if len(input_data) == 0:
         baseline_model, baseline_input = load_model(model_name)
     else:

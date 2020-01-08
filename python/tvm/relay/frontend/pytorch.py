@@ -405,7 +405,6 @@ def _flatten():
 def _dense():
     def _impl(inputs, input_types):
         use_bias = False
-        print(input_types)
 
         if isinstance(inputs[0], _expr.Var):
             use_bias = True
@@ -823,12 +822,6 @@ class Graph(object):
                                         self._relay_map[self._nid_to_node_name[i.debugName()]]
                                     break
 
-                """
-                print('op input types')
-                print(op_node)
-                print(self._op_inputs_types[(op_name, operator)])
-                """
-
                 call = _convert_map[operator](self._op_inputs_r[(op_name, operator)], self._op_inputs_types[(op_name, operator)])
 
                 self._relay_map[nid] = call
@@ -970,8 +963,6 @@ class Graph(object):
         self._ops[(op_name, operator)] = op_node
         input_list_r = []
         input_list_types = []
-        #print('parsing')
-        #print(op_node)
         for input_node in op_node.inputs():
             if input_node.debugName() in self._inputs_r.keys():
                 input_list_r.append(self._inputs_r[input_node.debugName()])
@@ -986,39 +977,25 @@ class Graph(object):
                 if op_node.kind() == 'prim::ListConstruct':
                     if op_name in self._inputs_r.keys():
                         self._inputs_r.pop(op_name)
-            #print(input_node)
 
             try:
                 input_node_kind = input_node.type().kind()
-                #print(input_node_kind)
                 if input_node_kind == 'TensorType':
                     input_list_types.append(input_node.type().scalarType())
-                    #input_list_types.append(input_node.type())
                 elif input_node_kind == 'ListType':
                     input_list_types.append(str(input_node.type().getElementType()))
-                    #input_list_types.append(input_node.type())
-                elif input_node_kind == 'IntType':
-                    input_list_types.append(str(input_node.type()))
-                elif input_node_kind == 'FloatType':
-                    input_list_types.append(str(input_node.type()))
-                elif input_node_kind == 'BoolType':
-                    input_list_types.append(str(input_node.type()))
-                elif input_node_kind == 'StringType':
-                    input_list_types.append(str(input_node.type()))
-                elif input_node_kind == 'OptionalType':
+                elif input_node_kind == 'IntType' or input_node_kind == 'FloatType' or \
+                        input_node_kind == 'BoolType' or input_node_kind == 'StringType' or \
+                        input_node_kind == 'OptionalType':
                     input_list_types.append(str(input_node.type()))
                 else:
-                    print('Not a matching type.')
                     input_list_types.append('UnsupportedType')
             except:
                 print('Internal PyTorch error. Failed to grab type.')
 
-        #print('node formatting')
         node_str = str(op_node)
-        #print(node_str)
         node_assign = (node_str.split(' = ')[0]).split(' : ')
         node_type = node_assign[1]
-        #print(node_type)
 
         if op_node.kind() == 'aten::ones':
             node_type = node_type.split('(')[0]
