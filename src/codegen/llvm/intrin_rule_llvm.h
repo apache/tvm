@@ -39,34 +39,34 @@ namespace codegen {
 template<unsigned id, int num_signature>
 inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   Expr e = targs[0];
-  const ir::Call* call = e.as<ir::Call>();
+  const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), num_signature));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), num_signature));
 
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::Call::make(
-      call->dtype, "llvm_intrin", cargs, ir::Call::PureIntrinsic);
+  *rv = ir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, ir::CallNode::PureIntrinsic);
 }
 
 template<unsigned id, int num_signature>
 inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   Expr e = targs[0];
-  const ir::Call* call = e.as<ir::Call>();
+  const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), num_signature));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), num_signature));
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::Call::make(
-      call->dtype, "llvm_intrin", cargs, ir::Call::Intrinsic);
+  *rv = ir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, ir::CallNode::Intrinsic);
 }
 
 }  // namespace codegen

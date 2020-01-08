@@ -53,19 +53,19 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr VisitExpr_(const Call* op) final {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
       Expr r = ApplyPattern(op->name, GetRef<Expr>(op));
       if (r.defined()) return r;
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const Add* op) final {
-    if (const Mul* mb = op->b.as<Mul>()) {
+  Expr VisitExpr_(const AddNode* op) final {
+    if (const MulNode* mb = op->b.as<MulNode>()) {
       return MakeFMA(mb->a, mb->b, op->a, op);
-    } else if (const Mul* ma = op->a.as<Mul>()) {
+    } else if (const MulNode* ma = op->a.as<MulNode>()) {
       return MakeFMA(ma->a, ma->b, op->b, op);
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
@@ -73,10 +73,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr VisitExpr_(const FloorDiv* op) final {
+  Expr VisitExpr_(const FloorDivNode* op) final {
     auto e = GetRef<Expr>(op);
     Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorDiv>();
+    op = ret.as<FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
     const DataType& dtype = op->dtype;
@@ -104,7 +104,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return ir::Select::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+          return ir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -114,15 +114,15 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
       Expr rdiv = truncdiv(op->a, op->b);
       Expr rmod = truncmod(op->a, op->b);
-      return ir::Select::make(
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rdiv, rdiv - make_const(dtype, 1));
     }
   }
 
-  Expr VisitExpr_(const FloorMod* op) final {
+  Expr VisitExpr_(const FloorModNode* op) final {
     Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-    op = ret.as<FloorMod>();
+    op = ret.as<FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
@@ -153,7 +153,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // -> rmod >= 0 ? 0 : b
           return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
         } else {
-          return ir::Select::make(rmod >= 0, rmod, rmod + op->b);
+          return ir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
         }
       }
     } else {
@@ -164,13 +164,13 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return ir::Select::make(
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rmod, rmod + op->b);
     }
   }
 
-  Expr VisitExpr_(const Max* op) final {
+  Expr VisitExpr_(const MaxNode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     PVar<Integer> c;
@@ -183,7 +183,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const EQ* op) final {
+  Expr VisitExpr_(const EQNode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     auto e = GetRef<Expr>(op);
@@ -193,7 +193,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const NE* op) final {
+  Expr VisitExpr_(const NENode* op) final {
     using namespace arith;
     PVar<Expr> x, y;
     auto e = GetRef<Expr>(op);
@@ -209,8 +209,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
-    if (const Broadcast* bcast = e.as<Broadcast>()) {
-      if (const Cast* cast = bcast->value.as<Cast>()) {
+    if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
+      if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
           if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
@@ -228,8 +228,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         };
 
         if (should_swap()) {
-          Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
-          return Cast::make(bcast->dtype, new_bcast);
+          Expr new_bcast = BroadcastNode::make(cast->value, bcast->lanes);
+          return CastNode::make(bcast->dtype, new_bcast);
         }
       }
     }
@@ -237,19 +237,19 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   Expr MakeFMA(const Expr& a, const Expr& b, const Expr& c,
-               const Add* op) {
+               const AddNode* op) {
     // emit fma instruction: a * b + c
     Expr lhs = SwapBroadcastCast(a);
     Expr rhs = SwapBroadcastCast(b);
 
     if (fma_ != nullptr && op->dtype.is_float()) {
-      Expr r = (*fma_)(Call::make(
-          op->dtype, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
+      Expr r = (*fma_)(CallNode::make(
+          op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        Expr mul = this->VisitExpr(Mul::make(lhs, rhs));
-        return Add::make(mul, this->VisitExpr(c));
+        Expr mul = this->VisitExpr(MulNode::make(lhs, rhs));
+        return AddNode::make(mul, this->VisitExpr(c));
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);

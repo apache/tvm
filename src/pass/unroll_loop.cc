@@ -45,7 +45,7 @@ class LoopUnroller : public StmtExprMutator {
         explicit_unroll_(explicit_unroll) {
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
       int value = 0;
       CHECK(arith::GetConstInt(op->value, &value));
@@ -66,9 +66,9 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const For* op) {
+  Stmt VisitStmt_(const ForNode* op) {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<For>();
+    op = stmt.as<ForNode>();
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (
@@ -101,7 +101,7 @@ class LoopUnroller : public StmtExprMutator {
     } else {
       if (auto_unroll) {
         if (op->for_type != ForType::Unrolled) {
-          return For::make(
+          return ForNode::make(
               op->loop_var, op->min, op->extent,
               ForType::Unrolled, op->device_api, op->body);
         }
@@ -110,12 +110,12 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     ++step_count_;
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Evaluate* op) final {
+  Stmt VisitStmt_(const EvaluateNode* op) final {
     ++step_count_;
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -137,11 +137,11 @@ class LoopUnroller : public StmtExprMutator {
     return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
 
-  Stmt Unroll(const For* op) {
+  Stmt Unroll(const ForNode* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
-    if (value == 0) return Evaluate::make(0);
+    if (value == 0) return EvaluateNode::make(0);
     Stmt body = op->body;
     Map<Var, Expr> vmap;
     Array<Stmt> unrolled;
@@ -155,11 +155,11 @@ class LoopUnroller : public StmtExprMutator {
 
  private:
   // returns the extent of the loop if it's a constant integer, otherwise return -1
-  int GetExtent(const For* op) {
+  int GetExtent(const ForNode* op) {
     // constant folding.
     Expr extent = ir::Simplify(op->extent);
-    const IntImm  *v1 = extent.as<IntImm>();
-    const UIntImm *v2 = extent.as<UIntImm>();
+    const IntImmNode  *v1 = extent.as<IntImmNode>();
+    const UIntImmNode *v2 = extent.as<UIntImmNode>();
     int value = -1;
     if (v1 != nullptr) {
       value = static_cast<int>(v1->value);
@@ -204,7 +204,7 @@ Stmt UnrollLoop(Stmt stmt,
 }
 
 Stmt UnrollLoopExplicitly(Stmt stmt) {
-  const For* op = stmt.as<For>();
+  const ForNode* op = stmt.as<ForNode>();
   if (!op) {
     LOG(FATAL) << "attempted to unroll a non-loop statement";
   }

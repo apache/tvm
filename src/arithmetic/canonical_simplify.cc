@@ -450,14 +450,14 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   }
 
   using Rewriter::VisitExpr_;
-  Expr VisitExpr_(const Add* op) final;
-  Expr VisitExpr_(const Sub* op) final;
-  Expr VisitExpr_(const Mul* op) final;
-  Expr VisitExpr_(const Div* op) final;
-  Expr VisitExpr_(const Mod* op) final;
-  Expr VisitExpr_(const FloorDiv* op) final;
-  Expr VisitExpr_(const FloorMod* op) final;
-  Expr VisitExpr_(const Reduce* op) final;
+  Expr VisitExpr_(const AddNode* op) final;
+  Expr VisitExpr_(const SubNode* op) final;
+  Expr VisitExpr_(const MulNode* op) final;
+  Expr VisitExpr_(const DivNode* op) final;
+  Expr VisitExpr_(const ModNode* op) final;
+  Expr VisitExpr_(const FloorDivNode* op) final;
+  Expr VisitExpr_(const FloorModNode* op) final;
+  Expr VisitExpr_(const ReduceNode* op) final;
 
  private:
   /*!
@@ -553,7 +553,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     }
     ObjectPtr<SumExprNode> n = make_object<SumExprNode>();
     n->dtype = expr.dtype();
-    if (const auto* op = expr.as<IntImm>()) {
+    if (const auto* op = expr.as<IntImmNode>()) {
       n->base = op->value;
       return SumExpr(n);
     } else {
@@ -562,11 +562,11 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     }
   }
   // Simplify the combiner used in reduce.
-  Expr SimplifyReduceCombiner(const Reduce* op);
+  Expr SimplifyReduceCombiner(const ReduceNode* op);
 };
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Add* op) {
+VisitExpr_(const AddNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -575,13 +575,13 @@ VisitExpr_(const Add* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<Add>(a, b);
+  Expr const_res = TryConstFold<AddNode>(a, b);
   if (const_res.defined()) return const_res;
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImm>()) {
+  if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(op->value);
   } else if (const auto* op = b.as<SumExprNode>()) {
     ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), 1);
@@ -592,7 +592,7 @@ VisitExpr_(const Add* op) {
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Sub* op) {
+VisitExpr_(const SubNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -601,13 +601,13 @@ VisitExpr_(const Sub* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<Sub>(a, b);
+  Expr const_res = TryConstFold<SubNode>(a, b);
   if (const_res.defined()) return const_res;
 
   // canonical form simplification.
   SumExpr ret = ToSumExpr(std::move(a));
 
-  if (const auto* op = b.as<IntImm>()) {
+  if (const auto* op = b.as<IntImmNode>()) {
     ret.CopyOnWrite()->AddToSelf(-op->value);
   } else if (const auto* op = b.as<SumExprNode>()) {
     ret.CopyOnWrite()->AddToSelf(GetRef<SumExpr>(op), -1);
@@ -619,7 +619,7 @@ VisitExpr_(const Sub* op) {
 
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Mul* op) {
+VisitExpr_(const MulNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -628,14 +628,14 @@ VisitExpr_(const Mul* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<Mul>(a, b);
+  Expr const_res = TryConstFold<MulNode>(a, b);
   if (const_res.defined()) return const_res;
 
   // x * c
-  if (a.as<IntImm>()) {
+  if (a.as<IntImmNode>()) {
     std::swap(a, b);
   }
-  if (const auto* bconst = b.as<IntImm>()) {
+  if (const auto* bconst = b.as<IntImmNode>()) {
     if (a.as<SumExprNode>()) {
       SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
@@ -653,7 +653,7 @@ VisitExpr_(const Mul* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return Mul::make(a, b);
+    return MulNode::make(a, b);
   }
 }
 
@@ -726,7 +726,7 @@ SplitDivConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Div* op) {
+VisitExpr_(const DivNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -735,7 +735,7 @@ VisitExpr_(const Div* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<Div>(a, b);
+  Expr const_res = TryConstFold<DivNode>(a, b);
   if (const_res.defined()) return const_res;
   PVar<Integer> c1;
   // x / c1
@@ -756,7 +756,7 @@ VisitExpr_(const Div* op) {
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         lhs.CopyOnWrite()->DivideBy(cval);
         Expr temp = Normalize(extra);
-        if (const auto* pconst = temp.as<IntImm>()) {
+        if (const auto* pconst = temp.as<IntImmNode>()) {
           lhs.CopyOnWrite()->AddToSelf(pconst->value / cval);
         } else {
           // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -782,12 +782,12 @@ VisitExpr_(const Div* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return Div::make(a, b);
+    return DivNode::make(a, b);
   }
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const FloorDiv* op) {
+VisitExpr_(const FloorDivNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -795,7 +795,7 @@ VisitExpr_(const FloorDiv* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<FloorDiv>(a, b);
+  Expr const_res = TryConstFold<FloorDivNode>(a, b);
   if (const_res.defined()) return const_res;
   PVar<Integer> c1;
   // x / c1
@@ -813,7 +813,7 @@ VisitExpr_(const FloorDiv* op) {
       // continue simplification.
       lhs.CopyOnWrite()->DivideBy(cval);
       Expr temp = Normalize(extra);
-      if (const auto* pconst = temp.as<IntImm>()) {
+      if (const auto* pconst = temp.as<IntImmNode>()) {
         lhs.CopyOnWrite()->AddToSelf(floordiv(pconst->value, cval));
       } else {
         // if 0 <= extra < cval, it means the extra can be eliminated.
@@ -838,7 +838,7 @@ VisitExpr_(const FloorDiv* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return FloorDiv::make(a, b);
+    return FloorDivNode::make(a, b);
   }
 }
 
@@ -893,7 +893,7 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Mod* op) {
+VisitExpr_(const ModNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -902,7 +902,7 @@ VisitExpr_(const Mod* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<Mod>(a, b);
+  Expr const_res = TryConstFold<ModNode>(a, b);
   if (const_res.defined()) return const_res;
 
   PVar<Integer> c1;
@@ -919,7 +919,7 @@ VisitExpr_(const Mod* op) {
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
           analyzer_->CanProveGreaterEqual(extra->Normalize(), 0)) {
         Expr temp = Normalize(extra);
-        if (temp.as<IntImm>()) {
+        if (temp.as<IntImmNode>()) {
           return truncmod(temp, c1.Eval());
         } else {
           // If temp < cval && temp >=0 then can remove the mod.
@@ -958,12 +958,12 @@ VisitExpr_(const Mod* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return Mod::make(a, b);
+    return ModNode::make(a, b);
   }
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const FloorMod* op) {
+VisitExpr_(const FloorModNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -972,7 +972,7 @@ VisitExpr_(const FloorMod* op) {
   Expr b = this->CanonicalMutate(op->b);
 
   // const folding
-  Expr const_res = TryConstFold<FloorMod>(a, b);
+  Expr const_res = TryConstFold<FloorModNode>(a, b);
   if (const_res.defined()) return const_res;
 
   PVar<Integer> c1;
@@ -983,7 +983,7 @@ VisitExpr_(const FloorMod* op) {
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       Expr temp = Normalize(extra);
-      if (temp.as<IntImm>()) {
+      if (temp.as<IntImmNode>()) {
         return floormod(temp, c1.Eval());
       } else {
         // If temp < cval && temp >=0 then can remove the mod.
@@ -1018,13 +1018,13 @@ VisitExpr_(const FloorMod* op) {
   if (op->a.same_as(a) && op->b.same_as(b)) {
     return GetRef<Expr>(op);
   } else {
-    return FloorMod::make(a, b);
+    return FloorModNode::make(a, b);
   }
 }
 
 // Simplify reduce expression.
 Expr CanonicalSimplifier::Impl::
-SimplifyReduceCombiner(const Reduce* op) {
+SimplifyReduceCombiner(const ReduceNode* op) {
   // First simplify the results
   Array<Expr> simplified_result;
   for (const auto& res : op->combiner->result) {
@@ -1089,15 +1089,15 @@ SimplifyReduceCombiner(const Reduce* op) {
 
   CommReducer new_combiner =
       CommReducerNode::make(new_lhs, new_rhs, new_result, new_identity);
-  return Reduce::make(
+  return ReduceNode::make(
       new_combiner, new_source, op->axis, op->condition, new_value_index);
 }
 
 Expr CanonicalSimplifier::Impl::
-VisitExpr_(const Reduce* op) {
+VisitExpr_(const ReduceNode* op) {
   // Recursively call simplification when necessary.
   Expr ret = RewriteSimplifier::Impl::VisitExpr_(op);
-  op = ret.as<Reduce>();
+  op = ret.as<ReduceNode>();
   // already been simplified by const reduction axis removal
   if (op == nullptr) return ret;
   if (op->axis.empty()) {
@@ -1106,7 +1106,7 @@ VisitExpr_(const Reduce* op) {
     // `(*op->combiner.get())(op->combineop->identity_element, op->source)[op->value_index]`
     // instead of `op->source[op->value_index]`. The former may be more difficult to simplify.
     return this->VisitExpr(
-        Select::make(op->condition,
+        SelectNode::make(op->condition,
                      op->source[op->value_index],
                      op->combiner->identity_element[op->value_index]));
   }

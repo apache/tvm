@@ -78,8 +78,8 @@ class BoundDeducer: public ExprVisitor {
   friend class BoundDeduceInputChecker;
   friend class Converter;
   BoundDeducer(Expr target, Expr expr,
-               const std::unordered_map<const Variable*, IntSet>& hint_map,
-               const std::unordered_map<const Variable*, IntSet>& relax_map)
+               const std::unordered_map<const VarNode*, IntSet>& hint_map,
+               const std::unordered_map<const VarNode*, IntSet>& relax_map)
   : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
   void Deduce();
@@ -94,29 +94,29 @@ class BoundDeducer: public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const LT* op) final {
+  void VisitExpr_(const LTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const LE* op) final {
+  void VisitExpr_(const LENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const GT* op) final {
+  void VisitExpr_(const GTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const GE* op) final {
+  void VisitExpr_(const GENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void VisitExpr_(const Add* op) final {
+  void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const Sub* op) final {
+  void VisitExpr_(const SubNode* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -128,7 +128,7 @@ class BoundDeducer: public ExprVisitor {
     this->VisitExpr(left ? op->a : op->b);
   }
 
-  void VisitExpr_(const Mul* op) final {
+  void VisitExpr_(const MulNode* op) final {
     bool left = op->a.get() == path_[iter_];
     Expr operand = left ? op->b : op->a;
     Expr target_var = left ? op->a : op->b;
@@ -187,8 +187,8 @@ class BoundDeducer: public ExprVisitor {
   CompareOp ReverseOp(CompareOp comp_op);
   Expr target_;
   Expr expr_;
-  const std::unordered_map<const Variable*, IntSet>& hint_map_;
-  const std::unordered_map<const Variable*, IntSet>& relax_map_;
+  const std::unordered_map<const VarNode*, IntSet>& hint_map_;
+  const std::unordered_map<const VarNode*, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
   std::vector<const Object*> path_;
   size_t iter_{0};
@@ -233,7 +233,7 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
 
 void BoundDeducer::Transform() {
   // We will ensure to set expr_ such that it contains target_
-  if (const LT* op = expr_.as<LT>()) {
+  if (const LTNode* op = expr_.as<LTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a < b -> b >= a + 1
       comp_op = kGreater;
@@ -245,7 +245,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b - 1;
     }
-  } else if (const LE* op = expr_.as<LE>()) {
+  } else if (const LENode* op = expr_.as<LENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a <= b -> b >= a
       comp_op = kGreater;
@@ -256,7 +256,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const GT* op = expr_.as<GT>()) {
+  } else if (const GTNode* op = expr_.as<GTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a > b -> b <= a - 1
       comp_op = kLess;
@@ -268,7 +268,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b + 1;
     }
-  } else if (const GE* op = expr_.as<GE>()) {
+  } else if (const GENode* op = expr_.as<GENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a >= b -> b <= a
       comp_op = kLess;
@@ -279,7 +279,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const EQ* op = expr_.as<EQ>()) {
+  } else if (const EQNode* op = expr_.as<EQNode>()) {
     comp_op = kEqual;
     if (GetPath(target_, op->a).empty()) {
       // if the b == a -> a == b
@@ -330,8 +330,8 @@ void BoundDeducer::Relax() {
 }
 
 IntSet DeduceBound(Expr v, Expr e,
-  const std::unordered_map<const Variable*, IntSet>& hint_map,
-  const std::unordered_map<const Variable*, IntSet>& relax_map) {
+  const std::unordered_map<const VarNode*, IntSet>& hint_map,
+  const std::unordered_map<const VarNode*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success_) return IntSet::nothing();
@@ -352,11 +352,11 @@ IntSet DeduceBound(Expr v, Expr e,
 IntSet DeduceBound(Expr v, Expr e,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map) {
-  std::unordered_map<const Variable*, IntSet> hmap;
+  std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
     hmap[kv.first.get()] = kv.second;
   }
-  std::unordered_map<const Variable*, IntSet> rmap;
+  std::unordered_map<const VarNode*, IntSet> rmap;
   for (auto kv : relax_map) {
     rmap[kv.first.get()] = kv.second;
   }

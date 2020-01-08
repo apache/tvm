@@ -35,12 +35,12 @@ namespace codegen {
 inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   Expr e = args[0];
   using namespace ir;
-  const Call* call = e.as<Call>();
+  const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   std::ostringstream intrinsic_name;
   intrinsic_name << "__ocml_" << call->name << "_f" << call->dtype.bits();
-  *rv = Call::make(call->dtype, intrinsic_name.str(), call->args,
-                   Call::PureExtern);
+  *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args,
+                   CallNode::PureExtern);
 }
 
 namespace llvm {

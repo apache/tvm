@@ -35,14 +35,14 @@ namespace codegen {
 inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   Expr e = args[0];
   using namespace ir;
-  const Call* call = e.as<Call>();
+  const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   CHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64) << "Only support float32 or float64.";
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << call->name;
   if (call->dtype.bits() == 32) intrinsic_name << "f";
-  *rv = Call::make(call->dtype, intrinsic_name.str(), call->args,
-                   Call::PureExtern);
+  *rv = CallNode::make(call->dtype, intrinsic_name.str(), call->args,
+                   CallNode::PureExtern);
 }
 
 namespace llvm {

@@ -69,7 +69,7 @@ using namespace ir;
 RewriteSimplifier::Impl::CompareResult RewriteSimplifier::Impl::
 TryCompare(const Expr& x, int64_t val) {
   Expr diff = this->VisitExpr(x);
-  if (const auto* ptr = diff.as<IntImm>()) {
+  if (const auto* ptr = diff.as<IntImmNode>()) {
     if (ptr->value == val) {
       return kEQ;
     } else if (ptr->value > val) {
@@ -116,10 +116,10 @@ Update(const Var& var, const Expr& info, bool override) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Add* op) {
+VisitExpr_(const AddNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Add>();
-  Expr const_res = TryConstFold<Add>(op->a, op->b);
+  op = ret.as<AddNode>();
+  Expr const_res = TryConstFold<AddNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1, b2, s1, s2;
@@ -231,10 +231,10 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const Expr& const
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Sub* op) {
+VisitExpr_(const SubNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Sub>();
-  Expr const_res = TryConstFold<Sub>(op->a, op->b);
+  op = ret.as<SubNode>();
+  Expr const_res = TryConstFold<SubNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1, b2, s1, s2;
@@ -430,10 +430,10 @@ VisitExpr_(const Sub* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Mul* op) {
+VisitExpr_(const MulNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Mul>();
-  Expr const_res = TryConstFold<Mul>(op->a, op->b);
+  op = ret.as<MulNode>();
+  Expr const_res = TryConstFold<MulNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1, b2, s1, s2;
@@ -469,10 +469,10 @@ VisitExpr_(const Mul* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Div* op) {
+VisitExpr_(const DivNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Div>();
-  Expr const_res = TryConstFold<Div>(op->a, op->b);
+  op = ret.as<DivNode>();
+  Expr const_res = TryConstFold<DivNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1;
@@ -482,7 +482,7 @@ VisitExpr_(const Div* op) {
   PVar<int> lanes;
 
   // x / 2.0 = x * 0.5
-  if (const FloatImm* ptr = op->b.as<FloatImm>()) {
+  if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
     CHECK(op->dtype.is_float());
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
@@ -691,10 +691,10 @@ VisitExpr_(const Div* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Mod* op) {
+VisitExpr_(const ModNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Mod>();
-  Expr const_res = TryConstFold<Mod>(op->a, op->b);
+  op = ret.as<ModNode>();
+  Expr const_res = TryConstFold<ModNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -781,10 +781,10 @@ VisitExpr_(const Mod* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const FloorDiv* op) {
+VisitExpr_(const FloorDivNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<FloorDiv>();
-  Expr const_res = TryConstFold<FloorDiv>(op->a, op->b);
+  op = ret.as<FloorDivNode>();
+  Expr const_res = TryConstFold<FloorDivNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y, z, b1;
@@ -925,10 +925,10 @@ VisitExpr_(const FloorDiv* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const FloorMod* op) {
+VisitExpr_(const FloorModNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<FloorMod>();
-  Expr const_res = TryConstFold<FloorMod>(op->a, op->b);
+  op = ret.as<FloorModNode>();
+  Expr const_res = TryConstFold<FloorModNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -995,10 +995,10 @@ VisitExpr_(const FloorMod* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Min* op) {
+VisitExpr_(const MinNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Min>();
-  Expr const_res = TryConstFold<Min>(op->a, op->b);
+  op = ret.as<MinNode>();
+  Expr const_res = TryConstFold<MinNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1180,10 +1180,10 @@ VisitExpr_(const Min* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Max* op) {
+VisitExpr_(const MaxNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Max>();
-  Expr const_res = TryConstFold<Max>(op->a, op->b);
+  op = ret.as<MaxNode>();
+  Expr const_res = TryConstFold<MaxNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1353,10 +1353,10 @@ VisitExpr_(const Max* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const EQ* op) {
+VisitExpr_(const EQNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<EQ>();
-  Expr const_res = TryConstFold<EQ>(op->a, op->b);
+  op = ret.as<EQNode>();
+  Expr const_res = TryConstFold<EQNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1387,30 +1387,30 @@ VisitExpr_(const EQ* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const NE* op) {
-  return this->VisitExpr(Not::make(op->a == op->b));
+VisitExpr_(const NENode* op) {
+  return this->VisitExpr(NotNode::make(op->a == op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const LE* op) {
-  return this->VisitExpr(Not::make(op->b < op->a));
+VisitExpr_(const LENode* op) {
+  return this->VisitExpr(NotNode::make(op->b < op->a));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const GT* op) {
+VisitExpr_(const GTNode* op) {
   return this->VisitExpr(op->b < op->a);
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const GE* op) {
-  return this->VisitExpr(Not::make(op->a < op->b));
+VisitExpr_(const GENode* op) {
+  return this->VisitExpr(NotNode::make(op->a < op->b));
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const LT* op) {
+VisitExpr_(const LTNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<LT>();
-  Expr const_res = TryConstFold<LT>(op->a, op->b);
+  op = ret.as<LTNode>();
+  Expr const_res = TryConstFold<LTNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1563,10 +1563,10 @@ VisitExpr_(const LT* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Not* op) {
+VisitExpr_(const NotNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Not>();
-  Expr const_res = TryConstFold<Not>(op->a);
+  op = ret.as<NotNode>();
+  Expr const_res = TryConstFold<NotNode>(op->a);
   if (const_res.defined()) return const_res;
   // Pattern var to match any expression
   PVar<Expr> x, y;
@@ -1588,10 +1588,10 @@ VisitExpr_(const Not* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const And* op) {
+VisitExpr_(const AndNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<And>();
-  Expr const_res = TryConstFold<And>(op->a, op->b);
+  op = ret.as<AndNode>();
+  Expr const_res = TryConstFold<AndNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1637,10 +1637,10 @@ VisitExpr_(const And* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Or* op) {
+VisitExpr_(const OrNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Or>();
-  Expr const_res = TryConstFold<Or>(op->a, op->b);
+  op = ret.as<OrNode>();
+  Expr const_res = TryConstFold<OrNode>(op->a, op->b);
   if (const_res.defined()) return const_res;
 
   // Pattern var to match any expression
@@ -1687,9 +1687,9 @@ VisitExpr_(const Or* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Select* op) {
+VisitExpr_(const SelectNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Select>();
+  op = ret.as<SelectNode>();
   if (op == nullptr) return ret;
   // Pattern var to match any expression
   PVar<Expr> x, y;
@@ -1698,25 +1698,25 @@ VisitExpr_(const Select* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Call* op) {
+VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Call>();
+  op = ret.as<CallNode>();
   if (op == nullptr) return ret;
-  if (op->is_intrinsic(Call::likely) && is_const(op->args[0])) {
+  if (op->is_intrinsic(CallNode::likely) && is_const(op->args[0])) {
     return op->args[0];
-  } else if (op->is_intrinsic(Call::shift_right)) {
-    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
+    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] >> op->args[1];
     }
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
-    if (op->args[0].as<IntImm>() && op->args[1].as<IntImm>()) {
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
+    if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
       return op->args[0] & op->args[1];
     }
   }
-  if (op->is_intrinsic(Call::likely)) {
+  if (op->is_intrinsic(CallNode::likely)) {
     for (const auto& constraint : literal_constraints_) {
       // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
       if (Equal(constraint, op->args[0])) {
@@ -1728,7 +1728,7 @@ VisitExpr_(const Call* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Variable* op) {
+VisitExpr_(const VarNode* op) {
   Var var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) {
@@ -1738,14 +1738,14 @@ VisitExpr_(const Variable* op) {
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Cast* op) {
+VisitExpr_(const CastNode* op) {
   Expr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
-  op = ret.as<Cast>();
+  op = ret.as<CastNode>();
   return cast(op->dtype, op->value);
 }
 
 Expr RewriteSimplifier::Impl::
-VisitExpr_(const Let* op) {
+VisitExpr_(const LetNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     // it is fine to discard the let binding
@@ -1758,7 +1758,7 @@ VisitExpr_(const Let* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return Let::make(op->var, value, body);
+    return LetNode::make(op->var, value, body);
   }
 }
 

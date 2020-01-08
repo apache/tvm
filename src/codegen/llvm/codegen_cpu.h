@@ -45,11 +45,11 @@ class CodeGenCPU : public CodeGenLLVM {
   void AddFunction(const LoweredFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
-  void VisitStmt_(const AssertStmt* op) override;
-  void VisitStmt_(const AttrStmt* op) override;
-  void VisitStmt_(const For* op) override;
-  llvm::Value* CreateIntrinsic(const Call* op) override;
-  llvm::Value* CreateCallExtern(const Call* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  llvm::Value* CreateIntrinsic(const CallNode* op) override;
+  llvm::Value* CreateCallExtern(const CallNode* op) override;
 
  protected:
   void AddStartupFunction() final;
@@ -99,22 +99,22 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
   void UnpackClosureData(llvm::Value*cdata,
                          const Array<Var>& fields,
-                         std::unordered_map<const Variable*, llvm::Value*>* vmap);
+                         std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
   llvm::BasicBlock *MakeCallPacked(const Array<Expr> &args,
                                    llvm::Value **rvalue,
                                    llvm::Value **ret_tcode, const DataType &r_type,
                                    const int64_t begin, const int64_t end);
   // create call into tvm packed function.
-  llvm::Value* CreateCallPacked(const Call* op);
+  llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const Call *op);
+  llvm::Value* CreateCallTracePacked(const CallNode *op);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task);
   // Create a new compute scope.
-  void CreateComputeScope(const AttrStmt* op);
+  void CreateComputeScope(const AttrStmtNode* op);
   // Check if the call to packed function is successful
   // if not directly finalize function and pass on return code.
   // return the end block after the check

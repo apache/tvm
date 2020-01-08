@@ -31,8 +31,8 @@
 namespace tvm {
 
 // TODO(tqchen): change to floormod/div
-using IndexMod = ir::FloorMod;
-using IndexDiv = ir::FloorDiv;
+using IndexMod = ir::FloorModNode;
+using IndexDiv = ir::FloorDivNode;
 
 Array<Expr> SimplifyArray(Array<Expr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
@@ -65,7 +65,7 @@ inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
   while (!split_buffer.empty()) {
     const Expr* top_ele = split_buffer.top();
     split_buffer.pop();
-    auto expr_add_match = top_ele->as<Add>();
+    auto expr_add_match = top_ele->as<AddNode>();
     if (expr_add_match) {
       split_buffer.push(&expr_add_match->b);
       split_buffer.push(&expr_add_match->a);
@@ -88,13 +88,13 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
                                               const Expr &mod_l_expr,
                                               const Expr &mod_r_expr) {
   using namespace ir;
-  const Mul* mult_ptr = mult_expr.as<Mul>();
+  const MulNode* mult_ptr = mult_expr.as<MulNode>();
   if (!mult_ptr) return std::make_pair(false, Expr());
   Expr mult_outer = mult_ptr->b;
   const Expr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
   while (true) {
-    mult_ptr = inner->as<Mul>();
+    mult_ptr = inner->as<MulNode>();
     if (mult_ptr) {
       inner = &(mult_ptr->a);
       mult_outer = mult_ptr->b * mult_outer;
@@ -113,8 +113,8 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
   Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
-    auto inner_mult_ptr = search_ptr->as<Mul>();
-    auto inner_add_ptr = search_ptr->as<Add>();
+    auto inner_mult_ptr = search_ptr->as<MulNode>();
+    auto inner_add_ptr = search_ptr->as<AddNode>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
       return std::make_pair(false, Expr());
     } else if (inner_div_ptr) {
@@ -160,7 +160,7 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
   *has_mod = false;
   for (const Expr* ele : eles) {
     auto mod_ptr = ele->as<IndexMod>();
-    auto mult_ptr = ele->as<Mul>();
+    auto mult_ptr = ele->as<MulNode>();
     if (mod_ptr) {
       *has_mod = true;
       mod_exprs->emplace_back(std::make_pair(std::move(mod_ptr->a), std::move(mod_ptr->b)));
@@ -252,7 +252,7 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   if (n->strides.size() == 0) {
     // Scalar case
     if (n->shape.size() == 0 && index.size() == 1) {
-      auto is_int = index[0].as<IntImm>();
+      auto is_int = index[0].as<IntImmNode>();
       CHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {
@@ -285,7 +285,7 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, DataType dtype)
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return ir::Ramp::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return ir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
@@ -299,13 +299,13 @@ Expr Buffer::vload(Array<Expr> begin, DataType dtype) const {
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
-    return ir::Cast::make(
+    return ir::CastNode::make(
         DataType::Bool(),
-        ir::Load::make(
+        ir::LoadNode::make(
             DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
             const_true()));
   } else {
-    return ir::Load::make(
+    return ir::LoadNode::make(
         dtype, n->data, BufferOffset(n, begin, dtype),
         const_true(dtype.lanes()));
   }
@@ -320,12 +320,12 @@ Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return ir::Store::make(n->data,
-                           ir::Cast::make(DataType::Int(8), value),
+    return ir::StoreNode::make(n->data,
+                           ir::CastNode::make(DataType::Int(8), value),
                            BufferOffset(n, begin, DataType::Int(8)),
                            const_true());
   } else {
-    return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
+    return ir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
                            const_true(dtype.lanes()));
   }
 }
@@ -391,7 +391,7 @@ Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, E
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr()) - offset;
+    extent = arith::ComputeReduce<ir::MulNode>(self->shape, Expr()) - offset;
   }
   Expr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
@@ -405,8 +405,8 @@ Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, E
   Array<Expr> acc_args{
     e_dtype, self->data, elem_offset,
         extent, make_const(DataType::Int(32), access_mask)};
-  return ir::Call::make(
-      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::Call::Intrinsic);
+  return ir::CallNode::make(
+      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::CallNode::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data,

@@ -337,7 +337,7 @@ Module FunctionPassNode::operator()(const Module& mod,
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
   ObjectRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
-  const ir::IntImm* pval = skip_opt.as<ir::IntImm>();
+  const ir::IntImmNode* pval = skip_opt.as<ir::IntImmNode>();
   return (pval && pval->value != 0) || (!func->UseDefaultCompiler());
 }
 
@@ -373,7 +373,7 @@ void SequentialNode::ResolveDependency(const Module& mod) {
 inline bool PassArrayContains(const Array<tvm::Expr>& pass_array,
                               const std::string& pass_name) {
   for (auto x : pass_array) {
-    auto* str_name = x.as<ir::StringImm>();
+    auto* str_name = x.as<ir::StringImmNode>();
     CHECK(str_name) << "pass name must be str";
     if (str_name->value == pass_name) return true;
   }
@@ -415,7 +415,7 @@ Module SequentialNode::operator()(const Module& module,
     if (!PassEnabled(pass_info))  continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
-      const auto* name = it.as<tvm::ir::StringImm>();
+      const auto* name = it.as<tvm::ir::StringImmNode>();
       CHECK(name);
       mod = GetPass(name->value)(mod, pass_ctx);
     }
@@ -461,7 +461,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   p->stream << "opt_level: " << node->opt_level;
   p->stream << "required passes: [" << "\n";
   for (const auto& it : node->required) {
-    const auto* str = it.as<tvm::ir::StringImm>();
+    const auto* str = it.as<tvm::ir::StringImmNode>();
     p->stream << str->value << ", ";
   }
   p->stream << "]\n";

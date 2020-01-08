@@ -140,17 +140,17 @@ class ConstIntBoundAnalyzer::Impl :
     return res;
   }
 
-  Entry VisitExpr_(const Cast* op) final {
+  Entry VisitExpr_(const CastNode* op) final {
     Entry a = VisitExpr(op->value);
     Entry b = Everything(op->dtype);
     return Intersect(a, b);
   }
 
-  Entry VisitExpr_(const IntImm* op) final {
+  Entry VisitExpr_(const IntImmNode* op) final {
     return MakeBound(op->value, op->value);
   }
 
-  Entry VisitExpr_(const UIntImm* op) final {
+  Entry VisitExpr_(const UIntImmNode* op) final {
     if (op->value <= static_cast<uint64_t>(kPosInf)) {
       return MakeBound(op->value, op->value);
     } else {
@@ -158,7 +158,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Add* op) final {
+  Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -167,7 +167,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Sub* op) final {
+  Entry VisitExpr_(const SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -176,13 +176,13 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Mul* op) final {
+  Entry VisitExpr_(const MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return BinaryOpBoundry(a, b, InfAwareMul);
   }
 
-  Entry VisitExpr_(const Div* op) final {
+  Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "divide by zero";
@@ -192,7 +192,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareDiv);
   }
 
-  Entry VisitExpr_(const Mod* op) final {
+  Entry VisitExpr_(const ModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -215,7 +215,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const FloorDiv* op) final {
+  Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "floordiv by zero";
@@ -225,7 +225,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareFloorDiv);
   }
 
-  Entry VisitExpr_(const FloorMod* op) final {
+  Entry VisitExpr_(const FloorModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -246,7 +246,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitExpr_(const Min* op) final {
+  Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -255,7 +255,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Max* op) final {
+  Entry VisitExpr_(const MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -264,25 +264,25 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Select* op) final {
+  Entry VisitExpr_(const SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Call* op) final {
+  Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
-    if (op->is_intrinsic(Call::shift_right)) {
+    if (op->is_intrinsic(CallNode::shift_right)) {
       return VisitRightShift(op);
-    } else if (op->is_intrinsic(Call::bitwise_and)) {
+    } else if (op->is_intrinsic(CallNode::bitwise_and)) {
       return VisitBitwiseAnd(op);
     } else {
       return Everything(op->dtype);
     }
   }
 
-  Entry VisitExpr_(const Variable* op) final {
+  Entry VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -292,13 +292,13 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  Entry VisitRightShift(const Call* op) {
+  Entry VisitRightShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     return BinaryOpBoundry(a, b, InfAwareRightShift);
   }
 
-  Entry VisitBitwiseAnd(const Call* op) {
+  Entry VisitBitwiseAnd(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     // handle positive index case.
@@ -375,7 +375,7 @@ class ConstIntBoundAnalyzer::Impl :
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
-    if (WillOverflow<Add>(x, y, kNegInf, kPosInf)) {
+    if (WillOverflow<AddNode>(x, y, kNegInf, kPosInf)) {
       if (x > 0) return kPosInf;
       return kNegInf;
     }
@@ -388,7 +388,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \return the result.
    */
   static int64_t InfAwareMul(int64_t x, int64_t y) {
-    if (!WillOverflow<Mul>(x, y, kNegInf, kPosInf)) return x * y;
+    if (!WillOverflow<MulNode>(x, y, kNegInf, kPosInf)) return x * y;
     if ((x > 0 && y > 0) || (x < 0 && y < 0)) return kPosInf;
     return kNegInf;
   }

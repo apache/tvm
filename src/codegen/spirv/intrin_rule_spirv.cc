@@ -35,17 +35,17 @@ using namespace runtime;
 template<unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   Expr e = targs[0];
-  const ir::Call* call = e.as<ir::Call>();
+  const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
   Array<Expr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(DataType::UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
 
   for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::Call::make(
-      call->dtype, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
+  *rv = ir::CallNode::make(
+      call->dtype, "spirv_glsl450", cargs, ir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
