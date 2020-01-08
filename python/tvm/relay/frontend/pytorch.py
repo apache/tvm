@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
-# pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable
+# pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 """PT: PyTorch frontend."""
 import numpy as np
 
