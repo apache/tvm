@@ -782,7 +782,6 @@ if __name__ == '__main__':
     test_forward_pow()
     test_forward_chunk()
 
-    """
     # Model tests
     test_resnet18()
     test_resnet34()
@@ -808,4 +807,3 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-    """

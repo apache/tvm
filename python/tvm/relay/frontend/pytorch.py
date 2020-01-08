@@ -121,21 +121,13 @@ def _ones():
         else:
             shape = inputs[0].shape
 
-        if input_types[0] == 'int':
-            fill_value = _expr.const(1)
-        elif input_types[0] == 'Float':
-            fill_value = _expr.const(1.0)
-        else:
-            fill_value = _expr.const(1)
+        fill_value = _get_fill_value(input_types)
 
         return get_relay_op('full')(fill_value, shape)
     return _impl
 
-
 def _zeros():
     def _impl(inputs, input_types):
-        fill_value = _expr.const(0, dtype='float32')
-
         if isinstance(inputs[0], _expr.Var):
             shape = _infer_shape(inputs[0])
         elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
@@ -143,7 +135,9 @@ def _zeros():
         else:
             shape = inputs[0].shape
 
-        return _op.full(fill_value, shape, 'float32')
+        fill_value = _get_fill_value(input_types)
+
+        return _op.full(fill_value, shape)
     return _impl
 
 def _get_fill_value(input_types):
@@ -322,6 +316,7 @@ def _contiguous():
 def _batch_norm():
     def _impl(inputs, input_types):
         data = inputs[0]
+        data_type = input_types[0]
 
         channels = _infer_shape(data)
 
@@ -335,12 +330,19 @@ def _batch_norm():
         if scale:
             gamma = weight
         else:
-            gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'), dtype='float32')
+            if data_type == 'Float':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
+            elif data_type == 'Int':
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('int32'))
 
         if center:
             beta = beta
         else:
-            beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'), dtype='float32')
+
+            if data_type == 'Float':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
+            elif data_type == 'Int':
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('int32'))
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
@@ -382,7 +384,7 @@ def _transpose():
                 axes[-1] = ndims - 2
                 axes[-2] = ndims - 1
             if not isinstance(data, _expr.Var):
-                data = _expr.const(data, dtype='float32')
+                data = _expr.const(data)
 
         elif num_inputs == 3:
             parse = lambda i: ndims * (i < 0) + i
@@ -403,21 +405,29 @@ def _flatten():
 def _dense():
     def _impl(inputs, input_types):
         use_bias = False
+        print(input_types)
 
         if isinstance(inputs[0], _expr.Var):
             use_bias = True
 
         data = inputs[1]
+        data_type = input_types[1]
         weight = inputs[2]
         beta = int(inputs[3])
         alpha = int(inputs[4])
 
         if isinstance(alpha, int) and isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            alpha = _expr.const(alpha, dtype='float32')
+            if data_type == 'Float':
+                alpha = _expr.const(alpha, dtype='float32')
+            elif data_type == 'Int':
+                alpha = _expr.const(alpha, dtype='int32')
             data *= alpha
 
         if isinstance(beta, int) and isinstance(weight, (_expr.Call, _expr.TupleGetItem)):
-            beta = _expr.const(beta, dtype='float32')
+            if data_type == 'Float':
+                beta = _expr.const(beta, dtype='float32')
+            elif data_type == 'Int':
+                beta = _expr.const(beta, dtype='int32')
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
@@ -813,9 +823,11 @@ class Graph(object):
                                         self._relay_map[self._nid_to_node_name[i.debugName()]]
                                     break
 
+                """
                 print('op input types')
                 print(op_node)
                 print(self._op_inputs_types[(op_name, operator)])
+                """
 
                 call = _convert_map[operator](self._op_inputs_r[(op_name, operator)], self._op_inputs_types[(op_name, operator)])
 
@@ -958,8 +970,8 @@ class Graph(object):
         self._ops[(op_name, operator)] = op_node
         input_list_r = []
         input_list_types = []
-        print('parsing')
-        print(op_node)
+        #print('parsing')
+        #print(op_node)
         for input_node in op_node.inputs():
             if input_node.debugName() in self._inputs_r.keys():
                 input_list_r.append(self._inputs_r[input_node.debugName()])
@@ -974,11 +986,11 @@ class Graph(object):
                 if op_node.kind() == 'prim::ListConstruct':
                     if op_name in self._inputs_r.keys():
                         self._inputs_r.pop(op_name)
-            print(input_node)
+            #print(input_node)
 
             try:
                 input_node_kind = input_node.type().kind()
-                print(input_node_kind)
+                #print(input_node_kind)
                 if input_node_kind == 'TensorType':
                     input_list_types.append(input_node.type().scalarType())
                     #input_list_types.append(input_node.type())
@@ -1001,12 +1013,12 @@ class Graph(object):
             except:
                 print('Internal PyTorch error. Failed to grab type.')
 
-        print('node formatting')
+        #print('node formatting')
         node_str = str(op_node)
-        print(node_str)
+        #print(node_str)
         node_assign = (node_str.split(' = ')[0]).split(' : ')
         node_type = node_assign[1]
-        print(node_type)
+        #print(node_type)
 
         if op_node.kind() == 'aten::ones':
             node_type = node_type.split('(')[0]
