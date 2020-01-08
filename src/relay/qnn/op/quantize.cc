@@ -45,11 +45,18 @@ bool QuantizeRel(const Array<Type>& types,
   CHECK(input_dtype == DataType::Float(32))
     << "Input type should be one of float32 but was " <<  input_dtype;
 
-  // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[1], DataType::Float(32)));  // output_scale
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // output_zero_point
-
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
+  int axis = quantize_attrs->axis;
+  axis = (axis == -1) ? data->shape.size() - 1: axis;
+  CHECK_LT(axis, static_cast<int>(data->shape.size()))
+      << "axis " << quantize_attrs->axis << " is out of range";
+  CHECK_GE(axis, 0)
+      << "axis " << quantize_attrs->axis << " is out of range";
+
+  // Check and assign types for scale and zero points.
+  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+
   const Array<tvm::Expr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
   CHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
@@ -60,8 +67,10 @@ bool QuantizeRel(const Array<Type>& types,
   return true;
 }
 
-Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, DataType out_dtype) {
+Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, int axis,
+                  DataType out_dtype) {
   auto attrs = make_object<QuantizeAttrs>();
+  attrs->axis = axis;
   attrs->out_dtype = std::move(out_dtype);
   // result_quantized_value = result_zero_point + result_real_value / result_scale.
   // A more detailed explanation can be found here -
@@ -71,13 +80,29 @@ Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, DataType
 }
 
 Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
-                   const Expr& output_zero_point, const QuantizeAttrs* attrs) {
+                   const Expr& output_zero_point, const Array<IndexExpr>& input_shape,
+                   const QuantizeAttrs* attrs) {
   const auto out_dtype = attrs->out_dtype;
+  const auto axis = attrs->axis;
+
+  size_t n_dim = input_shape.size();
+
+  auto expanded_output_scale = output_scale;
+  if (!IsConstScalar(output_scale)) {
+    expanded_output_scale = ExpandBiasToMatchAxis(output_scale, n_dim, {axis});
+  }
+
+  auto expanded_output_zero_point = output_zero_point;
+  if (!IsConstScalar(output_zero_point)) {
+    expanded_output_zero_point = ExpandBiasToMatchAxis(output_zero_point, n_dim, {axis});
+  }
+
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
-  auto scale_data = Divide(input_tensor, output_scale);
+  auto scale_data = Divide(input_tensor, expanded_output_scale);
   auto add_zero_point =
-      Cast(Round(Add(scale_data, Cast(output_zero_point, DataType::Float(32)))), DataType::Int(32));
+      Cast(Round(Add(scale_data, Cast(expanded_output_zero_point, DataType::Float(32)))),
+           DataType::Int(32));
   auto clamped_output = Clip(add_zero_point, min_val, max_val);
   auto clamp_out_dtype = Cast(clamped_output, out_dtype);
   return clamp_out_dtype;
@@ -92,8 +117,15 @@ Expr QuantizeQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto* quantize_attrs = attrs.as<QuantizeAttrs>();
   CHECK(quantize_attrs != nullptr);
 
+  // Find input shape.
   CHECK_EQ(types.size(), 4);
-  return QuantizeLower(data, output_scale, output_zero_point, quantize_attrs);
+  auto in_type = types[0];
+  auto in_tensor_type = in_type.as<TensorTypeNode>();
+  CHECK(in_tensor_type != nullptr) << "Type information missing."
+                                   << " Please run infer_type pass.";
+  Array<IndexExpr> input_shape = in_tensor_type->shape;
+
+  return QuantizeLower(data, output_scale, output_zero_point, input_shape, quantize_attrs);
 }
 
 RELAY_REGISTER_OP("qnn.quantize")

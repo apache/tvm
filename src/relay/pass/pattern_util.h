@@ -35,6 +35,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/attrs/reduce.h>
 #include <string>
+#include <vector>
 #include <utility>
 
 
@@ -222,13 +223,26 @@ inline bool IsScalar(const Expr& expr) {
 }
 
 /*!
+ * \brief Check if expr is a const scalar.
+ * \param expr The expr.
+ * \return True if const scalar.
+ */
+inline bool IsConstScalar(const Expr& expr) {
+  const auto* const_expr = expr.as<ConstantNode>();
+  if (const_expr) {
+    return const_expr->is_scalar();
+  }
+  return false;
+}
+
+/*!
  * \brief Create a Constant with a scalar
  *
  * \param dtype The data type.
  * \param value The value of the scalar.
  * \return A Constant.
  */
-template<typename T>
+template <typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
   runtime::NDArray arr = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
@@ -236,9 +250,37 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
       // convert to float16
       // storage is uint16_t
       *static_cast<DType*>(arr->data) =
-        __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
+          __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
     } else {
       *static_cast<DType*>(arr->data) = value;
+    }
+  })
+  return ConstantNode::make(arr);
+}
+
+/*!
+ * \brief Create a Constant with a tensor.
+ *
+ * \param dtype The data type.
+ * \param value The vector of the tensor values.
+ * \return A Constant.
+ */
+template <typename T>
+static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> shape,
+                                          std::vector<T> value) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (size_t i = 0; i < value.size(); i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = value[i];
+      }
     }
   })
   return ConstantNode::make(arr);
@@ -522,6 +564,8 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
   static const Op& op = Op::Get("tile");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
+
+Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape);
 
 Expr MakeConcatenate(Expr data, int axis);
 

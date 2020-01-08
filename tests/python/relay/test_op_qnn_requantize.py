@@ -34,15 +34,27 @@ def verify(mod, goldens):
         np.testing.assert_equal(res, golden_output)
 
 def get_mod(data_shape, data_dtype, out_dtype, input_scale, output_scale,
-        input_zero_point=0, output_zero_point=0, rounding="TONEAREST"):
+        input_zero_point=0, output_zero_point=0, rounding="TONEAREST",
+        axis=0):
     quantized_data = relay.var("quantized_data", shape=data_shape,
             dtype=data_dtype)
+    if isinstance(input_scale, float):
+        input_scale_expr = relay.const(input_scale, 'float32')
+    else:
+        input_scale_expr = relay.const(np.array(input_scale).astype('float32'))
+
+    if isinstance(input_zero_point, float):
+        input_zero_point_expr = relay.const(input_zero_point, 'int32')
+    else:
+        input_zero_point_expr = relay.const(np.array(input_zero_point).astype('int32'))
+
     mod = relay.qnn.op.requantize(
             quantized_data,
-            input_scale=relay.const(input_scale, 'float32'),
-            input_zero_point=relay.const(input_zero_point, 'int32'),
+            input_scale=input_scale_expr,
+            input_zero_point=input_zero_point_expr,
             output_scale=relay.const(output_scale, 'float32'),
             output_zero_point=relay.const(output_zero_point, 'int32'),
+            axis=axis,
             rounding=rounding,
             out_dtype=out_dtype)
 
@@ -240,9 +252,70 @@ def test_zero_point():
         golden_output = np.subtract(golden_output, 1)
         verify(mod, (golden_data, golden_output))
 
+def test_per_channel_same_scale():
+    # Have same scales, everything within range
+    golden_data = np.arange(-5, 5, 1).astype('int32').reshape((5,2))
+    golden_output = golden_data
+
+    for rounding in roundings:
+        mod = get_mod(data_shape=(5, 2),
+                      data_dtype='int32',
+                      out_dtype="int8",
+                      input_scale=[0.5, 0.5],
+                      output_scale=0.5,
+                      axis=1,
+                      rounding=rounding)
+        verify(mod, (golden_data, golden_output))
+
+    # Change axis
+    golden_data = np.arange(-10, 10, 1).astype('int32').reshape((2,2,5))
+    golden_output = golden_data
+
+    for rounding in roundings:
+        mod = get_mod(data_shape=(2, 2, 5),
+                      data_dtype='int32',
+                      out_dtype="int8",
+                      input_scale=[0.5, 0.5],
+                      output_scale=0.5,
+                      axis=1,
+                      rounding=rounding)
+        verify(mod, (golden_data, golden_output))
+
+def test_per_channel_different_scale():
+    # Have same scales, everything within range
+    golden_data = np.arange(-5, 5, 1).astype('int32').reshape((5,2))
+    golden_output = np.array([-5, -2, -3, -1, -1, 0, 1, 1, 3, 2]).reshape((5, 2))
+
+    for rounding in roundings:
+        mod = get_mod(data_shape=(5, 2),
+                      data_dtype='int32',
+                      out_dtype="int8",
+                      input_scale=[0.5, 0.25],
+                      output_scale=0.5,
+                      axis=1,
+                      rounding=rounding)
+        verify(mod, (golden_data, golden_output))
+
+    # Change axis
+    golden_data = np.arange(-20, 20, 2).astype('int32').reshape((2,2,5))
+    golden_output = np.array([-20, -18, -16, -14, -12, -5, -4, -3, -2, -1, 0, 2, 4, 6, 8, 5, 6, 7,
+        8, 9]).reshape((2, 2, 5))
+
+    for rounding in roundings:
+        mod = get_mod(data_shape=(2, 2, 5),
+                      data_dtype='int32',
+                      out_dtype="int8",
+                      input_scale=[0.5, 0.25],
+                      output_scale=0.5,
+                      axis=1,
+                      rounding=rounding)
+        verify(mod, (golden_data, golden_output))
+
 if __name__ == "__main__":
     test_same_scale()
     test_downscale()
     test_upscale()
     test_saturation()
     test_zero_point()
+    test_per_channel_same_scale()
+    test_per_channel_different_scale()
