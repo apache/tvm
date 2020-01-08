@@ -47,7 +47,7 @@ def _lower(mod,
             with vta.build_config():
                 mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-                return grc.codegen(mod["main"])
+                grc.codegen(mod["main"])
     # default case
     compiler = relay.vm.VMCompiler()
     compiler.set_params(params)
