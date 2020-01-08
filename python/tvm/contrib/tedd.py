@@ -201,6 +201,7 @@ def viz_schedule_tree(sch,
                margin='0')
 
     def stage_node_label(stage):
+        """Return a html format label for the given stage."""
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
             'CELLPADDING="4"> <TR><TD BGCOLOR="lightgrey" ' \
             'COLSPAN="2" PORT="stage">' + stage_label(stage) + '</TD></TR>'
@@ -234,6 +235,9 @@ def viz_schedule_tree(sch,
         return label
 
     def compute_at_dot(g, stage):
+        """If the given stage attaches to another stage, create an edge from it
+        stage to its attach point; otherwise, create an edge to the ROOT.
+        """
         if stage.attach_type == 4:
             src = get_or_create_dot_id(stage.op, stage.op.name,
                                        True) + ':stage'
@@ -318,6 +322,9 @@ def viz_itervar_relationship_graph(sch,
 
     def itervar_relation_node_label(node_label, input_ports,
                                     output_ports):
+        """Return a html format label for an itervar relationship node
+        including node_label and input/output ports.
+        """
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
             'CELLPADDING="4">' + '<TR>'
         max_port_num = max(len(input_ports), len(output_ports))
@@ -344,6 +351,7 @@ def viz_itervar_relationship_graph(sch,
         return label
 
     def itervar_relation_dot(g, node, node_id):
+        """Create an itervar relationship node."""
         node_type = type(node)
         if node_type is tvm.schedule.Split:
             node_type = 'Split'
@@ -376,17 +384,19 @@ def viz_itervar_relationship_graph(sch,
             assert False, 'Unknown IterVarRelationNode: ' + node_type
 
     def get_leaf_itervars_index(stage, itervar):
-        for i in range(len(stage.leaf_iter_vars)):
-            if itervar == stage.leaf_iter_vars[i]:
+        """Return the index of itervar in the given stage."""
+        for i, leaf_iv in enumerate(stage.leaf_iter_vars):
+            if itervar == leaf_iv:
                 return i
         return -1
 
     def stage_node_dot(g, stage):
+        """Create a stage node."""
         with g.subgraph(
-                name='cluster_' +
-                get_or_create_dot_id(stage.op, stage.op.name)) as subgraph:
+            name='cluster_' +
+            get_or_create_dot_id(stage.op, stage.op.name)) as subgraph:
             subgraph.attr(label=stage.op.name)
-            if len(stage.all_iter_vars) > 0:
+            if stage.all_iter_vars:
                 for i in range(len(stage.all_iter_vars)):
                     itervar = stage.all_iter_vars[i]
                     if itervar in stage.iter_var_attrs:
@@ -445,6 +455,7 @@ def viz_dataflow_graph(sch,
         return create_graph(name=name, rankdir='LR')
 
     def stage_node_dot(g, stage):
+        """Create a stage node."""
         op = stage.op
         label = stage_node_label(stage)
         g.node(get_or_create_dot_id(op, op.name),
@@ -453,6 +464,7 @@ def viz_dataflow_graph(sch,
                margin='0')
 
     def stage_node_label(stage):
+        """Return a html format label for the given stage."""
         op = stage.op
         rows = max(1, max(op.num_outputs, len(op.input_tensors)))
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
@@ -483,6 +495,7 @@ def viz_dataflow_graph(sch,
         return label
 
     def dfg_dot(g, sch):
+        """Create edges among stages."""
         stages = sch.stages
         for stage in stages:
             dest_op = stage.op
