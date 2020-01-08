@@ -978,8 +978,10 @@ def _test_forward_logical_or(data):
 def test_all_logical():
     data = [np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool'),
             np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool')]
-    _test_forward_logical_and(data)
-    _test_forward_logical_or(data)
+    # boolean dtype is not supported by older versions than TFLite 1.15.0
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+        _test_forward_logical_and(data)
+        _test_forward_logical_or(data)
 
 #######################################################################
 # Zeros like
