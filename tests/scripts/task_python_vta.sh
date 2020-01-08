@@ -38,7 +38,7 @@ echo "Running integration test in fsim..."
 python3 -m pytest -v vta/tests/python/integration
 
 # Build VTA chisel design and verilator simulator
-make -C vta/hardware/chisel/
+make -C vta/hardware/chisel/ USE_THREADS=0 lib
 
 # Set default VTA config to use TSIM cycle accurate sim
 cp vta/config/tsim_sample.json vta/config/vta_config.json
