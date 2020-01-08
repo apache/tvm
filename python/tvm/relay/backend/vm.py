@@ -428,7 +428,7 @@ class VMCompiler(object):
 
     def lower(self, mod, target=None, target_host=None):
         """Lower the module to VM bytecode.
-        
+
         Parameters
         ----------
         mod : relay.Module
