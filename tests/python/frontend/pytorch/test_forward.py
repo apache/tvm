@@ -67,12 +67,22 @@ def assert_shapes_match(tru, est):
         msg = "Output shapes {} and {} don't match"
         raise AssertionError(msg.format(tru.shape, est.shape))
 
-def load_single_op(model_name):
+def load_single_op(model_name, input_type=None):
     """Given a model name, returns a single-operator model in eval
     mode as well as an example input."""
-    model = getattr(single_op, model_name)().float().eval()
     input_shape = [1, 3, 224, 224]
-    input_data = torch.rand(input_shape).float()
+    if input_type is None:
+        model = getattr(single_op, model_name)().float().eval()
+        input_data = torch.rand(input_shape).float()
+    elif input_type == 'float32':
+        model = getattr(single_op, model_name)().float().eval()
+        input_data = torch.rand(input_shape).float()
+    elif input_type == 'float16':
+        model = getattr(single_op, model_name)().float().eval()
+        input_data = torch.rand(input_shape).float()
+    elif input_type == 'int32':
+        model = getattr(single_op, model_name)().eval()
+        input_data = torch.randint(0, 10, input_shape).int()
     return model, input_data
 
 def load_torchvision(model_name):
@@ -107,10 +117,10 @@ def load_pretrainedmodels(model_name):
         input_data[:, channel] /= model.std[channel]
     return model, input_data
 
-def load_model(model_name):
+def load_model(model_name, input_type=None):
     """Given a model name, returns a model as well as an example input."""
     if hasattr(single_op, model_name):
-        return load_single_op(model_name)
+        return load_single_op(model_name, input_type)
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
     try:
@@ -169,24 +179,49 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
             if err < thresh:
                 return est
 
-def verify_model(model_name):
+def verify_model(model_name, input_type=None):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-    baseline_model, baseline_input = load_model(model_name)
+
+    print(model_name)
+
+    baseline_model, baseline_input = load_model(model_name, input_type)
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
         baseline_input = baseline_input.cuda()
     baseline_outputs = baseline_model(baseline_input)
-    if isinstance(baseline_outputs, tuple):
-        baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
-    else:
-        baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
+    print(baseline_input)
+    print(baseline_outputs)
+    #dtype = 'float32'
+    dtype = input_type
+    if input_type is None or input_type == 'float32':
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
+        dtype = 'float32'
+    elif input_type == 'float16':
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().half().cpu().numpy(),)
+    elif input_type == 'int32':
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().int().cpu().numpy(),)
     output_shapes = [out.shape for out in baseline_outputs]
-    dtype = 'float32'
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
+    input_types = {input_name: input_type}
     baseline_model(baseline_input)
-    trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
+    trace = torch.jit.trace(baseline_model, baseline_input)
+    if input_type is None or input_type == 'float32':
+        trace = trace.float().eval()
+    elif input_type == 'float16':
+        trace = trace.float().eval()
+    elif input_type == 'int32':
+        trace = trace.float().eval()
     if torch.cuda.is_available():
         trace = trace.cuda()
     else:
@@ -194,7 +229,7 @@ def verify_model(model_name):
     with TemporaryDirectory() as tmp:
         path = os.path.join(tmp, 'model.pth')
         torch.jit.save(trace, path)
-        mod, params = relay.frontend.from_pytorch(trace, input_shapes)
+        mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
@@ -204,9 +239,10 @@ def verify_model(model_name):
         relay_model.set_input(**relay_params)
         relay_model.set_input(**compiled_input)
         relay_model.run()
-
     for i, baseline_output in enumerate(baseline_outputs):
         output_shape = baseline_output.shape
+        print('output shape')
+        print(output_shape)
         compiled_output = relay_model.get_output(
             i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
 
@@ -303,6 +339,19 @@ def test_add4():
 
 def test_add5():
     verify_model('Add5')
+
+def test_add3int32():
+    verify_model('Add3Int32', 'int32')
+
+def test_add4int32():
+    verify_model('Add4Int32', 'int32')
+
+
+def test_add3float16():
+    verify_model('Add3Float16', 'float16')
+
+def test_add4float16():
+    verify_model('Add4Float16', 'float16')
 
 def test_subtract1():
     verify_model('Subtract1')
@@ -517,6 +566,7 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
+    """
     # Single operator tests
     test_add1()
     test_add2()
@@ -595,3 +645,10 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
+    """
+
+    #test_batchnorm1()
+    #test_batchnorm2()
+
+    #test_resnet18()
+    test_add3int32()

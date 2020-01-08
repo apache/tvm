@@ -36,6 +36,10 @@ def _elemwise(name):
         data0 = convert_input(inputs[0])
         data1 = convert_input(inputs[1])
 
+        print(input_types)
+        print(data0)
+        print(data1)
+
         if not isinstance(data0, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
             temp = data0
             data0 = data1
@@ -121,8 +125,10 @@ def _ones():
             shape = inputs[0].shape
 
         fill_value = _get_fill_value(input_types)
+        print(fill_value)
+        print(input_types)
 
-        return get_relay_op('full')(fill_value, shape)
+        return get_relay_op('full')(fill_value, shape, dtype=input_types[0])
     return _impl
 
 def _zeros():
@@ -136,7 +142,7 @@ def _zeros():
 
         fill_value = _get_fill_value(input_types)
 
-        return _op.full(fill_value, shape)
+        return _op.full(fill_value, shape, dtype=input_types[0])
     return _impl
 
 def _get_fill_value(input_types):
@@ -791,9 +797,10 @@ _convert_map = {
 class Graph(object):
     """ A helper class for handling relay graph copying from PyTorch trace. """
 
-    def __init__(self, trace, input_shapes):
+    def __init__(self, trace, input_shapes, input_types):
 
         self._trace = trace
+        print(trace.graph)
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
@@ -803,6 +810,7 @@ class Graph(object):
         self._op_inputs_types = {}
         self._op_inputs_otypes = {}
         self._input_shapes = input_shapes if input_shapes else {}
+        self._input_types = input_types if input_types else {}
         self._fn_param = []
         self._relay_map = {}
         self._nid_to_node_name = {}
@@ -903,10 +911,15 @@ class Graph(object):
         for input_name, ir_input in zip(self._input_shapes, ir_inputs[1:]):
             input_shape = self._input_shapes[input_name]
             ir_input.setDebugName(input_name)
+
+            print(self._input_types[input_name])
+
             self._inputs_r[input_name] = _expr.var(input_name,
-                                                   shape=self._input_shapes[input_name])
+                                                   shape=self._input_shapes[input_name],
+                                                   dtype=self._input_types[input_name])
             self._fn_param.append(_expr.var(input_name,
-                                            shape=self._input_shapes[input_name]))
+                                            shape=self._input_shapes[input_name],
+                                            dtype=self._input_types[input_name]))
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -1052,6 +1065,10 @@ class Graph(object):
             node_type = node_type.split('(')[0]
             input_list_types[0] = node_type.lower()
 
+        if op_node.kind() == 'aten::zeros':
+            node_type = node_type.split('(')[0]
+            input_list_types[0] = node_type.lower()
+
         self._op_inputs_r[(op_name, operator)] = input_list_r
         self._op_inputs_types[(op_name, operator)] = input_list_types
 
@@ -1079,7 +1096,7 @@ class Graph(object):
 
         return missing_operators
 
-def from_pytorch(trace, input_shapes):
+def from_pytorch(trace, input_shapes, input_types):
     """ Load PyTorch model in the form of a trace object into relay.
     The companion parameters will be handled automatically.
 
@@ -1091,6 +1108,9 @@ def from_pytorch(trace, input_shapes):
     shape : Dictionary of input dimensions
         Graph level input shape dictionary
 
+    shape : Dictionary of input types
+        Graph level input type dictionary
+
     Returns
     -------
     mod : tvm.relay.Module
@@ -1099,6 +1119,6 @@ def from_pytorch(trace, input_shapes):
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(trace, input_shapes)
+    g = Graph(trace, input_shapes, input_types)
     mod, params = g.from_pytorch()
     return mod, params
