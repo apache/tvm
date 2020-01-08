@@ -141,35 +141,3 @@ def schedule_conv3d_ncdhw_cuda(cfg, outs):
     return s
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv3d_ndhwc, ["cuda", "gpu"],
-                                ["direct"])
-def schedule_conv3d_ndhwc_cuda(cfg, outs):
-    """TOPI schedule callback of conv3d for cuda gpu
-
-    Parameters
-    ----------
-    cfg: ConfigEntity
-        The config for this template
-
-    outs: Array of Tensor
-        The computation graph description of conv2d
-        in the format of an array of tensors.
-
-    Returns
-    -------
-    s: Schedule
-        The computation schedule for conv2d.
-    """
-    target = tvm.target.current_target()
-    if 'cudnn' in target.libs:
-        return generic.schedule_extern(outs)
-
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if op.tag == 'conv3d_ndhwc':
-            schedule_direct_3d_cuda(cfg, s, op.output(0))
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
