@@ -104,7 +104,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
 
-  if (!dshape_ncw[2].as<ir::Any>()) {
+  if (!dshape_ncw[2].as<ir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncw[2] + param->padding[0] + param->padding[1] - dilated_ksize,
                            param->strides[0]) + 1);
   } else {
