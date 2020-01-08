@@ -564,7 +564,7 @@ IntSet EvalSet(Expr e,
  * \return An integer set that can cover all the possible values of e.
  */
 IntSet EvalSet(Expr e,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -586,7 +586,7 @@ IntSet EvalSet(Range r,
  * \return An integer set that can cover all the possible values.
  */
 IntSet EvalSet(IntSet s,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -595,7 +595,7 @@ IntSet EvalSet(IntSet s,
  * \return An integer set that can cover all the possible values of e.
  */
 IntSet EvalSet(Range r,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*! \brief Map from Expr to IntSet */
 using ExprIntSetMap = std::unordered_map<Expr, IntSet, ObjectHash, ObjectEqual>;
@@ -609,7 +609,7 @@ using ExprIntSetMap = std::unordered_map<Expr, IntSet, ObjectHash, ObjectEqual>;
  */
 ExprIntSetMap EvalSetForEachSubExpr(
     Expr e,
-    const std::unordered_map<const Variable*, IntSet>& dom_map);
+    const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets
@@ -654,8 +654,8 @@ IntSet DeduceBound(Expr v, Expr cond,
  * \return An integer set that always satisfies the condition.
  */
 IntSet DeduceBound(Expr v, Expr cond,
-                   const std::unordered_map<const Variable*, IntSet>& hint_map,
-                   const std::unordered_map<const Variable*, IntSet>& relax_map);
+                   const std::unordered_map<const VarNode*, IntSet>& hint_map,
+                   const std::unordered_map<const VarNode*, IntSet>& relax_map);
 
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.

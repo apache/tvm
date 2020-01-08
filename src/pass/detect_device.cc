@@ -27,7 +27,7 @@
 namespace tvm {
 namespace ir {
 Stmt DecorateDeviceScope(Stmt stmt) {
-  Stmt body = AttrStmt::make(make_zero(DataType::Int(32)),
+  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)),
                              ir::attr::device_scope,
                              0,
                              stmt);

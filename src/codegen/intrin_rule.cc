@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -54,7 +54,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
 .set_body([](const TVMArgs& args, TVMRetValue* rv){
     Expr e = args[0];
-    const Call* call = e.as<Call>();
+    const CallNode* call = e.as<CallNode>();
     CHECK(call != nullptr);
 
     auto one = make_const(call->args[0].dtype(), 1);
@@ -67,7 +67,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
 .set_body([](const TVMArgs& args, TVMRetValue* rv){
     Expr e = args[0];
-    const Call* call = e.as<Call>();
+    const CallNode* call = e.as<CallNode>();
     CHECK(call != nullptr);
 
     auto one = make_const(call->args[0].dtype(), 1);

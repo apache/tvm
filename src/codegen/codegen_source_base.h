@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -66,13 +66,13 @@ class CodeGenSourceBase {
    * \param v The variable.
    * \return the variable name.
    */
-  std::string AllocVarID(const Variable* v);
+  std::string AllocVarID(const VarNode* v);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.
    */
-  std::string GetVarID(const Variable* v) const;
+  std::string GetVarID(const VarNode* v) const;
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -110,7 +110,7 @@ class CodeGenSourceBase {
   /*! \brief the stream to be printed */
   std::ostringstream stream;
   /*! \brief name of each variable */
-  std::unordered_map<const Variable*, std::string> var_idmap_;
+  std::unordered_map<const VarNode*, std::string> var_idmap_;
 
  private:
   /*! \brief assignment map of ssa */

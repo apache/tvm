@@ -43,8 +43,8 @@ class CodeGenCUDA final : public CodeGenC {
     return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void VisitStmt_(const ir::For* op) final;
-  void PrintStorageSync(const Call* op) final;
+  void VisitStmt_(const ir::ForNode* op) final;
+  void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
       const std::string&op, DataType t,
@@ -56,14 +56,14 @@ class CodeGenCUDA final : public CodeGenC {
       const std::string& vec, DataType t, int i, const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   // overload visitor
-  void VisitExpr_(const Ramp* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const Shuffle* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const FloatImm *op, std::ostream& os) final;
-  void VisitExpr_(const Call *op, std::ostream& os) final;
-  void VisitStmt_(const Evaluate *op) final;
-  void VisitStmt_(const Allocate *op) final;
-  void VisitStmt_(const AttrStmt *op) final;
+  void VisitExpr_(const RampNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const ShuffleNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
+  void VisitExpr_(const CallNode *op, std::ostream& os) final;
+  void VisitStmt_(const EvaluateNode *op) final;
+  void VisitStmt_(const AllocateNode *op) final;
+  void VisitStmt_(const AttrStmtNode *op) final;
 
  private:
   // Whether global barrier is needed.
@@ -81,13 +81,13 @@ class CodeGenCUDA final : public CodeGenC {
   // whether need mma.h
   bool need_mma_h_{false};
 
-  std::unordered_map<const Variable*, std::string> fragment_shapes;
-  std::unordered_map<const Variable*, std::string> fragment_layouts;
-  friend void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p);
+  std::unordered_map<const VarNode*, std::string> fragment_shapes;
+  std::unordered_map<const VarNode*, std::string> fragment_layouts;
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
   void PrintWmmaScope(
-      const std::string& scope, DataType t, const Variable* variable, std::ostream& os);
+      const std::string& scope, DataType t, const VarNode* variable, std::ostream& os);
   int32_t GetWmmaFragmentSize(
-      const std::string &scope, const Variable* variable, int32_t size);
+      const std::string &scope, const VarNode* variable, int32_t size);
 };
 
 }  // namespace codegen

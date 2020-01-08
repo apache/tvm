@@ -65,14 +65,14 @@ bool TargetHasFeature(const llvm::TargetMachine& tm, const std::string& feature)
 
 class CodeGenX86_64 final : public CodeGenCPU {
  public:
-  llvm::Value* VisitExpr_(const Cast* op) override;
+  llvm::Value* VisitExpr_(const CastNode* op) override;
 
  private:
   llvm::Value* CallVectorIntrin(llvm::Intrinsic::ID id, size_t intrin_lanes, llvm::Type* result_ty,
                                 const std::vector<llvm::Value*>& args);
 };
 
-llvm::Value* CodeGenX86_64::VisitExpr_(const Cast* op) {
+llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   // LLVM does not automatically generate the correct instruction sequences for
   // half -> float conversion (i.e. using AVX2/AVX-512 vectorized variants of
   // vcvtph2ps), so we explicitly generate them ourselves.
@@ -90,22 +90,23 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const Cast* op) {
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           LLVMType(DataType::Float(32, from.lanes())),
           {
-            MakeValue(ir::Call::make(
-                DataType::Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
-                ir::Call::PureIntrinsic)),
+            MakeValue(ir::CallNode::make(
+                DataType::Int(16, from.lanes()), ir::CallNode::reinterpret, {op->value},
+                ir::CallNode::PureIntrinsic)),
                 MakeValue(
-                    ir::Broadcast::make(ir::FloatImm::make(DataType::Float(32), 0), from.lanes())),
-                /*mask=*/MakeValue(ir::IntImm::make(DataType::Int(16), -1)),
-                /*rounding-mode=*/MakeValue(ir::IntImm::make(DataType::Int(32), 4)),
+                    ir::BroadcastNode::make(
+                      ir::FloatImmNode::make(DataType::Float(32), 0), from.lanes())),
+                /*mask=*/MakeValue(ir::IntImmNode::make(DataType::Int(16), -1)),
+                /*rounding-mode=*/MakeValue(ir::IntImmNode::make(DataType::Int(32), 4)),
           });
     }
 
     if (from.lanes() >= 8 && has_f16c) {
       return CallVectorIntrin(
           ::llvm::Intrinsic::x86_vcvtph2ps_256, 8, LLVMType(DataType::Float(32, from.lanes())),
-          {MakeValue(ir::Call::make(
-              DataType::Int(16, from.lanes()), ir::Call::reinterpret, {op->value},
-              ir::Call::PureIntrinsic))});
+          {MakeValue(ir::CallNode::make(
+              DataType::Int(16, from.lanes()), ir::CallNode::reinterpret, {op->value},
+              ir::CallNode::PureIntrinsic))});
     }
   }
 

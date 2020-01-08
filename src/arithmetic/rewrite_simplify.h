@@ -50,29 +50,29 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
       : IRMutatorWithAnalyzer(parent) {}
 
   void Update(const Var& var, const Expr& info, bool override_info);
-  Expr VisitExpr_(const Add* op) override;
-  Expr VisitExpr_(const Sub* op) override;
-  Expr VisitExpr_(const Mul* op) override;
-  Expr VisitExpr_(const Div* op) override;
-  Expr VisitExpr_(const Mod* op) override;
-  Expr VisitExpr_(const FloorDiv* op) override;
-  Expr VisitExpr_(const FloorMod* op) override;
-  Expr VisitExpr_(const Min* op) override;
-  Expr VisitExpr_(const Max* op) override;
-  Expr VisitExpr_(const EQ* op) override;
-  Expr VisitExpr_(const NE* op) override;
-  Expr VisitExpr_(const LT* op) override;
-  Expr VisitExpr_(const LE* op) override;
-  Expr VisitExpr_(const GT* op) override;
-  Expr VisitExpr_(const GE* op) override;
-  Expr VisitExpr_(const And* op) override;
-  Expr VisitExpr_(const Or* op) override;
-  Expr VisitExpr_(const Not* op) override;
-  Expr VisitExpr_(const Select* op) override;
-  Expr VisitExpr_(const Call* op) override;
-  Expr VisitExpr_(const Variable* op) override;
-  Expr VisitExpr_(const Cast* op) override;
-  Expr VisitExpr_(const Let* op) override;
+  Expr VisitExpr_(const AddNode* op) override;
+  Expr VisitExpr_(const SubNode* op) override;
+  Expr VisitExpr_(const MulNode* op) override;
+  Expr VisitExpr_(const DivNode* op) override;
+  Expr VisitExpr_(const ModNode* op) override;
+  Expr VisitExpr_(const FloorDivNode* op) override;
+  Expr VisitExpr_(const FloorModNode* op) override;
+  Expr VisitExpr_(const MinNode* op) override;
+  Expr VisitExpr_(const MaxNode* op) override;
+  Expr VisitExpr_(const EQNode* op) override;
+  Expr VisitExpr_(const NENode* op) override;
+  Expr VisitExpr_(const LTNode* op) override;
+  Expr VisitExpr_(const LENode* op) override;
+  Expr VisitExpr_(const GTNode* op) override;
+  Expr VisitExpr_(const GENode* op) override;
+  Expr VisitExpr_(const AndNode* op) override;
+  Expr VisitExpr_(const OrNode* op) override;
+  Expr VisitExpr_(const NotNode* op) override;
+  Expr VisitExpr_(const SelectNode* op) override;
+  Expr VisitExpr_(const CallNode* op) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const CastNode* op) override;
+  Expr VisitExpr_(const LetNode* op) override;
 
   std::function<void()> EnterConstraint(const Expr& constraint);
 
