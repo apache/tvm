@@ -186,7 +186,7 @@ def schedule_conv1d_ncw(cfg, outs):
 
             N, CO, OW = get_const_tuple(output.shape)
             _, CI, KW = get_const_tuple(kernel.shape)
-            cfg.add_flop(2 * N, * OW * CO * KW * CI)
+            cfg.add_flop(2 * N * OW * CO * KW * CI)
 
     traverse_inline(s, outs[0].op, _callback)
 
@@ -301,7 +301,7 @@ def schedule_conv1d_nwc(cfg, outs):
 
             N, OW, CO = get_const_tuple(output.shape)
             KW, CI, _ = get_const_tuple(kernel.shape)
-            cfg.add_flop(2 * N, * OW * CO * KW * CI)
+            cfg.add_flop(2 * N * OW * CO * KW * CI)
 
     traverse_inline(s, outs[0].op, _callback)
 
