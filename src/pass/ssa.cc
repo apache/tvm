@@ -53,7 +53,7 @@ class IRVerifySSA final : public StmtExprVisitor {
     MarkDef(op->var.get());
     StmtExprVisitor::VisitStmt_(op);
   }
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     MarkDef(op->loop_var.get());
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -133,15 +133,15 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     const VarExpr& v = op->loop_var;
     if (defined_.count(v.get())) {
       VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
-      op = stmt.as<For>();
-      return For::make(
+      op = stmt.as<ForNode>();
+      return ForNode::make(
           new_var, op->min, op->extent, op->for_type, op->device_api, op->body);
     } else {
       defined_.insert(v.get());

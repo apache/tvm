@@ -389,11 +389,11 @@ void CodeGenStackVM::VisitExpr_(const NotNode* op) {
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenStackVM::VisitStmt_(const ProducerConsumerNode* op) {
   this->Push(op->body);
 }
 
-void CodeGenStackVM::VisitStmt_(const For* op) {
+void CodeGenStackVM::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   int vid = this->AllocVarID(op->loop_var.get());
   this->PushOp(StackVM::PUSH_I64, 0);
@@ -423,7 +423,7 @@ void CodeGenStackVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const Evaluate *ev) {
+void CodeGenStackVM::VisitStmt_(const EvaluateNode *ev) {
   if (is_const(ev->value)) return;
   const CallNode* op = ev->value.as<CallNode>();
   if (op && op->is_intrinsic(intrinsic::tvm_struct_set)) {
@@ -445,7 +445,7 @@ void CodeGenStackVM::VisitStmt_(const Evaluate *ev) {
   }
 }
 
-void CodeGenStackVM::VisitStmt_(const IfThenElse* op) {
+void CodeGenStackVM::VisitStmt_(const IfThenElseNode* op) {
   this->Push(op->condition);
   int64_t label_ejump = this->GetPC();
   int64_t else_jump = this->PushOp(StackVM::RJUMP_IF_FALSE, 0);

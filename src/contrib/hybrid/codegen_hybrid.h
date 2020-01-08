@@ -124,15 +124,15 @@ class CodeGenHybrid :
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const ProvideNode* op) override;
-  void VisitStmt_(const For* op) override;
-  void VisitStmt_(const IfThenElse* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const RealizeNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const ProducerConsumerNode* op) override;
   /*!
    * \brief Print Type represetnation of type t.
    * \param t The type representation.

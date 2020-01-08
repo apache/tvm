@@ -78,10 +78,10 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // override visitor pattern
   void VisitExpr_(const LoadNode* op) final;
   void VisitStmt_(const StoreNode* op) final;
-  void VisitStmt_(const Evaluate* op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const IfThenElse* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const IfThenElseNode* op) final;
   void VisitExpr_(const CallNode* op) final;
 
  protected:
@@ -122,7 +122,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    *  the parent should taken care of to synchronize.
    */
   virtual std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) = 0;
+      std::vector<StmtEntry> seq, const ForNode* loop) = 0;
   /*!
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.

@@ -73,7 +73,7 @@ TVM_REGISTER_GLOBAL("make.For")
 .set_body_typed([](
   VarExpr loop_var, Expr min, Expr extent,
   int for_type, int device_api, Stmt body) {
-  return For::make(loop_var,
+  return ForNode::make(loop_var,
                    min,
                    extent,
                    static_cast<ForType>(for_type),
@@ -122,49 +122,50 @@ TVM_REGISTER_GLOBAL("make.CommReducer")
 .set_body_typed(CommReducerNode::make);
 
 // make from two arguments
-#define REGISTER_MAKE(Node)                                     \
-  TVM_REGISTER_GLOBAL("make."#Node)                             \
-  .set_body_typed(Node::make);                                  \
+#define REGISTER_MAKE(NodeName)                                     \
+  TVM_REGISTER_GLOBAL("make."#NodeName)                             \
+  .set_body_typed(NodeName ## Node::make);                          \
 
-REGISTER_MAKE(ReduceNode);
-REGISTER_MAKE(AttrStmtNode);
 
-REGISTER_MAKE(IntImmNode);
-REGISTER_MAKE(UIntImmNode);
-REGISTER_MAKE(FloatImmNode);
-REGISTER_MAKE(StringImmNode);
+REGISTER_MAKE(Reduce);
+REGISTER_MAKE(AttrStmt);
 
-REGISTER_MAKE(AddNode);
-REGISTER_MAKE(SubNode);
-REGISTER_MAKE(MulNode);
-REGISTER_MAKE(DivNode);
-REGISTER_MAKE(ModNode);
-REGISTER_MAKE(FloorDivNode);
-REGISTER_MAKE(FloorModNode);
-REGISTER_MAKE(MinNode);
-REGISTER_MAKE(MaxNode);
-REGISTER_MAKE(EQNode);
-REGISTER_MAKE(NENode);
-REGISTER_MAKE(LTNode);
-REGISTER_MAKE(LENode);
-REGISTER_MAKE(GTNode);
-REGISTER_MAKE(GENode);
-REGISTER_MAKE(AndNode);
-REGISTER_MAKE(OrNode);
+REGISTER_MAKE(IntImm);
+REGISTER_MAKE(UIntImm);
+REGISTER_MAKE(FloatImm);
+REGISTER_MAKE(StringImm);
 
-REGISTER_MAKE(NotNode);
-REGISTER_MAKE(SelectNode);
-REGISTER_MAKE(RampNode);
-REGISTER_MAKE(CastNode);
-REGISTER_MAKE(BroadcastNode);
-REGISTER_MAKE(ShuffleNode);
-REGISTER_MAKE(LetNode);
-REGISTER_MAKE(LetStmtNode);
-REGISTER_MAKE(AssertStmtNode);
+REGISTER_MAKE(Add);
+REGISTER_MAKE(Sub);
+REGISTER_MAKE(Mul);
+REGISTER_MAKE(Div);
+REGISTER_MAKE(Mod);
+REGISTER_MAKE(FloorDiv);
+REGISTER_MAKE(FloorMod);
+REGISTER_MAKE(Min);
+REGISTER_MAKE(Max);
+REGISTER_MAKE(EQ);
+REGISTER_MAKE(NE);
+REGISTER_MAKE(LT);
+REGISTER_MAKE(LE);
+REGISTER_MAKE(GT);
+REGISTER_MAKE(GE);
+REGISTER_MAKE(And);
+REGISTER_MAKE(Or);
+
+REGISTER_MAKE(Not);
+REGISTER_MAKE(Select);
+REGISTER_MAKE(Ramp);
+REGISTER_MAKE(Cast);
+REGISTER_MAKE(Broadcast);
+REGISTER_MAKE(Shuffle);
+REGISTER_MAKE(Let);
+REGISTER_MAKE(LetStmt);
+REGISTER_MAKE(AssertStmt);
 REGISTER_MAKE(ProducerConsumer);
-REGISTER_MAKE(ProvideNode);
+REGISTER_MAKE(Provide);
 REGISTER_MAKE(Prefetch);
-REGISTER_MAKE(FreeNode);
+REGISTER_MAKE(Free);
 REGISTER_MAKE(IfThenElse);
 REGISTER_MAKE(Evaluate);
 

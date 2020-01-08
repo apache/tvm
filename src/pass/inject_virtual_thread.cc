@@ -108,7 +108,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     tc(op->index);
     Record(op->buffer_var.get(), tc);
   }
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->min);
     tc(op->extent);
@@ -116,7 +116,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     this->VisitStmt(op->body);
   }
   // external function call
-  void VisitStmt_(const Evaluate* op) final {
+  void VisitStmt_(const EvaluateNode* op) final {
     ExprTouched tc(touched_var_, true);
     tc(op->value);
     for (const VarNode* var : tc.write_vars_) {
@@ -256,7 +256,7 @@ class VTInjector : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
-  Stmt VisitStmt_(const Evaluate* op) final {
+  Stmt VisitStmt_(const EvaluateNode* op) final {
     trigger_base_inject_ = !allow_share_;
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -313,7 +313,7 @@ class VTInjector : public StmtExprMutator {
     }
   }
   // For
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     CHECK(is_zero(op->min));
     Expr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
@@ -328,12 +328,12 @@ class VTInjector : public StmtExprMutator {
         body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return For::make(
+      return ForNode::make(
           op->loop_var, op->min, extent, op->for_type, op->device_api, body);
     }
   }
   // IfThenElse
-  Stmt VisitStmt_(const IfThenElse* op) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     Expr condition = this->VisitExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
@@ -353,7 +353,7 @@ class VTInjector : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return GetRef<Stmt>(op);
     } else {
-      return IfThenElse::make(condition, then_case, else_case);
+      return IfThenElseNode::make(condition, then_case, else_case);
     }
   }
 
@@ -450,7 +450,7 @@ class VTInjector : public StmtExprMutator {
       Var idx(var_->name_hint + ".s", var_->dtype);
       Map<Var, Expr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
-      return For::make(idx, make_zero(idx.dtype()),
+      return ForNode::make(idx, make_zero(idx.dtype()),
                        make_const(idx.dtype(), num_threads_),
                        ForType::Serial, DeviceAPI::None, stmt);
     }

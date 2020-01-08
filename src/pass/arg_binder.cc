@@ -42,7 +42,7 @@ void BinderAddAssert(Expr cond,
   if (!is_one(scond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint";
-    asserts->emplace_back(AssertStmtNode::make(scond, os.str(), Evaluate::make(0)));
+    asserts->emplace_back(AssertStmtNode::make(scond, os.str(), EvaluateNode::make(0)));
   }
 }
 
@@ -58,7 +58,7 @@ bool ArgBinder::Bind_(const Expr& arg,
       defs_.emplace_back(v_arg);
       if (with_lets) {
         (*def_map_)[v] = arg;
-        init_nest_.emplace_back(LetStmtNode::make(v_arg, value, Evaluate::make(0)));
+        init_nest_.emplace_back(LetStmtNode::make(v_arg, value, EvaluateNode::make(0)));
       } else {
         (*def_map_)[v] = value;
       }
@@ -164,7 +164,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                              const std::string& arg_name) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
-  const Stmt nop = Evaluate::make(0);
+  const Stmt nop = EvaluateNode::make(0);
   // dimension checks
   Expr v_ndim = TVMArrayGet(tvm_ndim_type, handle, intrinsic::kArrNDim);
   Expr a_ndim = make_const(tvm_ndim_type,
@@ -238,9 +238,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     if (conds.size() != 0) {
       Stmt check =
           AssertStmtNode::make(arith::ComputeReduce<ir::AndNode>(conds, Expr()),
-                           stride_err_msg.str(), Evaluate::make(0));
-      check = IfThenElse::make(NotNode::make(is_null), check, Stmt());
-      asserts_.emplace_back(SeqStmt({check, Evaluate::make(0)}));
+                           stride_err_msg.str(), EvaluateNode::make(0));
+      check = IfThenElseNode::make(NotNode::make(is_null), check, Stmt());
+      asserts_.emplace_back(SeqStmt({check, EvaluateNode::make(0)}));
     }
   } else if (buffer->buffer_type == kAutoBroadcast) {
     DataType stype = buffer->DefaultIndexType();

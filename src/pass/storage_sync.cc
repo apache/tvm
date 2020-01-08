@@ -47,7 +47,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   }
   // Plan the sync
   std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) final {
+      std::vector<StmtEntry> seq, const ForNode* loop) final {
     // Unsynced reads and writes
     std::vector<AccessEntry> reads;
     std::vector<AccessEntry> writes;
@@ -209,7 +209,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
-        barrier = Evaluate::make(
+        barrier = EvaluateNode::make(
                 CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                            {StringImmNode::make(sync_scope_.to_string())},
                            CallNode::Intrinsic));
@@ -301,7 +301,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
     Array<Expr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep = Evaluate::make(
+    Stmt prep = EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
@@ -311,7 +311,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       }
     }
     rw_stats_.clear();
-    Stmt kinit = Evaluate::make(
+    Stmt kinit = EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
     body = SeqStmt({kinit, body});
     body = AttrStmtNode::make(
@@ -337,7 +337,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     } else {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
-    return Evaluate::make(
+    return EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImmNode::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},

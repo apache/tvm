@@ -56,7 +56,7 @@ class GPUCodeVerifier : public StmtVisitor {
     return valid_;
   }
 
-  void VisitStmt_(const ProducerConsumer* op) final {
+  void VisitStmt_(const ProducerConsumerNode* op) final {
     if (nest_level_ == 0) {
       // enter a new kernel, reset statistics
       Reset_();

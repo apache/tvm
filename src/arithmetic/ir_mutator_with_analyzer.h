@@ -49,9 +49,9 @@ class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
 
   // override functions that need to populate the context information.
-  Stmt VisitStmt_(const ir::For* op) override;
+  Stmt VisitStmt_(const ir::ForNode* op) override;
   Stmt VisitStmt_(const ir::LetStmtNode* op) override;
-  Stmt VisitStmt_(const ir::IfThenElse* op) override;
+  Stmt VisitStmt_(const ir::IfThenElseNode* op) override;
   Stmt VisitStmt_(const ir::AttrStmtNode* op) override;
   Stmt VisitStmt_(const ir::AssertStmtNode* op) override;
   Expr VisitExpr_(const ir::LetNode* op) override;

@@ -494,7 +494,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const For* op) {
+void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
@@ -540,7 +540,7 @@ void CodeGenSPIRV::VisitStmt_(const For* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const IfThenElse* op) {
+void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -644,11 +644,11 @@ void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const Evaluate* op) {
+void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenSPIRV::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenSPIRV::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 

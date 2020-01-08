@@ -30,7 +30,7 @@ namespace arith {
 using namespace ir;
 
 Stmt IRMutatorWithAnalyzer::
-VisitStmt_(const For* op) {
+VisitStmt_(const ForNode* op) {
   analyzer_->Bind(op->loop_var,
                   Range::make_by_min_extent(op->min, op->extent));
   return StmtExprMutator::VisitStmt_(op);
@@ -57,7 +57,7 @@ VisitStmt_(const LetStmtNode* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::
-VisitStmt_(const IfThenElse* op) {
+VisitStmt_(const IfThenElseNode* op) {
   Expr condition = this->VisitExpr(op->condition);
   Stmt then_case, else_case;
   {
@@ -74,7 +74,7 @@ VisitStmt_(const IfThenElse* op) {
     if (else_case.defined()) {
       return else_case;
     }
-    return Evaluate::make(0);
+    return EvaluateNode::make(0);
   }
 
   if (condition.same_as(op->condition) &&

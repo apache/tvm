@@ -906,7 +906,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const For* op) {
+void CodeGenCPU::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   if (op->for_type == ForType::Serial ||
       op->for_type == ForType::Unrolled) {
@@ -914,7 +914,7 @@ void CodeGenCPU::VisitStmt_(const For* op) {
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
       CreateParallelLaunch(
-          For::make(
+          ForNode::make(
               op->loop_var, op->min, op->extent,
               op->for_type, op->device_api, op->body), 0);
     } else {

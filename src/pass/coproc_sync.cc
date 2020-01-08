@@ -113,14 +113,14 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
 
   // Plan the sync
   std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) final {
+      std::vector<StmtEntry> seq, const ForNode* loop) final {
     return PlanSync(seq, loop, false);
   }
 
  private:
   // Plan write synchronization if write is not coherent
   std::vector<AccessEntry> PlanSync(
-      std::vector<StmtEntry> seq, const For* loop,
+      std::vector<StmtEntry> seq, const ForNode* loop,
       bool force_sync_at_end) {
     // detect write barriers
     // access by the co-processor.
@@ -196,7 +196,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   std::vector<Stmt> GetSync(std::string sync_name) {
-    return {Evaluate::make(CallNode::make(
+    return {EvaluateNode::make(CallNode::make(
         DataType::Int(32),
         sync_name,
         {}, CallNode::Intrinsic))};
@@ -239,7 +239,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
 
   // Plan the sync
   std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) final {
+      std::vector<StmtEntry> seq, const ForNode* loop) final {
     if (read_barrier_) {
       return PlanReadBarrier(seq, loop);
     } else {
@@ -250,7 +250,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
  private:
   // Plan write barrier at Read after write point.
   std::vector<AccessEntry> PlanWriteBarrier(
-      std::vector<StmtEntry> seq, const For* loop) {
+      std::vector<StmtEntry> seq, const ForNode* loop) {
     std::vector<AccessEntry> read_seq;
     std::unordered_map<const VarNode*, std::vector<AccessEntry> > write_set;
 
@@ -290,7 +290,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   }
 
   std::vector<AccessEntry> PlanReadBarrier(
-      std::vector<StmtEntry> seq, const For* loop) {
+      std::vector<StmtEntry> seq, const ForNode* loop) {
     std::vector<AccessEntry> write_seq;
     std::unordered_map<const VarNode*, std::vector<AccessEntry> > read_set;
 
@@ -343,7 +343,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
         << "Cannot deduce write range of " << wvec[0].buffer;
     Expr min = r->min;
     Expr extent = r->extent;
-    return Evaluate::make(CallNode::make(
+    return EvaluateNode::make(CallNode::make(
         DataType::Int(32), func,
         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, CallNode::Intrinsic));
   }
@@ -388,7 +388,7 @@ class CoProcInstDepDetector : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     SyncState temp_first, temp_last;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
@@ -411,7 +411,7 @@ class CoProcInstDepDetector : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const IfThenElse* op) final {
+  void VisitStmt_(const IfThenElseNode* op) final {
     SyncState temp_first, temp_last, curr_state;
     std::swap(first_state_, temp_first);
     std::swap(last_state_, temp_last);
@@ -586,13 +586,13 @@ class CoProcInstDepDetector : public StmtVisitor {
   }
 
   Stmt MakePush(int from, int to) {
-    return Evaluate::make(CallNode::make(
+    return EvaluateNode::make(CallNode::make(
         DataType::Int(32), sync_push_name_,
         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         CallNode::Intrinsic));
   }
   Stmt MakePop(int from, int to) {
-    return Evaluate::make(CallNode::make(
+    return EvaluateNode::make(CallNode::make(
         DataType::Int(32), sync_pop_name_,
         {make_const(DataType::Int(32), from), make_const(DataType::Int(32), to)},
         CallNode::Intrinsic));

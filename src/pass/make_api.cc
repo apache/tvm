@@ -36,7 +36,7 @@ namespace tvm {
 namespace ir {
 
 inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
-  return AssertStmtNode::make(lhs == rhs, msg, Evaluate::make(0));
+  return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
 }
 
 LoweredFunc MakeAPI(Stmt body,
@@ -44,7 +44,7 @@ LoweredFunc MakeAPI(Stmt body,
                     Array<ObjectRef> api_args,
                     int num_unpacked_args,
                     bool is_restricted) {
-  const Stmt nop = Evaluate::make(0);
+  const Stmt nop = EvaluateNode::make(0);
   int num_args = static_cast<int>(api_args.size());
   CHECK_LE(num_unpacked_args, num_args);
   int num_packed_args = num_args - num_unpacked_args;
@@ -184,8 +184,8 @@ LoweredFunc MakeAPI(Stmt body,
         node, attr::device_context_id, device_id, nop));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_type, device_type, nop));
-    Stmt set_device = IfThenElse::make(
-        device_type != kDLCPU, Evaluate::make(CallNode::make(
+    Stmt set_device = IfThenElseNode::make(
+        device_type != kDLCPU, EvaluateNode::make(CallNode::make(
             DataType::Int(32), intrinsic::tvm_call_packed,
             {StringImmNode::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, CallNode::Intrinsic)));
@@ -226,13 +226,13 @@ class DeviceTypeBinder: public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const IfThenElse* op) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     // eager simplify if guard.
     Stmt res = StmtExprMutator::VisitStmt_(op);
-    op = res.as<IfThenElse>();
+    op = res.as<IfThenElseNode>();
     if (is_zero(op->condition)) {
       if (op->else_case.defined()) return op->else_case;
-      return Evaluate::make(0);
+      return EvaluateNode::make(0);
     }
     if (is_one(op->condition)) {
       return op->then_case;

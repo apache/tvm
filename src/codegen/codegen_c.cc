@@ -835,7 +835,7 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const For* op) {
+void CodeGenC::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
@@ -852,7 +852,7 @@ void CodeGenC::VisitStmt_(const For* op) {
   stream << "}\n";
 }
 
-void CodeGenC::VisitStmt_(const IfThenElse* op) {
+void CodeGenC::VisitStmt_(const IfThenElseNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (cond[0] == '(' && cond[cond.length() - 1] == ')') {
@@ -881,7 +881,7 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const Evaluate* op) {
+void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   if (is_const(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
@@ -907,7 +907,7 @@ void CodeGenC::VisitStmt_(const Evaluate* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenC::VisitStmt_(const ProducerConsumerNode* op) {
   PrintStmt(op->body);
 }
 

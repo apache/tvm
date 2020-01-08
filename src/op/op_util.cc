@@ -45,7 +45,7 @@ MakeLoopNest(const Stage& stage,
              std::unordered_map<IterVar, Expr>* p_value_map,
              bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
-  Stmt no_op = Evaluate::make(0);
+  Stmt no_op = EvaluateNode::make(0);
   // create the loop nest
   std::vector<std::vector<Stmt> > nest;
   nest.resize(leaf_iter_vars.size() + 1);
@@ -110,13 +110,13 @@ MakeLoopNest(const Stage& stage,
         value_map[iv] = dom->min;
       } else if (is_zero(dom->min)) {
         nest[i + 1].emplace_back(
-            For::make(var, 0, dom->extent,
+            ForNode::make(var, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
         Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
         nest[i + 1].emplace_back(
-            For::make(idx, 0, dom->extent,
+            ForNode::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
         Expr new_value = dom->min + idx;
         value_map[iv] = new_value;
@@ -177,10 +177,10 @@ MakeLoopNest(const Stage& stage,
 }
 
 std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
-  Stmt no_op = Evaluate::make(0);
+  Stmt no_op = EvaluateNode::make(0);
   std::vector<Stmt> nest;
   for (const Expr& cond : predicates) {
-    nest.emplace_back(IfThenElse::make(cond, no_op));
+    nest.emplace_back(IfThenElseNode::make(cond, no_op));
   }
   return nest;
 }

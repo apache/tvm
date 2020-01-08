@@ -1089,7 +1089,7 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
   this->Scalarize(op->index, f);
 }
 
-void CodeGenLLVM::VisitStmt_(const For* op) {
+void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   if (op->for_type == ForType::Unrolled) {
@@ -1103,7 +1103,7 @@ void CodeGenLLVM::VisitStmt_(const For* op) {
 }
 
 
-void CodeGenLLVM::VisitStmt_(const IfThenElse* op) {
+void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   BasicBlock* then_block = BasicBlock::Create(
@@ -1220,11 +1220,11 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const Evaluate* op) {
+void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenLLVM::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 }  // namespace codegen

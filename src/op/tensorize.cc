@@ -124,7 +124,7 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
   CHECK(n.init_nest.size() == stage->leaf_iter_vars.size() + 1 ||
         n.init_nest.size() == 0);
   auto f_push_banned = [&banned](const Stmt& s) {
-    if (const For* op = s.as<For>()) {
+    if (const ForNode* op = s.as<ForNode>()) {
         banned.insert(op->loop_var.get());
     } else if (const AttrStmtNode* op = s.as<AttrStmtNode>()) {
       if (const IterVarNode* iv = op->node.as<IterVarNode>()) {
@@ -372,7 +372,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   VerifyTensorizeLoopNest(self, stage, n, tloc);
   VerifyTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin);
   // Start bind data.
-  Stmt nop = Evaluate::make(0);
+  Stmt nop = EvaluateNode::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = self->InputTensors();
   CHECK_EQ(inputs.size(), intrin->inputs.size())

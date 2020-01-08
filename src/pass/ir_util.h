@@ -139,7 +139,7 @@ inline Stmt TVMStructSet(
     make_const(DataType::Int(32), index),
     make_const(DataType::Int(32), static_cast<int>(kind)),
     value};
-  return Evaluate::make(
+  return EvaluateNode::make(
       CallNode::make(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
 }
 

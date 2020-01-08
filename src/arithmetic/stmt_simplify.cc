@@ -50,7 +50,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
@@ -84,7 +84,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           Equal(load->index, op->index)) {
-        return Evaluate::make(0);
+        return EvaluateNode::make(0);
       }
     }
     return GetRef<Stmt>(op);

@@ -247,16 +247,16 @@ Stmt ApplyLoopShapes(const Stage &stage,
       outer = IterVarNode::make(outer_dom, outer_->var, outer_->iter_type);
     }
 
-    Stmt VisitStmt_(const For *op) final {
+    Stmt VisitStmt_(const ForNode *op) final {
       if (op->loop_var.get() == parent) {
         std::unordered_map<const VarNode *, Expr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = ir::Substitute(op->body, rmap);
         Expr cond = likely(outer * factor < (op->extent - inner));
-        ret = IfThenElse::make(cond, ret);
-        ret = For::make(inner->var, Expr(0), inner->dom->extent,
+        ret = IfThenElseNode::make(cond, ret);
+        ret = ForNode::make(inner->var, Expr(0), inner->dom->extent,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);
-        ret = For::make(outer->var, Expr(0), outer->dom->extent,
+        ret = ForNode::make(outer->var, Expr(0), outer->dom->extent,
                         IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
@@ -280,7 +280,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         extent(0), fused(false) {}
 
     // TODO(@were): Handle imperfect loops
-    Stmt VisitStmt_(const For* op) final {
+    Stmt VisitStmt_(const ForNode* op) final {
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
         std::unordered_map<const VarNode *, Expr> rmap;
@@ -295,7 +295,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
-        return For::make(parent->var, Expr(0), extent * op->extent,
+        return ForNode::make(parent->var, Expr(0), extent * op->extent,
                          op->for_type, op->device_api, body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
@@ -333,7 +333,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
    public:
     LoopAnnotator(const VarNode *var_, const IterVarAttr &attr_) : var(var_), attr(attr_) {}
 
-    Stmt VisitStmt_(const For *op) final {
+    Stmt VisitStmt_(const ForNode *op) final {
       if (op->loop_var.get() == var) {
         if (attr->bind_thread.defined()) {
           const auto &iter_var = attr->bind_thread;
@@ -347,7 +347,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
           Stmt body = ir::Substitute(op->body, rmap);
           return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);
         } else {
-          return For::make(op->loop_var, op->min, op->extent,
+          return ForNode::make(op->loop_var, op->min, op->extent,
                            IterVarTypeToForType(attr->iter_type), op->device_api, op->body);
         }
       }
@@ -370,7 +370,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
 
     PostOrderVisit(stmt,
     [&found, &var, &attr, &expected, &need_change](const ObjectRef& node) {
-      if (const For *op = node.as<For>()) {
+      if (const ForNode *op = node.as<ForNode>()) {
         if (op->loop_var.get() == var) {
           ++found;
           need_change = expected != op->for_type || (attr.defined() && attr->bind_thread.defined());
@@ -391,7 +391,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                     const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
   std::vector<const VarNode*> current_order;
   PostOrderVisit(stmt, [&current_order](const ObjectRef& node) {
-    if (const For *op = node.as<For>())
+    if (const ForNode *op = node.as<ForNode>())
       current_order.push_back(op->loop_var.get());
   });
   std::reverse(current_order.begin(), current_order.end());
@@ -421,7 +421,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                 const std::unordered_map<const VarNode*, IterVar> &reorder)
       : stage(stage), dom_map(dom_map), reorder(reorder) {}
 
-    Stmt VisitStmt_(const For* op) final {
+    Stmt VisitStmt_(const ForNode* op) final {
       // Reorder from in to out
       Stmt body_ = this->VisitStmt(op->body);
       CHECK(reorder.count(op->loop_var.get()));
@@ -434,7 +434,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
         for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
       }
       const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return For::make(target->var, range->min, range->extent,
+      return ForNode::make(target->var, range->min, range->extent,
                        for_type, DeviceAPI::None, body);
     }
   };
@@ -467,7 +467,7 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   // TODO(@were): Write a comprehensive pass to analyze iter var types
   std::vector<IterVar> res_;
   PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
-    if (const For *op = node.as<For>()) {
+    if (const ForNode *op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::make_by_min_extent(op->min, op->extent);
       res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));

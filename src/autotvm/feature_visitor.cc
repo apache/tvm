@@ -29,7 +29,7 @@ namespace tvm {
 namespace autotvm {
 
 // for loop
-void FeatureVisitor::VisitStmt_(const For* op) {
+void FeatureVisitor::VisitStmt_(const ForNode* op) {
   const auto *extent = op->extent.as<IntImmNode>();
   int64_t loop_extent = -1;
   if (extent != nullptr)

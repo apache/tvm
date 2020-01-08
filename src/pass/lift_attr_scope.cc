@@ -127,7 +127,7 @@ class AttrScopeLifter : public StmtMutator {
     return SeqStmt::Flatten(reorg);
   }
 
-  Stmt VisitStmt_(const IfThenElse* op) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     if (!op->else_case.defined()) {
       return StmtMutator::VisitStmt_(op);
     }
@@ -147,7 +147,7 @@ class AttrScopeLifter : public StmtMutator {
           else_case.same_as(op->else_case)) {
         return GetRef<Stmt>(op);
       } else {
-        return IfThenElse::make(op->condition, then_case, else_case);
+        return IfThenElseNode::make(op->condition, then_case, else_case);
       }
     } else {
       if (first_node.defined()) {
@@ -165,7 +165,7 @@ class AttrScopeLifter : public StmtMutator {
           else_case.same_as(op->else_case)) {
         return GetRef<Stmt>(op);
       } else {
-        return IfThenElse::make(op->condition, then_case, else_case);
+        return IfThenElseNode::make(op->condition, then_case, else_case);
       }
     }
   }

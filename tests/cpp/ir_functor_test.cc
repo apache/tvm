@@ -104,12 +104,12 @@ TEST(IRF, ExprVisit) {
       VisitExpr(op->a);
       VisitExpr(op->b);
     }
-    void VisitStmt_(const Evaluate* op) final {
+    void VisitStmt_(const EvaluateNode* op) final {
       VisitExpr(op->value);
     }
   };
   MyVisitor v;
-  v.VisitStmt(Evaluate::make(z));
+  v.VisitStmt(EvaluateNode::make(z));
   CHECK_EQ(v.count, 1);
 }
 
@@ -130,7 +130,7 @@ TEST(IRF, StmtVisitor) {
   MyVisitor v;
   auto fmaketest = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate::make(z);
+    Stmt body = EvaluateNode::make(z);
     Var buffer("b", DataType::Handle());
     return AllocateNode::make(buffer, DataType::Float(32), {z, z}, const_true(), body);
   };
@@ -164,21 +164,21 @@ TEST(IRF, StmtMutator) {
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate::make(z);
+    Stmt body = EvaluateNode::make(z);
     Var buffer("b", DataType::Handle());
     return AllocateNode::make(buffer, DataType::Float(32), {1, z}, const_true(), body);
   };
 
   auto fmakeif = [&]() {
     auto z = x + 1;
-    Stmt body = Evaluate::make(z);
-    return IfThenElse::make(x < 0, Evaluate::make(0), body);
+    Stmt body = EvaluateNode::make(z);
+    return IfThenElseNode::make(x <EvaluateNodeuate::make(0), body);
   };
 
   MyVisitor v;
   {
     auto body = fmakealloc();
-    Stmt body2 = Evaluate::make(1);
+    Stmt body2 = EvaluateNode::make(1);
     Stmt bref = body.as<AllocateNode>()->body;
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     Array<Stmt> arr{std::move(body), body2, body2};
@@ -190,8 +190,8 @@ TEST(IRF, StmtMutator) {
     CHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
     // copy because there is additional refs
     CHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
-    CHECK(arr[0].as<AllocateNode>()->body.as<Evaluate>()->value.same_as(x));
-    CHECK(bref.as<Evaluate>()->value.as<AddNode>());
+    CHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
+    CHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
     Array<Stmt> arr{fmakealloc()};
@@ -210,7 +210,7 @@ TEST(IRF, StmtMutator) {
   {
     Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    CHECK(arr[0].as<IfThenElse>()->else_case.as<Evaluate>()->value.same_as(x));
+    CHECK(arr[0].as<IfThenElseNode>()->else_caseEvaluateNodeuate>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
@@ -218,13 +218,13 @@ TEST(IRF, StmtMutator) {
   }
 
   {
-    auto body = Evaluate::make(CallNode::make(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
+    auto body = EvaluateNode::make(CallNode::make(DataType::Int(32), "xyz", {x + 1}, CallNode::Extern));
     auto res = v(std::move(body));
-    CHECK(res.as<Evaluate>()->value.as<CallNode>()->args[0].same_as(x));
+    CHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[0].same_as(x));
   }
   {
     auto body = fmakealloc();
-    Stmt body2 = Evaluate::make(1);
+    Stmt body2 = EvaluateNode::make(1);
     auto* ref2 = body2.get();
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
@@ -241,7 +241,7 @@ TEST(IRF, StmtMutator) {
   {
     // Cannot cow because of bref
     auto body = fmakealloc();
-    Stmt body2 = Evaluate::make(1);
+    Stmt body2 = EvaluateNode::make(1);
     auto* extentptr = body.as<AllocateNode>()->extents.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body});

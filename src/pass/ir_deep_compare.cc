@@ -93,15 +93,15 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const IfThenElse* op, const Stmt& other) final {
-    const IfThenElse* rhs = other.as<IfThenElse>();
+  void VisitStmt_(const IfThenElseNode* op, const Stmt& other) final {
+    const IfThenElseNode* rhs = other.as<IfThenElseNode>();
     if (CompareExpr(op->condition, rhs->condition) != 0) return;
     if (CompareStmt(op->then_case, rhs->then_case) != 0) return;
     if (CompareStmt(op->else_case, rhs->else_case) != 0) return;
   }
 
-  void VisitStmt_(const For* op, const Stmt& other) final {
-    const For* rhs = other.as<For>();
+  void VisitStmt_(const ForNode* op, const Stmt& other) final {
+    const ForNode* rhs = other.as<ForNode>();
     if (CompareExpr(op->min, rhs->min) != 0) return;
     if (CompareExpr(op->extent, rhs->extent) != 0) return;
     if (tie_def_) {
@@ -147,8 +147,8 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const ProducerConsumer* op, const Stmt& other) final {
-    const ProducerConsumer* rhs = other.as<ProducerConsumer>();
+  void VisitStmt_(const ProducerConsumerNode* op, const Stmt& other) final {
+    const ProducerConsumerNode* rhs = other.as<ProducerConsumerNode>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->is_producer, rhs->is_producer) != 0) return;
     if (CompareStmt(op->body, rhs->body) != 0) return;
@@ -171,8 +171,8 @@ class IRDeepCompare :
     if (CompareStmt(op->body, rhs->body) != 0) return;
   }
 
-  void VisitStmt_(const Prefetch* op, const Stmt& other) final {
-    const Prefetch* rhs = other.as<Prefetch>();
+  void VisitStmt_(const PrefetchNode* op, const Stmt& other) final {
+    const PrefetchNode* rhs = other.as<PrefetchNode>();
     if (CompareNodeRef(op->func, rhs->func) != 0) return;
     if (CompareValue(op->value_index, rhs->value_index) != 0) return;
     if (CompareType(op->dtype, rhs->dtype) != 0) return;
@@ -187,8 +187,8 @@ class IRDeepCompare :
     }
   }
 
-  void VisitStmt_(const Evaluate* op, const Stmt& other) final {
-    const Evaluate* rhs = other.as<Evaluate>();
+  void VisitStmt_(const EvaluateNode* op, const Stmt& other) final {
+    const EvaluateNode* rhs = other.as<EvaluateNode>();
     CompareExpr(op->value, rhs->value);
   }
 

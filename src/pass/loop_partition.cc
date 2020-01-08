@@ -72,7 +72,7 @@ class CandidateSelector final : public StmtExprVisitor {
   explicit CandidateSelector(bool split_const_loop)
       : split_const_loop_(split_const_loop) {}
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     // partition const loop when sets split_const_loop_
     if (!is_const(op->min) || !is_const(op->extent) || split_const_loop_) {
       const VarNode* var = op->loop_var.get();
@@ -164,7 +164,7 @@ class PartitionFinder : public StmtExprVisitor {
         }
       }
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
     const VarNode* var = op->loop_var.get();
@@ -286,7 +286,7 @@ class ThreadPartitionInserter : public StmtMutator {
       // add branch code inside the innermost thread scope
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
-        Stmt body = IfThenElse::make(cond_, simplified_body, op->body);
+        Stmt body = IfThenElseNode::make(cond_, simplified_body, op->body);
         Expr value = this->VisitExpr(op->value);
         stmt = AttrStmtNode::make(op->node, op->attr_key, value, body);
       }
@@ -315,7 +315,7 @@ class LoopPartitioner : public StmtMutator {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (selector.candidates.count(op)) {
       Stmt s = TryPartition(op, GetRef<Stmt>(op), op->loop_var,
           op->min, op->min + op->extent - 1, op->body, false);
@@ -581,13 +581,13 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
 }
 
 inline Stmt LoopPartitioner::MakeFor(const Object *node, Expr extent, Stmt body) {
-  const For *for_node = static_cast<const For*>(node);
+  const ForNode *for_node = static_cast<const ForNode*>(node);
   CHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
-    return For::make(for_node->loop_var, 0, extent,
+    return ForNode::make(for_node->loop_var, 0, extent,
                      for_node->for_type, for_node->device_api, body);
   }
 }

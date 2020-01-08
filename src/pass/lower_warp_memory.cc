@@ -301,7 +301,7 @@ class BindVarBoundInfo : public StmtVisitor {
   explicit BindVarBoundInfo(arith::Analyzer* analyzer)
       : analyzer_(analyzer) {}
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     const Var& loop_var = op->loop_var;
     analyzer_->Bind(loop_var, Range::make_by_min_extent(op->min, op->extent));
     StmtVisitor::VisitStmt_(op);

@@ -135,7 +135,7 @@ class StorageFlattener : public StmtExprMutator {
     CHECK(!e.released)
         << "Read a buffer that is already out of scope";
     if (is_opengl_) {
-      return Evaluate::make(CallNode::make(
+      return EvaluateNode::make(CallNode::make(
           DataType(),
           CallNode::glsl_texture_store,
           {e.buffer->data, op->value},
@@ -307,9 +307,9 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const Prefetch *op) final {
+  Stmt VisitStmt_(const PrefetchNode *op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Prefetch>();
+    op = stmt.as<PrefetchNode>();
     CHECK(op != nullptr);
     TensorKey key{op->func, op->value_index};
     auto it = buf_map_.find(key);
@@ -351,15 +351,15 @@ class StorageFlattener : public StmtExprMutator {
     }
     for (int i = starts; i >= 0; --i) {
       if (i < starts) {
-        stmt = For::make(
+        stmt = ForNode::make(
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
         Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
         Expr address = CallNode::make(DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
         Expr prefetch = CallNode::make(op->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
-        stmt = Evaluate::make(prefetch);
+        stmt = EvaluateNode::make(prefetch);
         Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
-        stmt = For::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
+        stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
     return stmt;

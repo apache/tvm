@@ -51,7 +51,7 @@ enum AnnotationType {
 class FeatureVisitor : public StmtExprVisitor {
  public:
   // for loop
-  void VisitStmt_(const For* op) final;
+  void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
 
   // memory access

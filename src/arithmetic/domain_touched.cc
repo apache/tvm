@@ -53,7 +53,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     return ret;
   }
 
-  void VisitStmt_(const For *op) final {
+  void VisitStmt_(const ForNode *op) final {
     const VarNode* var = op->loop_var.get();
     dom_map_[var] = IntSet::range(
         Range::make_by_min_extent(op->min, op->extent));

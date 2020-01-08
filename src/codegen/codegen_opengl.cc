@@ -261,7 +261,7 @@ void CodeGenOpenGL::VisitExpr_(const StringImmNode*, std::ostream& os) {
   LOG(FATAL) << "GLSL 3.0 doesn't support strings.";
 }
 
-void CodeGenOpenGL::VisitStmt_(const Evaluate* op) {
+void CodeGenOpenGL::VisitStmt_(const EvaluateNode* op) {
   auto call = op->value.as<CallNode>();
   if (call == nullptr || call->name != CallNode::glsl_texture_store) {
     // Fallback to normal logic.

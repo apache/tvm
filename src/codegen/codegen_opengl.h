@@ -55,7 +55,7 @@ class CodeGenOpenGL final : public CodeGenC {
   void VisitExpr_(const StringImmNode* op, std::ostream& os) final;  // NOLINT(*)
 
   // Match glsl_texture_store Call.
-  void VisitStmt_(const Evaluate* op) final;  // NOLINT(*)
+  void VisitStmt_(const EvaluateNode* op) final;  // NOLINT(*)
 
  private:
   const VarNode* output_{nullptr};

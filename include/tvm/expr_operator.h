@@ -664,7 +664,7 @@ inline bool is_const_int(const Expr& x, int64_t value) {
 
 inline bool is_no_op(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (const auto* op = stmt.as<ir::Evaluate>()) {
+  if (const auto* op = stmt.as<ir::EvaluateNode>()) {
     return is_const(op->value);
   }
   if (const auto* op = stmt.as<ir::SeqStmtNode>()) {

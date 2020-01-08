@@ -78,7 +78,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     this->HandleDef(op->loop_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -227,7 +227,7 @@ class HostDeviceSplitter : public StmtMutator {
       call_args.push_back(ext);
     }
     device_funcs_.emplace_back(f_device);
-    return Evaluate::make(CallNode::make(
+    return EvaluateNode::make(CallNode::make(
         DataType::Int(32), intrinsic::tvm_call_packed,
         call_args, CallNode::Intrinsic));
   }

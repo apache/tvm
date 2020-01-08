@@ -350,17 +350,17 @@ Stmt AssertStmtNode::make(Expr condition, Expr message, Stmt body) {
   return Stmt(node);
 }
 
-Stmt ProducerConsumer::make(FunctionRef func, bool is_producer, Stmt body) {
+Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
   CHECK(body.defined());
 
-  ObjectPtr<ProducerConsumer> node = make_object<ProducerConsumer>();
+  ObjectPtr<ProducerConsumerNode> node = make_object<ProducerConsumerNode>();
   node->func = std::move(func);
   node->is_producer = is_producer;
   node->body = std::move(body);
   return Stmt(node);
 }
 
-Stmt For::make(Var loop_var,
+Stmt ForNode::make(Var loop_var,
                Expr min,
                Expr extent,
                ForType for_type,
@@ -373,7 +373,7 @@ Stmt For::make(Var loop_var,
   CHECK(loop_var.dtype().is_scalar());
   CHECK(body.defined());
 
-  ObjectPtr<For> node = make_object<For>();
+  ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
   node->extent = std::move(extent);
@@ -488,7 +488,7 @@ Stmt RealizeNode::make(FunctionRef func,
   return Stmt(node);
 }
 
-Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
+Stmt PrefetchNode::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
@@ -496,7 +496,7 @@ Stmt Prefetch::make(FunctionRef func, int value_index, DataType dtype, Region bo
     CHECK(bounds[i]->extent.dtype().is_scalar());
   }
 
-  ObjectPtr<Prefetch> node = make_object<Prefetch>();
+  ObjectPtr<PrefetchNode> node = make_object<PrefetchNode>();
   node->func = std::move(func);
   node->value_index = value_index;
   node->dtype = dtype;
@@ -510,22 +510,22 @@ SeqStmt::SeqStmt(Array<Stmt> seq) {
   data_ = std::move(node);
 }
 
-Stmt IfThenElse::make(Expr condition, Stmt then_case, Stmt else_case) {
+Stmt IfThenElseNode::make(Expr condition, Stmt then_case, Stmt else_case) {
   CHECK(condition.defined());
   CHECK(then_case.defined());
   // else_case may be null.
 
-  ObjectPtr<IfThenElse> node = make_object<IfThenElse>();
+  ObjectPtr<IfThenElseNode> node = make_object<IfThenElseNode>();
   node->condition = std::move(condition);
   node->then_case = std::move(then_case);
   node->else_case = std::move(else_case);
   return Stmt(node);
 }
 
-Stmt Evaluate::make(Expr value) {
+Stmt EvaluateNode::make(Expr value) {
   CHECK(value.defined());
 
-  ObjectPtr<Evaluate> node = make_object<Evaluate>();
+  ObjectPtr<EvaluateNode> node = make_object<EvaluateNode>();
   node->value = std::move(value);
   return Stmt(node);
 }
@@ -850,8 +850,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ProducerConsumer>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const ProducerConsumer*>(node.get());
+.set_dispatch<ProducerConsumerNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ProducerConsumerNode*>(node.get());
     if (op->is_producer) {
       p->PrintIndent();
       p->stream << "produce " << op->func->func_name() << " {\n";
@@ -884,8 +884,8 @@ std::ostream &operator<<(std::ostream& out, ForType type) { // NOLINT(*)
 }
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<For>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const For*>(node.get());
+.set_dispatch<ForNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const ForNode*>(node.get());
     p->PrintIndent();
     p->stream << op->for_type << " (" << op->loop_var << ", ";
     p->Print(op->min);
@@ -992,8 +992,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Prefetch>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Prefetch*>(node.get());
+.set_dispatch<PrefetchNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const PrefetchNode*>(node.get());
     p->PrintIndent();
     p->stream << "prefetch " << op->func->func_name() << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
@@ -1019,8 +1019,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<IfThenElse>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const IfThenElse*>(node.get());
+.set_dispatch<IfThenElseNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const IfThenElseNode*>(node.get());
     p->PrintIndent();
     while (true) {
       p->stream << "if (" << op->condition << ") {\n";
@@ -1032,7 +1032,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
         break;
       }
 
-      if (const IfThenElse *nested_if = op->else_case.as<IfThenElse>()) {
+      if (const IfThenElseNode *nested_if = op->else_case.as<IfThenElseNode>()) {
         p->PrintIndent();
         p->stream << "} else ";
         op = nested_if;
@@ -1050,8 +1050,8 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<Evaluate>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const Evaluate*>(node.get());
+.set_dispatch<EvaluateNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const EvaluateNode*>(node.get());
     p->PrintIndent();
     p->Print(op->value);
     p->stream << "\n";
@@ -1180,21 +1180,21 @@ TVM_REGISTER_NODE_TYPE(LoadNode);
 TVM_REGISTER_NODE_TYPE(RampNode);
 TVM_REGISTER_NODE_TYPE(BroadcastNode);
 TVM_REGISTER_NODE_TYPE(ShuffleNode);
-TVM_REGISTER_NODE_TYPE(Prefetch);
+TVM_REGISTER_NODE_TYPE(PrefetchNode);
 TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_REGISTER_NODE_TYPE(LetNode);
 TVM_REGISTER_NODE_TYPE(LetStmtNode);
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
-TVM_REGISTER_NODE_TYPE(ProducerConsumer);
-TVM_REGISTER_NODE_TYPE(For);
+TVM_REGISTER_NODE_TYPE(ProducerConsumerNode);
+TVM_REGISTER_NODE_TYPE(ForNode);
 TVM_REGISTER_NODE_TYPE(StoreNode);
 TVM_REGISTER_NODE_TYPE(ProvideNode);
 TVM_REGISTER_NODE_TYPE(AllocateNode);
 TVM_REGISTER_NODE_TYPE(FreeNode);
 TVM_REGISTER_NODE_TYPE(RealizeNode);
 TVM_REGISTER_NODE_TYPE(SeqStmtNode);
-TVM_REGISTER_NODE_TYPE(IfThenElse);
-TVM_REGISTER_NODE_TYPE(Evaluate);
+TVM_REGISTER_NODE_TYPE(IfThenElseNode);
+TVM_REGISTER_NODE_TYPE(EvaluateNode);
 
 }  // namespace ir
 }  // namespace tvm

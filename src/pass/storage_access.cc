@@ -74,7 +74,7 @@ void StorageAccessVisitor::VisitStmt_(const StoreNode* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::VisitStmt_(const Evaluate* op) {
+void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = true;
   CHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -136,7 +136,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void StorageAccessVisitor::VisitStmt_(const For* op) {
+void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
   scope_.push_back(std::vector<StmtEntry>());
   StmtExprVisitor::VisitStmt_(op);
   StmtEntry s;
@@ -160,7 +160,7 @@ void StorageAccessVisitor::VisitStmt_(const For* op) {
   }
 }
 
-void StorageAccessVisitor::VisitStmt_(const IfThenElse* op) {
+void StorageAccessVisitor::VisitStmt_(const IfThenElseNode* op) {
   ++condition_counter_;
   this->VisitExpr(op->condition);
   scope_.push_back(std::vector<StmtEntry>());

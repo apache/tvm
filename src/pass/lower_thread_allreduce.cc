@@ -63,9 +63,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const Evaluate* op) final {
+  Stmt VisitStmt_(const EvaluateNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<Evaluate>();
+    op = stmt.as<EvaluateNode>();
     const CallNode* call = op->value.as<CallNode>();
     if (call && call->is_intrinsic(intrinsic::tvm_thread_allreduce)) {
       return MakeAllreduce(call);
@@ -216,7 +216,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       alloc_remap_[buffers[idx]] = AllocateNode::make(
         shared_bufs[idx], types[idx],
         {Expr(group_extent), Expr(reduce_extent)},
-        pred, Evaluate::make(0));
+        pred, EvaluateNode::make(0));
     }
     return SeqStmt::Flatten(seq);
   }
@@ -259,7 +259,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       // reduction with the boundary condition
       reduce_align = reduce_align >> 1;
       Expr cond = reduce_index < (reduce_extent - reduce_align);
-      seq.emplace_back(IfThenElse::make(cond, freduce(reduce_align)));
+      seq.emplace_back(IfThenElseNode::make(cond, freduce(reduce_align)));
       seq.emplace_back(SyncThread("shared"));
     }
     CHECK(threadx_extent >= 1 && warp_size_ >= 1);
@@ -268,7 +268,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
            reduce_align > warp_size_) {
       reduce_align =  reduce_align >> 1;
       Expr cond = reduce_index < reduce_align;
-      seq.emplace_back(IfThenElse::make(cond, freduce(reduce_align)));
+      seq.emplace_back(IfThenElseNode::make(cond, freduce(reduce_align)));
       seq.emplace_back(SyncThread("shared"));
     }
     // in warp synchronization.
@@ -281,7 +281,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     if (in_warp_seq.size() != 0) {
       Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
-      seq.emplace_back(IfThenElse::make(in_warp_cond, warp_body));
+      seq.emplace_back(IfThenElseNode::make(in_warp_cond, warp_body));
       seq.emplace_back(SyncThread("shared"));
     }
     return SeqStmt::Flatten(seq);
@@ -310,7 +310,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate::make(
+    return EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImmNode::make(sync)},
                    CallNode::Intrinsic));

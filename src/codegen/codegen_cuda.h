@@ -43,7 +43,7 @@ class CodeGenCUDA final : public CodeGenC {
     return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void VisitStmt_(const ir::For* op) final;
+  void VisitStmt_(const ir::ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
@@ -61,7 +61,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
   void VisitExpr_(const CallNode *op, std::ostream& os) final;
-  void VisitStmt_(const Evaluate *op) final;
+  void VisitStmt_(const EvaluateNode *op) final;
   void VisitStmt_(const AllocateNode *op) final;
   void VisitStmt_(const AttrStmtNode *op) final;
 

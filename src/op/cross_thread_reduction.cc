@@ -84,7 +84,7 @@ Stmt MakeCrossThreadReduction(
     thread_head_check.emplace_back(stage->store_predicate);
   }
 
-  Stmt reduce_body = Evaluate::make(CallNode::make(
+  Stmt reduce_body = EvaluateNode::make(CallNode::make(
       DataType::Handle(),
       ir::intrinsic::tvm_thread_allreduce,
       freduce_args, CallNode::Intrinsic));

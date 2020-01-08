@@ -38,7 +38,7 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
     return analyzer_.Simplify(expr);
   }
 
-  void VisitStmt_(const For* op) {
+  void VisitStmt_(const ForNode* op) {
     analyzer_.Bind(op->loop_var,
                    Range::make_by_min_extent(op->min, op->extent));
     return StmtExprVisitor::VisitStmt_(op);

@@ -93,7 +93,7 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::VisitStmt_(const ir::For* op) {
+void CodeGenCUDA::VisitStmt_(const ir::ForNode* op) {
   CHECK(is_const_int(op->min, 0));
   if (op->for_type == ir::ForType::Unrolled) {
     PrintIndent();
@@ -425,7 +425,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenCUDA::VisitStmt_(const Evaluate *op) {
+void CodeGenCUDA::VisitStmt_(const EvaluateNode *op) {
   if (is_const(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->is_intrinsic(intrinsic::tvm_global_barrier_kinit)) {

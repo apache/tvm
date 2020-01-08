@@ -354,7 +354,7 @@ void CodeGenHybrid::VisitStmt_(const ProvideNode* op) {
   stream << "\n";
 }
 
-void CodeGenHybrid::VisitStmt_(const For* op) {
+void CodeGenHybrid::VisitStmt_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = GetVarID(op->loop_var.get());
@@ -367,12 +367,12 @@ void CodeGenHybrid::VisitStmt_(const For* op) {
 bool is_noop(const Stmt &stmt) {
   if (!stmt.defined())
     return true;
-  if (auto eval = stmt.as<Evaluate>())
+  if (auto eval = stmt.as<EvaluateNode>())
     return is_const(eval->value);
   return false;
 }
 
-void CodeGenHybrid::VisitStmt_(const IfThenElse* op) {
+void CodeGenHybrid::VisitStmt_(const IfThenElseNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   stream << "if " << cond << ":\n";
@@ -395,14 +395,14 @@ void CodeGenHybrid::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenHybrid::VisitStmt_(const Evaluate* op) {
+void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
   if (is_const(op->value)) return;
   std::string str = PrintExpr(op->value);
   if (!str.empty())
     stream << str << "\n";
 }
 
-void CodeGenHybrid::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenHybrid::VisitStmt_(const ProducerConsumerNode* op) {
   PrintStmt(op->body);
 }
 

@@ -43,7 +43,7 @@ Stmt MakePipeline(const Stage& s,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
   if (producer.defined()) {
-    producer = ProducerConsumer::make(s->op, true, producer);
+    producer = ProducerConsumerNode::make(s->op, true, producer);
   }
   if (s->double_buffer) {
     producer = AttrStmtNode::make(
@@ -52,7 +52,7 @@ Stmt MakePipeline(const Stage& s,
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
-    consumer = ProducerConsumer::make(s->op, false, consumer);
+    consumer = ProducerConsumerNode::make(s->op, false, consumer);
     pipeline = SeqStmt({producer, consumer});
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
@@ -162,12 +162,12 @@ class InjectScanStep : public StmtMutator {
 // Replace the init and update's expression by scan's buffer.
 class SchedulePostProc : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ProducerConsumer* op) final {
+  Stmt VisitStmt_(const ProducerConsumerNode* op) final {
     auto it = replace_op_.find(op->func.get());
     if (it != replace_op_.end()) {
       Stmt body = this->VisitStmt(op->body);
       if (it->second.defined()) {
-        return ProducerConsumer::make(
+        return ProducerConsumerNode::make(
             it->second, op->is_producer, body);
       } else {
         return body;

@@ -147,7 +147,7 @@ void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const For* op) {
+void StmtVisitor::VisitStmt_(const ForNode* op) {
   this->VisitExpr(op->min);
   this->VisitExpr(op->extent);
   this->VisitStmt(op->body);
@@ -168,7 +168,7 @@ void StmtVisitor::VisitStmt_(const StoreNode* op) {
   this->VisitExpr(op->predicate);
 }
 
-void StmtVisitor::VisitStmt_(const IfThenElse* op) {
+void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
   this->VisitExpr(op->condition);
   this->VisitStmt(op->then_case);
   if (op->else_case.defined()) {
@@ -184,7 +184,7 @@ void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const ProducerConsumer* op) {
+void StmtVisitor::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 
@@ -202,7 +202,7 @@ void StmtVisitor::VisitStmt_(const RealizeNode* op) {
   this->VisitExpr(op->condition);
 }
 
-void StmtVisitor::VisitStmt_(const Prefetch* op) {
+void StmtVisitor::VisitStmt_(const PrefetchNode* op) {
   VisitArray(op->bounds, [this](const Range& r) {
       this->VisitExpr(r->min);
       this->VisitExpr(r->extent);
@@ -215,7 +215,7 @@ void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
     });
 }
 
-void StmtVisitor::VisitStmt_(const Evaluate* op) {
+void StmtVisitor::VisitStmt_(const EvaluateNode* op) {
   this->VisitExpr(op->value);
 }
 
@@ -372,7 +372,7 @@ Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const For* op) {
+Stmt StmtMutator::VisitStmt_(const ForNode* op) {
   Expr min = this->VisitExpr(op->min);
   Expr extent = this->VisitExpr(op->extent);
   Stmt body = this->VisitStmt(op->body);
@@ -412,7 +412,7 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const IfThenElse* op) {
+Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   Expr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
   Stmt else_case;
@@ -480,7 +480,7 @@ Stmt StmtMutator::VisitStmt_(const RealizeNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Prefetch* op) {
+Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
   Region bounds = Internal::Mutate(this, op->bounds);
   if (bounds.same_as(op->bounds)) {
     return GetRef<Stmt>(op);
@@ -566,7 +566,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const ProducerConsumer* op) {
+Stmt StmtMutator::VisitStmt_(const ProducerConsumerNode* op) {
   Stmt body = this->VisitStmt(op->body);
   if (body.same_as(op->body)) {
     return GetRef<Stmt>(op);
@@ -577,7 +577,7 @@ Stmt StmtMutator::VisitStmt_(const ProducerConsumer* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const Evaluate* op) {
+Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
   Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return GetRef<Stmt>(op);

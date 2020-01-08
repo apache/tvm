@@ -30,8 +30,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
   // use reverse iteration
   for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
     Stmt s = *ri;
-    if (const auto* for_ = s.as<For>()) {
-      auto n = make_object<For>(*for_);
+    if (const auto* for_ = s.as<ForNode>()) {
+      auto n = make_object<ForNode>(*for_);
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
@@ -45,8 +45,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       CHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
-    } else if (const auto* ite = s.as<IfThenElse>()) {
-      auto n = make_object<IfThenElse>(*ite);
+    } else if (const auto* ite = s.as<IfThenElseNode>()) {
+      auto n = make_object<IfThenElseNode>(*ite);
       CHECK(is_no_op(n->then_case));
       CHECK(!n->else_case.defined());
       n->then_case = body;

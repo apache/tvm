@@ -135,7 +135,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   CHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = Evaluate::make(0);
+  Stmt nop = EvaluateNode::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 

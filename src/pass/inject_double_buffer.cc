@@ -111,22 +111,22 @@ class DoubleBufferInjector : public StmtExprMutator {
       alloc_nest.emplace_back(AttrStmtNode::make(
           op->buffer_var, attr::storage_scope,
           StringImmNode::make(it->second.scope),
-          Evaluate::make(0)));
+          EvaluateNode::make(0)));
       alloc_nest.emplace_back(AllocateNode::make(
           op->buffer_var, op->dtype, new_extents, op->condition,
-          Evaluate::make(0)));
+          EvaluateNode::make(0)));
       return op->body;
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     loop_nest_.push_back(op);
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     auto it = loop_pre_.find(op);
     if (it != loop_pre_.end()) {
-      const For* old_loop = stmt.as<For>();
+      const ForNode* old_loop = stmt.as<ForNode>();
       if (split_loop_ != 0) {
         // Explicitly unroll the loop
         CHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
@@ -145,7 +145,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           vmap[old_loop->loop_var.get()] = outer_var * factor + make_const(factor.dtype(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
-        Stmt loop = For::make(
+        Stmt loop = ForNode::make(
             outer_var, zero, outer_ext, old_loop->for_type, old_loop->device_api,
             SeqStmt::Flatten(loop_seq));
         // tail
@@ -155,7 +155,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           Expr idx = tail_base + make_const(tail_base.dtype(), i);
           vmap[old_loop->loop_var.get()] = idx;
           tail_seq.emplace_back(
-              IfThenElse::make(idx < old_loop->extent,
+              IfThenElseNode::make(idx < old_loop->extent,
                                Substitute(tail_body, vmap)));
         }
         stmt = SeqStmt::Flatten(loop, tail_seq);
@@ -239,7 +239,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
     body = AttrStmtNode::make(buffer, attr::double_buffer_write, 1, body);
-    body = IfThenElse::make(loop_shift < e.loop->extent, body);
+    body = IfThenElseNode::make(loop_shift < e.loop->extent, body);
     return body;
   }
   // Storage entry for those who need double buffering.
@@ -247,7 +247,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     // The size of the buffer
     Expr stride;
     // The loop we need
-    const For* loop{nullptr};
+    const ForNode* loop{nullptr};
     // The switch variable.
     VarExpr switch_write_var;
     // The switch variable for reading.
@@ -260,11 +260,11 @@ class DoubleBufferInjector : public StmtExprMutator {
   // Whether we are inside double buffer scope.
   bool in_double_buffer_scope_{false};
   // The current loop next
-  std::vector<const For*> loop_nest_;
+  std::vector<const ForNode*> loop_nest_;
   // The allocs to be appended before the loop
-  std::unordered_map<const For*, std::vector<Stmt> > loop_allocs_;
+  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_allocs_;
   // The stmt to be appended before the loop
-  std::unordered_map<const For*, std::vector<Stmt> > loop_pre_;
+  std::unordered_map<const ForNode*, std::vector<Stmt> > loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
 };

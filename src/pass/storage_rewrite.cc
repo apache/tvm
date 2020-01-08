@@ -105,7 +105,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       linear_seq_.push_back(e);
     }
   }
-  void VisitStmt_(const Evaluate* op) final {
+  void VisitStmt_(const EvaluateNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
     StmtExprVisitor::VisitStmt_(op);
@@ -183,11 +183,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       StmtExprVisitor::VisitStmt_(op);
     }
   }
-  void VisitStmt_(const IfThenElse* op) final {
+  void VisitStmt_(const IfThenElseNode* op) final {
     VisitNewScope(op);
   }
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     VisitNewScope(op);
   }
 
@@ -243,10 +243,10 @@ class InplaceOpVerifier : public StmtExprVisitor {
     result_ = true;
     if (stmt->IsInstance<AttrStmtNode>()) {
       VisitStmt_(static_cast<const AttrStmtNode*>(stmt));
-    } else if (stmt->IsInstance<For>()) {
-      VisitStmt_(static_cast<const For*>(stmt));
-    } else if (stmt->IsInstance<IfThenElse>()) {
-      VisitStmt_(static_cast<const IfThenElse*>(stmt));
+    } else if (stmt->IsInstance<ForNode>()) {
+      VisitStmt_(static_cast<const ForNode*>(stmt));
+    } else if (stmt->IsInstance<IfThenElseNode>()) {
+      VisitStmt_(static_cast<const IfThenElseNode*>(stmt));
     } else if (stmt->IsInstance<StoreNode>()) {
       VisitStmt_(static_cast<const StoreNode*>(stmt));
     } else {
@@ -358,7 +358,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           nest.emplace_back(AttrStmtNode::make(
               e->alloc_var, attr::storage_scope,
               StringImmNode::make(e->scope.to_string()),
-              Evaluate::make(0)));
+              EvaluateNode::make(0)));
           nest.push_back(e->new_alloc);
         }
       }
@@ -451,15 +451,15 @@ class StoragePlanRewriter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     CHECK(op->for_type != ForType::Vectorized)
         << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<For>();
-      return For::make(
+      op = stmt.as<ForNode>();
+      return ForNode::make(
           op->loop_var, op->min, op->extent, op->for_type, op->device_api,
           MakeAttach(svec, op->body));
     } else {
@@ -522,7 +522,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         nest.emplace_back(AttrStmtNode::make(
             e->alloc_var, attr::storage_scope,
             StringImmNode::make(e->scope.to_string()),
-            Evaluate::make(0)));
+            EvaluateNode::make(0)));
         nest.push_back(e->new_alloc);
       }
     }
@@ -581,7 +581,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                                               make_const(DataType::Int(32), 1));
           e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {sz},
-              e->allocs[0]->condition, Evaluate::make(0));
+              e->allocs[0]->condition, EvaluateNode::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -623,7 +623,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = ir::Simplify(combo_size);
           e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
-              Evaluate::make(0));
+              EvaluateNode::make(0));
           if (e->scope.tag.length() != 0) {
             MemoryInfo info = GetMemoryInfo(e->scope.to_string());
             uint64_t total_elem = e->const_nbits / e->elem_type.bits();
@@ -667,7 +667,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                                  (total_bits + type_bits - 1) / type_bits);
     e->new_alloc = AllocateNode::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
-        Evaluate::make(0));
+        EvaluateNode::make(0));
     if (info.defined()) {
       CHECK_LE(total_bits, info->max_num_bits)
           << "Allocation exceed bound of memory tag " << e->scope.to_string();
@@ -789,8 +789,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         } else {
           CHECK(op->attr_key == attr::extern_scope);
         }
-      } else if (s.stmt->IsInstance<For>()) {
-        const auto* op = static_cast<const For*>(s.stmt);
+      } else if (s.stmt->IsInstance<ForNode>()) {
+        const auto* op = static_cast<const ForNode*>(s.stmt);
         if (op->for_type == ForType::Parallel) {
           if (thread_scope_ == nullptr || thread_scope_ == op) {
             PlanNewScope(op);

@@ -284,10 +284,10 @@ Stmt ScanOpNode::BuildProvide(
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmtNode::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
-      Evaluate::make(0));
+      EvaluateNode::make(0));
   Stmt init = AttrStmtNode::make(
       stage->op, attr::scan_init_scope, 0,
-      Evaluate::make(0));
+      EvaluateNode::make(0));
   size_t begin_scan = 0;
   for (size_t  i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     if (stage->leaf_iter_vars[i]->iter_type == kThreadIndex) {

@@ -58,13 +58,13 @@ class PrefetchInjector : public StmtMutator {
 
       vectorized_.erase(iter_var);
 
-      Stmt prefetch = Prefetch::make(ts->op, ts->value_index, ts->dtype, region);
+      Stmt prefetch = PrefetchNode::make(ts->op, ts->value_index, ts->dtype, region);
       return SeqStmt({prefetch, op->body});
     }
     return ret;
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     auto &var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {

@@ -583,8 +583,8 @@ void InjectInline(ScheduleNode* sch) {
                   << "The Reduce inputs of ComputeOp should "
                   << "have the same attribute except value_index";
             }
-            Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][0]),
-                                        stage->op, args, body).as<ir::Evaluate>()->value;
+            Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][0]),
+                                        stage->op, args, body).as<ir::EvaluateNode>()->value;
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
               const ir::ReduceNode* r = new_value.as<ir::ReduceNode>();
@@ -599,8 +599,8 @@ void InjectInline(ScheduleNode* sch) {
             }
           } else {
             for (size_t k = 0; k < new_body[j].size(); ++k) {
-              Expr new_value = ir::Inline(ir::Evaluate::make(new_body[j][k]),
-                                          stage->op, args, body).as<ir::Evaluate>()->value;
+              Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][k]),
+                                          stage->op, args, body).as<ir::EvaluateNode>()->value;
               if (!new_value.same_as(new_body[j][k])) {
                 new_body[j].Set(k, new_value);
                 changed[j] = true;

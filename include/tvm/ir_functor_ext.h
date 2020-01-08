@@ -243,18 +243,18 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   // Functions that can be overriden by subclass
   virtual R VisitStmt_(const LetStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AttrStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const IfThenElse* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const For* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const FreeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const ProducerConsumer* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ProducerConsumerNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ProvideNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const RealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const Prefetch* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const PrefetchNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const SeqStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
-  virtual R VisitStmt_(const Evaluate* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const EvaluateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args ...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     return R();
@@ -266,18 +266,18 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     FType vtable;
     IR_STMT_FUNCTOR_DISPATCH(LetStmtNode);
     IR_STMT_FUNCTOR_DISPATCH(AttrStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(IfThenElse);
-    IR_STMT_FUNCTOR_DISPATCH(For);
+    IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
+    IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocateNode);
     IR_STMT_FUNCTOR_DISPATCH(StoreNode);
     IR_STMT_FUNCTOR_DISPATCH(FreeNode);
     IR_STMT_FUNCTOR_DISPATCH(AssertStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(ProducerConsumer);
+    IR_STMT_FUNCTOR_DISPATCH(ProducerConsumerNode);
     IR_STMT_FUNCTOR_DISPATCH(ProvideNode);
     IR_STMT_FUNCTOR_DISPATCH(RealizeNode);
-    IR_STMT_FUNCTOR_DISPATCH(Prefetch);
+    IR_STMT_FUNCTOR_DISPATCH(PrefetchNode);
     IR_STMT_FUNCTOR_DISPATCH(SeqStmtNode);
-    IR_STMT_FUNCTOR_DISPATCH(Evaluate);
+    IR_STMT_FUNCTOR_DISPATCH(EvaluateNode);
     return vtable;
   }
 };
@@ -397,19 +397,19 @@ class TVM_DLL StmtVisitor :
   virtual void VisitExpr(const Expr& e) {}
   // statement visitor
   void VisitStmt_(const AttrStmtNode* op) override;
-  void VisitStmt_(const IfThenElse* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;
-  void VisitStmt_(const For* op) override;
+  void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitStmt_(const FreeNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const ProducerConsumerNode* op) override;
   void VisitStmt_(const ProvideNode* op) override;
   void VisitStmt_(const RealizeNode* op) override;
-  void VisitStmt_(const Prefetch* op) override;
+  void VisitStmt_(const PrefetchNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const Evaluate* op) override;
+  void VisitStmt_(const EvaluateNode* op) override;
 };
 
 /*!
@@ -491,19 +491,19 @@ class TVM_DLL StmtMutator :
   }
   // statement visitor
   Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const IfThenElse* op) override;
+  Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
-  Stmt VisitStmt_(const For* op) override;
+  Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
   Stmt VisitStmt_(const FreeNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
-  Stmt VisitStmt_(const ProducerConsumer* op) override;
+  Stmt VisitStmt_(const ProducerConsumerNode* op) override;
   Stmt VisitStmt_(const ProvideNode* op) override;
   Stmt VisitStmt_(const RealizeNode* op) override;
-  Stmt VisitStmt_(const Prefetch* op) override;
+  Stmt VisitStmt_(const PrefetchNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
-  Stmt VisitStmt_(const Evaluate* op) override;
+  Stmt VisitStmt_(const EvaluateNode* op) override;
   /*!
    * \brief Alternative advance method for SeqStmtNode.
    *

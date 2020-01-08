@@ -356,7 +356,7 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // For
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Vectorized) {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
@@ -371,13 +371,13 @@ class Vectorizer : public StmtExprMutator {
         body.same_as(op->body)) {
       return GetRef<Stmt>(op);
     } else {
-      return For::make(
+      return ForNode::make(
           op->loop_var, op->min, extent,
           op->for_type, op->device_api, body);
     }
   }
   // IfThenElse
-  Stmt VisitStmt_(const IfThenElse* op) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     CHECK(!op->condition.dtype().is_vector());
     Expr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_vector()) {
@@ -393,7 +393,7 @@ class Vectorizer : public StmtExprMutator {
         else_case.same_as(op->else_case)) {
       return GetRef<Stmt>(op);
     } else {
-      return IfThenElse::make(condition, then_case, else_case);
+      return IfThenElseNode::make(condition, then_case, else_case);
     }
   }
   // LetStmt
@@ -437,7 +437,7 @@ class Vectorizer : public StmtExprMutator {
     Var idx(var_->name_hint + ".s", var_->dtype);
     Map<Var, Expr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
-    return For::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
+    return ForNode::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
 
  private:
@@ -519,7 +519,7 @@ class Vectorizer : public StmtExprMutator {
 
 class LoopVectorizer : public StmtMutator {
  public:
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Vectorized) {
       CHECK(is_zero(op->min));
       int lanes = 0;
@@ -540,11 +540,11 @@ Stmt VectorizeLoop(Stmt stmt) {
 
 class VectorizeSkipper : public StmtMutator {
  public:
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<For>();
+    op = stmt.as<ForNode>();
     if (op->for_type == ForType::Vectorized) {
-      return For::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
+      return ForNode::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
                        op->body);
     } else {
        return stmt;

@@ -58,7 +58,7 @@ class IRInline final : public StmtExprMutator {
           vmap.Set(args_[i], op->args[i]);
         }
         expr = Substitute(
-            Evaluate::make(expr), vmap).as<Evaluate>()->value;
+            EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
       }
       return expr;
     } else {

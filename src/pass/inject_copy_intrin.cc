@@ -59,8 +59,8 @@ class CopyIntrinInjector : public StmtMutator {
     Stmt body = stmt;
 
     // strip the loops
-    std::vector<const For*> loops;
-    while (const For* op = body.as<For>()) {
+    std::vector<const ForNode*> loops;
+    while (const ForNode* op = body.as<ForNode>()) {
       if (!is_zero(op->min)) return false;
       loops.push_back(op);
       body = op->body;
@@ -90,7 +90,7 @@ class CopyIntrinInjector : public StmtMutator {
     if (load == nullptr) return false;
     if (load->dtype.lanes() != 1) return false;
     Array<Var> loop_vars;
-    for (const For* op : loops) {
+    for (const ForNode* op : loops) {
       loop_vars.push_back(op->loop_var);
     }
     Array<Expr> store_strides =
@@ -103,7 +103,7 @@ class CopyIntrinInjector : public StmtMutator {
     if (loop_var_size == 0) {
       dst_shape.push_back(make_const(DataType::Int(32), 1));
     } else {
-      for (const For* op : loops) {
+      for (const ForNode* op : loops) {
         dst_shape.push_back(op->extent);
       }
     }

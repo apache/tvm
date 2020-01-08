@@ -142,14 +142,14 @@ class CodeGenStackVM
   // statment
   void VisitStmt_(const LetStmtNode* op) final;
   void VisitStmt_(const StoreNode* op) final;
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const IfThenElse* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const IfThenElseNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
   void VisitStmt_(const AssertStmtNode* op) final;
-  void VisitStmt_(const Evaluate* op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const SeqStmtNode* op) final;
-  void VisitStmt_(const ProducerConsumer* op) final;
+  void VisitStmt_(const ProducerConsumerNode* op) final;
 
  private:
   bool debug_{false};

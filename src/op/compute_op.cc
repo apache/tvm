@@ -340,7 +340,7 @@ void MakeReduction(const ComputeOpNode* op,
   *init = SeqStmt::Flatten(inits);
   *provide = SeqStmt::Flatten(provides);
   if (!is_one(reduce->condition)) {
-    *provide = IfThenElse::make(reduce->condition, *provide);
+    *provide = IfThenElseNode::make(reduce->condition, *provide);
   }
 }
 
@@ -632,7 +632,7 @@ Stmt TransformUpdate(const Stage& stage,
     }
   }
 
-  return IfThenElse::make(arith::ComputeReduce<ir::OrNode>(conds, const_true(1)),
+  return IfThenElseNode::make(arith::ComputeReduce<ir::OrNode>(conds, const_true(1)),
                           update, body);
 }
 }  // namespace tvm

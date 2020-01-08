@@ -92,7 +92,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const ProducerConsumer* op) final {
+  void VisitStmt_(const ProducerConsumerNode* op) final {
     EnterProducerConsumer(op);
     StmtExprVisitor::VisitStmt_(op);
     ExitProducerConsumer();
@@ -155,8 +155,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   void EnterThreadEnv() { in_thread_env_ = true; }
   void ExitThreadEnv() { in_thread_env_ = false; }
   bool InProducerConsumer() const { return pc_ != nullptr; }
-  const ProducerConsumer *GetCurrentProducerConsumer() const { return pc_; }
-  void EnterProducerConsumer(const ProducerConsumer *pc) { this->pc_ = pc; }
+  const ProducerConsumerNode *GetCurrentProducerConsumer() const { return pc_; }
+  void EnterProducerConsumer(const ProducerConsumerNode *pc) { this->pc_ = pc; }
   void ExitProducerConsumer() { pc_ = nullptr; }
   void SetFailure() { failure_ = true; }
   //@}
@@ -176,7 +176,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Status of visitor
   //@{
   bool in_thread_env_{false};
-  const ProducerConsumer *pc_{nullptr};
+  const ProducerConsumerNode *pc_{nullptr};
   bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
   //@}
   LoweredFunc func_{nullptr};  ///< Function to be verified.

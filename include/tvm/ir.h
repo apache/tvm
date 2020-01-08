@@ -813,7 +813,7 @@ class AssertStmtNode : public StmtNode {
 
 // TODO(tvm-team): consider consolidate with AttrStmt.
 /*! \brief annotation node of producer/consumer relation. */
-class ProducerConsumer : public StmtNode {
+class ProducerConsumerNode : public StmtNode {
  public:
   /*! \brief The corresponding tensor. */
   FunctionRef func;
@@ -831,7 +831,7 @@ class ProducerConsumer : public StmtNode {
   TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
 
   static constexpr const char* _type_key = "ProducerConsumer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumer, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumerNode, StmtNode);
 };
 
 /*!
@@ -1104,7 +1104,7 @@ class SeqStmt : public Stmt {
       if (!stmt.defined()) return;
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
-      } else if (auto* op = stmt.as<ProducerConsumer>()) {
+      } else if (auto* op = stmt.as<ProducerConsumerNode>()) {
         // NOTE: The consumer block annotation was not as useful and can be safely dropped.
         if (!op->is_producer) {
           operator()(0, op->body);
@@ -1133,7 +1133,7 @@ class SeqStmt : public Stmt {
 /*!
  * \brief IfThenElse statment.
  */
-class IfThenElse : public StmtNode {
+class IfThenElseNode : public StmtNode {
  public:
   /*! \brief The condition. */
   Expr condition;
@@ -1151,7 +1151,7 @@ class IfThenElse : public StmtNode {
   TVM_DLL static Stmt make(Expr condition, Stmt then_case, Stmt else_case = Stmt());
 
   static constexpr const char* _type_key = "IfThenElse";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElse, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
 };
 
 /*!
@@ -1160,7 +1160,7 @@ class IfThenElse : public StmtNode {
  *
  *  If value do not have side-effect, this node can be safely removed.
  */
-class Evaluate : public StmtNode {
+class EvaluateNode : public StmtNode {
  public:
   /*! \brief The expression to be evaluated. */
   Expr value;
@@ -1172,7 +1172,7 @@ class Evaluate : public StmtNode {
   TVM_DLL static Stmt make(Expr v);
 
   static constexpr const char* _type_key = "Evaluate";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Evaluate, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
 };
 
 /*! \brief Additional annotation of for loop. */
@@ -1204,7 +1204,7 @@ enum class DeviceAPI: int {
  *  }
  * \endcode
  */
-class For : public StmtNode {
+class ForNode : public StmtNode {
  public:
   /*! \brief The loop variable. */
   Var loop_var;
@@ -1239,13 +1239,13 @@ class For : public StmtNode {
   }
 
   static constexpr const char* _type_key = "For";
-  TVM_DECLARE_FINAL_OBJECT_INFO(For, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
 };
 
 /*!
  * \brief A prefetch hint of func.
  */
-class Prefetch : public StmtNode {
+class PrefetchNode : public StmtNode {
  public:
   /*! \brief The function to be prefetched. */
   FunctionRef func;
@@ -1269,7 +1269,7 @@ class Prefetch : public StmtNode {
                            Region bounds);
 
   static constexpr const char* _type_key = "Prefetch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Prefetch, StmtNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
 };
 
 /*!

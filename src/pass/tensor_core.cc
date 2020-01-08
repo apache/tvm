@@ -872,7 +872,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         (const Buffer &buffer) {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
-          return Evaluate::make(
+          return EvaluateNode::make(
                   CallNode::make(DataType::Handle(),
                         intrinsic::tvm_mma_sync,
                         {buffer->data, buffer->elem_offset,
@@ -907,7 +907,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
         auto fill_fragment_call =
           [this, &op](const Buffer &buffer) {
-            return Evaluate::make(
+            return EvaluateNode::make(
                     CallNode::make(DataType::Handle(),
                               intrinsic::tvm_fill_fragment,
                               {buffer->data,
@@ -957,7 +957,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
       auto load_matrix_call =
         [this, &src, &stride, &matrix_major](const Buffer &buffer) {
-        return Evaluate::make(
+        return EvaluateNode::make(
                 CallNode::make(DataType::Handle(),
                           intrinsic::tvm_load_matrix_sync,
                           {buffer->data,
@@ -996,7 +996,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
       auto store_matrix_call =
         [this, &dst, &stride](const Buffer &buffer) {
-          return Evaluate::make(
+          return EvaluateNode::make(
                   CallNode::make(DataType::Handle(),
                             intrinsic::tvm_store_matrix_sync,
                             {buffer->data,
@@ -1015,9 +1015,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<For>();
+    op = stmt.as<ForNode>();
     if (op != nullptr) {
       auto it = loop_scaling_.find(op->loop_var.get());
       if (it != loop_scaling_.end()) {
@@ -1028,7 +1028,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
           scaled_extent_value = ori_extent_value / scale_factor;
         }
         Expr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
-        stmt = For::make(op->loop_var, op->min, scaled_extent, op->for_type,
+        stmt = ForNode::make(op->loop_var, op->min, scaled_extent, op->for_type,
           op->device_api, op->body);
       }
     }
