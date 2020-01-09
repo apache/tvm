@@ -81,10 +81,10 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline Expr TVMStructGet(
+inline PrimExpr TVMStructGet(
     DataType dtype, Var handle, int index,
     intrinsic::TVMStructFieldKind kind) {
-  Array<Expr> args ={
+  Array<PrimExpr> args ={
     handle,
     make_const(DataType::Int(32), index),
     make_const(DataType::Int(32), static_cast<int>(kind))};
@@ -97,7 +97,7 @@ inline Expr TVMStructGet(
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, DataType dtype, int offset) {
+inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
   return CallNode::make(
       DataType::Handle(), intrinsic::tvm_address_of,
       {LoadNode::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
@@ -111,7 +111,7 @@ inline Expr AddressOffset(Var handle, DataType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, DataType dtype, Expr offset) {
+inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
     offset = RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
@@ -133,8 +133,8 @@ inline Expr AddressOffset(Var handle, DataType dtype, Expr offset) {
  */
 inline Stmt TVMStructSet(
     Var handle, int index,
-    intrinsic::TVMStructFieldKind kind, Expr value) {
-  Array<Expr> args ={
+    intrinsic::TVMStructFieldKind kind, PrimExpr value) {
+  Array<PrimExpr> args ={
     handle,
     make_const(DataType::Int(32), index),
     make_const(DataType::Int(32), static_cast<int>(kind)),
@@ -182,7 +182,7 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
  * \param base The result base.
  * \return true if pattern match success and store the base to base.
  */
-inline bool GetRamp1Base(Expr index, int lanes, Expr *base) {
+inline bool GetRamp1Base(PrimExpr index, int lanes, PrimExpr *base) {
   const RampNode* r = index.as<RampNode>();
   if (!r) return false;
   if (!is_one(r->stride)) return false;

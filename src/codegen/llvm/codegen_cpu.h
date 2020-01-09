@@ -77,8 +77,8 @@ class CodeGenCPU : public CodeGenLLVM {
  private:
   // the parallel group information
   struct ParallelEnv {
-    VarExpr task_id;
-    VarExpr num_task;
+    Var task_id;
+    Var num_task;
     bool stride_pattern{false};
     bool in_parallel_loop{false};
     int parallel_loop_count{0};
@@ -101,7 +101,7 @@ class CodeGenCPU : public CodeGenLLVM {
                          const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock *MakeCallPacked(const Array<Expr> &args,
+  llvm::BasicBlock *MakeCallPacked(const Array<PrimExpr> &args,
                                    llvm::Value **rvalue,
                                    llvm::Value **ret_tcode, const DataType &r_type,
                                    const int64_t begin, const int64_t end);

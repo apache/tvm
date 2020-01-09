@@ -44,9 +44,9 @@ void DictAttrsNode::InitByPackedArgs(
     if (val.IsObjectRef<ObjectRef>()) {
       dict.Set(key, val.operator ObjectRef());
     } else if (val.type_code() == kStr) {
-      dict.Set(key, Expr(val.operator std::string()));
+      dict.Set(key, PrimExpr(val.operator std::string()));
     } else {
-      dict.Set(key, val.operator Expr());
+      dict.Set(key, val.operator PrimExpr());
     }
   }
 }

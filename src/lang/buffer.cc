@@ -34,22 +34,22 @@ namespace tvm {
 using IndexMod = ir::FloorModNode;
 using IndexDiv = ir::FloorDivNode;
 
-Array<Expr> SimplifyArray(Array<Expr> array) {
+Array<PrimExpr> SimplifyArray(Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
     array.Set(i, ir::Simplify(array[i]));
   }
   return array;
 }
 
-Buffer decl_buffer(Array<Expr> shape,
+Buffer decl_buffer(Array<PrimExpr> shape,
                    DataType dtype,
                    std::string name) {
   return BufferNode::make(
       Var(name, DataType::Handle()),
       dtype,
       shape,
-      Array<Expr>(),
-      Expr(),
+      Array<PrimExpr>(),
+      PrimExpr(),
       name,
       "",
       0, 0,
@@ -57,13 +57,13 @@ Buffer decl_buffer(Array<Expr> shape,
 }
 
 // Split the given expression w.r.t the add operator
-inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
+inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr &expr) {
   using namespace ir;
-  std::vector<const Expr*> ret;
-  std::stack<const Expr*> split_buffer;
+  std::vector<const PrimExpr*> ret;
+  std::stack<const PrimExpr*> split_buffer;
   split_buffer.push(&expr);
   while (!split_buffer.empty()) {
-    const Expr* top_ele = split_buffer.top();
+    const PrimExpr* top_ele = split_buffer.top();
     split_buffer.pop();
     auto expr_add_match = top_ele->as<AddNode>();
     if (expr_add_match) {
@@ -84,14 +84,14 @@ inline std::vector<const Expr*> ExprSplitAddition(const Expr &expr) {
 // If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
-                                              const Expr &mod_l_expr,
-                                              const Expr &mod_r_expr) {
+inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr &mult_expr,
+                                              const PrimExpr &mod_l_expr,
+                                              const PrimExpr &mod_r_expr) {
   using namespace ir;
   const MulNode* mult_ptr = mult_expr.as<MulNode>();
-  if (!mult_ptr) return std::make_pair(false, Expr());
-  Expr mult_outer = mult_ptr->b;
-  const Expr* inner = &(mult_ptr->a);
+  if (!mult_ptr) return std::make_pair(false, PrimExpr());
+  PrimExpr mult_outer = mult_ptr->b;
+  const PrimExpr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
   while (true) {
     mult_ptr = inner->as<MulNode>();
@@ -108,32 +108,32 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
   //   If Mult is found, we will expand the inner multiplication factor
   //   If Div is found, we will go on testing whether lhs matches the lhs of mod expr
   //      and returns the optimization result.
-  const Expr* search_ptr = inner;
-  Expr mult_inner;  // The inner multiplication factor
-  Expr no_opt_sum;  // Sum of the exprs that cannot be optimized
+  const PrimExpr* search_ptr = inner;
+  PrimExpr mult_inner;  // The inner multiplication factor
+  PrimExpr no_opt_sum;  // Sum of the exprs that cannot be optimized
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
     auto inner_mult_ptr = search_ptr->as<MulNode>();
     auto inner_add_ptr = search_ptr->as<AddNode>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
-      return std::make_pair(false, Expr());
+      return std::make_pair(false, PrimExpr());
     } else if (inner_div_ptr) {
-      Expr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
+      PrimExpr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
       if (Equal(overall_mult, inner_div_ptr->b)
           && Equal(overall_mult, mod_r_expr)
           && Equal(inner_div_ptr->a, mod_l_expr)) {
         // Found!
-        Expr ret = no_opt_sum.get() ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
+        PrimExpr ret = no_opt_sum.get() ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
         return std::make_pair(true, ret);
       } else {
-        return std::make_pair(false, Expr());
+        return std::make_pair(false, PrimExpr());
       }
     } else if (inner_mult_ptr) {
       mult_inner = mult_inner.get() ? inner_mult_ptr->b * mult_inner : inner_mult_ptr->b;
       search_ptr = &(inner_mult_ptr->a);
     } else if (inner_add_ptr) {
       if (mult_inner.get()) {
-        return std::make_pair(false, Expr());
+        return std::make_pair(false, PrimExpr());
       }
       no_opt_sum = no_opt_sum.get() ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
       search_ptr = &(inner_add_ptr->b);
@@ -142,23 +142,23 @@ inline std::pair<bool, Expr> MergeMulModInner(const Expr &mult_expr,
       break;
     }
   }
-  return std::make_pair(false, Expr());
+  return std::make_pair(false, PrimExpr());
 }
 
 // Insert the elements into the corresponding mult_exprs and mod_exprs.
 // If the element is found to match Mul, it will be pushed to the mult_exprs.
 // If the element it found to match Mod, it will be pused to the mod_exprs.
 // Otherwise, the elements will be added to the no_opt_sum variable
-inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
-                                      std::list<Expr>* mult_exprs,
-                                      std::list<std::pair<Expr, Expr> >* mod_exprs,
-                                      Expr* no_opt_sum,
+inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
+                                      std::list<PrimExpr>* mult_exprs,
+                                      std::list<std::pair<PrimExpr, PrimExpr> >* mod_exprs,
+                                      PrimExpr* no_opt_sum,
                                       bool* has_mult,
                                       bool* has_mod) {
   using namespace ir;
   *has_mult = false;
   *has_mod = false;
-  for (const Expr* ele : eles) {
+  for (const PrimExpr* ele : eles) {
     auto mod_ptr = ele->as<IndexMod>();
     auto mult_ptr = ele->as<MulNode>();
     if (mod_ptr) {
@@ -180,30 +180,30 @@ inline void MergeMulModInsertElements(const std::vector<const Expr*>& eles,
 // The search will be performed repeatively until no pattern is found.
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
-inline Expr MergeMulMod(const Expr &base) {
+inline PrimExpr MergeMulMod(const PrimExpr &base) {
   using namespace ir;
   // 1. Prepare the lists.
   // We store two lists, a list that contain all the elements that match Mul and
   //                     a list that contain all the elements that match Mod.
   // The elements in the Mod will be used to match against the elements in Mul.
   // The result will then be split and pushed back to these two lists.
-  Expr simplified_base = Simplify(base);
-  std::vector<const Expr*> eles = ExprSplitAddition(simplified_base);
-  std::list<Expr> mult_exprs;
-  std::list<std::pair<Expr, Expr> > mod_exprs;
-  Expr no_opt_sum;
+  PrimExpr simplified_base = Simplify(base);
+  std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
+  std::list<PrimExpr> mult_exprs;
+  std::list<std::pair<PrimExpr, PrimExpr> > mod_exprs;
+  PrimExpr no_opt_sum;
   bool has_mult;
   bool has_mod;
   MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs,
                             &no_opt_sum, &has_mult, &has_mod);
   bool find_opt = false;
-  std::list<std::pair<Expr, Expr> >::iterator search_mod_it = mod_exprs.begin();
+  std::list<std::pair<PrimExpr, PrimExpr> >::iterator search_mod_it = mod_exprs.begin();
   // 2. Exhaustive Search
   while (search_mod_it != mod_exprs.end()) {
-    std::list<Expr>::iterator mult_it = mult_exprs.begin();
+    std::list<PrimExpr>::iterator mult_it = mult_exprs.begin();
     bool inner_find_opt = false;
     while (mult_it != mult_exprs.end()) {
-      std::pair<bool, Expr> ret = MergeMulModInner(*mult_it,
+      std::pair<bool, PrimExpr> ret = MergeMulModInner(*mult_it,
                                                    search_mod_it->first,
                                                    search_mod_it->second);
       if (ret.first) {
@@ -212,7 +212,7 @@ inline Expr MergeMulMod(const Expr &base) {
         ++search_mod_it;
         mod_exprs.erase(temp_mod_it);
         mult_exprs.erase(mult_it);
-        std::vector<const Expr*> ret_eles = ExprSplitAddition(ret.second);
+        std::vector<const PrimExpr*> ret_eles = ExprSplitAddition(ret.second);
         MergeMulModInsertElements(ret_eles, &mult_exprs, &mod_exprs,
                                   &no_opt_sum, &has_mult, &has_mod);
         if (has_mult) {
@@ -233,10 +233,10 @@ inline Expr MergeMulMod(const Expr &base) {
   if (!find_opt) {
     return simplified_base;
   }
-  for (std::list<Expr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
+  for (std::list<PrimExpr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
   }
-  for (std::list<std::pair<Expr, Expr> >::iterator it = mod_exprs.begin();
+  for (std::list<std::pair<PrimExpr, PrimExpr> >::iterator it = mod_exprs.begin();
                                                    it != mod_exprs.end(); ++it) {
     no_opt_sum = no_opt_sum.get() ?
         no_opt_sum + indexmod(it->first, it->second) : indexmod(it->first, it->second);
@@ -247,8 +247,8 @@ inline Expr MergeMulMod(const Expr &base) {
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
-  Expr base = n->elem_offset;
+inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
+  PrimExpr base = n->elem_offset;
   if (n->strides.size() == 0) {
     // Scalar case
     if (n->shape.size() == 0 && index.size() == 1) {
@@ -258,7 +258,7 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
     } else {
       CHECK_EQ(n->shape.size(), index.size());
       if (index.size() > 0) {
-        Expr offset = index[0];
+        PrimExpr offset = index[0];
         for (size_t i = 1; i < index.size(); ++i) {
           offset = MergeMulMod(offset * n->shape[i] + index[i]);
         }
@@ -279,8 +279,8 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   return base;
 }
 
-inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, DataType dtype) {
-  Expr offset = ElemOffset(n, index);
+inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
+  PrimExpr offset = ElemOffset(n, index);
   if (n->dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
@@ -291,7 +291,7 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, DataType dtype)
   }
 }
 
-Expr Buffer::vload(Array<Expr> begin, DataType dtype) const {
+PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored asDataType::Int(8)
   const BufferNode* n = operator->();
   CHECK(dtype.element_of() == n->dtype.element_of() &&
@@ -311,7 +311,7 @@ Expr Buffer::vload(Array<Expr> begin, DataType dtype) const {
   }
 }
 
-Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
+Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored asDataType::Int(8)
   const BufferNode* n = operator->();
   DataType dtype = value.dtype();
@@ -333,9 +333,9 @@ Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
 Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
-  std::vector<Expr> temp;
+  std::vector<PrimExpr> temp;
   auto n = make_object<BufferNode>(*operator->());
-  Expr acc = make_const(n->DefaultIndexType(), 1);
+  PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0 ; --i) {
     temp.push_back(acc);
     acc = acc * n->shape[i - 1];
@@ -346,11 +346,11 @@ Buffer Buffer::MakeStrideView() const {
   return Buffer(n);
 }
 
-Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
+Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
   begins = SimplifyArray(begins);
-  Expr elem_offset = ir::Simplify(ElemOffset(n, begins));
-  Array<Expr> strides = n->strides;
+  PrimExpr elem_offset = ir::Simplify(ElemOffset(n, begins));
+  Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
     bool need_stride = false;
@@ -381,19 +381,22 @@ Buffer Buffer::MakeSlice(Array<Expr> begins, Array<Expr> extents) const {
                           n->buffer_type);
 }
 
-Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, Expr offset) const {
+PrimExpr Buffer::access_ptr(int access_mask,
+                            DataType ptr_type,
+                            int content_lanes,
+                            PrimExpr offset) const {
   const BufferNode* self = operator->();
-  Expr e_dtype;
-  Expr extent;
+  PrimExpr e_dtype;
+  PrimExpr extent;
   if (self->shape.size() == 0) {
     extent = make_const(self->DefaultIndexType(), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<ir::MulNode>(self->shape, Expr()) - offset;
+    extent = arith::ComputeReduce<ir::MulNode>(self->shape, PrimExpr()) - offset;
   }
-  Expr elem_offset = self->elem_offset + offset;
+  PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = ir::TypeAnnotation(self->dtype.with_lanes(content_lanes));
     extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
@@ -402,7 +405,7 @@ Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, E
   } else {
     e_dtype = ir::TypeAnnotation(self->dtype);
   }
-  Array<Expr> acc_args{
+  Array<PrimExpr> acc_args{
     e_dtype, self->data, elem_offset,
         extent, make_const(DataType::Int(32), access_mask)};
   return ir::CallNode::make(
@@ -411,9 +414,9 @@ Expr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, E
 
 Buffer BufferNode::make(Var data,
                         DataType dtype,
-                        Array<Expr> shape,
-                        Array<Expr> strides,
-                        Expr elem_offset,
+                        Array<PrimExpr> shape,
+                        Array<PrimExpr> strides,
+                        PrimExpr elem_offset,
                         std::string name,
                         std::string scope,
                         int data_alignment,

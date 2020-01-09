@@ -334,7 +334,7 @@ llvm::Type* CodeGenLLVM::LLVMType(const DataType& t) const {
 //
 void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
                                const VarNode* buffer,
-                               Expr index,
+                               PrimExpr index,
                                DataType type) {
   if (alias_var_set_.count(buffer) != 0) {
     // Mark all possibly aliased pointer as same type.
@@ -389,7 +389,7 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
 
 void CodeGenLLVM::GetAlignment(DataType t,
                                const VarNode* buf_var,
-                               const Expr& index,
+                               const PrimExpr& index,
                                int* p_alignment,
                                int* p_native_bits) {
   int max_align_bits = t.bits();
@@ -526,7 +526,7 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin,
                                   llvm::Value* end,
                                   llvm::Value* stride,
-                                  const VarExpr& loop_var,
+                                  const Var& loop_var,
                                   const Stmt& body) {
   using llvm::BasicBlock;
   BasicBlock* pre_block = builder_->GetInsertBlock();
@@ -711,7 +711,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         addrspace = llvm::dyn_cast<llvm::PointerType>(
           ptr->getType())->getAddressSpace();
     } else {
-        Expr index = r->base / make_const(DataType::Int(32), r->lanes);
+        PrimExpr index = r->base / make_const(DataType::Int(32), r->lanes);
         ptr = CreateBufferVecPtr(
           l->dtype, MakeValue(l->buffer_var), MakeValue(index));
         addrspace = llvm::dyn_cast<llvm::PointerType>(
@@ -776,11 +776,11 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   }
 }
 
-void CodeGenLLVM::Scalarize(const Expr& e,
+void CodeGenLLVM::Scalarize(const PrimExpr& e,
                             std::function<void(int i, llvm::Value* v)> f) {
   if (const RampNode* ramp = e.as<RampNode>()) {
     for (int i = 0; i < ramp->dtype.lanes(); ++i) {
-      Expr offset = ramp->base + (ramp->stride * i);
+      PrimExpr offset = ramp->base + (ramp->stride * i);
       f(i, MakeValue(offset));
     }
   } else {
@@ -988,7 +988,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
     llvm::LoadInst* load = builder_->CreateAlignedLoad(
         ptr, basic_align, is_volatile);
     ret = builder_->CreateInsertElement(ret, load, ConstInt32(i));
-    AddAliasInfo(load, op->buffer_var.get(), Expr(), t);
+    AddAliasInfo(load, op->buffer_var.get(), PrimExpr(), t);
   };
   this->Scalarize(op->index, f);
   return ret;
@@ -1084,7 +1084,7 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
     llvm::StoreInst* store = builder_->CreateAlignedStore(
         builder_->CreateExtractElement(value, i),
         ptr, basic_align, is_volatile);
-    AddAliasInfo(store, op->buffer_var.get(), Expr(), op->value.dtype());
+    AddAliasInfo(store, op->buffer_var.get(), PrimExpr(), op->value.dtype());
   };
   this->Scalarize(op->index, f);
 }

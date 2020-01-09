@@ -44,8 +44,8 @@ namespace arith {
  * \return nullptr if constant fold fails, otherwise return folded result.
  */
 template<typename Op>
-inline Expr TryConstFold(Expr a, Expr b) {
-  return Expr();
+inline PrimExpr TryConstFold(PrimExpr a, PrimExpr b) {
+  return PrimExpr();
 }
 
 /*!
@@ -58,7 +58,7 @@ inline Expr TryConstFold(Expr a, Expr b) {
  * \return nullptr if constant fold fails, otherwise return folded result.
  */
 template<typename Op>
-inline Expr TryConstFold(Expr a);
+inline PrimExpr TryConstFold(PrimExpr a);
 
 /*!
  * \brief Check whether type is used to represent index.
@@ -100,7 +100,7 @@ inline bool IsIndexType(const DataType& type) {
 
 // specialization of constant folders.
 template<>
-inline Expr TryConstFold<ir::AddNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::AddNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImmNode::make(rtype, pa->value + pb->value);
@@ -110,11 +110,11 @@ inline Expr TryConstFold<ir::AddNode>(Expr a, Expr b) {
       if (fa && fa->value == 0) return b;
       if (fb && fb->value == 0) return a;
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::SubNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::SubNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImmNode::make(rtype, pa->value - pb->value);
@@ -122,11 +122,11 @@ inline Expr TryConstFold<ir::SubNode>(Expr a, Expr b) {
       if (fa && fb) return FloatImmNode::make(rtype, fa->value - fb->value);
       if (fb && fb->value == 0) return a;
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::MulNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::MulNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImmNode::make(rtype, pa->value * pb->value);
@@ -148,11 +148,11 @@ inline Expr TryConstFold<ir::MulNode>(Expr a, Expr b) {
         if (fb->value == 0) return b;
       }
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::DivNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::DivNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -177,11 +177,11 @@ inline Expr TryConstFold<ir::DivNode>(Expr a, Expr b) {
         CHECK_NE(fb->value, 0) << "Divide by zero";
       }
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::ModNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::ModNode>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -195,11 +195,11 @@ inline Expr TryConstFold<ir::ModNode>(Expr a, Expr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::FloorDivNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::FloorDivNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -222,11 +222,11 @@ inline Expr TryConstFold<ir::FloorDivNode>(Expr a, Expr b) {
         CHECK_NE(fb->value, 0) << "Divide by zero";
       }
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::FloorModNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::FloorModNode>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
@@ -240,87 +240,87 @@ inline Expr TryConstFold<ir::FloorModNode>(Expr a, Expr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::MinNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::MinNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImmNode::make(rtype, std::min(pa->value, pb->value));
       if (fa && fb) return FloatImmNode::make(rtype, std::min(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::MaxNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::MaxNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImmNode::make(rtype, std::max(pa->value, pb->value));
       if (fa && fb) return FloatImmNode::make(rtype, std::max(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::GTNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::GTNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value > pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value > fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::GENode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::GENode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value >= pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value >= fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::LTNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::LTNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value < pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value < fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::LENode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::LENode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value <= pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value <= fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::EQNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::EQNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value == pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value == fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::NENode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::NENode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       if (pa && pb) return UIntImmNode::make(DataType::UInt(1), pa->value != pb->value);
       if (fa && fb) return UIntImmNode::make(DataType::UInt(1), fa->value != fb->value);
     });
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::AndNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::AndNode>(PrimExpr a, PrimExpr b) {
   using ir::UIntImmNode;
   const UIntImmNode* pa = a.as<UIntImmNode>();
   const UIntImmNode* pb = b.as<UIntImmNode>();
@@ -328,11 +328,11 @@ inline Expr TryConstFold<ir::AndNode>(Expr a, Expr b) {
   if (pa && !pa->value) return a;
   if (pb && pb->value) return a;
   if (pb && !pb->value) return b;
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::OrNode>(Expr a, Expr b) {
+inline PrimExpr TryConstFold<ir::OrNode>(PrimExpr a, PrimExpr b) {
   using ir::UIntImmNode;
   const UIntImmNode* pa = a.as<UIntImmNode>();
   const UIntImmNode* pb = b.as<UIntImmNode>();
@@ -340,25 +340,25 @@ inline Expr TryConstFold<ir::OrNode>(Expr a, Expr b) {
   if (pa && !pa->value) return b;
   if (pb && pb->value) return b;
   if (pb && !pb->value) return a;
-  return Expr();
+  return PrimExpr();
 }
 
 template<>
-inline Expr TryConstFold<ir::NotNode>(Expr a) {
+inline PrimExpr TryConstFold<ir::NotNode>(PrimExpr a) {
   using ir::UIntImmNode;
   const UIntImmNode* pa = a.as<UIntImmNode>();
   if (pa) {
     return UIntImmNode::make(DataType::UInt(1), !(pa->value));
   }
-  return Expr();
+  return PrimExpr();
 }
 
 /*! \brief Helper namespace for symbolic value limits */
 struct SymbolicLimits {
   /*! \brief positive infinity */
-  static Expr pos_inf_;
+  static PrimExpr pos_inf_;
   /*! \brief negative infinity */
-  static Expr neg_inf_;
+  static PrimExpr neg_inf_;
 };
 
 /*!
@@ -369,7 +369,7 @@ struct SymbolicLimits {
  *
  * \return positive infinity.
  */
-inline Expr pos_inf() {
+inline PrimExpr pos_inf() {
   return SymbolicLimits::pos_inf_;
 }
 
@@ -379,7 +379,7 @@ inline Expr pos_inf() {
  *
  * \return The check result.
  */
-inline bool is_pos_inf(const Expr& value) {
+inline bool is_pos_inf(const PrimExpr& value) {
   return value.same_as(SymbolicLimits::pos_inf_);
 }
 
@@ -391,7 +391,7 @@ inline bool is_pos_inf(const Expr& value) {
  *
  * \return negative infinity.
  */
-inline Expr neg_inf() {
+inline PrimExpr neg_inf() {
   return SymbolicLimits::neg_inf_;
 }
 
@@ -401,7 +401,7 @@ inline Expr neg_inf() {
  *
  * \return The check result.
  */
-inline bool is_neg_inf(const Expr& value) {
+inline bool is_neg_inf(const PrimExpr& value) {
   return value.same_as(SymbolicLimits::neg_inf_);
 }
 

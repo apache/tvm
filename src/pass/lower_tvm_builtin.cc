@@ -31,13 +31,13 @@
 namespace tvm {
 namespace ir {
 
-inline Expr ConstInt32(size_t index) {
+inline PrimExpr ConstInt32(size_t index) {
   CHECK_LE(index, std::numeric_limits<int>::max());
   return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
-inline Expr StackAlloca(std::string type, size_t num) {
-  Array<Expr> args = {StringImmNode::make(type), ConstInt32(num)};
+inline PrimExpr StackAlloca(std::string type, size_t num) {
+  Array<PrimExpr> args = {StringImmNode::make(type), ConstInt32(num)};
   return CallNode::make(
       DataType::Handle(),
       intrinsic::tvm_stack_alloca,
@@ -103,7 +103,7 @@ class BuiltinLower : public StmtExprMutator {
         }
       }
     }
-    Expr total_bytes = make_const(op->extents[0].dtype(), nbytes);
+    PrimExpr total_bytes = make_const(op->extents[0].dtype(), nbytes);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
     }
@@ -134,7 +134,7 @@ class BuiltinLower : public StmtExprMutator {
                        CallNode::Extern),
         body);
 
-    Expr free_op = CallNode::make(DataType::Int(32),
+    PrimExpr free_op = CallNode::make(DataType::Int(32),
                                   "TVMBackendFreeWorkspace",
                                   {cast(DataType::Int(32), device_type_),
                                    cast(DataType::Int(32), device_id_),
@@ -163,7 +163,7 @@ class BuiltinLower : public StmtExprMutator {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
       return MakeCallPacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed)) {
@@ -179,10 +179,10 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
   // call shape
-  Expr MakeShape(const CallNode* op) {
+  PrimExpr MakeShape(const CallNode* op) {
     size_t stack_begin = run_shape_stack_;
     run_shape_stack_ += op->args.size();
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
@@ -192,16 +192,16 @@ class BuiltinLower : public StmtExprMutator {
     return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
   // make array
-  Expr MakeArray(const CallNode* op) {
+  PrimExpr MakeArray(const CallNode* op) {
     size_t idx = run_array_stack_;
     run_array_stack_ += 1;
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrData, op->args[0]));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrShape, op->args[1]));
-    Expr strides = op->args[2];
+    PrimExpr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
       strides = make_zero(DataType::Handle());
     }
@@ -221,7 +221,7 @@ class BuiltinLower : public StmtExprMutator {
                      make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
-    Expr byte_offset = op->args[5];
+    PrimExpr byte_offset = op->args[5];
     if (!is_zero(byte_offset)) {
       byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
     }
@@ -239,17 +239,17 @@ class BuiltinLower : public StmtExprMutator {
     return TVMStructGet(DataType::Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
   // call packed.
-  Expr MakeCallPacked(const CallNode* op) {
+  PrimExpr MakeCallPacked(const CallNode* op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     // Specially handle the buffer packed intrinsic
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
-      Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      Expr arg = op->args[i];
+      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
+      PrimExpr arg = op->args[i];
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
@@ -275,7 +275,7 @@ class BuiltinLower : public StmtExprMutator {
     run_shape_stack_ = restore_shape_stack;
     run_array_stack_ = restore_array_stack;
     run_arg_stack_ = arg_stack_begin;
-    Array<Expr> packed_args = {
+    Array<PrimExpr> packed_args = {
       op->args[0],
       stack_value_,
       stack_tcode_,
@@ -287,18 +287,18 @@ class BuiltinLower : public StmtExprMutator {
         packed_args, CallNode::Intrinsic);
   }
 
-  Expr MakeCallTracePacked(const CallNode *op) {
+  PrimExpr MakeCallTracePacked(const CallNode *op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     size_t args_size = op->args.size();
     CHECK_GT(args_size, 0);
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
-      Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      Expr arg = op->args[i];
+      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
+      PrimExpr arg = op->args[i];
       DataType t = arg.dtype();
       DataType api_type = APIType(t);
       if (t != api_type) {
@@ -323,7 +323,7 @@ class BuiltinLower : public StmtExprMutator {
     // Update the top of the stack, so we can use more than one
     // packed function's arguments with the one stack.
     run_arg_stack_ = arg_stack_begin + args_size - 1;
-    Array<Expr> packed_args = {
+    Array<PrimExpr> packed_args = {
       op->args[0],
       stack_value_,
       stack_tcode_,
@@ -338,7 +338,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
  private:
-  bool IsArrayHandle(const Expr& arg) {
+  bool IsArrayHandle(const PrimExpr& arg) {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->is_intrinsic(intrinsic::tvm_struct_get) &&
@@ -351,8 +351,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // The prepration sequence to be emitted.
   std::vector<Stmt> prep_seq_;
-  Expr device_type_;
-  Expr device_id_;
+  PrimExpr device_type_;
+  PrimExpr device_id_;
   // Var handle for each stack.
   Var stack_shape_;
   Var stack_array_;

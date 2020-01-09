@@ -33,7 +33,7 @@ namespace tvm {
 namespace codegen {
 
 inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
-  Expr e = args[0];
+  PrimExpr e = args[0];
   using namespace ir;
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);

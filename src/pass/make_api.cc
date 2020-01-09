@@ -35,7 +35,7 @@
 namespace tvm {
 namespace ir {
 
-inline Stmt MakeAssertEQ(Expr lhs, Expr rhs, std::string msg) {
+inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
 }
 
@@ -62,18 +62,18 @@ LoweredFunc MakeAPI(Stmt body,
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
-  std::unordered_map<const VarNode*, Expr> vmap;
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   ArgBinder binder(&vmap);
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
-    Array<Expr> call_args{v_packed_args,
+    Array<PrimExpr> call_args{v_packed_args,
                           IntImmNode::make(DataType::Int(32), i),
                           IntImmNode::make(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
-    Expr res = CallNode::make(
+    PrimExpr res = CallNode::make(
         api_type, intrinsic::tvm_struct_get, call_args,
         CallNode::PureIntrinsic);
     // cast to the target version.
@@ -189,7 +189,7 @@ LoweredFunc MakeAPI(Stmt body,
       StringImmNode::make(name + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    Expr node = StringImmNode::make("default");
+    PrimExpr node = StringImmNode::make("default");
     CHECK(vmap.count(device_type.get()));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_id, device_id, nop));
@@ -226,7 +226,7 @@ class DeviceTypeBinder: public StmtExprMutator {
     if (op->attr_key == attr::device_context_type) {
       if (const VarNode* var = op->value.as<VarNode>()) {
         var_ = var;
-        Expr value = make_const(op->value.dtype(), device_type_);
+        PrimExpr value = make_const(op->value.dtype(), device_type_);
         Stmt body = StmtExprMutator::VisitStmt_(op);
         var_ = nullptr;
         std::ostringstream os;
@@ -251,9 +251,9 @@ class DeviceTypeBinder: public StmtExprMutator {
     return res;
   }
 
-  Expr VisitExpr_(const NENode* op) final {
+  PrimExpr VisitExpr_(const NENode* op) final {
     // eager check NE for device check
-    Expr res = StmtExprMutator::VisitExpr_(op);
+    PrimExpr res = StmtExprMutator::VisitExpr_(op);
     op = res.as<NENode>();
     if (ir::Equal(op->a, op->b)) {
       return make_const(op->dtype, false);
@@ -261,11 +261,11 @@ class DeviceTypeBinder: public StmtExprMutator {
     return res;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     if (op == var_) {
       return make_const(op->dtype, device_type_);
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
 

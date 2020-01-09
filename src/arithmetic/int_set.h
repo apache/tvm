@@ -42,9 +42,9 @@ namespace arith {
 class IntervalSetNode : public IntSetNode {
  public:
   /*! \brief Minimum value in the interval. */
-  Expr min_value;
+  PrimExpr min_value;
   /*! \brief Maximum value in the interval. */
-  Expr max_value;
+  PrimExpr max_value;
 
   // visitor overload.
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -90,14 +90,14 @@ class IntervalSet : public IntSet {
    * \param max_value The maximum value in the interval.
    * \return The created set.
    */
-  TVM_DLL IntervalSet(Expr min_value, Expr max_value);
+  TVM_DLL IntervalSet(PrimExpr min_value, PrimExpr max_value);
 
   /*!
    * \brief Create an IntervalSet that represents a single point.
    * \param value The value to be represented.
    * \return The result set.
    */
-  static IntervalSet SinglePoint(Expr value) {
+  static IntervalSet SinglePoint(PrimExpr value) {
     return IntervalSet(value, value);
   }
   /*!
