@@ -32,7 +32,7 @@ logger = logging.getLogger('autotvm')
 
 
 # TODO(moreau89) find a more elegant way to lower for VTAs
-def _lower(func,
+def _lower(mod,
            target,
            params):
     """ Helper to lower VTA properly.
@@ -45,16 +45,16 @@ def _lower(func,
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             import vta
             with vta.build_config():
-                mod, _ = relay.optimize(func, target, params)
+                mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-                return grc.codegen(mod["main"])
+                grc.codegen(mod["main"])
     # default case
-    mod, _ = relay.optimize(func, target, params)
-    grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-    return grc.codegen(mod["main"])
+    compiler = relay.vm.VMCompiler()
+    compiler.set_params(params)
+    compiler.lower(mod, target=target)
 
 
-def extract_from_program(func, params, ops, target, target_host=None,
+def extract_from_program(mod, params, ops, target, target_host=None,
                          template_keys=None):
     """ Extract tuning tasks from a relay program.
 
@@ -62,8 +62,8 @@ def extract_from_program(func, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    func: relay.expr.Function
-        The func to tune
+    mod: relay.module.Module or relay.expr.Function
+        The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
     ops: List of relay op
@@ -81,11 +81,11 @@ def extract_from_program(func, params, ops, target, target_host=None,
     task: Array of autotvm.task.Task
         collected tasks
     """
-    return extract_from_multiple_program([func], [params], ops, target, target_host,
-                                         template_keys=template_keys)
+    return extract_from_multiple_program([mod], [params], ops, target, target_host,
+                                         template_keys)
 
 
-def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
+def extract_from_multiple_program(mods, params, ops, target, target_host=None,
                                   template_keys=None):
     """ Extract tuning tasks from multiple relay programs.
 
@@ -94,8 +94,8 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    funcs: List of relay.expr.Function
-        The list of functions to tune
+    mods: List[relay.module.Module] or List[relay.expr.Function]
+        The list of modules or functions to tune
     params: List of dict of str to numpy array
         The associated parameters of the programs
     ops: List of relay op
@@ -145,10 +145,13 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None,
         old_state = logger.disabled
         logger.disabled = True
 
-        for func, param in zip(funcs, params):
+        for mod, param in zip(mods, params):
+            if isinstance(mod, relay.expr.Function):
+                mod = relay.Module.from_expr(mod)
+            assert isinstance(mod, relay.module.Module), \
+                "only support relay Module or Function to be tuned"
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
-            mod = relay.Module.from_expr(func)
             build_thread = threading.Thread(target=_lower,
                                             args=(mod, target, param))
             build_thread.start()

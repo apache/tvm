@@ -363,7 +363,8 @@ class VirtualMachine(object):
 
 
 def compile(mod, target=None, target_host=None, params=None):
-    """
+    """Compile the module to VM executable. A helper function for VMCompiler.
+
     Parameters
     ----------
     mod : relay.Module
@@ -393,26 +394,31 @@ def compile(mod, target=None, target_host=None, params=None):
         The VM executable that contains both library code and bytecode.
     """
     compiler = VMCompiler()
-
-    target = compiler.update_target(target)
-    target_host = compiler.update_target_host(target, target_host)
     if params:
         compiler.set_params(params)
-    tophub_context = compiler.tophub_context(target)
-    with tophub_context:
-        compiler._compile(mod, target, target_host)
-    return Executable(compiler._get_exec())
+    compiler.lower(mod, target, target_host)
+    compiler.codegen()
+    return compiler.get_exec()
+
 
 class VMCompiler(object):
-    """Build Relay module to run on VM runtime."""
+    """Compiler that compiles Relay module to VM executable."""
     def __init__(self):
         self.mod = _vm._VMCompiler()
-        self._compile = self.mod["compile"]
+        self._lower = self.mod["lower"]
+        self._codegen = self.mod["codegen"]
         self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
 
     def set_params(self, params):
-        """Set constant parameters for the model"""
+        """Set constant parameters for the model.
+
+        Parameters
+        ----------
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+        """
         inputs = {}
         for name, param in params.items():
             if isinstance(param, np.ndarray):
@@ -420,8 +426,50 @@ class VMCompiler(object):
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
 
-    def update_target(self, target):
-        """Update target"""
+    def lower(self, mod, target=None, target_host=None):
+        """Lower the module to VM bytecode.
+
+        Parameters
+        ----------
+        mod : relay.Module
+            The Relay module to build.
+
+        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
+            device/context name) to str/tvm.target.Target, optional
+            For heterogeneous compilation, it is a dictionary indicating context
+            to target mapping. For homogeneous compilation, it is a build target.
+
+        target_host : str or :any:`tvm.target.Target`, optional
+            Host compilation target, if target is device.
+            When TVM compiles device specific program such as CUDA,
+            we also need host(CPU) side code to interact with the driver
+            to setup the dimensions and parameters correctly.
+            target_host is used to specify the host side codegen target.
+            By default, llvm is used if it is enabled,
+            otherwise a stackvm intepreter is used.
+        """
+        target = self._update_target(target)
+        target_host = self._update_target_host(target, target_host)
+        tophub_context = self._tophub_context(target)
+        with tophub_context:
+            self._lower(mod, target, target_host)
+
+    def codegen(self):
+        """Generate the kernel library."""
+        self._codegen()
+
+    def get_exec(self):
+        """Get the VM executable.
+
+        Returns
+        -------
+        exec : Executable
+            The VM executable that contains both library code and bytecode.
+        """
+        return Executable(self._get_exec())
+
+    def _update_target(self, target):
+        """Update target."""
         target = target if target else tvm.target.current_target()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
@@ -439,8 +487,8 @@ class VMCompiler(object):
                             "{}".format(type(target)))
         return tgts
 
-    def update_target_host(self, target, target_host):
-        """Update target host"""
+    def _update_target_host(self, target, target_host):
+        """Update target host."""
         target_host = None if target_host == "" else target_host
         if not target_host:
             for device_type, tgt in target.items():
@@ -449,9 +497,12 @@ class VMCompiler(object):
                     break
         if not target_host:
             target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
-        return tvm.target.create(target_host)
+        if isinstance(target_host, str):
+            target_host = tvm.target.create(target_host)
+        return target_host
 
-    def tophub_context(self, target):
+    def _tophub_context(self, target):
+        """Get the autotvm context."""
         # If current dispatch context is fallback context (the default root context),
         # then load pre-tuned parameters from TopHub
         if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
