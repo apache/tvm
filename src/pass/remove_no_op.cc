@@ -126,16 +126,16 @@ class NoOpRemover : public StmtMutator {
   }
 
  private:
-  Stmt MakeEvaluate(Expr value) {
+  Stmt MakeEvaluate(PrimExpr value) {
     if (HasSideEffect(value)) {
       return EvaluateNode::make(value);
     } else {
       return EvaluateNode::make(0);
     }
   }
-  Stmt MakeEvaluate(const Array<Expr>& values) {
+  Stmt MakeEvaluate(const Array<PrimExpr>& values) {
     Stmt stmt;
-    for (Expr e : values) {
+    for (PrimExpr e : values) {
       if (HasSideEffect(e)) {
         if (stmt.defined()) {
           stmt = SeqStmt({stmt, EvaluateNode::make(e)});

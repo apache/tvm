@@ -49,32 +49,32 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   explicit Impl(Analyzer* parent)
       : IRMutatorWithAnalyzer(parent) {}
 
-  void Update(const Var& var, const Expr& info, bool override_info);
-  Expr VisitExpr_(const AddNode* op) override;
-  Expr VisitExpr_(const SubNode* op) override;
-  Expr VisitExpr_(const MulNode* op) override;
-  Expr VisitExpr_(const DivNode* op) override;
-  Expr VisitExpr_(const ModNode* op) override;
-  Expr VisitExpr_(const FloorDivNode* op) override;
-  Expr VisitExpr_(const FloorModNode* op) override;
-  Expr VisitExpr_(const MinNode* op) override;
-  Expr VisitExpr_(const MaxNode* op) override;
-  Expr VisitExpr_(const EQNode* op) override;
-  Expr VisitExpr_(const NENode* op) override;
-  Expr VisitExpr_(const LTNode* op) override;
-  Expr VisitExpr_(const LENode* op) override;
-  Expr VisitExpr_(const GTNode* op) override;
-  Expr VisitExpr_(const GENode* op) override;
-  Expr VisitExpr_(const AndNode* op) override;
-  Expr VisitExpr_(const OrNode* op) override;
-  Expr VisitExpr_(const NotNode* op) override;
-  Expr VisitExpr_(const SelectNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const CastNode* op) override;
-  Expr VisitExpr_(const LetNode* op) override;
+  void Update(const Var& var, const PrimExpr& info, bool override_info);
+  PrimExpr VisitExpr_(const AddNode* op) override;
+  PrimExpr VisitExpr_(const SubNode* op) override;
+  PrimExpr VisitExpr_(const MulNode* op) override;
+  PrimExpr VisitExpr_(const DivNode* op) override;
+  PrimExpr VisitExpr_(const ModNode* op) override;
+  PrimExpr VisitExpr_(const FloorDivNode* op) override;
+  PrimExpr VisitExpr_(const FloorModNode* op) override;
+  PrimExpr VisitExpr_(const MinNode* op) override;
+  PrimExpr VisitExpr_(const MaxNode* op) override;
+  PrimExpr VisitExpr_(const EQNode* op) override;
+  PrimExpr VisitExpr_(const NENode* op) override;
+  PrimExpr VisitExpr_(const LTNode* op) override;
+  PrimExpr VisitExpr_(const LENode* op) override;
+  PrimExpr VisitExpr_(const GTNode* op) override;
+  PrimExpr VisitExpr_(const GENode* op) override;
+  PrimExpr VisitExpr_(const AndNode* op) override;
+  PrimExpr VisitExpr_(const OrNode* op) override;
+  PrimExpr VisitExpr_(const NotNode* op) override;
+  PrimExpr VisitExpr_(const SelectNode* op) override;
+  PrimExpr VisitExpr_(const CallNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
+  PrimExpr VisitExpr_(const CastNode* op) override;
+  PrimExpr VisitExpr_(const LetNode* op) override;
 
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  protected:
   /*! \brief internal structure for comparison. */
@@ -90,9 +90,9 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // counter to record recursive rewrite depth.
   int recur_depth_{0};
   // internal variable map
-  std::unordered_map<Var, Expr, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, PrimExpr, ObjectHash, ObjectEqual> var_map_;
 
-  std::vector<Expr> literal_constraints_;
+  std::vector<PrimExpr> literal_constraints_;
 
   // maximum number of recursion allowed during a single pass.
   static const constexpr int kMaxRecurDepth = 5;
@@ -103,15 +103,15 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
    * \param val The constant value.
    * \return comparison result.
    */
-  CompareResult TryCompare(const Expr& x, int64_t val);
+  CompareResult TryCompare(const PrimExpr& x, int64_t val);
 
  private:
   // Whether x >= val
-  bool CanProveGreaterEqual(const Expr& x, int64_t val) {
+  bool CanProveGreaterEqual(const PrimExpr& x, int64_t val) {
     return analyzer_->CanProveGreaterEqual(x, val);
   }
   // Whether x == val
-  bool CanProveEqual(const Expr& x, int64_t val) {
+  bool CanProveEqual(const PrimExpr& x, int64_t val) {
     // TODO(tqchen) refer back to super-analyzer.
     return TryCompare(x, val) == kEQ;
   }
@@ -119,10 +119,10 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // Recursive rewrite x
   // we limit maximum depth of recursive rewrite allowed to
   // avoid infinite loop
-  Expr RecursiveRewrite(const Expr& x) {
+  PrimExpr RecursiveRewrite(const PrimExpr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    Expr res = this->VisitExpr(x);
+    PrimExpr res = this->VisitExpr(x);
     --recur_depth_;
     return res;
   }

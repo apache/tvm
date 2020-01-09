@@ -669,7 +669,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 }
 
 llvm::BasicBlock *
-CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
+CodeGenCPU::MakeCallPacked(const Array<PrimExpr> &args, llvm::Value **rvalue,
                            llvm::Value **ret_tcode, const DataType &r_type,
                            const int64_t begin, const int64_t end) {
   using llvm::BasicBlock;
@@ -923,8 +923,8 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       CHECK(parallel_env_.num_task.defined());
       CHECK(parallel_env_.penv != nullptr);
       DataType t = op->extent.dtype();
-      Expr num_task = cast(t, parallel_env_.num_task);
-      Expr task_id = cast(t, parallel_env_.task_id);
+      PrimExpr num_task = cast(t, parallel_env_.num_task);
+      PrimExpr task_id = cast(t, parallel_env_.task_id);
       CHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
@@ -935,9 +935,9 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
                         op->loop_var,
                         op->body);
       } else {
-        Expr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        Expr begin = MinNode::make(task_id * step, op->extent);
-        Expr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
+        PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
+        PrimExpr begin = MinNode::make(task_id * step, op->extent);
+        PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
                         ConstInt32(1),

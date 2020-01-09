@@ -47,7 +47,7 @@ using namespace ir;
  * \brief A base class to generate a LLVM.
  */
 class CodeGenLLVM :
-      public ExprFunctor<llvm::Value* (const Expr&)>,
+      public ExprFunctor<llvm::Value* (const PrimExpr&)>,
       public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
@@ -95,7 +95,7 @@ class CodeGenLLVM :
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const Expr& e) {
+  llvm::Value* MakeValue(const PrimExpr& e) {
     return VisitExpr(e);
   }
   // Short hande code to get a constant int 32
@@ -184,7 +184,7 @@ class CodeGenLLVM :
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
   // f is a callback that takes index and v.
-  virtual void Scalarize(const Expr& e,
+  virtual void Scalarize(const PrimExpr& e,
                          std::function<void(int i, llvm::Value* v)> f);
   // Initialize target
   virtual void InitTarget(llvm::TargetMachine* tm);
@@ -211,7 +211,7 @@ class CodeGenLLVM :
   void InitFuncState();
   // Get alignment given index.
   void GetAlignment(
-      DataType t, const VarNode* buf_var, const Expr& index,
+      DataType t, const VarNode* buf_var, const PrimExpr& index,
       int* p_alignment, int* p_native_bits);
   // Get constant string
   llvm::Value* GetConstString(const std::string& str);
@@ -243,9 +243,9 @@ class CodeGenLLVM :
   void CreateSerialFor(llvm::Value* begin,
                        llvm::Value* end,
                        llvm::Value* stride,
-                       const VarExpr& loop_var, const Stmt& body);
+                       const Var& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, Expr index, DataType type);
+  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index, DataType type);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function

@@ -269,7 +269,7 @@ class SequentialNode : public PassNode {
 
 PassInfo PassInfoNode::make(int opt_level,
                             std::string name,
-                            tvm::Array<tvm::Expr> required) {
+                            tvm::Array<tvm::PrimExpr> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -370,7 +370,7 @@ void SequentialNode::ResolveDependency(const Module& mod) {
 }
 
 // linearly scan the pass array to match pass_name
-inline bool PassArrayContains(const Array<tvm::Expr>& pass_array,
+inline bool PassArrayContains(const Array<tvm::PrimExpr>& pass_array,
                               const std::string& pass_name) {
   for (auto x : pass_array) {
     auto* str_name = x.as<ir::StringImmNode>();
@@ -428,7 +428,7 @@ Pass CreateModulePass(
     const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::Expr>& required) {
+    const tvm::Array<tvm::PrimExpr>& required) {
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
   return ModulePassNode::make(pass_func, pass_info);
 }
@@ -437,7 +437,7 @@ Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, Module, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::Expr>& required) {
+    const tvm::Array<tvm::PrimExpr>& required) {
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
   return FunctionPassNode::make(pass_func, pass_info);
 }
@@ -507,7 +507,7 @@ TVM_REGISTER_GLOBAL("relay._transform.Sequential")
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
   std::string name = args[2];
-  tvm::Array<tvm::Expr> required = args[3];
+  tvm::Array<tvm::PrimExpr> required = args[3];
   PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
   *ret = Sequential(passes, pass_info);
 });
@@ -533,8 +533,8 @@ TVM_REGISTER_GLOBAL("relay._transform.PassContext")
   auto pctx = PassContext::Create();
   int opt_level = args[0];
   int fallback_device = args[1];
-  tvm::Array<tvm::Expr> required = args[2];
-  tvm::Array<tvm::Expr> disabled = args[3];
+  tvm::Array<tvm::PrimExpr> required = args[2];
+  tvm::Array<tvm::PrimExpr> disabled = args[3];
   pctx->opt_level = opt_level;
   pctx->fallback_device = fallback_device;
   pctx->required_pass = std::move(required);

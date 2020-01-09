@@ -49,7 +49,7 @@ using namespace ir;
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
 class CodeGenC :
-      public ExprFunctor<void(const Expr&, std::ostream&)>,
+      public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
       public StmtFunctor<void(const Stmt&)>,
       public CodeGenSourceBase {
  public:
@@ -80,12 +80,12 @@ class CodeGenC :
    * \param n The expression to be printed.
    * \param os The output stream
    */
-  void PrintExpr(const Expr& n, std::ostream& os);
+  void PrintExpr(const PrimExpr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
-  std::string PrintExpr(const Expr& n) {
+  std::string PrintExpr(const PrimExpr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
@@ -158,12 +158,12 @@ class CodeGenC :
   // Binary vector op.
   virtual void PrintVecBinaryOp(
       const std::string&op, DataType op_type,
-      Expr lhs, Expr rhs, std::ostream& os);  // NOLINT(*)
+      PrimExpr lhs, PrimExpr rhs, std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, Expr base);
+  virtual std::string GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base);
   // print vector store
   virtual void PrintVecStore(const VarNode* buffer,
-                             DataType t, Expr base,
+                             DataType t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
   virtual void PrintVecElemLoad(
@@ -177,10 +177,10 @@ class CodeGenC :
  protected:
   // Print reference to struct location
   std::string GetStructRef(
-      DataType t, const Expr& buffer, const Expr& index, int kind);
+      DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(
-      DataType t, const VarNode* buffer, Expr index);
+      DataType t, const VarNode* buffer, PrimExpr index);
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.

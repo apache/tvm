@@ -90,7 +90,7 @@ void CodeGenSPIRV::InitFuncState() {
 }
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(
-    const IterVar& iv, const Expr& extent) {
+    const IterVar& iv, const PrimExpr& extent) {
   runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
   spirv::Value v;
   if (ts.rank == 1) {
@@ -403,7 +403,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          Expr vec_index = ir::Simplify(
+          PrimExpr vec_index = ir::Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
@@ -417,11 +417,11 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
   return spirv::Value();
 }
 
-void CodeGenSPIRV::Scalarize(const Expr& e,
+void CodeGenSPIRV::Scalarize(const PrimExpr& e,
                              std::function<void(int i, spirv::Value v)> f) {
   if (const RampNode* ramp = e.as<RampNode>()) {
     for (int i = 0; i < ramp->dtype.lanes(); ++i) {
-      Expr offset = ramp->base + ramp->stride * i;
+      PrimExpr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
     }
   } else {
@@ -481,7 +481,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          Expr vec_index = ir::Simplify(
+          PrimExpr vec_index = ir::Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));

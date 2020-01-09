@@ -42,7 +42,7 @@ class CodeGenARM final : public CodeGenCPU {
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
  private:
-  Expr ARMPopcount(const CallNode* op);
+  PrimExpr ARMPopcount(const CallNode* op);
 };
 
 llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
@@ -50,16 +50,16 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
         op->args[0].as<UIntImmNode>()->value);
     if (id == ::llvm::Intrinsic::ctpop) {
-      Expr e = ARMPopcount(op);
+      PrimExpr e = ARMPopcount(op);
       return CodeGenCPU::CreateIntrinsic(e.as<CallNode>());
     }
   }
   return CodeGenCPU::CreateIntrinsic(op);
 }
 
-Expr CodeGenARM::ARMPopcount(const CallNode *call) {
+PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   using namespace ir;
-  const Expr& e = call->args[2];
+  const PrimExpr& e = call->args[2];
   ::llvm::Intrinsic::ID ctpop_id = ::llvm::Intrinsic::ctpop;
   ::llvm::Intrinsic::ID vpaddlu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
 
@@ -67,7 +67,7 @@ Expr CodeGenARM::ARMPopcount(const CallNode *call) {
   int total_size =  call->dtype.bits() * call->dtype.lanes();
   if (!call->dtype.is_vector() || call->dtype.bits() == 8 ||
      (total_size != 128 && total_size != 64)) {
-    Array<Expr> vcnt_args;
+    Array<PrimExpr> vcnt_args;
     vcnt_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), ctpop_id));
     vcnt_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
     vcnt_args.push_back(e);
@@ -88,41 +88,41 @@ Expr CodeGenARM::ARMPopcount(const CallNode *call) {
       uint16_type.code(), 32, uint8_type.bits() * uint8_type.lanes() / 32);
 
   // Interpret input as vector of 8bit values
-  Expr input8 = reinterpret(uint8_type, e);
+  PrimExpr input8 = reinterpret(uint8_type, e);
   // Popcount 8bit->8bit
   const CallNode* c0 = input8.as<CallNode>();
   CHECK(c0 != nullptr);
-  Array<Expr> vcnt8_args;
+  Array<PrimExpr> vcnt8_args;
   vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), ctpop_id));
   vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt8_args.push_back(input8);
-  Expr vcnt8 = ir::CallNode::make(
+  PrimExpr vcnt8 = ir::CallNode::make(
     uint8_type,  "llvm_intrin", vcnt8_args, CallNode::PureIntrinsic);
 
   // Accumulation 8->16bit
-  Array<Expr> vcnt16_args;
+  Array<PrimExpr> vcnt16_args;
   vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt16_args.push_back(vcnt8);
-  Expr vcnt16 = ir::CallNode::make(
+  PrimExpr vcnt16 = ir::CallNode::make(
     uint16_type, "llvm_intrin", vcnt16_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 16) {
     return vcnt16;
   }
 
   // Accumulation 16->32bit
-  Array<Expr> vcnt32_args;
+  Array<PrimExpr> vcnt32_args;
   vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt32_args.push_back(vcnt16);
-  Expr vcnt32 = ir::CallNode::make(
+  PrimExpr vcnt32 = ir::CallNode::make(
     uint32_type,  "llvm_intrin", vcnt32_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 32) {
     return vcnt32;
   }
 
   // Accumulation 32->64bit
-  Array<Expr> vcnt64_args;
+  Array<PrimExpr> vcnt64_args;
   vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
   vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
   vcnt64_args.push_back(vcnt32);

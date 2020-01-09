@@ -261,7 +261,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (!result_) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr(const Expr& n) final {
+  void VisitExpr(const PrimExpr& n) final {
     if (!result_) return;
     StmtExprVisitor::VisitExpr(n);
   }
@@ -376,8 +376,8 @@ class StoragePlanRewriter : public StmtExprMutator {
                        RemapIndex(op->value.dtype(), op->index, it->second),
                        op->predicate);
   }
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     auto it = alloc_map_.find(op->buffer_var.get());
     if (it == alloc_map_.end()) return expr;
@@ -386,7 +386,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                       RemapIndex(op->dtype, op->index, it->second),
                       op->predicate);
   }
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = alloc_map_.find(op);
     if (it != alloc_map_.end()) {
       if (it->second->bits_offset != 0) {
@@ -394,10 +394,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
       return it->second->alloc_var;
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
@@ -407,8 +407,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         return StmtExprMutator::VisitExpr_(op);
       }
       const StorageEntry* se = it->second;
-      Expr offset = this->VisitExpr(op->args[2]);
-      Expr extent = this->VisitExpr(op->args[3]);
+      PrimExpr offset = this->VisitExpr(op->args[2]);
+      PrimExpr extent = this->VisitExpr(op->args[3]);
       uint64_t elem_bits = dtype.bits() * dtype.lanes();
       CHECK_EQ(se->bits_offset % elem_bits, 0U);
       if (se->bits_offset != 0) {
@@ -488,7 +488,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The replacement allocation, if any.
     Stmt new_alloc;
     // The var expr of new allocation.
-    VarExpr alloc_var;
+    Var alloc_var;
     // The allocation element type.
     DataType elem_type;
     // This is non-zero if this allocate is folded into another one
@@ -529,7 +529,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     return MergeNest(nest, body);
   }
   // Remap the index
-  Expr RemapIndex(DataType dtype, Expr index, StorageEntry* e) {
+  PrimExpr RemapIndex(DataType dtype, PrimExpr index, StorageEntry* e) {
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(e->bits_offset % elem_bits, 0U);
@@ -577,7 +577,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
         if (e->allocs.size() == 1) {
           // simply use the original allocation.
-          Expr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
+          PrimExpr sz = arith::ComputeReduce<MulNode>(e->allocs[0]->extents,
                                               make_const(DataType::Int(32), 1));
           e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {sz},
@@ -590,9 +590,10 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
         } else {
           // Build a merged allocation
-          Expr combo_size;
+          PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            Expr sz = arith::ComputeReduce<MulNode>(op->extents, make_const(DataType::Int(32), 1));
+            PrimExpr sz = arith::ComputeReduce<MulNode>(
+                op->extents, make_const(DataType::Int(32), 1));
             auto nbits = op->dtype.bits() * op->dtype.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
@@ -663,7 +664,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    Expr alloc_size = make_const(e->allocs[0]->extents[0].dtype(),
+    PrimExpr alloc_size = make_const(e->allocs[0]->extents[0].dtype(),
                                  (total_bits + type_bits - 1) / type_bits);
     e->new_alloc = AllocateNode::make(
         e->alloc_var, e->elem_type, {alloc_size}, const_true(),
@@ -936,7 +937,7 @@ class StoragePlanRewriter : public StmtExprMutator {
 // if all its access is the same vector type.
 class VectorAllocRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const LoadNode* op) final {
+  PrimExpr VisitExpr_(const LoadNode* op) final {
     UpdateTypeMap(op->buffer_var.get(), op->dtype);
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -945,7 +946,7 @@ class VectorAllocRewriter : public StmtExprMutator {
     UpdateTypeMap(op->buffer_var.get(), op->value.dtype());
     return StmtExprMutator::VisitStmt_(op);
   }
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
@@ -964,7 +965,7 @@ class VectorAllocRewriter : public StmtExprMutator {
         tvec[0].lanes() % op->dtype.lanes() == 0 &&
         tvec[0].lanes() != op->dtype.lanes()) {
       int factor = tvec[0].lanes() / op->dtype.lanes();
-      Array<Expr> extents = op->extents;
+      Array<PrimExpr> extents = op->extents;
       arith::ModularSet me = analyzer_.modular_set(extents[extents.size() - 1]);
       if (me->base % factor == 0 && me->coeff % factor == 0) {
         extents.Set(extents.size() - 1,
@@ -999,13 +1000,13 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
     if (arg.dtype().is_handle()) {
       const auto& tvec = rewriter.acc_map_[arg.get()];
       if (tvec.size() == 1) {
-        Expr dtype = make_const(tvec[0], 0);
+        PrimExpr dtype = make_const(tvec[0], 0);
         n->handle_data_type.Set(arg, dtype);
       } else {
         // always set data type to be non vectorized so
         // load/store can still work via scalarization
         if (tvec.size() != 0 && !n->handle_data_type.count(arg)) {
-          Expr dtype = make_const(tvec[0].with_lanes(1), 0);
+          PrimExpr dtype = make_const(tvec[0].with_lanes(1), 0);
           n->handle_data_type.Set(arg, dtype);
         }
       }

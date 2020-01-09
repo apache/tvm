@@ -85,7 +85,7 @@ struct ModularSetAnalyzer::Entry {
 };
 
 class ModularSetAnalyzer::Impl :
-      public ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
+      public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
  public:
   explicit Impl(Analyzer* parent)
       : parent_(parent) {}
@@ -107,7 +107,7 @@ class ModularSetAnalyzer::Impl :
   }
 
   // Detect useful constraints and use them in the analysis scope.
-  std::function<void()> EnterConstraint(const Expr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     PVar<Var> var;
     PVar<Integer> coeff, base;
     // pattern match interesting constraints
@@ -168,7 +168,7 @@ class ModularSetAnalyzer::Impl :
     return Entry(coeff, a.base * b.base);
   }
 
-  Entry DivByConst(const Expr& lhs,
+  Entry DivByConst(const PrimExpr& lhs,
                    int64_t val,
                    bool round_down) {
     Entry a = VisitExpr(lhs);
@@ -255,7 +255,7 @@ class ModularSetAnalyzer::Impl :
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.
@@ -398,7 +398,7 @@ class ModularSetAnalyzer::Impl :
   }
 };
 
-ModularSet ModularSetAnalyzer::operator()(const Expr& expr) {
+ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
   Entry ret = impl_->VisitExpr(expr);
   return ModularSet(ret.coeff, ret.base);
 }
@@ -409,7 +409,7 @@ void ModularSetAnalyzer::Update(const Var& var,
   impl_->Update(var, info, override);
 }
 
-std::function<void()> ModularSetAnalyzer::EnterConstraint(const Expr& constraint) {
+std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
 }
 
