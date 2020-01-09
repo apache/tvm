@@ -48,6 +48,16 @@ Var VarNode::make(DataType t, std::string name_hint) {
   return Var(node);
 }
 
+ShapeVar::ShapeVar(std::string name_hint, DataType t)
+        : ShapeVar(ShapeVarNode::make(t, name_hint)) {}
+
+ShapeVar ShapeVarNode::make(DataType t, std::string name_hint) {
+  ObjectPtr<ShapeVarNode> node = make_object<ShapeVarNode>();
+  node->dtype = t;
+  node->name_hint = std::move(name_hint);
+  return ShapeVar(node);
+}
+
 Range::Range(Expr begin, Expr end)
     : Range(make_object<RangeNode>(
           begin,

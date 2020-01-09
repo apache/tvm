@@ -118,7 +118,7 @@ class VarNode : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, ExprNode);
 };
 
 /*! \brief a named variable in TVM */
@@ -151,6 +151,43 @@ class Var : public Expr {
   }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
+};
+
+class ShapeVar;
+/*!
+ * \brief A variable node represent a tensor shape size,
+ * whose value must be non-negative.
+ */
+class ShapeVarNode : public VarNode {
+ public:
+  static ShapeVar make(DataType dtype, std::string name_hint);
+
+  static constexpr const char* _type_key = "ShapeVar";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeVarNode, VarNode);
+};
+
+/*! \brief a named variable represents a tensor shape size */
+class ShapeVar : public Var {
+ public:
+  explicit ShapeVar(ObjectPtr<Object> n) : Var(n) {}
+  TVM_DLL explicit ShapeVar(std::string name_hint = "s",
+                            DataType t = DataType::Int(32));
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const ShapeVarNode* operator->() const {
+    return get();
+  }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const ShapeVarNode* get() const {
+    return static_cast<const ShapeVarNode*>(data_.get());
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = ShapeVarNode;
 };
 
 // Backward compatibility, will be removed later.

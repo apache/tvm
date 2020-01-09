@@ -279,6 +279,23 @@ class Var(Expr):
 
 
 @register_node
+class ShapeVar(Var):
+    """Symbolic variable to represent a tensor shape size.
+
+    Parameters
+    ----------
+    name : str
+        The name
+
+    dtype : int
+        The data type
+    """
+    def __init__(self, name, dtype):
+        self.__init_handle_by_constructor__(
+            _api_internal._ShapeVar, name, dtype)
+
+
+@register_node
 class Reduce(Expr):
     """Reduce node.
 

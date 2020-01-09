@@ -133,6 +133,9 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
   // Functions that can be overriden by subclass
   virtual R VisitExpr_(const VarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const ShapeVarNode* op, Args... args) {
+    return VisitExpr_(static_cast<const VarNode*>(op), std::forward<Args>(args)...);
+  }
   virtual R VisitExpr_(const LoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -175,6 +178,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     FType vtable;
     // Set dispatch
     IR_EXPR_FUNCTOR_DISPATCH(VarNode);
+    IR_EXPR_FUNCTOR_DISPATCH(ShapeVarNode);
     IR_EXPR_FUNCTOR_DISPATCH(LoadNode);
     IR_EXPR_FUNCTOR_DISPATCH(LetNode);
     IR_EXPR_FUNCTOR_DISPATCH(CallNode);

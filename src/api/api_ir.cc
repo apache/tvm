@@ -36,6 +36,11 @@ TVM_REGISTER_GLOBAL("_Var")
     return VarNode::make(t, s);
   });
 
+TVM_REGISTER_GLOBAL("_ShapeVar")
+.set_body_typed([](std::string s, DataType t) {
+    return ShapeVarNode::make(t, s);
+  });
+
 TVM_REGISTER_GLOBAL("make.abs")
 .set_body_typed(tvm::abs);
 

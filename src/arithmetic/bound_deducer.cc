@@ -86,7 +86,7 @@ class BoundDeducer: public ExprVisitor {
 
   void VisitExpr(const Expr& e) final {
     if (!success_) return;
-    if (e.get() == path_[iter_++]) {
+    if (iter_ < path_.size() && e.get() == path_[iter_++]) {
       ExprVisitor::VisitExpr(e);
     } else {
       success_ = false;

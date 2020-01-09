@@ -405,6 +405,23 @@ class IntervalSetEvaluator :
     }
   }
 
+  IntervalSet VisitExpr_(const ShapeVarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto it = dom_map_.find(var);
+    if (it != dom_map_.end()) {
+      IntervalSet res = ToIntervalSet((*it).second);
+      if (res->min_value.same_as(var) &&
+          res->max_value.same_as(var)) {
+        return res;
+      }
+      // recursively evaluate mapped result
+      // in case the domain contains variables to be relaxed.
+      return Eval(res);
+    } else {
+      return IntervalSet(0, GetRef<ShapeVar>(op));
+    }
+  }
+
   IntervalSet VisitExpr_(const AddNode* op) final {
     return VisitBinaryExpr_(op);
   }

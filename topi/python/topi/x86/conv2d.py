@@ -31,7 +31,7 @@ from ..nn.conv2d import conv2d, conv2d_NCHWc, \
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple
+from ..util import get_const_tuple, is_var
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 
@@ -44,7 +44,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     """
     static_data_shape = []
     for dim in get_const_tuple(data.shape):
-        if isinstance(dim, tvm.expr.Var):
+        if is_var(dim):
             static_data_shape.append(1)
         else:
             static_data_shape.append(dim)
