@@ -61,7 +61,7 @@ struct Subgraph {
   std::vector<std::pair<Var, Expr>> args;
 
   /*! \brief Nodes in this subgraph. */
-  std::unordered_set<Expr, ExprHash, ExprEqual> nodes;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes;
 };
 
 /*!
@@ -210,10 +210,10 @@ class Partitioner : public ExprMutator {
       Expr arg0 = call->args[0];
       std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
       subgraph_func =
-          FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tvm::ir::StringImm::make(name));
+          FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tvm::ir::StringImmNode::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kCompiler,
-                                      tvm::ir::StringImm::make(compiler_attrs->compiler));
+                                      tvm::ir::StringImmNode::make(compiler_attrs->compiler));
       return CallNode::make(subgraph_func, args);
     }
   }
@@ -367,8 +367,8 @@ Expr PartitionGraph(const Expr& expr) {
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> part_func =
-      [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> part_func =
+      [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(partitioning::PartitionGraph(f));
       };
   auto partitioned = CreateFunctionPass(part_func, 0, "PartitionGraph", {});

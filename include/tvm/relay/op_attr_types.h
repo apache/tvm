@@ -164,22 +164,6 @@ using FTVMLegalize = runtime::TypedPackedFunc<
        const Array<tvm::relay::Type>& arg_types)>;
 
 /*!
- * \brief Annotates an expression to indicate which compiler an op
- * should be used for codegen.
- *
- * \param attrs The attribute of the original expr.
- * \param args The arguments of the original expr.
- * \param compiler The compiler that is used to compile the op.
- *
- * \return true if this op should be registered to invoke a specific compiler
- * for codegen, otherwise, false.
- */
-using FTVMAnnotateCompiler = runtime::TypedPackedFunc<
-  bool(const Attrs& attrs,  // NOLINT(*)
-       const Array<Expr>& args,
-       const std::string& compiler)>;
-
-/*!
  * \brief Forward rewriting rule for a specific op.
  *
  * \param ref_call The reference old call type to be rewritten.

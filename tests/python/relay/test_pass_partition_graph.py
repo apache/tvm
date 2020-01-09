@@ -22,11 +22,38 @@ import pytest
 
 import tvm
 import tvm.relay.testing
-import tvm.relay.transform
+import tvm.relay.transform as transform
 from tvm import relay
 from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
+
+# Leverage the pass manager to write a simple white list based annotator
+@transform.function_pass(opt_level=0)
+class WhiteListAnnotator:
+    def __init__(self, op_list, compiler):
+        assert isinstance(op_list, (list, tuple, set))
+        self.op_list = op_list
+        self.compiler = compiler
+
+    def transform_function(self, func, mod, ctx):
+
+        annotator = self
+        class Annotator(tvm.relay.ExprMutator):
+            def visit_call(self, call):
+                op_name = call.op.name
+                if op_name in annotator.op_list:
+                    new_args = []
+                    for arg in call.args:
+                        ann = compiler_begin(super().visit(arg),
+                                             annotator.compiler)
+                        new_args.append(ann)
+                    new_call = relay.Call(call.op, new_args, call.attrs,
+                                          call.type_args)
+                    return compiler_end(new_call, annotator.compiler)
+                else:
+                    return super().visit_call(call)
+        return Annotator().visit(func)
 
 
 class CcompilerAnnotator(ExprMutator):
@@ -220,8 +247,8 @@ def test_multi_node_compiler():
     mod = relay.Module()
     ann = CcompilerAnnotator()
     mod["main"] = ann.visit(f)
-    mod = relay.transform.PartitionGraph()(mod)
-    mod = relay.transform.InferType()(mod)
+    mod = transform.PartitionGraph()(mod)
+    mod = transform.InferType()(mod)
 
     x_data = np.random.rand(10, 10).astype('float32')
     w_data = []
@@ -239,6 +266,19 @@ def test_multi_node_compiler():
 
 
 def test_extern_ccompiler_single_op():
+    @transform.function_pass(opt_level=0)
+    class MyAnnotator:
+        def transform_function(self, func, mod, ctx):
+            class Annotator(tvm.relay.ExprMutator):
+                def visit_call(self, call):
+                    new_args = []
+                    for arg in call.args:
+                        ann = compiler_begin(self.visit(arg), "ccompiler")
+                        new_args.append(ann)
+                    new_call = relay.Call(call.op, new_args)
+                    return compiler_end(new_call, "ccompiler")
+            return Annotator().visit(func)
+
     x = relay.var('x', shape=(8, 8))
     y = relay.var('y', shape=(8, 8))
     z = x + y
@@ -247,7 +287,8 @@ def test_extern_ccompiler_single_op():
     y_data = np.random.rand(8, 8).astype('float32')
     mod = relay.Module()
     mod["main"] = f
-    mod = relay.build_extern_compiler(mod, "ccompiler")
+    mod = MyAnnotator()(mod)
+    mod = transform.PartitionGraph()(mod)
 
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
@@ -290,9 +331,10 @@ def test_extern_ccompiler_default_ops():
     f = relay.Function([x, y], concat)
     mod = relay.Module()
     mod["main"] = f
-    mod = relay.build_extern_compiler(mod, "ccompiler")
+    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = transform.PartitionGraph()(mod)
 
-    fused_mod = relay.transform.FuseOps(2)(mod)
+    fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
     assert relay.alpha_equal(fused_mod, expected_mod)
 
@@ -313,7 +355,8 @@ def test_extern_ccompiler():
     y_data = np.random.rand(2, 2).astype('float32')
     mod = relay.Module()
     mod["main"] = f
-    mod = relay.build_extern_compiler(mod, "ccompiler")
+    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
+    mod = transform.PartitionGraph()(mod)
 
     check_result(mod, {"x": x_data, "y": y_data}, (2, 2), (y_data * y_data) - (x_data + x_data))
 
@@ -344,7 +387,7 @@ def test_extern_dnnl():
 
     mod = relay.Module()
     mod['main'] = WholeGraphAnnotator('dnnl').visit(f)
-    mod = relay.transform.PartitionGraph()(mod)
+    mod = transform.PartitionGraph()(mod)
 
     ref_mod = relay.Module()
     ref_mod['main'] = f
@@ -368,8 +411,9 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-    mod = relay.build_extern_compiler(mod, "dnnl")
-
+    op_list = ["nn.conv2d", "nn.dense", "nn.relu", "add"]
+    mod = WhiteListAnnotator(op_list, "dnnl")(mod)
+    mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
     ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
@@ -379,7 +423,6 @@ def test_extern_dnnl_mobilenet():
 
     check_result(mod, {"data": i_data},
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
-
 
 
 if __name__ == "__main__":

@@ -508,24 +508,6 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
     return _transform.Legalize(legalize_map_attr_name)
 
 
-def AnnotateCompiler(compiler):
-    """Annotate ops in an experession with a provied compiler and then use it
-    for codegen.
-
-    Parameters
-    ----------
-    compiler : str
-        The compiler used for codegen.
-
-    Returns
-    -------
-    ret : tvm.relay.Pass
-        The annotated pass that wrapps ops with subgraph_start and
-        subgraph_end.
-    """
-    return _transform.AnnotateCompiler(compiler)
-
-
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.
