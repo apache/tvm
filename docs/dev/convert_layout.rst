@@ -28,20 +28,20 @@ Essentially, TVM has to deal with data layouts throughout the compiler toolchain
 
 If you directly want to understand the usage of ConvertLayout Pass, directly jump to Section 4 - Usage.
 
-*************
-2. Motivation
-*************
+**************************
+2. Motivation and Overview
+**************************
 
-Lets look at a simple scenario to understand the complications that arise due to different layouts - Suppose we want to compile a Tensorflow NHWC graph for an ARM edge device. But, suppose we currently support only NCHW schedules in TOPI for ARM. So, there is a mismatch between framework layout and TOPI-supported layout. One way to deal with this mismatch is to insert layout transforms before each and after convolution, such that resulting convolution has NCHW input data layout and can use TOPI schedules. However, this can lead to performance degradation because of the presence of too many layout transforms.
+Let's look at a simple scenario to understand the complications that arise due to different layouts - Suppose we want to compile a Tensorflow NHWC graph for an ARM edge device. But, suppose we currently support only NCHW schedules in TOPI for ARM. So, there is a mismatch between framework layout and TOPI-supported layout. One way to deal with this mismatch is to insert layout transforms before each and after convolution, such that resulting convolution has NCHW input data layout and can use TOPI schedules. However, this can lead to performance degradation because of the presence of too many layout transforms.
 
 We encountered similar problems in other use cases as well
 
 - No way to run TFLite graphs on Nvidia GPUs. TOPI has NCHW-only schedules for GPUs.
 - Ever-complicating logic in AlterOpLayout for convolution to support different pairs of layout transformations.
 - Sub-optimal performance for TF graphs due to extra layout transforms.
-- Complication in third-party codegen integrations like TRT that prefers data layout to be in one format.
+- Complication in third-party codegen integrations like TensorRT that prefers data layout to be in one format.
 
-To solve these problems, we introduced *ConvertLayout* pass that sets up the infrastructure to change the data layout of the whole graph with minimal number of data layout transforms. In ideal cases, we will have only 2 layout transforms, one at the start and one at the end. An example to show the transformation is below
+To solve these problems, we introduced *ConvertLayout* pass that sets up the infrastructure to change the data layout of the whole graph with minimal number of data layout transforms. In ideal cases, we will have only 2 layout transforms for data, one at the start and one at the end. An example to show the transformation is below
 
 
 .. code-block:: python
@@ -72,16 +72,22 @@ To solve these problems, we introduced *ConvertLayout* pass that sets up the inf
 3. Design
 *********
 
-ConvertLayout pass is heavily built upon Relay layout rewriter infrastructure. To understand the design, lets break the operators into 3 categories
+Before delving into ConvertLayout pass, let's categorize the operators into 3 categories based on their sensitivity to data layouts. This categorization will be useful later to understand Convertlayout pass details.
 
-- **Layout agnostic** - Relu, Add etc. Do not get affected, neither functionality nor performance, by layouts.
-- **Lightly-layout sensitive** - Pad, Concatenate, Reduce ops like sum etc - Basically these operators have some attributes that are functionally affected if we do a layout transformation before them. But, there is not much difference in performance.
-- **Heavily-layout sensitive** - Convolution, Conv2D transpose etc - Highly affected, both functionally and performance-wise, by data layout. They also have data layout as the op attribute.
+- **Layout agnostic** - Relu, pow etc. These operators are not affected, neither functionality nor performance, by data layouts.
+- **Lightly-layout sensitive** - pad, concatenate, reduce ops like sum etc. These operators have some attributes that are functionally affected if we do a layout transformation before them. However, performance-wise, the difference is not significant. For these operators, it is beneficial to just adapt to the previous operator output data layout.
+- **Heavily-layout sensitive** - Convolution, conv2d_transpose etc. These operators are heavily affected, both functionally and performance-wise, by data layouts. They also have data layout as the op attribute. Typically, it is beneficial to modify the input data layouts for these operators (if its not a performant data layout), while the rest of *layout agnostic* and *lightly-layout sensitive* operators adapt to the layout governed by the output of these *heavliy-layout sensitive* operators.
 
 
-We use Relay layout rewriter infrastructure to handle layouts. This pass traverses the graph operator-by-operator. For each operator, it goes through 3 components - 1) A Python callback, allowing developers to transform the operator into a new Relay expr with new layouts, 2) Layout inference - using both original layouts, and transformed expr layouts (from previous operator or from the Python callback), and 3) Automatic layout transform insertion if needed. Now, let's connect these components with the operator categories.
+Let us now look at two relevant Relay operator properties. Each relay operator has properties, like InferType, that can be defined by a TVM developer. Typically, a Relay pass traverses the graph operator-by-operator and reads these operator properties. For example, InferType pass looks at the InferType property of on operator, determines its output shape and type, and then passes it to the next operator InferType property. Similarly, in our context, we have 2 such properties - *FTVMConvertLayout* and *FInferCorrectLayout*. ConvertLayout pass traverses the graph and looks at these 2 properties along with an automatic layout transform insertion module to handle data layouts. So, the whole process can be broken down into 3 steps:
 
-**Python callback for layout alteration** - This is used for *heavily-layout sensitive* operators. For example, one can return a new convolution operator with new data and kernel layout. The other 2 components will infer layout and insert layout transforms if needed. One example for convolution operator is follows where we converting to NCHW layout.
+- Run FTVMConvertLayout property - This allows the developers to transform the original Relay expr into a new Relay expr with new layouts, allowing user-defined layout alteration. There is a python callback for developer's ease. This is used only for heavily-layout sensitive operators.
+- Run FTVMInferCorretLayout property - We can view this as layout inference. It looks at the original input layout and the new input layouts, which are either coming from previous operator or from the FTVMConvertLayout modified expr (if it was used). This can be used by lightly-layout sensitive operators to adapt its attributes to new data layouts. Layout inference happens for each operator.
+- Automatic insertion of layout transforms - The previos step - layout inference - sets the new layout for the input exprs. If these layouts are different from the original layouts, then this component automatically inserts a layout transform. Therefore, a developer does not need to do anything for this component.
+
+These steps happen for each operator in sequence, where ConvertLayout pass keeps on passing the new layouts to the next operator properties, finally resulting in modifying the whole graph operator-by-operator. Now, let's look at a couple of examples of how to define the two properties.
+
+**FTVMConvertLayout - Python callback for layout alteration** - This is used for *heavily-layout sensitive* operators. For example, one can return a new convolution operator with new data and kernel layout. The other 2 components will infer layout and insert layout transforms if needed. One example for convolution operator is follows where we converting to NCHW layout.
 
 .. code-block:: python
 
@@ -116,19 +122,46 @@ We use Relay layout rewriter infrastructure to handle layouts. This pass travers
             new_attrs = dict(attrs)
             new_attrs['data_layout'] = desired_layout
             new_attrs['kernel_layout'] = 'OIHW'
-
-            if data_layout == 'NHWC' and kernel_layout == 'HWIO':
-                # Convert (NHWC, HWIO) to (NCHW, OIHW)
-                return relay.nn.conv2d(data, weight, **new_attrs)
-            if data_layout == 'NHWC' and kernel_layout == 'HWOI':
-                # Convert (NHWC, HWOI) to (NCHW, OIHW). Depthwise conv2d.
-                return relay.nn.conv2d(data, weight, **new_attrs)
+            # Actual insertion of layout transforms is taken care internally
+            # by ConvertLayout pass.
+            return relay.nn.conv2d(data, weight, **new_attrs)
         return None
 
 
-**Layout inference** - Relay op has an attribute - *FInferCorrectLayout* - that developers can implement to handle data layouts. Currently, this attribute is only exposed in C++. This function takes original input layouts and the new input layouts (passed from the previous operator or from the python callback for layout alteration). A TVM developer can use this function to infer the final data layout and also modify the op attributes if needed.
+**FInferCorrectLayout - Layout inference** - Currently, this attribute is exposed only in C++. This function takes original input layouts and the new input layouts (passed from the previous operator or from the python callback for layout alteration), and infers the final data layouts. Layout inference is called for each operator. The usage might vary for different operator categories. For layout agnostic operators, we just want to return the new data layouts in this function. For lightly-layout and heavily-layout sensitive operators, we can change the operator attributes (like axis for concatenate, pad_width for pad) so that we can adapt to the new data layout, preventing insertion of layout transforms. Let's look at a couple of examples to understand this better.
 
-This component is used for *lightly-layout sensitive* operators. We try to accept the new input layout, and modify the current operator attributes (like axis for concatenate, pad_width for pad) to adapt to the new data layout. By accepting the new input data layout, we prevent the insertion of a layout transform. In absence of this function, Layout rewrite might have to insert a layout transform, if the previous operator has a different output data layout than the original one. One example to adapt to NCHW data layout is presented here for Batch Norm operator.
+First example is for layout agnostic operators. These operators do not have any operator attributes that are affected by data layouts, so we just adapt to new layouts.
+
+.. code-block:: c++
+
+    // For operator set its attributes like following
+    // 		.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
+    // Take arbitrary input layouts and copy to outputs.
+    inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
+                                                         const Array<Layout>& new_in_layouts,
+                                                         const Array<Layout>& old_in_layouts,
+                                                         const Array<Array<IndexExpr>> &old_in_shapes) {
+      Layout ret;
+
+      if (new_in_layouts.defined()) {
+        CHECK_GE(new_in_layouts.size(), 1);
+        ret = new_in_layouts[0];
+      } else {
+        for (size_t i = 0; i < old_in_layouts.size(); ++i) {
+          if (old_in_layouts[i].defined()) {
+            ret = old_in_layouts[i];
+            break;
+          }
+        }
+      }
+
+      return Array<Array<Layout> >{Array<Layout>(old_in_layouts.size(), ret), {ret}};
+    }
+
+
+Second example is for a lightly-layout sensitive operator - batch normalization. BatchNorm has an axis operator that has to change when we go from NHWC to NCHW data layout. (Similar handling also needs to be for heavily-layout sensitive operators)
+
 
 .. code-block:: c++
 
@@ -143,27 +176,40 @@ This component is used for *lightly-layout sensitive* operators. We try to accep
 
       Layout ret = Layout::Undef();
 
-      // If new_in_layouts are defined, this code tries to modify the layout.
+      // For example, consider old_layout = NHWC, and new_layout = NCHW, and param->axis = 3
+
       if (new_in_layouts.defined() && old_in_layouts.defined()) {
         // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
+
+        // Following line gives bn_dim = C as old_layout = NHWC, axis = 3
         const auto& bn_dim = old_in_layouts[0][axis];
+
+        // The new_index is 1 because new_layout = NCHW and bn_dim is C
         auto new_index = new_in_layouts[0].IndexOf(bn_dim);
+
+        // We modify the layout-dependent attribute here - axis to 1.
         param->axis = new_index;
+
+        // Finally, we adapt to the new layout.
         ret = new_in_layouts[0];
+
       } else if (old_in_layouts.defined()) {
         ret = old_in_layouts[0];
       }
-      // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
+
+      // In case both new and old layouts are undefined, then there is no need of a change.
+      // ConvertLayout pass skips the automatic insertion of layout transforms in this case.
+
+      // Following line is not important to tutorial. But, layout inference needs to define
+      // the layout for all input and output data layouts. For batch norm, the other inputs
+      // and outputs are vector having length of C dim in the input. So, we set the other
+      // layouts as C. BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs
+      // have "C" layout.
       Layout c_layout = Layout("C");
 
       return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
                                   {ret, c_layout, c_layout}};
     }
-
-
-
-
-**Automatic insertion of layout transforms** - Depending on inferred layouts, this component automatically inserts layout transforms at the input expr of the operator. This happens for *layout-agnostic* operators.
 
 
 ********
