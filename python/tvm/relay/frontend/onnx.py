@@ -18,9 +18,9 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
+from functools import partial
 import numpy as np
 import tvm
-from functools import partial
 from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
