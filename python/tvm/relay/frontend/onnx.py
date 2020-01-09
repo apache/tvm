@@ -18,6 +18,7 @@
 """ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
+from functools import partial
 import numpy as np
 import tvm
 from ... import nd as _nd
@@ -43,12 +44,15 @@ def get_numpy(tensor_proto):
 
 
 def dimension_picker(prefix, surfix=''):
+    """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
+        if len(kernel) == 1:
+            return prefix + '1d' + surfix
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        msg = 'Only 2D kernels are supported for operator {}.'
-        op_name = prefix + '2d'
+        msg = 'Only 1D and 2D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -77,21 +81,27 @@ def get_pad_pair(input1d, kernel1d, stride1d):
     return [pad_before, pad_after]
 
 
-def onnx_storage_order2layout(storage_order):
+def onnx_storage_order2layout(storage_order, dims=2):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
 
-    return 'NCHW' if storage_order == 0 else 'NHWC'
+    if dims == 1:
+        return 'NCW' if storage_order == 0 else 'NWC'
+    elif dims == 2:
+        return 'NCHW' if storage_order == 0 else 'NHWC'
+    else:
+        msg = "Only 1d and 2d layouts are currently supported"
+        raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2:
+        if len(attrs['kernel_shape']) == 2 or len(attrs['kernel_shape']) == 1:
             return True
         return False
 
-    return _dim_check, "Only 2d kernel supported."
+    return _dim_check, "Only 1d and 2d kernel supported."
 
 
 class OnnxOpConverter(object):
@@ -394,17 +404,33 @@ class MaxPool(Pool):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
-                'ceil_mode': 'ceil_mode'
-            },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            custom_check=dimension_constraint())(inputs, attr, params)
+        input_shape = infer_shape(inputs[0])
+        # 1D Convolution
+        if len(input_shape) == 3:
+            return AttrCvt(
+                op_name="max_pool1d",
+                transforms={
+                    'kernel_shape': 'pool_size',
+                    'pads': ('padding', (0, 0)),
+                    'storage_order': ('layout', 'NCW', partial(onnx_storage_order2layout, dims=1)),
+                    'ceil_mode': 'ceil_mode'
+                },
+                ignores=['dilations', 'auto_pad'])(inputs, attr, params)
+        #2D Convolution
+        if len(input_shape) == 4:
+            return AttrCvt(
+                op_name=dimension_picker(cls.name),
+                transforms={
+                    'kernel_shape': 'pool_size',
+                    'pads': ('padding', (0, 0), revert_caffe2_pad),
+                    'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
+                    'ceil_mode': 'ceil_mode'
+                },
+                # very weird attributes here in onnx, force check
+                ignores=['dilations', 'auto_pad'],
+                custom_check=dimension_constraint())(inputs, attr, params)
+
+        raise tvm.error.OpAttributeInvalid("Only 1D and 2D maxpooling are currently supported.")
 
 class Mul(Elemwise):
     """ Operator converter for Multiply.

@@ -1827,6 +1827,100 @@ def test_unsqueeze_constant():
         relay.frontend.from_onnx(onnx_model, {'0': input_size})
 
 
+def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode):
+    x_np = np.random.uniform(size=x_shape).astype('float32')
+
+    if mode == 'max':
+        node_type = "MaxPool"
+    elif mode == 'average':
+        node_type = "AveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    pool_node = helper.make_node(node_type, 
+                                inputs=["x"], 
+                                outputs=["y"],
+                                kernel_shape=kernel_shape,
+                                pads=pads,
+                                strides=strides)
+
+    graph = helper.make_graph([pool_node],
+                              "pooling_test",
+                              inputs=[helper.make_tensor_value_info("x",
+                                                                    TensorProto.FLOAT, list(x_shape))],
+                              outputs=[helper.make_tensor_value_info("y",
+                                                                     TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='pooling_test')
+
+    for target, ctx in ctx_list():
+        onnx_out = get_onnxruntime_output(model, x_np, 'float32')
+        tvm_out = get_tvm_output(
+            model, [x_np], target, ctx, out_shape)
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_pooling():
+    # MaxPool1D
+    verify_pooling(x_shape=[1, 1, 32],
+                   kernel_shape=[3],
+                   strides=[1],
+                   pads=[1, 1],
+                   out_shape=[1, 1, 32],
+                   mode='max')
+    # MaxPool2D
+    verify_pooling(x_shape=[1, 1, 32, 32],
+                   kernel_shape=[3, 3],
+                   strides=[1, 1],
+                   pads=[1, 1, 1, 1],
+                   out_shape=[1, 1, 32, 32],
+                   mode='max')
+
+    #AveragePool1D
+    verify_pooling(x_shape=[1, 1, 32],
+                   kernel_shape=[3],
+                   strides=[1],
+                   pads=[1, 1],
+                   out_shape=[1, 1, 32],
+                   mode='average')
+    #AveragePool2D
+    verify_pooling(x_shape=[1, 1, 32, 32],
+                   kernel_shape=[3, 3],
+                   strides=[1, 1],
+                   pads=[1, 1, 1, 1],
+                   out_shape=[1, 1, 32, 32],
+                   mode='average')
+
+    # MaxPool1D with stride
+    verify_pooling(x_shape=[1, 1, 32],
+                   kernel_shape=[3],
+                   strides=[2],
+                   pads=[1, 1],
+                   out_shape=[1, 1, 16],
+                   mode='max')
+    # MaxPool2D with stride
+    verify_pooling(x_shape=[1, 1, 32, 32],
+                   kernel_shape=[3, 3],
+                   strides=[2, 2],
+                   pads=[1, 1, 1, 1],
+                   out_shape=[1, 1, 16, 16],
+                   mode='max')
+
+    #AveragePool1D with stride
+    verify_pooling(x_shape=[1, 1, 32],
+                   kernel_shape=[3],
+                   strides=[2],
+                   pads=[1, 1],
+                   out_shape=[1, 1, 16],
+                   mode='average')
+    #AveragePool2D with stride
+    verify_pooling(x_shape=[1, 1, 32, 32],
+                   kernel_shape=[3, 3],
+                   strides=[2, 2],
+                   pads=[1, 1, 1, 1],
+                   out_shape=[1, 1, 16, 16],
+                   mode='average')
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -1884,3 +1978,4 @@ if __name__ == '__main__':
     test_conv()
     test_convtranspose()
     test_unsqueeze_constant()
+    test_pooling()

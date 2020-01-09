@@ -642,6 +642,34 @@ def test_pool2d():
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 
 
+def test_pool1d():
+
+    def _test_pool1d(opfunc):
+        n, c, w = tvm.var("n"), 10, 224
+        x = relay.var("x", relay.TensorType((n, c, w), "float32"))
+        y = opfunc(x, pool_size=(1,))
+        assert "pool_size=" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, 10, 224), "float32")
+        # test execution
+        dtype = "float32"
+        dshape = (1, 3, 32)
+        x = relay.var("x", shape=dshape)
+        pool_type = 'max' if 'max' in str(opfunc) else 'avg'
+        y = opfunc(x, pool_size=(2,), strides=(2,), padding=(0, 0))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = topi.testing.pool1d_ncw_python(data, (2,), (2,),
+                                                 (0, 0), (1, 3, 16), pool_type, False)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_pool1d(relay.nn.max_pool1d)
+    _test_pool1d(relay.nn.avg_pool1d)
+
+
 def test_pool3d():
 
     def _test_pool3d(opfunc):
@@ -1081,6 +1109,7 @@ def test_bitpack_infer_type():
 
 
 if __name__ == "__main__":
+    test_pool1d()
     test_pool2d()
     test_pool3d()
     test_avg_pool2d_no_count_pad()

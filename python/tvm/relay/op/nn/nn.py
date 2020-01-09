@@ -373,6 +373,55 @@ def log_softmax(data, axis=-1):
     return _make.log_softmax(data, axis)
 
 
+def max_pool1d(data,
+               pool_size=(1,),
+               strides=(1,),
+               padding=(0,),
+               layout="NCW",
+               ceil_mode=False):
+    r"""1D maximum pooling operator.
+
+    This operator takes data as input and does 1D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : int or tuple of int, optional
+        The strides of pooling.
+
+    padding : int or tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(padding, int):
+        padding = (padding,)
+    return _make.max_pool1d(data, pool_size, strides, padding,
+                            layout, ceil_mode)
+
+
 def max_pool2d(data,
                pool_size=(1, 1),
                strides=(1, 1),
@@ -470,6 +519,60 @@ def max_pool3d(data,
     return _make.max_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode)
 
+
+def avg_pool1d(data,
+               pool_size=(1,),
+               strides=(1,),
+               padding=(0,),
+               layout="NCW",
+               ceil_mode=False,
+               count_include_pad=False):
+    r"""1D average pooling operator.
+
+    This operator takes data as input and does 1D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : int or tuple of int, optional
+        The strides of pooling.
+
+    padding : int or tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(padding, int):
+        padding = (padding,)
+    return _make.avg_pool1d(data, pool_size, strides, padding,
+                            layout, ceil_mode, count_include_pad)
+
+
 def avg_pool2d(data,
                pool_size=(1, 1),
                strides=(1, 1),
@@ -541,7 +644,7 @@ def avg_pool3d(data,
 
 
     In the default case, where the data_layout is `NCDHW`
-    a data Tensor with shape `(batch_size, channels, depthm height, width)`,
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
     to produce an output Tensor.
 
     The ceil_mode is used to take ceil or floor while computing out shape.

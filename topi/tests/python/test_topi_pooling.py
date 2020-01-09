@@ -318,8 +318,61 @@ def test_pool3d():
     verify_pool3d(1, 256, 31, 3, 3, [3, 2, 1, 0, 5, 4], 'max', True)
 
 
+def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
+                  ceil_mode, count_include_pad=True, layout='NCW'):
+    input_shape = (n, ic, iw)
+    kernel = [kw]
+    stride = [sw]
+    A = tvm.placeholder(input_shape, name='A')
+    B = topi.nn.pool1d(A, kernel=kernel, stride=stride, padding=padding,
+                       pool_type=pool_type, ceil_mode=ceil_mode,
+                       layout=layout, count_include_pad=count_include_pad)
+    B = topi.nn.relu(B)
+    dtype = A.dtype
+    output_shape = [int(i) for i in B.shape]
+
+    input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
+    ref_np = topi.testing.pool1d_ncw_python(input_np, kernel, stride, padding,
+                                            output_shape, pool_type, count_include_pad, ceil_mode)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_pool(B, layout)
+
+        a = tvm.nd.array(input_np, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
+        f = tvm.build(s, [A, B], device)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
+def test_pool1d():
+    verify_pool1d(1, 256, 32, 2, 2, [0, 0], 'avg', False, True)
+    verify_pool1d(1, 256, 31, 3, 3, [1, 2], 'avg', False, True)
+    verify_pool1d(1, 256, 32, 2, 2, [1, 2], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 4, 4, [3, 3], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 4, 4, [0, 0], 'avg', False, False)
+    verify_pool1d(1, 256, 32, 2, 2, [0, 0], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [2, 1], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [2, 1], 'max', True)
+
+    verify_pool1d(1, 256, 31, 3, 3, [2, 5], 'avg', False, True)
+    verify_pool1d(1, 256, 32, 2, 2, [0, 3], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 3, 3, [1, 4], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [3, 0], 'max', True)
+
+
 if __name__ == "__main__":
     test_pool()
+    test_pool1d()
     test_pool3d()
     test_pool_grad()
     test_global_pool()
