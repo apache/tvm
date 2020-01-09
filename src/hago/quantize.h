@@ -29,17 +29,22 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <string>
-// #include "../pattern_util.h"
 
 namespace tvm {
 namespace hago {
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
+  DataType out_dtype;
+  DataType in_dtype;
   bool sign;
   std::string rounding;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "hago.SimulatedQuantizeAttrs") {
+    TVM_ATTR_FIELD(out_dtype)
+      .describe("out data type");
+    TVM_ATTR_FIELD(in_dtype)
+      .describe("in data type");
     TVM_ATTR_FIELD(sign).set_default(true)
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")

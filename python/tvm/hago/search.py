@@ -18,10 +18,11 @@
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 
+from .base import * 
 from . import _quantize
 from . import quantize as qtz
 from .. import relay
-from .threshold import threshold_estimate
+from .threshold import threshold_estimate, threshold_rectify
 
 import tvm
 import random
@@ -29,6 +30,7 @@ import math
 import itertools
 import time
 import logging
+import sys
 import numpy as np
 import multiprocessing as mp
 try:
@@ -58,7 +60,6 @@ except ImportError:
 
 # During Realize Phase:
 # infer scale of every connection
-
 
 
 # sq(data, scale, clip_min, clip_max, upper_bound, lower_bound, signed=True, rounding='round')
@@ -97,73 +98,61 @@ except ImportError:
 #     return data
 
 
-
-def printrelay(e):
-    if isinstance(e, (relay.Var)):
-        print(e.name_hint)
-    if isinstance(e, relay.Constant):
-        print('constant')
-    if isinstance(e, relay.Call):
-        print(e.op.name)
-    return None
-
 def generate_bit_choices(graph, hw_desc):
-    """
-    Question:
-      - do we need to consider output nbit constraint?
-    """
-    # build indexing map
-    expr2idx = {}  # expr(var/call) to idx
-    def fvisit_build_index(e):
-        if isinstance(e, (relay.Var, relay.Constant, relay.Call)):
-            expr2idx[e] = fvisit_build_index.idx_cnt 
-            fvisit_build_index.idx_cnt += 1
-    fvisit_build_index.idx_cnt = 0
-    relay.analysis.post_order_visit(graph, fvisit_build_index)
+    _DEFAULT_BIT_LIMIT = 32
+    def get_inputs_bit_limit(node):
+        inputs_bit_limit = [None] * len(node.args)
+        if isinstance(node, relay.Call) and node.op.name in hw_desc.ops:
+            constraints = hw_desc[node.op.name]
+            # init with the first constraint
+            inputs_bit_limit = [dtype.bits for dtype in constraints[0].idtypes]
+            for cstr in constraints:
+                inputs_bit = [dtype.bits for dtype in cstr.idtypes]
+                inputs_bit_limit = [max(v1, v2) for v1, v2
+                                    in zip(inputs_bit, inputs_bit_limit)]
+        return inputs_bit_limit
+
+    def get_output_bit_limit(node):
+        output_bit_limit = None
+        if isinstance(node, relay.Call) and node.op.name in hw_desc.ops:
+            constraints = hw_desc[node.op.name]
+            output_bit_limit = max([cstr.odtype(0).bits for cstr in constraints])
+        return output_bit_limit
+
+    def smaller_limit(olimit, ilimit):
+        # handle None
+        if olimit is None:
+            return ilimit
+        if ilimit is None:
+            return olimit
+        return min(olimit, ilimit)
+
+    edge2idx, num_edges = build_edge_index(graph)
 
     # analysis maximum num of bit on every tensor/edge
-    max_bits = [32 for _ in range(fvisit_build_index.idx_cnt)]
-    def fvisit_max_bits(e):
-        if isinstance(e, (relay.Var, relay.Constant)):
-            # use 8 bit for variables/weights
-            idx = expr2idx[e]
-            max_bits[idx] = 8
-        elif isinstance(e, relay.Call):
-            if e.op.name in hw_desc.ops:
-                print("op: "  + e.op.name)
-                constraints = hw_desc[e.op.name]
-                # consider output constraint of current op
-                max_output_bit = max(instr[1][0] for instr in hw_desc[e.op.name])
-                idx = expr2idx[e]
-                max_bits[idx] = max(max_bits[idx], max_output_bit)
-                print(max_bits[idx])
-
-                # consider input constraint of followering op
-                max_inputs_bit = constraints[0][0]
-                for (inputs_bit, outputs_bit) in constraints:
-                    max_inputs_bit = (max(v1, v2) for v1, v2
-                                      in zip(inputs_bit, max_inputs_bit))
-                for (inputrelay, max_input_bit) in zip(e.args, max_inputs_bit):
-                    in_idx = expr2idx[inputrelay]
-                    max_bits[in_idx] = max(max_bits[in_idx], max_input_bit)
+    bit_limits = [None] * num_edges
+    def fvisit_bit_limits(e):
+        if isinstance(e, relay.Call):
+            dest = e
+            inputs_bit_limit = get_inputs_bit_limit(dest)
+            for src_idx, src in enumerate(dest.args):
+                # consider output constraint of src node and input
+                # constraint of dest node, take smaller one between them
+                output_bit_limit = get_output_bit_limit(src)
+                bit_limit = smaller_limit(output_bit_limit, inputs_bit_limit[src_idx])
+                eidx = edge2idx[(src, dest)]
+                bit_limits[eidx]= bit_limit
         else:
             return
-    relay.analysis.post_order_visit(graph, fvisit_max_bits)
+    relay.analysis.post_order_visit(graph, fvisit_bit_limits)
 
-    print(max_bits)
-    exprs = []
-    def fvisit_test(e):
-        if isinstance(e, (relay.Var)):
-            exprs.append(e)
-        if isinstance(e, relay.Constant):
-            exprs.append('constant')
-        if isinstance(e, relay.Call):
-            exprs.append(e.op.name)
-    relay.analysis.post_order_visit(graph, fvisit_test)
+    for idx, limit in enumerate(bit_limits):
+        if limit is None:
+            bit_limits[idx] = _DEFAULT_BIT_LIMIT
 
-    for name, bit in zip(exprs, max_bits):
-        print(name, bit)
-    bit_choices = [list(reversed(range(4, max_bit + 1))) for max_bit in max_bits]
+    print('bit limits')
+    print_bits_info(graph, bit_limits)
+    bit_choices = [list(reversed(range(4, limit + 1))) for limit in bit_limits]
     return bit_choices
 
 
@@ -198,7 +187,8 @@ def eval_acc(func, dataset):
 def grid_search(f, domains, args, max_iter):
     num_iter = 0
     best_guess = None
-    best_cost = sys.float_info.max
+    best_cost = 0
+    fout = open('qsearch_grid_search.log', 'w+', buffering=1)
 
     for guess in itertools.product(*domains):
         if num_iter >= max_iter:
@@ -207,6 +197,12 @@ def grid_search(f, domains, args, max_iter):
         if cost > best_cost:
             best_cost = cost
             best_guess = guess
+        num_iter += 1
+        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+        fout.write(str(guess))
+        fout.write('\n')
+        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
+        fout.write('\n')
         num_iter += 1
     return best_guess, best_cost
 
@@ -261,29 +257,31 @@ def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, por
                 new[dim] = max(domains[dim])
         return new
 
-    current_guess = next(random_guess(domains))
-    current_cost = fcost(current_guess, *args)
-    best_guess, best_cost = current_guess, current_cost
+    previous_guess, previous_cost = None, 0
+    best_guess, best_cost = None, 0
     num_iter = 0
+    # init with random guess
+    guess = next(random_guess(domains))
     while T > Tmin:
-        guess = neighbour(best_guess, portion)
         cost = fcost(guess, *args)
         if cost >= best_cost:
-            # store as best guess 
+            # stored as best guess 
             best_guess = guess
             best_cost = cost
-        if cost >= current_cost or random.random() < math.exp(- (current_cost - cost) / T):
+        if cost >= previous_cost or random.random() < math.exp(- (previous_cost - cost) / T):
             print('accept guess')
             # accept the guess
-            current_guess = guess
-            current_cost = cost
+            previous_guess = guess
+            previous_cost = cost
         T = T * cool
-        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
+        print('niter: {}, acc: {}, best acc: {}\n\n'.format(num_iter, cost, best_cost))
         fout.write(str(guess))
         fout.write('\n')
         fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
         fout.write('\n')
         num_iter += 1
+        # make new guess
+        guess = neighbour(previous_guess, portion)
     return best_guess, best_cost
 
 
@@ -316,15 +314,34 @@ def search_quantize_strategy(mod, hw_desc, dataset=None):
         print('bits: {0}'.format(bits))
         # coarse-grained threshold estimate
         thresholds = threshold_estimate(graph, bits, dataset)
+        # print('\nafter threshold estimate')
+        # for thold in thresholds:
+        #     print(type(thold))
+
+        thresholds = threshold_rectify(graph, bits, thresholds)
+        # print('\nafter threshold rectify')
+        # for thold in thresholds:
+        #     print(type(thold))
         # print('thresholds: {0}'.format(thresholds))
-        op_params = qtz.calculate_quantize_op_params(graph, bits, thresholds, hw_desc)
+        op_params = qtz.calculate_params(graph, bits, thresholds, hw_desc)
         simulated_graph = qtz.simulate(graph, op_params)
+        # print('simulated_graph')
+        # print(simulated_graph)
         _, acc = eval_acc(simulated_graph, dataset)
         # [optional] calibrate threshold estimation
         return float(acc)
 
     best_bits, best_acc = search_bits_strategy(eval_func, bit_choices, graph, hw_desc, dataset)
+    # # load config directly
+    # with open('/sampa/home/ziheng/best_config.log', 'r') as fin:
+    #     lines = [line.rstrip('\n') for line in fin]
+    #     bits, info = lines
+    #     best_bits = list(map(int, bits.strip('][').split(', ')))
+    #     info = info.split(', ')
+    #     best_acc = float(info[2])
+
     print('finished search')
     print('best_acc: {0}'.format(best_acc))
     best_thresholds = threshold_estimate(graph, best_bits, dataset)
+    best_thresholds = threshold_rectify(graph, best_bits, best_thresholds)
     return best_bits, best_thresholds, best_acc

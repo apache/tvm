@@ -18,7 +18,7 @@
 """Automatic quantization utilities."""
 from __future__ import absolute_import as _abs
 
-from . import _quantized_ops
+from . import _op_attrs
 from .description import create_accelerator_description
 from .search import search_quantize_strategy
 from .quantize import qconfig, current_qconfig, quantize, prerequisite_optimize

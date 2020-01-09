@@ -26,6 +26,7 @@ except ImportError:
 
 import tvm
 
+from .base import *
 from . import _quantize
 from . import quantize as qtz
 from .. import relay
@@ -147,11 +148,12 @@ class Stats(object):
     def data(self, idx):
         return self.raw_data[idx] 
 
-    def range(self, idx, power_of_2=False):
+    def range(self, idx, power2=False):
         arr = np.concatenate(self.raw_data[idx]).reshape(-1)
-        arange = np.max(np.abs(arr))
-        if power_of_2:
-            return math.floor(math.log(arange))
+        arange = np.amax(np.abs(arr))
+        if power2:
+            # round to the nearest power of two
+            return 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
         return arange
 
     def mean(self, idx):
@@ -257,13 +259,19 @@ def threshold_estimate(graph, bits, dataset=None):
     # _analysis.post_order_visit(graph, fvisit_test)
 
     stats = collect_stats(graph, dataset)
-    max_ranges = [stats.range(i) for i in range(len(stats))]
     # print("range: {0}".format(max_range))
     if cfg.threshold_estimate_strategy == 'global_scale':
         thresholds = [cfg.global_scale for _ in exprs]
         return thresholds
     elif cfg.threshold_estimate_strategy == 'max_range':
+        max_ranges = [stats.range(i) for i in range(len(stats))]
         return max_ranges
+    elif cfg.threshold_estimate_strategy == 'power2_range':
+        max_ranges = [stats.range(i) for i in range(len(stats))]
+        # print(max_ranges)
+        power2_ranges = [stats.range(i, power2=True) for i in range(len(stats))]
+        # print(power2_ranges)
+        return  power2_ranges
     elif cfg.threshold_estimate_strategy == 'kl':
         assert scipy is not None, "scipy need to be installed for \
         utilizing kl calibration during quantization"
@@ -283,3 +291,41 @@ def threshold_estimate(graph, bits, dataset=None):
         # t1 = time.time()
         # print('time: {0}'.format(t1 - t0))
         # return thresholds
+
+
+def threshold_rectify(graph, bits, thresholds):
+    return thresholds
+    edge2idx, num_edges  = build_edge_index(graph)
+    node2idx, num_nodes  = build_node_index(graph)
+    node2edges = build_node2edges(graph)
+    # print('num_nodes: {}'.format(num_nodes))
+    # print('num_node2edge: {}'.format(len(node2edges)))
+    # for node in node2edges:
+    #     print('{}: {}'.format(node_str(node), len(node2edges[node])))
+    # for node in node2idx:
+    #     if node not in node2edges:
+    #         print('{} not existed.'.format(node_str(node)))
+
+    assert len(bits) == num_edges
+    assert len(thresholds) == num_nodes
+
+    def fvisit_rectify(node):
+        if isinstance(node, relay.Call):
+            frectify = node.op.get_attr('FHagoRectify')
+            if frectify is not None:
+                output_edges = node2edges[node]
+                print(node.op.name)
+                print(len(output_edges))
+                input_bits = [bits[edge2idx[(src, node)]] for src in node.args]
+                output_bits = [bits[edge2idx[edge]] for edge in output_edges]
+                input_tholds = [thresholds[node2idx[src]] for src in node.args]
+                output_tholds = [thresholds[node2idx[node]]] * len(output_edges)
+
+                tholds = frectify(input_bits, output_bits, input_tholds, output_tholds)
+                assert len(tholds) == (len(input_tholds) + len(output_tholds))
+                for i, src in enumerate(node.args):
+                    thresholds[node2idx[src]] = tholds[i].value
+                # TODO(ziheng) rectify output thresholds
+    relay.analysis.post_order_visit(graph, fvisit_rectify)
+    print_scale_info(graph, bits, thresholds)
+    return thresholds
