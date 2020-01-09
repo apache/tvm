@@ -372,6 +372,16 @@ inline bool find_height_width(const std::string& layout,
   return false;
 }
 
+inline bool find_width(const std::string& layout,
+                       int* width_axis) {
+  int dummy;
+  CHECK_EQ(find_depth_height_width(layout, &dummy, &dummy, width_axis),  false);
+  if (*width_axis != -1) {
+    return true;
+  }
+  return false;
+}
+
 /*!
 * \brief Perform pooling on height and width dimension of data.
 *        It decides the height and width dimension according to the layout string,
@@ -742,6 +752,51 @@ inline Tensor pool_impl_nd(const Tensor& x,
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
   }
+}
+
+/*!
+* \brief Perform pooling on the width dimension of data.
+*        Width axis is determined by the layout string
+*        in which 'W' means width.
+*        Width dimension cannot be split.
+*        For example, NCW, NCW16c, etc. are valid for pool,
+*        while NCW16w is not.
+*        See \a layout for more information of the layout string convention.
+* \param x The input tensor.
+* \param kernel_size Vector of three ints: {kernel_width}
+* \param stride_size Vector of three ints: {stride_width}
+* \param padding_size Vector of six ints: {head_pad_width, tail_pad_width}
+* \param pool_type The type of pooling operator
+* \param ceil_mode Whether to use ceil when calculating the output size
+* \param layout The input layout. Pooling supports any layout as long as 'W' appears.
+*        The layout is supposed to be composed of upper cases, lower cases and (optional) numbers,
+*        where upper case indicates a dimension and
+*        the corresponding lower case (with factor size) indicates the split dimension.
+*        For example, NCW16c can describe a 4-D tensor of
+*        [batch_size, channel, width, channel_block].
+*        (in which factor size `16` will not be used in pooling but for other operators,
+*        it can be used to decide the output shape).
+*        Since pooling does not care about the factor size of dimensions
+*        other than `W`, one can pass `NCWc` as well.
+* \param  count_include_pad Whether include padding in the calculation when pool_type is 'avg'
+*
+*
+* \return The output tensor in the same layout
+*/
+inline Tensor pool1d(const Tensor& x,
+                     const Array<Expr>& kernel_size,
+                     const Array<Expr>& stride_size,
+                     const Array<Expr>& padding_size,
+                     PoolType pool_type,
+                     bool ceil_mode,
+                     const std::string& layout = "NCW",
+                     bool count_include_pad = true) {
+  int width_axis = -1;
+  CHECK(find_width(layout, &width_axis))
+    << "Unsupported layout " << layout;
+  std::vector<int> axis = {width_axis};
+  return pool_impl_nd(x, kernel_size, stride_size, padding_size,
+                   pool_type, ceil_mode, axis, count_include_pad);
 }
 
 /*!
