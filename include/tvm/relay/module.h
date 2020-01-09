@@ -113,7 +113,7 @@ class ModuleNode : public RelayNode {
    * \param update Controls whether you can replace a definition in the
    * environment.
    *
-   * It does not do kind checking as AddTypeDef does.
+   * It does not do type checking as AddTypeDef does.
    */
   TVM_DLL void AddTypeDefUnchecked(const GlobalTypeVar& var,
                                    const TypeData& type,
