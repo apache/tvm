@@ -33,5 +33,6 @@ In this part of documentation, we share the rationale for the specific choices m
    relay_add_pass
    virtual_machine
    codebase_walkthrough
+   convert_layout
    inferbound
    benchmark
