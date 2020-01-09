@@ -79,9 +79,9 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
     case kTfLiteInt64:
       return DataType::Int(64);
     case kTfLiteInt16:
-      returnDataType::Int(16);
+      return DataType::Int(16);
     case kTfLiteInt8:
-      returnDataType::Int(8);
+      return DataType::Int(8);
     case kTfLiteUInt8:
       return DataType::UInt(8);
     case kTfLiteFloat16:
