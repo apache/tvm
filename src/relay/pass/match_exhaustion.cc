@@ -183,7 +183,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 
   // for a wildcard node, create constructor nodes with wildcards for all args.
   if (cand.as<PatternWildcardNode>()) {
-    TypeData td = mod->LookupDef(gtv);
+    TypeData td = mod->LookupTypeDef(gtv);
     // for each constructor add a candidate.
     Array<Pattern> ret;
     for (auto constructor : td->constructors) {

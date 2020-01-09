@@ -139,7 +139,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     // finally we need to check the module to check the number of type params
     auto var = GetRef<GlobalTypeVar>(gtv);
-    auto data = mod->LookupDef(var);
+    auto data = mod->LookupTypeDef(var);
     if (data->type_vars.size() != op->args.size()) {
       ReportFatalError(RELAY_ERROR("Expected " << data->type_vars.size() << "arguments for " << tc
                                    << "; got " << op->args.size()));
