@@ -45,9 +45,17 @@ def test_task_extraction():
                                               params=params,
                                               ops=(relay.op.nn.conv2d,))
     assert len(tasks) == 12
+    tasks = autotvm.task.extract_from_program(mod, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d,))
+    assert len(tasks) == 12
 
     mod, params, _ = get_network('resnet-18', batch_size=1)
     tasks = autotvm.task.extract_from_program(mod["main"], target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.dense,))
+    assert len(tasks) == 1
+    tasks = autotvm.task.extract_from_program(mod, target=target,
                                               params=params,
                                               ops=(relay.op.nn.dense,))
     assert len(tasks) == 1
@@ -59,22 +67,26 @@ def test_task_extraction():
                                               params=params,
                                               ops=(relay.op.nn.conv2d, relay.op.nn.dense))
     assert len(tasks) == 13
+    tasks = autotvm.task.extract_from_program(mod, target=target,
+                                              params=params,
+                                              ops=(relay.op.nn.conv2d, relay.op.nn.dense))
+    assert len(tasks) == 13
 
     mod, params, _ = get_network('mobilenet', batch_size=1)
     mod_list.append(mod)
     params_list.append(params)
-    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
+    tasks = autotvm.task.extract_from_program(mod, target=target,
                                               params=params,
                                               ops=(relay.op.nn.conv2d, relay.op.nn.dense))
     assert len(tasks) == 20
 
     mod, params, _ = get_network('dcgan', batch_size=1)
-    tasks = autotvm.task.extract_from_program(mod["main"], target=target,
+    tasks = autotvm.task.extract_from_program(mod, target=target,
                                               params=params,
                                               ops=(relay.op.nn.conv2d_transpose,))
     assert len(tasks) == 4
 
-    tasks = autotvm.task.extract_from_multiple_program([m['main'] for m in mod_list], params_list,
+    tasks = autotvm.task.extract_from_multiple_program(mod_list, params_list,
                                                        target=target,
                                                        ops=(relay.op.nn.conv2d,))
     assert len(tasks) == 31
