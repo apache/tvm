@@ -202,7 +202,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return ulhs;
     }
 
-    return tvm::Expr();
+    return tvm::PrimExpr();
   }
 
   Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
@@ -243,8 +243,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       if (!dim.defined()) {
         // NB: We push an arbitrary dimension here so we can continue error propogation.
         shape.push_back(tt1->shape[i]);
-        tvm::Expr shape1 = tt1->shape[i];
-        tvm::Expr shape2 = tt2->shape[i];
+        tvm::PrimExpr shape1 = tt1->shape[i];
+        tvm::PrimExpr shape2 = tt2->shape[i];
         std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
         mismatches.push_back(tuple);
       } else {

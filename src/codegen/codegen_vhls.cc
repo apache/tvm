@@ -140,7 +140,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<Expr> > kernel_info;
+  Array<Array<PrimExpr> > kernel_info;
   for (LoweredFunc f : funcs) {
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
@@ -149,7 +149,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code).operator std::string();
     }
-    kernel_info.push_back(Array<Expr>({f->name, code}));
+    kernel_info.push_back(Array<PrimExpr>({f->name, code}));
   }
 
   std::string xclbin;

@@ -99,7 +99,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   }
 
  private:
-  void Touch(const Array<Expr>& args) {
+  void Touch(const Array<PrimExpr>& args) {
     if (args.size() > bounds_.size()) {
       bounds_.resize(args.size());
     }

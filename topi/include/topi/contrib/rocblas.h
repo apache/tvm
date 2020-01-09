@@ -51,7 +51,7 @@ inline Tensor rocblas_matmul(const Tensor& lhs,
     { { n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
       return call_packed({
-        Expr("tvm.contrib.rocblas.matmul"),
+        PrimExpr("tvm.contrib.rocblas.matmul"),
         pack_buffer(ins[0]),
         pack_buffer(ins[1]),
         pack_buffer(outs[0]),

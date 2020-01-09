@@ -52,11 +52,11 @@ class TargetNode : public Object {
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
   int thread_warp_size = 1;
   /*! \brief Keys for this target */
-  Array<Expr> keys_array;
+  Array<PrimExpr> keys_array;
   /*! \brief Options for this target */
-  Array<Expr> options_array;
+  Array<PrimExpr> options_array;
   /*! \brief Collection of imported libs */
-  Array<Expr> libs_array;
+  Array<PrimExpr> libs_array;
 
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;

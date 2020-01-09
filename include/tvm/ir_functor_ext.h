@@ -102,9 +102,9 @@ class StmtFunctor;
       });                                                               \
 
 template<typename R, typename ...Args>
-class ExprFunctor<R(const Expr& n, Args...)> {
+class ExprFunctor<R(const PrimExpr& n, Args...)> {
  private:
-  using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
+  using TSelf = ExprFunctor<R(const PrimExpr& n, Args...)>;
   using FType = NodeFunctor<R(const ObjectRef& n, TSelf* self, Args...)>;
 
  public:
@@ -118,7 +118,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  R operator()(const Expr& n, Args... args) {
+  R operator()(const PrimExpr& n, Args... args) {
     return VisitExpr(n, std::forward<Args>(args)...);
   }
   /*!
@@ -127,7 +127,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R VisitExpr(const Expr& n, Args... args) {
+  virtual R VisitExpr(const PrimExpr& n, Args... args) {
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -291,7 +291,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
  * \brief ExprVisitor
  */
 class TVM_DLL ExprVisitor :
-      public ExprFunctor<void(const Expr&)> {
+      public ExprFunctor<void(const PrimExpr&)> {
  public:
   using ExprFunctor::operator();
 
@@ -336,45 +336,45 @@ class TVM_DLL ExprVisitor :
  * \brief ExprMutator that mutates expressions.
  */
 class TVM_DLL ExprMutator :
-      protected ExprFunctor<Expr(const Expr&)> {
+      protected ExprFunctor<PrimExpr(const PrimExpr&)> {
  public:
   using ExprFunctor::operator();
 
  protected:
   using ExprFunctor::VisitExpr;
   // list of functions to override.
-  Expr VisitExpr_(const VarNode* op) override;
-  Expr VisitExpr_(const LoadNode* op) override;
-  Expr VisitExpr_(const LetNode* op) override;
-  Expr VisitExpr_(const CallNode* op) override;
-  Expr VisitExpr_(const AddNode* op) override;
-  Expr VisitExpr_(const SubNode* op) override;
-  Expr VisitExpr_(const MulNode* op) override;
-  Expr VisitExpr_(const DivNode* op) override;
-  Expr VisitExpr_(const ModNode* op) override;
-  Expr VisitExpr_(const FloorDivNode* op) override;
-  Expr VisitExpr_(const FloorModNode* op) override;
-  Expr VisitExpr_(const MinNode* op) override;
-  Expr VisitExpr_(const MaxNode* op) override;
-  Expr VisitExpr_(const EQNode* op) override;
-  Expr VisitExpr_(const NENode* op) override;
-  Expr VisitExpr_(const LTNode* op) override;
-  Expr VisitExpr_(const LENode* op) override;
-  Expr VisitExpr_(const GTNode* op) override;
-  Expr VisitExpr_(const GENode* op) override;
-  Expr VisitExpr_(const AndNode* op) override;
-  Expr VisitExpr_(const OrNode* op) override;
-  Expr VisitExpr_(const ReduceNode* op) override;
-  Expr VisitExpr_(const CastNode* op) override;
-  Expr VisitExpr_(const NotNode* op) override;
-  Expr VisitExpr_(const SelectNode* op) override;
-  Expr VisitExpr_(const RampNode* op) override;
-  Expr VisitExpr_(const BroadcastNode* op) override;
-  Expr VisitExpr_(const ShuffleNode* op) override;
-  Expr VisitExpr_(const IntImmNode* op) override;
-  Expr VisitExpr_(const UIntImmNode* op) override;
-  Expr VisitExpr_(const FloatImmNode* op) override;
-  Expr VisitExpr_(const StringImmNode* op) override;
+  PrimExpr VisitExpr_(const VarNode* op) override;
+  PrimExpr VisitExpr_(const LoadNode* op) override;
+  PrimExpr VisitExpr_(const LetNode* op) override;
+  PrimExpr VisitExpr_(const CallNode* op) override;
+  PrimExpr VisitExpr_(const AddNode* op) override;
+  PrimExpr VisitExpr_(const SubNode* op) override;
+  PrimExpr VisitExpr_(const MulNode* op) override;
+  PrimExpr VisitExpr_(const DivNode* op) override;
+  PrimExpr VisitExpr_(const ModNode* op) override;
+  PrimExpr VisitExpr_(const FloorDivNode* op) override;
+  PrimExpr VisitExpr_(const FloorModNode* op) override;
+  PrimExpr VisitExpr_(const MinNode* op) override;
+  PrimExpr VisitExpr_(const MaxNode* op) override;
+  PrimExpr VisitExpr_(const EQNode* op) override;
+  PrimExpr VisitExpr_(const NENode* op) override;
+  PrimExpr VisitExpr_(const LTNode* op) override;
+  PrimExpr VisitExpr_(const LENode* op) override;
+  PrimExpr VisitExpr_(const GTNode* op) override;
+  PrimExpr VisitExpr_(const GENode* op) override;
+  PrimExpr VisitExpr_(const AndNode* op) override;
+  PrimExpr VisitExpr_(const OrNode* op) override;
+  PrimExpr VisitExpr_(const ReduceNode* op) override;
+  PrimExpr VisitExpr_(const CastNode* op) override;
+  PrimExpr VisitExpr_(const NotNode* op) override;
+  PrimExpr VisitExpr_(const SelectNode* op) override;
+  PrimExpr VisitExpr_(const RampNode* op) override;
+  PrimExpr VisitExpr_(const BroadcastNode* op) override;
+  PrimExpr VisitExpr_(const ShuffleNode* op) override;
+  PrimExpr VisitExpr_(const IntImmNode* op) override;
+  PrimExpr VisitExpr_(const UIntImmNode* op) override;
+  PrimExpr VisitExpr_(const FloatImmNode* op) override;
+  PrimExpr VisitExpr_(const StringImmNode* op) override;
 };
 
 /*!
@@ -394,7 +394,7 @@ class TVM_DLL StmtVisitor :
    *       or have a class sub-class both StmtVisitor and ExprVisitor
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
-  virtual void VisitExpr(const Expr& e) {}
+  virtual void VisitExpr(const PrimExpr& e) {}
   // statement visitor
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -486,7 +486,7 @@ class TVM_DLL StmtMutator :
    *       or have a class sub-class both StmtMutator and ExprMutator
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
-  virtual Expr VisitExpr(const Expr& e) {
+  virtual PrimExpr VisitExpr(const PrimExpr& e) {
     return e;
   }
   // statement visitor
@@ -537,7 +537,7 @@ class StmtExprVisitor :
   using StmtVisitor::VisitStmt;
   using ExprVisitor::VisitExpr;
 
-  void VisitExpr(const Expr& e) override {
+  void VisitExpr(const PrimExpr& e) override {
     return ExprVisitor::VisitExpr(e);
   }
 };
@@ -556,7 +556,7 @@ class StmtExprMutator :
   using StmtMutator::VisitExpr;
   using ExprMutator::VisitExpr;
 
-  Expr VisitExpr(const Expr& e) override {
+  PrimExpr VisitExpr(const PrimExpr& e) override {
     return ExprMutator::VisitExpr(e);
   }
 };
@@ -579,7 +579,7 @@ class StmtExprMutator :
 TVM_DLL Stmt IRTransform(Stmt node,
                          const runtime::PackedFunc& preorder,
                          const runtime::PackedFunc& postorder,
-                         const Array<Expr>& only_enable = {});
+                         const Array<PrimExpr>& only_enable = {});
 
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit

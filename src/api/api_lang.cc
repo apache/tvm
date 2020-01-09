@@ -289,7 +289,7 @@ TVM_REGISTER_GLOBAL("_TensorHash")
   });
 
 TVM_REGISTER_GLOBAL("_Placeholder")
-.set_body_typed([](Array<Expr> shape, DataType dtype, std::string name) {
+.set_body_typed([](Array<PrimExpr> shape, DataType dtype, std::string name) {
   return placeholder(shape, dtype, name);
 });
 
@@ -337,14 +337,14 @@ TVM_REGISTER_GLOBAL("_StageBind")
 .set_body_method(&Stage::bind);
 
 TVM_REGISTER_GLOBAL("_StageSplitByFactor")
-.set_body_typed([](Stage stage, IterVar parent, Expr factor) {
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr factor) {
   IterVar outer, inner;
   stage.split(parent, factor, &outer, &inner);
   return Array<IterVar>({outer, inner});
 });
 
 TVM_REGISTER_GLOBAL("_StageSplitByNParts")
-.set_body_typed([](Stage stage, IterVar parent, Expr nparts) {
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr nparts) {
   IterVar outer, inner;
   stage.split_by_nparts(parent, nparts, &outer, &inner);
   return Array<IterVar>({outer, inner});
@@ -373,7 +373,7 @@ TVM_REGISTER_GLOBAL("_StageTile")
 .set_body_typed([](
   Stage stage,
   IterVar x_parent, IterVar y_parent,
-  Expr x_factor, Expr y_factor
+  PrimExpr x_factor, PrimExpr y_factor
 ) {
     IterVar x_outer, y_outer, x_inner, y_inner;
     stage.tile(x_parent, y_parent,

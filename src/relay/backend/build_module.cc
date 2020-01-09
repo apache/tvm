@@ -83,7 +83,7 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::Expr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::PrimExpr> >("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<ir::StringImmNode>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
@@ -190,8 +190,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return Array<StringImm> names of params
    */
-  Array<tvm::Expr> ListParamNames() {
-    Array<tvm::Expr> ret;
+  Array<tvm::PrimExpr> ListParamNames() {
+    Array<tvm::PrimExpr> ret;
     for (const auto& kv : params_) {
       ret.push_back(ir::StringImmNode::make(kv.first));
     }

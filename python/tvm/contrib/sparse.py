@@ -167,7 +167,7 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     tensor: SparsePlaceholderOp
         The created sparse tensor placeholder
     """
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     nonzeros = 0 if nonzeros is None else nonzeros
     dtype = float32 if dtype is None else dtype
     stype = 'csr' if stype is None else stype

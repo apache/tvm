@@ -30,7 +30,7 @@ namespace ir {
 
 class IRSideEffect : public ExprVisitor {
  public:
-  void VisitExpr(const Expr& e) final {
+  void VisitExpr(const PrimExpr& e) final {
     if (has_side_effect_) return;
     ExprVisitor::VisitExpr(e);
   }
@@ -46,7 +46,7 @@ class IRSideEffect : public ExprVisitor {
   bool has_side_effect_{false};
 };
 
-bool HasSideEffect(const Expr& e) {
+bool HasSideEffect(const PrimExpr& e) {
   IRSideEffect v;
   v(e);
   return v.has_side_effect_;
@@ -55,45 +55,45 @@ bool HasSideEffect(const Expr& e) {
 class IRSubstitue : public StmtExprMutator {
  public:
   explicit IRSubstitue(
-      const std::unordered_map<const VarNode*, Expr>& smap)
+      const std::unordered_map<const VarNode*, PrimExpr>& smap)
       : smap_(smap) {
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = smap_.find(op);
     if (it != smap_.end()) {
       return it->second;
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
 
  private:
-  const std::unordered_map<const VarNode*, Expr>& smap_;
+  const std::unordered_map<const VarNode*, PrimExpr>& smap_;
 };
 
 Stmt Substitute(Stmt stmt,
-                const std::unordered_map<const VarNode*, Expr>& value_map) {
+                const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
   if (value_map.size() == 0) return stmt;
   return IRSubstitue(value_map)(std::move(stmt));
 }
 
-Expr Substitute(Expr expr,
-                const std::unordered_map<const VarNode*, Expr>& value_map) {
+PrimExpr Substitute(PrimExpr expr,
+                const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
   if (value_map.size() == 0) return expr;
   return IRSubstitue(value_map)(std::move(expr));
 }
 
-Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map) {
-  std::unordered_map<const VarNode*, Expr> vmap;
+Stmt Substitute(Stmt stmt, const Map<Var, PrimExpr>& value_map) {
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (const auto& kv : value_map) {
     vmap[kv.first.get()] = kv.second;
   }
   return Substitute(stmt, vmap);
 }
 
-Expr Substitute(Expr expr, const Map<Var, Expr>& value_map) {
-  std::unordered_map<const VarNode*, Expr> vmap;
+PrimExpr Substitute(PrimExpr expr, const Map<Var, PrimExpr>& value_map) {
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (const auto& kv : value_map) {
     vmap[kv.first.get()] = kv.second;
   }
@@ -102,7 +102,7 @@ Expr Substitute(Expr expr, const Map<Var, Expr>& value_map) {
 
 class VarTouchVisitor : public ExprVisitor {
  public:
-  void VisitExpr(const Expr& e) final {
+  void VisitExpr(const PrimExpr& e) final {
     if (use_var_) return;
     ExprVisitor::VisitExpr(e);
   }
@@ -146,13 +146,13 @@ class ExprUseVSetVisitor : public VarTouchVisitor {
   const std::unordered_set<const VarNode*>& vset_;
 };
 
-bool ExprUseVar(const Expr& e, const Var& v) {
+bool ExprUseVar(const PrimExpr& e, const Var& v) {
   ExprUseVarVisitor visitor(v.get());
   visitor(e);
   return visitor.use_var_;
 }
 
-bool ExprUseVar(const Expr& e,
+bool ExprUseVar(const PrimExpr& e,
                 const std::unordered_set<const VarNode*>& vset) {
   ExprUseVSetVisitor visitor(vset);
   visitor(e);

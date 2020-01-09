@@ -341,8 +341,8 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     Range r = arith::Union(wset).cover_range(none);
     CHECK(r.defined())
         << "Cannot deduce write range of " << wvec[0].buffer;
-    Expr min = r->min;
-    Expr extent = r->extent;
+    PrimExpr min = r->min;
+    PrimExpr extent = r->extent;
     return EvaluateNode::make(CallNode::make(
         DataType::Int(32), func,
         {wvec[0].buffer, wvec[0].dtype.bits(), r->min, r->extent}, CallNode::Intrinsic));

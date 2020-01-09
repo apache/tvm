@@ -57,7 +57,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     out_shape = tuple(
         tvm.ir_pass.Simplify(
             (data.shape[i] + pad_before[i] + pad_after[i])) for i in range(n))
-    pad_value = (pad_value if isinstance(pad_value, tvm.expr.Expr)
+    pad_value = (pad_value if isinstance(pad_value, tvm.expr.PrimExpr)
                  else tvm.const(pad_value, data.dtype))
     def _pad(*indices):
         not_zero = []

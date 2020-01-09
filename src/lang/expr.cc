@@ -29,14 +29,14 @@
 
 namespace tvm {
 
-Expr::Expr(int32_t value)
-    : Expr(IntImmNode::make(DataType::Int(32), value)) {}
+PrimExpr::PrimExpr(int32_t value)
+    : PrimExpr(IntImmNode::make(DataType::Int(32), value)) {}
 
-Expr::Expr(float value)
-    : Expr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
+PrimExpr::PrimExpr(float value)
+    : PrimExpr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
 
-Expr::Expr(std::string str)
-    : Expr(ir::StringImmNode::make(str)) {}
+PrimExpr::PrimExpr(std::string str)
+    : PrimExpr(ir::StringImmNode::make(str)) {}
 
 Var::Var(std::string name_hint, DataType t)
     : Var(VarNode::make(t, name_hint)) {}
@@ -48,7 +48,7 @@ Var VarNode::make(DataType t, std::string name_hint) {
   return Var(node);
 }
 
-Range::Range(Expr begin, Expr end)
+Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
@@ -63,7 +63,7 @@ Integer IntImmNode::make(DataType t, int64_t value) {
   return Integer(node);
 }
 
-Range Range::make_by_min_extent(Expr min, Expr extent) {
+Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
   return Range(make_object<RangeNode>(min, extent));
 }
 

@@ -56,7 +56,7 @@ DataType HybridOpNode::output_dtype(size_t i) const {
   return outputs[i]->dtype;
 }
 
-Array<Expr> HybridOpNode::output_shape(size_t i) const {
+Array<PrimExpr> HybridOpNode::output_shape(size_t i) const {
   return outputs[i]->shape;
 }
 
@@ -222,7 +222,7 @@ namespace op {
 Stmt ApplyLoopShapes(const Stage &stage,
                  const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
   class LoopSpliter : public StmtExprMutator {
-    Expr factor;
+    PrimExpr factor;
     const VarNode *parent;
     IterVar inner, outer;
 
@@ -249,14 +249,14 @@ Stmt ApplyLoopShapes(const Stage &stage,
 
     Stmt VisitStmt_(const ForNode *op) final {
       if (op->loop_var.get() == parent) {
-        std::unordered_map<const VarNode *, Expr> rmap;
+        std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
         Stmt ret = ir::Substitute(op->body, rmap);
-        Expr cond = likely(outer * factor < (op->extent - inner));
+        PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElseNode::make(cond, ret);
-        ret = ForNode::make(inner->var, Expr(0), inner->dom->extent,
+        ret = ForNode::make(inner->var, PrimExpr(0), inner->dom->extent,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);
-        ret = ForNode::make(outer->var, Expr(0), outer->dom->extent,
+        ret = ForNode::make(outer->var, PrimExpr(0), outer->dom->extent,
                         IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
@@ -270,7 +270,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
     const VarNode *inner;
     const VarNode *outer;
     bool under_outer;
-    Expr extent;
+    PrimExpr extent;
 
    public:
     bool fused;
@@ -283,7 +283,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
     Stmt VisitStmt_(const ForNode* op) final {
       if (op->loop_var.get() == inner) {
         CHECK(under_outer);
-        std::unordered_map<const VarNode *, Expr> rmap;
+        std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
@@ -291,15 +291,15 @@ Stmt ApplyLoopShapes(const Stage &stage,
       } else if (op->loop_var.get() == outer) {
         under_outer = true;
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const VarNode *, Expr> rmap;
+        std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = ir::Substitute(body, rmap);
         under_outer = false;
-        return ForNode::make(parent->var, Expr(0), extent * op->extent,
+        return ForNode::make(parent->var, PrimExpr(0), extent * op->extent,
                          op->for_type, op->device_api, body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
-        std::unordered_map<const VarNode *, Expr> rmap;
+        std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
         body = ir::Substitute(body, rmap);
         extent = extent * op->extent;
@@ -342,7 +342,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
             CHECK(Equal(iter_var->dom->extent, op->extent))
               << "Thread extent and loop extent mismatch!\n";
           }
-          std::unordered_map<const VarNode *, Expr> rmap;
+          std::unordered_map<const VarNode *, PrimExpr> rmap;
           rmap[op->loop_var.get()] = iter_var;
           Stmt body = ir::Substitute(op->body, rmap);
           return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);

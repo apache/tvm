@@ -95,9 +95,9 @@ class PassContextNode : public RelayNode {
   int fallback_device{static_cast<int>(kDLCPU)};
 
   /*! \brief The list of required passes. */
-  tvm::Array<tvm::Expr> required_pass;
+  tvm::Array<tvm::PrimExpr> required_pass;
   /*! \brief The list of disabled passes. */
-  tvm::Array<tvm::Expr> disabled_pass;
+  tvm::Array<tvm::PrimExpr> disabled_pass;
 
   PassContextNode() = default;
 
@@ -192,7 +192,7 @@ class PassInfoNode : public RelayNode {
   std::string name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  tvm::Array<tvm::Expr> required;
+  tvm::Array<tvm::PrimExpr> required;
 
   PassInfoNode() = default;
 
@@ -204,7 +204,7 @@ class PassInfoNode : public RelayNode {
 
   TVM_DLL static PassInfo make(int opt_level,
                                std::string name,
-                               tvm::Array<tvm::Expr> required);
+                               tvm::Array<tvm::PrimExpr> required);
 
   static constexpr const char* _type_key = "relay.PassInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, RelayNode);
@@ -332,7 +332,7 @@ Pass CreateModulePass(
     const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
+    const tvm::Array<tvm::PrimExpr>& required);
 
 /*
  * \brief Create a function pass.
@@ -348,7 +348,7 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
                                 Function(Function, Module, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
-                                const tvm::Array<tvm::Expr>& required);
+                                const tvm::Array<tvm::PrimExpr>& required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *

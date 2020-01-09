@@ -46,7 +46,7 @@ using namespace ir;
  * For runtime support, please refer the decorator in ``tvm/python/hybrid/api.py``.
  */
 class CodeGenHybrid :
-      public ExprFunctor<void(const Expr&, std::ostream&)>,
+      public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
       public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
@@ -77,14 +77,14 @@ class CodeGenHybrid :
    * \param n The expression to be printed.
    * \param os The output stream
    */
-  void PrintExpr(const Expr &n, std::ostream &os) {
+  void PrintExpr(const PrimExpr &n, std::ostream &os) {
     this->VisitExpr(n, os);
   }
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
-  std::string PrintExpr(const Expr &n) {
+  std::string PrintExpr(const PrimExpr &n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();

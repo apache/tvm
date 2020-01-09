@@ -300,7 +300,7 @@ Array<Operation> ScanGetBody(const Operation& scan_op) {
   return GetSubGraph(scan->update, inputs, false);
 }
 
-Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
+Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
   const ScanOpNode* scan = scan_op.as<ScanOpNode>();
   Array<Operation> body = ScanGetBody(scan_op);
 
@@ -377,7 +377,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
     }
   }
   ReachGraph reach;
-  Map<IterVar, Expr> ret;
+  Map<IterVar, PrimExpr> ret;
   std::unordered_set<TensorDimKey> place_holder_ref;
   for (size_t i = 0; i < scan->state_placeholder.size(); ++i) {
     for (size_t k = 0; k < scan->state_placeholder[i]->shape.size(); ++k) {

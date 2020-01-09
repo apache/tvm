@@ -49,7 +49,7 @@ TVM_REGISTER_GLOBAL("arith.DetectClipBound")
 
 TVM_REGISTER_GLOBAL("arith.DeduceBound")
 .set_body_typed([](
-  Expr v, Expr cond,
+  PrimExpr v, PrimExpr cond,
   const Map<Var, IntSet> hint_map,
   const Map<Var, IntSet> relax_map
 ) {
@@ -121,7 +121,7 @@ TVM_REGISTER_GLOBAL("arith._CreateAnalyzer")
             if (args[1].IsObjectRef<Range>()) {
               self->Bind(args[0], args[1].operator Range());
             } else {
-              self->Bind(args[0], args[1].operator Expr());
+              self->Bind(args[0], args[1].operator PrimExpr());
             }
         });
       } else if (name == "enter_constraint_context") {

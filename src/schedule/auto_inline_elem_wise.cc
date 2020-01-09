@@ -33,13 +33,13 @@ class ElemWiseDetector : public ir::ExprVisitor {
  public:
   explicit ElemWiseDetector(Array<IterVar> axis) : axis_(axis) {}
 
-  void VisitExpr(const Expr& e) final {
+  void VisitExpr(const PrimExpr& e) final {
     if (!is_elem_wise_) return;
     ExprVisitor::VisitExpr(e);
   }
 
   void VisitExpr_(const CallNode* op) final {
-    Array<Expr> axis = op->args;
+    Array<PrimExpr> axis = op->args;
     if (axis_.size() != axis.size()) {
       is_elem_wise_ = false;
       return;

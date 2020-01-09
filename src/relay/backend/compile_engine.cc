@@ -203,7 +203,7 @@ class ScheduleGetter :
           return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
         } else {
           LOG(FATAL) << "not handled";
-          return tvm::Expr();
+          return tvm::PrimExpr();
         }
       }, "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
@@ -479,7 +479,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
             return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
           } else {
             LOG(FATAL) << "not handled";
-            return tvm::Expr();
+            return tvm::PrimExpr();
           }
       }, "data_const", topi::kBroadcast);
       scalars_.push_back(value);

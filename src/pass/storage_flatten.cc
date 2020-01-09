@@ -70,7 +70,7 @@ class StorageFlattener : public StmtExprMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
-      VarExpr buf_var = Downcast<VarExpr>(it->second);
+      Var buf_var = Downcast<Var>(it->second);
       return StoreNode::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
@@ -167,7 +167,7 @@ class StorageFlattener : public StmtExprMutator {
       // create a buffer entry
       BufferEntry e;
       e.bounds = op->bounds;
-      Array<Expr> shape;
+      Array<PrimExpr> shape;
       for (auto r : e.bounds) {
         shape.push_back(r->extent);
       }
@@ -198,29 +198,29 @@ class StorageFlattener : public StmtExprMutator {
               << "Allocation exceed bound of memory tag " << skey.to_string();
         }
       }
-      Array<Expr> strides;
+      Array<PrimExpr> strides;
       if (dim_align_.count(key) != 0 && shape.size() != 0) {
-        std::vector<Expr> rstrides;
+        std::vector<PrimExpr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
         int first_dim = 0;
-        Expr stride = make_const(shape[first_dim].dtype(), 1);
+        PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
-            Expr factor = make_const(stride.dtype(), avec[dim].align_factor);
-            Expr offset = make_const(stride.dtype(), avec[dim].align_offset);
+            PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
           }
           rstrides.push_back(stride);
           stride = stride * shape[dim];
         }
-        strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
+        strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
       e.buffer = BufferNode::make(
           Var(key.GetName(), DataType::Handle()),
-          op->dtype, shape, strides, Expr(),
+          op->dtype, shape, strides, PrimExpr(),
           key.GetName(), skey.to_string(),
           align, 0, kDefault);
 
@@ -262,31 +262,31 @@ class StorageFlattener : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     auto it = var_remap_.find(op->buffer_var.get());
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
-      VarExpr buf_var = Downcast<VarExpr>(it->second);
+      Var buf_var = Downcast<Var>(it->second);
       return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
     }
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     if (op != nullptr && op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
@@ -332,20 +332,20 @@ class StorageFlattener : public StmtExprMutator {
       block_size *= shape;
       starts--;
     }
-    Expr stride(elem_cnt / block_size);
+    PrimExpr stride(elem_cnt / block_size);
 
-    Array<Expr> args;
-    std::vector<VarExpr> vars;
+    Array<PrimExpr> args;
+    std::vector<Var> vars;
 
     for (int i = op->bounds.size() - 1; i > starts; --i) {
       args.push_back(op->bounds[i]->min);
     }
     auto &func_name = op->func->func_name();
-    vars.push_back(VarExpr(
+    vars.push_back(Var(
         "prefetch." + func_name + "." + std::to_string(starts), DataType::Int(32)));
     args.push_back(op->bounds[starts]->min + stride * vars.back());
     for (int i = starts - 1; i >= 0; --i) {
-      vars.push_back(VarExpr(
+      vars.push_back(Var(
           "prefetch." + func_name + "." + std::to_string(i), DataType::Int(32)));
       args.push_back(vars.back() + op->bounds[i]->min);
     }
@@ -354,13 +354,13 @@ class StorageFlattener : public StmtExprMutator {
         stmt = ForNode::make(
             vars[i], 0, op->bounds[i]->extent, ForType::Serial, DeviceAPI::None, stmt);
       } else {
-        Expr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
-        Expr address = CallNode::make(
+        PrimExpr load = e.buffer.vload(e.RelIndex(args), e.buffer->dtype);
+        PrimExpr address = CallNode::make(
             DataType::Handle(), tvm_address_of, {load}, CallNode::PureIntrinsic);
-        Expr prefetch = CallNode::make(
+        PrimExpr prefetch = CallNode::make(
             op->dtype, CallNode::prefetch, {address, 0, 3, 1}, CallNode::Intrinsic);
         stmt = EvaluateNode::make(prefetch);
-        Expr extent = (op->bounds[i]->extent - 1) / stride + 1;
+        PrimExpr extent = (op->bounds[i]->extent - 1) / stride + 1;
         stmt = ForNode::make(vars[i], 0, extent, ForType::Serial, DeviceAPI::None, stmt);
       }
     }
@@ -416,7 +416,7 @@ class StorageFlattener : public StmtExprMutator {
     const BufferEntry& be = buf_map_.at(key);
     CHECK(!be.released);
     CHECK_EQ(tuple->args.size(), be.buffer->shape.size() * 2);
-    Array<Expr> begins, extents;
+    Array<PrimExpr> begins, extents;
     if (be.bounds.size() != 0) {
       CHECK_EQ(tuple->args.size(), be.bounds.size() * 2);
       for (size_t i = 0; i < be.buffer->shape.size(); ++i) {
@@ -467,9 +467,9 @@ class StorageFlattener : public StmtExprMutator {
     // Whether we are out of allocation bounds and buffer get released.
     bool released{false};
     // relative index
-    inline Array<Expr> RelIndex(Array<Expr> args) const {
+    inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
       if (bounds.size() != 0) {
-        Array<Expr> index;
+        Array<PrimExpr> index;
         CHECK_EQ(bounds.size(), args.size());
         for (size_t i = 0; i < bounds.size(); ++i) {
           index.push_back(args[i] - bounds[i]->min);
@@ -481,7 +481,7 @@ class StorageFlattener : public StmtExprMutator {
     }
   };
 
-  bool ShapeIsValid(const Array<Expr> &shape) {
+  bool ShapeIsValid(const Array<PrimExpr> &shape) {
     // Zero-dimensional tensor does not need boundary check.
     if (!shape.size())
       return false;
@@ -495,9 +495,9 @@ class StorageFlattener : public StmtExprMutator {
     return true;
   }
 
-  Expr MakeBound(const DataType &type, const Array<Expr> &shape) {
+  PrimExpr MakeBound(const DataType &type, const Array<PrimExpr> &shape) {
     // We have already checked the shape size to be greater then 0.
-    Expr bound = MulNode::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
+    PrimExpr bound = MulNode::make(make_const(shape[0].dtype(), type.lanes()), shape[0]);
     for (size_t i = 1; i < shape.size(); ++i) {
       bound = MulNode::make(
           bound, MulNode::make(make_const(bound.dtype(), type.lanes()), shape[i]));
@@ -507,7 +507,7 @@ class StorageFlattener : public StmtExprMutator {
 
   // The buffer assignment map
   // Variable remap
-  std::unordered_map<const VarNode*, Expr> var_remap_;
+  std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // Buffer map
   std::unordered_map<TensorKey, BufferEntry> buf_map_;
   // Dimension alignment
@@ -517,7 +517,7 @@ class StorageFlattener : public StmtExprMutator {
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
-  std::vector<std::pair<VarExpr, Array<Expr>>> shape_collector_;
+  std::vector<std::pair<Var, Array<PrimExpr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
   // However
   IRVisitorWithAnalyzer* bounded_analyzer_;

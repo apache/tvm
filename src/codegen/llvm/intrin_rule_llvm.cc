@@ -63,21 +63,21 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.nearbyint")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
 .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-  Expr e = targs[0];
+  PrimExpr e = targs[0];
   const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
-  const Expr& x = call->args[0];
-  Expr one = make_const(x.dtype(), 1);
-  Expr two = make_const(x.dtype(), 2);
-  Expr neg_two = make_const(x.dtype(), -2);
+  const PrimExpr& x = call->args[0];
+  PrimExpr one = make_const(x.dtype(), 1);
+  PrimExpr two = make_const(x.dtype(), 2);
+  PrimExpr neg_two = make_const(x.dtype(), -2);
 
-  Expr exp_neg2x = ir::CallNode::make(
+  PrimExpr exp_neg2x = ir::CallNode::make(
       x.dtype(), "exp", {neg_two * x}, ir::CallNode::PureIntrinsic);
-  Expr exp_pos2x = ir::CallNode::make(
+  PrimExpr exp_pos2x = ir::CallNode::make(
       x.dtype(), "exp", {two * x}, ir::CallNode::PureIntrinsic);
 
-  Expr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
-  Expr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
+  PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
+  PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
   *rv = ir::SelectNode::make(
       x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
 });

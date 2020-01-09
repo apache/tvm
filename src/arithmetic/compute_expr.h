@@ -39,7 +39,7 @@ namespace arith {
  * \return The result.
  */
 template<typename OP>
-inline Expr Compute(Expr lhs, Expr rhs) {
+inline PrimExpr Compute(PrimExpr lhs, PrimExpr rhs) {
   return OP::make(lhs, rhs);
 }
 
@@ -52,10 +52,10 @@ inline Expr Compute(Expr lhs, Expr rhs) {
  * \return The result.
  */
 template<typename Op>
-inline Expr ComputeReduce(
-    const Array<Expr>& values, Expr empty_value);
+inline PrimExpr ComputeReduce(
+    const Array<PrimExpr>& values, PrimExpr empty_value);
 
-inline bool GetConst(Expr e, int64_t* out) {
+inline bool GetConst(PrimExpr e, int64_t* out) {
   if (e.dtype().is_vector()) return false;
   const int64_t* v = as_const_int(e);
   if (v) {
@@ -66,7 +66,7 @@ inline bool GetConst(Expr e, int64_t* out) {
 }
 
 // get a small constant int
-inline bool GetConstInt(Expr e, int* out) {
+inline bool GetConstInt(PrimExpr e, int* out) {
   int64_t v1 = 0;
   if (GetConst(e, &v1)) {
     if (v1 > static_cast<int64_t>(
@@ -77,47 +77,47 @@ inline bool GetConstInt(Expr e, int* out) {
 }
 
 template<>
-inline Expr Compute<ir::AddNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::AddNode>(PrimExpr a, PrimExpr b) {
   return a + b;
 }
 
 template<>
-inline Expr Compute<ir::SubNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::SubNode>(PrimExpr a, PrimExpr b) {
   return a - b;
 }
 
 template<>
-inline Expr Compute<ir::MulNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::MulNode>(PrimExpr a, PrimExpr b) {
   return a * b;
 }
 
 template<>
-inline Expr Compute<ir::DivNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::DivNode>(PrimExpr a, PrimExpr b) {
   return truncdiv(a, b);
 }
 
 template<>
-inline Expr Compute<ir::ModNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::ModNode>(PrimExpr a, PrimExpr b) {
   return truncmod(a, b);
 }
 
 template<>
-inline Expr Compute<ir::MaxNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::MaxNode>(PrimExpr a, PrimExpr b) {
   return max(a, b);
 }
 
 template<>
-inline Expr Compute<ir::MinNode>(Expr a, Expr b) {
+inline PrimExpr Compute<ir::MinNode>(PrimExpr a, PrimExpr b) {
   return min(a, b);
 }
 
 template<typename Op>
-inline Expr ComputeReduce(const Array<Expr>& values, Expr empty_value) {
+inline PrimExpr ComputeReduce(const Array<PrimExpr>& values, PrimExpr empty_value) {
   if (values.size() == 0U) {
     CHECK(empty_value.defined());
     return empty_value;
   }
-  Expr res = values[0];
+  PrimExpr res = values[0];
   for (size_t i = 1; i < values.size(); ++i) {
     res = Compute<Op>(res, values[i]);
   }

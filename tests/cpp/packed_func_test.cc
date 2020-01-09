@@ -130,7 +130,7 @@ TEST(PackedFunc, Expr) {
   using namespace tvm::runtime;
   // automatic conversion of int to expr
   PackedFunc addone([](TVMArgs args, TVMRetValue* rv) {
-      Expr x = args[0];
+      PrimExpr x = args[0];
       *rv = x.as<tvm::ir::IntImmNode>()->value + 1;
   });
   int r0 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
@@ -218,7 +218,7 @@ TEST(PackedFunc, ObjectConversion) {
   // Check convert back
   CHECK(rv.operator NDArray().same_as(x));
   CHECK(rv.operator ObjectRef().same_as(x));
-  CHECK(!rv.IsObjectRef<Expr>());
+  CHECK(!rv.IsObjectRef<PrimExpr>());
 
   auto pf1 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args[0].type_code(), kNDArrayContainer);
@@ -228,7 +228,7 @@ TEST(PackedFunc, ObjectConversion) {
       CHECK(args[1].operator NDArray().get() == nullptr);
       CHECK(args[1].operator Module().get() == nullptr);
       CHECK(args[1].operator Array<NDArray>().get() == nullptr);
-      CHECK(!args[0].IsObjectRef<Expr>());
+      CHECK(!args[0].IsObjectRef<PrimExpr>());
     });
   pf1(x, ObjectRef());
   pf1(ObjectRef(x), NDArray());
@@ -254,7 +254,7 @@ TEST(PackedFunc, ObjectConversion) {
       CHECK(args[1].operator ObjectRef().get() == nullptr);
       CHECK(args[1].operator NDArray().get() == nullptr);
       CHECK(args[1].operator Module().get() == nullptr);
-      CHECK(!args[0].IsObjectRef<Expr>());
+      CHECK(!args[0].IsObjectRef<PrimExpr>());
     });
   pf2(m, ObjectRef());
   pf2(ObjectRef(m), Module());

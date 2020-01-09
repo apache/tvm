@@ -200,7 +200,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenCUDA::PrintVecBinaryOp(
     const std::string&op, DataType t,
-    Expr lhs, Expr rhs, std::ostream& os) {  // NOLINT(*)
+    PrimExpr lhs, PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
   // unpacking operations.
   int lanes = t.lanes();
 

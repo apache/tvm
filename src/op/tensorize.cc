@@ -144,13 +144,13 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
       }
     }
   }
-  for (const Expr& pred : n.main_predicates) {
+  for (const PrimExpr& pred : n.main_predicates) {
     if (ir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
     }
   }
-  for (const Expr& pred : n.init_predicates) {
+  for (const PrimExpr& pred : n.init_predicates) {
     if (ir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
@@ -161,8 +161,8 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
 // Remap the tensor placeholder, index and inline things.
 class TensorIntrinMatcher final : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const CallNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     if (op->call_type == CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
@@ -170,7 +170,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
       if (it != in_remap_.end()) {
         const InputEntry& e = it->second;
         CHECK_EQ(op->args.size(), e.region.size());
-        Array<Expr> args;
+        Array<PrimExpr> args;
         for (size_t i = e.start; i < e.region.size(); ++i) {
           args.push_back(op->args[i] - e.region[i]->min);
         }
@@ -182,17 +182,17 @@ class TensorIntrinMatcher final : public StmtExprMutator {
     return expr;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_remap_.find(op);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
 
-  Expr VisitExpr_(const ReduceNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const ReduceNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<ReduceNode>();
     Array<IterVar> axis;
     for (size_t i = 0; i < op->axis.size(); ++i) {
@@ -301,13 +301,13 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   // input data remap
   std::unordered_map<Tensor, InputEntry> in_remap_;
   // variable remap.
-  std::unordered_map<const VarNode*, Expr> var_remap_;
+  std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // IterVar remap.
   std::unordered_map<IterVar, IterVar> axis_remap_;
 };
 
 // Try to match tensor dataflow of the stage with the intrinsic
-Array<Expr> MatchTensorizeBody(
+Array<PrimExpr> MatchTensorizeBody(
     const ComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
@@ -317,8 +317,8 @@ Array<Expr> MatchTensorizeBody(
     Map<Var, Range>* compute_intrin_iter_space) {
   TensorIntrinMatcher matcher;
   matcher.Init(self, stage, dom_map, out_dom, in_region, intrin, compute_intrin_iter_space);
-  Array<Expr> ret;
-  for (Expr expr : self->body) {
+  Array<PrimExpr> ret;
+  for (PrimExpr expr : self->body) {
     ret.push_back(matcher(expr));
   }
   return ret;
@@ -332,16 +332,16 @@ void VerifyTensorizeBody(
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin) {
   Map<Var, Range> compute_intrin_iter_space;
-  Array<Expr> body = MatchTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin,
+  Array<PrimExpr> body = MatchTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin,
                                         &compute_intrin_iter_space);
   const ComputeOpNode* intrin_compute = intrin->op.as<ComputeOpNode>();
   CHECK(intrin_compute) << "Only support compute intrinsic for now";
   CHECK_EQ(body.size(), intrin_compute->body.size())
       << "Tensorize failed: body size mismatch";
   for (size_t i = 0; i < body.size(); ++i) {
-    Expr lhs = Simplify(body[i], compute_intrin_iter_space);
+    PrimExpr lhs = Simplify(body[i], compute_intrin_iter_space);
     lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
-    Expr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
+    PrimExpr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
     rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
     if (lhs.dtype() != rhs.dtype()) {
       LOG(FATAL)
@@ -385,7 +385,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     auto it = in_region.find(tensor);
     CHECK(it != in_region.end());
     const Array<Range>& region = it->second;
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (const Range r : region) {
       tuple.push_back(r->min);
       tuple.push_back(r->extent);
@@ -401,7 +401,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
   CHECK(intrin_compute) << "Only support compute intrinsic for now";
   CHECK_EQ(intrin->inputs.size() + intrin_compute->body.size(), intrin->buffers.size());
   CHECK_EQ(intrin_compute->body.size(), self->body.size());
-  Array<Expr> tuple;
+  Array<PrimExpr> tuple;
   for (IterVar iv : self->axis) {
     auto it = out_dom.find(iv);
     CHECK(it != out_dom.end());
@@ -419,7 +419,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
                        tuple, CallNode::Intrinsic), nop));
   }
   // Check variable remap
-  std::unordered_map<const VarNode*, Expr> vmap;
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   ir::ArgBinder binder(&vmap);
   CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
       << "Tensorization fail: reduction axis size do not match";

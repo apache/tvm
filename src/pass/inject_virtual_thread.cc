@@ -36,7 +36,7 @@ class ExprTouched final : public StmtExprVisitor {
                        bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
 
-  void VisitExpr(const Expr& n) final {
+  void VisitExpr(const PrimExpr& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
     StmtExprVisitor::VisitExpr(n);
@@ -205,20 +205,20 @@ class VTInjector : public StmtExprMutator {
     return stmt;
   }
   // Variable
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     CHECK(!alloc_remap_.count(op))
         << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
-    return GetRef<Expr>(op);
+    return GetRef<PrimExpr>(op);
   }
-  Expr RewriteIndex(Expr index, Expr alloc_extent) const {
+  PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
     return index + var_ * alloc_extent;
   }
   // Load
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     if (touched_var_.count(op->buffer_var.get())) {
       visit_touched_var_ = true;
@@ -233,7 +233,7 @@ class VTInjector : public StmtExprMutator {
     }
   }
   // Expression.
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       CHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
@@ -241,9 +241,9 @@ class VTInjector : public StmtExprMutator {
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
-      Expr offset = this->VisitExpr(op->args[2]);
-      Expr extent = this->VisitExpr(op->args[3]);
-      Expr stride =
+      PrimExpr offset = this->VisitExpr(op->args[2]);
+      PrimExpr extent = this->VisitExpr(op->args[3]);
+      PrimExpr stride =
           it->second / make_const(offset.dtype(), dtype.lanes());
       offset = stride * var_ + offset;
       return CallNode::make(
@@ -251,7 +251,7 @@ class VTInjector : public StmtExprMutator {
           {op->args[0], op->args[1], offset, extent, op->args[4]},
           op->call_type);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
-      return allow_share_ ? GetRef<Expr>(op) : var_;
+      return allow_share_ ? GetRef<PrimExpr>(op) : var_;
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -280,7 +280,7 @@ class VTInjector : public StmtExprMutator {
   }
   // Attribute
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    Expr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     } else if (!allow_share_ && !vt_loop_injected_ &&
@@ -299,7 +299,7 @@ class VTInjector : public StmtExprMutator {
   }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
-    Expr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
@@ -315,7 +315,7 @@ class VTInjector : public StmtExprMutator {
   // For
   Stmt VisitStmt_(const ForNode* op) final {
     CHECK(is_zero(op->min));
-    Expr extent = this->VisitExpr(op->extent);
+    PrimExpr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(GetRef<Stmt>(op), true);
       ++max_loop_depth_;
@@ -334,7 +334,7 @@ class VTInjector : public StmtExprMutator {
   }
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    Expr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
@@ -374,15 +374,15 @@ class VTInjector : public StmtExprMutator {
     if (op->new_expr.defined() && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
-    Expr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
     }
 
     bool changed = false;
-    Array<Expr> extents;
+    Array<PrimExpr> extents;
     for (size_t i = 0; i < op->extents.size(); i++) {
-      Expr new_ext = this->VisitExpr(op->extents[i]);
+      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
       if (visit_touched_var_ && !vt_loop_injected_) {
         return InjectVTLoop(GetRef<Stmt>(op), true);
       }
@@ -395,11 +395,11 @@ class VTInjector : public StmtExprMutator {
     // always rewrite if not allow sharing.
     if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
       // place v on highest dimension.
-      Expr stride = arith::ComputeReduce<MulNode>(
-          op->extents, Expr()) * op->dtype.lanes();
-      Array<Expr> other;
+      PrimExpr stride = arith::ComputeReduce<MulNode>(
+          op->extents, PrimExpr()) * op->dtype.lanes();
+      Array<PrimExpr> other;
       other.push_back(make_const(op->extents[0].dtype(), num_threads_));
-      for (Expr e : extents) {
+      for (PrimExpr e : extents) {
         other.push_back(e);
       }
       extents = other;
@@ -448,7 +448,7 @@ class VTInjector : public StmtExprMutator {
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->dtype);
-      Map<Var, Expr> values{{var_, idx}};
+      Map<Var, PrimExpr> values{{var_, idx}};
       stmt = Substitute(stmt, values);
       return ForNode::make(idx, make_zero(idx.dtype()),
                        make_const(idx.dtype(), num_threads_),
@@ -474,7 +474,7 @@ class VTInjector : public StmtExprMutator {
   // Whether allow shareding.
   bool allow_share_;
   // The allocations that get touched -> extent
-  std::unordered_map<const VarNode*, Expr> alloc_remap_;
+  std::unordered_map<const VarNode*, PrimExpr> alloc_remap_;
 };
 
 

@@ -45,7 +45,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-TVM_DLL Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+TVM_DLL PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
@@ -70,7 +70,7 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-TVM_DLL Expr CanonicalSimplify(Expr expr,
+TVM_DLL PrimExpr CanonicalSimplify(PrimExpr expr,
                               Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
@@ -79,7 +79,7 @@ TVM_DLL Expr CanonicalSimplify(Expr expr,
  * \param rhs The right operand
  * \return The comparison result.
  */
-TVM_DLL bool Equal(const Expr& lhs, const Expr& rhs);
+TVM_DLL bool Equal(const PrimExpr& lhs, const PrimExpr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -100,7 +100,7 @@ bool Equal(const Stmt& lhs, const Stmt& rhs);
  * \param rhs The right operand
  * \return The comparison result.
  */
-int Compare(const Expr& lhs, const Expr& rhs);
+int Compare(const PrimExpr& lhs, const PrimExpr& rhs);
 
 /*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
@@ -116,7 +116,7 @@ TVM_DLL bool VerifySSA(const Stmt& ir);
  * \brief Whether the expression have side effect.
  * \return whether expression have side effect
  */
-TVM_DLL bool HasSideEffect(const Expr& e);
+TVM_DLL bool HasSideEffect(const PrimExpr& e);
 
 /*!
  * \brief Whether e expression used var.
@@ -124,7 +124,7 @@ TVM_DLL bool HasSideEffect(const Expr& e);
  * \param v The variable.
  * \return Whether e uses v.
  */
-bool ExprUseVar(const Expr& e, const Var& v);
+bool ExprUseVar(const PrimExpr& e, const Var& v);
 
 /*!
  * \brief Whether e expression used any var in variable set..
@@ -132,7 +132,7 @@ bool ExprUseVar(const Expr& e, const Var& v);
  * \param vset The variable set.
  * \return Whether e uses vset.
  */
-bool ExprUseVar(const Expr& e, const std::unordered_set<const VarNode*>& vset);
+bool ExprUseVar(const PrimExpr& e, const std::unordered_set<const VarNode*>& vset);
 
 /*!
  * \brief Convert a IR node to be SSA form.
@@ -148,7 +148,7 @@ TVM_DLL Stmt ConvertSSA(Stmt stmt);
  * \return The converted form.
  */
 Stmt Substitute(Stmt stmt,
-                const std::unordered_map<const VarNode*, Expr>& value_map);
+                const std::unordered_map<const VarNode*, PrimExpr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.
@@ -156,8 +156,8 @@ Stmt Substitute(Stmt stmt,
  * \param value_map The map of new values.
  * \return The converted expression.
  */
-Expr Substitute(Expr expr,
-                const std::unordered_map<const VarNode*, Expr>& value_map);
+PrimExpr Substitute(PrimExpr expr,
+                const std::unordered_map<const VarNode*, PrimExpr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.
@@ -165,7 +165,7 @@ Expr Substitute(Expr expr,
  * \param value_map The map of new values.
  * \return The converted form.
  */
-Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map);
+Stmt Substitute(Stmt stmt, const Map<Var, PrimExpr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.
@@ -173,7 +173,7 @@ Stmt Substitute(Stmt stmt, const Map<Var, Expr>& value_map);
  * \param value_map The map of new values.
  * \return The converted expression.
  */
-Expr Substitute(Expr expr, const Map<Var, Expr>& value_map);
+PrimExpr Substitute(PrimExpr expr, const Map<Var, PrimExpr>& value_map);
 
 /*!
  * \brief inline all calls of f in stmt.
@@ -189,7 +189,7 @@ Expr Substitute(Expr expr, const Map<Var, Expr>& value_map);
 Stmt Inline(Stmt stmt,
             FunctionRef f,
             Array<Var> args,
-            Expr body);
+            PrimExpr body);
 
 /*!
  * \brief Flatten the multi-dimensional read/write
@@ -485,7 +485,7 @@ LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
  * \param axis_map The map from StringImm -> ItrVar
  * \return Transformed function.
  */
-LoweredFunc RemapThreadAxis(LoweredFunc f, Map<Expr, IterVar> axis_map);
+LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
 
 /*!
  * \brief Lower packed function call.
@@ -590,7 +590,7 @@ bool VerifyMemory(LoweredFunc func, int device_type);
  *
  */
 bool VerifyGPUCode(Stmt stmt,
-                   Map<std::string, Expr> constraints);
+                   Map<std::string, PrimExpr> constraints);
 
 
 }  // namespace ir

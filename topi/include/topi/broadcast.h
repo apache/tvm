@@ -44,7 +44,7 @@ namespace topi {
  * \return A Tensor whose op member is a broadcast operation
  */
 inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
-                                const tvm::Array<tvm::Expr>& output_shape,
+                                const tvm::Array<tvm::PrimExpr>& output_shape,
                                 std::string name = "T_broadcast_to",
                                 std::string tag = kBroadcast) {
   CHECK_GE(output_shape.size(), t->shape.size())
@@ -59,38 +59,38 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
     return t(detail::InputIndexFromBroadcast(ovars, t, bh.vars2, bh.all_vars));
   };
   return tvm::compute(
-      tvm::Array<tvm::Expr>(bh.common_shape.begin(), bh.common_shape.end()),
+      tvm::Array<tvm::PrimExpr>(bh.common_shape.begin(), bh.common_shape.end()),
       l,
       name,
       tag);
 }
 
 #define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                       \
-  inline tvm::Expr Name(const tvm::Expr& a,                           \
-                        const tvm::Expr& b) {                         \
+  inline tvm::PrimExpr Name(const tvm::PrimExpr& a,                   \
+                            const tvm::PrimExpr& b) {                 \
     ComputeRule;                                                      \
   }                                                                   \
   inline tvm::Tensor Name(const tvm::Tensor& A,                       \
                           const tvm::Tensor& B,                       \
                           std::string name = "T_" #Name,              \
                           std::string tag = kBroadcast) {             \
-    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };           \
+    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };   \
     return detail::WithBroadcast(l, A, B, name, tag);                 \
   }                                                                   \
   inline tvm::Tensor Name(const tvm::Tensor& A,                       \
-                          const tvm::Expr& B,                         \
+                          const tvm::PrimExpr& B,                     \
                           std::string name = "T_" #Name,              \
                           std::string tag = kElementWise) {           \
-    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };           \
+    auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; }; \
     return compute(A->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
         return l(A(i), B);                                            \
       }, name, tag);                                                  \
   }                                                                   \
-  inline tvm::Tensor Name(const tvm::Expr& A,                         \
+  inline tvm::Tensor Name(const tvm::PrimExpr& A,                     \
                           const tvm::Tensor& B,                       \
                           std::string name = "T_" #Name,              \
                           std::string tag = kElementWise) {           \
-    auto l = [&](tvm::Expr a, tvm::Expr b) { ComputeRule; };          \
+    auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };  \
     return compute(B->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
         return l(A, B(i));                                            \
       }, name, tag);                                                  \
@@ -102,12 +102,12 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
                           const tvm::Tensor& B) {                   \
     return topi::OpName(A, B);                                      \
   }                                                                 \
-  inline tvm::Tensor Name(const tvm::Expr& A,                       \
+  inline tvm::Tensor Name(const tvm::PrimExpr& A,                   \
                           const tvm::Tensor& B) {                   \
     return topi::OpName(A, B);                                      \
   }                                                                 \
   inline tvm::Tensor Name(const tvm::Tensor& A,                     \
-                          const tvm::Expr& B) {                     \
+                          const tvm::PrimExpr& B) {                 \
     return topi::OpName(A, B);                                      \
   }
 

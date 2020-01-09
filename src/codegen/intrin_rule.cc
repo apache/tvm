@@ -53,7 +53,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.rsqrt")
 .set_body([](const TVMArgs& args, TVMRetValue* rv){
-    Expr e = args[0];
+    PrimExpr e = args[0];
     const CallNode* call = e.as<CallNode>();
     CHECK(call != nullptr);
 
@@ -66,7 +66,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.pow")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
 .set_body([](const TVMArgs& args, TVMRetValue* rv){
-    Expr e = args[0];
+    PrimExpr e = args[0];
     const CallNode* call = e.as<CallNode>();
     CHECK(call != nullptr);
 

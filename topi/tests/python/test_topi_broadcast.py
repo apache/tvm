@@ -58,8 +58,8 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
     B = (tvm.var("B", dtype=dtype) if rhs_shape is None
          else tvm.placeholder(shape=rhs_shape, name="B", dtype=dtype))
     C = ftopi(A, B)
-    if isinstance(A, tvm.expr.Expr) and isinstance(B, tvm.expr.Expr):
-        assert(isinstance(C, tvm.expr.Expr))
+    if isinstance(A, tvm.expr.PrimExpr) and isinstance(B, tvm.expr.PrimExpr):
+        assert(isinstance(C, tvm.expr.PrimExpr))
         return
 
     def gen_operand(shape, low, high, ctx):
@@ -241,8 +241,8 @@ def test_logical_single_ele():
         # Build the logic and compile the function
         A = tvm.placeholder(shape=indata.shape, name="A", dtype=dtype)
         B = func(A)
-        if isinstance(A, tvm.expr.Expr):
-            assert (isinstance(B, tvm.expr.Expr))
+        if isinstance(A, tvm.expr.PrimExpr):
+            assert (isinstance(B, tvm.expr.PrimExpr))
             return
 
         def check_device(device):
@@ -283,8 +283,8 @@ def test_logical_binary_ele():
         A = (tvm.var("A", dtype=dtype))
         B = (tvm.var("B", dtype=dtype))
         C = func(A, B)
-        if isinstance(A, tvm.expr.Expr) and isinstance(B, tvm.expr.Expr):
-            assert (isinstance(C, tvm.expr.Expr))
+        if isinstance(A, tvm.expr.PrimExpr) and isinstance(B, tvm.expr.PrimExpr):
+            assert (isinstance(C, tvm.expr.PrimExpr))
             return
 
         def check_device(device):

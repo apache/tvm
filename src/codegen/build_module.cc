@@ -338,7 +338,7 @@ Target DefaultTargetHost(Target target) {
   }
 }
 
-Buffer BufferWithOffsetAlignment(Array<Expr> shape,
+Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape,
                                  DataType dtype,
                                  std::string name,
                                  int data_alignment,
@@ -356,14 +356,14 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
   }
   BufferType buffer_type = has_any ? kAutoBroadcast : kDefault;
 
-  Expr elem_offset;
+  PrimExpr elem_offset;
   if (offset_factor != 0) {
     elem_offset = Var(name + "_elem_offset", shape[0].dtype());
   } else {
-    elem_offset = Expr();
+    elem_offset = PrimExpr();
   }
 
-  return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
+  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
     data_alignment, offset_factor, buffer_type);
 }
 
@@ -855,7 +855,7 @@ TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
-  Array<Expr> tags = args[2];
+  Array<PrimExpr> tags = args[2];
   bool allow_override = args[3];
 
   std::vector<std::string> tags_vector;

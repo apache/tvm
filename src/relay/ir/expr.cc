@@ -51,7 +51,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 
 TensorType ConstantNode::tensor_type() const {
   auto dtype = DataType(data->dtype);
-  Array<tvm::Expr> shape;
+  Array<tvm::PrimExpr> shape;
   for (int i = 0; i < data->ndim; i++) {
     CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
     CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());

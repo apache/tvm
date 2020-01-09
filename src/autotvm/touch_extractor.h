@@ -56,7 +56,7 @@ struct TouchPattern {
 
 // all the feature of an iter var
 struct ItervarFeature {
-  ItervarFeature(VarExpr var,
+  ItervarFeature(Var var,
                  int64_t extent,
                  int nest,
                  AnnotationType ann_type,
@@ -122,18 +122,18 @@ class TouchExtractor : public FeatureVisitor {
     FeatureVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<VarExpr, ItervarFeature, tvm::ExprHash, tvm::ExprEqual> itervar_map;
+  std::unordered_map<Var, ItervarFeature, tvm::ObjectHash, tvm::ObjectEqual> itervar_map;
 
  private:
-  bool EnterItervar_(VarExpr var, int64_t length, AnnotationType ann_type);
+  bool EnterItervar_(Var var, int64_t length, AnnotationType ann_type);
   void ExitItervar_();
-  void EnterMem_(VarExpr buffer_var, Expr index);
+  void EnterMem_(Var buffer_var, PrimExpr index);
   void ExitMem_();
 
   int64_t topdown_product_{1};
   std::map<std::string, size_t> buffer_counter_;
   size_t itervar_counter_{0};
-  std::deque<VarExpr> itervar_stack_;  // use deque instead of stack for indexing
+  std::deque<Var> itervar_stack_;  // use deque instead of stack for indexing
   std::deque<size_t> skip_stack_size_;
 
   using FeatureVisitor::VisitExpr_;

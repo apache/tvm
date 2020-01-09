@@ -33,7 +33,7 @@
 namespace tvm {
 namespace ir {
 
-inline Expr BroadcastTo(Expr e, int lanes) {
+inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
   if (e.dtype().lanes() == lanes) return e;
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
     if (lanes % op->lanes == 0) {
@@ -59,8 +59,8 @@ class VecAllocAccess : public StmtExprMutator {
   VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
   // Load
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     if (op->buffer_var.get() == buf_) {
       return LoadNode::make(op->dtype, op->buffer_var,
@@ -111,18 +111,18 @@ class Vectorizer : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const AddNode* op) final {
+  PrimExpr VisitExpr_(const AddNode* op) final {
     return AddSubVec(op);
   }
-  Expr VisitExpr_(const SubNode* op) final {
+  PrimExpr VisitExpr_(const SubNode* op) final {
     return AddSubVec(op);
   }
-  Expr VisitExpr_(const MulNode* op) final {
-    Expr a = this->VisitExpr(op->a);
-    Expr b = this->VisitExpr(op->b);
+  PrimExpr VisitExpr_(const MulNode* op) final {
+    PrimExpr a = this->VisitExpr(op->a);
+    PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) &&
         b.same_as(op->b)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       if (lanes != 1) {
@@ -141,51 +141,51 @@ class Vectorizer : public StmtExprMutator {
     }
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const DivNode* op) final {
+  PrimExpr VisitExpr_(const DivNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const ModNode* op) final {
+  PrimExpr VisitExpr_(const ModNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const FloorDivNode* op) final {
+  PrimExpr VisitExpr_(const FloorDivNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const FloorModNode* op) final {
+  PrimExpr VisitExpr_(const FloorModNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const MinNode* op) final {
+  PrimExpr VisitExpr_(const MinNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const MaxNode* op) final {
+  PrimExpr VisitExpr_(const MaxNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const EQNode* op) final {
+  PrimExpr VisitExpr_(const EQNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const NENode* op) final {
+  PrimExpr VisitExpr_(const NENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const LTNode* op) final {
+  PrimExpr VisitExpr_(const LTNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const LENode* op) final {
+  PrimExpr VisitExpr_(const LENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const GTNode* op) final {
+  PrimExpr VisitExpr_(const GTNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const GENode* op) final {
+  PrimExpr VisitExpr_(const GENode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const AndNode* op) final {
+  PrimExpr VisitExpr_(const AndNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const OrNode* op) final {
+  PrimExpr VisitExpr_(const OrNode* op) final {
     return BinaryVec(op);
   }
-  Expr VisitExpr_(const RampNode* op) final {
-    Expr base = this->VisitExpr(op->base);
-    Expr stride = this->VisitExpr(op->stride);
+  PrimExpr VisitExpr_(const RampNode* op) final {
+    PrimExpr base = this->VisitExpr(op->base);
+    PrimExpr stride = this->VisitExpr(op->stride);
     if (base.dtype().lanes() > 1 && stride.dtype().lanes() == 1) {
       const RampNode* base_ramp = base.as<RampNode>();
       if (analyzer_.CanProve(base_ramp->stride == stride * make_const(stride.dtype(), op->lanes))) {
@@ -195,7 +195,7 @@ class Vectorizer : public StmtExprMutator {
     int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
     base = BroadcastTo(base, lanes);
     stride = BroadcastTo(stride, lanes);
-    Array<Expr> elems;
+    Array<PrimExpr> elems;
     for (int i = 0; i < lanes; ++i) {
       elems.push_back(
           RampNode::make(ShuffleNode::make_extract_element(base, i),
@@ -204,14 +204,14 @@ class Vectorizer : public StmtExprMutator {
     }
     return ShuffleNode::make_concat(elems);
   }
-  Expr VisitExpr_(const SelectNode *op) final {
-    Expr cond = this->VisitExpr(op->condition);
-    Expr t = this->VisitExpr(op->true_value);
-    Expr f = this->VisitExpr(op->false_value);
+  PrimExpr VisitExpr_(const SelectNode *op) final {
+    PrimExpr cond = this->VisitExpr(op->condition);
+    PrimExpr t = this->VisitExpr(op->true_value);
+    PrimExpr f = this->VisitExpr(op->false_value);
     if (cond.same_as(op->condition) &&
         t.same_as(op->true_value) &&
         f.same_as(op->false_value)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(std::max(
           cond.dtype().lanes(),
@@ -219,37 +219,37 @@ class Vectorizer : public StmtExprMutator {
       return SelectNode::make(cond, BroadcastTo(t, lanes), BroadcastTo(f, lanes));
     }
   }
-  Expr VisitExpr_(const CastNode *op) final {
-    Expr value = this->VisitExpr(op->value);
+  PrimExpr VisitExpr_(const CastNode *op) final {
+    PrimExpr value = this->VisitExpr(op->value);
     if (value.same_as(op->value)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       return CastNode::make(op->dtype.with_lanes(value.dtype().lanes()), value);
     }
   }
   // Variable
-  Expr VisitExpr_(const VarNode* v) final {
+  PrimExpr VisitExpr_(const VarNode* v) final {
     if (v == var_.get()) {
       return ramp_;
     } else if (lets_.count(v)) {
         return lets_[v];
     } else {
-      return GetRef<Expr>(v);
+      return GetRef<PrimExpr>(v);
     }
   }
   // IfThenElse expr
-  Expr MutateIfThenElseExpr_(const CallNode *op) {
-    Expr cond = this->VisitExpr(op->args[0]);
+  PrimExpr MutateIfThenElseExpr_(const CallNode *op) {
+    PrimExpr cond = this->VisitExpr(op->args[0]);
     if (cond.dtype().is_vector())  {
       need_scalarize_ = true;
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
-    Expr t = this->VisitExpr(op->args[1]);
-    Expr f = this->VisitExpr(op->args[2]);
+    PrimExpr t = this->VisitExpr(op->args[1]);
+    PrimExpr f = this->VisitExpr(op->args[2]);
     if (cond.same_as(op->args[0]) &&
         t.same_as(op->args[1]) &&
         f.same_as(op->args[2])) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(t.dtype().lanes(), f.dtype().lanes());
       t = BroadcastTo(t, lanes);
@@ -260,33 +260,33 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // Call
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->name == intrinsic::tvm_if_then_else) {
       return MutateIfThenElseExpr_(op);
     }
     if (!op->is_vectorizable()) {
       // Cannot vectorize this op
-      Array<Expr> new_args;
+      Array<PrimExpr> new_args;
       for (auto arg : op->args) {
         auto new_arg = this->VisitExpr(arg);
         if (new_arg.dtype().is_vector()) {
           need_scalarize_ = true;
-          return GetRef<Expr>(op);
+          return GetRef<PrimExpr>(op);
         }
         new_args.push_back(new_arg);
       }
       if (op->args.same_as(new_args)) {
-        return GetRef<Expr>(op);
+        return GetRef<PrimExpr>(op);
       } else {
         return CallNode::make(
             op->dtype, op->name, new_args, op->call_type, op->func, op->value_index);
       }
     } else {
       int lane = 0;
-      Array<Expr> new_args = MutateArray(op->args, &lane);
+      Array<PrimExpr> new_args = MutateArray(op->args, &lane);
       // normal code path.
       if (op->args.same_as(new_args)) {
-        return GetRef<Expr>(op);
+        return GetRef<PrimExpr>(op);
       } else {
         return CallNode::make(
             op->dtype.with_lanes(lane), op->name, new_args,
@@ -295,11 +295,11 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // Load
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr index = this->VisitExpr(op->index);
-    Expr pred = this->VisitExpr(op->predicate);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr index = this->VisitExpr(op->index);
+    PrimExpr pred = this->VisitExpr(op->predicate);
     if (index.same_as(op->index) && pred.same_as(op->predicate)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(index.dtype().lanes(), pred.dtype().lanes());
       return LoadNode::make(
@@ -310,18 +310,18 @@ class Vectorizer : public StmtExprMutator {
     }
   }
   // Let
-  Expr VisitExpr_(const LetNode* op) final {
-    Expr value = this->VisitExpr(op->value);
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    PrimExpr value = this->VisitExpr(op->value);
     CHECK(!lets_.count(op->var.get())) << "not SSA";
     if (value.dtype().lanes() != op->value.dtype().lanes()) {
       Var v(op->var->name_hint, value.dtype());
       lets_[op->var.get()] = v;
       return LetNode::make(v, value, this->VisitExpr(op->body));
     } else {
-      Expr body = this->VisitExpr(op->body);
+      PrimExpr body = this->VisitExpr(op->body);
       if (value.same_as(op->value) &&
           body.same_as(op->body)) {
-        return GetRef<Expr>(op);
+        return GetRef<PrimExpr>(op);
       } else {
         return LetNode::make(op->var, value, body);
       }
@@ -329,9 +329,9 @@ class Vectorizer : public StmtExprMutator {
   }
   // Provide
   Stmt VisitStmt_(const ProvideNode* op) final {
-    Expr new_value = this->VisitExpr(op->value);
+    PrimExpr new_value = this->VisitExpr(op->value);
     int lane = new_value.dtype().lanes();
-    Array<Expr> new_args = MutateArray(op->args, &lane);
+    Array<PrimExpr> new_args = MutateArray(op->args, &lane);
     if (op->args.same_as(new_args) && op->value.same_as(new_value)) {
       return GetRef<Stmt>(op);
     } else {
@@ -341,9 +341,9 @@ class Vectorizer : public StmtExprMutator {
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
-    Expr value = this->VisitExpr(op->value);
-    Expr index = this->VisitExpr(op->index);
-    Expr pred = this->VisitExpr(op->predicate);
+    PrimExpr value = this->VisitExpr(op->value);
+    PrimExpr index = this->VisitExpr(op->index);
+    PrimExpr pred = this->VisitExpr(op->predicate);
     if (value.same_as(op->value) && index.same_as(op->index)) {
       return GetRef<Stmt>(op);
     } else {
@@ -362,7 +362,7 @@ class Vectorizer : public StmtExprMutator {
     }
     CHECK(is_zero(op->min));
     CHECK(!op->extent.dtype().is_vector());
-    Expr extent = this->VisitExpr(op->extent);
+    PrimExpr extent = this->VisitExpr(op->extent);
     if (extent.dtype().is_vector()) {
       return Scalarize(GetRef<Stmt>(op));
     }
@@ -379,7 +379,7 @@ class Vectorizer : public StmtExprMutator {
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     CHECK(!op->condition.dtype().is_vector());
-    Expr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_vector()) {
       return Scalarize(GetRef<Stmt>(op));
     }
@@ -407,14 +407,14 @@ class Vectorizer : public StmtExprMutator {
       LOG(WARNING) << "Cannot vectorize with new expr";
       return Scalarize(GetRef<Stmt>(op));
     }
-    Expr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_vector()) {
       LOG(WARNING) << "Cannot handle vector extent in alloc ";
       return Scalarize(GetRef<Stmt>(op));
     }
-    Array<Expr> extents;
+    Array<PrimExpr> extents;
     for (size_t i = 0; i < op->extents.size(); i++) {
-      Expr new_ext = this->VisitExpr(op->extents[i]);
+      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
       if (new_ext.dtype().is_vector()) {
         LOG(WARNING) << "Cannot handle vector extent in alloc ";
         return Scalarize(GetRef<Stmt>(op));
@@ -435,7 +435,7 @@ class Vectorizer : public StmtExprMutator {
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->dtype);
-    Map<Var, Expr> values{{var_, idx}};
+    Map<Var, PrimExpr> values{{var_, idx}};
     stmt = Substitute(stmt, values);
     return ForNode::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
@@ -448,21 +448,21 @@ class Vectorizer : public StmtExprMutator {
   // the lanes.
   int var_lanes_;
   // ramp representing the var.
-  Expr ramp_;
+  PrimExpr ramp_;
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // The lets
-  std::unordered_map<const VarNode*, Expr> lets_;
+  std::unordered_map<const VarNode*, PrimExpr> lets_;
   // mutate array, with given lane requirement
   // when finished, p_lane updates the lane requirement.
-  Array<Expr> MutateArray(Array<Expr> arr, int* p_lanes) {
+  Array<PrimExpr> MutateArray(Array<PrimExpr> arr, int* p_lanes) {
     if (arr.size() == 0) return arr;
     int& lanes = *p_lanes;
     bool changed = false;
-    std::vector<Expr> new_arr(arr.size());
+    std::vector<PrimExpr> new_arr(arr.size());
     for (size_t i = 0; i < arr.size(); i++) {
-      Expr old_elem = arr[i];
-      Expr new_elem = this->VisitExpr(old_elem);
+      PrimExpr old_elem = arr[i];
+      PrimExpr new_elem = this->VisitExpr(old_elem);
       if (!new_elem.same_as(old_elem)) changed = true;
       new_arr[i] = new_elem;
       lanes = std::max(lanes, new_elem.dtype().lanes());
@@ -475,27 +475,27 @@ class Vectorizer : public StmtExprMutator {
       }
     }
     if (!changed) return arr;
-    return Array<Expr>(new_arr);
+    return Array<PrimExpr>(new_arr);
   }
   template<typename T>
-  Expr BinaryVec(const T* op) {
-    Expr a = this->VisitExpr(op->a);
-    Expr b = this->VisitExpr(op->b);
+  PrimExpr BinaryVec(const T* op) {
+    PrimExpr a = this->VisitExpr(op->a);
+    PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) &&
         b.same_as(op->b)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       return T::make(BroadcastTo(a, lanes), BroadcastTo(b, lanes));
     }
   }
   template<typename T>
-  Expr AddSubVec(const T* op) {
-    Expr a = this->VisitExpr(op->a);
-    Expr b = this->VisitExpr(op->b);
+  PrimExpr AddSubVec(const T* op) {
+    PrimExpr a = this->VisitExpr(op->a);
+    PrimExpr b = this->VisitExpr(op->b);
     if (a.same_as(op->a) &&
         b.same_as(op->b)) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       int lanes = std::max(a.dtype().lanes(), b.dtype().lanes());
       if (lanes != 1) {

@@ -44,7 +44,7 @@ namespace relay {
  * \return The adjusted Layout.
  */
 inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layout,
-                                       const Array<tvm::Expr>& old_shape) {
+                                       const Array<tvm::PrimExpr>& old_shape) {
   // For each subordinate axis
   //   1) Find the corresponding dual axis.
   //   2) Find the Index of this dual axis in old_layout.

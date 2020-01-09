@@ -71,7 +71,7 @@ TVM_REGISTER_GLOBAL("make.SeqStmt")
 
 TVM_REGISTER_GLOBAL("make.For")
 .set_body_typed([](
-  VarExpr loop_var, Expr min, Expr extent,
+  Var loop_var, PrimExpr min, PrimExpr extent,
   int for_type, int device_api, Stmt body) {
   return ForNode::make(loop_var,
                    min,
@@ -93,7 +93,7 @@ TVM_REGISTER_GLOBAL("make.Load")
 
 TVM_REGISTER_GLOBAL("make.Store")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    Expr value = args[1];
+    PrimExpr value = args[1];
     if (args.size() == 3) {
       *ret = StoreNode::make(args[0], value, args[2], const_true(value.dtype().lanes()));
     } else {
@@ -107,7 +107,7 @@ TVM_REGISTER_GLOBAL("make.Realize")
 TVM_REGISTER_GLOBAL("make.Call")
 .set_body_typed([](
   DataType type, std::string name,
-  Array<Expr> args, int call_type,
+  Array<PrimExpr> args, int call_type,
   FunctionRef func, int value_index
 ) {
   return CallNode::make(type,
@@ -173,7 +173,7 @@ REGISTER_MAKE(Evaluate);
 // has default args
 TVM_REGISTER_GLOBAL("make.Allocate")
   .set_body_typed([](
-    VarExpr buffer_var, DataType type, Array<Expr> extents, Expr condition, Stmt body
+    Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition, Stmt body
   ){
     return AllocateNode::make(buffer_var, type, extents, condition, body);
   });
@@ -181,7 +181,7 @@ TVM_REGISTER_GLOBAL("make.Allocate")
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                     \
   TVM_REGISTER_GLOBAL("make."#Node)                             \
-  .set_body_typed([](Expr a, Expr b) {                          \
+  .set_body_typed([](PrimExpr a, PrimExpr b) {                  \
     return (Func(a, b));                                        \
   })
 
@@ -191,11 +191,11 @@ TVM_REGISTER_GLOBAL("make.Allocate")
     bool lhs_is_int = args[0].type_code() == kDLInt;                    \
     bool rhs_is_int = args[1].type_code() == kDLInt;                    \
     if (lhs_is_int) {                                                   \
-      *ret = (Func(args[0].operator int(), args[1].operator Expr()));   \
+      *ret = (Func(args[0].operator int(), args[1].operator PrimExpr())); \
     } else if (rhs_is_int) {                                            \
-      *ret = (Func(args[0].operator Expr(), args[1].operator int()));   \
+      *ret = (Func(args[0].operator PrimExpr(), args[1].operator int())); \
     } else {                                                            \
-      *ret = (Func(args[0].operator Expr(), args[1].operator Expr()));  \
+      *ret = (Func(args[0].operator PrimExpr(), args[1].operator PrimExpr())); \
     }                                                                   \
   })
 
@@ -228,7 +228,7 @@ REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
 TVM_REGISTER_GLOBAL("make._OpIfThenElse")
-.set_body_typed([] (Expr cond, Expr true_value, Expr false_value) {
+.set_body_typed([] (PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
   return if_then_else(cond, true_value, false_value);
 });
 
