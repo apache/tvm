@@ -242,7 +242,7 @@ class NotEqualOp(ObjectGeneric, ExprOp):
         return _make._OpNE(self.a, self.b)
 
 
-class PrimExpr(ExprOp, NodeBase):
+class PrimExpr(ExprOp, Object):
     """Base class of all tvm Expressions"""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
