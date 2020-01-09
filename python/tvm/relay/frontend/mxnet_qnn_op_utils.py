@@ -57,11 +57,9 @@ def _quantize_scale_with_zero_centered(data,
                                        scale,
                                        zero_point,
                                        out_dtype):
-    scale = relay.const(scale, 'float32')
-    zero_point = relay.const(zero_point, 'int32')
     quantized_output = quantize(data,
-                                scale,
-                                zero_point,
+                                relay.const(scale, 'float32'),
+                                relay.const(zero_point,'int32'),
                                 out_dtype=out_dtype)
     return quantized_output, scale, zero_point
 
@@ -139,8 +137,8 @@ def _quantize_mxnet_min_max_uint8(data,
     imax_range = np.float64(imax_range)
     scale = np.divide((max_limit - min_limit),
                       (imax_range - imin_range))
-    scale_inverse = relay.const(np.divide(1.0, scale), 'float32')
-    zero_point = relay.const(np.int(-1 * imin_range * scale))
+    scale_inverse = np.divide(1.0, scale)
+    zero_point = np.int(-1 * imin_range * scale)
     quantized_output = quantize(data,
                                 scale_inverse,
                                 zero_point,
@@ -326,10 +324,44 @@ def quantize_conv_weights_mkldnn_from_var(weights_var,
                                   use_mkldnn=True)
 
 
+def quantize_conv_weights_channel_mkldnn_from_var(weights_var,
+                                                  min_vector_range,
+                                                  max_vector_range):
+    r"""Helper method to quantize the convolution kernel in prequantized model
+    in MXNet with MKLDNN. The kernel is always quantized to int8 output datatype.
+    The inputs are the raw weights which are floating point numbers. The min and
+    max ranges are used from the weight itself. The name supplied is used to create
+    a tvm.relay.var with the given name.
+
+    Parameters
+    ----------
+    weights_var : tvm.relay.var
+                The float32 representation of the weights.
+    min_range : float32
+              A number representing the minimum of the weights.
+    max_range : float32
+              A number representing the maximum of the weights.
+
+    Returns
+    -------
+    result : tvm.relay.expr
+           The quantized representation of the weights.
+    """
+
+    quantized_range = zero_centered_int8_quantized_range
+    real_vector_range = np.maximum(np.absolute(min_vector_range),
+                                   np.absolute(max_vector_range))
+    vector_scale = np.divide(real_vector_range, quantized_range)
+    zero_point = 0
+    quantized_output = quantize(weights_var,
+                                relay.const(vector_scale),
+                                relay.const(zero_point, 'int32'),
+                                axis=0,
+                                out_dtype='int8')
+    return quantized_output, vector_scale, zero_point
+
 def get_mkldnn_requantize_scale_outDtype(min_output_range,
                                          max_output_range,
-                                         data_scale,
-                                         kernel_scale,
                                          out_dtype):
     quantized_out_range = zero_centered_int8_quantized_range if out_dtype == 'int8' \
         else zero_centered_uint8_quantized_range
@@ -341,15 +373,10 @@ def get_mkldnn_requantize_scale_outDtype(min_output_range,
 
 
 # TODO: add support for uint8 type
-def get_conv_mkldnn_requantized_scale_outDtype(min_output_range,
-                                               max_output_range,
-                                               data_scale,
-                                               kernel_scale):
+def get_conv_mkldnn_requantized_scale_outDtype(min_output_range, max_output_range):
     out_dtype = 'uint8' if min_output_range >= 0.0 else 'int8'
     requantize_scale = get_mkldnn_requantize_scale_outDtype(min_output_range,
                                                             max_output_range,
-                                                            data_scale,
-                                                            kernel_scale,
                                                             out_dtype)
     return requantize_scale, out_dtype
 
@@ -357,10 +384,12 @@ def get_conv_mkldnn_requantized_scale_outDtype(min_output_range,
 def quantize_conv_bias_mkldnn_from_var(bias_var,
                                        bias_scale):
     zero_point = 0
-    quantized_bias, _, _ = _quantize_scale_with_zero_centered(bias_var,
-                                                              bias_scale,
-                                                              zero_point,
-                                                              'int32')
+    quantized_bias = quantize(data=bias_var,
+                              output_scale=relay.const(bias_scale),
+                              output_zero_point=relay.const(zero_point ,'int32'),
+                              axis=0,
+                              out_dtype='int32')
+
     return quantized_bias
 
 

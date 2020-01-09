@@ -57,7 +57,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[5], DataType::Float(32)));  // kernel_scale
+  // AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // kernel_scale
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
