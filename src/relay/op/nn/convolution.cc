@@ -51,39 +51,57 @@ Array<Array<Layout> > ConvInferCorrectLayout(
 }
 
 
-// relay.nn.conv1d
-TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
-
-// Positional relay function to create conv1d operator
-// used by frontend FFI.
-Expr MakeConv1D(Expr data,
-                Expr weight,
-                Array<IndexExpr> strides,
-                Array<IndexExpr> padding,
-                Array<IndexExpr> dilation,
-                IndexExpr channels,
-                Array<IndexExpr> kernel_size,
-                std::string data_layout,
-                std::string kernel_layout,
-                std::string out_layout,
-                DataType out_dtype) {
-  auto attrs = make_object<Conv1DAttrs>();
+template <typename T>
+Expr MakeConv(Expr data,
+              Expr weight,
+              Array<IndexExpr> strides,
+              Array<IndexExpr> padding,
+              Array<IndexExpr> dilation,
+              int groups,
+              IndexExpr channels,
+              Array<IndexExpr> kernel_size,
+              std::string data_layout,
+              std::string kernel_layout,
+              std::string out_layout,
+              DataType out_dtype,
+              std::string op_name) {
+  auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->data_layout = std::move(data_layout);
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.conv1d");
+  static const Op& op = Op::Get(op_name);
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
 
+// relay.nn.conv1d
+TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d")
-.set_body_typed(MakeConv1D);
+.set_body_typed([](Expr data,
+                   Expr weight,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation,
+                   int groups,
+                   IndexExpr channels,
+                   Array<IndexExpr> kernel_size,
+                   std::string data_layout,
+                   std::string kernel_layout,
+                   std::string out_layout,
+                   DataType out_dtype) {
+  return MakeConv<Conv1DAttrs>(
+    data, weight, strides, padding, dilation,
+    groups, channels, kernel_size, data_layout,
+    kernel_layout, out_layout, out_dtype, "nn.conv1d");
+});
 
 
 RELAY_REGISTER_OP("nn.conv1d")
@@ -111,38 +129,24 @@ with the layer input to produce a tensor of outputs.
 // relay.nn.conv2d
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
-// Positional relay function to create conv2d operator
-// used by frontend FFI.
-Expr MakeConv2D(Expr data,
-                Expr weight,
-                Array<IndexExpr> strides,
-                Array<IndexExpr> padding,
-                Array<IndexExpr> dilation,
-                int groups,
-                IndexExpr channels,
-                Array<IndexExpr> kernel_size,
-                std::string data_layout,
-                std::string kernel_layout,
-                std::string out_layout,
-                DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.conv2d");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d")
-.set_body_typed(MakeConv2D);
+.set_body_typed([](Expr data,
+                   Expr weight,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation,
+                   int groups,
+                   IndexExpr channels,
+                   Array<IndexExpr> kernel_size,
+                   std::string data_layout,
+                   std::string kernel_layout,
+                   std::string out_layout,
+                   DataType out_dtype) {
+  return MakeConv<Conv2DAttrs>(
+    data, weight, strides, padding, dilation,
+    groups, channels, kernel_size, data_layout,
+    kernel_layout, out_layout, out_dtype, "nn.conv2d");
+});
 
 
 RELAY_REGISTER_OP("nn.conv2d")
@@ -169,38 +173,24 @@ with the layer input to produce a tensor of outputs.
 // relay.nn.conv3d
 TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 
-// Positional relay function to create conv3d operator
-// used by frontend FFI.
-Expr MakeConv3D(Expr data,
-                Expr weight,
-                Array<IndexExpr> strides,
-                Array<IndexExpr> padding,
-                Array<IndexExpr> dilation,
-                int groups,
-                IndexExpr channels,
-                Array<IndexExpr> kernel_size,
-                std::string data_layout,
-                std::string kernel_layout,
-                std::string out_layout,
-                DataType out_dtype) {
-  auto attrs = make_object<Conv3DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = std::move(channels);
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.conv3d");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv3d")
-.set_body_typed(MakeConv3D);
+.set_body_typed([](Expr data,
+                   Expr weight,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation,
+                   int groups,
+                   IndexExpr channels,
+                   Array<IndexExpr> kernel_size,
+                   std::string data_layout,
+                   std::string kernel_layout,
+                   std::string out_layout,
+                   DataType out_dtype) {
+  return MakeConv<Conv3DAttrs>(
+    data, weight, strides, padding, dilation,
+    groups, channels, kernel_size, data_layout,
+    kernel_layout, out_layout, out_dtype, "nn.conv3d");
+});
 
 
 RELAY_REGISTER_OP("nn.conv3d")

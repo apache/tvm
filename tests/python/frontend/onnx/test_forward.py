@@ -1956,6 +1956,7 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
             model, [x_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
+
 def test_pooling():
     for mode in ['max', 'average']:
         # Pool1D

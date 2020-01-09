@@ -41,7 +41,7 @@ def schedule_conv1d_ncw(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of conv2d_hwcn
+          The computation graph description of conv1d_ncw
           in the format of an array of tensors.
 
     Returns
@@ -59,7 +59,7 @@ def schedule_conv1d_nwc(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of conv2d_hwcn
+          The computation graph description of conv1d_nwc
           in the format of an array of tensors.
 
     Returns

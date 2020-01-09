@@ -54,6 +54,7 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
   Array<IndexExpr> dilation;
+  int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
   std::string data_layout;
@@ -69,6 +70,8 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
                   "on both sides for padding number of points");
     TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, }))
         .describe("Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).set_default(1)
+        .describe("Currently unused but may be added in the future.");
     TVM_ATTR_FIELD(channels)
         .describe("The number of output channels in the convolution."
                   " If it is not set, inferred by shape of the weight.")

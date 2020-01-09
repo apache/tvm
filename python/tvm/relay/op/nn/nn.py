@@ -26,6 +26,7 @@ def conv1d(data,
            strides=1,
            padding=(0, 0),
            dilation=1,
+           groups=1,
            channels=None,
            kernel_size=None,
            data_layout="NCW",
@@ -74,6 +75,9 @@ def conv1d(data,
     dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
+    groups : Optional[int]
+        Currently unused for 1D convolution.
+
     channels : Optional[int]
         Number of output channels of this convolution.
 
@@ -104,7 +108,7 @@ def conv1d(data,
     if isinstance(dilation, int):
         dilation = (dilation, )
     return _make.conv1d(data, weight, strides, padding, dilation,
-                        channels, kernel_size, data_layout,
+                        groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
 
 
