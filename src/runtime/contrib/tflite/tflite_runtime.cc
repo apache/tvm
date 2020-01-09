@@ -21,7 +21,6 @@
  * \file tflite_runtime.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/dtype.h>
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
@@ -33,37 +32,37 @@ namespace tvm {
 namespace runtime {
 
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == DataType::Float(64)) {                              \
+  if (type == DataType::Float(64)) {                    \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(32)) {                       \
+  } else if (type == DataType::Float(32)) {             \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(16)) {                       \
+  } else if (type == DataType::Float(16)) {             \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(64)) {                         \
+  } else if (type == DataType::Int(64)) {               \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(32)) {                         \
+  } else if (type == DataType::Int(32)) {               \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(16)) {                         \
+  } else if (type == DataType::Int(16)) {               \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(8)) {                          \
+  } else if (type == DataType::Int(8)) {                \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(64)) {                        \
+  } else if (type == DataType::UInt(64)) {              \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(32)) {                        \
+  } else if (type == DataType::UInt(32)) {              \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(16)) {                        \
+  } else if (type == DataType::UInt(16)) {              \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(8)) {                         \
+  } else if (type == DataType::UInt(8)) {               \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
