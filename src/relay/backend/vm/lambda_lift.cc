@@ -37,21 +37,19 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-static const char* kIsClosure = "IsClosure";
-
 inline std::string GenerateName(const Function& func) {
   size_t hash = StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 
 bool IsClosure(const Function& func) {
-  NodeRef res = FunctionGetAttr(func, kIsClosure);
+  NodeRef res = FunctionGetAttr(func, attr::kClosure);
   const ir::IntImm* pval = res.as<ir::IntImm>();
   return pval && pval->value != 0;
 }
 
 Function MarkClosure(const Function& func) {
-  return FunctionSetAttr(func, kIsClosure, tvm::Integer(1));
+  return FunctionSetAttr(func, attr::kClosure, tvm::Integer(1));
 }
 
 /* The goal of this class is to lift out any nested functions into top-level

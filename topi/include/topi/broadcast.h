@@ -206,7 +206,7 @@ TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(floor_divide, {
-  if (a.type().is_int() || a.type().is_uint()) {
+  if (a.dtype().is_int() || a.dtype().is_uint()) {
     return floordiv(a, b);
   } else {
     return floor(div(a, b));
@@ -238,7 +238,7 @@ TOPI_DEFINE_BCAST_OP(mod, { return truncmod(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(floor_mod, {
-  if (a.type().is_int() || a.type().is_uint()) {
+  if (a.dtype().is_int() || a.dtype().is_uint()) {
     return floormod(a, b);
   } else {
     return a - floor_divide(a, b) * b;

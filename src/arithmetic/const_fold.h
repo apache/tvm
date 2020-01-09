@@ -70,7 +70,7 @@ inline Expr TryConstFold(Expr a);
  * \param type The type to represent index.
  * \return the checked result.
  */
-inline bool IsIndexType(const Type& type) {
+inline bool IsIndexType(const DataType& type) {
   return type.is_int() && type.lanes() == 1 &&
       (type.bits() == 32 || type.bits() == 64);
 }
@@ -92,8 +92,8 @@ inline bool IsIndexType(const Type& type) {
   using ir::UIntImm;                                                    \
   const IntImm* pa = a.as<IntImm>();                                    \
   const IntImm* pb = b.as<IntImm>();                                    \
-  const Type& ta = a.type();                                            \
-  const Type& tb = b.type();                                            \
+  const DataType& ta = a.dtype();                                       \
+  const DataType& tb = b.dtype();                                       \
   if (arith::IsIndexType(ta) && arith::IsIndexType(tb)) {               \
     BODY;                                                               \
   }                                                                     \
@@ -103,7 +103,7 @@ inline bool IsIndexType(const Type& type) {
 template<>
 inline Expr TryConstFold<ir::Add>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value + pb->value);
       if (pa && pa->value == 0) return b;
       if (pb && pb->value == 0) return a;
@@ -117,7 +117,7 @@ inline Expr TryConstFold<ir::Add>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Sub>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value - pb->value);
       if (pb && pb->value == 0) return a;
       if (fa && fb) return FloatImm::make(rtype, fa->value - fb->value);
@@ -129,7 +129,7 @@ inline Expr TryConstFold<ir::Sub>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Mul>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, pa->value * pb->value);
       if (pa) {
         if (pa->value == 1) return b;
@@ -155,7 +155,7 @@ inline Expr TryConstFold<ir::Mul>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) {
         // due to division and mod can have different modes
         // NOTE: this will assumes truc div.
@@ -184,7 +184,7 @@ inline Expr TryConstFold<ir::Div>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Mod>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) {
         return IntImm::make(rtype, pa->value % pb->value);
       }
@@ -202,7 +202,7 @@ inline Expr TryConstFold<ir::Mod>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
         return IntImm::make(rtype, arith::floordiv(pa->value, pb->value));
@@ -229,7 +229,7 @@ inline Expr TryConstFold<ir::FloorDiv>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
   TVM_INDEX_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) {
         return IntImm::make(rtype, arith::floormod(pa->value, pb->value));
       }
@@ -247,7 +247,7 @@ inline Expr TryConstFold<ir::FloorMod>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Min>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, std::min(pa->value, pb->value));
       if (fa && fb) return FloatImm::make(rtype, std::min(fa->value, fb->value));
     });
@@ -258,7 +258,7 @@ inline Expr TryConstFold<ir::Min>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::Max>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      const Type& rtype = a.type();
+      const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm::make(rtype, std::max(pa->value, pb->value));
       if (fa && fb) return FloatImm::make(rtype, std::max(fa->value, fb->value));
     });
@@ -269,8 +269,8 @@ inline Expr TryConstFold<ir::Max>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::GT>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value > pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value > fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value > pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value > fb->value);
     });
   return Expr();
 }
@@ -278,8 +278,8 @@ inline Expr TryConstFold<ir::GT>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::GE>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value >= pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value >= fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value >= pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value >= fb->value);
     });
   return Expr();
 }
@@ -287,8 +287,8 @@ inline Expr TryConstFold<ir::GE>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::LT>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value < pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value < fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value < pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value < fb->value);
     });
   return Expr();
 }
@@ -296,8 +296,8 @@ inline Expr TryConstFold<ir::LT>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::LE>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value <= pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value <= fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value <= pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value <= fb->value);
     });
   return Expr();
 }
@@ -305,8 +305,8 @@ inline Expr TryConstFold<ir::LE>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::EQ>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value == pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value == fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value == pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value == fb->value);
     });
   return Expr();
 }
@@ -314,8 +314,8 @@ inline Expr TryConstFold<ir::EQ>(Expr a, Expr b) {
 template<>
 inline Expr TryConstFold<ir::NE>(Expr a, Expr b) {
   TVM_ARITH_CONST_PROPAGATION({
-      if (pa && pb) return UIntImm::make(UInt(1), pa->value != pb->value);
-      if (fa && fb) return UIntImm::make(UInt(1), fa->value != fb->value);
+      if (pa && pb) return UIntImm::make(DataType::UInt(1), pa->value != pb->value);
+      if (fa && fb) return UIntImm::make(DataType::UInt(1), fa->value != fb->value);
     });
   return Expr();
 }
@@ -349,7 +349,7 @@ inline Expr TryConstFold<ir::Not>(Expr a) {
   using ir::UIntImm;
   const UIntImm* pa = a.as<UIntImm>();
   if (pa) {
-    return UIntImm::make(UInt(1), !(pa->value));
+    return UIntImm::make(DataType::UInt(1), !(pa->value));
   }
   return Expr();
 }

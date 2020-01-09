@@ -120,7 +120,7 @@ class StorageObj : public Object {
                        DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(NDArray::Container* ptr);
+  static void Deleter(Object* ptr);
 
   ~StorageObj() {
     auto alloc = MemoryManager::Global()->GetAllocator(buffer.ctx);

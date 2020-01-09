@@ -51,9 +51,9 @@ LoweredFunc MakeAPI(Stmt body,
   int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
-  Var v_packed_args("args", Handle());
-  Var v_packed_arg_type_ids("arg_type_ids", Handle());
-  Var v_num_packed_args("num_args", Int(32));
+  Var v_packed_args("args", DataType::Handle());
+  Var v_packed_arg_type_ids("arg_type_ids", DataType::Handle());
+  Var v_num_packed_args("num_args", DataType::Int(32));
   // The arguments of the function.
   Array<Var> args;
   // The device context
@@ -66,12 +66,12 @@ LoweredFunc MakeAPI(Stmt body,
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
-  auto f_arg_value = [&](Type t, int i) {
+  auto f_arg_value = [&](DataType t, int i) {
     Array<Expr> call_args{v_packed_args,
-                          IntImm::make(Int(32), i),
-                          IntImm::make(Int(32), intrinsic::kTVMValueContent)};
+                          IntImm::make(DataType::Int(32), i),
+                          IntImm::make(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
-    Type api_type = APIType(t);
+    DataType api_type = APIType(t);
     Expr res = Call::make(
         api_type, intrinsic::tvm_struct_get, call_args,
         Call::PureIntrinsic);
@@ -86,7 +86,7 @@ LoweredFunc MakeAPI(Stmt body,
     std::ostringstream os;
     os << "arg" << i;
     const Variable* v = api_args[i].as<Variable>();
-    return Var(os.str(), v ? v->type: Handle());
+    return Var(os.str(), v ? v->dtype: DataType::Handle());
   };
   // ---------------------------
   // start of logics
@@ -110,14 +110,15 @@ LoweredFunc MakeAPI(Stmt body,
     if (i < num_packed_args) {
       // Value loads
       seq_init.emplace_back(LetStmt::make(
-          v_arg, f_arg_value(v_arg.type(), i), nop));
+          v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
-      Var tcode(v_arg->name_hint + ".code", Int(32));
+      Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
       seq_init.emplace_back(LetStmt::make(
           tcode, Load::make(
-              Int(32), v_packed_arg_type_ids, IntImm::make(Int(32), i), const_true(1)),
+              DataType::Int(32), v_packed_arg_type_ids,
+              IntImm::make(DataType::Int(32), i), const_true(1)),
           nop));
-      Type t = v_arg.type();
+      DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be pointer";
@@ -174,7 +175,7 @@ LoweredFunc MakeAPI(Stmt body,
   n->is_packed_func = num_unpacked_args == 0;
   n->is_restricted = is_restricted;
   body = AttrStmt::make(
-      make_zero(Int(32)), attr::compute_scope,
+      make_zero(DataType::Int(32)), attr::compute_scope,
       StringImm::make(name + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
@@ -186,7 +187,7 @@ LoweredFunc MakeAPI(Stmt body,
         node, attr::device_context_type, device_type, nop));
     Stmt set_device = IfThenElse::make(
         device_type != kDLCPU, Evaluate::make(Call::make(
-            Int(32), intrinsic::tvm_call_packed,
+            DataType::Int(32), intrinsic::tvm_call_packed,
             {StringImm::make(runtime::symbol::tvm_set_device),
              device_type, device_id}, Call::Intrinsic)));
     body = Block::make(set_device, body);
@@ -215,7 +216,7 @@ class DeviceTypeBinder: public IRMutator {
     if (op->attr_key == attr::device_context_type) {
       if (const Variable* var = op->value.as<Variable>()) {
         var_ = var;
-        Expr value = make_const(op->value.type(), device_type_);
+        Expr value = make_const(op->value.dtype(), device_type_);
         Stmt body = IRMutator::Mutate_(op, s);
         var_ = nullptr;
         std::ostringstream os;
@@ -245,14 +246,14 @@ class DeviceTypeBinder: public IRMutator {
     Expr res = IRMutator::Mutate_(op, e);
     op = res.as<NE>();
     if (ir::Equal(op->a, op->b)) {
-      return make_const(op->type, false);
+      return make_const(op->dtype, false);
     }
     return res;
   }
 
   Expr Mutate_(const Variable* op, const Expr& e) final {
     if (op == var_) {
-      return make_const(op->type, device_type_);
+      return make_const(op->dtype, device_type_);
     } else {
       return e;
     }

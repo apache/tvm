@@ -151,7 +151,7 @@ def get_network(name, batch_size):
 # * For Android:
 #   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
 #   install the TVM RPC APK on the android device. Make sure you can pass the android rpc test.
-#   Then you have already registred your device. During tuning, you have to go to developer option
+#   Then you have already registered your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.
 #
 # After registering devices, we can confirm it by querying rpc_tracker

@@ -424,17 +424,17 @@ class PrettyPrinter :
     // Print out simple scalars directly.
     if (op->is_scalar()) {
       std::ostringstream os;
-      DataType dtype = TVMType2Type(op->data->dtype);
+      DataType dtype = DataType(op->data->dtype);
       CHECK_EQ(op->data->ctx.device_type, kDLCPU);
-      if (dtype == Int(32)) {
+      if (dtype == DataType::Int(32)) {
         return PrintConstScalar(dtype, static_cast<const int32_t*>(op->data->data));
-      } else if (dtype == Int(64)) {
+      } else if (dtype == DataType::Int(64)) {
         return PrintConstScalar(dtype, static_cast<const int64_t*>(op->data->data));
-      } else if (dtype == Float(32)) {
+      } else if (dtype == DataType::Float(32)) {
         return PrintConstScalar(dtype, static_cast<const float*>(op->data->data));
-      } else if (dtype == Float(64)) {
+      } else if (dtype == DataType::Float(64)) {
         return PrintConstScalar(dtype, static_cast<const double*>(op->data->data));
-      } else if (dtype == Bool()) {
+      } else if (dtype == DataType::Bool()) {
         return PrintConstScalar(dtype, static_cast<const uint8_t*>(op->data->data));
       }
     }
@@ -843,15 +843,15 @@ class PrettyPrinter :
   }
 
   Doc VisitAttr_(const ir::IntImm* op) final {
-    return PrintConstScalar(op->type, &(op->value));
+    return PrintConstScalar(op->dtype, &(op->value));
   }
 
   Doc VisitAttr_(const ir::UIntImm* op) final {
-    return PrintConstScalar(op->type, &(op->value));
+    return PrintConstScalar(op->dtype, &(op->value));
   }
 
   Doc VisitAttr_(const ir::FloatImm* op) final {
-    return PrintConstScalar(op->type, &(op->value));
+    return PrintConstScalar(op->dtype, &(op->value));
   }
 
   Doc VisitAttr_(const ir::StringImm* op) final {
@@ -925,7 +925,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    PrintKV(key, PrintString(runtime::TVMType2String(Type2TVMType(*value))));
+    PrintKV(key, PrintString(runtime::TVMType2String(*value)));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";

@@ -43,16 +43,16 @@ class CodeGenOpenCL final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
-  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
-  std::string GetVecLoad(Type t, const Variable* buffer,
+  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
+  std::string GetVecLoad(DataType t, const Variable* buffer,
                          Expr base) final;
   void PrintVecStore(const Variable* buffer,
-                     Type t, Expr base,
+                     DataType t, Expr base,
                      const std::string& value) final;  // NOLINT(*)
   // the address of load/store
-  void PrintVecAddr(const Variable* buffer, Type t,
+  void PrintVecAddr(const Variable* buffer, DataType t,
                     Expr base, std::ostream& os);  // NOLINT(*)
-  std::string CastFromTo(std::string value, Type from, Type target); // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target); // NOLINT(*)
 
   // overload visitor
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)

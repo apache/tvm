@@ -57,7 +57,7 @@ class AttrScopeLifter : public IRMutator {
       attr_node_ = NodeRef();
       attr_value_ = Expr();
       return Allocate::make(
-        op->buffer_var, op->type,
+        op->buffer_var, op->dtype,
         op->extents, op->condition, body,
         op->new_expr, op->free_function);
     } else {
@@ -198,7 +198,7 @@ class AttrScopeLifter : public IRMutator {
   static bool ValueSame(const Expr& a, const Expr& b) {
     if (a.same_as(b)) return true;
     if (a->type_index() != b->type_index()) return false;
-    if (a.type() != b.type()) return false;
+    if (a.dtype() != b.dtype()) return false;
     if (const IntImm* op = a.as<IntImm>()) {
       return op->value == b.as<IntImm>()->value;
     }

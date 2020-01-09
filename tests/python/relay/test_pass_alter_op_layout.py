@@ -318,6 +318,70 @@ def test_alter_layout_broadcast_op():
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
+
+def test_alter_layout_broadcast_scalar_op():
+    """Test alternating the layout of a conv2d.
+    The layout of broadcast operators and the weight should be changed accordingly.
+    """
+    def before():
+        x = relay.var("x", shape=(1, 500, 500, 64))
+        kernel = relay.var('kernel', shape=(3, 3, 64, 64), dtype='float32')
+        bias = relay.var("bias", shape=(64,))
+        multiplier1 = relay.var('multiplier1', shape=(1, ), dtype='float32')
+        multiplier2 = relay.var('multiplier2', shape=(1, 1), dtype='float32')
+
+        y = relay.nn.conv2d(x, kernel,
+                            data_layout='NHWC',
+                            kernel_layout="HWIO",
+                            kernel_size=(3, 3))
+        y = relay.add(bias, y)
+        y = relay.nn.relu(y)
+
+        y = relay.multiply(multiplier1, y)
+        y = relay.multiply(y, multiplier2)
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 500, 500, 64))
+        kernel = relay.var('kernel', shape=(3, 3, 64, 64), dtype='float32')
+        bias = relay.var("bias", shape=(64,))
+        multiplier1 = relay.var('multiplier1', shape=(1, ), dtype='float32')
+        multiplier2 = relay.var('multiplier2', shape=(1, 1), dtype='float32')
+
+        b = relay.expand_dims(bias, axis=0, num_newaxis=3)
+        b = relay.layout_transform(b, "NHWC", "NCHW16c")
+
+        y = relay.layout_transform(x, "NHWC", "NCHW16c")
+        y = relay.nn.conv2d(y, kernel,
+                            data_layout='NCHW16c',
+                            kernel_layout="HWIO",
+                            kernel_size=(3, 3))
+
+        y = relay.add(b, y)
+        y = relay.nn.relu(y)
+
+        y = relay.multiply(multiplier1, y)
+        y = relay.multiply(y, multiplier2)
+        y = relay.layout_transform(y, "NCHW16c", "NHWC")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(),
+                             transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_alter_layout_scalar():
     """Test alternating the layout of a conv2d.
     The layout of broadcast operators and the weight should be changed accordingly.
@@ -980,6 +1044,7 @@ if __name__ == "__main__":
     test_alter_layout_dual_path()
     test_alter_layout_resnet()
     test_alter_layout_broadcast_op()
+    test_alter_layout_broadcast_scalar_op()
     test_alter_layout_scalar()
     test_alter_layout_concatenate()
     test_alter_layout_nchw_upsamping_op()

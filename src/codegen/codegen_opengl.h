@@ -45,8 +45,8 @@ class CodeGenOpenGL final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;
   void VisitStmt_(const Store* op) final;
   std::string TexelFetch(const Variable* buffer, Expr index);
-  std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final;
-  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
+  std::string GetBufferRef(DataType t, const Variable* buffer, Expr index) final;
+  void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
 
   // Codegen for immediate values
   void VisitExpr_(const IntImm* op, std::ostream& os) final;  // NOLINT(*)

@@ -67,9 +67,9 @@ class QConfigNode : public Node {
   int nbit_input = 8;
   int nbit_weight = 8;
   int nbit_activation = 32;
-  DataType dtype_input = Int(8);
-  DataType dtype_weight = Int(8);
-  DataType dtype_activation = Int(32);
+  DataType dtype_input = DataType::Int(8);
+  DataType dtype_weight = DataType::Int(8);
+  DataType dtype_activation = DataType::Int(32);
   std::string calibrate_mode = "global_scale";
   double global_scale = 8.0;
   std::string weight_scale = "power2";

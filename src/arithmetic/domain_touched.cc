@@ -72,7 +72,7 @@ class FuncTouchedDomain final : public IRVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const Variable* var = thread_axis->var.get();
-      dom_map_[var] = IntSet::range(Range(make_zero(op->value.type()), op->value));
+      dom_map_[var] = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       IRVisitor::Visit_(op);
       dom_map_.erase(var);
     } else {

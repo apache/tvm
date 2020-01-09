@@ -74,14 +74,16 @@ class Buffer : public NodeRef {
    * \param content_lanes The number of lanes for the (data) type.
    * \param offset The offset of ptr.
    */
-  TVM_DLL Expr access_ptr(int access_mask, Type ptr_type = Handle(),
-                          int content_lanes = 1, Expr offset = make_const(Int(32), 0)) const;
+  TVM_DLL Expr access_ptr(int access_mask,
+                          DataType ptr_type = DataType::Handle(),
+                          int content_lanes = 1,
+                          Expr offset = make_const(DataType::Int(32), 0)) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
    */
-  TVM_DLL Expr vload(Array<Expr> begin, Type dtype) const;
+  TVM_DLL Expr vload(Array<Expr> begin, DataType dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
@@ -108,7 +110,7 @@ class BufferNode : public Node {
    */
   Var data;
   /*! \brief data type in the content of the tensor */
-  Type dtype;
+  DataType dtype;
   /*! \brief The shape of the buffer */
   Array<Expr> shape;
   /*!
@@ -149,14 +151,14 @@ class BufferNode : public Node {
   }
 
   /*! \return preferred index type for this buffer node */
-  Type DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].type() : Int(32);
+  DataType DefaultIndexType() const {
+    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
   }
 
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
   TVM_DLL static Buffer make(Var ptr,
-                             Type dtype,
+                             DataType dtype,
                              Array<Expr> shape,
                              Array<Expr> strides,
                              Expr elem_offset,
@@ -183,7 +185,7 @@ inline const BufferNode* Buffer::operator->() const {
  * \sa BufferNode::make for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<Expr> shape,
-                           Type dtype = Float(32),
+                           DataType dtype = DataType::Float(32),
                            std::string name = "buffer");
 }  // namespace tvm
 #endif  // TVM_BUFFER_H_

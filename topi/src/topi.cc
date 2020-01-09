@@ -839,7 +839,7 @@ using FTVMDenseOpBuilder = std::function<tvm::Tensor(const Target& target,
                                                      const tvm::Tensor& data,
                                                      const tvm::Tensor& weight,
                                                      const tvm::Tensor& bias,
-                                                     const Type& out_dtype)>;
+                                                     const DataType& out_dtype)>;
 
 /*!
 * \brief Helper function for registering dense ops matching the
@@ -856,7 +856,7 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
     Tensor data = args[0];
     Tensor weight = args[1];
     Tensor bias = args[2];
-    Type out_dtype = args[3];
+    DataType out_dtype = args[3];
 
     *ret = builder(target, data, weight, bias, out_dtype);
   });
@@ -867,7 +867,7 @@ TVM_REGISTER_GENERIC_FUNC(dense)
                             const tvm::Tensor& data,
                             const tvm::Tensor& weight,
                             const tvm::Tensor& bias,
-                            const Type& out_dtype) {
+                            const DataType& out_dtype) {
   return topi::nn::dense(data, weight, bias, out_dtype);
 }))
 .register_func({ "cuda", "gpu" }, WrapDenseOp(topi::cuda::dense_cuda))

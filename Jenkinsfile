@@ -57,7 +57,7 @@ tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
                "build/libtvm_topi.so, " +
-               "build/libnnvm_compiler.so, " + tvm_runtime
+               tvm_runtime
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
@@ -309,14 +309,15 @@ stage('Integration Test') {
       }
     }
   },
-  'legacy: GPU': {
+  'docs: GPU': {
     node('GPU') {
-      ws(per_exec_ws("tvm/legacy-python-gpu")) {
+      ws(per_exec_ws("tvm/docs-python-gpu")) {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_legacy.sh"
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
         }
+        pack_lib('mydocs', 'docs.tgz')
       }
     }
   }

@@ -32,7 +32,7 @@
 #include <string>
 #include <unordered_map>
 #include "type_relations.h"
-#include "../pass/alter_op_layout.h"
+#include "../pass/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
@@ -149,6 +149,18 @@ class OpMatch {
   /*! \brief An optional default case. */
   MatchFunc default_;
 };
+
+/*! \brief A utility function to get padding width from a 1 or 2 ints tuple. */
+inline void GetPaddingWidth(const Array<IndexExpr>& padding, IndexExpr* pad_w) {
+  if (padding.size() == 1) {
+    *pad_w = padding[0] * 2;
+  } else if (padding.size() == 2) {
+    *pad_w = padding[0] + padding[1];
+  } else {
+    CHECK_EQ(padding.size(), 4) << " Expected padding size of 1 or 2, found "
+        << padding.size();
+  }
+}
 
 }  // namespace relay
 }  // namespace tvm

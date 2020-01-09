@@ -40,7 +40,7 @@ void StorageAccessVisitor::Visit_(const Load* op) {
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = op->buffer_var;
-    e.dtype = op->type.element_of();
+    e.dtype = op->dtype.element_of();
     e.touched = arith::IntSet::vector(op->index);
     e.type = kRead;
     e.scope = scope;
@@ -60,7 +60,7 @@ void StorageAccessVisitor::Visit_(const Store* op) {
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = op->buffer_var;
-    e.dtype = op->value.type().element_of();
+    e.dtype = op->value.dtype().element_of();
     e.touched = arith::IntSet::vector(op->index);
     e.type = kWrite;
     e.scope = scope;
@@ -186,7 +186,7 @@ void StorageAccessVisitor::Visit_(const Call* op) {
     IRVisitor::Visit_(l);
   } else if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
     CHECK_EQ(op->args.size(), 5U);
-    Type dtype = op->args[0].type();
+    DataType dtype = op->args[0].dtype();
     const Variable* buffer = op->args[1].as<Variable>();
     Expr offset = op->args[2];
     Expr extent = op->args[3];
@@ -251,7 +251,7 @@ class StorageAccessInfoLower : public IRMutator {
           << "Double allocation of " << it->second.scope.to_string();
       if (info->head_address.defined()) {
         return Allocate::make(
-            op->buffer_var, op->type, op->extents, op->condition,
+            op->buffer_var, op->dtype, op->extents, op->condition,
             op->body, info->head_address, "nop");
       }
       return op->body;
@@ -292,24 +292,24 @@ class StorageAccessInfoLower : public IRMutator {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Call>();
     CHECK_EQ(op->args.size(), 5U);
-    Type dtype = op->args[0].type();
+    DataType dtype = op->args[0].dtype();
     const Variable* buffer = op->args[1].as<Variable>();
     Var buffer_var = Downcast<Var>(op->args[1]);
     Expr offset = op->args[2];
     auto it = storage_info_.find(buffer);
     if (it != storage_info_.end() && it->second.info.defined()) {
       return MakeTaggedAccessPtr(
-          op->type, buffer_var, dtype, offset,
+          op->dtype, buffer_var, dtype, offset,
           it->second.info);
     }
-    CHECK(op->type.is_handle());
+    CHECK(op->dtype.is_handle());
     // Change to address_of
     return AddressOffset(buffer_var, dtype, offset);
   }
 
-  Expr MakeTaggedAccessPtr(Type ptr_type,
+  Expr MakeTaggedAccessPtr(DataType ptr_type,
                            Var buffer_var,
-                           Type dtype,
+                           DataType dtype,
                            Expr offset,
                            const MemoryInfo& info) {
     if (ptr_type.is_handle()) {
@@ -321,7 +321,7 @@ class StorageAccessInfoLower : public IRMutator {
     CHECK_EQ(info->unit_bits % dtype_bits, 0);
     return cast(ptr_type,
                    ir::Simplify(offset / make_const(
-                       offset.type(), info->unit_bits / dtype_bits)));
+                       offset.dtype(), info->unit_bits / dtype_bits)));
   }
   // The storage entry.
   struct StorageEntry {

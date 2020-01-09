@@ -413,6 +413,25 @@ def test_conv2d_transpose_nhwc_run():
     c_np = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI', 2, 1)
     d_np = np.zeros(shape=oshape_nhwc)
     d_np[:,0:c_np.shape[1],0:c_np.shape[2],:] = c_np
+
+
+def test_conv1d_transpose_ncw_run():
+    dshape = (1, 3, 18)
+    kshape = (3, 10, 3)
+    oshape = (1, 10, 37)
+    x = relay.var("x", shape=dshape)
+    w = relay.var("w")
+    y = relay.nn.conv1d_transpose(x, w,
+                                  channels=10, kernel_size=(3,), strides=(2,),
+                                  padding=(1,), output_padding=(2,))
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape).astype(dtype)
+    kernel = np.random.uniform(size=kshape).astype(dtype)
+    c_np = topi.testing.conv1d_transpose_ncw_python(
+        data, kernel, 2, 1)
+    d_np = np.zeros(shape=oshape)
+    d_np[:,:,0:c_np.shape[2]] = c_np
     ref_res = d_np
 
     for target, ctx in ctx_list():
@@ -437,6 +456,22 @@ def test_upsampling_infer_type():
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
+def test_upsampling3d_infer_type():
+    n, c, d, h, w = tvm.var("n"), tvm.var("c"), tvm.var("d"), tvm.var("h"), tvm.var("w")
+    scale = tvm.const(2.0, "float64")
+    x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
+    y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
+
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(h*scale)),
+                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+                                                "float32")
+    n, c = tvm.var("n"), tvm.var("c")
+    x = relay.var("x", relay.TensorType((n, c, 100, 100, 200), "float32"))
+    y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, 200, 200, 400), "float32")
 
 def _test_pool2d(opfunc, reffunc):
     n, c, h, w = tvm.var("n"), 10, 224, 224
@@ -452,7 +487,7 @@ def _test_pool2d(opfunc, reffunc):
     y = opfunc(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
     func = relay.Function([x], y)
     data = np.random.uniform(size=dshape).astype(dtype)
-    ref_res = reffunc(data.reshape(1,3,14,2,14,2), axis=(3,5))
+    ref_res = reffunc(data.reshape(1, 3, 14, 2, 14, 2), axis=(3, 5))
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         op_res1 = intrp1.evaluate(func)(data)
@@ -511,6 +546,34 @@ def test_pool2d():
     _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
+
+
+def test_pool3d():
+
+    def _test_pool3d(opfunc):
+        n, c, d, h, w = tvm.var("n"), 10, 5, 224, 224
+        x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
+        y = opfunc(x, pool_size=(1, 1, 1))
+        assert "pool_size=" in y.astext()
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType((n, 10, 5, 224, 224), "float32")
+        # test execution
+        dtype = "float32"
+        dshape = (1, 3, 32, 32, 32)
+        x = relay.var("x", shape=dshape)
+        pool_type = 'max' if 'max' in str(opfunc) else 'avg'
+        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0, 0, 0, 0))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = topi.testing.pool3d_ncdhw_python(data, (2, 2, 2), (2, 2, 2),
+                                                   (0, 0, 0, 0, 0, 0), (1, 3, 16, 16, 16), pool_type, False)
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_pool3d(relay.nn.max_pool3d)
+    _test_pool3d(relay.nn.avg_pool3d)
 
 
 def test_avg_pool2d_no_count_pad():
@@ -735,6 +798,50 @@ def test_upsampling():
     _test_upsampling("NHWC", "nearest_neighbor")
     _test_upsampling("NHWC", "bilinear", True)
 
+def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixel"):
+    n, c, d, h, w = tvm.var("n"), 8, 16, 16, 16
+    scale_d = 2.0
+    scale_h = 2.0
+    scale_w = 2.0
+    dtype = "float32"
+    def get_shape():
+        if layout == "NCDHW":
+            return (c, d, h, w), (c, int(round(d*scale_d)), int(round(h*scale_h)),\
+                                  int(round(w*scale_w)))
+        else:
+            return (d, h, w, c), (int(round(d*scale_d)), int(round(h*scale_h)),\
+                                  int(round(w*scale_w)), c)
+    ishape, oshape = get_shape()
+    x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
+    y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
+                              layout=layout, method=method,\
+                              coordinate_transformation_mode=coordinate_transformation_mode)
+
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
+    dshape = (1,) + ishape
+    x = relay.var("x", shape=dshape)
+    y = relay.nn.upsampling3d(x, scale_d=scale_d, scale_h=scale_h, scale_w=scale_w,\
+                            layout=layout, method=method,\
+                            coordinate_transformation_mode=coordinate_transformation_mode)
+    func = relay.Function([x], y)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    if method == "nearest_neighbor":
+        ref = topi.testing.upsampling3d_python(data, (scale_d, scale_h, scale_w), layout)
+    else:
+        ref = topi.testing.trilinear_resize3d_python(data, (int(round(d*scale_d)),\
+                                                     int(round(h*scale_h)),\
+                                                     int(round(w*scale_w))), layout)
+    for target, ctx in ctx_list():
+        executor = relay.create_executor("graph", ctx=ctx, target=target)
+        out = executor.evaluate(func)(data)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+
+def test_upsampling3d():
+    _test_upsampling3d("NCDHW", "nearest_neighbor")
+    _test_upsampling3d("NCDHW", "trilinear", "align_corners")
+    _test_upsampling3d("NDHWC", "nearest_neighbor")
+    _test_upsampling3d("NDHWC", "trilinear", "align_corners")
 
 def test_conv2d_int8_intrinsics():
     def _compile(ic, oc, target, data_layout, kernel_layout, dtypes):
@@ -881,22 +988,26 @@ def test_bitpack_infer_type():
 
 if __name__ == "__main__":
     test_pool2d()
+    test_pool3d()
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
     test_conv2d_infer_type()
     test_bitpack_infer_type()
     test_upsampling_infer_type()
+    test_upsampling3d_infer_type()
     test_flatten_infer_type()
     test_pad_infer_type()
     test_pad_run()
     test_conv2d_transpose_infer_type()
     test_conv2d_transpose_nchw_run()
     test_conv2d_transpose_nhwc_run()
+    test_conv1d_transpose_ncw_run()
     test_conv2d_run()
     test_conv2d_winograd()
     test_conv3d_run()
     test_bitserial_conv2d_infer_type()
     test_batch_flatten()
     test_upsampling()
+    test_upsampling3d()
     test_conv2d_int8_intrinsics()

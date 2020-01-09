@@ -48,7 +48,7 @@ enum class FuseRule {
  * \return corresponding DLDataType
  */
 inline DLDataType GetDLType(int type_flag) {
-  return tvm::Type2TVMType(GetTVMType(type_flag));
+  return GetTVMType(type_flag);
 }
 
 struct INodeEntryHash {

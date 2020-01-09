@@ -57,7 +57,7 @@ std::string CodeGenHybrid::Finish() {
   return stream.str();
 }
 
-void CodeGenHybrid::PrintType(Type t, std::ostream &os) {
+void CodeGenHybrid::PrintType(DataType t, std::ostream &os) {
   if (t.is_float()) {
     os << "float";
     CHECK(t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
@@ -76,11 +76,11 @@ void CodeGenHybrid::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(
   os << op->value;
 }
 void CodeGenHybrid::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->type, os);
+  PrintType(op->dtype, os);
   os << "(" << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
-  PrintType(op->type, os);
+  PrintType(op->dtype, os);
   os << "(" << std::setprecision(20) << op->value << ")";
 }
 void CodeGenHybrid::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
@@ -92,7 +92,7 @@ inline void PrintBinaryExpr(const T* op,
                             const char *opstr,
                             std::ostream& os,  // NOLINT(*)
                             CodeGenHybrid* p) {
-  CHECK(op->type.lanes() == 1)  << "vec bin op not implemented";
+  CHECK(op->dtype.lanes() == 1)  << "vec bin op not implemented";
   if (isalpha(opstr[0])) {
     os << opstr << '(';
     p->PrintExpr(op->a, os);
@@ -114,7 +114,7 @@ inline void PrintBinaryIntrinsitc(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
                                   CodeGenHybrid* p) {
-  CHECK(op->type.lanes() == 1)  << "vec bin intrin not implemented";
+  CHECK(op->dtype.lanes() == 1)  << "vec bin intrin not implemented";
   CHECK_EQ(op->args.size(), 2U);
   os << '(';
   p->PrintExpr(op->args[0], os);
@@ -124,10 +124,10 @@ inline void PrintBinaryIntrinsitc(const Call* op,
 }
 
 void CodeGenHybrid::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type == op->value.type()) {
+  if (op->dtype == op->value.dtype()) {
     PrintExpr(op->value, stream);
   } else {
-    PrintType(op->type, os);
+    PrintType(op->dtype, os);
     os << "(";
     PrintExpr(op->value, os);
     os << ")";
@@ -148,14 +148,14 @@ void CodeGenHybrid::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenHybrid::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type.is_int())
+  if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
     PrintBinaryExpr(op, "/", os, this);
 }
 
 void CodeGenHybrid::VisitExpr_(const FloorDiv *op, std::ostream& os) {  // NOLINT(*)
-  if (op->type.is_int())
+  if (op->dtype.is_int())
     PrintBinaryExpr(op, "//", os, this);
   else
     PrintBinaryExpr(op, "/", os, this);
@@ -320,7 +320,7 @@ void CodeGenHybrid::VisitStmt_(const Realize *op) {
     }
     if (op->bounds.size() == 1) stream << ", ";
     stream << "), '";
-    PrintType(op->type, stream);
+    PrintType(op->dtype, stream);
     stream << "', '";
     stream << alloc_storage_scope_[op->func] << "')\n";
   }

@@ -393,7 +393,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
       if (fail_set.count(sp_iv.get()) ||
           !exact_reach.count(key) ||
           exact_reach.at(key) != sp_iv.get()) {
-        ret.Set(sp_iv, make_const(Int(32), 0));
+        ret.Set(sp_iv, make_const(DataType::Int(32), 0));
       } else {
         // now we proved exact match, need to prove no interference with other graph.
         if (reach.size() == 0) reach = GetReachGraph(body);
@@ -419,9 +419,9 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
         if (!stack.empty()) {
           // failed the prove.
-          ret.Set(sp_iv, make_const(Int(32), 0));
+          ret.Set(sp_iv, make_const(DataType::Int(32), 0));
         } else {
-          ret.Set(sp_iv, make_const(Int(32), 1));
+          ret.Set(sp_iv, make_const(DataType::Int(32), 1));
         }
       }
     }

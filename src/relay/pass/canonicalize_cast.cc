@@ -62,6 +62,8 @@ namespace relay {
 // \endcode
 class CastCanonicalizer : public ExprMutator {
  public:
+  CastCanonicalizer() : cast_op_(Op::Get("cast")) {}
+
   Expr VisitExpr_(const CallNode* call) {
     static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
 
@@ -91,15 +93,17 @@ class CastCanonicalizer : public ExprMutator {
 
  private:
   std::unordered_map<const Node*, size_t> ref_counter_;
+  // cast op is frequently checked for equivalence. Therefore, we cache it to
+  // reduce lookup overhead.
+  const Op& cast_op_;
+
 
   Expr GetNewCallArg(const Expr& e) {
     // if e is a upcast and ref count > 1, create an copy; otherwise call the default visitor
-
-    static auto& cast = Op::Get("cast");
     Expr new_expr = this->VisitExpr(e);
 
     if (const CallNode* call = e.as<CallNode>()) {
-      if (call->op.same_as(cast)) {
+      if (call->op == cast_op_) {
         auto attrs = call->attrs.as<CastAttrs>();
         const auto* from_type = call->args[0]->type_as<TensorTypeNode>();
         CHECK(from_type);
@@ -108,7 +112,7 @@ class CastCanonicalizer : public ExprMutator {
           if (++ref_counter_[call] > 1) {
             const CallNode* new_call = new_expr.as<CallNode>();
             CHECK(new_call);
-            CHECK(new_call->op.same_as(cast));
+            CHECK(new_call->op == cast_op_);
             return CallNode::make(new_call->op, new_call->args, new_call->attrs,
                  new_call->type_args);
           }

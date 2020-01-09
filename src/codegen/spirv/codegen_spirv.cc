@@ -37,11 +37,11 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
   std::vector<Var> pod_args;
   uint32_t num_buffer = 0;
   for (Var arg : f->args) {
-    Type t = arg.type();
+    DataType t = arg.dtype();
     if (t.is_handle()) {
       auto it = f->handle_data_type.find(arg);
       if (it != f->handle_data_type.end()) {
-        Type value_type = (*it).second.type();
+        DataType value_type = (*it).second.dtype();
         spirv::Value arg_value = builder_->BufferArgument(
             builder_->GetSType(value_type), 0, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_type);
@@ -61,7 +61,7 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
-      value_types.push_back(builder_->GetSType(pod_args[i].type()));
+      value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
     spirv::Value ptr = builder_->DeclarePushConstant(value_types);
     for (size_t i = 0; i < pod_args.size(); ++i) {
@@ -103,7 +103,7 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   } else {
     v = builder_->GetWorkgroupID(ts.dim_index);
   }
-  return builder_->Cast(builder_->GetSType(iv->var.type()), v);
+  return builder_->Cast(builder_->GetSType(iv->var.dtype()), v);
 }
 
 spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
@@ -112,7 +112,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
   if (sync == "warp") {
     return value;
   } else if (sync == "shared") {
-    auto type_int = builder_->GetSType(Int(32));
+    auto type_int = builder_->GetSType(DataType::Int(32));
     builder_->MakeInst(
       spv::OpControlBarrier,
       builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
@@ -133,15 +133,15 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Variable* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const IntImm* op) {
-  return builder_->IntImm(builder_->GetSType(op->type), op->value);
+  return builder_->IntImm(builder_->GetSType(op->dtype), op->value);
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const UIntImm* op) {
-  return builder_->UIntImm(builder_->GetSType(op->type), op->value);
+  return builder_->UIntImm(builder_->GetSType(op->dtype), op->value);
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImm* op) {
-  return builder_->FloatImm(builder_->GetSType(op->type), op->value);
+  return builder_->FloatImm(builder_->GetSType(op->dtype), op->value);
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const StringImm* op) {
@@ -150,7 +150,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const StringImm* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const Cast* op) {
-  return builder_->Cast(builder_->GetSType(op->type), MakeValue(op->value));
+  return builder_->Cast(builder_->GetSType(op->dtype), MakeValue(op->value));
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const Add* op) {
@@ -248,7 +248,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
       values.push_back(MakeValue(op->args[i]));
     }
     return builder_->CallGLSL450(
-        builder_->GetSType(op->type), inst_id, values);
+        builder_->GetSType(op->dtype), inst_id, values);
   } else if (op->is_intrinsic(Call::bitwise_and)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
@@ -277,13 +277,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
-    if (op->args[0].type().is_int()) {
+    if (op->args[0].dtype().is_int()) {
       return builder_->MakeValue(spv::OpShiftRightArithmetic, a.stype, a, b);
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
   } else if (op->is_intrinsic(Call::reinterpret)) {
-    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->type),
+    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
@@ -316,17 +316,17 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
   } else if (op->is_intrinsic("popcount")) {
     return builder_->MakeValue(
         spv::OpBitCount,
-        builder_->GetSType(op->type),
+        builder_->GetSType(op->dtype),
         MakeValue(op->args[0]));
   } else {
     if (op->call_type == Call::Intrinsic ||
         op->call_type == Call::PureIntrinsic) {
       LOG(FATAL) << "Unresolved intrinsic " << op->name
-                 << " with return type " << op->type;
+                 << " with return type " << op->dtype;
     } else if (op->call_type == Call::Extern ||
                op->call_type == Call::PureExtern) {
       LOG(FATAL) << "Unresolved extern " << op->name
-                 << " with return type " << op->type;
+                 << " with return type " << op->dtype;
     } else {
       LOG(FATAL) << "Unresolved call type " << op->call_type;
     }
@@ -341,7 +341,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(
-          make_const(op->stride.type(), i) * op->stride);
+          make_const(op->stride.dtype(), i) * op->stride);
       v = builder_->Add(v, offset);
     }
     values.push_back(v);
@@ -364,7 +364,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
   CHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
   if (!info.content_fixed) {
-    info.UpdateContentType(op->type);
+    info.UpdateContentType(op->dtype);
   }
 
   spirv::SType content_type = builder_->GetSType(info.content_type);
@@ -376,15 +376,15 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
   if (info.is_volatile) {
     mask |= spv::MemoryAccessVolatileMask;
   }
-  if (op->type.lanes() == 1) {
-    CHECK_EQ(info.content_type, op->type)
+  if (op->dtype.lanes() == 1) {
+    CHECK_EQ(info.content_type, op->dtype)
         << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(op->index);
     spirv::Value ptr = builder_->StructArrayAccess(
         ptr_type, buffer, index);
     return builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
   } else {
-    if (op->type.element_of() == info.content_type) {
+    if (op->dtype.element_of() == info.content_type) {
       // because content type is element type, we can only do scalarize load.
       std::vector<spirv::Value> values;
       auto f = [&](int i, spirv::Value index) {
@@ -398,13 +398,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
     } else {
       if (const Ramp* ramp = op->index.as<Ramp>()) {
         if (is_one(ramp->stride)) {
-          CHECK_EQ(ramp->lanes, op->type.lanes());
+          CHECK_EQ(ramp->lanes, op->dtype.lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
           Expr vec_index = ir::Simplify(
-              ramp->base / make_const(ramp->base.type(), ramp->lanes));
+              ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
           return builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
@@ -420,14 +420,14 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
 void CodeGenSPIRV::Scalarize(const Expr& e,
                              std::function<void(int i, spirv::Value v)> f) {
   if (const Ramp* ramp = e.as<Ramp>()) {
-    for (int i = 0; i < ramp->type.lanes(); ++i) {
+    for (int i = 0; i < ramp->dtype.lanes(); ++i) {
       Expr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
     }
   } else {
-    spirv::SType etype = builder_->GetSType(e.type().element_of());
+    spirv::SType etype = builder_->GetSType(e.dtype().element_of());
     spirv::Value value = MakeValue(e);
-    for (int i = 0; i < e.type().lanes(); ++i) {
+    for (int i = 0; i < e.dtype().lanes(); ++i) {
       f(i, builder_->MakeValue(
           spv::OpCompositeExtract, etype, value, i));
     }
@@ -441,7 +441,7 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
   StorageInfo& info = it->second;
 
   if (!info.content_fixed) {
-    info.UpdateContentType(op->value.type());
+    info.UpdateContentType(op->value.dtype());
   }
 
   spirv::SType content_type = builder_->GetSType(info.content_type);
@@ -455,15 +455,15 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
     mask |= spv::MemoryAccessVolatileMask;
   }
 
-  if (op->value.type().lanes() == 1) {
-    CHECK_EQ(info.content_type, op->value.type())
+  if (op->value.dtype().lanes() == 1) {
+    CHECK_EQ(info.content_type, op->value.dtype())
         << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(op->index);
     spirv::Value ptr = builder_->StructArrayAccess(
         ptr_type, buffer, index);
     builder_->MakeInst(spv::OpStore, ptr, value, mask);
   } else {
-    if (op->value.type().element_of() == info.content_type) {
+    if (op->value.dtype().element_of() == info.content_type) {
       // because content type is element type, we can only do scalarize load.
       auto f = [&](int i, spirv::Value index) {
         spirv::Value elem = builder_->MakeValue(
@@ -476,13 +476,13 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
     } else {
       if (const Ramp* ramp = op->index.as<Ramp>()) {
         if (is_one(ramp->stride)) {
-          CHECK_EQ(ramp->lanes, op->value.type().lanes());
+          CHECK_EQ(ramp->lanes, op->value.dtype().lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
           Expr vec_index = ir::Simplify(
-              ramp->base / make_const(ramp->base.type(), ramp->lanes));
+              ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
           builder_->MakeInst(spv::OpStore, ptr, value, mask);
@@ -530,7 +530,7 @@ void CodeGenSPIRV::VisitStmt_(const For* op) {
   // loop continue
   builder_->StartLabel(continue_label);
   spirv::Value one =
-      op->loop_var.type().is_int() ?
+      op->loop_var.dtype().is_int() ?
       builder_->IntImm(loop_var.stype, 1) :
       builder_->UIntImm(loop_var.stype, 1);
   spirv::Value next_value = builder_->Add(loop_var, one);
@@ -576,13 +576,13 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElse* op) {
 void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   CHECK(!op->new_expr.defined());
-  CHECK(!op->type.is_handle());
+  CHECK(!op->dtype.is_handle());
   int32_t constant_size = op->constant_allocation_size();
   CHECK_GT(constant_size, 0)
       << "Can only handle constant size stack allocation in GPU";
   spirv::Value buf;
   StorageInfo& info = storage_info_[op->buffer_var.get()];
-  spirv::SType etype = builder_->GetSType(op->type);
+  spirv::SType etype = builder_->GetSType(op->dtype);
   if (info.scope.rank == runtime::StorageRank::kLocal) {
     buf = builder_->Allocate(
         etype, static_cast<uint32_t>(constant_size),
@@ -597,7 +597,7 @@ void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
         spv::StorageClassWorkgroup);
   }
   CHECK(!info.content_fixed);
-  info.UpdateContentType(op->type);
+  info.UpdateContentType(op->dtype);
   CHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
@@ -632,7 +632,7 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmt* op) {
 
 void CodeGenSPIRV::VisitStmt_(const LetStmt* op) {
   CHECK(!var_map_.count(op->var.get()));
-  CHECK(!op->var.type().is_handle());
+  CHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);

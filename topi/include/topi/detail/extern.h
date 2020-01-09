@@ -43,9 +43,9 @@ using namespace tvm;
  * \return The Buffer object
  */
 inline Buffer DeclExternBuffer(Array<Expr> shape,
-                               Type dtype,
+                               DataType dtype,
                                std::string name) {
-  auto data = var(name, Handle());
+  auto data = var(name, DataType::Handle());
   auto elem_offset = Expr();
   return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
                           -1, 0, kDefault);
@@ -76,7 +76,7 @@ using FExtern = std::function<Expr(Array<Buffer>, Array<Buffer>)>;
  * element of out_types.
  */
 inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
-                                 const std::vector<Type>& out_types,
+                                 const std::vector<DataType>& out_types,
                                  const Array<Tensor>& inputs,
                                  FExtern fextern,
                                  std::string name,
@@ -118,11 +118,11 @@ inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
  */
 inline Expr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  auto shape = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
+  auto shape = tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
                                    buf->shape, tvm::ir::Call::CallType::Intrinsic);
   Expr strides;
   if (buf->strides.size() > 0) {
-    strides = tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
+    strides = tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
                                   buf->shape, tvm::ir::Call::CallType::Intrinsic);
   } else {
     strides = 0;
@@ -131,11 +131,11 @@ inline Expr pack_buffer(Buffer buf) {
     buf->data,
     shape,
     strides,
-    make_const(Int(32), static_cast<int64_t>(buf->shape.size())),
+    make_const(DataType::Int(32), static_cast<int64_t>(buf->shape.size())),
     make_const(buf->dtype, 0),
     buf->elem_offset
   };
-  return tvm::ir::Call::make(Handle(), tvm::ir::intrinsic::tvm_stack_make_array,
+  return tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_array,
                              pack_args, tvm::ir::Call::CallType::Intrinsic);
 }
 
@@ -149,7 +149,7 @@ inline Expr pack_buffer(Buffer buf) {
  * \return An expression representing the invocation
  */
 inline Expr call_packed(Array<Expr> args) {
-  return tvm::ir::Call::make(Int(32), tvm::ir::intrinsic::tvm_call_packed,
+  return tvm::ir::Call::make(DataType::Int(32), tvm::ir::intrinsic::tvm_call_packed,
                              args, tvm::ir::Call::CallType::Intrinsic);
 }
 

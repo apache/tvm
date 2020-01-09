@@ -88,7 +88,7 @@ class CopyIntrinInjector : public IRMutator {
       load = cast->value.as<Load>();
     }
     if (load == nullptr) return false;
-    if (load->type.lanes() != 1) return false;
+    if (load->dtype.lanes() != 1) return false;
     Array<Var> loop_vars;
     for (const For* op : loops) {
       loop_vars.push_back(op->loop_var);
@@ -101,7 +101,7 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> dst_shape;
     const size_t loop_var_size = loop_vars.size();
     if (loop_var_size == 0) {
-      dst_shape.push_back(make_const(Int(32), 1));
+      dst_shape.push_back(make_const(DataType::Int(32), 1));
     } else {
       for (const For* op : loops) {
         dst_shape.push_back(op->extent);
@@ -121,7 +121,7 @@ class CopyIntrinInjector : public IRMutator {
       for (size_t i = 0; i < src_shape.size(); ++i) {
         Expr min_value = clip_bound[2 * i];
         Expr max_value = clip_bound[2 * i + 1];
-        Type t = loop_vars[i].type();
+        DataType t = loop_vars[i].dtype();
         Expr svalue = src_shape[i];
         if (min_value.defined()) {
           Expr pbefore = Simplify(Max::make(min_value, make_zero(t)));
@@ -148,12 +148,12 @@ class CopyIntrinInjector : public IRMutator {
     Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
     Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
-        src_strides.push_back(make_const(Int(32), 1));
-        dst_strides.push_back(make_const(Int(32), 1));
+        src_strides.push_back(make_const(DataType::Int(32), 1));
+        dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
     Buffer dst = BufferNode::make(
         store->buffer_var,
-        store->value.type(),
+        store->value.dtype(),
         dst_shape,
         dst_strides,
         store_strides[loop_var_size],
@@ -162,7 +162,7 @@ class CopyIntrinInjector : public IRMutator {
         0, 0, kDefault);
     Buffer src = BufferNode::make(
         load->buffer_var,
-        load->type,
+        load->dtype,
         src_shape,
         src_strides,
         src_elem_offset,

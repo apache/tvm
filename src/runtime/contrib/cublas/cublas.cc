@@ -181,6 +181,98 @@ bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_s
   }
 }
 
+int roundoff(int v, int d) {
+  return (v + d - 1) / d * d;
+}
+
+#if CUDART_VERSION >= 10010
+inline void CallLtIgemm(TVMArgs args, TVMRetValue *ret, cublasLtHandle_t hdl) {
+  DLTensor *A = args[0];
+  DLTensor *B = args[1];
+  DLTensor *C = args[2];
+  bool transa = args[3];
+  bool transb = args[4];
+  // Reversed strides indicates an in-place transpose operation.
+  transa = IsInPlaceTransposed(A) ? !transa : transa;
+  transb = IsInPlaceTransposed(B) ? !transb : transb;
+  int M = ColumnCount(B, transb);
+  int N = RowCount(A, transa);
+  int K = ColumnCount(A, transa);
+  int N_out = ColumnCount(C, false);
+  int m = M;
+  int n = m;
+  int k = m;
+  int lda = M * K / (roundoff(K, 32) / 32);
+  int ldb = K * N / (roundoff(K, 32) / 32);
+  int ldc = M * N_out / (roundoff(N_out, 32) / 32);
+  CHECK_EQ(A->ndim, 2);
+  CHECK_EQ(B->ndim, 2);
+  CHECK_EQ(C->ndim, 2);
+
+  CHECK_EQ(ElementStride(A), 1);
+  CHECK_EQ(ElementStride(B), 1);
+  CHECK_EQ(ElementStride(C), 1);
+
+  CHECK(TypeEqual(A->dtype, B->dtype));
+  CHECK(TypeMatch(A->dtype, kDLInt, 8));
+  CHECK(TypeMatch(C->dtype, kDLInt, 32));
+
+  CHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  int32_t alpha = args.size() > 5 ? args[5] : 1;
+  int32_t beta = args.size() > 6 ? args[6] : 0;
+  cublasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL;
+  auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
+  auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
+  auto C_data = reinterpret_cast<void*>(static_cast<char*>(C->data) + C->byte_offset);
+
+  cublasOperation_t opTranspose = CUBLAS_OP_T;
+  cublasLtOrder_t order_COL32 = CUBLASLT_ORDER_COL32;
+  cublasLtOrder_t order_COL4_4R2_8C = CUBLASLT_ORDER_COL4_4R2_8C;
+  cublasLtMatmulDesc_t operationDesc = nullptr;
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescCreate(&operationDesc, CUDA_R_32I));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+          operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &opTranspose, sizeof(opTranspose)));
+  cublasOperation_t opTransA = BooleanToTranspose(transa);
+  cublasOperation_t opTransB = BooleanToTranspose(transb);
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+          operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &opTransA, sizeof(opTransA)));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(
+          operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &opTransB, sizeof(opTransB)));
+  // Create descriptors for the original matrices
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(
+          &Adesc, CUDA_R_8I, opTransA == CUBLAS_OP_N ? m : k ,
+          opTransA == CUBLAS_OP_N ? k : m, lda));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(
+          &Bdesc, CUDA_R_8I, opTransB == CUBLAS_OP_N ? k : n ,
+          opTransB == CUBLAS_OP_N ? n : k, ldb));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutCreate(&Cdesc, CUDA_R_32I, m, n, ldc));
+
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+          Adesc, CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL32, sizeof(order_COL32)));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+          Bdesc, CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL4_4R2_8C, sizeof(order_COL4_4R2_8C)));
+  CHECK_CUBLAS_ERROR(cublasLtMatrixLayoutSetAttribute(
+          Cdesc, CUBLASLT_MATRIX_LAYOUT_ORDER, &order_COL32, sizeof(order_COL32)));
+
+  CHECK_CUBLAS_ERROR(cublasLtMatmul(hdl,
+                                    operationDesc,
+                                    &alpha,
+                                    B_data,
+                                    Adesc,
+                                    A_data,
+                                    Bdesc,
+                                    &beta,
+                                    C_data,
+                                    Cdesc,
+                                    C_data,
+                                    Cdesc,
+                                    NULL,
+                                    NULL,
+                                    0,
+                                    0));
+}
+#endif
+
 inline void CallGemmEx(TVMArgs args, TVMRetValue *ret, cublasHandle_t hdl) {
   DLTensor *A = args[0];
   DLTensor *B = args[1];
@@ -342,12 +434,27 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     }
 });
 
+#if CUDART_VERSION >= 10010
+TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    DLTensor* A = args[0];
+
+    CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+
+    TryEnableTensorCore(entry_ptr->handle);
+
+    CHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+    cublasLtHandle_t ltHandle;
+    CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
+    CallLtIgemm(args, ret, ltHandle);
+    CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
+});
+#endif  // CUDART_VERSION >= 10010
+
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     DLTensor* A = args[0];
     DLTensor* C = args[2];
-
-
 
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 

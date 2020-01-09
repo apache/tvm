@@ -116,7 +116,7 @@ inline Tensor fast_tanh_float(const Tensor& in,
 inline Tensor tanh(const Tensor& x,
                    std::string name = "T_tanh",
                    std::string tag = kElementWise) {
-  if (x->dtype == Float(32)) {
+  if (x->dtype == DataType::Float(32)) {
     // invoke fast_tanh_float implementation
     return fast_tanh_float(x, name, tag);
   } else {
@@ -255,15 +255,15 @@ inline Tensor clip(const Tensor& x,
  * \return A Tensor whose op member is the cast operation
  */
 inline Tensor cast(const Tensor& x,
-                   Type type,
+                   DataType type,
                    std::string name = "T_cast",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     auto expr = x(i);
-    if (expr.type().code() == type.code() && expr.type().bits() == type.bits()) {
-      if (expr.type().lanes() == type.lanes()) {
+    if (expr.dtype().code() == type.code() && expr.dtype().bits() == type.bits()) {
+      if (expr.dtype().lanes() == type.lanes()) {
         return expr;
-      } else if (expr.type().lanes() == 1 && type.lanes() > 1) {
+      } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
         return tvm::ir::Broadcast::make(expr, type.lanes());
       }
     }
@@ -282,7 +282,7 @@ inline Tensor cast(const Tensor& x,
  *
  * \return A Tensor whose op member is the reinterpret operation
  */
-inline Tensor reinterpret(const Tensor& x, Type type, std::string name = "tensor",
+inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "tensor",
                           std::string tag = kElementWise) {
   return compute(x->shape,
                  [&](const Array<Var>& i) {
@@ -326,7 +326,7 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
 * \return A Tensor whose op member is the full operation
 */
 inline Tensor full(const Array<Expr>& shape,
-                   Type dtype,
+                   DataType dtype,
                    const Expr fill_value,
                    std::string name = "T_full",
                    std::string tag = kElementWise) {

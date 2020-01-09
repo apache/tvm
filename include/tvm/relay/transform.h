@@ -533,6 +533,26 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
+ * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
+ * at the start and one at the end.
+ *
+ * This pass is not a part of relay.build and is expected to be called between framework-relay
+ * parser and relay.build call. This is very helpful for hardware backends that support/prefer only
+ * type of data layout.
+ *
+ * RFC - https://discuss.tvm.ai/t/layout-conversion-pass/4009
+ *
+ * This pass uses most of the AlterOpLayout and InferCorrectLayout infrastructure. We can define new
+ * layouts for conv2d ops for now. Most of the other operators try to adapt to their input layout
+ * using the InferCorrectLayout infrastructure.
+ *
+ * \param desired_layout The desired layout.
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+
+/*!
  * \brief Legalizes an expr with another expression.
  * \param legalize_map_attr_name The Op's attr name which corresponds to the legalize rule function.
  * One can collect and isolate similar type of legalize transformations using this param. For

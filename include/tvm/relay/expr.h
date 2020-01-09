@@ -268,6 +268,15 @@ class FunctionNode : public ExprNode {
    */
   bool IsPrimitive() const;
 
+  /*!
+   * \brief Check whether the function should use the TVM default compiler to build, or
+   * use other compilers.
+   *
+   * \return Whether the function will be compiled using the default compiler
+   * (e.g. those are used in the TVM stack).
+   */
+  bool UseDefaultCompiler() const;
+
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
@@ -587,6 +596,25 @@ std::string PrettyPrint(const NodeRef& node);
 std::string AsText(const NodeRef& node,
                    bool show_meta_data = true,
                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+
+/*! \brief namespace of the attributes that are attached to a function. */
+namespace attr {
+/*! \brief Mark the function as a primitive function. */
+constexpr const char* kPrimitive = "Primitive";
+/*!
+ * \brief Indicate the compiler that should be used for builing this function.
+ * When this is unset or set to "default", the default compilation pipeline will be used.
+ */
+constexpr const char* kCompiler = "Compiler";
+/*! \brief Indicate if the function is a closure. */
+constexpr const char* kClosure = "Closure";
+/*! \brief Store a Var to parameter/Constant mapping on a Function. */
+constexpr const char* kParams = "__params__";
+/*! \brief Store the unique external symbol for external compilers. */
+constexpr const char* kExternalSymbol = "ExternalSymbol";
+/*! \brief Mark if the function should be avoided being optimized. */
+constexpr const char* kSkipOptimization = "SkipOptimization";
+}  // namespace attr
 
 }  // namespace relay
 }  // namespace tvm

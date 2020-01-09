@@ -43,7 +43,6 @@ class IRApplyVisit : public IRVisitor {
   std::unordered_set<const Node*> visited_;
 };
 
-
 void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit) {
   IRApplyVisit(fvisit).Visit(node);
 }
@@ -68,7 +67,7 @@ inline void VisitRDom(const Array<IterVar>& rdom, IRVisitor* v) {
 
 void IRVisitor::Visit_(const Variable* op) {}
 
-void IRVisitor::Visit_(const LetStmt *op) {
+void IRVisitor::Visit_(const LetStmt* op) {
   this->Visit(op->value);
   this->Visit(op->body);
 }
@@ -78,14 +77,14 @@ void IRVisitor::Visit_(const AttrStmt* op) {
   this->Visit(op->body);
 }
 
-void IRVisitor::Visit_(const For *op) {
+void IRVisitor::Visit_(const For* op) {
   IRVisitor* v = this;
   v->Visit(op->min);
   v->Visit(op->extent);
   v->Visit(op->body);
 }
 
-void IRVisitor::Visit_(const Allocate *op) {
+void IRVisitor::Visit_(const Allocate* op) {
   IRVisitor* v = this;
   for (size_t i = 0; i < op->extents.size(); i++) {
     v->Visit(op->extents[i]);
@@ -97,18 +96,18 @@ void IRVisitor::Visit_(const Allocate *op) {
   }
 }
 
-void IRVisitor::Visit_(const Load *op) {
+void IRVisitor::Visit_(const Load* op) {
   this->Visit(op->index);
   this->Visit(op->predicate);
 }
 
-void IRVisitor::Visit_(const Store *op) {
+void IRVisitor::Visit_(const Store* op) {
   this->Visit(op->value);
   this->Visit(op->index);
   this->Visit(op->predicate);
 }
 
-void IRVisitor::Visit_(const IfThenElse *op) {
+void IRVisitor::Visit_(const IfThenElse* op) {
   this->Visit(op->condition);
   this->Visit(op->then_case);
   if (op->else_case.defined()) {
@@ -116,14 +115,14 @@ void IRVisitor::Visit_(const IfThenElse *op) {
   }
 }
 
-void IRVisitor::Visit_(const Let *op) {
+void IRVisitor::Visit_(const Let* op) {
   this->Visit(op->value);
   this->Visit(op->body);
 }
 
 void IRVisitor::Visit_(const Free* op) {}
 
-void IRVisitor::Visit_(const Call *op) {
+void IRVisitor::Visit_(const Call* op) {
   VisitArray(op->args, this);
 }
 
@@ -171,38 +170,38 @@ void IRVisitor::Visit_(const Select* op) {
   this->Visit(op->false_value);
 }
 
-void IRVisitor::Visit_(const Ramp *op) {
+void IRVisitor::Visit_(const Ramp* op) {
   this->Visit(op->base);
   this->Visit(op->stride);
 }
 
-void IRVisitor::Visit_(const Shuffle *op) {
-  for (const auto &elem : op->indices)
+void IRVisitor::Visit_(const Shuffle* op) {
+  for (const auto& elem : op->indices)
     this->Visit(elem);
-  for (const auto &elem : op->vectors)
+  for (const auto& elem : op->vectors)
     this->Visit(elem);
 }
 
-void IRVisitor::Visit_(const Broadcast *op) {
+void IRVisitor::Visit_(const Broadcast* op) {
   this->Visit(op->value);
 }
 
-void IRVisitor::Visit_(const AssertStmt *op) {
+void IRVisitor::Visit_(const AssertStmt* op) {
   this->Visit(op->condition);
   this->Visit(op->message);
   this->Visit(op->body);
 }
 
-void IRVisitor::Visit_(const ProducerConsumer *op) {
+void IRVisitor::Visit_(const ProducerConsumer* op) {
   this->Visit(op->body);
 }
 
-void IRVisitor::Visit_(const Provide *op) {
+void IRVisitor::Visit_(const Provide* op) {
   VisitArray(op->args, this);
   this->Visit(op->value);
 }
 
-void IRVisitor::Visit_(const Realize *op) {
+void IRVisitor::Visit_(const Realize* op) {
   for (size_t i = 0; i < op->bounds.size(); i++) {
     this->Visit(op->bounds[i]->min);
     this->Visit(op->bounds[i]->extent);
@@ -212,19 +211,19 @@ void IRVisitor::Visit_(const Realize *op) {
   this->Visit(op->condition);
 }
 
-void IRVisitor::Visit_(const Prefetch *op) {
+void IRVisitor::Visit_(const Prefetch* op) {
   for (size_t i = 0; i < op->bounds.size(); i++) {
     this->Visit(op->bounds[i]->min);
     this->Visit(op->bounds[i]->extent);
   }
 }
 
-void IRVisitor::Visit_(const Block *op) {
+void IRVisitor::Visit_(const Block* op) {
   this->Visit(op->first);
   this->Visit(op->rest);
 }
 
-void IRVisitor::Visit_(const Evaluate *op) {
+void IRVisitor::Visit_(const Evaluate* op) {
   this->Visit(op->value);
 }
 

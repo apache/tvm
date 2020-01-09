@@ -362,7 +362,7 @@ def _convert_flatten(inexpr, keras_layer, _):
 def _convert_pooling(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     pool_type = type(keras_layer).__name__
-    # global pool in keras = global pool + flatten in nnvm/relay
+    # global pool in keras = global pool + flatten in relay
     if pool_type == 'GlobalMaxPooling2D':
         return _convert_flatten(_op.nn.global_max_pool2d(inexpr), keras_layer, etab)
     if pool_type == 'GlobalAveragePooling2D':

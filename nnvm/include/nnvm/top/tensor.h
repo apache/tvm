@@ -100,10 +100,14 @@ enum TypeFlag {
   kInt32 = 4,
   kInt8  = 5,
   kInt64 = 6,
-  kInt16 = 7,
-  kUint16 = 8,
-  kUint32 = 9,
-  kUint64 = 10,
+  // kBool = 7,
+  // 7 is reserved for kBool, in order to keep consistency with MXNet TypeFlag defined in
+  // https://github.com/apache/incubator-mxnet/blob/master/3rdparty/mshadow/mshadow/base.h#L314
+  kInt16 = 8,
+  kUint16 = 9,
+  kUint32 = 10,
+  kUint64 = 11,
+  kBfloat16 = 12,
 };
 
 enum IndicatorRuleFlag {
@@ -125,7 +129,8 @@ enum IndicatorRuleFlag {
   .add_enum("int8",  kInt8)                                         \
   .add_enum("int16", kInt16)                                        \
   .add_enum("int32", kInt32)                                        \
-  .add_enum("int64", kInt64)
+  .add_enum("int64", kInt64)                                        \
+  .add_enum("bfloat16", kBfloat16)
 
 struct CastParam : public dmlc::Parameter<CastParam> {
   int dtype;

@@ -52,7 +52,7 @@ Array<IterVar> HybridOpNode::root_iter_vars() const {
   return this->axis;
 }
 
-Type HybridOpNode::output_dtype(size_t i) const {
+DataType HybridOpNode::output_dtype(size_t i) const {
   return outputs[i]->dtype;
 }
 
@@ -138,7 +138,7 @@ void HybridOpNode::PropBoundToInputs(
     for (size_t i = 0; i < t->shape.size(); ++i) {
       dom.data[i].emplace_back(IntSet::range(
           Range::make_by_min_extent(
-              make_const(t->shape[i].type(), 0), t->shape[i])));
+              make_const(t->shape[i].dtype(), 0), t->shape[i])));
     }
   }
 }
@@ -166,7 +166,7 @@ Stmt HybridOpNode::BuildRealize(
     for (size_t i = 0; i < t->shape.size(); ++i) {
       bounds.push_back(
           Range::make_by_min_extent(
-              make_const(t->shape[i].type(), 0), t->shape[i]));
+              make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
     realize_body = ir::Realize::make(
         t->op, t->value_index, t->dtype,
@@ -180,7 +180,7 @@ Stmt HybridOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range> &dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmt::make(make_zero(Int(32)), attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmt::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
   std::unordered_map<Tensor, Tensor> rmap;
   for (int i = 0; i < this->num_outputs(); ++i) {
     rmap[outputs[i]] = stage->op.output(i);

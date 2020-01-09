@@ -35,7 +35,8 @@ rm -rf lib
 make
 cd ../..
 
-python3 -m pytest -v apps/extension/tests
+TVM_FFI=cython python3 -m pytest -v apps/extension/tests
+TVM_FFI=ctypes python3 -m pytest -v apps/extension/tests
 
 TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
 TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib

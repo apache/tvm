@@ -84,25 +84,25 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto requantized_lhs = lhs;
   if (lhs_scale != output_scale || lhs_zero_point != output_zero_point) {
     requantized_lhs = Requantize(lhs, input_shape, lhs_scale, lhs_zero_point, output_scale,
-                                 output_zero_point, Int(32));
+                                 output_zero_point, DataType::Int(32));
   } else {
-    requantized_lhs = Cast(requantized_lhs, Int(32));
+    requantized_lhs = Cast(requantized_lhs, DataType::Int(32));
   }
 
   // Requantize RHS if necessary.
   auto requantized_rhs = rhs;
   if (rhs_scale != output_scale || rhs_zero_point != output_zero_point) {
     requantized_rhs = Requantize(rhs, input_shape, rhs_scale, rhs_zero_point, output_scale,
-                                 output_zero_point, Int(32));
+                                 output_zero_point, DataType::Int(32));
   } else {
-    requantized_rhs = Cast(requantized_rhs, Int(32));
+    requantized_rhs = Cast(requantized_rhs, DataType::Int(32));
   }
 
   auto output = Add(requantized_lhs, requantized_rhs);
 
   // Subtract zero point.
   if (output_zero_point != 0) {
-    auto output_zp = MakeConstantScalar(Int(32), output_zero_point);
+    auto output_zp = MakeConstantScalar(DataType::Int(32), output_zero_point);
     output = Subtract(output, output_zp);
   }
 

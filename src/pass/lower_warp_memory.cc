@@ -94,11 +94,11 @@ class WarpStoreCoeffFinder : private IRVisitor {
   /// Visitor implementation
   void Visit_(const Store *op) final {
     if (op->buffer_var.get() == buffer_) {
-      if (op->value.type().lanes() == 1) {
+      if (op->value.dtype().lanes() == 1) {
         UpdatePattern(op->index);
       } else {
         Expr base;
-        CHECK(GetRamp1Base(op->index, op->value.type().lanes(), &base))
+        CHECK(GetRamp1Base(op->index, op->value.dtype().lanes(), &base))
             << "LowerWarpMemory failed due to store index=" << op->index
             << ", can only handle continuous store";
         UpdatePattern(base);
@@ -196,7 +196,7 @@ class WarpAccessRewriter : protected IRMutator {
     int alloc_size = op->constant_allocation_size();
     CHECK_GT(alloc_size, 0)
         << "warp memory only support constant alloc size";
-    alloc_size *= op->type.lanes();
+    alloc_size *= op->dtype.lanes();
     warp_index_ = WarpIndexFinder(warp_size_).Find(op->body)->var;
     warp_coeff_ = WarpStoreCoeffFinder(
         buffer_, warp_index_, analyzer_).Find(op->body);
@@ -205,8 +205,8 @@ class WarpAccessRewriter : protected IRMutator {
     warp_group_ = alloc_size / (warp_size_ * warp_coeff_);
     return Allocate::make(
         op->buffer_var,
-        op->type,
-        {make_const(Int(32), alloc_size / warp_size_)},
+        op->dtype,
+        {make_const(DataType::Int(32), alloc_size / warp_size_)},
         op->condition,
         this->Mutate(op->body));
   }
@@ -237,8 +237,8 @@ class WarpAccessRewriter : protected IRMutator {
           << "LowerWarpMemory failed to rewrite load to shuffle for index "
           << op->index << " local_index=" << local_index;
       Expr load_value = Load::make(
-          op->type, op->buffer_var, local_index, op->predicate);
-      return Call::make(load_value.type(),
+          op->dtype, op->buffer_var, local_index, op->predicate);
+      return Call::make(load_value.dtype(),
                         intrinsic::tvm_warp_shuffle,
                         {load_value, group},
                         Call::Intrinsic);
@@ -252,15 +252,15 @@ class WarpAccessRewriter : protected IRMutator {
   // source index is the corresponding source index
   // in this access pattern.
   std::pair<Expr, Expr> SplitIndexByGroup(const Expr& index) {
-    if (index.type().lanes() != 1) {
+    if (index.dtype().lanes() != 1) {
       Expr base, local_index, group;
-      CHECK(GetRamp1Base(index, index.type().lanes(), &base));
+      CHECK(GetRamp1Base(index, index.dtype().lanes(), &base));
       std::tie(local_index, group) = SplitIndexByGroup(base);
       local_index =
-          Ramp::make(local_index, make_const(local_index.type(), 1), index.type().lanes());
+          Ramp::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
-    Expr m = make_const(index.type(), warp_coeff_);
+    Expr m = make_const(index.dtype(), warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -269,9 +269,9 @@ class WarpAccessRewriter : protected IRMutator {
       return std::make_pair(x, z);
     } else {
       Expr x = analyzer_->canonical_simplify(indexmod(index, m));
-      Expr y = index / make_const(index.type(), warp_coeff_ * warp_size_);
+      Expr y = index / make_const(index.dtype(), warp_coeff_ * warp_size_);
       y = y * m + x;
-      Expr z = indexdiv(indexmod(index, make_const(index.type(), warp_coeff_ * warp_size_)),
+      Expr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * warp_size_)),
                         m);
       return std::make_pair(analyzer_->canonical_simplify(y),
                             analyzer_->canonical_simplify(z));
