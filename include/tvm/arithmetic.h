@@ -499,7 +499,7 @@ class Analyzer {
    * \param var The variable.
    * \param expr The expression we bind to.
    */
-  void Bind(const VarExpr& var, const PrimExpr& expr);
+  void Bind(const Var& var, const PrimExpr& expr);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -509,7 +509,7 @@ class Analyzer {
    * \param var The variable.
    * \param range The range we bind to.
    */
-  void Bind(const VarExpr& var, const Range& range);
+  void Bind(const Var& var, const Range& range);
   /*!
    * \brief Whether can we prove expr >= val.
 

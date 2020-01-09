@@ -127,7 +127,7 @@ class RelayHashHandler:
   using AttrsHashHandler::VisitAttr_;
   size_t VisitAttr_(const tvm::VarNode* var) final {
     size_t hash = std::hash<std::string>()(VarNode::_type_key);
-    auto it = hash_map_.find(GetRef<VarExpr>(var));
+    auto it = hash_map_.find(GetRef<tvm::Var>(var));
     if (it != hash_map_.end()) {
       return it->second;
     }

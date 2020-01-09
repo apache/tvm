@@ -40,7 +40,7 @@ class SplitExpr;
  * \brief Base class of all temporary expression introduced
  *        for canonicalization.
  */
-class CanonicalExprNode : public BaseExprNode {
+class CanonicalExprNode : public PrimExprNode {
  public:
   virtual ~CanonicalExprNode() {}
   /*!
@@ -55,7 +55,7 @@ class CanonicalExprNode : public BaseExprNode {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
-  TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, BaseExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, PrimExprNode);
 };
 
 enum DivMode {

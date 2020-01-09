@@ -71,7 +71,7 @@ TVM_REGISTER_GLOBAL("make.SeqStmt")
 
 TVM_REGISTER_GLOBAL("make.For")
 .set_body_typed([](
-  VarExpr loop_var, PrimExpr min, PrimExpr extent,
+  Var loop_var, PrimExpr min, PrimExpr extent,
   int for_type, int device_api, Stmt body) {
   return ForNode::make(loop_var,
                    min,

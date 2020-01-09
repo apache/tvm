@@ -100,7 +100,7 @@ class GPUCodeVerifier : public StmtVisitor {
         visited_shared_buffers_.insert(op->node.as<tvm::VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
-      VarExpr var = op->node.as<tvm::IterVarNode>()->var;
+      Var var = op->node.as<tvm::IterVarNode>()->var;
       const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 

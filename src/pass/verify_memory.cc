@@ -130,7 +130,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   /// Handle memory access to a Variable
-  void HandleLoadStoreToVariable(const VarExpr &var) {
+  void HandleLoadStoreToVariable(const Var &var) {
     // We skip the access within thread env.
     if (InThreadEnv()) return;
 

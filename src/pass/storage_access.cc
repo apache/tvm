@@ -197,7 +197,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = Downcast<VarExpr>(op->args[1]);
+      e.buffer = Downcast<Var>(op->args[1]);
       e.touched = arith::IntSet::range(
           Range::make_by_min_extent(offset, extent));
       e.scope = scope;

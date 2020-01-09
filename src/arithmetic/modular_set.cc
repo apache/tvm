@@ -255,7 +255,7 @@ class ModularSetAnalyzer::Impl :
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.

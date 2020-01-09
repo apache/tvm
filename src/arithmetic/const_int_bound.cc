@@ -330,7 +330,7 @@ class ConstIntBoundAnalyzer::Impl :
 
  private:
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited

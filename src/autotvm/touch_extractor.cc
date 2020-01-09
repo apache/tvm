@@ -76,7 +76,7 @@ class IndexParser: public ExprVisitor {
 };
 
 // extract iter vars and their touch pattern from ir
-bool TouchExtractor::EnterItervar_(VarExpr var, int64_t length, AnnotationType ann_type) {
+bool TouchExtractor::EnterItervar_(Var var, int64_t length, AnnotationType ann_type) {
   // do not insert duplicated occurrences of virtual thread
   if (ann_type == kVirtualThread && itervar_map.count(var) != 0) {
     skip_stack_size_.push_back(itervar_stack_.size());
@@ -90,7 +90,7 @@ bool TouchExtractor::EnterItervar_(VarExpr var, int64_t length, AnnotationType a
       // these happens when we create tvm.thread_axis("threadIdx.x") once and
       // bind it twice. Here we treat them as two axes
       // so we create a snapshot for the old one and freeze it
-      VarExpr old = VarExpr(var.get()->name_hint);
+      Var old = Var(var.get()->name_hint);
       itervar_map.insert({old, itervar_map[var]});
       itervar_map.erase(var);
     }
@@ -110,7 +110,7 @@ void TouchExtractor::ExitItervar_() {
     skip_stack_size_.pop_back();
     return;
   }
-  VarExpr var = itervar_stack_.back();
+  Var var = itervar_stack_.back();
 
   // update count and reuse ratio for upper iter vars (includes self)
   for (auto kv : itervar_map[var].touch_feature) {
@@ -169,7 +169,7 @@ void TouchExtractor::ExitItervar_() {
   }
 }
 
-void TouchExtractor::EnterMem_(VarExpr buffer_var, PrimExpr index) {
+void TouchExtractor::EnterMem_(Var buffer_var, PrimExpr index) {
   std::string name = buffer_var.get()->name_hint;
   TouchedBuffer buf = name + "_" + std::to_string(buffer_counter_[name]++);
 
@@ -225,11 +225,11 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
   touch_analyzer.Analyze(stmt);
 
   // sort according to order
-  std::vector<VarExpr> vars;
+  std::vector<Var> vars;
   for (auto kv : touch_analyzer.itervar_map) {
     vars.push_back(kv.first);
   }
-  std::sort(vars.begin(), vars.end(), [&](const VarExpr &lhs, const VarExpr &rhs) -> bool {
+  std::sort(vars.begin(), vars.end(), [&](const Var &lhs, const Var &rhs) -> bool {
     return touch_analyzer.itervar_map[lhs].order < touch_analyzer.itervar_map[rhs].order;
   });
 
@@ -311,11 +311,11 @@ void GetItervarFeatureFlatten(Stmt stmt, bool take_log, std::vector<float> *ret_
   touch_analyzer.Analyze(stmt);
 
   // sort according to order
-  std::vector<VarExpr> vars;
+  std::vector<Var> vars;
   for (auto kv : touch_analyzer.itervar_map) {
     vars.push_back(kv.first);
   }
-  std::sort(vars.begin(), vars.end(), [&](const VarExpr &lhs, const VarExpr &rhs) -> bool {
+  std::sort(vars.begin(), vars.end(), [&](const Var &lhs, const Var &rhs) -> bool {
     return touch_analyzer.itervar_map[lhs].order < touch_analyzer.itervar_map[rhs].order;
   });
 
@@ -383,11 +383,11 @@ void GetCurveSampleFeatureFlatten(Stmt stmt, int sample_n, std::vector<float> *r
   touch_ext.Analyze(stmt);
 
   // sort according to order
-  std::vector<VarExpr> vars;
+  std::vector<Var> vars;
   for (auto kv : touch_ext.itervar_map) {
     vars.push_back(kv.first);
   }
-  std::sort(vars.begin(), vars.end(), [&](const VarExpr &lhs, const VarExpr &rhs) -> bool {
+  std::sort(vars.begin(), vars.end(), [&](const Var &lhs, const Var &rhs) -> bool {
     return touch_ext.itervar_map[lhs].order < touch_ext.itervar_map[rhs].order;
   });
 

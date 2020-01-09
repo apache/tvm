@@ -77,8 +77,8 @@ class CodeGenCPU : public CodeGenLLVM {
  private:
   // the parallel group information
   struct ParallelEnv {
-    VarExpr task_id;
-    VarExpr num_task;
+    Var task_id;
+    Var num_task;
     bool stride_pattern{false};
     bool in_parallel_loop{false};
     int parallel_loop_count{0};

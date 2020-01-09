@@ -243,7 +243,7 @@ class CodeGenLLVM :
   void CreateSerialFor(llvm::Value* begin,
                        llvm::Value* end,
                        llvm::Value* stride,
-                       const VarExpr& loop_var, const Stmt& body);
+                       const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index, DataType type);
   // The IRBuilder.

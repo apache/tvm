@@ -526,7 +526,7 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin,
                                   llvm::Value* end,
                                   llvm::Value* stride,
-                                  const VarExpr& loop_var,
+                                  const Var& loop_var,
                                   const Stmt& body) {
   using llvm::BasicBlock;
   BasicBlock* pre_block = builder_->GetInsertBlock();

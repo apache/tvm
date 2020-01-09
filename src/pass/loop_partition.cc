@@ -152,7 +152,7 @@ class CandidateSelector final : public StmtExprVisitor {
 // (currently, "likely" conditions) has fixed true or false value
 class PartitionFinder : public StmtExprVisitor {
  public:
-  explicit PartitionFinder(VarExpr current_var,
+  explicit PartitionFinder(Var current_var,
     const std::unordered_map<const VarNode*, IntSet>& hint_map,
     const std::unordered_map<const VarNode*, IntSet>& relax_map)
       : current_var_(current_var), hint_map_(hint_map),  relax_map_(relax_map) {
@@ -248,7 +248,7 @@ class PartitionFinder : public StmtExprVisitor {
     return inverse_cond;
   }
 
-  VarExpr current_var_;
+  Var current_var_;
   std::unordered_set<const VarNode*> out_vars_;
   std::unordered_map<const VarNode*, IntSet> hint_map_;
   std::unordered_map<const VarNode*, IntSet> relax_map_;
@@ -363,7 +363,7 @@ class LoopPartitioner : public StmtMutator {
   }
 
  private:
-  Stmt TryPartition(const Object* op, const Stmt& stmt, VarExpr var,
+  Stmt TryPartition(const Object* op, const Stmt& stmt, Var var,
       PrimExpr min, PrimExpr max, Stmt body, bool partition_thread_scope);
 
   std::pair<IntSet, std::unordered_set<const Object*>>
@@ -452,7 +452,7 @@ LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
  */
 Stmt LoopPartitioner::TryPartition(const Object* node,
                                    const Stmt& stmt,
-                                   VarExpr var,
+                                   Var var,
                                    PrimExpr min,
                                    PrimExpr max,
                                    Stmt body,

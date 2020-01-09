@@ -488,7 +488,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The replacement allocation, if any.
     Stmt new_alloc;
     // The var expr of new allocation.
-    VarExpr alloc_var;
+    Var alloc_var;
     // The allocation element type.
     DataType elem_type;
     // This is non-zero if this allocate is folded into another one

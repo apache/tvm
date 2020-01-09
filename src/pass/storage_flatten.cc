@@ -70,7 +70,7 @@ class StorageFlattener : public StmtExprMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
-      VarExpr buf_var = Downcast<VarExpr>(it->second);
+      Var buf_var = Downcast<Var>(it->second);
       return StoreNode::make(buf_var, op->value, op->index, op->predicate);
     } else {
       return stmt;
@@ -269,7 +269,7 @@ class StorageFlattener : public StmtExprMutator {
     if (it != var_remap_.end() &&
         !it->second.same_as(op->buffer_var)) {
       CHECK(it->second.as<VarNode>());
-      VarExpr buf_var = Downcast<VarExpr>(it->second);
+      Var buf_var = Downcast<Var>(it->second);
       return LoadNode::make(op->dtype, buf_var, op->index, op->predicate);
     } else {
       return expr;
@@ -335,17 +335,17 @@ class StorageFlattener : public StmtExprMutator {
     PrimExpr stride(elem_cnt / block_size);
 
     Array<PrimExpr> args;
-    std::vector<VarExpr> vars;
+    std::vector<Var> vars;
 
     for (int i = op->bounds.size() - 1; i > starts; --i) {
       args.push_back(op->bounds[i]->min);
     }
     auto &func_name = op->func->func_name();
-    vars.push_back(VarExpr(
+    vars.push_back(Var(
         "prefetch." + func_name + "." + std::to_string(starts), DataType::Int(32)));
     args.push_back(op->bounds[starts]->min + stride * vars.back());
     for (int i = starts - 1; i >= 0; --i) {
-      vars.push_back(VarExpr(
+      vars.push_back(Var(
           "prefetch." + func_name + "." + std::to_string(i), DataType::Int(32)));
       args.push_back(vars.back() + op->bounds[i]->min);
     }
@@ -517,7 +517,7 @@ class StorageFlattener : public StmtExprMutator {
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
-  std::vector<std::pair<VarExpr, Array<PrimExpr>>> shape_collector_;
+  std::vector<std::pair<Var, Array<PrimExpr>>> shape_collector_;
   // bounds populator. We really need the analyzer from it.
   // However
   IRVisitorWithAnalyzer* bounded_analyzer_;

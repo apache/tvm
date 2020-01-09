@@ -166,12 +166,6 @@ class Var : public PrimExpr {
   using ContainerType = VarNode;
 };
 
-// Backward compatibility, will be removed later.
-using VarExpr = Var;
-using BaseExprNode = PrimExprNode;
-using ExprHash = ObjectHash;
-using ExprEqual = ObjectEqual;
-
 class Integer;
 /*! \brief ExprNode: constant integer. */
 class IntImmNode : public PrimExprNode {

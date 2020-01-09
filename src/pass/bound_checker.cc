@@ -102,11 +102,11 @@ class BoundChecker : public StmtExprMutator {
   }
 
  private:
-  bool UpdateIsNeeded(const VarExpr& buffer_var) const {
+  bool UpdateIsNeeded(const Var& buffer_var) const {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const VarExpr& buffer_var,
+  void Update(const Var& buffer_var,
               const Array<PrimExpr>& new_shape,
               const DataType& type) {
     // Sanity check at first.
@@ -146,12 +146,12 @@ class BoundChecker : public StmtExprMutator {
     return true;
   }
 
-  bool CanInstrument(const PrimExpr& index, const VarExpr& buffer_var) const {
+  bool CanInstrument(const PrimExpr& index, const Var& buffer_var) const {
     return buffer_var.defined() && mem_to_shape_.count(buffer_var.get()) &&
            IndexIsValid(index) && !unsafe_rewritten_;
   }
 
-  void Collect(PrimExpr index, VarExpr buffer_var) {
+  void Collect(PrimExpr index, Var buffer_var) {
     store_scope_bound_collector_.push_back(
         std::make_pair(index, mem_to_shape_[buffer_var.get()]));
   }

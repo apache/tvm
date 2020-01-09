@@ -211,7 +211,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
-    const VarExpr buffer = Downcast<VarExpr>(op->node);
+    const Var buffer = Downcast<Var>(op->node);
     CHECK_NE(loop_nest_.size(), 0U)
         << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
@@ -249,7 +249,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     // The loop we need
     const ForNode* loop{nullptr};
     // The switch variable.
-    VarExpr switch_write_var;
+    Var switch_write_var;
     // The switch variable for reading.
     PrimExpr switch_read_var;
     // The storage scope.

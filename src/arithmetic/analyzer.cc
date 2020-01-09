@@ -35,7 +35,7 @@ Analyzer::Analyzer()
       int_set(this) {
 }
 
-void Analyzer::Bind(const VarExpr& var, const PrimExpr& expr) {
+void Analyzer::Bind(const Var& var, const PrimExpr& expr) {
   PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);
@@ -46,7 +46,7 @@ void Analyzer::Bind(const VarExpr& var, const PrimExpr& expr) {
   this->canonical_simplify.Update(var, new_expr);
 }
 
-void Analyzer::Bind(const VarExpr& var, const Range& range) {
+void Analyzer::Bind(const Var& var, const Range& range) {
   CHECK(range.defined());
   if (is_one(range->extent)) {
     this->Bind(var, range->min);
