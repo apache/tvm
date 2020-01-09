@@ -178,16 +178,20 @@ def test_pool_grad():
     verify_pool_grad(1, 256, 32, 2, 2, [0, 0, 0, 0], 'max', False, add_relu=True)
 
 
-def verify_global_pool(n, c, h, w, pool_type):
+def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
+
+    assert layout in ["NCHW", "NHWC"] 
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.global_pool(A, pool_type=pool_type)
+    B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
+
+    axis = (layout.find('H'), layout.find('W'))
     if pool_type == 'avg':
-        b_np = np.mean(a_np, axis=(2,3), keepdims=True)
+        b_np = np.mean(a_np, axis=axis, keepdims=True)
     elif pool_type =='max':
-        b_np = np.max(a_np, axis=(2,3), keepdims=True)
+        b_np = np.max(a_np, axis=axis, keepdims=True)
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
@@ -212,6 +216,10 @@ def test_global_pool():
     verify_global_pool(4, 1024, 7, 7, 'avg')
     verify_global_pool(1, 1024, 7, 7, 'max')
     verify_global_pool(4, 1024, 7, 7, 'max')
+    verify_global_pool(1, 1024, 7, 7, 'avg', 'NHWC')
+    verify_global_pool(4, 1024, 7, 7, 'avg', 'NHWC')
+    verify_global_pool(1, 1024, 7, 7, 'max', 'NHWC')
+    verify_global_pool(4, 1024, 7, 7, 'max', 'NHWC')
 
 def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
     def start_index(index, odim, idim):
