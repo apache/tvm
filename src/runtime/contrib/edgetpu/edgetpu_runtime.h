@@ -18,12 +18,12 @@
  */
 
 /*!
- * \brief Tflite runtime that can run tflite model
- *        containing only tvm PackedFunc.
- * \file tflite_runtime.h
+ * \brief EdgeTPU runtime that can run tflite model compiled
+ *        for EdgeTPU containing only tvm PackedFunc.
+ * \file edgetpu_runtime.h
  */
-#ifndef TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
-#define TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
+#ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
+#define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/ndarray.h>
@@ -38,12 +38,12 @@ namespace runtime {
 
 
 /*!
- * \brief Tflite runtime.
+ * \brief EdgeTPU runtime.
  *
- *  This runtime can be accessed in various language via
- *  TVM runtime PackedFunc API.
+ *  This runtime can be accessed in various languages via
+ *  the TVM runtime PackedFunc API.
  */
-class TFLiteRuntime : public ModuleNode {
+class EdgeTPURuntime : public ModuleNode {
  public:
   /*!
    * \brief Get member function to front-end.
@@ -58,7 +58,7 @@ class TFLiteRuntime : public ModuleNode {
    * \return The type key of the executor.
    */
   const char* type_key() const final {
-    return "TFLiteRuntime";
+    return "EdgeTPURuntime";
   }
 
   /*!
@@ -98,10 +98,11 @@ class TFLiteRuntime : public ModuleNode {
 
  private:
   std::unique_ptr<tflite::Interpreter> interpreter_;
+  std::shared_ptr<edgetpu::EdgeTpuContext> edgetpu_context_;
   TVMContext ctx_;
 };
 
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
+#endif  // TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_

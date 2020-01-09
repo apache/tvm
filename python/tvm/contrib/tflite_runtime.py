@@ -18,7 +18,7 @@
 from .._ffi.function import get_global_func
 from ..rpc import base as rpc_base
 
-def create(tflite_model_bytes, ctx):
+def create(tflite_model_bytes, ctx, target_edgetpu=False):
     """Create a runtime executor module given a tflite model and context.
     Parameters
     ----------
@@ -27,6 +27,9 @@ def create(tflite_model_bytes, ctx):
     ctx : TVMContext
         The context to deploy the module. It can be local or remote when there
         is only one TVMContext.
+    target_edgetpu: bool
+        Targets execution on the edge TPU via tflite when running on the Coral board.
+        Set to False by default.
     Returns
     -------
     tflite_runtime : TFLiteModule
@@ -34,9 +37,15 @@ def create(tflite_model_bytes, ctx):
     """
     device_type = ctx.device_type
     if device_type >= rpc_base.RPC_SESS_MASK:
-        fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
+        if target_edgetpu:
+            fcreate = ctx._rpc_sess.get_function("tvm.edgetpu_runtime.create")
+        else:
+            fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
         return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
-    fcreate = get_global_func("tvm.tflite_runtime.create")
+    if target_edgetpu:
+        fcreate = get_global_func("tvm.edgetpu_runtime.create")
+    else:
+        fcreate = get_global_func("tvm.tflite_runtime.create")
     return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
 
 
@@ -50,12 +59,12 @@ class TFLiteModule(object):
     Parameters
     ----------
     module : Module
-        The interal tvm module that holds the actual tflite functions.
+        The internal tvm module that holds the actual tflite functions.
 
     Attributes
     ----------
     module : Module
-        The interal tvm module that holds the actual tflite functions.
+        The internal tvm module that holds the actual tflite functions.
     """
 
     def __init__(self, module):
@@ -63,7 +72,6 @@ class TFLiteModule(object):
         self._set_input = module["set_input"]
         self._invoke = module["invoke"]
         self._get_output = module["get_output"]
-        self._allocate_tensors = module["allocate_tensors"]
 
     def set_input(self, index, value):
         """Set inputs to the module via kwargs
@@ -90,12 +98,6 @@ class TFLiteModule(object):
             List of input values to be feed to
         """
         self._invoke()
-
-    def allocate_tensors(self):
-        """Allocate space for all tensors.
-        """
-        self._allocate_tensors()
-
 
     def get_output(self, index):
         """Get index-th output to out

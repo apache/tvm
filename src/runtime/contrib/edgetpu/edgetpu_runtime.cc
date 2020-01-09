@@ -18,92 +18,106 @@
  */
 
 /*!
- * \file tflite_runtime.cc
+ * \file edgetpu_runtime.cc
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/dtype.h>
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
+#include <edgetpu.h>
 
 
-#include "tflite_runtime.h"
+#include "edgetpu_runtime.h"
 
 namespace tvm {
 namespace runtime {
 
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == DataType::Float(64)) {                              \
+  if (type == Float(64)) {                              \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(32)) {                       \
+  } else if (type == Float(32)) {                       \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Float(16)) {                       \
+  } else if (type == Float(16)) {                       \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(64)) {                         \
+  } else if (type == Int(64)) {                         \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(32)) {                         \
+  } else if (type == Int(32)) {                         \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(16)) {                         \
+  } else if (type == Int(16)) {                         \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::Int(8)) {                          \
+  } else if (type == Int(8)) {                          \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(64)) {                        \
+  } else if (type == UInt(64)) {                        \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(32)) {                        \
+  } else if (type == UInt(32)) {                        \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(16)) {                        \
+  } else if (type == UInt(16)) {                        \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == DataType::UInt(8)) {                         \
+  } else if (type == UInt(8)) {                         \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
     LOG(FATAL) << "unknown data type " << type;         \
   }
 
-DataType TfLiteDType2TVMDType(TfLiteType dtype) {
+DataType TfLiteDType2TVMDType_(TfLiteType dtype) {
   switch (dtype) {
     case kTfLiteFloat32:
-      return DataType::Float(32);
+      return Float(32);
     case kTfLiteInt32:
-      return DataType::Int(32);
+      return Int(32);
     case kTfLiteInt64:
-      return DataType::Int(64);
+      return Int(64);
     case kTfLiteInt16:
-      returnDataType::Int(16);
+      return Int(16);
     case kTfLiteInt8:
-      returnDataType::Int(8);
+      return Int(8);
     case kTfLiteUInt8:
-      return DataType::UInt(8);
+      return UInt(8);
     case kTfLiteFloat16:
-      return DataType::Float(16);
+      return Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
-      return DataType::Float(32);
+      return Float(32);
   }
 }
 
 
-void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
+void EdgeTPURuntime::Init(const std::string& tflite_model_bytes,
                          TVMContext ctx) {
   const char* buffer = tflite_model_bytes.c_str();
   size_t buffer_size = tflite_model_bytes.size();
+  // Load compiled model as a FlatBufferModel
   std::unique_ptr<tflite::FlatBufferModel> model =
     tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
+  // Build resolver
   tflite::ops::builtin::BuiltinOpResolver resolver;
-  // Build interpreter
+  // Init EdgeTPUContext object
+  edgetpu_context_ = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
+  // Add custom edgetpu ops to resolver
+  resolver.AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
+  // Ensure that the build went successfully
   if (tflite::InterpreterBuilder(*model, resolver)(&interpreter_) != kTfLiteOk) {
     std::cerr << "Failed to build interpreter." << std::endl;
   }
+  // Ensure that the build went successfully
+  if (tflite::InterpreterBuilder(*model, resolver)(&interpreter_) != kTfLiteOk) {
+    std::cerr << "Failed to build interpreter." << std::endl;
+  }
+  // Bind EdgeTPU context with interpreter.
+  interpreter_->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context_.get());
+  interpreter_->SetNumThreads(1);
   // Allocate tensors
   if (interpreter_->AllocateTensors() != kTfLiteOk) {
     std::cerr << "Failed to allocate tensors." << std::endl;
@@ -112,11 +126,11 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
   ctx_ = ctx;
 }
 
-void TFLiteRuntime::Invoke() {
+void EdgeTPURuntime::Invoke() {
   interpreter_->Invoke();
 }
 
-void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
+void EdgeTPURuntime::SetInput(int index, DLTensor* data_in) {
   DataType dtype(data_in->dtype);
   TVM_DTYPE_DISPATCH(dtype, DType, {
       DType* dest = interpreter_->typed_input_tensor<DType>(index);
@@ -132,9 +146,9 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
     });
 }
 
-NDArray TFLiteRuntime::GetOutput(int index) const {
+NDArray EdgeTPURuntime::GetOutput(int index) const {
   TfLiteTensor* output = interpreter_->tensor(interpreter_->outputs()[index]);
-  DataType dtype = TfLiteDType2TVMDType(output->type);
+  DataType dtype = TfLiteDType2TVMDType_(output->type);
   TfLiteIntArray* dims = output->dims;
   int64_t size = 1;
   std::vector<int64_t> shape;
@@ -153,7 +167,7 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
   return ret;
 }
 
-PackedFunc TFLiteRuntime::GetFunction(
+PackedFunc EdgeTPURuntime::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
@@ -176,16 +190,16 @@ PackedFunc TFLiteRuntime::GetFunction(
   }
 }
 
-Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes,
+Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes,
                            TVMContext ctx) {
-  auto exec = make_object<TFLiteRuntime>();
+  auto exec = make_object<EdgeTPURuntime>();
   exec->Init(tflite_model_bytes, ctx);
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create")
+TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = TFLiteRuntimeCreate(args[0], args[1]);
+    *rv = EdgeTPURuntimeCreate(args[0], args[1]);
   });
 }  // namespace runtime
 }  // namespace tvm
