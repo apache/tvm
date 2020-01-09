@@ -53,7 +53,7 @@ def get_or_create_dot_id(obj, prefix="", assert_on_missing=False):
                     name as prefix.
 
         assert_on_missing : bool
-                    Asserts or not if object doesn't have a registered ID.
+                    Assert or not if object doesn't have a registered ID.
     """
     prefix = prefix.replace('.', '_')
     if not hasattr(get_or_create_dot_id, "obj_id_dict"):
@@ -131,29 +131,29 @@ def legend_dot(g):
 
 
 def dump_graph(dot_string,
-               showsvg=True,
-               dotfilepath='',
-               outputdotstring=False):
+               show_svg=True,
+               dot_file_path='',
+               output_dot_string=False):
     """Output dot_string in various formats."""
-    if dotfilepath:
+    if dot_file_path:
         try:
-            dot_file = open(dotfilepath, "w+")
+            dot_file = open(dot_file_path, "w+")
             dot_file.write(dot_string)
             dot_file.close()
         except IOError:
-            print('Cannot open file: ' + dotfilepath)
-    if showsvg:
+            print('Cannot open file: ' + dot_file_path)
+    if show_svg:
         src = Source(dot_string)
         display(SVG(src.pipe(format='svg')))
-    if outputdotstring:
+    if output_dot_string:
         return dot_string
     return None
 
 
 def viz_schedule_tree(sch,
-                      showsvg=False,
-                      dotfilepath='',
-                      outputdotstring=False):
+                      show_svg=False,
+                      dot_file_path='',
+                      output_dot_string=False):
     """Top level API to render schedule tree
 
         Parameters
@@ -161,31 +161,31 @@ def viz_schedule_tree(sch,
         sch : schedule
                     The schedule object to visualize
 
-        showsvg : bool
+        show_svg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
-        dotfilepath : string
+        dot_file_path : string
                     Dot file to save the graph.
 
-        outputdotstring : bool
+        output_dot_string : bool
                     Return dot file content or an empty string.
 
         Returns
         -------
-        dotstring : string
-            dot file content or an empty string according to outputdotstring
+        dot_string : string
+            Dot file content or an empty string according to output_dot_string
 
         Examples
         --------
         The following code writes a schedule tree to a dot file.
 
         .. code-block:: python
-            tedd.viz_schedule_tree(s, dotfilepath = '/tmp/example.dot')
+            tedd.viz_schedule_tree(s, dot_file_path = '/tmp/example.dot')
 
         Use the following code to render a SVG graph in a Jupyter notebook.
 
         .. code-block:: python
-            tedd.viz_schedule_tree(s, showsvg = True)
+            tedd.viz_schedule_tree(s, show_svg = True)
     """
     def create_schedule_tree_graph(name=""):
         return create_graph(name=name, rankdir='BT')
@@ -258,13 +258,13 @@ def viz_schedule_tree(sch,
     for stage in sch.stages:
         compute_at_dot(graph, stage)
     root_dot(graph)
-    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)
+    return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)
 
 
 def viz_itervar_relationship_graph(sch,
-                                   showsvg=False,
-                                   dotfilepath='',
-                                   outputdotstring=False):
+                                   show_svg=False,
+                                   dot_file_path='',
+                                   output_dot_string=False):
     """Top level API to render IterVar relationship graph
 
         Parameters
@@ -272,13 +272,13 @@ def viz_itervar_relationship_graph(sch,
         sch : schedule
                     The schedule object to visualize
 
-        showsvg : bool
+        show_svg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
-        dotfilepath : string
+        dot_file_path : string
                     Dot file to save the graph.
 
-        outputdotstring : bool
+        output_dot_string : bool
                     Return dot file content or an empty string.
 
         Examples
@@ -287,13 +287,13 @@ def viz_itervar_relationship_graph(sch,
 
         .. code-block:: python
             tedd.viz_def viz_itervar_relationship_graph(sch,
-                (s, dotfilepath = '/tmp/example.dot')
+                (s, dot_file_path = '/tmp/example.dot')
 
         Use the following code to render a SVG graph in a Jupyter notebook.
 
         .. code-block:: python
             tedd.viz_def viz_itervar_relationship_graph(sch,
-                (s, showsvg = True)
+                (s, show_svg = True)
     """
     def create_itervar_relation_graph(name=""):
         return create_graph(name=name, rankdir='TB')
@@ -417,13 +417,13 @@ def viz_itervar_relationship_graph(sch,
     for stage in sch.stages:
         stage_node_dot(graph, stage)
 
-    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)
+    return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)
 
 
 def viz_dataflow_graph(sch,
-                       showsvg=False,
-                       dotfilepath='',
-                       outputdotstring=False):
+                       show_svg=False,
+                       dot_file_path='',
+                       output_dot_string=False):
     """Top level API to render dataflow graph
 
         Parameters
@@ -431,13 +431,13 @@ def viz_dataflow_graph(sch,
         sch : schedule
                     The schedule object to visualize
 
-        showsvg : bool
+        show_svg : bool
                     Display graph as SVG, useful for Jupyter notebooks.
 
-        dotfilepath : string
+        dot_file_path : string
                     Dot file to save the graph.
 
-        outputdotstring : bool
+        output_dot_string : bool
                     Return dot file content or an empty string.
 
         Examples
@@ -445,12 +445,12 @@ def viz_dataflow_graph(sch,
         The following code writes a dataflow graph to a dot file.
 
         .. code-block:: python
-            tedd.viz_dataflow_graph(s, dotfilepath = '/tmp/example.dot')
+            tedd.viz_dataflow_graph(s, dot_file_path = '/tmp/example.dot')
 
         Use the following code to render a SVG graph in a Jupyter notebook.
 
         .. code-block:: python
-            tedd.viz_dataflow_graph(s, showsvg = True)    """
+            tedd.viz_dataflow_graph(s, show_svg = True)    """
     def create_dataflow_graph(name=""):
         return create_graph(name=name, rankdir='LR')
 
@@ -516,4 +516,4 @@ def viz_dataflow_graph(sch,
 
     dfg_dot(graph, sch)
 
-    return dump_graph(graph.source, showsvg, dotfilepath, outputdotstring)
+    return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)
