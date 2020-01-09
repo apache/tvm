@@ -44,6 +44,7 @@ def get_numpy(tensor_proto):
 
 
 def dimension_picker(prefix, surfix=''):
+    """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
         if len(kernel) == 1:
@@ -87,8 +88,11 @@ def onnx_storage_order2layout(storage_order, dims=2):
 
     if dims == 1:
         return 'NCW' if storage_order == 0 else 'NWC'
-    if dims == 2:
+    elif dims == 2:
         return 'NCHW' if storage_order == 0 else 'NHWC'
+    else:
+        msg = "Only 1d and 2d layouts are currently supported"
+        raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
 def dimension_constraint():
@@ -413,7 +417,7 @@ class MaxPool(Pool):
                 },
                 ignores=['dilations', 'auto_pad'])(inputs, attr, params)
         #2D Convolution
-        elif len(input_shape) == 4:
+        if len(input_shape) == 4:
             return AttrCvt(
                 op_name=dimension_picker(cls.name),
                 transforms={
@@ -425,8 +429,8 @@ class MaxPool(Pool):
                 # very weird attributes here in onnx, force check
                 ignores=['dilations', 'auto_pad'],
                 custom_check=dimension_constraint())(inputs, attr, params)
-        else:
-            raise ValueError("Only 1D and 2D maxpooling are currently supported.")
+
+        raise tvm.error.OpAttributeInvalid("Only 1D and 2D maxpooling are currently supported.")
 
 class Mul(Elemwise):
     """ Operator converter for Multiply.
