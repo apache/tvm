@@ -47,13 +47,13 @@ DataType PlaceholderOpNode::output_dtype(size_t i) const {
   return dtype;
 }
 
-Array<Expr> PlaceholderOpNode::output_shape(size_t i) const {
+Array<PrimExpr> PlaceholderOpNode::output_shape(size_t i) const {
   CHECK_EQ(i, 0U);
   return shape;
 }
 
 Operation PlaceholderOpNode::make(std::string name,
-                                  Array<Expr> shape,
+                                  Array<PrimExpr> shape,
                                   DataType dtype) {
   auto n = make_object<PlaceholderOpNode>();
   n->name = name;
@@ -62,7 +62,7 @@ Operation PlaceholderOpNode::make(std::string name,
   return Operation(n);
 }
 
-Tensor placeholder(Array<Expr> shape, DataType dtype, std::string name) {
+Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
   return PlaceholderOpNode::make(name, shape, dtype).output(0);
 }
 

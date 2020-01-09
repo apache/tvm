@@ -101,7 +101,7 @@ class CodeGenCPU : public CodeGenLLVM {
                          const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
-  llvm::BasicBlock *MakeCallPacked(const Array<Expr> &args,
+  llvm::BasicBlock *MakeCallPacked(const Array<PrimExpr> &args,
                                    llvm::Value **rvalue,
                                    llvm::Value **ret_tcode, const DataType &r_type,
                                    const int64_t begin, const int64_t end);

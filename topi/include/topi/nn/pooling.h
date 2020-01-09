@@ -61,9 +61,9 @@ enum PoolType : int {
 * \return The output tensor in same layout order
 */
 inline Tensor pool_impl(const Tensor& x,
-                        const Array<Expr>& kernel_size,
-                        const Array<Expr>& stride_size,
-                        const Array<Expr>& padding_size,
+                        const Array<PrimExpr>& kernel_size,
+                        const Array<PrimExpr>& stride_size,
+                        const Array<PrimExpr>& padding_size,
                         PoolType pool_type,
                         bool ceil_mode,
                         const size_t height_axis,
@@ -94,11 +94,11 @@ inline Tensor pool_impl(const Tensor& x,
     pad_right += stride_width - 1;
   }
 
-  Array<Expr> pad_before(std::vector<Expr>(x->shape.size(), 0));
+  Array<PrimExpr> pad_before(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_before.Set(height_axis, pad_top);
   pad_before.Set(width_axis, pad_left);
 
-  Array<Expr> pad_after(std::vector<Expr>(x->shape.size(), 0));
+  Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
 
@@ -110,7 +110,7 @@ inline Tensor pool_impl(const Tensor& x,
   auto dheight = tvm::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
 
-  Array<Expr> out_shape = x->shape;
+  Array<PrimExpr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
@@ -125,7 +125,7 @@ inline Tensor pool_impl(const Tensor& x,
     auto temp = do_pad ? pad(
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       indices.Set(height_axis, output[height_axis] * stride_height + dheight);
       indices.Set(width_axis, output[width_axis] * stride_width + dwidth);
@@ -138,7 +138,7 @@ inline Tensor pool_impl(const Tensor& x,
     // TVM compute for summing the pooling window.
     auto pool_sum = tvm::compute(out_shape,
     [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       indices.Set(height_axis, output[height_axis] * stride_height + dheight);
       indices.Set(width_axis, output[width_axis] * stride_width + dwidth);
@@ -148,18 +148,18 @@ inline Tensor pool_impl(const Tensor& x,
     // TVM compute for dividing the reduced window sum by kernel size.
     return tvm::compute(out_shape,
     [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       if (count_include_pad) {
         return div(pool_sum(indices), (kernel_height * kernel_width));
       } else {
-        Expr h_start = output[height_axis] * stride_height - pad_top;
-        Expr w_start = output[width_axis] * stride_width - pad_left;
-        Expr h_end = ir::MinNode::make(h_start + kernel_height, height);
-        Expr w_end = ir::MinNode::make(w_start + kernel_width, width);
+        PrimExpr h_start = output[height_axis] * stride_height - pad_top;
+        PrimExpr w_start = output[width_axis] * stride_width - pad_left;
+        PrimExpr h_end = ir::MinNode::make(h_start + kernel_height, height);
+        PrimExpr w_end = ir::MinNode::make(w_start + kernel_width, width);
         h_start = ir::MaxNode::make(h_start, make_const(DataType::DataType::Int(32), 0));
         w_start = ir::MaxNode::make(w_start, make_const(DataType::DataType::Int(32), 0));
-        Expr divide_factor = ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
+        PrimExpr divide_factor = ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
                                            make_const(DataType::DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
@@ -170,9 +170,12 @@ inline Tensor pool_impl(const Tensor& x,
   }
 }
 
-inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
-                             const Array<Expr>& kernel_size, const Array<Expr>& stride_size,
-                             const Array<Expr>& padding_size, PoolType pool_type, bool ceil_mode,
+inline Tensor pool_grad_impl(const Tensor& out_grad,
+                             const Tensor& x,
+                             const Array<PrimExpr>& kernel_size,
+                             const Array<PrimExpr>& stride_size,
+                             const Array<PrimExpr>& padding_size,
+                             PoolType pool_type, bool ceil_mode,
                              const size_t height_axis, const size_t width_axis,
                              bool count_include_pad) {
   CHECK(out_grad->shape.size() >= 2) << "Pooling grad output must >= 2-D (H, W)";
@@ -201,11 +204,11 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     pad_right += stride_width - 1;
   }
 
-  Array<Expr> pad_before(std::vector<Expr>(x->shape.size(), 0));
+  Array<PrimExpr> pad_before(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_before.Set(height_axis, pad_top);
   pad_before.Set(width_axis, pad_left);
 
-  Array<Expr> pad_after(std::vector<Expr>(x->shape.size(), 0));
+  Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
 
@@ -217,7 +220,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
   auto dheight = tvm::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
 
-  Array<Expr> out_shape = x->shape;
+  Array<PrimExpr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
@@ -229,7 +232,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
   if (pool_type == kMaxPool) {
-    Array<Expr> ravel_shape{x->shape.begin(), x->shape.end()};
+    Array<PrimExpr> ravel_shape{x->shape.begin(), x->shape.end()};
     ravel_shape.Set(height_axis, ravel_shape[height_axis] + pad_top + pad_bottom);
     ravel_shape.Set(width_axis, ravel_shape[width_axis] + pad_left + pad_right);
 
@@ -243,7 +246,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     auto mp_argmax =
         tvm::compute(out_shape,
                      [&](const Array<Var>& inds) {
-                       Array<Expr> window_inds{inds.begin(), inds.end()};
+                       Array<PrimExpr> window_inds{inds.begin(), inds.end()};
                        window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
                        window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
                        auto idx = detail::RavelIndex(window_inds, ravel_shape);
@@ -256,19 +259,19 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     return tvm::compute(
         x->shape,
         [&](const Array<Var>& inds) {
-          Array<Expr> pad_inds {inds.begin(), inds.end()};
+          Array<PrimExpr> pad_inds {inds.begin(), inds.end()};
           pad_inds.Set(height_axis, pad_inds[height_axis] + pad_top);
           pad_inds.Set(width_axis, pad_inds[width_axis] + pad_left);
           auto idx = detail::RavelIndex(pad_inds, ravel_shape);
 
-          Array<Expr> out_idx {inds.begin(), inds.end()};
+          Array<PrimExpr> out_idx {inds.begin(), inds.end()};
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
-          Expr out_idx_lower_h = ir::SelectNode::make(
+          PrimExpr out_idx_lower_h = ir::SelectNode::make(
               pad_inds[height_axis] < kernel_height, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::SelectNode::make(
+          PrimExpr out_idx_lower_w = ir::SelectNode::make(
               pad_inds[width_axis] < kernel_width, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
@@ -287,29 +290,29 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     return tvm::compute(
         x->shape,
         [&](const Array<Var>& inds) {
-          Expr pad_h_idx = inds[height_axis] + pad_top;
-          Expr pad_w_idx = inds[width_axis] + pad_left;
+          PrimExpr pad_h_idx = inds[height_axis] + pad_top;
+          PrimExpr pad_w_idx = inds[width_axis] + pad_left;
 
           // output indices whose pooling windows cover current input element (can be out-of-bound)
-          Array<Expr> out_idx{inds.begin(), inds.end()};
+          Array<PrimExpr> out_idx{inds.begin(), inds.end()};
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
-          Expr out_idx_lower_h = ir::SelectNode::make(
+          PrimExpr out_idx_lower_h = ir::SelectNode::make(
               pad_h_idx < kernel_height, make_const(DataType::Int(32), 0),
               (pad_h_idx - kernel_height) / stride_height + 1);
-          Expr out_idx_lower_w = ir::SelectNode::make(
+          PrimExpr out_idx_lower_w = ir::SelectNode::make(
               pad_w_idx < kernel_width, make_const(DataType::Int(32), 0),
               (pad_w_idx - kernel_width) / stride_width + 1);
 
-          Expr divide_factor;  // number of pooled elements
+          PrimExpr divide_factor;  // number of pooled elements
           if (count_include_pad) {
             divide_factor = kernel_height * kernel_width;
           } else {
-            Expr h_start = out_idx[height_axis] * stride_height - pad_top;
-            Expr w_start = out_idx[width_axis] * stride_width - pad_left;
-            Expr h_end = ir::MinNode::make(h_start + kernel_height, height);
-            Expr w_end = ir::MinNode::make(w_start + kernel_width, width);
+            PrimExpr h_start = out_idx[height_axis] * stride_height - pad_top;
+            PrimExpr w_start = out_idx[width_axis] * stride_width - pad_left;
+            PrimExpr h_end = ir::MinNode::make(h_start + kernel_height, height);
+            PrimExpr w_end = ir::MinNode::make(w_start + kernel_width, width);
             h_start = ir::MaxNode::make(h_start, make_const(DataType::Int(32), 0));
             w_start = ir::MaxNode::make(w_start, make_const(DataType::Int(32), 0));
             divide_factor =
@@ -412,9 +415,9 @@ inline bool find_width(const std::string& layout,
 * \return The output tensor in the same layout
 */
 inline Tensor pool(const Tensor& x,
-                   const Array<Expr>& kernel_size,
-                   const Array<Expr>& stride_size,
-                   const Array<Expr>& padding_size,
+                   const Array<PrimExpr>& kernel_size,
+                   const Array<PrimExpr>& stride_size,
+                   const Array<PrimExpr>& padding_size,
                    PoolType pool_type,
                    bool ceil_mode,
                    const std::string& layout = "NCHW",
@@ -457,8 +460,8 @@ inline Tensor pool(const Tensor& x,
  *
  * \return The output tensor in the same layout
  */
-inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x, const Array<Expr>& kernel_size,
-                        const Array<Expr>& stride_size, const Array<Expr>& padding_size,
+inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x, const Array<PrimExpr>& kernel_size,
+                        const Array<PrimExpr>& stride_size, const Array<PrimExpr>& padding_size,
                         PoolType pool_type, bool ceil_mode, const std::string& layout = "NCHW",
                         bool count_include_pad = true) {
   int height_axis = -1, width_axis = -1;
@@ -467,16 +470,16 @@ inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x, const Array<Exp
                         height_axis, width_axis, count_include_pad);
 }
 
-inline Expr start_index(const Var& out_index,
-                        const Expr& odim,
-                        const Expr& idim) {
+inline PrimExpr start_index(const Var& out_index,
+                        const PrimExpr& odim,
+                        const PrimExpr& idim) {
   return indexdiv(out_index * idim, odim);
 }
 
-inline Expr end_index(const Var& out_index,
-                      const Expr& odim,
-                      const Expr& idim) {
-  Expr tmp = indexdiv((out_index + 1) * idim, odim);
+inline PrimExpr end_index(const Var& out_index,
+                      const PrimExpr& odim,
+                      const PrimExpr& idim) {
+  PrimExpr tmp = indexdiv((out_index + 1) * idim, odim);
   return tvm::ir::SelectNode::make(indexmod((out_index + 1) * idim, odim) == 0,
                                tmp, tmp + 1);
 }
@@ -493,7 +496,7 @@ inline Expr end_index(const Var& out_index,
 * \return The output tensor in same layout order
 */
 inline Tensor adaptive_pool_impl(const Tensor& x,
-                                 const Array<Expr>& output_size,
+                                 const Array<PrimExpr>& output_size,
                                  PoolType pool_type,
                                  const size_t height_axis,
                                  const size_t width_axis) {
@@ -504,13 +507,13 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
 
   auto out_height = cast(DataType::Int(32), output_size[0]);
   auto out_width = cast(DataType::Int(32), output_size[1]);
-  Array<Expr> out_shape = x->shape;
+  Array<PrimExpr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
   if (pool_type == kMaxPool) {
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
       auto i_end_h = end_index(output[height_axis], out_height, height);
@@ -524,7 +527,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
     }, "tensor", "adaptive_pool_max");
   } else if (pool_type == kAvgPool) {
     auto pool_sum = tvm::compute(out_shape, [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
       auto i_end_h = end_index(output[height_axis], out_height, height);
@@ -540,7 +543,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
     }, "tensor", "adaptive_pool_sum");
 
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
       auto i_end_h = end_index(output[height_axis], out_height, height);
@@ -583,7 +586,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
 * \return The output tensor in same layout order
 */
 inline Tensor adaptive_pool(const Tensor& x,
-                            const Array<Expr>& output_size,
+                            const Array<PrimExpr>& output_size,
                             PoolType pool_type,
                             const std::string& layout = "NCHW") {
   int height_axis = -1, width_axis = -1;
@@ -620,7 +623,7 @@ inline Tensor adaptive_pool(const Tensor& x,
 inline Tensor global_pool(const Tensor& x,
                           PoolType pool_type,
                           const std::string& layout = "NCHW") {
-  return adaptive_pool(x, Array<Expr>{1, 1}, pool_type, layout);
+  return adaptive_pool(x, Array<PrimExpr>{1, 1}, pool_type, layout);
 }
 
 /*!
@@ -639,9 +642,9 @@ inline Tensor global_pool(const Tensor& x,
 * \return The output tensor in same layout order
 */
 inline Tensor pool_impl_nd(const Tensor& x,
-                           const Array<Expr>& kernel_size,
-                           const Array<Expr>& stride_size,
-                           const Array<Expr>& padding_size,
+                           const Array<PrimExpr>& kernel_size,
+                           const Array<PrimExpr>& stride_size,
+                           const Array<PrimExpr>& padding_size,
                            PoolType pool_type,
                            bool ceil_mode,
                            const std::vector<int>& axis,
@@ -654,13 +657,13 @@ inline Tensor pool_impl_nd(const Tensor& x,
   CHECK_EQ(axis.size(), k_size) << "axis must have same elements as kernel";
 
   Array<IterVar> daxis;
-  std::vector<Expr> kernel(k_size);
-  std::vector<Expr> stride(k_size);
-  std::vector<Expr> pad_head(k_size);
-  std::vector<Expr> pad_tail(k_size);
-  Array<Expr> pad_before(std::vector<Expr>(x_size, 0));
-  Array<Expr> pad_after(std::vector<Expr>(x_size, 0));
-  Array<Expr> out_shape = x->shape;
+  std::vector<PrimExpr> kernel(k_size);
+  std::vector<PrimExpr> stride(k_size);
+  std::vector<PrimExpr> pad_head(k_size);
+  std::vector<PrimExpr> pad_tail(k_size);
+  Array<PrimExpr> pad_before(std::vector<PrimExpr>(x_size, 0));
+  Array<PrimExpr> pad_after(std::vector<PrimExpr>(x_size, 0));
+  Array<PrimExpr> out_shape = x->shape;
 
   bool do_pad = false;
   for (int i = 0; i < k_size; i++) {
@@ -694,7 +697,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
     auto temp = do_pad ? pad(
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
     return tvm::compute(out_shape, [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
 
       for (int i = 0; i < k_size; i++) {
@@ -711,7 +714,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
     // TVM compute for summing the pooling window.
     auto pool_sum = tvm::compute(out_shape,
     [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
 
       for (int i = 0; i < k_size; i++) {
@@ -724,7 +727,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
     // TVM compute for dividing the reduced window sum by kernel size.
     return tvm::compute(out_shape,
     [&](const Array<Var>& output) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       if (count_include_pad) {
         auto kernel_size = make_const(DataType::Int(32), 1);
@@ -733,8 +736,8 @@ inline Tensor pool_impl_nd(const Tensor& x,
         }
         return div(pool_sum(indices), kernel_size);
       } else {
-        std::vector<Expr> start(k_size);
-        std::vector<Expr> end(k_size);
+        std::vector<PrimExpr> start(k_size);
+        std::vector<PrimExpr> end(k_size);
         auto kernel_size = make_const(DataType::Int(32), 1);
         for (int i = 0; i < k_size; i++) {
           int ii = axis[i];
@@ -744,7 +747,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
           kernel_size *= (end[i] - start[i]);
         }
 
-        Expr divide_factor = ir::MaxNode::make(kernel_size, make_const(DataType::Int(32), 1));
+        PrimExpr divide_factor = ir::MaxNode::make(kernel_size, make_const(DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);
@@ -784,9 +787,9 @@ inline Tensor pool_impl_nd(const Tensor& x,
 * \return The output tensor in the same layout
 */
 inline Tensor pool1d(const Tensor& x,
-                     const Array<Expr>& kernel_size,
-                     const Array<Expr>& stride_size,
-                     const Array<Expr>& padding_size,
+                     const Array<PrimExpr>& kernel_size,
+                     const Array<PrimExpr>& stride_size,
+                     const Array<PrimExpr>& padding_size,
                      PoolType pool_type,
                      bool ceil_mode,
                      const std::string& layout = "NCW",
@@ -830,9 +833,9 @@ inline Tensor pool1d(const Tensor& x,
 * \return The output tensor in the same layout
 */
 inline Tensor pool3d(const Tensor& x,
-                     const Array<Expr>& kernel_size,
-                     const Array<Expr>& stride_size,
-                     const Array<Expr>& padding_size,
+                     const Array<PrimExpr>& kernel_size,
+                     const Array<PrimExpr>& stride_size,
+                     const Array<PrimExpr>& padding_size,
                      PoolType pool_type,
                      bool ceil_mode,
                      const std::string& layout = "NCDHW",

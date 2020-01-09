@@ -137,10 +137,10 @@ void OpRegistry::UpdateAttr(const std::string& key,
 // Frontend APIs
 TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
 .set_body_typed([]() {
-    Array<tvm::Expr> ret;
+    Array<tvm::PrimExpr> ret;
     for (const std::string& name :
              dmlc::Registry<OpRegistry>::ListAllNames()) {
-      ret.push_back(tvm::Expr(name));
+      ret.push_back(tvm::PrimExpr(name));
     }
     return ret;
   });

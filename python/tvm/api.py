@@ -256,7 +256,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     tensor: Tensor
         The created tensor
     """
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     dtype = float32 if dtype is None else dtype
     return _api_internal._Placeholder(
         shape, dtype, name)
@@ -293,7 +293,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     ndim = len(shape)
@@ -482,8 +482,8 @@ def extern(shape,
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
-    if shape == () or isinstance(shape[0], (_expr.Expr, _Integral)):
+    shape = (shape,) if isinstance(shape, (_expr.PrimExpr, _Integral)) else shape
+    if shape == () or isinstance(shape[0], (_expr.PrimExpr, _Integral)):
         shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
@@ -518,7 +518,7 @@ def extern(shape,
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
-    if isinstance(body, _expr.Expr):
+    if isinstance(body, _expr.PrimExpr):
         body = _make.Evaluate(body)
 
     op = _api_internal._ExternOp(name, tag, attrs,
@@ -626,7 +626,7 @@ def decl_buffer(shape,
     If user pass a fully generic symbolic array to the strides,
     then the resulting function becomes fully generic.
     """
-    shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
+    shape = (shape,) if isinstance(shape, (_expr.PrimExpr, _Integral)) else shape
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
@@ -827,7 +827,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             result = fcombine(lhs, rhs)
             id_elem = fidentity(*dtypes)
         else:
-            assert isinstance(expr, _expr.Expr)
+            assert isinstance(expr, _expr.PrimExpr)
             size = 1
             dtype = expr.dtype
             lvar = var(code.co_varnames[0], dtype)

@@ -169,7 +169,7 @@ class GPUCodeVerifier : public StmtVisitor {
 };
 
 bool VerifyGPUCode(Stmt stmt,
-                   Map<std::string, Expr> constraints) {
+                   Map<std::string, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;

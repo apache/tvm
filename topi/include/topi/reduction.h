@@ -43,11 +43,11 @@ namespace topi {
 using namespace tvm;
 
 /*! \brief The operation to use for CommReduce */
-using FReduce = std::function<Expr(Expr source, const Array<IterVar>& axis)>;
+using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis)>;
 
 /*! \brief The operation to use for CommReduceIdx */
 using FCommReduce = std::function<
-  Array<Expr>(Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition)>;
+  Array<PrimExpr>(Array<PrimExpr> exprs, const Array<IterVar>& axis, PrimExpr* condition)>;
 
 /*!
 * \brief Convert a reduction axis which could be empty or have negative
@@ -97,12 +97,12 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
 }
 
 /*! \brief Calculate the target shape for a reduce op */
-inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
+inline Array<PrimExpr> MakeReduceTargetShape(const std::vector<int>& real_axis,
                                          const Tensor& data,
                                          bool keepdims,
                                          bool atleast1d) {
   auto ndim = data->shape.size();
-  Array<Expr> target_shape;
+  Array<PrimExpr> target_shape;
   if (keepdims) {
     for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
@@ -140,12 +140,12 @@ inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
  */
 inline Tensor DoCommReduce(const Tensor& data,
                            FReduce func,
-                           const Array<Expr>& target_shape,
+                           const Array<PrimExpr>& target_shape,
                            const std::vector<int>& reduce_axes,
                            const std::vector<int>& squeeze_axes) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
   auto compute = [&](const Array<Var>& indices) {
-    Array<Expr> eval_range;
+    Array<PrimExpr> eval_range;
     Array<Var> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
@@ -222,8 +222,8 @@ inline Tensor CommReduceIdx(const Tensor& data,
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
   (const Array<Var>& indices) {
-    Array<Expr> eval_range;
-    Array<Expr> eval_indices;
+    Array<PrimExpr> eval_range;
+    Array<PrimExpr> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -243,7 +243,7 @@ inline Tensor CommReduceIdx(const Tensor& data,
       }
     }
 
-    Array<Expr> ravel_shape;
+    Array<PrimExpr> ravel_shape;
     for (auto i : real_axis) {
       ravel_shape.push_back(data->shape[i]);
     }
@@ -263,10 +263,10 @@ inline Tensor CommReduceIdx(const Tensor& data,
 }
 
 /*! \brief A combiner function for a reduction */
-using FCombine = std::function<Array<Expr>(Array<Var> lhs, Array<Var> rhs)>;
+using FCombine = std::function<Array<PrimExpr>(Array<Var> lhs, Array<Var> rhs)>;
 
 /*! \brief An initializer function for a reduction */
-using FIdentity = std::function<Array<Expr>(std::vector<DataType> types)>;
+using FIdentity = std::function<Array<PrimExpr>(std::vector<DataType> types)>;
 
 /*!
  * \brief Create a commutative reducer for a reduction
@@ -281,7 +281,7 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
                                    FIdentity fidentity,
                                    std::string name = "reduce") {
   return [fcombine, fidentity, name]
-  (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
+  (Array<PrimExpr> exprs, const Array<IterVar>& axis, PrimExpr* condition) {
     Array<Var> lhs, rhs;
     std::vector<DataType> dtypes;
 
@@ -297,7 +297,7 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
     auto cond = condition != nullptr ? *condition : tvm::const_true();
 
     auto combiner = tvm::ir::CommReducerNode::make(lhs, rhs, result, id_elem);
-    Array<Expr> outputs;
+    Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
       outputs.push_back(
         tvm::ir::ReduceNode::make(combiner, exprs, axis, cond, static_cast<int>(i)));
@@ -307,17 +307,17 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
 }
 
 /*! \brief Wrap tvm::min to ensure we get the correct overload */
-inline Expr MinOp(Expr source, Array<IterVar> axis) {
+inline PrimExpr MinOp(PrimExpr source, Array<IterVar> axis) {
   return tvm::min(source, axis);
 }
 
 /*! \brief Wrap tvm::max to ensure we get the correct overload */
-inline Expr MaxOp(Expr source, Array<IterVar> axis) {
+inline PrimExpr MaxOp(PrimExpr source, Array<IterVar> axis) {
   return tvm::max(source, axis);  // NOLINT(*)
 }
 
 /*! \brief Wrap tvm::prod to ensure we get the correct overload */
-inline Expr ProdOp(Expr source, Array<IterVar> axis) {
+inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis) {
   return tvm::prod(source, axis);  // NOLINT(*)
 }
 
@@ -341,7 +341,7 @@ inline Tensor sum(const Tensor& data,
   return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
 }
 
-inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
+inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
   CHECK_GE(data->shape.size(), target_shape.size());
   auto ishape = detail::GetConstIntValues(data->shape, "ishape");
   auto oshape = detail::GetConstIntValues(target_shape, "oshape");
@@ -472,13 +472,13 @@ inline Tensor argmin(const Tensor& data,
                      bool keepdims = false,
                      bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
-    Array<Expr> result;
+    Array<PrimExpr> result;
     result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
     result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
-    Array<Expr> result;
+    Array<PrimExpr> result;
     result.push_back(tvm::make_const(types[0], -1));  // idx
     result.push_back(tvm::max_value(types[1]));  // val
     return result;
@@ -489,13 +489,13 @@ inline Tensor argmin(const Tensor& data,
 
 inline FCommReduce MakeArgmaxReducer() {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
-    Array<Expr> result;
+    Array<PrimExpr> result;
     result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
     result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
-    Array<Expr> result;
+    Array<PrimExpr> result;
     result.push_back(tvm::make_const(types[0], -1));  // idx
     result.push_back(tvm::min_value(types[1]));  // val
     return result;

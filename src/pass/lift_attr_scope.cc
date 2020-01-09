@@ -55,7 +55,7 @@ class AttrScopeLifter : public StmtMutator {
           attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
       attr_node_ = ObjectRef();
-      attr_value_ = Expr();
+      attr_value_ = PrimExpr();
       return AllocateNode::make(
         op->buffer_var, op->dtype,
         op->extents, op->condition, body,
@@ -78,11 +78,11 @@ class AttrScopeLifter : public StmtMutator {
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     // remember the decorations.
     std::vector<ObjectRef> attr_node;
-    std::vector<Expr> attr_value;
+    std::vector<PrimExpr> attr_value;
 
     auto fmutate = [&](const Stmt& s) {
       attr_node_ = ObjectRef();
-      attr_value_ = Expr();
+      attr_value_ = PrimExpr();
       Stmt ret = this->VisitStmt(s);
       attr_node.push_back(attr_node_);
       attr_value.push_back(attr_value_);
@@ -123,7 +123,7 @@ class AttrScopeLifter : public StmtMutator {
       begin = end;
     }
     attr_node_ = ObjectRef();
-    attr_value_ = Expr();
+    attr_value_ = PrimExpr();
     return SeqStmt::Flatten(reorg);
   }
 
@@ -133,7 +133,7 @@ class AttrScopeLifter : public StmtMutator {
     }
     Stmt then_case = this->VisitStmt(op->then_case);
     ObjectRef first_node;
-    Expr first_value;
+    PrimExpr first_value;
     std::swap(first_node, attr_node_);
     std::swap(first_value, attr_value_);
     Stmt else_case = this->VisitStmt(op->else_case);
@@ -159,7 +159,7 @@ class AttrScopeLifter : public StmtMutator {
             attr_node_, attr_key_, attr_value_, else_case);
         // undefine them
         attr_node_ = ObjectRef();
-        attr_value_ = Expr();
+        attr_value_ = PrimExpr();
       }
       if (then_case.same_as(op->then_case) &&
           else_case.same_as(op->else_case)) {
@@ -172,7 +172,7 @@ class AttrScopeLifter : public StmtMutator {
 
  private:
   // value comparison that also compares content of int constant
-  static bool ValueSame(const Expr& a, const Expr& b) {
+  static bool ValueSame(const PrimExpr& a, const PrimExpr& b) {
     if (a.same_as(b)) return true;
     if (!a.defined() || !b.defined()) return false;
     if (a->type_index() != b->type_index()) return false;
@@ -188,7 +188,7 @@ class AttrScopeLifter : public StmtMutator {
 
   std::string attr_key_;
   ObjectRef attr_node_;
-  Expr attr_value_;
+  PrimExpr attr_value_;
 };
 
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {

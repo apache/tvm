@@ -55,8 +55,8 @@ size_t FindLeafVar(ArrayNode* all_vars, ArrayNode* leaf_vars, const IterVar& v) 
 
 void Split(StageNode* self,
            IterVar parent,
-           Expr factor,
-           Expr nparts,
+           PrimExpr factor,
+           PrimExpr nparts,
            IterVar* p_outer,
            IterVar* p_inner) {
   // Check if split is valid.
@@ -217,21 +217,21 @@ Stage& Stage::env_threads(Array<IterVar> threads) {
   return *this;
 }
 
-Stage& Stage::set_store_predicate(Expr predicate) {
+Stage& Stage::set_store_predicate(PrimExpr predicate) {
   StageNode* self = operator->();
   self->store_predicate = predicate;
   return *this;
 }
 
 Stage& Stage::split(
-    IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner) {  // NOLINT(*)
-  Split(operator->(), parent, factor, Expr(), p_outer, p_inner);
+    IterVar parent, PrimExpr factor, IterVar* p_outer, IterVar* p_inner) {  // NOLINT(*)
+  Split(operator->(), parent, factor, PrimExpr(), p_outer, p_inner);
   return *this;
 }
 
 Stage& Stage::split_by_nparts(
-    IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner) { // NOLINT(*)
-  Split(operator->(), parent, Expr(), nparts, p_outer, p_inner);
+    IterVar parent, PrimExpr nparts, IterVar* p_outer, IterVar* p_inner) { // NOLINT(*)
+  Split(operator->(), parent, PrimExpr(), nparts, p_outer, p_inner);
   return *this;
 }
 
@@ -332,7 +332,7 @@ Stage& Stage::reorder(const Array<IterVar>& order) {  // NOLINT(*)
 }
 
 Stage& Stage::tile(IterVar x_parent, IterVar y_parent,
-                   Expr x_factor, Expr y_factor,
+                   PrimExpr x_factor, PrimExpr y_factor,
                    IterVar* p_x_outer, IterVar* p_y_outer,
                    IterVar* p_x_inner, IterVar* p_y_inner) {
   split(x_parent, x_factor, p_x_outer, p_x_inner);
@@ -400,7 +400,7 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
 
 Stage& Stage::pragma(IterVar var,
                      const std::string& pragma_type,
-                     const Expr& pragma_value) {   // NOLINT(*)
+                     const PrimExpr& pragma_value) {   // NOLINT(*)
   if (pragma_type == "unroll") {
     this->unroll(var);
   } else if (pragma_type == "vectorize") {
@@ -415,7 +415,7 @@ Stage& Stage::pragma(IterVar var,
   return *this;
 }
 
-Stage& Stage::prefetch(const Tensor &tensor, IterVar var, Expr offset) {
+Stage& Stage::prefetch(const Tensor &tensor, IterVar var, PrimExpr offset) {
   StageNode *self = operator->();
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
@@ -756,8 +756,8 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
 IterVarRelation SplitNode::make(IterVar parent,
                                 IterVar outer,
                                 IterVar inner,
-                                Expr factor,
-                                Expr nparts) {
+                                PrimExpr factor,
+                                PrimExpr nparts) {
   auto n = make_object<SplitNode>();
   n->parent = parent;
   n->outer = outer;

@@ -325,7 +325,7 @@ class HybridParser(ast.NodeVisitor):
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
-        if isinstance(rhs, _expr.Expr):
+        if isinstance(rhs, _expr.PrimExpr):
             rhs = _ir_pass.Simplify(rhs)
         if isinstance(lhs, ast.Name):
             #TODO: support defined intermediate buffer later

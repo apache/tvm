@@ -31,13 +31,13 @@
 TEST(BuildModule, Basic) {
   using namespace tvm;
   auto n = var("n");
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   shape.push_back(n);
 
   auto A = placeholder(shape, DataType::Float(32), "A");
   auto B = placeholder(shape, DataType::Float(32), "B");
 
-  auto C = compute(A->shape, [&A, &B](Expr i) {
+  auto C = compute(A->shape, [&A, &B](PrimExpr i) {
     return A[i] + B[i];
   }, "C");
 
@@ -88,18 +88,18 @@ TEST(BuildModule, Heterogeneous) {
 
   // The shape of input tensors.
   const int n = 4;
-  Array<Expr> shape{n};
+  Array<PrimExpr> shape{n};
 
   auto A = placeholder(shape, DataType::Float(32), "A");
   auto B = placeholder(shape, DataType::Float(32), "B");
   auto C = placeholder(shape, DataType::Float(32), "C");
 
-  auto elemwise_add = compute(A->shape, [&A, &B](Expr i) {
+  auto elemwise_add = compute(A->shape, [&A, &B](PrimExpr i) {
     return A[i] + B[i];
   }, "elemwise_add");
 
   auto copy = placeholder(shape, DataType::Float(32), "__copy");
-  auto elemwise_sub = compute(C->shape, [&copy, &C](Expr i) {
+  auto elemwise_sub = compute(C->shape, [&copy, &C](PrimExpr i) {
     return copy[i] - C[i];
   }, "elemwise_sub");
 

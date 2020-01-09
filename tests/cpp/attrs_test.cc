@@ -28,7 +28,7 @@ namespace test {
 struct TestAttrs : public AttrsNode<TestAttrs> {
   int axis;
   std::string name;
-  Expr expr;
+  PrimExpr expr;
   double learning_rate;
 
   TVM_DECLARE_ATTRS(TestAttrs, "attrs.cpptest.TestAttrs") {
@@ -70,10 +70,10 @@ TEST(Attrs, Basic) {
     LOG(FATAL) << "bad";
   } catch (const tvm::AttrError& e) {
     std::string what = e.what();
-    CHECK(what.find("expr : Expr, default=1") != std::string::npos);
+    CHECK(what.find("expr : PrimExpr, default=1") != std::string::npos);
     CHECK(what.find("axisx") != std::string::npos);
   }
-  n->InitBySeq("learning_rate", Expr(1), "expr", 128, "name", "xx");
+  n->InitBySeq("learning_rate", PrimExpr(1), "expr", 128, "name", "xx");
   CHECK_EQ(n->learning_rate, 1.0);
 
   n->InitBySeq("name", "xxx", "expr", 128);
@@ -84,7 +84,7 @@ TEST(Attrs, Basic) {
   std::ostringstream os;
   n->PrintDocString(os);
   LOG(INFO) << "docstring\n"<< os.str();
-  CHECK(os.str().find("expr : Expr, default=1") != std::string::npos);
+  CHECK(os.str().find("expr : PrimExpr, default=1") != std::string::npos);
 }
 
 

@@ -1223,7 +1223,7 @@ inline Tensor DynamicArange(const tvm::Tensor& start,
                             tvm::DataType dtype,
                             std::string name = "tensor",
                             std::string tag = topi::kInjective) {
-  tvm::Expr num_elem = tvm::Var("num_elem");
+  tvm::PrimExpr num_elem = tvm::Var("num_elem");
   return tvm::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
     return tvm::cast(dtype, start[0] + step[0] * indices[0]);
   }, name, tag);
@@ -1237,7 +1237,7 @@ Array<Tensor> ArangeCompute(const Attrs& attrs,
   Tensor start = inputs[0];
   Tensor stop =  inputs[1];
   Tensor step = inputs[2];
-  Array<tvm::Expr> empty = {0};
+  Array<tvm::PrimExpr> empty = {0};
   return { DynamicArange(start, stop, step, param->dtype) };
 }
 

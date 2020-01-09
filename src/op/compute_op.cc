@@ -75,10 +75,10 @@ DataType ComputeOpNode::output_dtype(size_t idx) const {
   return body[idx].dtype();
 }
 
-Array<Expr> BaseComputeOpNode::output_shape(size_t idx) const {
+Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
   CHECK_LT(idx, num_outputs());
   // for now, all outputs of a BaseComputeOp have the same shape
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   for (const auto& ivar : this->axis) {
     const Range& r = ivar->dom;
     shape.push_back(r->extent);
@@ -86,7 +86,7 @@ Array<Expr> BaseComputeOpNode::output_shape(size_t idx) const {
   return shape;
 }
 
-Tensor compute(Array<Expr> shape,
+Tensor compute(Array<PrimExpr> shape,
                FCompute fcompute,
                std::string name,
                std::string tag,
@@ -108,7 +108,7 @@ Tensor compute(Array<Expr> shape,
       name, tag, attrs, axis, {fcompute(args)}).output(0);
 }
 
-Array<Tensor> compute(Array<Expr> shape,
+Array<Tensor> compute(Array<PrimExpr> shape,
                       FBatchCompute fcompute,
                       std::string name,
                       std::string tag,
@@ -138,7 +138,7 @@ Operation ComputeOpNode::make(std::string name,
                               std::string tag,
                               Map<std::string, ObjectRef> attrs,
                               Array<IterVar> axis,
-                              Array<Expr> body) {
+                              Array<PrimExpr> body) {
   if (!attrs.defined()) {
     attrs = Map<std::string, ObjectRef>();
   }
@@ -180,24 +180,24 @@ Operation ComputeOpNode::ReplaceInputs(
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
   VerifyComputeOp(this);
-  Array<Expr> arr;
+  Array<PrimExpr> arr;
   if (this->body[0]->IsInstance<ir::ReduceNode>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
-    Expr new_reduce = op::ReplaceTensor(this->body[0], rmap);
+    PrimExpr new_reduce = op::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
       const ir::ReduceNode* r = new_reduce.as<ir::ReduceNode>();
       for (size_t k = 0; k < this->body.size(); ++k) {
         auto n = make_object<ir::ReduceNode>(*r);
         n->value_index = static_cast<int>(k);
         n->dtype = r->source[k].dtype();
-        arr.push_back(Expr(n));
+        arr.push_back(PrimExpr(n));
       }
     } else {
       arr = this->body;
     }
   } else {
-    arr = UpdateArray(this->body, [&rmap] (const Expr& e) {
+    arr = UpdateArray(this->body, [&rmap] (const PrimExpr& e) {
         return op::ReplaceTensor(e, rmap);
       });
   }
@@ -229,10 +229,10 @@ void ComputeOpNode::PropBoundToInputs(
           IntSet arg_intset = EvalSet(call->args[i], dom_map);
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
-            Expr shape_i_min_value = make_zero(t->shape[i].dtype());
-            Expr shape_i_max_value = t->shape[i] - 1;
-            Expr min_value = arg_interval->min_value;
-            Expr max_value = arg_interval->max_value;
+            PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
+            PrimExpr shape_i_max_value = t->shape[i] - 1;
+            PrimExpr min_value = arg_interval->min_value;
+            PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
             if (arith::is_neg_inf(min_value) ||
                 analyzer->CanProve(shape_i_min_value >= min_value)) {
@@ -290,7 +290,7 @@ Stmt BaseComputeOpNode::BuildRealize(
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
         if (attr->dim_align_factor != 0) {
-          Array<Expr> tuple = {static_cast<int>(i),
+          Array<PrimExpr> tuple = {static_cast<int>(i),
                                attr->dim_align_factor,
                                attr->dim_align_offset};
           realize = ir::AttrStmtNode::make(
@@ -315,7 +315,7 @@ void MakeReduction(const ComputeOpNode* op,
                    const Array<Tensor>& tensors,
                    Stmt* init,
                    Stmt* provide) {
-  Array<Expr>  args;
+  Array<PrimExpr>  args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
@@ -326,12 +326,12 @@ void MakeReduction(const ComputeOpNode* op,
   CHECK(reduce);
   const CommReducerNode* combiner = reduce->combiner.as<CommReducerNode>();
   CHECK(combiner);
-  Array<Expr> lhs;
+  Array<PrimExpr> lhs;
   for (size_t i = 0; i < size; ++i) {
     lhs.push_back(tensors[i](args));
   }
-  Array<Expr> init_value = combiner->identity_element;
-  Array<Expr> update_value = (*combiner)(lhs, reduce->source);
+  Array<PrimExpr> init_value = combiner->identity_element;
+  Array<PrimExpr> update_value = (*combiner)(lhs, reduce->source);
   for (size_t i = 0; i < size; ++i) {
     Tensor t = tensors[i];
     inits.emplace_back(ProvideNode::make(
@@ -349,7 +349,7 @@ void MakeReduction(const ComputeOpNode* op,
 // Normal computation.
 Stmt MakeProvide(const ComputeOpNode* op,
                  const Tensor& t) {
-  Array<Expr> args;
+  Array<PrimExpr> args;
   for (IterVar iv : op->axis) {
     args.push_back(iv->var);
   }
@@ -555,7 +555,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
 
   /// Interface to perform compute verification
   void Run() {
-    for (const Expr e : compute_->body) {
+    for (const PrimExpr e : compute_->body) {
       // Check for consistency of top level reductions
       const ir::ReduceNode* reduce = e.as<ir::ReduceNode>();
       CHECK((reduce && reduce_) || (!reduce && !reduce_))
@@ -576,7 +576,7 @@ class ComputeVerifier final : protected ir::ExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const Expr& n) final {
+  void VisitExpr(const PrimExpr& n) final {
     ++level_;
     ExprVisitor::VisitExpr(n);
     --level_;
@@ -608,7 +608,7 @@ Stmt TransformUpdate(const Stage& stage,
                      const ComputeLoopNest& n,
                      Stmt body,
                      Stmt update) {
-  Array<Expr> conds;
+  Array<PrimExpr> conds;
   std::unordered_set<const VarNode*> banned;
   for (size_t i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     IterVar iv = stage->leaf_iter_vars[i];
@@ -627,7 +627,7 @@ Stmt TransformUpdate(const Stage& stage,
       banned.insert(iv->var.get());
     }
   }
-  for (const Expr& pred : n.main_predicates) {
+  for (const PrimExpr& pred : n.main_predicates) {
     if (ir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition "
                  << pred << " has a conflict with the reset condition";

@@ -46,7 +46,7 @@ int ParallelLevel(AnnotationType ann) {
 // get touch pattern from index expression
 class IndexParser: public ExprVisitor {
  public:
-  void Parse(Expr expr) {
+  void Parse(PrimExpr expr) {
     pattern_map.clear();
     this->VisitExpr(expr);
   }
@@ -169,7 +169,7 @@ void TouchExtractor::ExitItervar_() {
   }
 }
 
-void TouchExtractor::EnterMem_(VarExpr buffer_var, Expr index) {
+void TouchExtractor::EnterMem_(VarExpr buffer_var, PrimExpr index) {
   std::string name = buffer_var.get()->name_hint;
   TouchedBuffer buf = name + "_" + std::to_string(buffer_counter_[name]++);
 
@@ -219,7 +219,7 @@ void TouchExtractor::ExitMem_() {
  * \note If you want to flatten these features as the input of your model,
  * You can use the faster one GetItervarFeatureFlatten below.
  */
-void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *ret_feature) {
+void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > > *ret_feature) {
   // extract
   TouchExtractor touch_analyzer;
   touch_analyzer.Analyze(stmt);
@@ -250,11 +250,11 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
 
   // serialize for front end
   for (auto var : vars) {
-    Array<Array<Expr> > feature_row;
+    Array<Array<PrimExpr> > feature_row;
     ItervarFeature &fea = touch_analyzer.itervar_map[var];
-    feature_row.push_back(Array<Expr>{std::string("_itervar_"), var});
+    feature_row.push_back(Array<PrimExpr>{std::string("_itervar_"), var});
 
-    Array<Expr> attr{std::string("_attr_"),
+    Array<PrimExpr> attr{std::string("_attr_"),
                      FloatImmNode::make(DataType::Float(32), trans(fea.length)),
                      IntImmNode::make(DataType::Int(32), fea.nest_level),
                      FloatImmNode::make(DataType::Float(32), trans(fea.topdown_product)),
@@ -267,7 +267,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     feature_row.push_back(attr);
 
     // arithmetic
-    feature_row.push_back(Array<Expr>{std::string("_arith_"),
+    feature_row.push_back(Array<PrimExpr>{std::string("_arith_"),
             FloatImmNode::make(DataType::Float(32), trans(fea.add_ct)),
             FloatImmNode::make(DataType::Float(32), trans(fea.mul_ct)),
             FloatImmNode::make(DataType::Float(32), trans(fea.div_ct)),
@@ -282,7 +282,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<Expr> > > *re
     for (auto k : bufs) {
       TouchPattern &v = fea.touch_feature[k];
       feature_row.push_back(
-          Array<Expr>{k,
+          Array<PrimExpr>{k,
                 FloatImmNode::make(DataType::Float(32), trans(v.stride)),
                 FloatImmNode::make(DataType::Float(32), trans(v.mod)),
                 FloatImmNode::make(DataType::Float(32), trans(v.count)),
@@ -490,7 +490,7 @@ TVM_REGISTER_GLOBAL("autotvm.feature.GetItervarFeature")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Stmt stmt = args[0];
   bool take_log = args[1];
-  Array<Array<Array<Expr > > > ret_feature;
+  Array<Array<Array<PrimExpr > > > ret_feature;
 
   GetItervarFeature(stmt, take_log, &ret_feature);
 

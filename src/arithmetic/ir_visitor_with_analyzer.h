@@ -34,7 +34,7 @@ namespace ir {
 
 class IRVisitorWithAnalyzer final : public StmtExprVisitor {
  public:
-  Expr Simplify(const Expr& expr) {
+  PrimExpr Simplify(const PrimExpr& expr) {
     return analyzer_.Simplify(expr);
   }
 

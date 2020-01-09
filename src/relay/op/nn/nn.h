@@ -42,9 +42,9 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   CHECK(static_cast<int>(data->shape.size()) != 0);
 
-  Array<tvm::Expr> oshape = data->shape;
+  Array<tvm::PrimExpr> oshape = data->shape;
   if (param->units.defined()) {
-    Array<tvm::Expr> dshape = data->shape;
+    Array<tvm::PrimExpr> dshape = data->shape;
     // validate the weight shape is proper if defined
     // Assign weight type
     Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
@@ -56,7 +56,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
-    Array<tvm::Expr> wshape = weight->shape;
+    Array<tvm::PrimExpr> wshape = weight->shape;
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 

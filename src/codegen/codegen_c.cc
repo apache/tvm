@@ -121,7 +121,7 @@ std::string CodeGenC::Finish() {
   return decl_stream.str() + stream.str();
 }
 
-void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
+void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
   if (print_ssa_form_) {
     std::ostringstream temp;
     VisitExpr(n, temp);
@@ -146,7 +146,7 @@ void CodeGenC::PrintSSAAssign(
 
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetBufferRef(
-    DataType t, const VarNode* buffer, Expr index) {
+    DataType t, const VarNode* buffer, PrimExpr index) {
   std::ostringstream os;
   std::string vid = GetVarID(buffer);
   std::string scope;
@@ -213,7 +213,7 @@ std::string CodeGenC::GetBufferRef(
 
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(
-    DataType t, const Expr& buffer, const Expr& index, int kind) {
+    DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
     std::ostringstream os;
     os << "(((TVMArray*)";
@@ -296,12 +296,12 @@ void CodeGenC::PrintVecElemStore(const std::string& vec,
 }
 
 std::string CodeGenC::GetVecLoad(
-    DataType t, const VarNode* buffer, Expr base) {
+    DataType t, const VarNode* buffer, PrimExpr base) {
   return GetBufferRef(t, buffer, base);
 }
 
 void CodeGenC::PrintVecStore(const VarNode* buffer,
-                             DataType t, Expr base,
+                             DataType t, PrimExpr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
   this->PrintIndent();
@@ -594,7 +594,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenC::PrintVecBinaryOp(
     const std::string& op, DataType t,
-    Expr lhs, Expr rhs, std::ostream& os) {  // NOLINT(*)
+    PrimExpr lhs, PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
   if (isalpha(op[0])) {
     os << op << "(";
     this->PrintExpr(lhs, os);
@@ -619,7 +619,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
-    Expr base;
+    PrimExpr base;
     if (GetRamp1Base(op->index, op->dtype.lanes(), &base)) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
       os << ref;
@@ -673,7 +673,7 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
   } else {
     CHECK(is_one(op->predicate))
         << "Predicated store is not supported";
-    Expr base;
+    PrimExpr base;
     if (GetRamp1Base(op->index, t.lanes(), &base)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base, value);

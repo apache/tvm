@@ -48,7 +48,7 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
       const std::string&op, DataType t,
-      Expr lhs, Expr rhs, std::ostream& os) final;  // NOLINT(*)
+      PrimExpr lhs, PrimExpr rhs, std::ostream& os) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
   void PrintVecElemLoad(
       const std::string& vec, DataType t, int i, std::ostream& os) final;  // NOLINT(*)

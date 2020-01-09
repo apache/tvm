@@ -77,7 +77,7 @@ class FeatureVisitor : public StmtExprVisitor {
    * \param buffer_var The buffer to access.
    * \param index Index expression
    */
-  virtual void EnterMem_(tvm::VarExpr buffer_var, tvm::Expr index) = 0;
+  virtual void EnterMem_(tvm::VarExpr buffer_var, tvm::PrimExpr index) = 0;
   /*! \brief Exit a memory access node */
   virtual void ExitMem_() = 0;
 };

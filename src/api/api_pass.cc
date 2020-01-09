@@ -43,9 +43,9 @@ TVM_REGISTER_GLOBAL("ir_pass.Simplify")
       }
     } else {
       if (args.size() > 1) {
-        *ret = Simplify(args[0].operator Expr(), args[1]);
+        *ret = Simplify(args[0].operator PrimExpr(), args[1]);
       } else {
-        *ret = Simplify(args[0].operator Expr());
+        *ret = Simplify(args[0].operator PrimExpr());
       }
     }
   });
@@ -60,9 +60,9 @@ TVM_REGISTER_GLOBAL("ir_pass.CanonicalSimplify")
       }
     } else {
       if (args.size() > 1) {
-        *ret = CanonicalSimplify(args[0].operator Expr(), args[1]);
+        *ret = CanonicalSimplify(args[0].operator PrimExpr(), args[1]);
       } else {
-        *ret = CanonicalSimplify(args[0].operator Expr());
+        *ret = CanonicalSimplify(args[0].operator PrimExpr());
       }
     }
   });
@@ -70,9 +70,9 @@ TVM_REGISTER_GLOBAL("ir_pass.CanonicalSimplify")
 TVM_REGISTER_GLOBAL("ir_pass.Substitute")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {
-      *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, Expr>());
+      *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, PrimExpr>());
     } else {
-      *ret = Substitute(args[0].operator Expr(), args[1].operator Map<Var, Expr>());
+      *ret = Substitute(args[0].operator PrimExpr(), args[1].operator Map<Var, PrimExpr>());
     }
   });
 
@@ -81,7 +81,7 @@ TVM_REGISTER_GLOBAL("ir_pass.Equal")
     if (args[0].IsObjectRef<Stmt>()) {
       *ret = Equal(args[0].operator Stmt(), args[1].operator Stmt());
     } else {
-      *ret = Equal(args[0].operator Expr(), args[1].operator Expr());
+      *ret = Equal(args[0].operator PrimExpr(), args[1].operator PrimExpr());
     }
   });
 
@@ -114,7 +114,7 @@ TVM_REGISTER_GLOBAL("ir_pass.AttrsHash")
 
 TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ExprUseVar(args[0].operator Expr(), args[1].operator Var());
+    *ret = ExprUseVar(args[0].operator PrimExpr(), args[1].operator Var());
   });
 
 TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")

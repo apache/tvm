@@ -38,7 +38,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
-inline bool prove_equal(Expr lhs, Expr rhs) {
+inline bool prove_equal(PrimExpr lhs, PrimExpr rhs) {
   return is_zero(ir::Simplify(lhs - rhs));
 }
 
@@ -57,7 +57,7 @@ DataType ScanOpNode::output_dtype(size_t i) const {
   return update[i]->dtype;
 }
 
-Array<Expr> ScanOpNode::output_shape(size_t i) const {
+Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   CHECK_LT(i, state_placeholder.size());
   return state_placeholder[i]->shape;
 }
@@ -232,7 +232,7 @@ void ScanOpNode::GatherBound(
   Range r = arith::Union(time_dom).cover_range(sdom);
   (*out_dom_map)[this->scan_axis] = Range::make_by_min_extent(
       sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
-  Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(self);
+  Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
   for (size_t i = 0; i < output.size(); ++i) {
@@ -295,7 +295,7 @@ Stmt ScanOpNode::BuildProvide(
       begin_scan = i + 1;
     }
   }
-  std::unordered_map<IterVar, Expr> vmap;
+  std::unordered_map<IterVar, PrimExpr> vmap;
   std::unordered_set<IterVar> empty;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);

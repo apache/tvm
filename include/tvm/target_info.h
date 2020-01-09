@@ -45,7 +45,7 @@ struct MemoryInfoNode : public Object {
    * \brief head address of the buffer, if visible to CPU
    *  This address can be None.
    */
-  Expr head_address;
+  PrimExpr head_address;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("unit_bits", &unit_bits);

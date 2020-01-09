@@ -100,7 +100,7 @@ struct CallTracer : ExprVisitor {
  * \return The module with dead functions removed.
  */
 Module RemoveUnusedFunctions(const Module& module,
-                             Array<tvm::Expr> entry_funcs) {
+                             Array<tvm::PrimExpr> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
     auto* str_name = entry.as<ir::StringImmNode>();
@@ -121,7 +121,7 @@ Module RemoveUnusedFunctions(const Module& module,
 
 namespace transform {
 
-Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions) {
+Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions) {
   runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
     [=](Module m, PassContext pc) {
     return relay::vm::RemoveUnusedFunctions(m, entry_functions);

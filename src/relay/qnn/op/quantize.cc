@@ -57,7 +57,7 @@ bool QuantizeRel(const Array<Type>& types,
   AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
   AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
 
-  const Array<tvm::Expr> oshape = data->shape;
+  const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
   CHECK(out_dtype == DataType::Int(8) || out_dtype == DataType::UInt(8) ||
         out_dtype == DataType::Int(32))

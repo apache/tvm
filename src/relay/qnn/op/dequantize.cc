@@ -50,7 +50,7 @@ bool DequantizeRel(const Array<Type>& types,
   CHECK(IsScalarType(types[1], DataType::Float(32)));  // input_scale
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
 
-  const Array<tvm::Expr> oshape = data->shape;
+  const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
   reporter->Assign(types[3], TensorTypeNode::make(oshape, DataType::Float(32)));
   return true;

@@ -127,7 +127,7 @@ class TouchExtractor : public FeatureVisitor {
  private:
   bool EnterItervar_(VarExpr var, int64_t length, AnnotationType ann_type);
   void ExitItervar_();
-  void EnterMem_(VarExpr buffer_var, Expr index);
+  void EnterMem_(VarExpr buffer_var, PrimExpr index);
   void ExitMem_();
 
   int64_t topdown_product_{1};
