@@ -51,14 +51,14 @@ inline Tensor flatten(const Tensor& x,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
   auto ishape = x->shape;
-  Expr dim = 1;
+  PrimExpr dim = 1;
   for (size_t i = 1; i < ishape.size(); ++i) {
     dim = dim * ishape[i];
   }
 
-  Array<Expr> oshape({ ishape[0], dim });
+  Array<PrimExpr> oshape({ ishape[0], dim });
 
-  std::vector<Expr> extra_shape;
+  std::vector<PrimExpr> extra_shape;
   for (size_t i = 1; i < ishape.size(); ++i) {
     extra_shape.push_back(ishape[i]);
   }
@@ -66,8 +66,8 @@ inline Tensor flatten(const Tensor& x,
 
   return tvm::compute(
     oshape, [&](Var i, Var j) {
-      Expr idx = j;
-      std::vector<Expr> index;
+      PrimExpr idx = j;
+      std::vector<PrimExpr> index;
       for (auto s : extra_shape) {
         index.push_back(indexmod(idx, s));
         idx = indexdiv(idx, s);

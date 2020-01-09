@@ -222,7 +222,7 @@ class ThreadSyncInserter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt(stmt);
     }
   }
-  Expr VisitExpr_(const LoadNode* op) final {
+  PrimExpr VisitExpr_(const LoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
@@ -247,8 +247,8 @@ class ThreadSyncInserter : public StmtExprMutator {
       // first thread scope.
       if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
         ret = InitGlobalBarrier(ret.as<AttrStmtNode>());
-        num_blocks_ = Expr();
-        is_lead_ = Expr();
+        num_blocks_ = PrimExpr();
+        is_lead_ = PrimExpr();
       }
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
@@ -261,9 +261,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      Expr expr = StmtExprMutator::VisitExpr_(op);
+      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
       CHECK_EQ(op->args.size(), 5U);
       const VarNode* buffer_var = op->args[1].as<VarNode>();
@@ -300,7 +300,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
-    Array<Expr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
+    Array<PrimExpr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
@@ -332,7 +332,7 @@ class ThreadSyncInserter : public StmtExprMutator {
           num_blocks_ = (num_blocks_.defined() ?
                          attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
-          Expr cond = iv->var == make_zero(iv->var.dtype());
+          PrimExpr cond = iv->var == make_zero(iv->var.dtype());
           is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
         }
       }
@@ -351,14 +351,14 @@ class ThreadSyncInserter : public StmtExprMutator {
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, StorageScope> storage_scope_;
   // The read write statistics of storage
-  std::unordered_map<VarExpr, Entry, ObjectHash, ObjectEqual> rw_stats_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> rw_stats_;
   // The statistics for global barrier
   bool in_thread_env_{false};
   // memorized results
   std::vector<const AttrStmtNode*> thread_extents_;
   size_t num_work_dim_{0};
-  Expr num_blocks_;
-  Expr is_lead_;
+  PrimExpr num_blocks_;
+  PrimExpr is_lead_;
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {

@@ -37,7 +37,7 @@ class IRVerifySSA final : public StmtExprVisitor {
  public:
   bool is_ssa{true};
 
-  void VisitExpr(const Expr& n) final {
+  void VisitExpr(const PrimExpr& n) final {
     if (!is_ssa) return;
     StmtExprVisitor::VisitExpr(n);
   }
@@ -76,20 +76,20 @@ class IRVerifySSA final : public StmtExprVisitor {
 
 class IRConvertSSA final : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     if (scope_.count(op)) {
       return scope_[op].back();
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
-  Expr VisitExpr_(const LetNode* op) final {
-    const VarExpr& v = op->var;
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = this->VisitExpr(op->value);
-      VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
+      PrimExpr value = this->VisitExpr(op->value);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
-      Expr body = this->VisitExpr(op->body);
+      PrimExpr body = this->VisitExpr(op->body);
       scope_[v.get()].pop_back();
       return LetNode::make(new_var, value, body);
     } else {
@@ -97,8 +97,8 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
-  Expr VisitExpr_(const LoadNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<LoadNode>();
     if (scope_.count(op->buffer_var.get())) {
       return LoadNode::make(
@@ -120,10 +120,10 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const LetStmtNode* op) final {
-    const VarExpr& v = op->var;
+    const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = this->VisitExpr(op->value);
-      VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
+      PrimExpr value = this->VisitExpr(op->value);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt body = this->VisitStmt(op->body);
       scope_[v.get()].pop_back();
@@ -134,9 +134,9 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
-    const VarExpr& v = op->loop_var;
+    const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
@@ -149,9 +149,9 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const AllocateNode* op) final {
-    const VarExpr& v = op->buffer_var;
+    const Var& v = op->buffer_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = VarNode::make(v.dtype(), v->name_hint);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
@@ -191,7 +191,7 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
  private:
-  std::unordered_map<const VarNode*, std::vector<VarExpr> > scope_;
+  std::unordered_map<const VarNode*, std::vector<Var> > scope_;
   std::unordered_set<const VarNode*> defined_;
 };
 

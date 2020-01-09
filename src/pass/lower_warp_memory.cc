@@ -96,7 +96,7 @@ class WarpStoreCoeffFinder : private StmtVisitor {
       if (op->value.dtype().lanes() == 1) {
         UpdatePattern(op->index);
       } else {
-        Expr base;
+        PrimExpr base;
         CHECK(GetRamp1Base(op->index, op->value.dtype().lanes(), &base))
             << "LowerWarpMemory failed due to store index=" << op->index
             << ", can only handle continuous store";
@@ -107,13 +107,13 @@ class WarpStoreCoeffFinder : private StmtVisitor {
     }
   }
 
-  void UpdatePattern(const Expr& index) {
-    Array<Expr> m =
+  void UpdatePattern(const PrimExpr& index) {
+    Array<PrimExpr> m =
         arith::DetectLinearEquation(index, {warp_index_});
     CHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed due to store index=" << index;
     int coeff = 0;
-    Expr mcoeff = analyzer_->canonical_simplify(m[0]);
+    PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
 
     CHECK(arith::GetConstInt(mcoeff, &coeff) && coeff > 0)
         << "LowerWarpMemory failed due to store index=" << index
@@ -211,7 +211,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
-  Expr Mutate_(const VarNode* op) {
+  PrimExpr Mutate_(const VarNode* op) {
     CHECK(op != buffer_)
         << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
@@ -219,7 +219,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
   Stmt VisitStmt_(const StoreNode* op) {
     if (op->buffer_var.get() == buffer_) {
-      Expr local_index, group;
+      PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
       return StoreNode::make(op->buffer_var, op->value, local_index, op->predicate);
     } else {
@@ -227,15 +227,15 @@ class WarpAccessRewriter : protected StmtExprMutator {
     }
   }
 
-  Expr Mutate_(const LoadNode* op) {
+  PrimExpr Mutate_(const LoadNode* op) {
     if (op->buffer_var.get() == buffer_) {
-      Expr local_index, group;
+      PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
       // invariance: local index must do not contain warp id
       CHECK(!ExprUseVar(local_index, {warp_index_.get()}))
           << "LowerWarpMemory failed to rewrite load to shuffle for index "
           << op->index << " local_index=" << local_index;
-      Expr load_value = LoadNode::make(
+      PrimExpr load_value = LoadNode::make(
           op->dtype, op->buffer_var, local_index, op->predicate);
       return CallNode::make(load_value.dtype(),
                         intrinsic::tvm_warp_shuffle,
@@ -250,27 +250,27 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // local index is the index in the local
   // source index is the corresponding source index
   // in this access pattern.
-  std::pair<Expr, Expr> SplitIndexByGroup(const Expr& index) {
+  std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
     if (index.dtype().lanes() != 1) {
-      Expr base, local_index, group;
+      PrimExpr base, local_index, group;
       CHECK(GetRamp1Base(index, index.dtype().lanes(), &base));
       std::tie(local_index, group) = SplitIndexByGroup(base);
       local_index =
           RampNode::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);
     }
-    Expr m = make_const(index.dtype(), warp_coeff_);
+    PrimExpr m = make_const(index.dtype(), warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
-      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
-      Expr z = analyzer_->canonical_simplify(indexdiv(index, m));
+      PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
+      PrimExpr z = analyzer_->canonical_simplify(indexdiv(index, m));
       return std::make_pair(x, z);
     } else {
-      Expr x = analyzer_->canonical_simplify(indexmod(index, m));
-      Expr y = index / make_const(index.dtype(), warp_coeff_ * warp_size_);
+      PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
+      PrimExpr y = index / make_const(index.dtype(), warp_coeff_ * warp_size_);
       y = y * m + x;
-      Expr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * warp_size_)),
+      PrimExpr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * warp_size_)),
                         m);
       return std::make_pair(analyzer_->canonical_simplify(y),
                             analyzer_->canonical_simplify(z));

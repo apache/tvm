@@ -277,13 +277,13 @@ class SchedulePostProc : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = replace_buffer_.find(key);
       if (it != replace_buffer_.end()) {
         const Tensor& dst = it->second;
-        Expr ret = CallNode::make(
+        PrimExpr ret = CallNode::make(
             op->dtype, dst->op->name, op->args,
             op->call_type, dst->op, dst->value_index);
         return this->VisitExpr(ret);
@@ -292,12 +292,12 @@ class SchedulePostProc : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_value_.find(op);
     if (it != var_value_.end()) {
       return it->second;
     } else {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     }
   }
 
@@ -343,9 +343,9 @@ class SchedulePostProc : public StmtExprMutator {
     replace_op_[src->op.get()] = repl_op;
   }
   // The thread extent scope.
-  std::unordered_map<const Object*, Expr> thread_extent_scope_;
+  std::unordered_map<const Object*, PrimExpr> thread_extent_scope_;
   // The scan value
-  std::unordered_map<const VarNode*, Expr> var_value_;
+  std::unordered_map<const VarNode*, PrimExpr> var_value_;
   // buffer replacement
   std::unordered_map<TensorKey, Tensor> replace_buffer_;
   // buffere realization to be replaced

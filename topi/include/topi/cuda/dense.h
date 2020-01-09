@@ -119,8 +119,8 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
     auto thread_x = tvm::thread_axis(Range(), "threadIdx.x");
     s[dense].bind(tx, thread_x);
     s[dense_f].compute_at(s[dense], tx);
-    s[dense].set_store_predicate(static_cast<Expr>(thread_x) == 0);
-    s[out].set_store_predicate(static_cast<Expr>(thread_x) == 0);
+    s[dense].set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
+    s[out].set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
   };
 
   std::function<void(Operation)> traverse;

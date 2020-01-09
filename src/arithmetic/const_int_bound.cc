@@ -76,17 +76,17 @@ struct ConstIntBoundAnalyzer::Entry {
 };
 
 class ConstIntBoundAnalyzer::Impl :
-      public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
+      public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
   /*! \brief additional bound info about expr \in bound */
   struct BoundInfo {
     /*! \brief The expr */
-    Expr expr;
+    PrimExpr expr;
     /*! \brief The additional bound */
     Entry bound;
 
     BoundInfo() {}
-    BoundInfo(Expr expr, Entry bound)
+    BoundInfo(PrimExpr expr, Entry bound)
         : expr(expr), bound(bound) {
     }
   };
@@ -125,10 +125,10 @@ class ConstIntBoundAnalyzer::Impl :
   // Override visitor behaviors
   Entry VisitExprDefault_(const Object* op) final {
     return Everything(
-        static_cast<const ExprNode*>(op)->dtype);
+        static_cast<const PrimExprNode*>(op)->dtype);
   }
 
-  Entry VisitExpr(const Expr& expr) final {
+  Entry VisitExpr(const PrimExpr& expr) final {
     Entry res = ExprFunctor::VisitExpr(expr);
     // a linear search over additional info
     // assume we won't have a lot of conditions
@@ -315,7 +315,7 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
-  std::function<void()> EnterConstraint(const Expr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     std::vector<BoundInfo> info = DetectBoundInfo(constraint);
     if (info.size() == 0) return nullptr;
     size_t old_size = additional_info_.size();
@@ -330,7 +330,7 @@ class ConstIntBoundAnalyzer::Impl :
 
  private:
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited
@@ -494,8 +494,8 @@ class ConstIntBoundAnalyzer::Impl :
    * \param cond The constraint condition.
    * \return List of detected bounds.
    */
-  static std::vector<BoundInfo> DetectBoundInfo(const Expr& cond) {
-    PVar<Expr> x, y;
+  static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
+    PVar<PrimExpr> x, y;
     PVar<Integer> c;
     // NOTE: canonical form always use <= or <
     if ((c <= x).Match(cond)) {
@@ -520,7 +520,7 @@ class ConstIntBoundAnalyzer::Impl :
   }
 };
 
-ConstIntBound ConstIntBoundAnalyzer::operator()(const Expr& expr) {
+ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
   Entry ret = impl_->VisitExpr(expr);
   return ConstIntBound(ret.min_value, ret.max_value);
 }
@@ -535,7 +535,7 @@ void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range) {
   impl_->Bind(var, range);
 }
 
-std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const Expr& constraint) {
+std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
 }
 

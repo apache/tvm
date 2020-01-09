@@ -641,9 +641,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<tvm::Expr> ret;
+        Array<tvm::PrimExpr> ret;
         for (const auto &kv : this->output_.params) {
-          tvm::Expr name = ir::StringImmNode::make(kv.first);
+          tvm::PrimExpr name = ir::StringImmNode::make(kv.first);
           ret.push_back(name);
         }
         *rv = ret;

@@ -33,11 +33,11 @@ Stmt MakeCrossThreadReduction(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) {
-  Array<Expr>  args;
+  Array<PrimExpr>  args;
   for (IterVar iv : self->axis) {
     args.push_back(iv->var);
   }
-  std::unordered_map<IterVar, Expr> value_map;
+  std::unordered_map<IterVar, PrimExpr> value_map;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
   auto conds = schedule::MakeBoundCheck(
@@ -52,11 +52,11 @@ Stmt MakeCrossThreadReduction(
     CHECK(reduce);
     reduces[i] = reduce;
   }
-  Expr cond = reduces[0]->condition;
-  for (Expr v : conds) {
+  PrimExpr cond = reduces[0]->condition;
+  for (PrimExpr v : conds) {
     cond = cond && v;
   }
-  Array<Expr> freduce_args;
+  Array<PrimExpr> freduce_args;
   freduce_args.push_back(make_const(DataType::UInt(32), static_cast<uint32_t>(size)));
   for (size_t i = 0; i < size; ++i) {
     freduce_args.push_back(reduces[0]->source[i]);
@@ -79,7 +79,7 @@ Stmt MakeCrossThreadReduction(
     }
   }
   // Checks for the thread.
-  std::vector<Expr> thread_head_check;
+  std::vector<PrimExpr> thread_head_check;
   if (stage->store_predicate.defined()) {
     thread_head_check.emplace_back(stage->store_predicate);
   }

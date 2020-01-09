@@ -41,13 +41,13 @@ class CustomDatatypesLowerer : public StmtExprMutator {
  public:
   explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
-  inline Expr VisitExpr_(const CastNode* op) final {
+  inline PrimExpr VisitExpr_(const CastNode* op) final {
     auto type_code = op->dtype.code();
     auto src_type_code = op->value.dtype().code();
     // If either datatype is a registered custom datatype, we must lower.
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
@@ -59,9 +59,9 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-  inline Expr VisitExpr_(const FloatImmNode* imm) final {
+  inline PrimExpr VisitExpr_(const FloatImmNode* imm) final {
     auto type_code = imm->dtype.code();
-    auto e = GetRef<Expr>(imm);
+    auto e = GetRef<PrimExpr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
@@ -85,9 +85,9 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return stmt;
   }
 
-  inline Expr VisitExpr_(const LoadNode* load) final {
+  inline PrimExpr VisitExpr_(const LoadNode* load) final {
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->dtype.code());
-    Expr expr = StmtExprMutator::VisitExpr_(load);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(load);
     load = expr.as<LoadNode>();
     if (toBeLowered) {
       auto new_load_type = DataType::UInt(load->dtype.bits());
@@ -97,10 +97,10 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   }
 
 #define DEFINE_MUTATE__(OP, NodeName)                                              \
-  inline Expr VisitExpr_(const NodeName* op) final {                                     \
+  inline PrimExpr VisitExpr_(const NodeName* op) final {                                     \
     auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
-    Expr expr = StmtExprMutator::VisitExpr_(op);                                   \
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);                                   \
     op = expr.as<NodeName>();                                                            \
     if (toBeLowered) {                                                             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \

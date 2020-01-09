@@ -51,7 +51,7 @@
 namespace tvm {
 // forward declarations
 class Integer;
-class Expr;
+class PrimExpr;
 
 namespace runtime {
 
@@ -495,7 +495,7 @@ class TVMPODValue_ {
   template<typename TObjectRef>
   inline TObjectRef AsObjectRef() const;
   // ObjectRef Specializations
-  inline operator tvm::Expr() const;
+  inline operator tvm::PrimExpr() const;
   inline operator tvm::Integer() const;
 
  protected:
@@ -542,7 +542,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::Expr;
+  using TVMPODValue_::operator tvm::PrimExpr;
   using TVMPODValue_::operator tvm::Integer;
 
   // conversion operator.
@@ -629,7 +629,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::Expr;
+  using TVMPODValue_::operator tvm::PrimExpr;
   using TVMPODValue_::operator tvm::Integer;
 
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {

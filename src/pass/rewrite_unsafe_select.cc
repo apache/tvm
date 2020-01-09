@@ -31,7 +31,7 @@ namespace ir {
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
-class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
+class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
@@ -45,7 +45,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
       const LoadNode* l = op->args[0].as<LoadNode>();
       return this->VisitExpr(l->index);
     } else if (op->is_pure()) {
-      for (Expr e : op->args) {
+      for (PrimExpr e : op->args) {
         if (VisitExpr(e)) return true;
       }
       return false;
@@ -90,7 +90,7 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
     return VisitExpr(op->base) && VisitExpr(op->stride);
   }
   bool VisitExpr_(const ShuffleNode* op) final {
-    for (Expr e : op->vectors) {
+    for (PrimExpr e : op->vectors) {
       if (VisitExpr(e)) return true;
     }
     return false;
@@ -110,8 +110,8 @@ class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const SelectNode* op) {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const SelectNode* op) {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();

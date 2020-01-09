@@ -69,7 +69,7 @@ class FeatureVisitor : public StmtExprVisitor {
  * \param ann_type The type for the for loop
  * \return skip Whether skip this node
  */
-  virtual bool EnterItervar_(tvm::VarExpr var, int64_t length, AnnotationType ann_type) = 0;
+  virtual bool EnterItervar_(tvm::Var var, int64_t length, AnnotationType ann_type) = 0;
   /*! \brief Exit a for loop subtree */
   virtual void ExitItervar_() = 0;
   /*!
@@ -77,7 +77,7 @@ class FeatureVisitor : public StmtExprVisitor {
    * \param buffer_var The buffer to access.
    * \param index Index expression
    */
-  virtual void EnterMem_(tvm::VarExpr buffer_var, tvm::Expr index) = 0;
+  virtual void EnterMem_(tvm::Var buffer_var, tvm::PrimExpr index) = 0;
   /*! \brief Exit a memory access node */
   virtual void ExitMem_() = 0;
 };

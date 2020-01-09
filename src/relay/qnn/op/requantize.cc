@@ -190,7 +190,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
   CHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
 
-  const Array<tvm::Expr> oshape = data->shape;
+  const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type
   auto out_dtype = requantize_attrs->out_dtype;
   CHECK(out_dtype == DataType::Int(8) ||

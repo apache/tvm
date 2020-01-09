@@ -81,7 +81,7 @@ class OperationNode : public ir::FunctionBaseNode {
    * \param i The output index.
    * \return shape of i-th output.
    */
-  virtual Array<Expr> output_shape(size_t i) const = 0;
+  virtual Array<PrimExpr> output_shape(size_t i) const = 0;
   /*!
    * \brief List all the input Tensors.
    * \return List of input tensors.
@@ -158,14 +158,14 @@ class OperationNode : public ir::FunctionBaseNode {
 class PlaceholderOpNode : public OperationNode {
  public:
   /*! \brief The shape of the input */
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   /*! \brief The data type of the input. */
   DataType dtype;
   // override behavior.
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
+  Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -196,7 +196,7 @@ class PlaceholderOpNode : public OperationNode {
     v->Visit("dtype", &dtype);
   }
   static Operation make(std::string name,
-                        Array<Expr> shape,
+                        Array<PrimExpr> shape,
                         DataType dtype);
 
   static constexpr const char* _type_key = "PlaceholderOp";
@@ -216,7 +216,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   Array<IterVar> reduce_axis;
   // override functions
   Array<IterVar> root_iter_vars() const final;
-  Array<Expr> output_shape(size_t idx) const final;
+  Array<PrimExpr> output_shape(size_t idx) const final;
   void GatherBound(
           const Operation& self,
           const std::unordered_map<Tensor, TensorDom>& tensor_dom,
@@ -238,7 +238,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
 class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
  public:
   /*! \brief the compute expression */
-  Array<Expr> body;
+  Array<PrimExpr> body;
   /*! \brief constructor */
   ComputeOpNode() {}
   // override functions
@@ -271,7 +271,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
                         std::string tag,
                         Map<std::string, ObjectRef> attrs,
                         Array<IterVar> axis,
-                        Array<Expr> body);
+                        Array<PrimExpr> body);
 
   static constexpr const char* _type_key = "ComputeOp";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
@@ -291,7 +291,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
   /*! \brief region of input tensors */
   Array<Region> input_regions;
   /*! \brief scalar expression inputs */
-  Array<Expr> scalar_inputs;
+  Array<PrimExpr> scalar_inputs;
   /*! \brief constructor */
   TensorComputeOpNode() {}
   // override functions
@@ -331,7 +331,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
                         TensorIntrin intrin,
                         Array<Tensor> tensors,
                         Array<Region> regions,
-                        Array<Expr> scalar_inputs);
+                        Array<PrimExpr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorComputeOp";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorComputeOpNode, BaseComputeOpNode);
@@ -371,7 +371,7 @@ class ScanOpNode : public OperationNode {
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
+  Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -438,7 +438,7 @@ class ExternOpNode : public OperationNode {
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
+  Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -506,7 +506,7 @@ class HybridOpNode : public OperationNode {
   int num_outputs() const final;
   Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
-  Array<Expr> output_shape(size_t i) const final;
+  Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
   Operation ReplaceInputs(
       const Operation& self,
@@ -550,10 +550,10 @@ class HybridOpNode : public OperationNode {
 };
 
 /*! \brief The compute function to specify the input source of a Tensor */
-using FCompute = std::function<Expr (const Array<Var>& i)>;
+using FCompute = std::function<PrimExpr (const Array<Var>& i)>;
 
 /*! \brief The compute function to specify the inputs source of Tensors */
-using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
+using FBatchCompute = std::function<Array<PrimExpr> (const Array<Var>& i)>;
 
 /*!
  * \brief create a place holder tensor.
@@ -561,7 +561,7 @@ using FBatchCompute = std::function<Array<Expr> (const Array<Var>& i)>;
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
  */
-TVM_DLL Tensor placeholder(Array<Expr> shape,
+TVM_DLL Tensor placeholder(Array<PrimExpr> shape,
                            DataType dtype = DataType::Float(32),
                            std::string name = "placeholder");
 
@@ -574,7 +574,7 @@ TVM_DLL Tensor placeholder(Array<Expr> shape,
  * \param tag The optional tag of the tensor.
  * \param attrs Optional additional attributes of the compute.
  */
-TVM_DLL Tensor compute(Array<Expr> shape,
+TVM_DLL Tensor compute(Array<PrimExpr> shape,
                        FCompute fcompute,
                        std::string name = "tensor",
                        std::string tag = "",
@@ -589,7 +589,7 @@ TVM_DLL Tensor compute(Array<Expr> shape,
  * \param tag The optional tag of the tensor.
  * \param attrs Optional additional attributes of the compute.
  */
-TVM_DLL Array<Tensor> compute(Array<Expr> shape,
+TVM_DLL Array<Tensor> compute(Array<PrimExpr> shape,
                               FBatchCompute fcompute,
                               std::string name = "tensor",
                               std::string tag = "",
@@ -616,32 +616,32 @@ TVM_DLL Array<Tensor> scan(Array<Tensor> init,
                            Map<std::string, ObjectRef> attrs = {});
 
 // same as compute, specialized for different fcompute function
-inline Tensor compute(Array<Expr> shape,
-                      std::function<Expr(Var)> f,
+inline Tensor compute(Array<PrimExpr> shape,
+                      std::function<PrimExpr(Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
                       Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var)> f,
+inline Tensor compute(Array<PrimExpr> shape,
+                      std::function<PrimExpr(Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
                       Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var, Var)> f,
+inline Tensor compute(Array<PrimExpr> shape,
+                      std::function<PrimExpr(Var, Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
                       Map<std::string, ObjectRef> attrs = {}) {
   FCompute fc = [f] (const Array<Var>& i) { return f(i[0], i[1], i[2]); };
   return  compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(Array<Expr> shape,
-                      std::function<Expr(Var, Var, Var, Var)> f,
+inline Tensor compute(Array<PrimExpr> shape,
+                      std::function<PrimExpr(Var, Var, Var, Var)> f,
                       std::string name = "tensor",
                       std::string tag = "",
                       Map<std::string, ObjectRef> attrs = {}) {

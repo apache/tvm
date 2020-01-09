@@ -103,13 +103,13 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
                           << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis = IterVarNode::make(Range(Expr(0), Var(shape_name)),
+      IterVar axis = IterVarNode::make(Range(PrimExpr(0), Var(shape_name)),
                                        Var(std::string(1, c)), kDataPar);
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                           << factor << " for dimension " << c;
-      IterVar axis = IterVarNode::make(Range(Expr(0), Expr(factor)),
+      IterVar axis = IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
                                        Var(std::string(1, c)), kDataPar);
       node->axes.push_back(axis);
       factor = 0;
@@ -171,7 +171,7 @@ Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) 
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
-      new_layout.push_back(IterVarNode::make(Range(Expr(0), Expr(factor)),
+      new_layout.push_back(IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
                                              Var(axis.ToSubordinate().name()), kDataPar));
     }
     if (i == this->ndim()) break;
@@ -200,7 +200,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "Layout(" << l->name << ")";
   });
 
-inline bool GetStoreRule(Array<Expr>* rule,
+inline bool GetStoreRule(Array<PrimExpr>* rule,
                          const Layout& src_layout,
                          const Layout& dst_layout) {
   if (!src_layout.defined() || src_layout.name().empty() ||
@@ -210,17 +210,17 @@ inline bool GetStoreRule(Array<Expr>* rule,
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];
-    Expr store(0);
+    PrimExpr store(0);
 
     for (size_t j = 0; j < src_layout.ndim(); ++j) {
       const auto& orig_axis = src_layout[j];
       const IterVar& orig_axis_impl = src_layout->axes[j];
       if (store_axis.ToPrimal() == orig_axis.ToPrimal()) {
         if (orig_axis.IsPrimal()) {
-          Expr orig_var = orig_axis_impl->var;
+          PrimExpr orig_var = orig_axis_impl->var;
           const int32_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
-            orig_var = orig_var * Expr(factor);
+            orig_var = orig_var * PrimExpr(factor);
           }
           store = store + orig_var;
         } else {
@@ -236,7 +236,7 @@ inline bool GetStoreRule(Array<Expr>* rule,
     if (store_axis.IsPrimal()) {
       const int32_t factor = dst_layout.FactorOf(store_axis);
       if (factor > 0) {
-        store = indexdiv(store, Expr(factor));
+        store = indexdiv(store, PrimExpr(factor));
       }
     } else {
       store = indexmod(store, store_axis_impl->dom->extent);
@@ -247,21 +247,21 @@ inline bool GetStoreRule(Array<Expr>* rule,
   return true;
 }
 
-inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
+inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
                                   const Array<IterVar>& src_axis,
-                                  const Array<Expr>& transform_rule) {
-  Array<Expr> result;
-  std::unordered_map<const VarNode*, Expr> bind_map;
+                                  const Array<PrimExpr>& transform_rule) {
+  Array<PrimExpr> result;
+  std::unordered_map<const VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
-  for (Expr rule : transform_rule) {
+  for (PrimExpr rule : transform_rule) {
     result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
   }
   return result;
 }
 
-Array<Expr> BijectiveLayout::ForwardIndex(const Array<Expr>& src_index) const {
+Array<PrimExpr> BijectiveLayout::ForwardIndex(const Array<PrimExpr>& src_index) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   CHECK_EQ(src_index.size(), self->src_layout->axes.size())
@@ -270,7 +270,7 @@ Array<Expr> BijectiveLayout::ForwardIndex(const Array<Expr>& src_index) const {
 }
 
 
-Array<Expr> BijectiveLayout::BackwardIndex(const Array<Expr>& dst_index) const {
+Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   CHECK_EQ(dst_index.size(), self->dst_layout->axes.size())
@@ -278,19 +278,19 @@ Array<Expr> BijectiveLayout::BackwardIndex(const Array<Expr>& dst_index) const {
   return TransformIndex(dst_index, self->dst_layout->axes, self->backward_rule);
 }
 
-inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
+inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
                                   const Array<IterVar>& src_axis,
                                   const Array<IterVar>& target_axis,
-                                  const Array<Expr>& transform_rule) {
+                                  const Array<PrimExpr>& transform_rule) {
   CHECK_EQ(src_shape.size(), src_axis.size());
   // bind variables for original axes
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
-  std::unordered_map<const VarNode*, Expr> bind_map;
+  std::unordered_map<const VarNode*, PrimExpr> bind_map;
   std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
-    Expr orig_shape = src_shape[i];
+    PrimExpr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
     if (orig_shape.as<ir::AnyNode>()) {
       symbolic_var_set.insert(i);
@@ -305,7 +305,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
             << orig_axis->dom->extent << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = Expr(0);
+      bind_map[orig_axis->var.get()] = PrimExpr(0);
     } else {
       bind_map[orig_axis->var.get()] = orig_shape;
     }
@@ -313,10 +313,10 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // infer the target shape,
   // for major-axis, use the forward/backward_rule directly,
   // for minor-axis, simply use the extent.
-  Array<Expr> result;
+  Array<PrimExpr> result;
   CHECK_EQ(transform_rule.size(), target_axis.size());
   for (size_t i = 0; i < transform_rule.size(); ++i) {
-    Expr rule = transform_rule[i];
+    PrimExpr rule = transform_rule[i];
     IterVar axis = target_axis[i];
     if (!LayoutAxis::Get(axis).IsPrimal()) {
       result.push_back(axis->dom->extent);
@@ -331,14 +331,14 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   return result;
 }
 
-Array<Expr> BijectiveLayout::ForwardShape(const Array<Expr>& shape) const {
+Array<PrimExpr> BijectiveLayout::ForwardShape(const Array<PrimExpr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->src_layout->axes,
                         self->dst_layout->axes, self->forward_rule);
 }
 
-Array<Expr> BijectiveLayout::BackwardShape(const Array<Expr>& shape) const {
+Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) const {
   CHECK(defined()) << "Cannot operate on an undefined bijective layout.";
   const BijectiveLayoutNode* self = operator->();
   return TransformShape(shape, self->dst_layout->axes,

@@ -144,11 +144,11 @@ TEST(InplaceArrayBase, ExceptionSafety) {
   ASSERT_EXIT(correct_init(), ::testing::ExitedWithCode(0), "");
 }
 
-TEST(Array, Expr) {
+TEST(Array, PrimExpr) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Array<Expr> list{x, z, z};
+  Array<PrimExpr> list{x, z, z};
   LOG(INFO) << list.size();
   LOG(INFO) << list[0];
   LOG(INFO) << list[1];
@@ -158,7 +158,7 @@ TEST(Array, Mutate) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Array<Expr> list{x, z, z};
+  Array<PrimExpr> list{x, z, z};
   auto list2 = list;
   list.Set(1, x);
   CHECK(list[1].same_as(x));
@@ -167,8 +167,8 @@ TEST(Array, Mutate) {
 
 TEST(Array, Iterator) {
   using namespace tvm;
-  Array<Expr> array{1, 2, 3};
-  std::vector<Expr> vector(array.begin(), array.end());
+  Array<PrimExpr> array{1, 2, 3};
+  std::vector<PrimExpr> vector(array.begin(), array.end());
   CHECK(vector[1].as<IntImmNode>()->value == 2);
 }
 
@@ -177,7 +177,7 @@ TEST(Map, Expr) {
   Var x("x");
   auto z = max(x + 1 + 2, 100);
   auto zz = z + 1;
-  Map<Expr, Expr> dict{{x, z}, {z, 2}};
+  Map<PrimExpr, PrimExpr> dict{{x, z}, {z, 2}};
   CHECK(dict.size() == 2);
   CHECK(dict[x].same_as(z));
   CHECK(dict.count(z));
@@ -188,7 +188,7 @@ TEST(StrMap, Expr) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<std::string, Expr> dict{{"x", z}, {"z", 2}};
+  Map<std::string, PrimExpr> dict{{"x", z}, {"z", 2}};
   CHECK(dict.size() == 2);
   CHECK(dict["x"].same_as(z));
 }
@@ -197,7 +197,7 @@ TEST(Map, Mutate) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<Expr, Expr> dict{{x, z}, {z, 2}};
+  Map<PrimExpr, PrimExpr> dict{{x, z}, {z, 2}};
   auto zz = z + 1;
   CHECK(dict[x].same_as(z));
   dict.Set(x, zz);
@@ -218,9 +218,9 @@ TEST(Map, Mutate) {
 
 TEST(Map, Iterator) {
   using namespace tvm;
-  Expr a = 1, b = 2;
-  Map<Expr, Expr> map1{{a, b}};
-  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>
+  PrimExpr a = 1, b = 2;
+  Map<PrimExpr, PrimExpr> map1{{a, b}};
+  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual>
       map2(map1.begin(), map1.end());
   CHECK(map2[a].as<IntImmNode>()->value == 2);
 }

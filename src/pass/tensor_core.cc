@@ -59,14 +59,14 @@ std::string simplify_name(std::string input) {
   }
 }
 
-Expr unpack_type_cast(const Expr &input, const DataType &target_type) {
+PrimExpr unpack_type_cast(const PrimExpr &input, const DataType &target_type) {
   auto cast = input.as<CastNode>();
   if (cast == nullptr) {
     return input;
   } else if (cast->dtype == target_type) {
     return cast->value;
   }
-  return Expr();
+  return PrimExpr();
 }
 
 // MMAMatcher matches C = Cast(A)*Cast(B)+C,
@@ -217,14 +217,14 @@ class MMAMatcher: public StmtVisitor {
     buf_name_.insert(std::make_pair(load_a, buffer_a.name));
     buf_name_.insert(std::make_pair(load_b, buffer_b.name));
     mma_sync_.insert(std::make_pair(op,
-      Array<Expr>{load_a_expr, load_b_expr, add->a}));
+      Array<PrimExpr>{load_a_expr, load_b_expr, add->a}));
 
     return true;
   }
 
   std::unordered_map<TensorKey, BufferInfo> buf_map_;
   std::unordered_map<const Object*, std::string> storage_scope_;
-  std::unordered_map<const ProvideNode*, Array<Expr>> mma_sync_;
+  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
   std::unordered_set<std::string> frag_reg_;
   bool matched_{false};
@@ -243,7 +243,7 @@ class BodyVisitor : public StmtExprVisitor {
     if (comm_add == nullptr || op->combiner->result.size() > 1) {
       return;
     }
-    for (Expr source : op->source) {
+    for (PrimExpr source : op->source) {
       auto mul_0 = unpack_type_cast(source, DataType::Float(32)).as<MulNode>();
       auto mul_1 = unpack_type_cast(source, DataType::Int(32)).as<MulNode>();
       if (mul_0 == nullptr && mul_1 == nullptr) {
@@ -263,7 +263,7 @@ class BodyVisitor : public StmtExprVisitor {
   friend class ScheduleAnalyser;
 
  private:
-  std::unordered_map<std::string, Array<Expr>> args_;
+  std::unordered_map<std::string, Array<PrimExpr>> args_;
   bool tensorcore_candidate_{false};
 };
 
@@ -294,7 +294,7 @@ class ScheduleAnalyser {
       reduce_axis_var = reduce_axis[0]->var.as<VarNode>();
 
       BodyVisitor body_visitor;
-      for (Expr expr : compute->body) {
+      for (PrimExpr expr : compute->body) {
         body_visitor(expr);
       }
       if (!body_visitor.tensorcore_candidate_) {
@@ -347,7 +347,7 @@ class ScheduleAnalyser {
       if (it0->second == "matrix_a" && it1->second == "matrix_b") {
         return true;
       } else if (it0->second == "matrix_b" && it1->second == "matrix_a") {
-        mma_sync.second = Array<Expr>{operands[1], operands[0], operands[2]};
+        mma_sync.second = Array<PrimExpr>{operands[1], operands[0], operands[2]};
       } else {
         return false;
       }
@@ -361,7 +361,7 @@ class ScheduleAnalyser {
  private:
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<Expr>> mma_sync_;
+  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
   std::unordered_map<const Object*, std::string> buf_name_;
 };
 
@@ -457,12 +457,12 @@ class BufferAnalyser : public StmtExprVisitor {
       }
     }
 
-    Array<Expr> strides;
+    Array<PrimExpr> strides;
     if (bi.strides.size() > 0) {
       strides = bi.strides;
     } else {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
-        Expr stride = IntImmNode::make(DataType::Int(32), 1);
+        PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
           stride = MulNode::make(stride, bi.shape[j]);
         }
@@ -473,7 +473,7 @@ class BufferAnalyser : public StmtExprVisitor {
     strides_.insert(std::make_pair(key.GetName(), strides));
 
     if (frag_reg_.count(bi.name)) {
-      Expr dst = CallNode::make(bi.dtype,
+      PrimExpr dst = CallNode::make(bi.dtype,
                             bi.name,
                             op->args,
                             CallNode::Halide,
@@ -535,7 +535,7 @@ class BufferAnalyser : public StmtExprVisitor {
 
     const CallNode* value = op->value.as<CallNode>();
     if (value != nullptr && frag_reg_.count(value->name)) {
-      Expr dst = CallNode::make(bi.dtype,
+      PrimExpr dst = CallNode::make(bi.dtype,
                             bi.name,
                             op->args,
                             CallNode::Halide,
@@ -570,12 +570,12 @@ class BufferAnalyser : public StmtExprVisitor {
         }
       }
 
-      Array<Expr> strides;
+      Array<PrimExpr> strides;
       if (bi.strides.size() > 0) {
         strides = bi.strides;
       } else {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
-          Expr stride = IntImmNode::make(DataType::Int(32), 1);
+          PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
             stride = MulNode::make(stride, bi.shape[j]);
           }
@@ -616,22 +616,22 @@ class BufferAnalyser : public StmtExprVisitor {
       BufferInfo bi;
 
       bi.bounds = op->bounds;
-      Array<Expr> shape;
+      Array<PrimExpr> shape;
       for (auto r : bi.bounds) {
         shape.push_back(r->extent);
       }
 
-      Array<Expr> strides;
+      Array<PrimExpr> strides;
       if (dim_align_.count(key) != 0 && shape.size() != 0) {
-        std::vector<Expr> rstrides;
+        std::vector<PrimExpr> rstrides;
         const std::vector<DimAlignInfo>& avec = dim_align_[key];
         int first_dim = 0;
-        Expr stride = make_const(shape[first_dim].dtype(), 1);
+        PrimExpr stride = make_const(shape[first_dim].dtype(), 1);
         for (size_t i = shape.size(); i != 0; --i) {
           size_t dim = i - 1;
           if (dim < avec.size() && avec[dim].align_factor != 0) {
-            Expr factor = make_const(stride.dtype(), avec[dim].align_factor);
-            Expr offset = make_const(stride.dtype(), avec[dim].align_offset);
+            PrimExpr factor = make_const(stride.dtype(), avec[dim].align_factor);
+            PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + \
               indexmod(factor + offset - indexmod(stride, factor), factor);
             stride = ir::Simplify(stride);
@@ -639,7 +639,7 @@ class BufferAnalyser : public StmtExprVisitor {
           rstrides.push_back(stride);
           stride = stride * shape[dim];
         }
-        strides = Array<Expr>(rstrides.rbegin(), rstrides.rend());
+        strides = Array<PrimExpr>(rstrides.rbegin(), rstrides.rend());
       }
 
       bi.name = key.GetName();
@@ -689,14 +689,14 @@ class BufferAnalyser : public StmtExprVisitor {
   struct BufferInfo {
     std::string name;
     DataType dtype;
-    Array<Expr> strides;
-    Array<Expr> shape;
+    Array<PrimExpr> strides;
+    Array<PrimExpr> shape;
     Region bounds;
     bool external{false};
     bool released{false};
-    inline Array<Expr> RelIndex(Array<Expr> args) const {
+    inline Array<PrimExpr> RelIndex(Array<PrimExpr> args) const {
       if (bounds.size() != 0) {
-        Array<Expr> index;
+        Array<PrimExpr> index;
         CHECK_EQ(bounds.size(), args.size());
         for (size_t i = 0; i < bounds.size(); ++i) {
           index.push_back(args[i] - bounds[i]->min);
@@ -744,9 +744,9 @@ class BufferAnalyser : public StmtExprVisitor {
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
   std::unordered_set<std::string> frag_reg_;
-  std::unordered_map<std::string, Array<Expr>> strides_;
-  std::unordered_map<const ProvideNode*, Expr> frag_load_;
-  std::unordered_map<const ProvideNode*, Expr> frag_store_;
+  std::unordered_map<std::string, Array<PrimExpr>> strides_;
+  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
   std::unordered_map<std::string, int> thread_extent_;
   IndexVisitor index_visitor;
   Tile warp_tile_;
@@ -758,19 +758,19 @@ class BufferAnalyser : public StmtExprVisitor {
 // ThreadIdxMutator does the thread index unification inside a warp
 class ThreadIdxMutator : public StmtExprMutator {
  public:
-  explicit ThreadIdxMutator(Expr warp_y): warp_y_(warp_y) {}
+  explicit ThreadIdxMutator(PrimExpr warp_y): warp_y_(warp_y) {}
 
-  Expr VisitExpr_(const VarNode* op) final {
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<VarNode>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
-        Expr zero = IntImmNode::make(DataType::Int(32), 0);
+        PrimExpr zero = IntImmNode::make(DataType::Int(32), 0);
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
-        Expr div = DivNode::make(expr, warp_y_);
-        Expr mul = MulNode::make(div, warp_y_);
+        PrimExpr div = DivNode::make(expr, warp_y_);
+        PrimExpr mul = MulNode::make(div, warp_y_);
         return mul;
       }
     }
@@ -778,7 +778,7 @@ class ThreadIdxMutator : public StmtExprMutator {
   }
 
  private:
-  Expr warp_y_;
+  PrimExpr warp_y_;
 };
 
 // TensorCoreIRMutator mutates the AST for TensorCore CodeGen
@@ -856,11 +856,11 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it = mma_sync_.find(op);
     if (it != mma_sync_.end()) {
       const auto &operands = it->second;
-      Expr a = operands[0];
+      PrimExpr a = operands[0];
       auto ca = a.as<CallNode>();
-      Expr b = operands[1];
+      PrimExpr b = operands[1];
       auto cb = b.as<CallNode>();
-      Expr c = operands[2];
+      PrimExpr c = operands[2];
       auto cc = c.as<CallNode>();
 
       ObjectPtr<BufferNode> buffer_node_a = make_object<BufferNode>();
@@ -900,7 +900,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
     auto it2 = frag_load_.find(op);
     if (it2 != frag_load_.end()) {
-      Expr dst = it2->second;
+      PrimExpr dst = it2->second;
       if (op->value.as<FloatImmNode>() != nullptr ||
           op->value.as<IntImmNode>() != nullptr) {
         auto call = dst.as<CallNode>();
@@ -931,19 +931,19 @@ class TensorCoreIRMutator : public StmtExprMutator {
           << "Cannot find stride for " << value->name;
       auto strides = it->second;
       CHECK_GE(strides.size(), 2);
-      Expr stride = strides[strides.size()-2];
+      PrimExpr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
-      Expr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
+      PrimExpr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
-      Expr mutated_value = thread_idx_mutator(op->value);
-      Expr src = CallNode::make(value->dtype,
+      PrimExpr mutated_value = thread_idx_mutator(op->value);
+      PrimExpr src = CallNode::make(value->dtype,
                             "&",
                             {mutated_value},
                             CallNode::Extern);
 
       auto call = dst.as<CallNode>();
-      Expr matrix_major;
+      PrimExpr matrix_major;
       auto iter2 = matrix_major_.find(simplify_name(call->name));
       CHECK(iter2 != matrix_major_.end())
           << "Can not determine matrix major for " << call->name;
@@ -980,11 +980,11 @@ class TensorCoreIRMutator : public StmtExprMutator {
           << "Cannot find stride for " << key.GetName();
       auto strides = it->second;
       CHECK_GE(strides.size(), 2);
-      Expr stride = strides[strides.size()-2];
+      PrimExpr stride = strides[strides.size()-2];
 
-      Expr dst = it3->second;
+      PrimExpr dst = it3->second;
       // thread index unification inside a warp
-      Expr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
+      PrimExpr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
       dst = CallNode::make(DataType::Handle(),
@@ -1027,7 +1027,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
           int ori_extent_value = ori_extent->value;
           scaled_extent_value = ori_extent_value / scale_factor;
         }
-        Expr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
+        PrimExpr scaled_extent = make_const(op->extent.dtype(), scaled_extent_value);
         stmt = ForNode::make(op->loop_var, op->min, scaled_extent, op->for_type,
           op->device_api, op->body);
       }
@@ -1036,13 +1036,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
   }
 
  private:
-  Array<Expr> get_tile_size_(const std::string &name) {
+  Array<PrimExpr> get_tile_size_(const std::string &name) {
       auto it = matrix_abc_.find(name);
       auto it2 = matrix_major_.find(name);
       CHECK(it != matrix_abc_.end() && it2 != matrix_major_.end())
           << "Cannot find matrix info for " << name;
-      Expr size0 = make_const(DataType::Int(32), 16);
-      Expr size1 = make_const(DataType::Int(32), 16);
+      PrimExpr size0 = make_const(DataType::Int(32), 16);
+      PrimExpr size1 = make_const(DataType::Int(32), 16);
       if (it->second == "matrix_a" && it2->second == "col_major") {
         size0 = make_const(DataType::Int(32), warp_tile_.k);
         size1 = make_const(DataType::Int(32), warp_tile_.m);
@@ -1063,7 +1063,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         size0 = make_const(DataType::Int(32), warp_tile_.n);
         size1 = make_const(DataType::Int(32), warp_tile_.m);
       }
-      Array<Expr> tile_size = {size0, size1};
+      Array<PrimExpr> tile_size = {size0, size1};
       return tile_size;
   }
 
@@ -1073,13 +1073,13 @@ class TensorCoreIRMutator : public StmtExprMutator {
       DataType datatype) {
     auto it = bounds_.find(key);
     CHECK(it != bounds_.end());
-    Array<Expr> min_bound;
+    Array<PrimExpr> min_bound;
     for (auto i : it->second) {
       min_bound.push_back(i->min);
     }
 
     CHECK_GE(it->second.size(), 2);
-    Array<Expr> shape;
+    Array<PrimExpr> shape;
     for (size_t i = 0; i < it->second.size() - 2; ++i) {
       shape.push_back(it->second[i]->extent);
     }
@@ -1087,9 +1087,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     shape.push_back(tile_size[0]);
     shape.push_back(tile_size[1]);
 
-    Array<Expr> strides;
+    Array<PrimExpr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      Expr stride = IntImmNode::make(DataType::Int(32), 1);
+      PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
         stride = MulNode::make(stride, shape[j]);
       }
@@ -1097,7 +1097,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     }
     strides.push_back(make_const(DataType::Int(32), 1));
 
-    Expr elem_offset = IntImmNode::make(DataType::Int(32), 0);
+    PrimExpr elem_offset = IntImmNode::make(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = AddNode::make(
@@ -1126,7 +1126,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     tensor_node->dtype = datatype;
     Tensor tensor(tensor_node);
 
-    Array<Expr> args;
+    Array<PrimExpr> args;
     for (size_t i = 0; i < call->args.size(); ++i) {
       args.push_back(call->args[i]);
       args.push_back(shape[i]);
@@ -1144,12 +1144,12 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
   std::unordered_map<std::string, std::string> matrix_abc_;
   std::unordered_map<std::string, std::string> matrix_major_;
-  std::unordered_map<const ProvideNode*, Array<Expr>> mma_sync_;
-  std::unordered_map<std::string, Array<Expr>> strides_;
+  std::unordered_map<const ProvideNode*, Array<PrimExpr>> mma_sync_;
+  std::unordered_map<std::string, Array<PrimExpr>> strides_;
   std::unordered_set<std::string> frag_reg_;
   std::unordered_map<const VarNode*, unsigned> loop_scaling_;
-  std::unordered_map<const ProvideNode*, Expr> frag_load_;
-  std::unordered_map<const ProvideNode*, Expr> frag_store_;
+  std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
+  std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
   std::unordered_map<TensorKey, Region> bounds_;
   Tile warp_tile_;
   int warp_threads_y_{-1};

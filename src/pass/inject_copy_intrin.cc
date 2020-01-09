@@ -69,7 +69,7 @@ class CopyIntrinInjector : public StmtMutator {
     if (store == nullptr) return false;
     // Expr sel_cond, sel_true_value, sel_false_value;
     // match select or if
-    PVar<Expr> sel_cond, sel_true_value, sel_false_value;
+    PVar<PrimExpr> sel_cond, sel_true_value, sel_false_value;
     bool has_cond =
         if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
         select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
@@ -93,12 +93,12 @@ class CopyIntrinInjector : public StmtMutator {
     for (const ForNode* op : loops) {
       loop_vars.push_back(op->loop_var);
     }
-    Array<Expr> store_strides =
+    Array<PrimExpr> store_strides =
         arith::DetectLinearEquation(store->index, loop_vars);
-    Array<Expr> load_strides =
+    Array<PrimExpr> load_strides =
         arith::DetectLinearEquation(load->index, loop_vars);
     if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
-    Array<Expr> dst_shape;
+    Array<PrimExpr> dst_shape;
     const size_t loop_var_size = loop_vars.size();
     if (loop_var_size == 0) {
       dst_shape.push_back(make_const(DataType::Int(32), 1));
@@ -107,24 +107,24 @@ class CopyIntrinInjector : public StmtMutator {
         dst_shape.push_back(op->extent);
       }
     }
-    Array<Expr> src_shape = dst_shape;
-    Array<Expr> pad_before, pad_after;
-    Expr pad_value;
-    Expr src_elem_offset = load_strides[loop_var_size];
+    Array<PrimExpr> src_shape = dst_shape;
+    Array<PrimExpr> pad_before, pad_after;
+    PrimExpr pad_value;
+    PrimExpr src_elem_offset = load_strides[loop_var_size];
     if (has_cond) {
-      Array<Expr> clip_bound =
+      Array<PrimExpr> clip_bound =
           arith::DetectClipBound(sel_cond.Eval(), loop_vars);
       pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
       CHECK_EQ(src_shape.size(), loop_vars.size());
       CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
       for (size_t i = 0; i < src_shape.size(); ++i) {
-        Expr min_value = clip_bound[2 * i];
-        Expr max_value = clip_bound[2 * i + 1];
+        PrimExpr min_value = clip_bound[2 * i];
+        PrimExpr max_value = clip_bound[2 * i + 1];
         DataType t = loop_vars[i].dtype();
-        Expr svalue = src_shape[i];
+        PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          Expr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -132,7 +132,7 @@ class CopyIntrinInjector : public StmtMutator {
           pad_before.push_back(make_zero(t));
         }
         if (max_value.defined()) {
-          Expr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
+          PrimExpr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
                                            make_zero(t)));
           svalue = svalue - pafter;
           pad_after.push_back(pafter);
@@ -145,8 +145,8 @@ class CopyIntrinInjector : public StmtMutator {
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
-    Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
-    Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
+    Array<PrimExpr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
+    Array<PrimExpr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
         src_strides.push_back(make_const(DataType::Int(32), 1));
         dst_strides.push_back(make_const(DataType::Int(32), 1));

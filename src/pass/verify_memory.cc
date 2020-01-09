@@ -65,7 +65,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const Expr &n) final {
+  void VisitExpr(const PrimExpr &n) final {
     if (Failed()) return;
     StmtExprVisitor::VisitExpr(n);
   }
@@ -130,7 +130,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   /// Handle memory access to a Variable
-  void HandleLoadStoreToVariable(const VarExpr &var) {
+  void HandleLoadStoreToVariable(const Var &var) {
     // We skip the access within thread env.
     if (InThreadEnv()) return;
 
@@ -181,7 +181,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   //@}
   LoweredFunc func_{nullptr};  ///< Function to be verified.
   int dev_type_{kDLCPU};       ///< Device type
-  std::unordered_map<const VarNode *, Expr> defs_;  ///< Variable definitions
+  std::unordered_map<const VarNode *, PrimExpr> defs_;  ///< Variable definitions
 };
 }  // namespace
 

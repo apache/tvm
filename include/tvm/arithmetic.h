@@ -105,7 +105,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ConstIntBound operator()(const Expr& expr);
+  ConstIntBound operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update constant int bound information of var.
@@ -136,7 +136,7 @@ class ConstIntBoundAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
@@ -192,7 +192,7 @@ class ModularSetAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ModularSet operator()(const Expr& expr);
+  ModularSet operator()(const PrimExpr& expr);
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -215,7 +215,7 @@ class ModularSetAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
@@ -232,7 +232,7 @@ class RewriteSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  Expr operator()(const Expr& expr);
+  PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -242,10 +242,10 @@ class RewriteSimplifier {
    * \param override Whether do we allow override of existing information.
    */
   void Update(const Var& var,
-              const Expr& new_expr,
+              const PrimExpr& new_expr,
               bool override = false);
 
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class Analyzer;
@@ -268,7 +268,7 @@ class CanonicalSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  Expr operator()(const Expr& expr);
+  PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -278,7 +278,7 @@ class CanonicalSimplifier {
    * \param override Whether do we allow override of existing information.
    */
   void Update(const Var& var,
-              const Expr& new_expr,
+              const PrimExpr& new_expr,
               bool override = false);
 
  private:
@@ -316,7 +316,7 @@ class ConstraintContext {
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, Expr constraint)
+  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
       : analyzer_(analyzer), constraint_(constraint) {}
   // enter the scope.
   void EnterWithScope();
@@ -325,7 +325,7 @@ class ConstraintContext {
   /*! \brief The analyzer */
   Analyzer* analyzer_;
   /*! \brief The constraint */
-  Expr constraint_;
+  PrimExpr constraint_;
   /*! \brief function to be called in recovery */
   std::function<void()> exit_;
 };
@@ -375,9 +375,9 @@ class IntSet : public ObjectRef {
    */
   Range cover_range(Range max_range) const;
   /*! \return Lower bound of the set */
-  Expr min() const;
+  PrimExpr min() const;
   /*! \return upper bound of the set */
-  Expr max() const;
+  PrimExpr max() const;
   /*! \return Whether the set represent nothing  */
   bool is_nothing() const;
   /*! \return Whether the set represent everything  */
@@ -398,7 +398,7 @@ class IntSet : public ObjectRef {
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
    */
-  Expr point_value() const;
+  PrimExpr point_value() const;
   /*!
    * \brief Try to match IntSet with range r.
    *
@@ -415,13 +415,13 @@ class IntSet : public ObjectRef {
    * \param point The point in the set.
    * \return construct a single point set
    */
-  static IntSet single_point(Expr point);
+  static IntSet single_point(PrimExpr point);
   /*!
    * \brief construct a integer set from vector expression.
    * \param vec The vector expression, can also be single point.
    * \return The result set containing the indices in the vector.
    */
-  static IntSet vector(Expr vec);
+  static IntSet vector(PrimExpr vec);
   /*!
    * \brief Construct a set representing a range.
    * \param r The range
@@ -434,7 +434,7 @@ class IntSet : public ObjectRef {
    * \param max The maximum value of the interval.
    * \return constructed set.
    */
-  static IntSet interval(Expr min, Expr max);
+  static IntSet interval(PrimExpr min, PrimExpr max);
 };
 
 /*!
@@ -450,7 +450,7 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  IntSet operator()(const Expr& expr, const Map<Var, IntSet>& dom_map);
+  IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
 
  private:
   friend class Analyzer;
@@ -499,7 +499,7 @@ class Analyzer {
    * \param var The variable.
    * \param expr The expression we bind to.
    */
-  void Bind(const VarExpr& var, const Expr& expr);
+  void Bind(const Var& var, const PrimExpr& expr);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -509,7 +509,7 @@ class Analyzer {
    * \param var The variable.
    * \param range The range we bind to.
    */
-  void Bind(const VarExpr& var, const Range& range);
+  void Bind(const Var& var, const Range& range);
   /*!
    * \brief Whether can we prove expr >= val.
 
@@ -522,7 +522,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
+  bool CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound);
   /*!
    * \brief Whether can we prove condition.
    *
@@ -531,7 +531,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  bool CanProve(const Expr& cond);
+  bool CanProve(const PrimExpr& cond);
   /*!
    * \brief Simplify expr.
    *
@@ -540,7 +540,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  Expr Simplify(const Expr& expr);
+  PrimExpr Simplify(const PrimExpr& expr);
 };
 
 //-----------------------------------------------
@@ -554,7 +554,7 @@ class Analyzer {
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Expr e,
+IntSet EvalSet(PrimExpr e,
                const Map<IterVar, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
@@ -563,7 +563,7 @@ IntSet EvalSet(Expr e,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Expr e,
+IntSet EvalSet(PrimExpr e,
                const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
@@ -598,7 +598,7 @@ IntSet EvalSet(Range r,
                const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<Expr, IntSet, ObjectHash, ObjectEqual>;
+using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectHash, ObjectEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
@@ -608,7 +608,7 @@ using ExprIntSetMap = std::unordered_map<Expr, IntSet, ObjectHash, ObjectEqual>;
  * \return the map from the expression to its possible value.
  */
 ExprIntSetMap EvalSetForEachSubExpr(
-    Expr e,
+    PrimExpr e,
     const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
@@ -640,7 +640,7 @@ IntSet Intersect(const Array<IntSet>& sets);
  *        The deduce bound must implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(Expr v, Expr cond,
+IntSet DeduceBound(PrimExpr v, PrimExpr cond,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map);
 /*!
@@ -653,7 +653,7 @@ IntSet DeduceBound(Expr v, Expr cond,
  *        The deduce bound mush implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(Expr v, Expr cond,
+IntSet DeduceBound(PrimExpr v, PrimExpr cond,
                    const std::unordered_map<const VarNode*, IntSet>& hint_map,
                    const std::unordered_map<const VarNode*, IntSet>& relax_map);
 
@@ -676,7 +676,7 @@ Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool 
  * \param vars List of variables to be used in detection.
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-Array<Expr> DetectLinearEquation(const Expr& e,
+Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
                                  const Array<Var>& vars);
 
 /*!
@@ -687,7 +687,7 @@ Array<Expr> DetectLinearEquation(const Expr& e,
  * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
  *          return empty if the e does not match the pattern.
  */
-Array<Expr> DetectClipBound(const Expr& e,
+Array<PrimExpr> DetectClipBound(const PrimExpr& e,
                             const Array<Var>& vars);
 
 // implementation

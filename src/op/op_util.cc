@@ -42,14 +42,14 @@ MakeLoopNest(const Stage& stage,
              size_t begin_iter_pos,
              bool new_loop_var,
              const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, Expr>* p_value_map,
+             std::unordered_map<IterVar, PrimExpr>* p_value_map,
              bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
   Stmt no_op = EvaluateNode::make(0);
   // create the loop nest
   std::vector<std::vector<Stmt> > nest;
   nest.resize(leaf_iter_vars.size() + 1);
-  std::unordered_map<IterVar, Expr>& value_map = *p_value_map;
+  std::unordered_map<IterVar, PrimExpr>& value_map = *p_value_map;
 
   for (size_t i = begin_iter_pos; i < leaf_iter_vars.size(); ++i) {
     auto iv = leaf_iter_vars[i];
@@ -96,7 +96,7 @@ MakeLoopNest(const Stage& stage,
         CHECK_EQ(it_attr->pragma_keys.size(), it_attr->pragma_values.size());
         for (size_t k = 0; k < it_attr->pragma_keys.size(); ++k) {
           const std::string& pkey = it_attr->pragma_keys[k].as<StringImmNode>()->value;
-          Expr pvalue = it_attr->pragma_values[k];
+          PrimExpr pvalue = it_attr->pragma_values[k];
           if (!pvalue.defined()) {
             pvalue = make_const(DataType::Int(32), 1);
           }
@@ -118,7 +118,7 @@ MakeLoopNest(const Stage& stage,
         nest[i + 1].emplace_back(
             ForNode::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
-        Expr new_value = dom->min + idx;
+        PrimExpr new_value = dom->min + idx;
         value_map[iv] = new_value;
         nest[i + 1].emplace_back(
             LetStmtNode::make(var, new_value, no_op));
@@ -176,10 +176,10 @@ MakeLoopNest(const Stage& stage,
   return nest;
 }
 
-std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
+std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates) {
   Stmt no_op = EvaluateNode::make(0);
   std::vector<Stmt> nest;
-  for (const Expr& cond : predicates) {
+  for (const PrimExpr& cond : predicates) {
     nest.emplace_back(IfThenElseNode::make(cond, no_op));
   }
   return nest;
@@ -191,12 +191,12 @@ class TensorReplacer : public ir::StmtExprMutator {
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
 
-  Expr VisitExpr_(const ir::CallNode* op) final {
+  PrimExpr VisitExpr_(const ir::CallNode* op) final {
     if (op->call_type == ir::CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
-        Expr ret = ir::CallNode::make(
+        PrimExpr ret = ir::CallNode::make(
             op->dtype, it->second->op->name, op->args,
             op->call_type, it->second->op, it->second->value_index);
         found = true;
@@ -219,17 +219,17 @@ Stmt ReplaceTensor(Stmt stmt,
   Stmt ret = repl(stmt);
   return repl.found ? ret : stmt;
 }
-Expr ReplaceTensor(Expr expr,
+PrimExpr ReplaceTensor(PrimExpr expr,
                    const std::unordered_map<Tensor, Tensor>& replace) {
   TensorReplacer repl(replace);
-  Expr ret = repl(expr);
+  PrimExpr ret = repl(expr);
   return repl.found ? ret : expr;
 }
 
 
 Stmt Substitute(Stmt s,
-                const std::unordered_map<IterVar, Expr>& value_map) {
-  std::unordered_map<const VarNode*, Expr> init;
+                const std::unordered_map<IterVar, PrimExpr>& value_map) {
+  std::unordered_map<const VarNode*, PrimExpr> init;
   for (const auto& kv : value_map) {
     init[kv.first->var.get()] = kv.second;
   }

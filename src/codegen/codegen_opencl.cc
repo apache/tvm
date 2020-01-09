@@ -145,7 +145,7 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
-                                 Expr base, std::ostream& os) {  // NOLINT(*)
+                                 PrimExpr base, std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
     auto it = alloc_storage_scope_.find(buffer);
@@ -160,7 +160,7 @@ void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
   PrintExpr(base, os);
 }
 std::string CodeGenOpenCL::GetVecLoad(
-    DataType t, const VarNode* buffer, Expr base) {
+    DataType t, const VarNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -169,7 +169,7 @@ std::string CodeGenOpenCL::GetVecLoad(
 }
 
 void CodeGenOpenCL::PrintVecStore(const VarNode* buffer,
-                                  DataType t, Expr base,
+                                  DataType t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";

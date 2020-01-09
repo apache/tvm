@@ -45,20 +45,20 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 class VarReplacer : public ir::StmtExprMutator {
  public:
   explicit VarReplacer(
-      const std::unordered_map<const VarNode*, Expr>& vsub)
+      const std::unordered_map<const VarNode*, PrimExpr>& vsub)
       : vsub_(vsub) {}
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
-    return GetRef<Expr>(op);
+    return GetRef<PrimExpr>(op);
   }
 
   ir::CommReducer MutateCommReducer(ir::CommReducer combiner) {
     // Replace free variables in combiner
-    auto new_identity = ir::UpdateArray(combiner->identity_element, [this] (const Expr& e) {
+    auto new_identity = ir::UpdateArray(combiner->identity_element, [this] (const PrimExpr& e) {
       return this->VisitExpr(e);
       });
-    auto new_result = ir::UpdateArray(combiner->result, [this] (const Expr& e) {
+    auto new_result = ir::UpdateArray(combiner->result, [this] (const PrimExpr& e) {
       return this->VisitExpr(e);
       });
 
@@ -71,8 +71,8 @@ class VarReplacer : public ir::StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const ir::ReduceNode* op) final {
-    Expr new_e = StmtExprMutator::VisitExpr_(op);
+  PrimExpr VisitExpr_(const ir::ReduceNode* op) final {
+    PrimExpr new_e = StmtExprMutator::VisitExpr_(op);
     const ir::ReduceNode* new_reduce = new_e.as<ir::ReduceNode>();
     ir::CommReducer new_combiner = MutateCommReducer(op->combiner);
     if (op->combiner.same_as(new_combiner)) {
@@ -88,21 +88,21 @@ class VarReplacer : public ir::StmtExprMutator {
   }
 
  private:
-  const std::unordered_map<const VarNode*, Expr>& vsub_;
+  const std::unordered_map<const VarNode*, PrimExpr>& vsub_;
 };
 
-Expr InjectPredicate(const Array<Expr>& predicates,
-                     Expr body) {
+PrimExpr InjectPredicate(const Array<PrimExpr>& predicates,
+                     PrimExpr body) {
   using ir::ReduceNode;
   using ir::SelectNode;
   if (predicates.size() == 0) return body;
   const ReduceNode* reduce = body.as<ReduceNode>();
   if (reduce) {
     auto n = make_object<ReduceNode>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<ir::AndNode>(predicates, Expr());
-    return Expr(n);
+    n->condition = n->condition && arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr());
+    return PrimExpr(n);
   }
-  return SelectNode::make(arith::ComputeReduce<ir::AndNode>(predicates, Expr()),
+  return SelectNode::make(arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr()),
                       body,
                       make_zero(body.dtype()));
 }
@@ -153,7 +153,7 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   Stage s = operator[](tensor->op);
   Tensor sugar_tensor = s->op.output(tensor->value_index);
   Tensor cache = compute(sugar_tensor->shape, [&sugar_tensor](const Array<Var>& i) {
-      return sugar_tensor(Array<Expr>(i.begin(), i.end()));
+      return sugar_tensor(Array<PrimExpr>(i.begin(), i.end()));
     }, os.str());
   vsub[sugar_tensor] = cache;
 
@@ -193,9 +193,9 @@ void PrepareAxisMapping(Stage orig_stage,
                         std::unordered_set<IterVar>* p_red_axis,
                         Array<IterVar>* p_new_axis,
                         std::unordered_map<IterVar, Range>* p_dom_map,
-                        std::unordered_map<const VarNode*, Expr>* p_vsub,
-                        std::unordered_map<const VarNode*, Expr>* p_vsub2newvar,
-                        std::vector<Expr>* p_predicates) {
+                        std::unordered_map<const VarNode*, PrimExpr>* p_vsub,
+                        std::unordered_map<const VarNode*, PrimExpr>* p_vsub2newvar,
+                        std::vector<PrimExpr>* p_predicates) {
   auto& red_axis = *p_red_axis;
   auto& new_axis = *p_new_axis;
   auto& dom_map = *p_dom_map;
@@ -214,7 +214,7 @@ void PrepareAxisMapping(Stage orig_stage,
   schedule::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
   {
     // The source->cache
-    std::unordered_map<IterVar, Expr> value_map;
+    std::unordered_map<IterVar, PrimExpr> value_map;
     for (IterVar iv : orig_stage->leaf_iter_vars) {
       if (red_axis.count(iv)) continue;
       CHECK_EQ(iv->iter_type, kDataPar)
@@ -305,15 +305,15 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const VarNode*, Expr> vsub;
-  std::unordered_map<const VarNode*, Expr> vsub2newvar;
-  std::vector<Expr> predicates;
+  std::unordered_map<const VarNode*, PrimExpr> vsub;
+  std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
+  std::vector<PrimExpr> predicates;
 
   PrepareAxisMapping(orig_stage, compute,
     &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar, &predicates);
 
-  Expr body;
-  Array<Expr> body_list;
+  PrimExpr body;
+  Array<PrimExpr> body_list;
   const ir::ReduceNode* first_reduce = nullptr;
   for (auto cbody : compute->body) {
     body = VarReplacer(vsub)(cbody);
@@ -340,10 +340,10 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     body_list.push_back(body);
   }
   // The reader args
-  Array<Expr> args;
+  Array<PrimExpr> args;
   {
     // cache->compute
-    std::unordered_map<IterVar, Expr> value_map;
+    std::unordered_map<IterVar, PrimExpr> value_map;
     for (IterVar iv : compute->axis) {
       value_map[iv] = iv->var;
     }
@@ -357,7 +357,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
       compute->name + "." + scope, compute->tag, compute->attrs,
       new_axis, body_list);
 
-  Array<Expr> cache_expr_list;
+  Array<PrimExpr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
     cache_expr_list.push_back(cache_tensor(args));
@@ -386,9 +386,9 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<IterVar> new_axis;
   std::unordered_map<IterVar, Range> dom_map;
 
-  std::unordered_map<const VarNode*, Expr> vsub;
-  std::unordered_map<const VarNode*, Expr> vsub2newvar;
-  std::vector<Expr> predicates;
+  std::unordered_map<const VarNode*, PrimExpr> vsub;
+  std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
+  std::vector<PrimExpr> predicates;
 
   PrepareAxisMapping(orig_stage, tensor_op,
     &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar, &predicates);
@@ -404,15 +404,15 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   for (Region old_region : tensor_op->input_regions) {
     Region region;
     for (Range r : old_region) {
-      Expr min = VarReplacer(vsub2newvar)(r->min);
-      Expr extent = VarReplacer(vsub2newvar)(r->extent);
+      PrimExpr min = VarReplacer(vsub2newvar)(r->min);
+      PrimExpr extent = VarReplacer(vsub2newvar)(r->extent);
       region.push_back(Range::make_by_min_extent(min, extent));
     }
     new_regions.push_back(region);
   }
 
-  Array<Expr> new_scalar_inputs;
-  for (Expr old_input : tensor_op->scalar_inputs) {
+  Array<PrimExpr> new_scalar_inputs;
+  for (PrimExpr old_input : tensor_op->scalar_inputs) {
     new_scalar_inputs.push_back(VarReplacer(vsub2newvar)(old_input));
   }
 
@@ -430,10 +430,10 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   }
 
   // The reader args
-  Array<Expr> args;
+  Array<PrimExpr> args;
   {
     // cache->compute
-    std::unordered_map<IterVar, Expr> value_map;
+    std::unordered_map<IterVar, PrimExpr> value_map;
     for (IterVar iv : compute_axis) {
       value_map[iv] = iv->var;
     }
@@ -449,7 +449,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
     }
   }
 
-  Array<Expr> cache_expr_list;
+  Array<PrimExpr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
     cache_expr_list.push_back(cache_tensor(args));
@@ -542,7 +542,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
 void InjectInline(ScheduleNode* sch) {
   sch->InvalidateCache();
 
-  std::vector<Array<Expr> > new_body(sch->stages.size());
+  std::vector<Array<PrimExpr> > new_body(sch->stages.size());
   std::vector<bool> changed(sch->stages.size(), false);
   std::vector<Stmt> new_hybrid_body(sch->stages.size());
   std::vector<bool> hybrid_changed(sch->stages.size(), false);
@@ -552,7 +552,7 @@ void InjectInline(ScheduleNode* sch) {
     if (stage->attach_type == kInline) {
       stage->attach_type = kInlinedAlready;
       Array<Var> args;
-      Expr body;
+      PrimExpr body;
       {
         // setup args
         const ComputeOpNode* compute = stage->op.as<ComputeOpNode>();
@@ -583,7 +583,7 @@ void InjectInline(ScheduleNode* sch) {
                   << "The Reduce inputs of ComputeOp should "
                   << "have the same attribute except value_index";
             }
-            Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][0]),
+            PrimExpr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][0]),
                                         stage->op, args, body).as<ir::EvaluateNode>()->value;
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
@@ -594,12 +594,12 @@ void InjectInline(ScheduleNode* sch) {
                 auto n = make_object<ir::ReduceNode>(*r);
                 n->value_index = static_cast<int>(k);
                 n->dtype = r->source[k].dtype();
-                new_body[j].Set(k, Expr(n));
+                new_body[j].Set(k, PrimExpr(n));
               }
             }
           } else {
             for (size_t k = 0; k < new_body[j].size(); ++k) {
-              Expr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][k]),
+              PrimExpr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][k]),
                                           stage->op, args, body).as<ir::EvaluateNode>()->value;
               if (!new_value.same_as(new_body[j][k])) {
                 new_body[j].Set(k, new_value);
@@ -706,7 +706,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   arith::Analyzer analyzer;
   // Get the replace index
   std::unordered_map<IterVar, Range> dom_map;
-  std::unordered_map<IterVar, Expr> value_map;
+  std::unordered_map<IterVar, PrimExpr> value_map;
   for (IterVar iv : compute_op->reduce_axis) {
     if (touch_map.count(iv)) {
       dom_map[iv] = iv->dom;
@@ -727,7 +727,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     }
   }
   schedule::PassUpIndex(reduce_stage, dom_map, &value_map, true);
-  std::vector<Expr> predicates = schedule::MakeBoundCheck(
+  std::vector<PrimExpr> predicates = schedule::MakeBoundCheck(
       reduce_stage, dom_map, value_map, true, skip_bound_check);
 
   // Get the factored op node.
@@ -761,16 +761,16 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  Expr predicate = likely(arith::ComputeReduce<ir::AndNode>(predicates, Expr()));
+  PrimExpr predicate = likely(arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr()));
 
-  std::unordered_map<const VarNode*, Expr> vsub;
+  std::unordered_map<const VarNode*, PrimExpr> vsub;
 
   for (IterVar iv : compute_op->reduce_axis) {
     if (!touch_map.count(iv)) {
       n->reduce_axis.push_back(iv);
     } else {
       CHECK(value_map.count(iv));
-      Expr index = value_map.at(iv);
+      PrimExpr index = value_map.at(iv);
       vsub[iv->var.get()] = index;
     }
   }
@@ -785,12 +785,12 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     }
   }
   VarReplacer replacer(vsub);
-  Array<Expr> new_source = ir::UpdateArray(reduce->source,
-    [&replacer] (const Expr& e) { return replacer(e); });
+  Array<PrimExpr> new_source = ir::UpdateArray(reduce->source,
+    [&replacer] (const PrimExpr& e) { return replacer(e); });
 
-  Expr new_pred = replacer(predicate);
+  PrimExpr new_pred = replacer(predicate);
 
-  std::vector<Expr> body;
+  std::vector<PrimExpr> body;
   for (size_t idx = 0; idx < reduce->source.size(); ++idx) {
     body.emplace_back(ReduceNode::make(reduce->combiner,
                                    new_source,
@@ -798,7 +798,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
                                    new_pred,
                                    idx));
   }
-  n->body = Array<Expr>(body);
+  n->body = Array<PrimExpr>(body);
   // refresh relations, keep the un-touched relations.
   Array<IterVarRelation> rels;
   for (IterVarRelation rel : reduce_stage->relations) {
@@ -842,7 +842,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   }
   Array<Tensor> repl_tensors = compute(old_tensors[0]->shape,
     [&](const Array<Var>& i) {
-      Array<Expr> indices;
+      Array<PrimExpr> indices;
       const int idx_size = static_cast<int>(i.size());
       for (int idx = 0; idx < idx_size; ++idx) {
         if (factor_axis_pos == idx) {
@@ -853,13 +853,13 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       if (factor_axis_pos == idx_size) {
           indices.push_back(repl_red_axis->var);
       }
-      Array<Expr> factor_exprs;
+      Array<PrimExpr> factor_exprs;
       for (int idx = 0; idx < size; ++idx) {
         factor_exprs.push_back(factor_tensors[idx](indices));
       }
-      Array<Expr> reductions;
+      Array<PrimExpr> reductions;
       Array<IterVar> axis = {repl_red_axis};
-      Expr cond = const_true();
+      PrimExpr cond = const_true();
       for (int idx = 0; idx < size; ++idx) {
         reductions.push_back(ReduceNode::make(reduce->combiner,
           factor_exprs, axis, cond, idx));

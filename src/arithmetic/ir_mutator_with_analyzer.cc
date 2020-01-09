@@ -38,7 +38,7 @@ VisitStmt_(const ForNode* op) {
 
 Stmt IRMutatorWithAnalyzer::
 VisitStmt_(const LetStmtNode* op) {
-  Expr value = this->VisitExpr(op->value);
+  PrimExpr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
@@ -58,7 +58,7 @@ VisitStmt_(const LetStmtNode* op) {
 
 Stmt IRMutatorWithAnalyzer::
 VisitStmt_(const IfThenElseNode* op) {
-  Expr condition = this->VisitExpr(op->condition);
+  PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case, else_case;
   {
     With<ConstraintContext> ctx(analyzer_, condition);
@@ -107,8 +107,8 @@ VisitStmt_(const AttrStmtNode* op) {
 
 Stmt IRMutatorWithAnalyzer::
 VisitStmt_(const AssertStmtNode* op) {
-  Expr condition = this->VisitExpr(op->condition);
-  Expr message = this->VisitExpr(op->message);
+  PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr message = this->VisitExpr(op->message);
   With<ConstraintContext> ctx(analyzer_, condition);
   Stmt body = this->VisitStmt(op->body);
 
@@ -125,12 +125,12 @@ VisitStmt_(const AssertStmtNode* op) {
   }
 }
 
-Expr IRMutatorWithAnalyzer::
+PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
-    Expr cond = this->VisitExpr(op->args[0]);
-    Expr true_value, false_value;
+    PrimExpr cond = this->VisitExpr(op->args[0]);
+    PrimExpr true_value, false_value;
     {
       With<ConstraintContext> constraint(analyzer_, cond);
       true_value = this->VisitExpr(op->args[1]);
@@ -149,7 +149,7 @@ VisitExpr_(const CallNode* op) {
     if (cond.same_as(op->args[0]) &&
         true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
-      return GetRef<Expr>(op);
+      return GetRef<PrimExpr>(op);
     } else {
       return CallNode::make(op->dtype, op->name,
                         {cond, true_value, false_value},
@@ -159,27 +159,27 @@ VisitExpr_(const CallNode* op) {
   return StmtExprMutator::VisitExpr_(op);
 }
 
-Expr IRMutatorWithAnalyzer::
+PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const LetNode* op) {
-  Expr value = this->VisitExpr(op->value);
+  PrimExpr value = this->VisitExpr(op->value);
   if (!ir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
   // as sub-class may or maynot choose to replace it.
-  Expr body = this->VisitExpr(op->body);
+  PrimExpr body = this->VisitExpr(op->body);
   if (value.same_as(op->value) &&
       body.same_as(op->body)) {
-    return GetRef<Expr>(op);
+    return GetRef<PrimExpr>(op);
   } else {
     return LetNode::make(op->var, value, body);
   }
 }
 
-Expr IRMutatorWithAnalyzer::
+PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const SelectNode* op) {
-  Expr cond = this->VisitExpr(op->condition);
-  Expr true_value, false_value;
+  PrimExpr cond = this->VisitExpr(op->condition);
+  PrimExpr true_value, false_value;
   {
     With<ConstraintContext> constraint(analyzer_, cond);
     true_value = VisitExpr(op->true_value);
@@ -199,13 +199,13 @@ VisitExpr_(const SelectNode* op) {
   if (cond.same_as(op->condition) &&
       true_value.same_as(op->true_value) &&
       false_value.same_as(op->false_value)) {
-    return GetRef<Expr>(op);
+    return GetRef<PrimExpr>(op);
   } else {
     return SelectNode::make(cond, true_value, false_value);
   }
 }
 
-Expr IRMutatorWithAnalyzer::
+PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const ReduceNode* op) {
   // Setup the domain information before simplification.
   for (const IterVar& iv : op->axis) {

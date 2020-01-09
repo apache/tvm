@@ -61,7 +61,7 @@ TEST(IRF, ExprTransform) {
   auto z = x + 1;
 
   class MyExprFunctor
-      : public ir::ExprFunctor<int(const Expr&, int)> {
+      : public ir::ExprFunctor<int(const PrimExpr&, int)> {
    public:
     int VisitExpr_(const VarNode* op, int b) final {
       return b;
@@ -90,7 +90,7 @@ TEST(IRF, ExprVisit) {
   auto z = x + 1;
 
   class MyVisitor
-      : public ir::ExprFunctor<void(const Expr&)>,
+      : public ir::ExprFunctor<void(const PrimExpr&)>,
         public ir::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
@@ -152,13 +152,13 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    Expr VisitExpr_(const AddNode* op) final {
+    PrimExpr VisitExpr_(const AddNode* op) final {
       return op->a;
     }
     Stmt VisitStmt_(const SeqStmtNode* op) final {
       return StmtMutator::VisitSeqStmt_(op, true);
     }
-    Expr VisitExpr(const Expr& expr) final {
+    PrimExpr VisitExpr(const PrimExpr& expr) final {
       return ExprMutator::VisitExpr(expr);
     }
   };

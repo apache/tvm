@@ -112,14 +112,14 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
         *rv = Op(args[0].operator tvm::Tensor(),                        \
                  args[1].operator tvm::Tensor());                       \
       } else if (!lhs_is_tensor && rhs_is_tensor) {                     \
-        *rv = Op(args[0].operator tvm::Expr(),                          \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
                  args[1].operator tvm::Tensor());                       \
       } else if (lhs_is_tensor && !rhs_is_tensor) {                     \
         *rv = Op(args[0].operator tvm::Tensor(),                        \
-                 args[1].operator tvm::Expr());                         \
+                 args[1].operator tvm::PrimExpr());                         \
       } else if (!lhs_is_tensor && !rhs_is_tensor) {                    \
-        *rv = Op(args[0].operator tvm::Expr(),                          \
-                 args[1].operator tvm::Expr());                         \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
+                 args[1].operator tvm::PrimExpr());                         \
       }                                                                 \
     });                                                                 \
 
@@ -433,7 +433,7 @@ TVM_REGISTER_GLOBAL("topi.tensordot")
   } else if (args.size() == 3) {
     *rv = tensordot(args[0], args[1], args[2]);
   } else {
-    Array<Expr> axes = args[3];
+    Array<PrimExpr> axes = args[3];
     *rv = tensordot(args[0], args[1], args[2], axes);
   }
   });

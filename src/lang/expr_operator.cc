@@ -30,13 +30,13 @@
 namespace tvm {
 
 // simple cast that only checks if type matches and cast
-inline Expr SimpleCast(const DataType& t, Expr value) {
+inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
   return ir::CastNode::make(t, value);
 }
 
 // The public function with a quick checking path.
-void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
+void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
   if (lhs.dtype() == rhs.dtype()) return;
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
@@ -80,7 +80,7 @@ void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
 
 
 // maximum and min limits
-Expr max_value(const DataType& dtype) {
+PrimExpr max_value(const DataType& dtype) {
   using namespace ir;
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
@@ -109,10 +109,10 @@ Expr max_value(const DataType& dtype) {
     }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
-  return Expr();
+  return PrimExpr();
 }
 
-Expr min_value(const DataType& dtype) {
+PrimExpr min_value(const DataType& dtype) {
   using namespace ir;
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
@@ -135,7 +135,7 @@ Expr min_value(const DataType& dtype) {
     }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
-  return Expr();
+  return PrimExpr();
 }
 
 template<typename ValueType>
@@ -152,7 +152,7 @@ inline bool ConstPowerHelper(ValueType val, int *shift) {
   return true;
 }
 
-bool is_const_power_of_two_integer(const Expr& x, int* shift) {
+bool is_const_power_of_two_integer(const PrimExpr& x, int* shift) {
   if (const auto* op = x.as<ir::IntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
   } else if (const auto* op = x.as<ir::UIntImmNode>()) {
@@ -162,7 +162,7 @@ bool is_const_power_of_two_integer(const Expr& x, int* shift) {
   }
 }
 
-Expr cast(const DataType& t, Expr value) {
+PrimExpr cast(const DataType& t, PrimExpr value) {
   using ir::IntImmNode;
   using ir::UIntImmNode;
   using ir::FloatImmNode;
@@ -200,21 +200,21 @@ Expr cast(const DataType& t, Expr value) {
   }
 }
 
-Expr reinterpret(const DataType& t, Expr value) {
+PrimExpr reinterpret(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
   return ir::CallNode::make(
     t, ir::CallNode::reinterpret, { value }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator+(Expr a, Expr b) {
+PrimExpr operator+(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::AddNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::AddNode>(a, b);
   if (ret.defined()) return ret;
   return ir::AddNode::make(a, b);
 }
 
 // negation
-Expr operator-(Expr a) {
+PrimExpr operator-(PrimExpr a) {
   using ir::IntImmNode;
   using ir::FloatImmNode;
   const IntImmNode* pa = a.as<IntImmNode>();
@@ -224,76 +224,76 @@ Expr operator-(Expr a) {
   return make_zero(a.dtype()) - a;
 }
 
-Expr operator-(Expr a, Expr b) {
+PrimExpr operator-(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::SubNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::SubNode>(a, b);
   if (ret.defined()) return ret;
   return ir::SubNode::make(a, b);
 }
 
-Expr operator*(Expr a, Expr b) {
+PrimExpr operator*(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::MulNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::MulNode>(a, b);
   if (ret.defined()) return ret;
   return ir::MulNode::make(a, b);
 }
 
-Expr div(Expr a, Expr b) {
+PrimExpr div(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::DivNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::DivNode>(a, b);
   if (ret.defined()) return ret;
   return ir::DivNode::make(a, b);
 }
 
-Expr truncdiv(Expr a, Expr b) {
+PrimExpr truncdiv(PrimExpr a, PrimExpr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   return div(a, b);
 }
 
-Expr truncmod(Expr a, Expr b) {
+PrimExpr truncmod(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::ModNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::ModNode>(a, b);
   if (ret.defined()) return ret;
   return ir::ModNode::make(a, b);
 }
 
-Expr operator/(Expr a, Expr b) {
+PrimExpr operator/(PrimExpr a, PrimExpr b) {
   return div(a, b);
 }
 
-Expr operator%(Expr a, Expr b) {
+PrimExpr operator%(PrimExpr a, PrimExpr b) {
   return truncmod(a, b);
 }
 
 // TODO(tqchen): switch to floordiv
-Expr indexdiv(Expr a, Expr b) {
+PrimExpr indexdiv(PrimExpr a, PrimExpr b) {
   return floordiv(a, b);
 }
 
-Expr indexmod(Expr a, Expr b) {
+PrimExpr indexmod(PrimExpr a, PrimExpr b) {
   return floormod(a, b);
 }
 
-Expr floordiv(Expr a, Expr b) {
+PrimExpr floordiv(PrimExpr a, PrimExpr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorDivNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::FloorDivNode>(a, b);
   if (ret.defined()) return ret;
   return ir::FloorDivNode::make(a, b);
 }
 
-Expr floormod(Expr a, Expr b) {
+PrimExpr floormod(PrimExpr a, PrimExpr b) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::FloorModNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::FloorModNode>(a, b);
   if (ret.defined()) return ret;
   return ir::FloorModNode::make(a, b);
 }
 
-Expr min(Expr a, Expr b) {
+PrimExpr min(PrimExpr a, PrimExpr b) {
   // inf-aware simplificaiton
   using arith::is_pos_inf;
   using arith::is_neg_inf;
@@ -302,12 +302,12 @@ Expr min(Expr a, Expr b) {
   if (is_pos_inf(b)) return a;
   if (is_neg_inf(b)) return b;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::MinNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::MinNode>(a, b);
   if (ret.defined()) return ret;
   return ir::MinNode::make(a, b);
 }
 
-Expr max(Expr a, Expr b) {
+PrimExpr max(PrimExpr a, PrimExpr b) {
   // inf-aware simplificaiton
   using arith::is_pos_inf;
   using arith::is_neg_inf;
@@ -316,12 +316,12 @@ Expr max(Expr a, Expr b) {
   if (is_pos_inf(b)) return b;
   if (is_neg_inf(b)) return a;
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::MaxNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::MaxNode>(a, b);
   if (ret.defined()) return ret;
   return ir::MaxNode::make(a, b);
 }
 
-Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
+PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
   using ir::IntImmNode;
   using ir::UIntImmNode;
   CHECK(cond.dtype() == DataType::Bool(1))
@@ -347,7 +347,7 @@ Expr if_then_else(Expr cond, Expr true_value, Expr false_value) {
       ir::CallNode::PureIntrinsic);
 }
 
-Expr likely(Expr cond) {
+PrimExpr likely(PrimExpr cond) {
   if (is_const(cond)) return cond;
   return ir::CallNode::make(cond.dtype(),
                             ir::CallNode::likely,
@@ -355,72 +355,72 @@ Expr likely(Expr cond) {
                             ir::CallNode::PureIntrinsic);
 }
 
-Expr operator>(Expr a, Expr b) {
+PrimExpr operator>(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GTNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::GTNode>(a, b);
   if (ret.defined()) return ret;
   return ir::GTNode::make(a, b);
 }
 
-Expr operator>=(Expr a, Expr b) {
+PrimExpr operator>=(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::GENode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::GENode>(a, b);
   if (ret.defined()) return ret;
   return ir::GENode::make(a, b);
 }
 
-Expr operator<(Expr a, Expr b) {
+PrimExpr operator<(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LTNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::LTNode>(a, b);
   if (ret.defined()) return ret;
   return ir::LTNode::make(a, b);
 }
 
-Expr operator<=(Expr a, Expr b) {
+PrimExpr operator<=(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::LENode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::LENode>(a, b);
   if (ret.defined()) return ret;
   return ir::LENode::make(a, b);
 }
 
-Expr operator==(Expr a, Expr b) {
+PrimExpr operator==(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::EQNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::EQNode>(a, b);
   if (ret.defined()) return ret;
   return ir::EQNode::make(a, b);
 }
 
-Expr operator!=(Expr a, Expr b) {
+PrimExpr operator!=(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
-  Expr ret = arith::TryConstFold<ir::NENode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::NENode>(a, b);
   if (ret.defined()) return ret;
   return ir::NENode::make(a, b);
 }
 
-Expr operator&&(Expr a, Expr b) {
+PrimExpr operator&&(PrimExpr a, PrimExpr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::AndNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::AndNode>(a, b);
   if (ret.defined()) return ret;
   return ir::AndNode::make(a, b);
 }
 
-Expr operator||(Expr a, Expr b) {
+PrimExpr operator||(PrimExpr a, PrimExpr b) {
   CHECK(a.dtype().is_bool());
   CHECK(b.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::OrNode>(a, b);
+  PrimExpr ret = arith::TryConstFold<ir::OrNode>(a, b);
   if (ret.defined()) return ret;
   return ir::OrNode::make(a, b);
 }
 
-Expr operator!(Expr a) {
+PrimExpr operator!(PrimExpr a) {
   CHECK(a.dtype().is_bool());
-  Expr ret = arith::TryConstFold<ir::NotNode>(a);
+  PrimExpr ret = arith::TryConstFold<ir::NotNode>(a);
   if (ret.defined()) return ret;
   return ir::NotNode::make(a);
 }
 
-Expr operator>>(Expr a, Expr b) {
+PrimExpr operator>>(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -433,7 +433,7 @@ Expr operator>>(Expr a, Expr b) {
     a.dtype(), ir::CallNode::shift_right, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator<<(Expr a, Expr b) {
+PrimExpr operator<<(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -446,7 +446,7 @@ Expr operator<<(Expr a, Expr b) {
     a.dtype(), ir::CallNode::shift_left, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator&(Expr a, Expr b) {
+PrimExpr operator&(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -456,7 +456,7 @@ Expr operator&(Expr a, Expr b) {
     a.dtype(), ir::CallNode::bitwise_and, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator|(Expr a, Expr b) {
+PrimExpr operator|(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -466,7 +466,7 @@ Expr operator|(Expr a, Expr b) {
     a.dtype(), ir::CallNode::bitwise_or, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator^(Expr a, Expr b) {
+PrimExpr operator^(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -476,20 +476,20 @@ Expr operator^(Expr a, Expr b) {
     a.dtype(), ir::CallNode::bitwise_xor, { a, b }, ir::CallNode::PureIntrinsic);
 }
 
-Expr operator~(Expr a) {
+PrimExpr operator~(PrimExpr a) {
   CHECK(a.dtype().is_int() || a.dtype().is_uint());
   return ir::CallNode::make(
     a.dtype(), ir::CallNode::bitwise_not, { a }, ir::CallNode::PureIntrinsic);
 }
 
-Expr pow(Expr x, Expr y) {
+PrimExpr pow(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "power only applies to float";
   return ir::CallNode::make(
     x.dtype(), "pow", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
-Expr abs(Expr x) {
+PrimExpr abs(PrimExpr x) {
   if (x.dtype().is_int()) {
     using ir::IntImmNode;
     const IntImmNode* px = x.as<IntImmNode>();
@@ -513,7 +513,7 @@ Expr abs(Expr x) {
   }
 }
 
-Expr isnan(Expr x) {
+PrimExpr isnan(PrimExpr x) {
   DataType t = DataType::Bool(x.dtype().lanes());
   if (x.dtype().is_int() || x.dtype().is_uint()) {
     return make_const(t, false);
@@ -537,97 +537,97 @@ Expr isnan(Expr x) {
   }
 }
 
-Expr sum(Expr source, Array<IterVar> rdom) {
+PrimExpr sum(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::AddNode::make(x, y);
-  Expr identity_element = make_zero(source.dtype());
+  PrimExpr result = ir::AddNode::make(x, y);
+  PrimExpr identity_element = make_zero(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr all(Expr source, Array<IterVar> rdom) {
+PrimExpr all(PrimExpr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::AndNode::make(x, y);
-  Expr identity_element = make_const(source.dtype(), true);
+  PrimExpr result = ir::AndNode::make(x, y);
+  PrimExpr identity_element = make_const(source.dtype(), true);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr any(Expr source, Array<IterVar> rdom) {
+PrimExpr any(PrimExpr source, Array<IterVar> rdom) {
   CHECK(source.dtype().is_bool());
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::OrNode::make(x, y);
-  Expr identity_element = make_const(source.dtype(), false);
+  PrimExpr result = ir::OrNode::make(x, y);
+  PrimExpr identity_element = make_const(source.dtype(), false);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr max(Expr source, Array<IterVar> rdom) {
+PrimExpr max(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::MaxNode::make(x, y);
-  Expr identity_element = min_value(source.dtype());
+  PrimExpr result = ir::MaxNode::make(x, y);
+  PrimExpr identity_element = min_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr min(Expr source, Array<IterVar> rdom) {
+PrimExpr min(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::MinNode::make(x, y);
-  Expr identity_element = max_value(source.dtype());
+  PrimExpr result = ir::MinNode::make(x, y);
+  PrimExpr identity_element = max_value(source.dtype());
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr prod(Expr source, Array<IterVar> rdom) {
+PrimExpr prod(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
-  Expr result = ir::MulNode::make(x, y);
-  Expr identity_element = make_const(source.dtype(), 1);
+  PrimExpr result = ir::MulNode::make(x, y);
+  PrimExpr identity_element = make_const(source.dtype(), 1);
   ir::CommReducer combiner =
     ir::CommReducerNode::make({x}, {y}, {result}, {identity_element});
   return ir::ReduceNode::make(combiner, {source}, rdom, make_const(DataType::Bool(1), true), 0);
 }
 
-Expr fmod(Expr x, Expr y) {
+PrimExpr fmod(PrimExpr x, PrimExpr y) {
   BinaryOpMatchTypes(x, y);
   CHECK(x.dtype().is_float()) << "fmod only applies to float";
   return ir::CallNode::make(x.dtype(), "fmod", { x, y }, ir::CallNode::PureIntrinsic);
 }
 
-Expr floor(Expr x) {
+PrimExpr floor(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImmNode::make(x.dtype(), std::floor(fx->value));
   return ir::CallNode::make(x.dtype(), "floor", {x}, ir::CallNode::PureIntrinsic);
 }
 
-Expr ceil(Expr x) {
+PrimExpr ceil(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImmNode::make(x.dtype(), std::ceil(fx->value));
   return ir::CallNode::make(x.dtype(), "ceil", {x}, ir::CallNode::PureIntrinsic);
 }
 
-Expr round(Expr x) {
+PrimExpr round(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
   return ir::CallNode::make(x.dtype(), "round", {x}, ir::CallNode::PureIntrinsic);
 }
 
-Expr nearbyint(Expr x) {
+PrimExpr nearbyint(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
   return ir::CallNode::make(x.dtype(), "nearbyint", {x}, ir::CallNode::PureIntrinsic);
 }
 
-Expr trunc(Expr x) {
+PrimExpr trunc(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {

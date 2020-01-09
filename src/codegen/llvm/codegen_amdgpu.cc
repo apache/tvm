@@ -231,7 +231,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   const auto *find_rocm_bitcodes =
       tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
-  Array<Expr> bitcode_files = (*find_rocm_bitcodes)();
+  Array<PrimExpr> bitcode_files = (*find_rocm_bitcodes)();
 
   for (auto &bitcode : bitcode_files) {
     std::string path = bitcode.as<StringImmNode>()->value;

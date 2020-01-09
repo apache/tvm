@@ -55,7 +55,7 @@ void PassDownDomain(const Stage& stage,
                     std::unordered_map<IterVar, Range>* p_state,
                     arith::Analyzer* actx,
                     bool allow_missing) {
-  auto ceil_div = [actx](Expr a, Expr b) {
+  auto ceil_div = [actx](PrimExpr a, PrimExpr b) {
     if (actx->CanProve(indexmod(a, b) == 0)) {
       return actx->Simplify(indexdiv(a, b));
     }
@@ -118,7 +118,7 @@ void PassDownDomain(const Stage& stage,
 
 void PassUpIndex(const Stage& stage,
                  const Map<IterVar, Range>& dom_map,
-                 std::unordered_map<IterVar, Expr>* p_state,
+                 std::unordered_map<IterVar, PrimExpr>* p_state,
                  bool allow_missing) {
   auto& state = *p_state;
   for (size_t i = stage->relations.size(); i != 0; --i) {
@@ -128,10 +128,10 @@ void PassUpIndex(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Expr outer = state.at(s->outer);
-      Expr inner = state.at(s->inner);
-      Expr factor = dom_map.at(s->inner)->extent;
-      Expr parent_min = dom_map.at(s->parent)->min;
+      PrimExpr outer = state.at(s->outer);
+      PrimExpr inner = state.at(s->inner);
+      PrimExpr factor = dom_map.at(s->inner)->extent;
+      PrimExpr parent_min = dom_map.at(s->parent)->min;
       state[s->parent] = inner + outer * factor;
       // add min if they exist
       if (!is_zero(parent_min)) {
@@ -142,10 +142,10 @@ void PassUpIndex(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Expr value = state.at(s->fused);
-      Expr factor = dom_map.at(s->inner)->extent;
-      Expr outer_min = dom_map.at(s->outer)->min;
-      Expr inner_min = dom_map.at(s->inner)->min;
+      PrimExpr value = state.at(s->fused);
+      PrimExpr factor = dom_map.at(s->inner)->extent;
+      PrimExpr outer_min = dom_map.at(s->outer)->min;
+      PrimExpr inner_min = dom_map.at(s->inner)->min;
       state[s->outer] = indexdiv(value, factor);
       state[s->inner] = indexmod(value, factor);
       // add min if they exist
@@ -160,8 +160,8 @@ void PassUpIndex(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Expr value = state.at(s->rebased);
-      Expr parent_min = dom_map.at(s->parent)->min;
+      PrimExpr value = state.at(s->rebased);
+      PrimExpr parent_min = dom_map.at(s->parent)->min;
       // add min if they exist
       if (!is_zero(parent_min)) {
         state[s->parent] = value + parent_min;
@@ -177,7 +177,7 @@ void PassUpIndex(const Stage& stage,
 
 void PassDownIndex(const Stage& stage,
                    const Map<IterVar, Range>& dom_map,
-                   std::unordered_map<IterVar, Expr>* p_state,
+                   std::unordered_map<IterVar, PrimExpr>* p_state,
                    bool allow_missing) {
   auto& state = *p_state;
   for (IterVarRelation rel : stage->relations) {
@@ -188,8 +188,8 @@ void PassDownIndex(const Stage& stage,
       }
       Range r = dom_map.at(s->inner);
       CHECK(is_zero(r->min));
-      Expr parent = state.at(s->parent);
-      Expr factor = r->extent;
+      PrimExpr parent = state.at(s->parent);
+      PrimExpr factor = r->extent;
       state[s->outer] = indexdiv(parent, factor);
       state[s->inner] = indexmod(parent, factor);
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
@@ -197,11 +197,11 @@ void PassDownIndex(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Expr factor = dom_map.at(s->inner)->extent;
-      Expr outer_min = dom_map.at(s->outer)->min;
-      Expr inner_min = dom_map.at(s->inner)->min;
-      Expr inner = state.at(s->inner);
-      Expr outer = state.at(s->outer);
+      PrimExpr factor = dom_map.at(s->inner)->extent;
+      PrimExpr outer_min = dom_map.at(s->outer)->min;
+      PrimExpr inner_min = dom_map.at(s->inner)->min;
+      PrimExpr inner = state.at(s->inner);
+      PrimExpr outer = state.at(s->outer);
       CHECK(is_zero(outer_min));
       CHECK(is_zero(inner_min));
       state[s->fused] = outer * factor + inner;
@@ -210,8 +210,8 @@ void PassDownIndex(const Stage& stage,
         CHECK(allow_missing);
         continue;
       }
-      Expr value = state.at(s->parent);
-      Expr parent_min = dom_map.at(s->parent)->min;
+      PrimExpr value = state.at(s->parent);
+      PrimExpr parent_min = dom_map.at(s->parent)->min;
       CHECK(is_zero(parent_min));
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
@@ -236,8 +236,8 @@ void PassUpDomain(const SplitNode* s,
     *parent = IntSet::range(dom_map.at(s->parent));
     return;
   }
-  Expr factor = dom_map.at(s->inner)->extent;
-  Expr parent_min = dom_map.at(s->parent)->min;
+  PrimExpr factor = dom_map.at(s->inner)->extent;
+  PrimExpr parent_min = dom_map.at(s->parent)->min;
   CHECK(outer.defined());
   CHECK(inner.defined());
   CHECK(factor.defined());
@@ -260,21 +260,21 @@ void PassUpDomain(const FuseNode* s,
     *inner = IntSet::range(dom_map.at(s->inner));
     return;
   }
-  Expr outer_min = dom_map.at(s->outer)->min;
-  Expr inner_min = dom_map.at(s->inner)->min;
+  PrimExpr outer_min = dom_map.at(s->outer)->min;
+  PrimExpr inner_min = dom_map.at(s->inner)->min;
 
   if (fused.is_single_point()) {
-    Expr value = fused.point_value();
-    Expr factor = dom_map.at(s->inner)->extent;
-    Expr v_outer  = indexdiv(value, factor);
-    Expr v_inner  = indexmod(value, factor);
+    PrimExpr value = fused.point_value();
+    PrimExpr factor = dom_map.at(s->inner)->extent;
+    PrimExpr v_outer  = indexdiv(value, factor);
+    PrimExpr v_inner  = indexmod(value, factor);
     if (!is_zero(outer_min)) v_outer = v_outer + outer_min;
     if (!is_zero(inner_min)) v_inner = v_inner + inner_min;
     *outer = IntSet::single_point(v_outer);
     *inner = IntSet::single_point(v_inner);
   } else {
-    Expr fused_extent = (fused.max() - fused.min() + 1);
-    Expr inner_extent = dom_map.at(s->inner)->extent;
+    PrimExpr fused_extent = (fused.max() - fused.min() + 1);
+    PrimExpr inner_extent = dom_map.at(s->inner)->extent;
     *outer = IntSet::interval(
         outer_min + indexdiv(fused.min(), inner_extent),
         outer_min + indexdiv(fused.max(), inner_extent));
@@ -305,7 +305,7 @@ void PassUpDomain(const RebaseNode* s,
     *parent = IntSet::range(dom_map.at(s->parent));
     return;
   }
-  Expr parent_min = dom_map.at(s->parent)->min;
+  PrimExpr parent_min = dom_map.at(s->parent)->min;
   *parent = arith::EvalSet(s->rebased->var + parent_min,
                            {{s->rebased, rebased}});
 }
@@ -458,8 +458,8 @@ void PassUpBoundCheck(const Stage& s,
       bool inner = state.at(s->inner);
 
       if (dom_map.count(s->inner) && dom_map.count(s->outer)) {
-        Expr factor = dom_map.at(s->inner)->extent;
-        Expr step = dom_map.at(s->outer)->extent;
+        PrimExpr factor = dom_map.at(s->inner)->extent;
+        PrimExpr step = dom_map.at(s->outer)->extent;
         if (outer || inner) {
           state[s->parent] = true;
         } else {
@@ -486,10 +486,10 @@ void PassUpBoundCheck(const Stage& s,
   }
 }
 
-std::vector<Expr> MakeBoundCheck(
+std::vector<PrimExpr> MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, Expr>& value_map,
+    const std::unordered_map<IterVar, PrimExpr>& value_map,
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter) {
   arith::Analyzer analyzer;
@@ -500,7 +500,7 @@ std::vector<Expr> MakeBoundCheck(
   }
   PassUpBoundCheck(stage, dom_map, &bound_state, &analyzer);
 
-  std::vector<Expr> preds;
+  std::vector<PrimExpr> preds;
   std::unordered_map<const VarNode*, IntSet> iset_dmap;
 
   // setup domain map for set analysis
@@ -512,8 +512,8 @@ std::vector<Expr> MakeBoundCheck(
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     if (bound_state.at(iv)) {
       Range dom = dom_map.at(iv);
-      Expr value = value_map.at(iv) - dom->min;
-      Expr vmax = EvalSet(value, iset_dmap).max();
+      PrimExpr value = value_map.at(iv) - dom->min;
+      PrimExpr vmax = EvalSet(value, iset_dmap).max();
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
@@ -524,10 +524,10 @@ std::vector<Expr> MakeBoundCheck(
     Range dom = dom_map.at(iv);
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
-      Expr value = value_map.at(iv) - iv->dom->min;
+      PrimExpr value = value_map.at(iv) - iv->dom->min;
       IntSet s = EvalSet(value, iset_dmap);
-      Expr vmin = s.min();
-      Expr vmax = s.max();
+      PrimExpr vmin = s.min();
+      PrimExpr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]
       if (vmin.dtype() != value.dtype() || !analyzer.CanProve(vmin >= 0)) {
         preds.emplace_back(value >= 0);

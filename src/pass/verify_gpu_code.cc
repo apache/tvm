@@ -100,7 +100,7 @@ class GPUCodeVerifier : public StmtVisitor {
         visited_shared_buffers_.insert(op->node.as<tvm::VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
-      VarExpr var = op->node.as<tvm::IterVarNode>()->var;
+      Var var = op->node.as<tvm::IterVarNode>()->var;
       const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
@@ -169,7 +169,7 @@ class GPUCodeVerifier : public StmtVisitor {
 };
 
 bool VerifyGPUCode(Stmt stmt,
-                   Map<std::string, Expr> constraints) {
+                   Map<std::string, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
