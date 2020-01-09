@@ -125,8 +125,7 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
         << " in the imported modules or global registry";
     return f;
   } else {
-    std::unique_ptr<PackedFunc> f(new PackedFunc(pf));
-    import_cache_[name] = std::move(f);
+    import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
     return import_cache_.at(name).get();
   }
 }
