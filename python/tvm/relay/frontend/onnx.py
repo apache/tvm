@@ -273,7 +273,7 @@ class Conv(OnnxOpConverter):
         if 'auto_pad' in attr:
             attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
             if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
-                pad_tuple = ()
+                pad_tuple = []
                 for axis in range(len(input_shape) - 2):
                     axis_shape = input_shape[2 + axis]
                     stride = attr['strides'][axis]
@@ -281,8 +281,8 @@ class Conv(OnnxOpConverter):
                     dilation = attr['dilations'][axis]
                     dilated_kernel = (kernel - 1) * dilation + 1
                     pad = get_pad_pair(axis_shape, dilated_kernel, stride)
-                    for p in pad:
-                        pad_tuple += (p, )
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
                 attr['pads'] = pad_tuple
             elif attr['auto_pad'] == 'VALID':
                 attr['pads'] = tuple([0 for i in range(len(input_shape) - 2)])
