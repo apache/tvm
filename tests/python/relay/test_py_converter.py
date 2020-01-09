@@ -550,5 +550,4 @@ def test_batch_norm():
     verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])
     verify_batch_norm([(20, 10), (10,), (10,), (10,), (10,)])
     verify_batch_norm([(10, 50), (50,), (50,), (50,), (50,)])
-    # Disable this test for now to check if CI passes. Will debug later.
-    # verify_batch_norm([(30, 40), (40,), (40,), (40,), (40,)])
+    verify_batch_norm([(30, 40), (40,), (40,), (40,), (40,)])
