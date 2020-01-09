@@ -104,18 +104,20 @@ class ModuleNode : public RelayNode {
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
-  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
+  TVM_DLL void AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
 
   /*!
-   * \brief Add a type definition to the global environment.
-   * \param var The name of the global function.
+   * \brief Add a type-level definition to the global environment.
+   * \param var The var of the global type definition.
    * \param type The ADT.
    * \param update Controls whether you can replace a definition in the
    * environment.
    *
-   * It does not do type inference as AddDef does.
+   * It does not do type checking as AddTypeDef does.
    */
-  TVM_DLL void AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update = false);
+  TVM_DLL void AddTypeDefUnchecked(const GlobalTypeVar& var,
+                                   const TypeData& type,
+                                   bool update = false);
 
   /*!
    * \brief Update a function in the global environment.
@@ -129,7 +131,7 @@ class ModuleNode : public RelayNode {
    * \param var The name of the global type definition to update.
    * \param type The new ADT.
    */
-  TVM_DLL void UpdateDef(const GlobalTypeVar& var, const TypeData& type);
+  TVM_DLL void UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type);
 
   /*!
    * \brief Remove a function from the global environment.
@@ -162,7 +164,7 @@ class ModuleNode : public RelayNode {
    * \brief Collect all global vars defined in this module.
    * \returns An array of global vars
    */
-  tvm::Array<GlobalVar> GetGlobalVars() const;
+  TVM_DLL tvm::Array<GlobalVar> GetGlobalVars() const;
 
   /*!
    * \brief Look up a global function by its name.
@@ -175,7 +177,7 @@ class ModuleNode : public RelayNode {
    * \brief Collect all global type vars defined in this module.
    * \returns An array of global type vars
    */
-  tvm::Array<GlobalTypeVar> GetGlobalTypeVars() const;
+  TVM_DLL tvm::Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
    * \brief Look up a global function by its variable.
@@ -196,14 +198,14 @@ class ModuleNode : public RelayNode {
    * \param var The var of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var) const;
+  TVM_DLL TypeData LookupTypeDef(const GlobalTypeVar& var) const;
 
   /*!
    * \brief Look up a global type definition by its name.
    * \param var The name of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const std::string& var) const;
+  TVM_DLL TypeData LookupTypeDef(const std::string& var) const;
 
   /*!
    * \brief Look up a constructor by its tag.

@@ -70,7 +70,7 @@ class AlphaEqualHandler:
       if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
       for (const auto& p : lhsm->type_definitions) {
         if (!rhsm->ContainGlobalTypeVar(p.first->name_hint) ||
-            !Equal(p.second, rhsm->LookupDef(p.first->name_hint))) {
+            !Equal(p.second, rhsm->LookupTypeDef(p.first->name_hint))) {
           return false;
         }
       }
