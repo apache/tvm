@@ -72,7 +72,7 @@ Layout::Layout(const Array<IterVar>& axes) {
   node->axes = axes;
   std::ostringstream repr;
   for (const IterVar& axis : axes) {
-    if (const auto* factor = axis->dom->extent.as<IntImm>()) {
+    if (const auto* factor = axis->dom->extent.as<IntImmNode>()) {
       CHECK_GT(factor->value, 0);
       repr << factor->value;
     }
@@ -186,7 +186,7 @@ int32_t Layout::FactorOf(const LayoutAxis& axis) const {
   if (!this->defined()) return -1;
   for (const IterVar& itvar : operator->()->axes) {
     if (sub == LayoutAxis::Get(itvar)) {
-      const auto* factor = itvar->dom->extent.as<IntImm>();
+      const auto* factor = itvar->dom->extent.as<IntImmNode>();
       CHECK(factor);
       return factor->value;
     }
@@ -251,7 +251,7 @@ inline Array<Expr> TransformIndex(const Array<Expr>& src_index,
                                   const Array<IterVar>& src_axis,
                                   const Array<Expr>& transform_rule) {
   Array<Expr> result;
-  std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_map<const VarNode*, Expr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
@@ -287,18 +287,18 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
   // for major-axis, bind the corresponding size
   // for minor-axis, simply bind it as 0, so that we can reuse forward/backward_rule,
   // e.g., (C * 16 + c) / 32
-  std::unordered_map<const Variable*, Expr> bind_map;
+  std::unordered_map<const VarNode*, Expr> bind_map;
   std::unordered_set<size_t> symbolic_var_set;
   for (size_t i = 0; i < src_shape.size(); ++i) {
     Expr orig_shape = src_shape[i];
     IterVar orig_axis = src_axis[i];
-    if (orig_shape.as<ir::Any>()) {
+    if (orig_shape.as<ir::AnyNode>()) {
       symbolic_var_set.insert(i);
     }
     if (!LayoutAxis::Get(orig_axis).IsPrimal()) {
       if (orig_shape.defined()) {
-        const auto* orig_shape_const = orig_shape.as<IntImm>();
-        const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImm>();
+        const auto* orig_shape_const = orig_shape.as<IntImmNode>();
+        const auto* orig_axis_extent = orig_axis->dom->extent.as<IntImmNode>();
         if (orig_shape_const) {
           CHECK_EQ(orig_shape_const->value, orig_axis_extent->value)
             << "Input shape mismatch at index " << i << ". Expected "
@@ -322,7 +322,7 @@ inline Array<Expr> TransformShape(const Array<Expr>& src_shape,
       result.push_back(axis->dom->extent);
     } else {
       if (symbolic_var_set.count(i)) {
-        result.push_back(ir::Any::make());
+        result.push_back(ir::AnyNode::make());
       } else {
         result.push_back(ir::Simplify(ir::Substitute(rule, bind_map)));
       }

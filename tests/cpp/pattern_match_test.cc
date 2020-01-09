@@ -62,7 +62,7 @@ TEST(Pattern, Basic) {
   CHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
     CHECK(select(px >= pz, py, py + pz).Match(
-        ir::Select::make((x + 1) >= 1, y, y + 1)));
+        ir::SelectNode::make((x + 1) >= 1, y, y + 1)));
     CHECK(ir::Equal(px.Eval(), x + 1));
   }
   // bit intrinsics
@@ -79,16 +79,16 @@ TEST(Pattern, Basic) {
   // select
   {
     CHECK(select(px > pz, py, py + pz).Match(
-      ir::Select::make(x > 1, y, y + 1)));
+      ir::SelectNode::make(x > 1, y, y + 1)));
     CHECK(is_const_int(pz.Eval(), 1));
   }
   CHECK(!select(px > pz, py, py + pz).Match(
-      ir::Select::make(x > 2, y, y + 1)));
+      ir::SelectNode::make(x > 2, y, y + 1)));
   CHECK(!select(px > pz, py, py).Match(
-      ir::Select::make(x > 2, y, y + 1)));
+      ir::SelectNode::make(x > 2, y, y + 1)));
   {
     CHECK(select(px, py, pz).Match(
-        ir::Select::make(x > 2, y, y + 1)));
+        ir::SelectNode::make(x > 2, y, y + 1)));
     CHECK(ir::Equal(pz.Eval(), y + 1));
   }
   // if_then_else
@@ -100,30 +100,30 @@ TEST(Pattern, Basic) {
   // cast pattern
   {
     CHECK(!cast(PConst<DataType>(
-        DataType::Int(32)), px).Match(ir::Cast::make(DataType::Float(64), x)));
-    CHECK(cast(pt, px).Match(ir::Cast::make(DataType::Float(64), x)));
+        DataType::Int(32)), px).Match(ir::CastNode::make(DataType::Float(64), x)));
+    CHECK(cast(pt, px).Match(ir::CastNode::make(DataType::Float(64), x)));
     CHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
     CHECK((cast(pt, px) - cast(pt, py)).Match(
-        ir::Cast::make(DataType::Float(64), x) - ir::Cast::make(DataType::Int(64), x)));
-    auto expr = ir::Cast::make(DataType::Int(32), ir::Cast::make(DataType::Float(64), x));
+        ir::CastNode::make(DataType::Float(64), x) - ir::CastNode::make(DataType::Int(64), x)));
+    auto expr = ir::CastNode::make(DataType::Int(32), ir::CastNode::make(DataType::Float(64), x));
     CHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern
   {
     CHECK(ramp(px, PConst<Expr>(1), planes).Match(
-        ir::Ramp::make(x, 1, 10)));
+        ir::RampNode::make(x, 1, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(!ramp(px, PConst<Expr>(1), planes).Match(
-        ir::Ramp::make(x, 2, 10)));
+        ir::RampNode::make(x, 2, 10)));
   }
   // broadcast pattern
   {
     CHECK(broadcast(px, planes).Match(
-        ir::Broadcast::make(x, 10)));
+        ir::BroadcastNode::make(x, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(broadcast(px * py , planes).Match(
-        ir::Broadcast::make(x * 10, 10)));
+        ir::BroadcastNode::make(x * 10, 10)));
   }
 }
 

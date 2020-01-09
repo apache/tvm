@@ -131,7 +131,7 @@ TEST(PackedFunc, Expr) {
   // automatic conversion of int to expr
   PackedFunc addone([](TVMArgs args, TVMRetValue* rv) {
       Expr x = args[0];
-      *rv = x.as<tvm::ir::IntImm>()->value + 1;
+      *rv = x.as<tvm::ir::IntImmNode>()->value + 1;
   });
   int r0 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       PackedFunc f = args[0];

@@ -114,12 +114,12 @@ class Module : public ObjectRef {
 class TVM_DLL ModuleNode : public Object {
  public:
   /*! \brief virtual destructor */
-  TVM_DLL virtual ~ModuleNode() {}
+  virtual ~ModuleNode() {}
   /*!
    * \return The per module type key.
    * \note This key is used to for serializing custom modules.
    */
-  TVM_DLL virtual const char* type_key() const = 0;
+  virtual const char* type_key() const = 0;
   /*!
    * \brief Get a PackedFunc from module.
    *
@@ -137,7 +137,7 @@ class TVM_DLL ModuleNode : public Object {
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  TVM_DLL virtual PackedFunc GetFunction(
+  virtual PackedFunc GetFunction(
       const std::string& name,
       const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
@@ -145,8 +145,8 @@ class TVM_DLL ModuleNode : public Object {
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  TVM_DLL virtual void SaveToFile(const std::string& file_name,
-                                  const std::string& format);
+  virtual void SaveToFile(const std::string& file_name,
+                          const std::string& format);
   /*!
    * \brief Save the module to binary stream.
    * \param stream The binary stream to save to.
@@ -154,13 +154,13 @@ class TVM_DLL ModuleNode : public Object {
    *   but not necessarily host modules.
    *   We can use this to do AOT loading of bundled device functions.
    */
-  TVM_DLL virtual void SaveToBinary(dmlc::Stream* stream);
+  virtual void SaveToBinary(dmlc::Stream* stream);
   /*!
    * \brief Get the source code of module, when available.
    * \param format Format of the source code, can be empty by default.
    * \return Possible source code when available.
    */
-  TVM_DLL virtual std::string GetSource(const std::string& format = "");
+  virtual std::string GetSource(const std::string& format = "");
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -170,7 +170,7 @@ class TVM_DLL ModuleNode : public Object {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  TVM_DLL PackedFunc GetFunction(const std::string& name, bool query_imports = false);
+  PackedFunc GetFunction(const std::string& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -178,7 +178,7 @@ class TVM_DLL ModuleNode : public Object {
    * \note Cyclic dependency is not allowed among modules,
    *  An error will be thrown when cyclic dependency is detected.
    */
-  TVM_DLL void Import(Module other);
+  void Import(Module other);
   /*!
    * \brief Get a function from current environment
    *  The environment includes all the imports as well as Global functions.
@@ -186,7 +186,7 @@ class TVM_DLL ModuleNode : public Object {
    * \param name name of the function.
    * \return The corresponding function.
    */
-  TVM_DLL const PackedFunc* GetFuncFromEnv(const std::string& name);
+  const PackedFunc* GetFuncFromEnv(const std::string& name);
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const {
     return imports_;
@@ -208,7 +208,7 @@ class TVM_DLL ModuleNode : public Object {
  private:
   /*! \brief Cache used by GetImport */
   std::unordered_map<std::string,
-                     std::unique_ptr<PackedFunc> > import_cache_;
+                     std::shared_ptr<PackedFunc> > import_cache_;
 };
 
 /*! \brief namespace for constant symbols */

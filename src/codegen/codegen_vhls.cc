@@ -98,7 +98,7 @@ inline void PrintBinaryExpr(const T* op,
   os << ')';
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenVivadoHLS::VisitExpr_(const MinNode *op, std::ostream& os) {  // NOLINT(*)
   const char *opstr = "std::min";
   if (op->dtype.is_float()) {
     switch (op->dtype.bits()) {
@@ -112,7 +112,7 @@ void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenVivadoHLS::VisitExpr_(const MaxNode *op, std::ostream& os) {  // NOLINT(*)
   const char *opstr = "std::max";
   if (op->dtype.is_float()) {
     switch (op->dtype.bits()) {

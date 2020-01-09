@@ -95,7 +95,7 @@ inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
   }
 
   auto body = fextern(input_placeholders, output_placeholders);
-  auto body_stmt = tvm::ir::Evaluate::make(body);
+  auto body_stmt = tvm::ir::EvaluateNode::make(body);
 
   auto op = ExternOpNode::make(
       name, tag, attrs, inputs,
@@ -118,12 +118,12 @@ inline Array<Tensor> make_extern(const Array< Array<Expr> >& out_shapes,
  */
 inline Expr pack_buffer(Buffer buf) {
   CHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
-  auto shape = tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
-                                   buf->shape, tvm::ir::Call::CallType::Intrinsic);
+  auto shape = tvm::ir::CallNode::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
+                                   buf->shape, tvm::ir::CallNode::CallType::Intrinsic);
   Expr strides;
   if (buf->strides.size() > 0) {
-    strides = tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
-                                  buf->shape, tvm::ir::Call::CallType::Intrinsic);
+    strides = tvm::ir::CallNode::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_shape,
+                                  buf->shape, tvm::ir::CallNode::CallType::Intrinsic);
   } else {
     strides = 0;
   }
@@ -135,8 +135,8 @@ inline Expr pack_buffer(Buffer buf) {
     make_const(buf->dtype, 0),
     buf->elem_offset
   };
-  return tvm::ir::Call::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_array,
-                             pack_args, tvm::ir::Call::CallType::Intrinsic);
+  return tvm::ir::CallNode::make(DataType::Handle(), tvm::ir::intrinsic::tvm_stack_make_array,
+                             pack_args, tvm::ir::CallNode::CallType::Intrinsic);
 }
 
 /*!
@@ -149,8 +149,8 @@ inline Expr pack_buffer(Buffer buf) {
  * \return An expression representing the invocation
  */
 inline Expr call_packed(Array<Expr> args) {
-  return tvm::ir::Call::make(DataType::Int(32), tvm::ir::intrinsic::tvm_call_packed,
-                             args, tvm::ir::Call::CallType::Intrinsic);
+  return tvm::ir::CallNode::make(DataType::Int(32), tvm::ir::intrinsic::tvm_call_packed,
+                             args, tvm::ir::CallNode::CallType::Intrinsic);
 }
 
 }  // namespace detail

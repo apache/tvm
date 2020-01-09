@@ -119,14 +119,14 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  if (!dshape_nchw[2].as<ir::Any>()) {
+  if (!dshape_nchw[2].as<ir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_nchw[2] + pad_h - dilated_ksize_y,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
 
-  if (!dshape_nchw[3].as<ir::Any>()) {
+  if (!dshape_nchw[3].as<ir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_nchw[3] + pad_w - dilated_ksize_x,
                            param->strides[1]) + 1);
   } else {
@@ -232,21 +232,21 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_d, pad_h, pad_w;
   GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
-  if (!dshape_ncdhw[2].as<ir::Any>()) {
+  if (!dshape_ncdhw[2].as<ir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncdhw[2] + pad_d - dilated_ksize_z,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncdhw[2]);
   }
 
-  if (!dshape_ncdhw[3].as<ir::Any>()) {
+  if (!dshape_ncdhw[3].as<ir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_ncdhw[3] + pad_h - dilated_ksize_y,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
 
-  if (!dshape_ncdhw[4].as<ir::Any>()) {
+  if (!dshape_ncdhw[4].as<ir::AnyNode>()) {
     oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x,
                            param->strides[2]) + 1);
   } else {

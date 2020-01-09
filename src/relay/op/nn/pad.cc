@@ -80,7 +80,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
 
         // If any pad_width element is not zero, do not change the layout.
         for (auto width : axis_pad_width.at(dual_axis_name)) {
-          if (auto* width_imm = width.as<IntImm>()) {
+          if (auto* width_imm = width.as<IntImmNode>()) {
             if (width_imm->value != 0) {
               is_layout_modified = false;
             }
@@ -147,7 +147,7 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    if (!data->shape[i].as<ir::Any>()) {
+    if (!data->shape[i].as<ir::AnyNode>()) {
       auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
     } else {

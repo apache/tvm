@@ -35,9 +35,9 @@ class IRInline final : public StmtExprMutator {
   IRInline(FunctionRef f, Array<Var> args, Expr body)
       : f_(f), args_(args), body_(body) {}
 
-  Expr VisitExpr_(const Call* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Expr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<Call>();
+    op = expr.as<CallNode>();
 
     if (op->func == f_) {
       CHECK_EQ(op->value_index, 0);
@@ -50,7 +50,7 @@ class IRInline final : public StmtExprMutator {
       }
       if (has_side_effect) {
         for (size_t i = 0; i < args_.size(); ++i) {
-          expr = Let::make(args_[i], op->args[i], expr);
+          expr = LetNode::make(args_[i], op->args[i], expr);
         }
       } else {
         Map<Var, Expr> vmap;
@@ -58,7 +58,7 @@ class IRInline final : public StmtExprMutator {
           vmap.Set(args_[i], op->args[i]);
         }
         expr = Substitute(
-            Evaluate::make(expr), vmap).as<Evaluate>()->value;
+            EvaluateNode::make(expr), vmap).as<EvaluateNode>()->value;
       }
       return expr;
     } else {

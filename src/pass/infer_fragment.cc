@@ -47,20 +47,20 @@ class FragmentGetter : public StmtExprVisitor {
       : m(_m), n(_n), k(_k), layout(_layout) {}
   };
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
     if (op->is_intrinsic(intrinsic::tvm_load_matrix_sync) ||
         op->is_intrinsic(intrinsic::tvm_store_matrix_sync)) {
       // Get shape and layout information from load and store intrinsic
       CHECK_EQ(op->args.size(), 8U);
-      const Variable* buffer_var = op->args[0].as<Variable>();
+      const VarNode* buffer_var = op->args[0].as<VarNode>();
       CHECK(buffer_var);
       // Get shape
-      const IntImm* m = op->args[1].as<IntImm>();
-      const IntImm* n = op->args[2].as<IntImm>();
-      const IntImm* k = op->args[3].as<IntImm>();
-      const StringImm* layout = op->args[7].as<StringImm>();
+      const IntImmNode* m = op->args[1].as<IntImmNode>();
+      const IntImmNode* n = op->args[2].as<IntImmNode>();
+      const IntImmNode* k = op->args[3].as<IntImmNode>();
+      const StringImmNode* layout = op->args[7].as<StringImmNode>();
       CHECK(m);
       CHECK(n);
       CHECK(k);
@@ -89,12 +89,12 @@ class FragmentGetter : public StmtExprVisitor {
     } else if (op->is_intrinsic(intrinsic::tvm_fill_fragment)) {
       // Get shape information from fill intrinsic
       CHECK_EQ(op->args.size(), 6U);
-      const Variable* buffer_var = op->args[0].as<Variable>();
+      const VarNode* buffer_var = op->args[0].as<VarNode>();
       CHECK(buffer_var);
       // Get shape
-      const IntImm* m = op->args[1].as<IntImm>();
-      const IntImm* n = op->args[2].as<IntImm>();
-      const IntImm* k = op->args[3].as<IntImm>();
+      const IntImmNode* m = op->args[1].as<IntImmNode>();
+      const IntImmNode* n = op->args[2].as<IntImmNode>();
+      const IntImmNode* k = op->args[3].as<IntImmNode>();
       CHECK(m);
       CHECK(n);
       CHECK(k);
@@ -115,19 +115,19 @@ class FragmentGetter : public StmtExprVisitor {
   }
 
   // Get memory scope
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buffer = op->node.as<Variable>();
+      const VarNode* buffer = op->node.as<VarNode>();
       CHECK(buffer);
-      scopes[buffer] = op->value.as<StringImm>()->value;
+      scopes[buffer] = op->value.as<StringImmNode>()->value;
     }
     StmtExprVisitor::VisitStmt_(op);
   }
 
   // Memory scope for allocations
-  std::unordered_map<const Variable*, std::string> scopes;
+  std::unordered_map<const VarNode*, std::string> scopes;
   // Fragment metadata for all fragments
-  std::unordered_map<const Variable*, FragmentInfo> fragments;
+  std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
@@ -135,15 +135,15 @@ class FragmentChecker : public StmtExprVisitor {
  public:
   explicit FragmentChecker(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  void VisitExpr_(const Call* op) final {
+  void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
     if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
       CHECK_EQ(op->args.size(), 8U);
-      const Variable* buffer_var_d = op->args[0].as<Variable>();
-      const Variable* buffer_var_a = op->args[2].as<Variable>();
-      const Variable* buffer_var_b = op->args[4].as<Variable>();
-      const Variable* buffer_var_c = op->args[6].as<Variable>();
+      const VarNode* buffer_var_d = op->args[0].as<VarNode>();
+      const VarNode* buffer_var_a = op->args[2].as<VarNode>();
+      const VarNode* buffer_var_b = op->args[4].as<VarNode>();
+      const VarNode* buffer_var_c = op->args[6].as<VarNode>();
       CHECK(buffer_var_d);
       CHECK(buffer_var_a);
       CHECK(buffer_var_b);
@@ -158,7 +158,7 @@ class FragmentChecker : public StmtExprVisitor {
 
  private:
   // A tool for checking shapes of two fragments
-  bool CheckShape(const Variable* buffer1, const Variable* buffer2) {
+  bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
     CHECK(fragment_getter.fragments.count(buffer1));
     CHECK(fragment_getter.fragments.count(buffer2));
     FragmentGetter::FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
@@ -174,9 +174,9 @@ class InferFragmenter : public StmtMutator {
  public:
   explicit InferFragmenter(const FragmentGetter &getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    const Variable* buffer = op->buffer_var.get();
+    const VarNode* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {
       // Add attribute to fragments allocation
       FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
@@ -185,12 +185,12 @@ class InferFragmenter : public StmtMutator {
       std::string shape = std::to_string(info.m) + ", " +
                           std::to_string(info.n) + ", " +
                           std::to_string(info.k);
-      Expr shape_expr = StringImm::make(shape);
-      Stmt shape_attr = AttrStmt::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
+      Expr shape_expr = StringImmNode::make(shape);
+      Stmt shape_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         // Add shape attribute to matrix_a and matrix_b
-        Stmt layout_attr = AttrStmt::make(op->buffer_var, attr::fragment_layout,
-                                          StringImm::make(info.layout), shape_attr);
+        Stmt layout_attr = AttrStmtNode::make(op->buffer_var, attr::fragment_layout,
+                                          StringImmNode::make(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

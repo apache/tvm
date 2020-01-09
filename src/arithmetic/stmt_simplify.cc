@@ -50,14 +50,14 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const LetStmt* op) {
+  Stmt VisitStmt_(const LetStmtNode* op) {
     Expr value = this->VisitExpr(op->value);
     if (!ir::HasSideEffect(value)) {
       // it is fine to discard the let binding
@@ -78,13 +78,13 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   // eliminate useless stores
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<Store>();
-    if (const Load* load = op->value.as<Load>()) {
+    op = stmt.as<StoreNode>();
+    if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           Equal(load->index, op->index)) {
-        return Evaluate::make(0);
+        return EvaluateNode::make(0);
       }
     }
     return GetRef<Stmt>(op);

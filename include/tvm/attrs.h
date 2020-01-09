@@ -488,9 +488,9 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   } else {
     Expr expr = val;
     CHECK(expr.defined());
-    if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<T>(op->value);
-    } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
+    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
       *ptr = static_cast<T>(op->value);
     } else {
       LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
@@ -503,7 +503,7 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
     *ptr = val.operator std::string();
   } else {
     Expr expr = val;
-    const ir::StringImm* op = expr.as<ir::StringImm>();
+    const ir::StringImmNode* op = expr.as<ir::StringImmNode>();
     CHECK(op != nullptr);
     *ptr = op->value;
   }
@@ -519,11 +519,11 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   } else {
     Expr expr = val;
     CHECK(expr.defined());
-    if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
-    } else if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    } else if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
-    } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
+    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else {
       LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();

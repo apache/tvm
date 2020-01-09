@@ -26,9 +26,9 @@ TEST(IRSSA, Convert) {
   using namespace tvm;
   using namespace tvm::ir;
   Var x("x"), y;
-  Expr let = Let::make(x, 1, x + 1);
+  Expr let = LetNode::make(x, 1, x + 1);
 
-  auto z = Evaluate::make(let + let);
+  auto z = EvaluateNode::make(let + let);
   CHECK(!ir::VerifySSA(z));
   auto z_ssa = ir::ConvertSSA(z);
   CHECK(ir::VerifySSA(z_ssa));
@@ -38,7 +38,7 @@ TEST(IRSSA, Basic) {
   using namespace tvm::ir;
   using namespace tvm;
   Var x("x"), y;
-  auto z = Evaluate::make(x + y);
+  auto z = EvaluateNode::make(x + y);
   CHECK(ir::VerifySSA(z));
 }
 

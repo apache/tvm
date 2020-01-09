@@ -182,22 +182,22 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Any::make();
     }
 
-    auto left_index0 = ulhs.as<tvm::Variable>();
-    auto right_index0 = urhs.as<tvm::IntImm>();
+    auto left_index0 = ulhs.as<tvm::VarNode>();
+    auto right_index0 = urhs.as<tvm::IntImmNode>();
     if (left_index0 && right_index0) {
       solver_->shape_uf_.Set(ulhs, urhs);
       return urhs;
     }
 
-    auto left_index1 = ulhs.as<tvm::IntImm>();
-    auto right_index1 = urhs.as<tvm::Variable>();
+    auto left_index1 = ulhs.as<tvm::IntImmNode>();
+    auto right_index1 = urhs.as<tvm::VarNode>();
     if (left_index1 && right_index1) {
       solver_->shape_uf_.Set(urhs, ulhs);
       return ulhs;
     }
 
-    auto left_index2 = ulhs.as<tvm::IntImm>();
-    auto right_index2 = urhs.as<tvm::IntImm>();
+    auto left_index2 = ulhs.as<tvm::IntImmNode>();
+    auto right_index2 = urhs.as<tvm::IntImmNode>();
     if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
       return ulhs;
     }

@@ -61,12 +61,12 @@ struct Direct {
 template<typename T>
 inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
   Expr e = args[0];
-  const Call* call = e.as<Call>();
+  const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   std::string name = T()(call->dtype, call->name);
   if (name.length() != 0) {
-    *rv = Call::make(
-        call->dtype, name, call->args, Call::PureExtern);
+    *rv = CallNode::make(
+        call->dtype, name, call->args, CallNode::PureExtern);
   } else {
     *rv = e;
   }

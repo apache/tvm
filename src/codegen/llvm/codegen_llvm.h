@@ -103,46 +103,46 @@ class CodeGenLLVM :
     return llvm::ConstantInt::getSigned(t_int32_, value);
   }
   // override codegen
-  llvm::Value* VisitExpr_(const Variable* op) override;
-  llvm::Value* VisitExpr_(const Cast* op) override;
-  llvm::Value* VisitExpr_(const IntImm* op) override;
-  llvm::Value* VisitExpr_(const UIntImm* op) override;
-  llvm::Value* VisitExpr_(const FloatImm* op) override;
-  llvm::Value* VisitExpr_(const StringImm* op) override;
-  llvm::Value* VisitExpr_(const Add* op) override;
-  llvm::Value* VisitExpr_(const Sub* op) override;
-  llvm::Value* VisitExpr_(const Mul* op) override;
-  llvm::Value* VisitExpr_(const Div* op) override;
-  llvm::Value* VisitExpr_(const Mod* op) override;
-  llvm::Value* VisitExpr_(const Min* op) override;
-  llvm::Value* VisitExpr_(const Max* op) override;
-  llvm::Value* VisitExpr_(const LT* op) override;
-  llvm::Value* VisitExpr_(const LE* op) override;
-  llvm::Value* VisitExpr_(const GT* op) override;
-  llvm::Value* VisitExpr_(const GE* op) override;
-  llvm::Value* VisitExpr_(const EQ* op) override;
-  llvm::Value* VisitExpr_(const NE* op) override;
-  llvm::Value* VisitExpr_(const And* op) override;
-  llvm::Value* VisitExpr_(const Or* op) override;
-  llvm::Value* VisitExpr_(const Not* op) override;
-  llvm::Value* VisitExpr_(const Select* op) override;
-  llvm::Value* VisitExpr_(const Let* op) override;
-  llvm::Value* VisitExpr_(const Load* op) override;
-  llvm::Value* VisitExpr_(const Call* op) override;
-  llvm::Value* VisitExpr_(const Ramp* op) override;
-  llvm::Value* VisitExpr_(const Shuffle* op) override;
-  llvm::Value* VisitExpr_(const Broadcast* op) override;
+  llvm::Value* VisitExpr_(const VarNode* op) override;
+  llvm::Value* VisitExpr_(const CastNode* op) override;
+  llvm::Value* VisitExpr_(const IntImmNode* op) override;
+  llvm::Value* VisitExpr_(const UIntImmNode* op) override;
+  llvm::Value* VisitExpr_(const FloatImmNode* op) override;
+  llvm::Value* VisitExpr_(const StringImmNode* op) override;
+  llvm::Value* VisitExpr_(const AddNode* op) override;
+  llvm::Value* VisitExpr_(const SubNode* op) override;
+  llvm::Value* VisitExpr_(const MulNode* op) override;
+  llvm::Value* VisitExpr_(const DivNode* op) override;
+  llvm::Value* VisitExpr_(const ModNode* op) override;
+  llvm::Value* VisitExpr_(const MinNode* op) override;
+  llvm::Value* VisitExpr_(const MaxNode* op) override;
+  llvm::Value* VisitExpr_(const LTNode* op) override;
+  llvm::Value* VisitExpr_(const LENode* op) override;
+  llvm::Value* VisitExpr_(const GTNode* op) override;
+  llvm::Value* VisitExpr_(const GENode* op) override;
+  llvm::Value* VisitExpr_(const EQNode* op) override;
+  llvm::Value* VisitExpr_(const NENode* op) override;
+  llvm::Value* VisitExpr_(const AndNode* op) override;
+  llvm::Value* VisitExpr_(const OrNode* op) override;
+  llvm::Value* VisitExpr_(const NotNode* op) override;
+  llvm::Value* VisitExpr_(const SelectNode* op) override;
+  llvm::Value* VisitExpr_(const LetNode* op) override;
+  llvm::Value* VisitExpr_(const LoadNode* op) override;
+  llvm::Value* VisitExpr_(const CallNode* op) override;
+  llvm::Value* VisitExpr_(const RampNode* op) override;
+  llvm::Value* VisitExpr_(const ShuffleNode* op) override;
+  llvm::Value* VisitExpr_(const BroadcastNode* op) override;
   // stmt
-  void VisitStmt_(const Store* op) override;
-  void VisitStmt_(const For* op) override;
-  void VisitStmt_(const IfThenElse* op) override;
-  void VisitStmt_(const Allocate* op) override;
-  void VisitStmt_(const AttrStmt* op) override;
-  void VisitStmt_(const AssertStmt* op) override;
-  void VisitStmt_(const LetStmt* op) override;
+  void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const AllocateNode* op) override;
+  void VisitStmt_(const AttrStmtNode* op) override;
+  void VisitStmt_(const AssertStmtNode* op) override;
+  void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const Evaluate* op) override;
-  void VisitStmt_(const ProducerConsumer* op) override;
+  void VisitStmt_(const EvaluateNode* op) override;
+  void VisitStmt_(const ProducerConsumerNode* op) override;
 
  protected:
   /*! \brief The storage information */
@@ -173,13 +173,13 @@ class CodeGenLLVM :
     return res;
   }
   // create intrinstic given call
-  virtual llvm::Value* CreateIntrinsic(const Call* op);
+  virtual llvm::Value* CreateIntrinsic(const CallNode* op);
   // create extern function call
-  virtual llvm::Value* CreateCallExtern(const Call* op);
+  virtual llvm::Value* CreateCallExtern(const CallNode* op);
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
-  virtual llvm::Value* CreateStorageSync(const Call* op);
+  virtual llvm::Value* CreateStorageSync(const CallNode* op);
   // apply optimization on the module.
   virtual void InitPassManagerBuilder(llvm::PassManagerBuilder* builder);
   // Scalarize by iterating elements of e.
@@ -211,19 +211,19 @@ class CodeGenLLVM :
   void InitFuncState();
   // Get alignment given index.
   void GetAlignment(
-      DataType t, const Variable* buf_var, const Expr& index,
+      DataType t, const VarNode* buf_var, const Expr& index,
       int* p_alignment, int* p_native_bits);
   // Get constant string
   llvm::Value* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(
-      const Call* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
+      const CallNode* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
   llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
   // comparison op
-  llvm::Value* GetVarValue(const Variable* v) const;
+  llvm::Value* GetVarValue(const VarNode* v) const;
   llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
@@ -245,7 +245,7 @@ class CodeGenLLVM :
                        llvm::Value* stride,
                        const VarExpr& loop_var, const Stmt& body);
   // add alias information.
-  void AddAliasInfo(llvm::Instruction* load, const Variable* buffer, Expr index, DataType type);
+  void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, Expr index, DataType type);
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -280,9 +280,9 @@ class CodeGenLLVM :
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */
-  std::unordered_map<const Variable*, StorageInfo> alloc_storage_info_;
+  std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
-  std::unordered_map<const Variable*, llvm::Value*> var_map_;
+  std::unordered_map<const VarNode*, llvm::Value*> var_map_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;
   // Whether current function is restricted
@@ -290,9 +290,9 @@ class CodeGenLLVM :
   // The analyzer information
   std::unique_ptr<arith::Analyzer> analyzer_;
   // set of var that are not restricted(can alias)
-  std::unordered_set<const Variable*> alias_var_set_;
+  std::unordered_set<const VarNode*> alias_var_set_;
   // set of volatile buffer.
-  std::unordered_set<const Variable*> volatile_buf_;
+  std::unordered_set<const VarNode*> volatile_buf_;
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
     std::unique_ptr<llvm::DIBuilder> di_builder_;

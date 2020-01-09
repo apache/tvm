@@ -221,7 +221,7 @@ Pass CombineParallelConv2D(uint64_t min_num_branches) {
       return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")

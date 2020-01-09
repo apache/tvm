@@ -75,7 +75,7 @@ inline Expr const_false(int lanes = 1) {
  */
 inline const int64_t* as_const_int(const Expr& x) {
   if (!x.defined()) return nullptr;
-  if (const ir::IntImm* op = x.as<ir::IntImm>()) {
+  if (const ir::IntImmNode* op = x.as<ir::IntImmNode>()) {
     return &(op->value);
   } else {
     return nullptr;
@@ -90,7 +90,7 @@ inline const int64_t* as_const_int(const Expr& x) {
  */
 inline const uint64_t* as_const_uint(const Expr& x) {
   if (!x.defined()) return nullptr;
-  if (const ir::UIntImm* op = x.as<ir::UIntImm>()) {
+  if (const ir::UIntImmNode* op = x.as<ir::UIntImmNode>()) {
     return &(op->value);
   } else {
     return nullptr;
@@ -600,7 +600,7 @@ TVM_DLL Expr trunc(Expr x);
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
-    return ir::Call::make(x.dtype(), #OpName, {x}, ir::Call::PureIntrinsic); \
+    return ir::CallNode::make(x.dtype(), #OpName, {x}, ir::CallNode::PureIntrinsic); \
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
@@ -617,11 +617,11 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 
 // Implementation details after this
 inline bool is_const(const Expr& x) {
-  if (x.as<ir::IntImm>() || x.as<ir::UIntImm>()) {
+  if (x.as<ir::IntImmNode>() || x.as<ir::UIntImmNode>()) {
     return true;
-  } else if (const auto* op = x.as<ir::Broadcast>()) {
+  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const Expr& val = op->value;
-    if (val.as<ir::IntImm>() || val.as<ir::UIntImm>()) {
+    if (val.as<ir::IntImmNode>() || val.as<ir::UIntImmNode>()) {
       return true;
     }
   }
@@ -629,9 +629,9 @@ inline bool is_const(const Expr& x) {
 }
 
 inline bool is_positive_const(const Expr& a) {
-  if (const ir::IntImm* op = a.as<ir::IntImm>()) {
+  if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
     return op->value > 0;
-  } else if (const ir::UIntImm* op = a.as<ir::UIntImm>()) {
+  } else if (const ir::UIntImmNode* op = a.as<ir::UIntImmNode>()) {
     return op->value > 0;
   } else {
     return false;
@@ -639,7 +639,7 @@ inline bool is_positive_const(const Expr& a) {
 }
 
 inline bool is_negative_const(const Expr& a) {
-  if (const ir::IntImm* op = a.as<ir::IntImm>()) {
+  if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
     return op->value < 0;
   } else {
     return false;
@@ -647,15 +647,15 @@ inline bool is_negative_const(const Expr& a) {
 }
 
 inline bool is_const_int(const Expr& x, int64_t value) {
-  if (const auto* op = x.as<ir::IntImm>()) {
+  if (const auto* op = x.as<ir::IntImmNode>()) {
     return op->value == value;
-  } else if (const auto* op = x.as<ir::UIntImm>()) {
+  } else if (const auto* op = x.as<ir::UIntImmNode>()) {
     return op->value == static_cast<uint64_t>(value);
-  } else if (const auto* op = x.as<ir::Broadcast>()) {
+  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const Expr& val = op->value;
-    if (const auto* opv = val.as<ir::IntImm>()) {
+    if (const auto* opv = val.as<ir::IntImmNode>()) {
       return opv->value == value;
-    } else if (const auto* opv = val.as<ir::UIntImm>()) {
+    } else if (const auto* opv = val.as<ir::UIntImmNode>()) {
       return opv->value == static_cast<uint64_t>(value);
     }
   }
@@ -664,7 +664,7 @@ inline bool is_const_int(const Expr& x, int64_t value) {
 
 inline bool is_no_op(const Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (const auto* op = stmt.as<ir::Evaluate>()) {
+  if (const auto* op = stmt.as<ir::EvaluateNode>()) {
     return is_const(op->value);
   }
   if (const auto* op = stmt.as<ir::SeqStmtNode>()) {
@@ -675,15 +675,15 @@ inline bool is_no_op(const Stmt& stmt) {
 
 template<typename ValueType>
 inline Expr MakeConstScalar(DataType t, ValueType value) {
-  if (t.is_int()) return ir::IntImm::make(t, static_cast<int64_t>(value));
-  if (t.is_uint()) return ir::UIntImm::make(t, static_cast<uint64_t>(value));
-  if (t.is_float()) return ir::FloatImm::make(t, static_cast<double>(value));
+  if (t.is_int()) return ir::IntImmNode::make(t, static_cast<int64_t>(value));
+  if (t.is_uint()) return ir::UIntImmNode::make(t, static_cast<uint64_t>(value));
+  if (t.is_float()) return ir::FloatImmNode::make(t, static_cast<double>(value));
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
   if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kCustomBegin))
-    return ir::FloatImm::make(t, static_cast<double>(value));
+    return ir::FloatImmNode::make(t, static_cast<double>(value));
   LOG(FATAL) << "cannot make const for type " << t;
   return Expr();
 }
@@ -693,7 +693,7 @@ inline Expr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return ir::Broadcast::make(
+    return ir::BroadcastNode::make(
         MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }

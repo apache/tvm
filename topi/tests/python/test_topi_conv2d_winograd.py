@@ -136,18 +136,18 @@ def test_conv2d_nchw():
         verify_conv2d_nchw(2, 13, 71, 59, 3, 1, 1)
 
         # Asymmetric padding
-        verify_conv2d_nchw(1,  64, 56,  64, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(1, 128, 28, 128, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(1, 256, 14, 256, 3, 1, (1, 1))
+        verify_conv2d_nchw(1,  48, 56,  48, 3, 1, (1, 1, 1, 1))
+        verify_conv2d_nchw(1,  64, 28,  64, 3, 1, (1, 1, 1, 1))
+        verify_conv2d_nchw(1, 128, 14, 128, 3, 1, (1, 1))
         verify_conv2d_nchw(1, 512,  7, 512, 3, 1, "SAME")
-        verify_conv2d_nchw(2, 13, 71, 59, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(2,  64, 56,  64, 3, 1, (1, 1, 1, 1), add_bias=True)
-        verify_conv2d_nchw(2,  64, 56,  64, 3, 1, (1, 1), add_relu=True)
-        verify_conv2d_nchw(2,  64, 56,  64, 3, 1, "SAME", add_relu=True, add_bias=True)
-        verify_conv2d_nchw(1, 128, 17, 192, 7, 1, (3, 1), devices=['cuda'])
-        verify_conv2d_nchw(1, 128, 17, 128, 7, 1, (3, 3, 2, 2), devices=['cuda'])
+        verify_conv2d_nchw(2, 13,  71,  59, 3, 1, (1, 1, 1, 1))
+        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1, 1, 1), add_bias=True)
+        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1), add_relu=True)
+        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, "SAME", add_relu=True, add_bias=True)
+        verify_conv2d_nchw(1,  64, 17, 192, 7, 1, (3, 1), devices=['cuda'])
+        verify_conv2d_nchw(1,  64, 17,  64, 7, 1, (3, 3, 2, 2), devices=['cuda'])
         verify_conv2d_nchw(1, 160, 17, 160, 7, 1, "SAME", devices=['cuda'])
-        verify_conv2d_nchw(1,  48, 35,  64, 5, 1, "VALID", devices=['cuda'])
+        verify_conv2d_nchw(1,  48, 35,  48, 5, 1, "VALID", devices=['cuda'])
 
 
 if __name__ == "__main__":

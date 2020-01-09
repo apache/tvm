@@ -194,7 +194,7 @@ Pass CombineParallelOpBatch(const std::string& op_name,
                                                        min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelOpBatch",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelOpBatch")

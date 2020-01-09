@@ -548,13 +548,13 @@ bool Conv2DWinogradRel(const Array<Type>& types,
 
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  if (!dshape_nchw[2].as<ir::Any>()) {
+  if (!dshape_nchw[2].as<ir::AnyNode>()) {
     oshape.Set(2, (dshape_nchw[2] + pad_h
                    - dilated_ksize_y) / param->strides[0] + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
-  if (!dshape_nchw[3].as<ir::Any>()) {
+  if (!dshape_nchw[3].as<ir::AnyNode>()) {
     oshape.Set(3, (dshape_nchw[3] + pad_w
                    - dilated_ksize_x) / param->strides[1] + 1);
   } else {

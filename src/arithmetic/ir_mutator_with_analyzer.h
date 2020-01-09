@@ -49,15 +49,15 @@ class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
 
   // override functions that need to populate the context information.
-  Stmt VisitStmt_(const ir::For* op) override;
-  Stmt VisitStmt_(const ir::LetStmt* op) override;
-  Stmt VisitStmt_(const ir::IfThenElse* op) override;
-  Stmt VisitStmt_(const ir::AttrStmt* op) override;
-  Stmt VisitStmt_(const ir::AssertStmt* op) override;
-  Expr VisitExpr_(const ir::Let* op) override;
-  Expr VisitExpr_(const ir::Select* op) override;
-  Expr VisitExpr_(const ir::Call* op) override;
-  Expr VisitExpr_(const ir::Reduce* op) override;
+  Stmt VisitStmt_(const ir::ForNode* op) override;
+  Stmt VisitStmt_(const ir::LetStmtNode* op) override;
+  Stmt VisitStmt_(const ir::IfThenElseNode* op) override;
+  Stmt VisitStmt_(const ir::AttrStmtNode* op) override;
+  Stmt VisitStmt_(const ir::AssertStmtNode* op) override;
+  Expr VisitExpr_(const ir::LetNode* op) override;
+  Expr VisitExpr_(const ir::SelectNode* op) override;
+  Expr VisitExpr_(const ir::CallNode* op) override;
+  Expr VisitExpr_(const ir::ReduceNode* op) override;
 
  protected:
   /*! \brief internal analyzer field. */

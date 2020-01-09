@@ -743,11 +743,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
                                    const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "compile") {
+  if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
       Module mod = args[0];
-      this->Compile(mod, args[1], args[2]);
+      this->Lower(mod, args[1], args[2]);
+    });
+  } else if (name == "codegen") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 0);
+      this->Codegen();
     });
   } else if (name == "get_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -802,9 +807,9 @@ relay::Function VMCompiler::BindParamsByName(
   return ret;
 }
 
-void VMCompiler::Compile(Module mod,
-                         const TargetsMap& targets,
-                         const tvm::Target& target_host) {
+void VMCompiler::Lower(Module mod,
+                       const TargetsMap& targets,
+                       const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
@@ -813,7 +818,7 @@ void VMCompiler::Compile(Module mod,
     mod->Add(gvar, f);
   }
 
-  InitVM();
+  exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
 
@@ -852,10 +857,19 @@ void VMCompiler::Compile(Module mod,
     exec_->constants.push_back(vm::Tensor(data));
   }
 
-  LibraryCodegen();
-
+  // update global function map
   for (auto gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
+  }
+
+  // update primitive function map
+  size_t primitive_index = 0;
+  for (const auto& cfunc : context_.cached_funcs) {
+    if (cfunc->target->str() == "ext_dev") {
+      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    } else {
+      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    }
   }
 }
 
@@ -942,7 +956,11 @@ void VMCompiler::PopulateGlobalMap() {
   }
 }
 
-void VMCompiler::LibraryCodegen() {
+void VMCompiler::Codegen() {
+  if (!context_.module.defined()) {
+    LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
+    return;
+  }
   auto const &cached_funcs = context_.cached_funcs;
   if (cached_funcs.size() == 0) {
     return;
@@ -980,14 +998,6 @@ void VMCompiler::LibraryCodegen() {
     }
   }
   exec_->lib = mod;
-  size_t primitive_index = 0;
-  for (auto cfunc : cached_funcs) {
-    if (cfunc->target->str() == "ext_dev") {
-      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
-    } else {
-      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
-    }
-  }
 }
 
 runtime::Module CreateVMCompiler() {

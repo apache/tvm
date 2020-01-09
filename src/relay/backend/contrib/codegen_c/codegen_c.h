@@ -59,7 +59,8 @@ class CSourceModuleCodegenBase {
    * \return An external symbol.
    */
   std::string GetExtSymbol(const Function& func) const {
-    const auto name_node = FunctionGetAttr(func, attr::kExternalSymbol).as<tvm::ir::StringImm>();
+    const auto name_node =
+      FunctionGetAttr(func, attr::kExternalSymbol).as<tvm::ir::StringImmNode>();
     CHECK(name_node != nullptr) << "Fail to retrieve external symbol.";
     std::string ext_symbol = name_node->value;
     return ext_symbol;
@@ -176,7 +177,7 @@ class CodegenCBase {
     CHECK(ttype) << "Expect TensorTypeNode";
     std::vector<int> shape;
     for (size_t i = 0; i < ttype->shape.size(); ++i) {
-      auto* val = ttype->shape[i].as<IntImm>();
+      auto* val = ttype->shape[i].as<IntImmNode>();
       CHECK(val);
       shape.push_back(val->value);
     }

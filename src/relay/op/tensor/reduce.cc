@@ -212,7 +212,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   auto max_shape = make_const(DataType::Int(64), 1);
   bool is_dynamic_input = false;
   for (int64_t axis : r_axes) {
-    if (in_shape[axis].as<IntImm>()) {
+    if (in_shape[axis].as<IntImmNode>()) {
       max_shape *= in_shape[axis];
     } else {
       is_dynamic_input = true;

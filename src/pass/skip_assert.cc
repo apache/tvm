@@ -26,9 +26,9 @@ namespace ir {
 
 class AssertSkipper : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AssertStmt* op) final {
+  Stmt VisitStmt_(const AssertStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AssertStmt>();
+    op = stmt.as<AssertStmtNode>();
     return op->body;
   }
 };

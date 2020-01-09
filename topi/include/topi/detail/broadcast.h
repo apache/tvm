@@ -52,8 +52,8 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   int i;
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
     // TODO(@icemelon9): Need to revisit this part
-    const Variable* var1 = shape1[s1_size - i].as<Variable>();
-    const Variable* var2 = shape2[s2_size - i].as<Variable>();
+    const VarNode* var1 = shape1[s1_size - i].as<VarNode>();
+    const VarNode* var2 = shape2[s2_size - i].as<VarNode>();
     bh.all_vars.push_front(tvm::Var());
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);

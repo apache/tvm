@@ -132,7 +132,7 @@ bool ExprUseVar(const Expr& e, const Var& v);
  * \param vset The variable set.
  * \return Whether e uses vset.
  */
-bool ExprUseVar(const Expr& e, const std::unordered_set<const Variable*>& vset);
+bool ExprUseVar(const Expr& e, const std::unordered_set<const VarNode*>& vset);
 
 /*!
  * \brief Convert a IR node to be SSA form.
@@ -148,7 +148,7 @@ TVM_DLL Stmt ConvertSSA(Stmt stmt);
  * \return The converted form.
  */
 Stmt Substitute(Stmt stmt,
-                const std::unordered_map<const Variable*, Expr>& value_map);
+                const std::unordered_map<const VarNode*, Expr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.
@@ -157,7 +157,7 @@ Stmt Substitute(Stmt stmt,
  * \return The converted expression.
  */
 Expr Substitute(Expr expr,
-                const std::unordered_map<const Variable*, Expr>& value_map);
+                const std::unordered_map<const VarNode*, Expr>& value_map);
 
 /*!
  * \brief Substitute the var specified in key->var to be value.

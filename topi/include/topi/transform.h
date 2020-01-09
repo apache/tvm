@@ -211,7 +211,7 @@ inline Tensor reshape(const Tensor& x,
   Array<Expr> target_shape;
 
   for (const auto &ele : newshape) {
-    if (ele.as<IntImm>()) {
+    if (ele.as<IntImmNode>()) {
       target_shape.push_back(cast(DataType::Int(32), ele));
     } else {
       target_shape.push_back(ele);
@@ -840,7 +840,7 @@ inline Tensor where(const Tensor& condition,
       << condition->shape.size() << " vs " << x->shape.size();
     out = compute(
       oshape, [&](const Array<Var>& indices) {
-        return tvm::ir::Select::make(condition(indices) != 0, x(indices), y(indices));
+        return tvm::ir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
@@ -849,7 +849,7 @@ inline Tensor where(const Tensor& condition,
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<Expr> condition_idx{indices[0]};
-        return tvm::ir::Select::make(condition(condition_idx) != 0,
+        return tvm::ir::SelectNode::make(condition(condition_idx) != 0,
                                      x(indices), y(indices));
       }, name, tag);
   }
@@ -1316,7 +1316,7 @@ inline Tensor one_hot(const Tensor& indices,
     }
 
     auto idx = iter_vars[true_axis];
-    return ir::Select::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
+    return ir::SelectNode::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
   }, name, tag);
 }
 

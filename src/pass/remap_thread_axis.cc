@@ -42,28 +42,28 @@ class ThreadAxisRewriter : private StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
         const IterVar& new_iv = it->second;
-        const Variable* v = iv->var.get();
+        const VarNode* v = iv->var.get();
         if (!vmap_.count(v)) {
           vmap_[v] = new_iv->var;
         } else {
           CHECK(vmap_[v].same_as(new_iv->var));
         }
         Stmt body = this->VisitStmt(op->body);
-        return AttrStmt::make(
+        return AttrStmtNode::make(
             new_iv, op->attr_key, op->value, body);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const Variable* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
     return StmtExprMutator::VisitExpr_(op);
@@ -71,14 +71,14 @@ class ThreadAxisRewriter : private StmtExprMutator {
   // The thread map
   const std::unordered_map<std::string, IterVar>& tmap_;
   // variable map
-  std::unordered_map<const Variable*, Var> vmap_;
+  std::unordered_map<const VarNode*, Var> vmap_;
 };
 
 LoweredFunc
 RemapThreadAxis(LoweredFunc f, Map<Expr, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
-    const StringImm* str = kv.first.as<StringImm>();
+    const StringImmNode* str = kv.first.as<StringImmNode>();
     CHECK(str != nullptr);
     tmap[str->value] = kv.second;
   }
