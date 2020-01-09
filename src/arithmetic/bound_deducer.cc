@@ -70,6 +70,39 @@ std::vector<const Object*> GetPath(Expr target, Expr expr) {
   return v.path_;
 }
 
+class BoundRemover : public ExprMutator {
+ public:
+  Expr Remove(const Expr& e) {
+    remove_bounded_ = true;
+    return ExprMutator::VisitExpr(e);
+  }
+
+  Expr Reset(const Expr& e) {
+    remove_bounded_ = false;
+    return ExprMutator::VisitExpr(e);
+  }
+
+  Expr VisitExpr_(const ShapeVarNode* op) final {
+    if (remove_bounded_) {
+      Expr var = VarNode::make(op->dtype, op->name_hint);
+      bounded_var_map_[op] = var;
+      return var;
+    }
+    return GetRef<ShapeVar>(op);
+  }
+
+  Expr VisitExpr_(const VarNode* op) final {
+    if (!remove_bounded_ && bounded_var_map_.count(op)) {
+      return bounded_var_map_[op];
+    }
+    return GetRef<Var>(op);
+  }
+
+ private:
+  bool remove_bounded_ = false;
+  std::unordered_map<const VarNode*, Expr> bounded_var_map_;
+};
+
 enum CompareOp {kGreater, kLess, kEqual};
 
 // a visitor to deduce the bound of a variable from a expression
@@ -297,6 +330,18 @@ void BoundDeducer::Transform() {
 void BoundDeducer::Deduce() {
   Init();
   if (!success_) return;
+
+  // Any variable appears in both expr and result,
+  // they should not be eagerly simplified according to its bound
+  // e.g., i + n/4 >= n
+  // => i >= n - n/4
+  // If we eagerly simplified the left side given ShapeVar({n | n >= 0})
+  // we would get i + 0 >= n => i >= n, which is obviously incorrect.
+  // Thus we remove assert_bound here and reset later.
+  BoundRemover bound_remover;
+  expr_ = bound_remover.Remove(expr_);
+  result_ = bound_remover.Remove(result_);
+
   Relax();
   if (!success_) return;
   // get the path
@@ -308,6 +353,9 @@ void BoundDeducer::Deduce() {
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
   this->VisitExpr(expr_);
+
+  expr_ = bound_remover.Reset(expr_);
+  result_ = bound_remover.Reset(result_);
 }
 
 void BoundDeducer::Relax() {

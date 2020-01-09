@@ -435,19 +435,19 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExpr_(const DivNode* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const ModNode* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorDivNode* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorModNode* op) final {
-    return VisitBinaryExpr_(op);
+    return VisitDivExpr_(op);
   }
 
   IntervalSet VisitExpr_(const MinNode* op) final {
@@ -536,6 +536,11 @@ class IntervalSetEvaluator :
     return set->min_value.same_as(value) && set->max_value.same_as(value);
   }
 
+  bool IsVar(const Expr& op) {
+    // Var or ShapeVar
+    return op.as<VarNode>();
+  }
+
   template<typename T>
   inline IntervalSet VisitBinaryExpr_(const T* op) {
     IntervalSet a = this->Eval(op->a);
@@ -543,6 +548,22 @@ class IntervalSetEvaluator :
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<Expr>(op));
     }
+    return Combine<T>(analyzer_, a, b);
+  }
+
+  template<typename T>
+  inline IntervalSet VisitDivExpr_(const T* op) {
+    IntervalSet a = this->Eval(op->a);
+    IntervalSet b = this->Eval(op->b);
+    if ((MatchPoint(a, op->a) && (MatchPoint(b, op->b) || IsVar(op->b)))
+          || (IsVar(op->a) && IsVar(op->b))) {
+      // e.g.,
+      // div(10, 5) evaluates to 2
+      // div(10, {n|n>=0}) evaluates to itself
+      // div({m|m>=0}, {n|n>=0}) evaluates to itself
+      return IntervalSet::SinglePoint(GetRef<Expr>(op));
+    }
+    // e.g., div({m|m>=0}, 2) goes here
     return Combine<T>(analyzer_, a, b);
   }
 
