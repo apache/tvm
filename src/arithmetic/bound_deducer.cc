@@ -83,12 +83,13 @@ class BoundRemover : public ExprMutator {
   }
 
   Expr VisitExpr_(const ShapeVarNode* op) final {
+    Expr shape_var = GetRef<Expr>(op);
     if (remove_bounded_) {
       Expr var = VarNode::make(op->dtype, op->name_hint);
-      bounded_var_map_[op] = var;
+      bounded_var_map_[var.as<VarNode>()] = shape_var;
       return var;
     }
-    return GetRef<ShapeVar>(op);
+    return shape_var;
   }
 
   Expr VisitExpr_(const VarNode* op) final {
