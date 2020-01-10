@@ -18,34 +18,31 @@
  */
 
 /*!
- * \file base.cc
- * \brief The core base types for Relay.
+ * \file src/tvm/ir/expr.cc
+ * \brief The expression AST nodes for the common IR infra.
  */
-
-#include <tvm/ir/type.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-#include <tvm/relay/base.h>
+#include <tvm/ir/expr.h>
 
 namespace tvm {
-namespace relay {
 
-using namespace tvm::runtime;
+GlobalVar::GlobalVar(std::string name_hint) {
+  ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
+  n->name_hint = std::move(name_hint);
+  data_ = std::move(n);
+}
 
-TVM_REGISTER_NODE_TYPE(IdNode);
+TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("relay._base.set_span")
-.set_body_typed([](ObjectRef node_ref, Span sp) {
-  if (auto* rn = node_ref.as<RelayNode>()) {
-    rn->span = sp;
-  } else if (auto* rn = node_ref.as<RelayExprNode>()) {
-    rn->span = sp;
-  } else if (auto* rn = node_ref.as<TypeNode>()) {
-    rn->span = sp;
-  } else {
-    LOG(FATAL) << "Expect Type or RelayNode ";
-  }
+TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
+.set_body_typed([](std::string name){
+  return GlobalVar(name);
 });
 
-}  // namespace relay
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<GlobalVarNode>([](const ObjectRef& ref, NodePrinter* p) {
+    auto* node = static_cast<const GlobalVarNode*>(ref.get());
+    p->stream << "GlobalVar(" << node->name_hint << ")";
+  });
+
 }  // namespace tvm

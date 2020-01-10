@@ -662,7 +662,7 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
     auto module = ModuleNode::make({}, {});
-    auto dummy_fn_name = GlobalVarNode::make("test");
+    auto dummy_fn_name = GlobalVar("test");
     module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
     auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 

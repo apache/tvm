@@ -101,7 +101,7 @@ class LambdaLifter : public ExprMutator {
     }
 
     auto name = GenerateName(func);
-    auto global = GlobalVarNode::make(name);
+    auto global = GlobalVar(name);
     auto free_vars = FreeVars(func);
     auto free_type_vars = FreeTypeVars(func, module_);
 
