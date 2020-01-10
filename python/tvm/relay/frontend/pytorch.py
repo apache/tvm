@@ -962,6 +962,13 @@ class Graph(object):
         """ Map state dictionary values to corresponding prim::GetAttr op node. """
         # Grab weights, biases, etc. from graph
         state_dict = self._trace.state_dict()
+        print('parse params check')
+        print(type(state_dict))
+
+        types1 = [type(v) for v in state_dict.values()]
+        types1sub = [v.dtype for v in state_dict.values()]
+        print(types1)
+        print(types1sub)
 
         param_names = []
         for key, value in state_dict.items():

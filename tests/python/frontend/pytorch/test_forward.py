@@ -71,15 +71,20 @@ def load_single_op(model_name, input_type=None):
     """Given a model name, returns a single-operator model in eval
     mode as well as an example input."""
     input_shape = [1, 3, 224, 224]
-    if input_type is None:
+    if input_type is None or input_type == 'float32':
         model = getattr(single_op, model_name)().float().eval()
         input_data = torch.rand(input_shape).float()
     elif input_type == 'float64':
         model = getattr(single_op, model_name)().double().eval()
-        input_data = torch.rand(input_shape).double()
-    elif input_type == 'float32':
-        model = getattr(single_op, model_name)().float().eval()
-        input_data = torch.rand(input_shape).float()
+        #input_data = torch.rand(input_shape).double()
+        #input_data = torch.from_numpy(np.random.random_sample((1, 3, 224, 224))).double()
+        temp = np.random.random_sample((1, 3, 224, 224))
+        print('what')
+        print(temp.dtype)
+
+        input_data = torch.from_numpy(temp)
+        print('what')
+        print(input_data.dtype)
     elif input_type == 'float16':
         model = getattr(single_op, model_name)().float().eval()
         input_data = torch.rand(input_shape)
@@ -187,6 +192,7 @@ def verify_model(model_name, input_type=None):
     baseline."""
 
     print(model_name)
+    print(input_type)
 
     baseline_model, baseline_input = load_model(model_name, input_type)
     if torch.cuda.is_available():
@@ -204,16 +210,16 @@ def verify_model(model_name, input_type=None):
             baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
         else:
             baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
-        dtype = 'float32'
+        input_type = 'float32'
     elif input_type == 'float64':
-        #baseline_input = baseline_input.half()
+        baseline_input = baseline_input.double()
         baseline_outputs = baseline_outputs.double()
         if isinstance(baseline_outputs, tuple):
             baseline_outputs = tuple(out.detach().double().cpu().numpy() for out in baseline_outputs)
         else:
             baseline_outputs = (baseline_outputs.detach().double().cpu().numpy(),)
     elif input_type == 'float16':
-        #baseline_input = baseline_input.half()
+        baseline_input = baseline_input.half()
         baseline_outputs = baseline_outputs.half()
         if isinstance(baseline_outputs, tuple):
             baseline_outputs = tuple(out.detach().half().cpu().numpy() for out in baseline_outputs)
@@ -235,9 +241,13 @@ def verify_model(model_name, input_type=None):
     print(input_shapes)
     print(input_types)
 
-    baseline_input = baseline_input.half()
+    #baseline_input = baseline_input.double()
 
     baseline_model(baseline_input)
+
+    print('get size')
+    print(baseline_input.dtype)
+    print(sys.getsizeof(baseline_input))
 
     trace = torch.jit.trace(baseline_model, baseline_input)
     if input_type is None or input_type == 'float32':
@@ -256,6 +266,9 @@ def verify_model(model_name, input_type=None):
         path = os.path.join(tmp, 'model.pth')
         torch.jit.save(trace, path)
         mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
+
+    print('checkcompiledtype')
+    print(baseline_input.cpu().numpy().dtype)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
@@ -282,41 +295,6 @@ def verify_model(model_name, input_type=None):
         assert_shapes_match(baseline_output, compiled_relay_output)
         tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
                                     rtol=1e-3, atol=1e-3)
-
-    if(test_repeats > 0):
-        thresh = 1e-2
-        units = 1e3
-        thresh = int(thresh * units)
-        input_shapes = list(input_shapes.values())
-
-        compiled_latencies = []
-        baseline_latencies = []
-        speedups = []
-
-        for i in range(0, test_repeats):
-            print("computing compiled latency")
-            compiled_latency = measure_latency(relay_model, input_shapes,
-                                               output_shapes, thresh) * units
-            print(f'Compiled latency is {compiled_latency:.3f} +/- {thresh:d} ms.')
-            print("computing baseline latency")
-            baseline_latency = measure_latency(baseline_model, input_shapes,
-                                               output_shapes, thresh) * units
-
-            print(f'Baseline latency is {baseline_latency:.3f} +/- {thresh:d} ms.')
-
-            speedup = baseline_latency/compiled_latency
-            print(f'Relative speedup is {speedup:.3f}')
-
-            compiled_latencies.append(compiled_latency)
-            baseline_latencies.append(baseline_latency)
-            speedups.append(speedup)
-
-        baseline_latencies_map[model_name] = baseline_latencies
-        compiled_latencies_map[model_name] = compiled_latencies
-        speedups_map[model_name] = speedups
-        model_names.append(model_name)
-
-        print_results()
 
     from subprocess import call
     call('rm -rf ~/.torch/models/*', shell=True)
@@ -467,7 +445,10 @@ def test_contiguous1():
     verify_model('Contiguous1')
 
 def test_batchnorm1():
-    verify_model('BatchNorm1')
+    verify_model('BatchNorm1', input_type='float32')
+
+def test_batchnorm1float64():
+    verify_model('BatchNorm1Float64', input_type='float64')
 
 def test_batchnorm2():
     verify_model('BatchNorm2')
@@ -698,4 +679,7 @@ if __name__ == '__main__':
 
     #test_add3float16()
 
-    test_add3float64()
+    #test_add3float64()
+
+    #test_batchnorm1()
+    test_batchnorm1float64()
