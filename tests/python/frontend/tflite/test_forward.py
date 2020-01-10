@@ -225,6 +225,26 @@ def test_forward_split():
     _test_split((1, 3, 5, 6), -1, 3, 'float32')
 
 #######################################################################
+# slice
+# -----
+
+def _test_slice(data, begin, size):
+    """ One iteration of SLICE """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.slice(in_data, begin, size)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_slice():
+    """ SLICE """
+    _test_slice(np.arange(4, dtype=np.float32).reshape((4, )), begin=[0], size=[2])
+    _test_slice(np.arange(18, dtype=np.int32).reshape((3, 2, 3)), begin=[1, 0, 0], size=[1, 1, 3])
+    # tflite 1.13 outputs nonsense values if size[i] == -1
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_slice(np.arange(8, dtype=np.int32).reshape((2, 4)), begin=[0, 1], size=[-1, -1])
+        _test_slice(np.arange(5, dtype=np.int32).reshape((5, )), begin=[4], size=[-1])
+
+#######################################################################
 # transpose
 # ---------
 
@@ -1408,6 +1428,7 @@ if __name__ == '__main__':
     test_forward_reshape()
     test_all_resize()
     test_forward_squeeze()
+    test_forward_slice()
 
     # NN
     test_forward_convolution()
