@@ -20,13 +20,13 @@ Deploy a Quantized Model on Cuda
 **Author**: `Wuwei Lin <https://github.com/vinx13>`_
 
 This article is an introductory tutorial of automatic quantization with TVM.
-We will import a GluonCV pre-trained model on ImageNet to Relay, quantize the Relay model
-and then perform the inference.
+Automatic quantization is one of the quantization mode in TVM. More details of the quantization story in TVM can be found `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+In this tutorial, we will import a GluonCV pre-trained model on ImageNet to
+Relay, quantize the Relay model and then perform the inference.
 """
 
 import tvm
 from tvm import relay
-from tvm.relay import quantize as qtz
 import mxnet as mx
 from tvm.contrib.download import download_testdata
 from mxnet import gluon
@@ -74,7 +74,7 @@ def get_val_data(num_workers=4):
 
 ###############################################################################
 # The calibration dataset should be a iterable object. We define the
-# calibration dataset as a generator object in Python. In this tutorials, we
+# calibration dataset as a generator object in Python. In this tutorial, we
 # only use a few samples for calibration.
 
 calibration_samples = 10
@@ -92,7 +92,7 @@ def calibrate_dataset():
 ###############################################################################
 # Import the model
 # ----------------
-# We use the Relay MxNet frontent to import a model from the Gluon model zoo.
+# We use the Relay MxNet frontend to import a model from the Gluon model zoo.
 def get_model():
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
     img_size = 299 if model_name == 'inceptionv3' else 224
@@ -104,21 +104,22 @@ def get_model():
 ###############################################################################
 # Quantize the Model
 # ------------------
-# In quantization, we need to find the scale for each weight and output tensor.
-# For weights, the scales are directly calculated based on the value of the 
+# In quantization, we need to find the scale for each weight and intermediate
+# feature map tensor of each layer.
+#
+# For weights, the scales are directly calculated based on the value of the
 # weights. Two modes are supported: `power2` and `max`. Both modes find the
 # maximum value within the weight tensor first. In `power2` mode, the maximum
-# is rounded down to power of two. If the scales of both weights and outputs
-# are power of two, we can leverage bit shifting for multiplications. This make
-# it computationally more efficient. In `max` mode, the maximum is used as the
-# scale. Without rounding, `max` mode might have better accuracy in some cases.
-# When the scales are not power of two, fixed point multiplications will
-# be used.
+# is rounded down to power of two. If the scales of both weights and
+# intermediate feature maps are power of two, we can leverage bit shifting for
+# multiplications. This make it computationally more efficient. In `max` mode,
+# the maximum is used as the scale. Without rounding, `max` mode might have
+# better accuracy in some cases. When the scales are not power of two, fixed
+# point multiplications will be used.
 #
-# For outputs, we can find the scales with data-aware quantization.
-# Data-aware quantization takes a calibration dataset as the input argument.
-# Scales are calculated by minimizing the KL divergence of between the data
-# distribution before and after quantization for each tensor.
+# For intermediate feature maps, we can find the scales with data-aware
+# quantization. Data-aware quantization takes a calibration dataset as the
+# input argument. Scales are calculated by minimizing the KL divergence between distribution of output of each layer before and after quantization.
 # Alternatively, we can also use pre-defined global scales. This saves the time
 # for calibration. But the accuracy might be impacted.
 
