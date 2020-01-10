@@ -25,6 +25,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/build_module.h>
 #include <dmlc/memory_io.h>
 #include <sstream>
@@ -158,13 +159,21 @@ class ModuleSerializer {
   std::vector<uint64_t> import_tree_child_indices_;
 };
 
-std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
-  std::string bin;
-  dmlc::MemoryStringStream ms(&bin);
-  dmlc::Stream* stream = &ms;
+namespace {
+  std::string SerializeModule(const runtime::Module& mod) {
+    std::string bin;
+    dmlc::MemoryStringStream ms(&bin);
+    dmlc::Stream* stream = &ms;
 
-  ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModule(stream);
+    ModuleSerializer module_serializer(mod);
+    module_serializer.SerializeModule(stream);
+
+    return bin;
+  }
+}  // namespace
+
+std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
+  std::string bin = SerializeModule(mod);
 
   // translate to C program
   std::ostringstream os;
@@ -211,5 +220,29 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
      << "#endif\n";
   return os.str();
 }
+
+runtime::Module PackImportsToLLVM(const runtime::Module& mod,
+                                  bool system_lib,
+                                  const std::string& target_triple) {
+  std::string bin = SerializeModule(mod);
+
+  uint64_t nbytes = bin.length();
+  std::string header;
+  for (size_t i = 0; i < sizeof(nbytes); ++i) {
+    header.push_back(((nbytes >> (i * 8)) & 0xffUL));
+  }
+  std::string blob = header + bin;
+  TVMByteArray blob_byte_array;
+  blob_byte_array.size = blob.length();
+  blob_byte_array.data = blob.data();
+
+  // Call codegen_blob to generate LLVM module
+  std::string codegen_f_name = "codegen.codegen_blob";
+  // the codegen function.
+  const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
+  CHECK(codegen_f != nullptr)  << "codegen.codegen_blob is not presented.";
+  return (*codegen_f)(blob_byte_array, system_lib, target_triple);
+}
+
 }  // namespace codegen
 }  // namespace tvm
