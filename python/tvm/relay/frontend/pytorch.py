@@ -117,21 +117,21 @@ def _select():
     return _impl
 
 def _convert_data_type(input_type):
-    if input_type == 'double':
+    if input_type == 'double' or input_type == 'torch.float64':
         return 'float64'
-    elif input_type == 'float':
+    elif input_type == 'float' or input_type == 'torch.float32':
         return 'float32'
-    elif input_type == 'half':
+    elif input_type == 'half' or input_type == 'torch.float16':
         return 'float16'
-    elif input_type == 'long':
+    elif input_type == 'long' or input_type == 'torch.int64':
         return 'int64'
-    elif input_type == 'int':
+    elif input_type == 'int' or input_type == 'torch.int32':
         return 'int32'
-    elif input_type == 'short':
+    elif input_type == 'short' or input_type == 'torch.int16':
         return 'int16'
-    elif input_type == 'char':
+    elif input_type == 'char' or input_type == 'torch.int8':
         return 'int8'
-    elif input_type == 'byte':
+    elif input_type == 'byte' or input_type == 'torch.uint8':
         return 'uint8'
     else:
         return input_type
@@ -1003,10 +1003,12 @@ class Graph(object):
                     self._param_tensors[node_name] = tensor
 
                     self._params[node_name] = _expr.var(node_name,
-                                                        shape=shape)
+                                                        shape=shape,
+                                                        dtype=_convert_data_type(str(value.dtype)))
 
                     self._fn_param.append(_expr.var(node_name,
-                                                    shape=shape))
+                                                    shape=shape,
+                                                    dtype=_convert_data_type(str(value.dtype))))
 
 
     def _parse_ops(self):
