@@ -154,6 +154,11 @@ set(USE_TFLITE OFF)
 # /path/to/tensorflow: tensorflow root path when use tflite library
 set(USE_TENSORFLOW_PATH none)
 
+# Possible values:
+# - OFF: disable tflite support for edgetpu
+# - /path/to/edgetpu: use specific path to edgetpu library
+set(USE_EDGETPU OFF)
+
 # Whether use CuDNN
 set(USE_CUDNN OFF)
 
