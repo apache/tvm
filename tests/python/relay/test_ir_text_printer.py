@@ -70,7 +70,7 @@ def test_env():
 
 
 def test_meta_data():
-    n, c, h, w = tvm.var("n"), 10, 224, 224
+    n, c, h, w = tvm.shape_var("n"), 10, 224, 224
     x = relay.var("x", shape=(n, c, h, w))
     w = relay.var("w")
     z = relay.nn.conv2d(x, w,

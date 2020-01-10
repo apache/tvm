@@ -177,7 +177,7 @@ def test_bias_add():
 
 def test_expand_dims_infer_type():
     for dtype in ['float16', 'float32']:
-        n, t, d = tvm.var("n"), tvm.var("t"), 100
+        n, t, d = tvm.shape_var("n"), tvm.shape_var("t"), 100
         x = relay.var("x", shape=(n, t, d), dtype=dtype)
         y = relay.expand_dims(x, axis=2)
         assert "axis=2" in y.astext()
@@ -227,7 +227,7 @@ def test_log_softmax():
 
 def test_concatenate():
     for dtype in ['float16', 'float32']:
-        n, t, d = tvm.var("n"), tvm.var("t"), 100
+        n, t, d = tvm.shape_var("n"), tvm.shape_var("t"), 100
         x = relay.var("x", shape=(n, t, d))
         y = relay.var("y", shape=(n, t, d))
         z = relay.concatenate((x, y), axis=-1)
@@ -280,7 +280,7 @@ def test_concatenate():
 
 def test_dropout():
     for dtype in ['float16', 'float32']:
-        n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
+        n, t, d = tvm.shape_var("n"), tvm.shape_var("t"), tvm.shape_var("d")
         input_ty = relay.TensorType((n, t, d), dtype)
         x = relay.var("x", input_ty)
         y = relay.nn.dropout(x, rate=0.75)
@@ -342,7 +342,7 @@ def test_dense():
         # Dense accuracy for float16 is poor
         if dtype == 'float16':
             return
-        n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+        n, c , h, w = tvm.shape_var("n"), tvm.shape_var("c"), tvm.shape_var("h"), tvm.shape_var("w")
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.TensorType((2, w), dtype))
         y = relay.nn.dense(x, w, units=2)
@@ -350,15 +350,15 @@ def test_dense():
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, 2), dtype)
 
-        n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+        n, c , h, w = tvm.shape_var("n"), tvm.shape_var("c"), tvm.shape_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
-        wh, ww = tvm.var("wh"), tvm.var("ww")
+        wh, ww = tvm.shape_var("wh"), tvm.shape_var("ww")
         w = relay.var("w", relay.TensorType((ww, wh), dtype))
         y = relay.nn.dense(x, w)
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((n, c, h, ww), dtype)
 
-        n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+        n, c , h, w = tvm.shape_var("n"), tvm.shape_var("c"), tvm.shape_var("h"), 2
         x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
         w = relay.var("w", relay.IncompleteType())
         y = relay.nn.dense(x, w, units=2)
@@ -388,7 +388,7 @@ def test_dense_dtype():
     data_dtype = 'uint8'
     weight_dtype = 'int8'
     out_dtype = 'uint8'
-    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c , h, w = tvm.shape_var("n"), tvm.shape_var("c"), tvm.shape_var("h"), tvm.shape_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), data_dtype))
     w = relay.var("w", relay.TensorType((2, w), weight_dtype))
     y = relay.nn.dense(x, w, units=2, out_dtype=out_dtype)
@@ -400,7 +400,7 @@ def test_dense_dtype():
 
 
 def test_bitserial_dense():
-    m, k = tvm.var("m"), tvm.var("k")
+    m, k = tvm.shape_var("m"), tvm.shape_var("k")
     x = relay.var("x", relay.TensorType((m, k), "int16"))
     w = relay.var("w", relay.TensorType((k, 32), "int16"))
     y = relay.nn.bitserial_dense(x, w, units=32)

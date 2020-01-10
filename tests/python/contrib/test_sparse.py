@@ -25,8 +25,8 @@ def test_static_tensor():
     stype = 'csr'
     target = 'llvm'
     ctx = tvm.context(target, 0)
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.shape_var('m')
+    n = tvm.shape_var('n')
     A = tvmsp.placeholder(shape=(m, n), name='A', dtype=dtype)
     assert(A.stype == 'csr')
     n = 3
@@ -50,7 +50,7 @@ def test_dynamic_tensor():
     stype = 'csr'
     target = 'llvm'
     ctx = tvm.context(target, 0)
-    nr, nc, n = tvm.var('nr'), tvm.var('nc'), tvm.var('n')
+    nr, nc, n = tvm.shape_var('nr'), tvm.shape_var('nc'), tvm.shape_var('n')
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name='A', dtype=dtype)
     assert(A.stype == 'csr')
     C = tvm.compute(A.data.shape, lambda i: A.data[i] * 2., tag='cs_scatter')
@@ -76,7 +76,7 @@ def test_sparse_array_tuple():
     stype = 'csr'
     target = 'llvm'
     ctx = tvm.context(target, 0)
-    nr, nc, n = tvm.var('nr'), tvm.var('nc'), tvm.var('n')
+    nr, nc, n = tvm.shape_var('nr'), tvm.shape_var('nc'), tvm.shape_var('n')
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name='A', dtype=dtype)
     assert(A.stype == 'csr')
     C = tvm.compute(A.data.shape, lambda i: A.data[i] * 2., tag='cs_scatter')
