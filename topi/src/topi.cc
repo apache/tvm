@@ -527,7 +527,7 @@ TVM_REGISTER_GLOBAL("topi.nn.pool_grad")
 TVM_REGISTER_GLOBAL("topi.nn.global_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::global_pool(args[0],
-                        static_cast<nn::PoolType>(static_cast<int>(args[1])));
+                        static_cast<nn::PoolType>(static_cast<int>(args[1])), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
