@@ -74,12 +74,15 @@ def load_single_op(model_name, input_type=None):
     if input_type is None:
         model = getattr(single_op, model_name)().float().eval()
         input_data = torch.rand(input_shape).float()
+    elif input_type == 'float64':
+        model = getattr(single_op, model_name)().double().eval()
+        input_data = torch.rand(input_shape).double()
     elif input_type == 'float32':
         model = getattr(single_op, model_name)().float().eval()
         input_data = torch.rand(input_shape).float()
     elif input_type == 'float16':
         model = getattr(single_op, model_name)().float().eval()
-        input_data = torch.rand(input_shape).float()
+        input_data = torch.rand(input_shape)
     elif input_type == 'int32':
         model = getattr(single_op, model_name)().eval()
         input_data = torch.randint(0, 10, input_shape).int()
@@ -195,17 +198,30 @@ def verify_model(model_name, input_type=None):
     #dtype = 'float32'
     dtype = input_type
     if input_type is None or input_type == 'float32':
+        baseline_input = baseline_input.float()
+        baseline_outputs = baseline_outputs.float()
         if isinstance(baseline_outputs, tuple):
             baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
         else:
             baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
         dtype = 'float32'
-    elif input_type == 'float16':
+    elif input_type == 'float64':
+        #baseline_input = baseline_input.half()
+        baseline_outputs = baseline_outputs.double()
         if isinstance(baseline_outputs, tuple):
-            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+            baseline_outputs = tuple(out.detach().double().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().double().cpu().numpy(),)
+    elif input_type == 'float16':
+        #baseline_input = baseline_input.half()
+        baseline_outputs = baseline_outputs.half()
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().half().cpu().numpy() for out in baseline_outputs)
         else:
             baseline_outputs = (baseline_outputs.detach().half().cpu().numpy(),)
     elif input_type == 'int32':
+        baseline_input = baseline_input.int()
+        baseline_outputs = baseline_outputs.int()
         if isinstance(baseline_outputs, tuple):
             baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
         else:
@@ -214,12 +230,22 @@ def verify_model(model_name, input_type=None):
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
     input_types = {input_name: input_type}
+
+    print('check inputs to trace')
+    print(input_shapes)
+    print(input_types)
+
+    baseline_input = baseline_input.half()
+
     baseline_model(baseline_input)
+
     trace = torch.jit.trace(baseline_model, baseline_input)
     if input_type is None or input_type == 'float32':
         trace = trace.float().eval()
+    elif input_type == 'float64':
+        trace = trace.double().eval()
     elif input_type == 'float16':
-        trace = trace.float().eval()
+        trace = trace.half().eval()
     elif input_type == 'int32':
         trace = trace.float().eval()
     if torch.cuda.is_available():
@@ -341,17 +367,23 @@ def test_add5():
     verify_model('Add5')
 
 def test_add3int32():
-    verify_model('Add3Int32', 'int32')
+    verify_model('Add3Int32', input_type='int32')
 
 def test_add4int32():
-    verify_model('Add4Int32', 'int32')
+    verify_model('Add4Int32', input_type='int32')
 
 
 def test_add3float16():
-    verify_model('Add3Float16', 'float16')
+    verify_model('Add3Float16', input_type='float16')
 
 def test_add4float16():
-    verify_model('Add4Float16', 'float16')
+    verify_model('Add4Float16', input_type='float16')
+
+def test_add3float64():
+    verify_model('Add3Float64', input_type='float64')
+
+def test_add4float64():
+    verify_model('Add4Float64', input_type='float64')
 
 def test_subtract1():
     verify_model('Subtract1')
@@ -384,7 +416,13 @@ def test_multiply5():
     verify_model('Multiply5')
 
 def test_unsqueeze1():
-    verify_model('Unsqueeze1')
+        verify_model('Unsqueeze1')
+
+def test_concatenate1():
+    verify_model('Concatenate1')
+
+def test_unsqueeze1():
+    verify_model('Unsqueeze1', '')
 
 def test_concatenate1():
     verify_model('Concatenate1')
@@ -651,4 +689,13 @@ if __name__ == '__main__':
     #test_batchnorm2()
 
     #test_resnet18()
-    test_add3int32()
+    #test_add4int32()
+
+    #test_unsqueeze1int32()
+    #test_concatenate1int32()
+
+    #test_add4int32
+
+    #test_add3float16()
+
+    test_add3float64()

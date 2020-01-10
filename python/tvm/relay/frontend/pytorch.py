@@ -36,6 +36,7 @@ def _elemwise(name):
         data0 = convert_input(inputs[0])
         data1 = convert_input(inputs[1])
 
+        print('elemwise')
         print(input_types)
         print(data0)
         print(data1)
@@ -115,6 +116,26 @@ def _select():
         return _op.transform.squeeze(sym, axis)
     return _impl
 
+def _convert_data_type(input_type):
+    if input_type == 'double':
+        return 'float64'
+    elif input_type == 'float':
+        return 'float32'
+    elif input_type == 'half':
+        return 'float16'
+    elif input_type == 'long':
+        return 'int64'
+    elif input_type == 'int':
+        return 'int32'
+    elif input_type == 'short':
+        return 'int16'
+    elif input_type == 'char':
+        return 'int8'
+    elif input_type == 'byte':
+        return 'uint8'
+    else:
+        return input_type
+
 def _ones():
     def _impl(inputs, input_types):
         if isinstance(inputs[0], _expr.Var):
@@ -125,10 +146,11 @@ def _ones():
             shape = inputs[0].shape
 
         fill_value = _get_fill_value(input_types)
+        print('ones')
         print(fill_value)
         print(input_types)
 
-        return get_relay_op('full')(fill_value, shape, dtype=input_types[0])
+        return get_relay_op('full')(fill_value, shape, dtype=_convert_data_type(input_types[0]))
     return _impl
 
 def _zeros():
@@ -151,7 +173,7 @@ def _get_fill_value(input_types):
     elif input_types[0] == 'float':
         fill_value = _expr.const(1.0)
     else:
-        fill_value = _expr.const(1)
+        fill_value = _expr.const(1.0)
 
     return fill_value
 
@@ -913,13 +935,22 @@ class Graph(object):
             ir_input.setDebugName(input_name)
 
             print(self._input_types[input_name])
+            #Not sure if below is needed
 
+            self._inputs_r[input_name] = _expr.var(input_name,
+                                                   shape=self._input_shapes[input_name],
+                                                   dtype=_convert_data_type(self._input_types[input_name]))
+            self._fn_param.append(_expr.var(input_name,
+                                            shape=self._input_shapes[input_name],
+                                            dtype=_convert_data_type(self._input_types[input_name])))
+            """
             self._inputs_r[input_name] = _expr.var(input_name,
                                                    shape=self._input_shapes[input_name],
                                                    dtype=self._input_types[input_name])
             self._fn_param.append(_expr.var(input_name,
                                             shape=self._input_shapes[input_name],
                                             dtype=self._input_types[input_name]))
+            """
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -1024,7 +1055,11 @@ class Graph(object):
         self._ops[(op_name, operator)] = op_node
         input_list_r = []
         input_list_types = []
+        print('iterate inputs of')
+        print(op_node)
+        print('inputs')
         for input_node in op_node.inputs():
+            print(input_node)
             if input_node.debugName() in self._inputs_r.keys():
                 input_list_r.append(self._inputs_r[input_node.debugName()])
             elif input_node.debugName() in self._params.keys():
@@ -1043,8 +1078,11 @@ class Graph(object):
                 input_node_kind = input_node.type().kind()
                 if input_node_kind == 'TensorType':
                     if input_node.type().scalarType() is None:
+                        print('scalarType none, append float')
                         input_list_types.append('float')
                     else:
+                        print('scalarType not none')
+                        print(input_node.type().scalarType().lower())
                         input_list_types.append(input_node.type().scalarType().lower())
                 elif input_node_kind == 'ListType':
                     input_list_types.append(str(input_node.type().getElementType()).lower())
