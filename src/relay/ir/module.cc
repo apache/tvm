@@ -34,10 +34,9 @@ namespace relay {
 using tvm::NodePrinter;
 using namespace runtime;
 
-Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs,
+Module ModuleNode::make(tvm::Map<GlobalVar, BaseFunc> global_funcs,
                         tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
-                        std::unordered_set<std::string> imports
-                        ) {
+                        std::unordered_set<std::string> imports) {
   auto n = make_object<ModuleNode>();
   n->functions = std::move(global_funcs);
   n->type_definitions = std::move(global_type_defs);
@@ -112,40 +111,54 @@ tvm::Array<T> concat(const tvm::Array<T>& l, const tvm::Array<T>& r) {
   return ret;
 }
 
-void ModuleNode::Add(const GlobalVar& var,
-                     const Function& f,
-                     bool update) {
-  Function func = Downcast<Function>(DeDup(f));
+// helper function to run type check
+relay::Function RunTypeCheck(const Module& mod,
+                             const GlobalVar& var,
+                             relay::Function f) {
+  auto func = Downcast<relay::Function>(relay::DeDup(std::move(f)));
   // Type check the item before we add it to the module.
-  auto mod = GetRef<Module>(this);
-  auto fv = FreeVars(func);
-  auto ftv = FreeTypeVars(func, mod);
+  auto fv = relay::FreeVars(func);
+  auto ftv = relay::FreeTypeVars(func, mod);
   if (fv.size() != 0) {
     LOG(WARNING)
-      << "There are free variables: "
-      << fv
-      << " in function: "
-      << AsText(func, false)
-      << std::endl;
+        << "There are free variables: "
+        << fv
+        << " in function: "
+        << AsText(func, false)
+        << std::endl;
   }
   if (ftv.size() != 0) {
     LOG(WARNING)
-      << "There are free type variables: "
-      << ftv
-      << " in function: "
-      << AsText(func, false)
-      << std::endl;
+        << "There are free type variables: "
+        << ftv
+        << " in function: "
+        << AsText(func, false)
+        << std::endl;
   }
   func =
-    FunctionNode::make(concat(func->params, fv),
-                       func->body,
-                       func->ret_type,
-                       concat(func->type_params, ftv),
-                       func->attrs);
+      relay::FunctionNode::make(concat(func->params, fv),
+                                func->body,
+                                func->ret_type,
+                                concat(func->type_params, ftv),
+                                func->attrs);
   // Type check the item before we add it to the module.
-  Function checked_func = InferType(func, mod, var);
+  relay::Function checked_func = InferType(func, mod, var);
+  return checked_func;
+}
+
+void ModuleNode::Add(const GlobalVar& var,
+                     const BaseFunc& f,
+                     bool update) {
+  BaseFunc checked_func = f;
+  if (auto* ptr = f.as<relay::FunctionNode>()) {
+    checked_func = RunTypeCheck(GetRef<Module>(this),
+                                var,
+                                GetRef<relay::Function>(ptr));
+  }
+
   auto type = checked_func->checked_type();
-  CHECK(type.as<IncompleteTypeNode>() == nullptr);
+  CHECK(type.as<relay::IncompleteTypeNode>() == nullptr);
+
   if (functions.find(var) != functions.end()) {
     CHECK(update)
         << "Already have definition for " << var->name_hint;
@@ -158,8 +171,7 @@ void ModuleNode::Add(const GlobalVar& var,
 }
 
 void ModuleNode::AddUnchecked(const GlobalVar& var,
-                              const Function& func) {
-  auto mod = GetRef<Module>(this);
+                              const BaseFunc& func) {
   this->functions.Set(var, func);
 
   auto it = global_var_map_.find(var->name_hint);
@@ -185,15 +197,19 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
   }
 }
 
-void ModuleNode::AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
+void ModuleNode::AddTypeDef(const GlobalTypeVar& var,
+                            const TypeData& type,
+                            bool update) {
   AddTypeDefUnchecked(var, type, update);
   // need to kind check at the end because the check can look up
   // a definition potentially
-  CHECK(KindCheck(type, GetRef<Module>(this)) == Kind::kTypeData)
+  CHECK(relay::KindCheck(type, GetRef<Module>(this)) == Kind::kTypeData)
     << "Invalid or malformed typedata given to module: " << type;
 }
 
-void ModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update) {
+void ModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var,
+                                     const TypeData& type,
+                                     bool update) {
   this->type_definitions.Set(var, type);
   if (!update) {
     // set global type var map
@@ -204,11 +220,13 @@ void ModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& t
   RegisterConstructors(var, type);
 }
 
-void ModuleNode::Update(const GlobalVar& var, const Function& func) {
+void ModuleNode::Update(const GlobalVar& var,
+                        const BaseFunc& func) {
   this->Add(var, func, true);
 }
 
-void ModuleNode::UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type) {
+void ModuleNode::UpdateTypeDef(const GlobalTypeVar& var,
+                               const TypeData& type) {
   this->AddTypeDef(var, type, true);
 }
 
@@ -219,14 +237,14 @@ void ModuleNode::Remove(const GlobalVar& var) {
   gvar_node->data.erase(var->name_hint);
 }
 
-Function ModuleNode::Lookup(const GlobalVar& var) const {
+BaseFunc ModuleNode::Lookup(const GlobalVar& var) const {
   auto it = functions.find(var);
   CHECK(it != functions.end())
       << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
-Function ModuleNode::Lookup(const std::string& name) const {
+BaseFunc ModuleNode::Lookup(const std::string& name) const {
   GlobalVar id = this->GetGlobalVar(name);
   return this->Lookup(id);
 }
@@ -268,16 +286,17 @@ void ModuleNode::Update(const Module& mod) {
 }
 
 Module ModuleNode::FromExpr(
-  const Expr& expr,
-  const tvm::Map<GlobalVar, Function>& global_funcs,
+  const RelayExpr& expr,
+  const tvm::Map<GlobalVar, BaseFunc>& global_funcs,
   const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
   auto mod = ModuleNode::make(global_funcs, type_definitions);
-  auto func_node = expr.as<FunctionNode>();
-  Function func;
-  if (func_node) {
-    func = GetRef<Function>(func_node);
+  BaseFunc func;
+  if (auto* func_node = expr.as<relay::FunctionNode>()) {
+    func = GetRef<relay::Function>(func_node);
   } else {
-    func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, mod), {});
+    func = relay::FunctionNode::make(
+        relay::FreeVars(expr), expr, Type(),
+        relay::FreeTypeVars(expr, mod), {});
   }
   auto main_gv = GlobalVar("main");
   mod->Add(main_gv, func);
@@ -318,8 +337,8 @@ Module FromText(const std::string& source, const std::string& source_name) {
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_GLOBAL("relay._make.Module")
-.set_body_typed(
-[](tvm::Map<GlobalVar, Function> funcs, tvm::Map<GlobalTypeVar, TypeData> types) {
+.set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs,
+                   tvm::Map<GlobalTypeVar, TypeData> types) {
   return ModuleNode::make(funcs, types, {});
 });
 
@@ -330,17 +349,19 @@ TVM_REGISTER_GLOBAL("relay._module.Module_Add")
   ObjectRef val = args[2];
   bool update = args[3];
   CHECK(val->IsInstance<ExprNode>());
-  if (val->IsInstance<FunctionNode>()) {
-    mod->Add(var, Downcast<Function>(val), update);
+
+  if (val->IsInstance<relay::FunctionNode>()) {
+    mod->Add(var, Downcast<relay::Function>(val), update);
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = Module(make_object<ModuleNode>(*mod.operator->()));
-    mod_copy = transform::EtaExpand(
-      /* expand_constructor */ false, /* expand_global_var */ true)(mod_copy);
+    mod_copy = relay::transform::EtaExpand(
+        /* expand_constructor */ false,
+        /* expand_global_var */ true)(mod_copy);
     auto func = mod_copy->Lookup(gv->name_hint);
-    mod->Add(var, Downcast<Function>(func), update);
+    mod->Add(var, Downcast<relay::Function>(func), update);
   } else {
-    auto func = FunctionNode::make({}, Downcast<Expr>(val), Type(nullptr), {});
+    auto func = FunctionNode::make({}, Downcast<relay::Expr>(val), Type(nullptr), {});
     mod->Add(var, func, update);
   }
   *ret = mod;
@@ -390,8 +411,8 @@ TVM_REGISTER_GLOBAL("relay._module.Module_LookupTag")
   });
 
 TVM_REGISTER_GLOBAL("relay._module.Module_FromExpr")
-.set_body_typed([](Expr e,
-                   tvm::Map<GlobalVar, Function> funcs,
+.set_body_typed([](RelayExpr e,
+                   tvm::Map<GlobalVar, BaseFunc> funcs,
                    tvm::Map<GlobalTypeVar, TypeData> type_defs) {
   return ModuleNode::FromExpr(e, funcs, type_defs);
 });

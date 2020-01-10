@@ -155,9 +155,17 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const
     Expr VisitExpr_(const GlobalVarNode* op, const MCont& k) final {
       auto gv = GetRef<GlobalVar>(op);
       if (cm->count(gv) == 0) {
-        auto cps_gv = GlobalVar(gv->name_hint + "_cps");
-        cm->insert({gv, cps_gv});
-        m->Add(cps_gv, ToCPS(m->Lookup(gv), m, cm));
+        // only look unfold non-external calls.
+        BaseFunc base_func = m->Lookup(gv);
+        if (auto* n = base_func.as<FunctionNode>()) {
+          auto cps_gv = GlobalVar(gv->name_hint + "_cps");
+          cm->insert({gv, cps_gv});
+          m->Add(cps_gv, ToCPS(GetRef<Function>(n), m, cm));
+        } else {
+          // return the original global var if it is
+          // an external call to non-relay function.
+          return GetRef<GlobalVar>(op);
+        }
       }
       return k(cm->at(gv));
     }
