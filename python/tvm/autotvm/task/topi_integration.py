@@ -69,9 +69,9 @@ def deserialize_args(args):
     return ret
 
 
-# Task extractor for relay program
+# Task extractor for nnvm graph, relay program
 class TaskExtractEnv:
-    """Global environment for extracting tuning tasks from graph"""
+    """Global environment for extracting tuning tasks from nnvm graph"""
     current = None
     registered = None
 
@@ -92,7 +92,6 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc: "topi_nn_bitserial_conv2d_nhwc",
             topi.nn.bitserial_dense: "topi_nn_bitserial_dense",
             topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
-            topi.nn.conv1d_transpose_ncw: "topi_nn_conv1d_transpose_ncw",
         }
 
         self.topi_to_schedule = {
@@ -110,7 +109,6 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc: [topi.generic.schedule_bitserial_conv2d_nhwc],
             topi.nn.bitserial_dense: [topi.generic.schedule_bitserial_dense],
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
-            topi.nn.conv1d_transpose_ncw: [topi.generic.schedule_conv1d_transpose_ncw],
         }
 
         # function reflection for tracing
@@ -127,7 +125,6 @@ class TaskExtractEnv:
             topi.nn.bitserial_conv2d_nhwc:  lambda x: setattr(topi.nn, 'bitserial_conv2d_nhwc', x),
             topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
             topi.nn.deformable_conv2d_nchw: lambda x: setattr(topi.nn, 'deformable_conv2d_nchw', x),
-            topi.nn.conv1d_transpose_ncw:   lambda x: setattr(topi.nn, 'conv1d_transpose_ncw', x),
         }
 
         self.allow_duplicate = allow_duplicate
@@ -182,15 +179,12 @@ class TaskExtractEnv:
             args = deserialize_args(args)
             A, W = args[:2]
             layout = args[-2]
+            assert layout == 'NCHW' or layout == 'HWCN', "only support NCHW/HWCN currently"
             C = topi.nn.conv2d(*args, **kwargs)
             if layout == 'NCHW':
                 s = topi.generic.schedule_conv2d_nchw([C])
-            elif layout == 'HWCN':
-                s = topi.generic.schedule_conv2d_hwcn([C])
-            elif layout == 'NHWC':
-                s = topi.generic.schedule_conv2d_nhwc([C])
             else:
-                raise ValueError("Unsupported layout {}".format(layout))
+                s = topi.generic.schedule_conv2d_hwcn([C])
             return s, [A, W, C]
 
         @register("topi_nn_depthwise_conv2d_nchw")
@@ -218,15 +212,6 @@ class TaskExtractEnv:
             A, W = args[:2]
             C = topi.nn.conv2d_transpose_nchw(*args, **kwargs)
             s = topi.generic.schedule_conv2d_transpose_nchw([C])
-            return s, [A, W, C]
-
-        @register("topi_nn_conv1d_transpose_ncw")
-        def _topi_nn_conv1d_transpose_ncw(*args, **kwargs):
-            assert not kwargs, "Do not support kwargs in template function call"
-            args = deserialize_args(args)
-            A, W = args[:2]
-            C = topi.nn.conv1d_transpose_ncw(*args, **kwargs)
-            s = topi.generic.schedule_conv1d_transpose_ncw([C])
             return s, [A, W, C]
 
         @register("topi_nn_dense")
@@ -313,7 +298,7 @@ class TaskExtractEnv:
         Returns
         -------
         tasks: List of tuple(name, args)
-            A list of tasks extracted from the graph
+            A list of tasks extracted from the nnvm graph
         """
         return self.task_collection
 

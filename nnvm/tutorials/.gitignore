@@ -1,0 +1,11 @@
+*.pb
+*.mlmodel
+*.ttf
+*.txt
+*synset*txt
+*.cfg
+ssd_model
+*.names
+*.jpg
+*.pbtxt
+*.weights

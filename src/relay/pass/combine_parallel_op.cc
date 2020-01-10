@@ -27,30 +27,29 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
-#include <algorithm>
-#include <utility>
 #include <unordered_map>
 #include <unordered_set>
-#include "expr_subst.h"
-#include "pattern_util.h"
-#include "combine_parallel_op.h"
+#include "./expr_subst.h"
+#include "./pattern_util.h"
+#include "./combine_parallel_op.h"
 
 
 namespace tvm {
 namespace relay {
 
-BranchGroupFinder::BranchGroupFinder(const Op& op,
+BranchGroupFinder::BranchGroupFinder(const std::string& op_name,
                                      FIsSupportedOp fis_supported_op,
                                      FAreCompatibleOps fare_compatible_ops)
-  : cached_op_(op),
+  : op_name_(op_name),
     fis_supported_op_(fis_supported_op),
     fare_compatible_ops_(fare_compatible_ops) {
 }
 
 std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
+  const Op& op = Op::Get(op_name_);
+
   this->VisitExpr(expr);
 
   std::vector<Group> groups;
@@ -58,7 +57,7 @@ std::vector<Group> BranchGroupFinder::Find(const Expr& expr) {
     const auto& children = children_map_.at(root);
     size_t ngroups = groups.size();
     for (const CallNode* child : children) {
-      if (child->op != cached_op_) continue;
+      if (!child->op.same_as(op)) continue;
 
       auto&& branch = CreateBranch(child);
       // add the branch to a group, or create a new group
@@ -98,8 +97,9 @@ Branch BranchGroupFinder::CreateBranch(const CallNode* op) {
 }
 
 void BranchGroupFinder::VisitExpr_(const CallNode* n) {
+  const Op& op = Op::Get(op_name_);
   ExprVisitor::VisitExpr_(n);
-  if (n->op == cached_op_ && fis_supported_op_(n)) {
+  if (n->op.same_as(op) && fis_supported_op_(n)) {
     op_roots_.insert(n->args[0]);
     children_map_[n->args[0]].push_back(n);
   } else {
@@ -110,12 +110,12 @@ void BranchGroupFinder::VisitExpr_(const CallNode* n) {
 }
 
 ParallelOpCombiner::ParallelOpCombiner(const std::string& op_name, uint64_t min_num_branches)
-  : cached_op_(Op::Get(op_name)),
+  : op_name_(op_name),
     min_num_branches_(min_num_branches) {
 }
 
 Expr ParallelOpCombiner::Combine(const Expr& expr) {
-  auto groups = BranchGroupFinder(cached_op_,
+  auto groups = BranchGroupFinder(op_name_,
                                   [&](const CallNode* n) {
                                     return IsSupportedOp(n);
                                   },

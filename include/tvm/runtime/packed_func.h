@@ -28,11 +28,6 @@
 #include <sstream>
 #endif
 #include <dmlc/logging.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/data_type.h>
-#include <tvm/runtime/object.h>
 #include <functional>
 #include <tuple>
 #include <vector>
@@ -41,7 +36,10 @@
 #include <memory>
 #include <utility>
 #include <type_traits>
-
+#include "c_runtime_api.h"
+#include "module.h"
+#include "ndarray.h"
+#include "object.h"
 
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
@@ -51,6 +49,7 @@
 namespace tvm {
 // forward declarations
 class Integer;
+class DataType;
 class Expr;
 
 namespace runtime {
@@ -389,20 +388,47 @@ inline std::string TVMType2String(TVMType t);
   << TypeCode2Str(T) << " but get " << TypeCode2Str(CODE)      \
 
 /*!
- * \brief Type traits for runtime type check during FFI conversion.
- * \tparam T the type to be checked.
+ * \brief Type traits to mark if a class is tvm extension type.
+ *
+ * To enable extension type in C++ must be registered via marco.
+ * TVM_REGISTER_EXT_TYPE(TypeName) after defining this with this traits.
+ *
+ * Extension class can be passed and returned via PackedFunc in all tvm runtime.
+ * Internally extension class is stored as T*.
+ *
+ * \tparam T the typename
  */
 template<typename T>
-struct ObjectTypeChecker {
-  static bool Check(const Object* ptr) {
-    using ContainerType = typename T::ContainerType;
-    if (ptr == nullptr) return true;
-    return ptr->IsInstance<ContainerType>();
-  }
-  static std::string TypeName() {
-    using ContainerType = typename T::ContainerType;
-    return ContainerType::_type_key;
-  }
+struct extension_type_info {
+  static const int code = 0;
+};
+
+/*!
+ * \brief Runtime function table about extension type.
+ */
+class ExtTypeVTable {
+ public:
+  /*! \brief function to be called to delete a handle */
+  void (*destroy)(void* handle);
+  /*! \brief function to be called when clone a handle */
+  void* (*clone)(void* handle);
+  /*!
+   * \brief Register type
+   * \tparam T The type to be register.
+   * \return The registered vtable.
+   */
+  template <typename T>
+  static inline ExtTypeVTable* Register_();
+  /*!
+   * \brief Get a vtable based on type code.
+   * \param type_code The type code
+   * \return The registered vtable.
+   */
+  TVM_DLL static ExtTypeVTable* Get(int type_code);
+
+ private:
+  // Internal registration function.
+  TVM_DLL static ExtTypeVTable* RegisterInternal(int type_code, const ExtTypeVTable& vt);
 };
 
 /*!
@@ -451,17 +477,24 @@ class TVMPODValue_ {
       return static_cast<DLTensor*>(value_.v_handle);
     } else {
       if (type_code_ == kNull) return nullptr;
-      LOG(FATAL) << "Expect "
+      LOG(FATAL) << "Expected "
                  << "DLTensor* or NDArray but get "
                  << TypeCode2Str(type_code_);
       return nullptr;
     }
   }
   operator NDArray() const {
-    if (type_code_ == kNull) return NDArray(ObjectPtr<Object>(nullptr));
+    if (type_code_ == kNull) return NDArray();
     TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
-    return NDArray(NDArray::FFIDataFromHandle(
-        static_cast<TVMArrayHandle>(value_.v_handle)));
+    return NDArray(static_cast<NDArray::Container*>(value_.v_handle));
+  }
+  operator ObjectRef() const {
+    if (type_code_ == kNull) {
+      return ObjectRef(ObjectPtr<Object>(nullptr));
+    }
+    TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+    return ObjectRef(
+        ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator Module() const {
     if (type_code_ == kNull) {
@@ -475,9 +508,28 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
   }
+  template<typename TNDArray,
+           typename = typename std::enable_if<
+           std::is_base_of<NDArray, TNDArray>::value>::type>
+  TNDArray AsNDArray() const {
+    if (type_code_ == kNull) return TNDArray(nullptr);
+    auto *container = static_cast<NDArray::Container*>(value_.v_handle);
+    CHECK_EQ(container->array_type_code_, array_type_info<TNDArray>::code);
+    return TNDArray(container);
+  }
+  template<typename TExtension>
+  const TExtension& AsExtension() const {
+    CHECK_LT(type_code_, kExtEnd);
+    return static_cast<TExtension*>(value_.v_handle)[0];
+  }
+  template<typename TObjectRef,
+           typename = typename std::enable_if<
+             std::is_class<TObjectRef>::value>::type>
+  inline bool IsObjectRef() const;
   int type_code() const {
     return type_code_;
   }
+
   /*!
    * \brief return handle as specific pointer type.
    * \tparam T the data type.
@@ -487,16 +539,6 @@ class TVMPODValue_ {
   T* ptr() const {
     return static_cast<T*>(value_.v_handle);
   }
-  // ObjectRef handling
-  template<typename TObjectRef,
-           typename = typename std::enable_if<
-             std::is_base_of<ObjectRef, TObjectRef>::value>::type>
-  inline bool IsObjectRef() const;
-  template<typename TObjectRef>
-  inline TObjectRef AsObjectRef() const;
-  // ObjectRef Specializations
-  inline operator tvm::Expr() const;
-  inline operator tvm::Integer() const;
 
  protected:
   friend class TVMArgsSetter;
@@ -539,11 +581,9 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator ObjectRef;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
-  using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::Expr;
-  using TVMPODValue_::operator tvm::Integer;
 
   // conversion operator.
   operator std::string() const {
@@ -570,9 +610,6 @@ class TVMArgValue : public TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMType);
     return value_.v_type;
   }
-  operator DataType() const {
-    return DataType(operator DLDataType());
-  }
   operator PackedFunc() const {
     if (type_code_ == kNull) return PackedFunc();
     TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
@@ -585,10 +622,16 @@ class TVMArgValue : public TVMPODValue_ {
   const TVMValue& value() const {
     return value_;
   }
+  // Deferred extension handler.
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
   template<typename T,
            typename = typename std::enable_if<
-             std::is_class<T>::value>::type>
+           std::is_class<T>::value>::type>
   inline operator T() const;
+  inline operator tvm::DataType() const;
+  inline operator tvm::Expr() const;
+  inline operator tvm::Integer() const;
 };
 
 /*!
@@ -626,11 +669,9 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
+  using TVMPODValue_::operator ObjectRef;
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
-  using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::Expr;
-  using TVMPODValue_::operator tvm::Integer;
 
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
@@ -651,9 +692,6 @@ class TVMRetValue : public TVMPODValue_ {
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMType);
     return value_.v_type;
-  }
-  operator DataType() const {
-    return DataType(operator DLDataType());
   }
   operator PackedFunc() const {
     if (type_code_ == kNull) return PackedFunc();
@@ -707,9 +745,6 @@ class TVMRetValue : public TVMPODValue_ {
     value_.v_type = t;
     return *this;
   }
-  TVMRetValue& operator=(const DataType& other) {
-    return operator=(other.operator DLDataType());
-  }
   TVMRetValue& operator=(bool value) {
     this->SwitchToPOD(kDLInt);
     value_.v_int64 = value;
@@ -724,18 +759,22 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(NDArray other) {
-    if (other.data_ != nullptr) {
-      this->Clear();
-      type_code_ = kNDArrayContainer;
-      value_.v_handle = NDArray::FFIGetHandle(other);
-      ObjectRef::FFIClearAfterMove(&other);
-    } else {
-      SwitchToPOD(kNull);
-    }
+    this->Clear();
+    type_code_ = kNDArrayContainer;
+    value_.v_handle = other.data_;
+    other.data_ = nullptr;
     return *this;
+  }
+  TVMRetValue& operator=(ObjectRef other) {
+    return operator=(std::move(other.data_));
   }
   TVMRetValue& operator=(Module m) {
     SwitchToObject(kModuleHandle, std::move(m.data_));
+    return *this;
+  }
+  template<typename T>
+  TVMRetValue& operator=(ObjectPtr<T> other) {
+    SwitchToObject(kObjectHandle, std::move(other));
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
@@ -752,6 +791,14 @@ class TVMRetValue : public TVMPODValue_ {
   }
   TVMRetValue& operator=(const TVMArgValue& other) {
     this->Assign(other);
+    return *this;
+  }
+  template<typename T,
+           typename = typename std::enable_if<
+             extension_type_info<T>::code != 0>::type>
+  TVMRetValue& operator=(const T& other) {
+    this->SwitchToClass<T>(
+        extension_type_info<T>::code, other);
     return *this;
   }
   /*!
@@ -779,15 +826,16 @@ class TVMRetValue : public TVMPODValue_ {
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
-  // ObjectRef handling
-  template<typename TObjectRef,
-           typename = typename std::enable_if<
-             std::is_base_of<ObjectRef, TObjectRef>::value>::type>
-  inline TVMRetValue& operator=(TObjectRef other);
+  // ObjectRef related extenstions: in tvm/packed_func_ext.h
   template<typename T,
            typename = typename std::enable_if<
              std::is_class<T>::value>::type>
   inline operator T() const;
+  template<typename TObjectRef>
+  inline TObjectRef AsObjectRef() const;
+  // type related
+  inline operator tvm::DataType() const;
+  inline TVMRetValue& operator=(const tvm::DataType& other);
 
  private:
   template<typename T>
@@ -814,15 +862,24 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kObjectHandle: {
-        // Avoid operator ObjectRef as we already know it is not NDArray/Module
-        SwitchToObject(
-            kObjectHandle, GetObjectPtr<Object>(
-                static_cast<Object*>(other.value_.v_handle)));
+        *this = other.operator ObjectRef();
         break;
       }
       default: {
-        SwitchToPOD(other.type_code());
-        value_ = other.value_;
+        if (other.type_code() < kExtBegin) {
+          SwitchToPOD(other.type_code());
+          value_ = other.value_;
+        } else {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
+          this->Clear();
+          type_code_ = other.type_code();
+          value_.v_handle =
+              (*(ExtTypeVTable::Get(other.type_code())->clone))(
+                  other.value().v_handle);
+#endif
+        }
         break;
       }
     }
@@ -861,7 +918,7 @@ class TVMRetValue : public TVMPODValue_ {
       case kStr: delete ptr<std::string>(); break;
       case kFuncHandle: delete ptr<PackedFunc>(); break;
       case kNDArrayContainer: {
-        NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
+        static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;
       }
       case kModuleHandle: {
@@ -872,6 +929,13 @@ class TVMRetValue : public TVMPODValue_ {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
+    }
+    if (type_code_ > kExtBegin) {
+#if TVM_RUNTIME_HEADER_ONLY
+          LOG(FATAL) << "Header only mode do not support ext type";
+#else
+      (*(ExtTypeVTable::Get(type_code_)->destroy))(value_.v_handle);
+#endif
     }
     type_code_ = kNull;
   }
@@ -893,7 +957,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
-    case kObjectHandle: return "Object";
+    case kObjectHandle: return "ObjectCell";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
@@ -915,10 +979,6 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
     os << 'x' << static_cast<int>(t.lanes);
   }
   return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NOLINT(*)
-  return os << dtype.operator DLDataType();
 }
 
 #endif
@@ -1080,31 +1140,50 @@ class TVMArgsSetter {
     values_[i].v_type = value;
     type_codes_[i] = kTVMType;
   }
-  void operator()(size_t i, DataType dtype) const {
-    operator()(i, dtype.operator DLDataType());
-  }
   void operator()(size_t i, const char* value) const {
     values_[i].v_str = value;
     type_codes_[i] = kStr;
   }
-  // setters for container types
-  void operator()(size_t i, const std::string& value) const {
+  // setters for container type
+  // They must be reference(instead of const ref)
+  // to make sure they are alive in the tuple(instead of getting converted)
+  void operator()(size_t i, const std::string& value) const {  // NOLINT(*)
     values_[i].v_str = value.c_str();
     type_codes_[i] = kStr;
   }
-  void operator()(size_t i, const TVMByteArray& value) const {
+  void operator()(size_t i, const TVMByteArray& value) const {  // NOLINT(*)
     values_[i].v_handle = const_cast<TVMByteArray*>(&value);
     type_codes_[i] = kBytes;
   }
-  void operator()(size_t i, const PackedFunc& value) const {
+  void operator()(size_t i, const PackedFunc& value) const {  // NOLINT(*)
     values_[i].v_handle = const_cast<PackedFunc*>(&value);
     type_codes_[i] = kFuncHandle;
   }
   template<typename FType>
-  void operator()(size_t i, const TypedPackedFunc<FType>& value) const {
+  void operator()(size_t i, const TypedPackedFunc<FType>& value) const {  // NOLINT(*)
     operator()(i, value.packed());
   }
-  void operator()(size_t i, const TVMRetValue& value) const {
+  void operator()(size_t i, const Module& value) const {  // NOLINT(*)
+    if (value.defined()) {
+      values_[i].v_handle = value.data_.data_;
+      type_codes_[i] = kModuleHandle;
+    } else {
+      type_codes_[i] = kNull;
+    }
+  }
+  void operator()(size_t i, const NDArray& value) const {  // NOLINT(*)
+    values_[i].v_handle = value.data_;
+    type_codes_[i] = kNDArrayContainer;
+  }
+  void operator()(size_t i, const ObjectRef& value) const {  // NOLINT(*)
+    if (value.defined()) {
+      values_[i].v_handle = value.data_.data_;
+      type_codes_[i] = kObjectHandle;
+    } else {
+      type_codes_[i] = kNull;
+    }
+  }
+  void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {
       values_[i].v_str = value.ptr<std::string>()->c_str();
       type_codes_[i] = kStr;
@@ -1114,11 +1193,12 @@ class TVMArgsSetter {
       type_codes_[i] = value.type_code();
     }
   }
-  // ObjectRef handling
-  template<typename TObjectRef,
+  // extension
+  template<typename T,
            typename = typename std::enable_if<
-             std::is_base_of<ObjectRef, TObjectRef>::value>::type>
-  inline void operator()(size_t i, const TObjectRef& value) const;
+             extension_type_info<T>::code != 0>::type>
+  inline void operator()(size_t i, const T& value) const;
+  inline void operator()(size_t i, const tvm::DataType& t) const;
 
  private:
   /*! \brief The values fields */
@@ -1230,131 +1310,78 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
       ::run(packed_, std::forward<Args>(args)...);
 }
 
-// ObjectRef related conversion handling
-// Object can have three possible type codes:
-//      kNDArrayContainer, kModuleHandle, kObjectHandle
-//
-// We use type traits to eliminate un-necessary checks.
-template<typename TObjectRef, typename>
-inline void TVMArgsSetter::operator()(size_t i, const TObjectRef& value) const {
-  if (value.defined()) {
-    Object* ptr = value.data_.data_;
-    if (std::is_base_of<NDArray, TObjectRef>::value ||
-        (std::is_base_of<TObjectRef, NDArray>::value &&
-         ptr->IsInstance<NDArray::ContainerType>())) {
-      values_[i].v_handle = NDArray::FFIGetHandle(value);
-      type_codes_[i] = kNDArrayContainer;
-    } else if (std::is_base_of<Module, TObjectRef>::value ||
-               (std::is_base_of<TObjectRef, Module>::value &&
-                ptr->IsInstance<Module::ContainerType>())) {
-      values_[i].v_handle = ptr;
-      type_codes_[i] = kModuleHandle;
-    } else {
-      values_[i].v_handle = ptr;
-      type_codes_[i] = kObjectHandle;
-    }
-  } else {
-    type_codes_[i] = kNull;
+// extension and node type handling
+namespace detail {
+template<typename T, typename TSrc, bool is_ext, bool is_nd>
+struct TVMValueCast {
+  static T Apply(const TSrc* self) {
+    static_assert(!is_ext && !is_nd, "The default case accepts only non-extensions");
+    return self->template AsObjectRef<T>();
   }
-}
+};
 
-template<typename TObjectRef, typename>
-inline bool TVMPODValue_::IsObjectRef() const {
-  using ContainerType = typename TObjectRef::ContainerType;
-  // NOTE: the following code can be optimized by constant folding.
-  if (std::is_base_of<NDArray, TObjectRef>::value) {
-    return type_code_ == kNDArrayContainer &&
-        TVMArrayHandleToObjectHandle(
-            static_cast<TVMArrayHandle>(value_.v_handle))->IsInstance<ContainerType>();
+template<typename T, typename TSrc>
+struct TVMValueCast<T, TSrc, true, false> {
+  static T Apply(const TSrc* self) {
+    return self->template AsExtension<T>();
   }
-  if (std::is_base_of<Module, TObjectRef>::value) {
-    return type_code_ == kModuleHandle &&
-        static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
-  }
-  return
-      (std::is_base_of<TObjectRef, NDArray>::value && type_code_ == kNDArrayContainer) ||
-      (std::is_base_of<TObjectRef, Module>::value && type_code_ == kModuleHandle) ||
-      (type_code_ == kObjectHandle &&
-       ObjectTypeChecker<TObjectRef>::Check(static_cast<Object*>(value_.v_handle)));
-}
+};
 
-template<typename TObjectRef>
-inline TObjectRef TVMPODValue_::AsObjectRef() const {
-  static_assert(
-      std::is_base_of<ObjectRef, TObjectRef>::value,
-      "Conversion only works for ObjectRef");
-  using ContainerType = typename TObjectRef::ContainerType;
-  if (type_code_ == kNull) return TObjectRef(ObjectPtr<Object>(nullptr));
-  // NOTE: the following code can be optimized by constant folding.
-  if (std::is_base_of<NDArray, TObjectRef>::value) {
-    // Casting to a sub-class of NDArray
-    TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
-    ObjectPtr<Object> data = NDArray::FFIDataFromHandle(
-        static_cast<TVMArrayHandle>(value_.v_handle));
-    CHECK(data->IsInstance<ContainerType>())
-        << "Expect " << ContainerType::_type_key << " but get " << data->GetTypeKey();
-    return TObjectRef(data);
+template<typename T, typename TSrc>
+struct TVMValueCast<T, TSrc, false, true> {
+  static T Apply(const TSrc* self) {
+    return self->template AsNDArray<T>();
   }
-  if (std::is_base_of<Module, TObjectRef>::value) {
-    // Casting to a sub-class of Module
-    TVM_CHECK_TYPE_CODE(type_code_, kModuleHandle);
-    ObjectPtr<Object> data = GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle));
-    CHECK(data->IsInstance<ContainerType>())
-        << "Expect " << ContainerType::_type_key << " but get " << data->GetTypeKey();
-    return TObjectRef(data);
-  }
-  if (type_code_ == kObjectHandle) {
-    // normal object type check.
-    Object* ptr = static_cast<Object*>(value_.v_handle);
-    CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
-        << "Expect " << ObjectTypeChecker<TObjectRef>::TypeName()
-        << " but get " << ptr->GetTypeKey();
-    return TObjectRef(GetObjectPtr<Object>(ptr));
-  } else if (std::is_base_of<TObjectRef, NDArray>::value &&
-             type_code_ == kNDArrayContainer) {
-    // Casting to a base class that NDArray can sub-class
-    ObjectPtr<Object> data = NDArray::FFIDataFromHandle(
-        static_cast<TVMArrayHandle>(value_.v_handle));
-    return TObjectRef(data);
-  } else if (std::is_base_of<TObjectRef, Module>::value &&
-             type_code_ == kModuleHandle) {
-    // Casting to a base class that Module can sub-class
-    return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
-  } else {
-    TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
-    return TObjectRef(ObjectPtr<Object>(nullptr));
-  }
-}
+};
 
-template<typename TObjectRef, typename>
-inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
-  const Object* ptr = other.get();
-  if (ptr != nullptr) {
-    if (std::is_base_of<NDArray, TObjectRef>::value ||
-        (std::is_base_of<TObjectRef, NDArray>::value &&
-         ptr->IsInstance<NDArray::ContainerType>())) {
-      return operator=(NDArray(std::move(other.data_)));
-    }
-    if (std::is_base_of<Module, TObjectRef>::value ||
-        (std::is_base_of<TObjectRef, Module>::value &&
-         ptr->IsInstance<Module::ContainerType>())) {
-      return operator=(Module(std::move(other.data_)));
-    }
-    SwitchToObject(kObjectHandle, std::move(other.data_));
-  } else {
-    SwitchToPOD(kNull);
-  }
-  return *this;
-}
+}  // namespace detail
 
 template<typename T, typename>
 inline TVMArgValue::operator T() const {
-  return AsObjectRef<T>();
+  return detail::
+      TVMValueCast<T, TVMArgValue,
+                   (extension_type_info<T>::code != 0),
+                   (array_type_info<T>::code > 0)>
+      ::Apply(this);
 }
 
 template<typename T, typename>
 inline TVMRetValue::operator T() const {
-  return AsObjectRef<T>();
+  return detail::
+      TVMValueCast<T, TVMRetValue,
+                   (extension_type_info<T>::code != 0),
+                   (array_type_info<T>::code > 0)>
+      ::Apply(this);
+}
+
+template<typename T, typename>
+inline void TVMArgsSetter::operator()(size_t i, const T& value) const {
+  static_assert(extension_type_info<T>::code != 0,
+                "Need to have extesion code");
+  type_codes_[i] = extension_type_info<T>::code;
+  values_[i].v_handle = const_cast<T*>(&value);
+}
+
+// extension type handling
+template<typename T>
+struct ExtTypeInfo {
+  static void destroy(void* handle) {
+    delete static_cast<T*>(handle);
+  }
+  static void* clone(void* handle) {
+    return new T(*static_cast<T*>(handle));
+  }
+};
+
+template<typename T>
+inline ExtTypeVTable* ExtTypeVTable::Register_() {
+  const int code = extension_type_info<T>::code;
+  static_assert(code != 0,
+                "require extension_type_info traits to be declared with non-zero code");
+  ExtTypeVTable vt;
+  vt.clone = ExtTypeInfo<T>::clone;
+  vt.destroy = ExtTypeInfo<T>::destroy;
+  return ExtTypeVTable::RegisterInternal(code, vt);
 }
 
 inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {

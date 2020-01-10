@@ -125,7 +125,7 @@ class ConstIntBoundAnalyzer::Impl :
   // Override visitor behaviors
   Entry VisitExprDefault_(const Node* op) final {
     return Everything(
-        static_cast<const ExprNode*>(op)->dtype);
+        static_cast<const ExprNode*>(op)->type);
   }
 
   Entry VisitExpr(const Expr& expr) final {
@@ -142,7 +142,7 @@ class ConstIntBoundAnalyzer::Impl :
 
   Entry VisitExpr_(const Cast* op) final {
     Entry a = VisitExpr(op->value);
-    Entry b = Everything(op->dtype);
+    Entry b = Everything(op->type);
     return Intersect(a, b);
   }
 
@@ -154,7 +154,7 @@ class ConstIntBoundAnalyzer::Impl :
     if (op->value <= static_cast<uint64_t>(kPosInf)) {
       return MakeBound(op->value, op->value);
     } else {
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -211,7 +211,7 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -242,7 +242,7 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -278,7 +278,7 @@ class ConstIntBoundAnalyzer::Impl :
     } else if (op->is_intrinsic(Call::bitwise_and)) {
       return VisitBitwiseAnd(op);
     } else {
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -288,7 +288,7 @@ class ConstIntBoundAnalyzer::Impl :
     if (it != var_map_.end()) {
       return it->second;
     } else {
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -311,7 +311,7 @@ class ConstIntBoundAnalyzer::Impl :
       if (a.min_value >= 0) {
         return MakeBound(0, a.max_value);
       }
-      return Everything(op->dtype);
+      return Everything(op->type);
     }
   }
 
@@ -466,7 +466,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \param dtype The data type.
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Everything(DataType dtype) {
+  static Entry Everything(Type dtype) {
     if (!dtype.is_int() && !dtype.is_uint()) {
       return MakeBound(kNegInf, kPosInf);
     }

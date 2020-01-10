@@ -48,14 +48,14 @@ class ContextCallCombiner final : public IRMutator {
       if (it != ctx_map_.end()) {
         return it->second;
       } else {
-        CHECK(ctx.dtype().is_handle());
+        CHECK(ctx.type().is_handle());
         std::string name;
         if (const Call* call = ctx.as<Call>()) {
           name = call->name + "_cache";
         } else {
           name = "ctx_cache_";
         }
-        Var ctx_var(name, ctx.dtype());
+        Var ctx_var(name, ctx.type());
         ctx_map_[ctx] = ctx_var;
         return std::move(ctx_var);
       }

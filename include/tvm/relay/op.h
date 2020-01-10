@@ -594,11 +594,12 @@ inline ValueType OpMap<ValueType>::get(const Expr& expr,
   return map_.get<ValueType>(expr, def_value);
 }
 
+
 /*!
- * \brief Check that an expression is a "primitive operator".
+ * \brief Check that an expression is a "primtive operator".
  *
  * Will return true if the expression is an operator which
- * matches the form of primitive operators registered directly
+ * matches the form of primtive operators registered directly
  * by the Relay codebase.
  *
  * That is the arguments are all type variables, and there is a single

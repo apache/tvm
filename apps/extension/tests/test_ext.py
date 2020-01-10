@@ -87,17 +87,16 @@ def test_extern_call():
 
 
 def test_nd_subclass():
-    a = tvm_ext.NDSubClass.create(additional_info=3)
-    b = tvm_ext.NDSubClass.create(additional_info=5)
-    assert isinstance(a, tvm_ext.NDSubClass)
+    a = tvm_ext.NDSubClass.create(addtional_info=3)
+    b = tvm_ext.NDSubClass.create(addtional_info=5)
     c = a + b
     d = a + a
     e = b + b
-    assert(a.additional_info == 3)
-    assert(b.additional_info == 5)
-    assert(c.additional_info == 8)
-    assert(d.additional_info == 6)
-    assert(e.additional_info == 10)
+    assert(a.addtional_info == 3)
+    assert(b.addtional_info == 5)
+    assert(c.addtional_info == 8)
+    assert(d.addtional_info == 6)
+    assert(e.addtional_info == 10)
 
 
 if __name__ == "__main__":

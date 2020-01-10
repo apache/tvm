@@ -800,9 +800,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     if (packed_funcs_.size() <= packed_index) {
       packed_funcs_.resize(packed_index + 1);
     }
-    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
-    CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
-    packed_funcs_[packed_index] = pf;
+    packed_funcs_[packed_index] = lib.GetFunction(packed_name);
   }
 }
 

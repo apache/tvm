@@ -246,12 +246,10 @@ class Interpreter :
       public ExprFunctor<Value(const Expr& n)>,
              PatternFunctor<bool(const Pattern& p, const Value& v)> {
  public:
-  Interpreter(Module mod, DLContext context, Target target)
-      : mod_(mod),
-        context_(context),
-        target_(target),
-        debug_op_(Op::Get("debug")),
-        shape_of_op_(Op::Get("shape_of")) {
+  Interpreter(Module mod,
+              DLContext context,
+              Target target)
+      : mod_(mod), context_(context), target_(target) {
     engine_ = CompileEngine::Global();
   }
 
@@ -265,7 +263,7 @@ class Interpreter :
     stack_.current_frame().locals.Set(id, v);
   }
 
-  Value Lookup(const Var& local) {
+  inline Value Lookup(const Var& local) {
     return stack_.Lookup(local);
   }
 
@@ -309,7 +307,7 @@ class Interpreter :
     return TupleValueNode::make(values);
   }
 
-  Value MakeClosure(const Function& func, Var letrec_name = Var()) {
+  inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
     tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
@@ -359,9 +357,9 @@ class Interpreter :
           int64_t ndim = tv->data.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
-            shape_arr = NDArray::Empty({}, DataType::Int(64), cpu_ctx);
+            shape_arr = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
           } else {
-            shape_arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
+            shape_arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
             int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
             for (auto j = 0; j < ndim; ++j) {
               data[j] = tv->data.Shape()[j];
@@ -411,7 +409,7 @@ class Interpreter :
         const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
         CHECK(rtype != nullptr);
         int64_t ndim = rtype->shape.size();
-        auto arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
+        auto arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
         outputs[i] = arr;
         setter(arg_counter + i, arr);
     };
@@ -456,9 +454,9 @@ class Interpreter :
 
   Value InvokePrimitiveOp(const Function& func,
                           const Array<Value>& args) {
-    const auto* call_node = func->body.as<CallNode>();
+    auto call_node = func->body.as<CallNode>();
 
-    if (call_node && call_node->op == debug_op_) {
+    if (call_node && call_node->op == Op::Get("debug")) {
       auto dattrs = call_node->attrs.as<DebugAttrs>();
       auto interp_state = this->get_state(call_node->args[0]);
 
@@ -532,7 +530,7 @@ class Interpreter :
         CHECK(ivalue) << "expected concrete dimensions";
         shape.push_back(ivalue[0]);
       }
-      DLDataType dtype = rtype->dtype;
+      DLDataType dtype = Type2TVMType(rtype->dtype);
       auto out_tensor = TensorValueNode::make(
           NDArray::Empty(shape, dtype, context_));
       setter(num_inputs + i, out_tensor->data);
@@ -542,7 +540,7 @@ class Interpreter :
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
     bool is_dyn = IsDynamic(func->checked_type());
-    if (call_node->op == shape_of_op_) {
+    if (call_node->op == Op::Get("shape_of")) {
       // The output shape of shape_of must be static since Relay doesn't support
       // dynamic rank tensors.
       is_dyn = false;
@@ -675,7 +673,7 @@ class Interpreter :
       cpu_ctx.device_type = kDLCPU;
       cpu_ctx.device_id = 0;
       NDArray cpu_array = bv->data.CopyTo(cpu_ctx);
-      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
+      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
       // TODO(@jroesch, @MK): Refactor code into helper from DCE.
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return Eval(op->true_branch);
@@ -784,9 +782,6 @@ class Interpreter :
   Stack stack_;
   // Backend compile engine.
   CompileEngine engine_;
-  // Cache ops that need to be frequently used later to reduce lookup overhead.
-  const Op& debug_op_;
-  const Op& shape_of_op_;
 };
 
 

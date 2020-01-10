@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -29,6 +29,24 @@
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
 
+namespace tvm_ext {
+using IntVector = std::vector<int>;
+class NDSubClass;
+}  // namespace tvm_ext
+
+namespace tvm {
+namespace runtime {
+template<>
+struct extension_type_info<tvm_ext::IntVector> {
+  static const int code = 17;
+};
+template<>
+struct array_type_info<tvm_ext::NDSubClass> {
+  static const int code = 1;
+};
+}  // namespace tvm
+}  // namespace runtime
+
 using namespace tvm;
 using namespace tvm::runtime;
 
@@ -39,95 +57,71 @@ namespace tvm_ext {
  * To use this extension, an external library should
  *
  * 1) Inherit TVM's NDArray and NDArray container,
+ *    and define the trait `array_type_info` for this class.
  *
- * 2) Follow the new object protocol to define new NDArray as a reference class.
+ * 2) Define a constructor in the inherited class that accepts
+ *    a pointer to TVM's Container, which is nullable.
  *
- * 3) On Python frontend, inherit `tvm.nd.NDArray`,
- *    register the type using tvm.register_object
+ * 3) On Python frontend, inherit `tvm.nd.NDArrayBase`,
+ *    define the class attribute `_array_type_code` consistent to
+ *    the C++ type trait, and register the subclass using `tvm.register_extension`.
  */
 class NDSubClass : public tvm::runtime::NDArray {
  public:
   class SubContainer : public NDArray::Container {
    public:
-    SubContainer(int additional_info) :
-      additional_info_(additional_info) {
-      type_index_ = SubContainer::RuntimeTypeIndex();
+    SubContainer(int addtional_info) :
+      addtional_info_(addtional_info) {
+      array_type_code_ = array_type_info<NDSubClass>::code;
     }
-    int additional_info_{0};
-
-    static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-    static constexpr const char* _type_key = "tvm_ext.NDSubClass";
-    TVM_DECLARE_FINAL_OBJECT_INFO(SubContainer, NDArray::Container);
+    static bool Is(NDArray::Container *container) {
+      SubContainer *c = static_cast<SubContainer*>(container);
+      return c->array_type_code_ == array_type_info<NDSubClass>::code;
+    }
+    int addtional_info_{0};
   };
-
-  static void SubContainerDeleter(Object* obj) {
-    auto* ptr = static_cast<SubContainer*>(obj);
-    delete ptr;
+  NDSubClass(NDArray::Container *container) {
+    if (container == nullptr) {
+      data_ = nullptr;
+      return;
+    }
+    CHECK(SubContainer::Is(container));
+    container->IncRef();
+    data_ = container;
   }
-
-  NDSubClass() {}
-  explicit NDSubClass(ObjectPtr<Object> n) : NDArray(n) {}
-  explicit NDSubClass(int additional_info) {
-    SubContainer* ptr = new SubContainer(additional_info);
-    ptr->SetDeleter(SubContainerDeleter);
-    data_ = GetObjectPtr<Object>(ptr);
+  ~NDSubClass() {
+    this->reset();
   }
-
   NDSubClass AddWith(const NDSubClass &other) const {
-    SubContainer *a = static_cast<SubContainer*>(get_mutable());
-    SubContainer *b = static_cast<SubContainer*>(other.get_mutable());
+    SubContainer *a = static_cast<SubContainer*>(data_);
+    SubContainer *b = static_cast<SubContainer*>(other.data_);
     CHECK(a != nullptr && b != nullptr);
-    return NDSubClass(a->additional_info_ + b->additional_info_);
+    return NDSubClass(new SubContainer(a->addtional_info_ + b->addtional_info_));
   }
   int get_additional_info() const {
-    SubContainer *self = static_cast<SubContainer*>(get_mutable());
+    SubContainer *self = static_cast<SubContainer*>(data_);
     CHECK(self != nullptr);
-    return self->additional_info_;
+    return self->addtional_info_;
   }
-  using ContainerType = SubContainer;
 };
-
-TVM_REGISTER_OBJECT_TYPE(NDSubClass::SubContainer);
-
-/*!
- * \brief Introduce additional extension data structures
- *        by sub-classing TVM's object system.
- */
-class IntVectorObj : public Object {
- public:
-  std::vector<int> vec;
-
-  static constexpr const char* _type_key = "tvm_ext.IntVector";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntVectorObj, Object);
-};
-
-/*!
- * \brief Int vector reference class.
- */
-class IntVector : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(IntVector, ObjectRef, IntVectorObj);
-};
-
-TVM_REGISTER_OBJECT_TYPE(IntVectorObj);
-
 }  // namespace tvm_ext
 
 namespace tvm_ext {
 
+TVM_REGISTER_EXT_TYPE(IntVector);
+
 TVM_REGISTER_GLOBAL("tvm_ext.ivec_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    auto n = tvm::runtime::make_object<IntVectorObj>();
+    IntVector vec;
     for (int i = 0; i < args.size(); ++i) {
-      n->vec.push_back(args[i].operator int());
+      vec.push_back(args[i].operator int());
     }
-    *rv = IntVector(n);
+    *rv = vec;
   });
 
 TVM_REGISTER_GLOBAL("tvm_ext.ivec_get")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-    IntVector p = args[0];
-    *rv = p->vec[args[1].operator int()];
+    *rv = args[0].AsExtension<IntVector>()[args[1].operator int()];
   });
 
 
@@ -154,10 +148,8 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev")
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  int additional_info = args[0];
-  *rv = NDSubClass(additional_info);
-  CHECK_EQ(rv->type_code(), kNDArrayContainer);
-
+  int addtional_info = args[0];
+  *rv = NDSubClass(new NDSubClass::SubContainer(addtional_info));
 });
 
 TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two")
@@ -167,7 +159,7 @@ TVM_REGISTER_GLOBAL("tvm_ext.nd_add_two")
   *rv = a.AddWith(b);
 });
 
-TVM_REGISTER_GLOBAL("tvm_ext.nd_get_additional_info")
+TVM_REGISTER_GLOBAL("tvm_ext.nd_get_addtional_info")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   NDSubClass a = args[0];
   *rv = a.get_additional_info();

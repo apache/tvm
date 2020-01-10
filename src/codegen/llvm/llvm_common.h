@@ -33,12 +33,6 @@
 
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Intrinsics.h>
-#if TVM_LLVM_VERSION >= 100
-#include <llvm/IR/IntrinsicsAMDGPU.h>
-#include <llvm/IR/IntrinsicsARM.h>
-#include <llvm/IR/IntrinsicsNVPTX.h>
-#include <llvm/IR/IntrinsicsX86.h>
-#endif
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
@@ -50,6 +44,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
+#include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Verifier.h>
 

@@ -559,20 +559,22 @@ struct WithFuncIdAttrs : public tvm::AttrsNode<WithFuncIdAttrs> {
 
 TVM_REGISTER_NODE_TYPE(WithFuncIdAttrs);
 
+Op WithFuncIdOp() {
+  static const Op& op = Op::Get("annotation.with_funcid");
+  return op;
+}
+
+Expr MkWithFuncId(const Expr& expr, FuncId fid) {
+  auto attrs = make_node<WithFuncIdAttrs>();
+  attrs->fid = fid;
+  return CallNode::make(WithFuncIdOp(), {expr}, Attrs(attrs), {});
+}
+
 RELAY_REGISTER_OP("annotation.with_funcid")
 .describe(R"code(Annotate a function with a funcid.)code"
 TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("func", "Function", "The input data.");
-
-// Cache with_funcid op to reduce lookup overhead during traversal.
-static const Op& with_funcid_op = Op::Get("annotation.with_funcid");
-
-Expr MkWithFuncId(const Expr& expr, FuncId fid) {
-  auto attrs = make_node<WithFuncIdAttrs>();
-  attrs->fid = fid;
-  return CallNode::make(with_funcid_op, {expr}, Attrs(attrs), {});
-}
 
 Expr StripWithFuncId(const Expr& e);
 
@@ -580,7 +582,7 @@ Function AsFunc(const Expr& e) {
   if (e.as<FunctionNode>()) {
     return Downcast<Function>(e);
   } else if (const CallNode* c = e.as<CallNode>()) {
-    CHECK(c->op == with_funcid_op);
+    CHECK(c->op.same_as(WithFuncIdOp()));
     CHECK_EQ(c->args.size(), 1);
     return AsFunc(c->args[0]);
   } else {
@@ -602,7 +604,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitExpr(const Expr& e, LetList* ll, const Var& name) {
     if (const CallNode* c = e.as<CallNode>()) {
-      if (c->op == with_funcid_op) {
+      if (c->op.same_as(WithFuncIdOp())) {
         CHECK_EQ(c->args.size(), 1);
         return VisitExpr(c->args[0], ll, name);
       }
@@ -668,7 +670,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic c = VisitExpr(op->cond, ll);
     if (c->pstatic.defined()) {
       NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
-      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
+      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return VisitExpr(op->true_branch, ll);
       } else {
@@ -720,7 +722,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
-    if (op->op == with_funcid_op) {
+    if (op->op.same_as(WithFuncIdOp())) {
       CHECK_EQ(op->args.size(), 1);
       return VisitExpr(op->args[0], ll);
     }
@@ -761,10 +763,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       if (auto* st = ps->pstatic.as<STensorNode>()) {
         if (st->data.Shape().empty()) {
           NDArray cpu_array = st->data.CopyTo(CPUContext());
-          DataType dtype = DataType(cpu_array->dtype);
-          if (dtype == DataType::Int(32)) {
+          DataType dtype = TVMType2Type(cpu_array->dtype);
+          if (dtype == Int(32)) {
             return std::max<int32_t>(0, *static_cast<const int32_t*>(cpu_array->data));
-          } else if (dtype == DataType::Int(64)) {
+          } else if (dtype == Int(64)) {
             return std::max<int64_t>(0, *static_cast<const int64_t*>(cpu_array->data));
           }
         }
@@ -1094,7 +1096,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       explicit RegisterFuncIdVisitor(PartialEvaluator* pe) : pe(pe) { }
 
       void VisitExpr_(const CallNode* op) final {
-        if (op->op == with_funcid_op) {
+        if (op->op.same_as(WithFuncIdOp())) {
           CHECK_EQ(op->args.size(), 1);
           CHECK(op->attrs.defined());
           CHECK(op->attrs.as<WithFuncIdAttrs>());
@@ -1192,7 +1194,7 @@ Expr Remap(const Expr& e) {
 Expr StripWithFuncId(const Expr& e) {
   struct StripWithFuncIdMutator : ExprMutator, PatternMutator {
     Expr VisitExpr_(const CallNode* op) final {
-      if (op->op == with_funcid_op) {
+      if (op->op.same_as(WithFuncIdOp())) {
         CHECK_EQ(op->args.size(), 1);
         return VisitExpr(op->args[0]);
       } else {

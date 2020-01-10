@@ -183,13 +183,7 @@ def load_from_file(filename):
     """
     for row in open(filename):
         if row and not row.startswith('#'):
-            inp, res = decode(row)
-            # Avoid loading the record with an empty config. The TOPI schedule with no entities
-            # will result in an empty entity map (e.g., depthwise_conv2d_nchw on x86).
-            # Using an empty config will cause problems when applying alter op like NCHW to NCHWc.
-            if not inp.config._entity_map:
-                continue
-            yield (inp, res)
+            yield decode(row)
 
 
 def split_workload(in_file, clean=True):

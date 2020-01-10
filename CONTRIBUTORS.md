@@ -69,7 +69,6 @@ We do encourage everyone to work anything they are interested in.
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Wei Chen](https://github.com/wweic): @wweic
 - [Zhi Chen](https://github.com/zhiics): @zhiics
-- [Neo Chien](https://github.com/cchung100m): @cchung100m
 - [Meghan Cowan](https://github.com/cowanmeg): @cowanmeg
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
@@ -121,3 +120,4 @@ We do encourage everyone to work anything they are interested in.
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
 - [Shoubhik Bhattacharya](https://github.com/shoubhik)
+- [Neo Chien](https://github.com/cchung100m)

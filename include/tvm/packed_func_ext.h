@@ -25,6 +25,7 @@
 #ifndef TVM_PACKED_FUNC_EXT_H_
 #define TVM_PACKED_FUNC_EXT_H_
 
+#include <sstream>
 #include <string>
 #include <memory>
 #include <limits>
@@ -42,7 +43,22 @@ using runtime::TVMRetValue;
 using runtime::PackedFunc;
 
 namespace runtime {
-
+/*!
+ * \brief Runtime type checker for node type.
+ * \tparam T the type to be checked.
+ */
+template<typename T>
+struct ObjectTypeChecker {
+  static bool Check(const Object* ptr) {
+    using ContainerType = typename T::ContainerType;
+    if (ptr == nullptr) return true;
+    return ptr->IsInstance<ContainerType>();
+  }
+  static void PrintName(std::ostream& os) { // NOLINT(*)
+    using ContainerType = typename T::ContainerType;
+    os << ContainerType::_type_key;
+  }
+};
 
 template<typename T>
 struct ObjectTypeChecker<Array<T> > {
@@ -57,8 +73,10 @@ struct ObjectTypeChecker<Array<T> > {
     }
     return true;
   }
-  static std::string TypeName() {
-    return "List[" + ObjectTypeChecker<T>::TypeName() + "]";
+  static void PrintName(std::ostream& os) { // NOLINT(*)
+    os << "List[";
+    ObjectTypeChecker<T>::PrintName(os);
+    os << "]";
   }
 };
 
@@ -73,9 +91,11 @@ struct ObjectTypeChecker<Map<std::string, V> > {
     }
     return true;
   }
-  static std::string TypeName() {
-    return "Map[str, " +
-        ObjectTypeChecker<V>::TypeName()+ ']';
+  static void PrintName(std::ostream& os) { // NOLINT(*)
+    os << "Map[str";
+    os << ',';
+    ObjectTypeChecker<V>::PrintName(os);
+    os << ']';
   }
 };
 
@@ -91,16 +111,39 @@ struct ObjectTypeChecker<Map<K, V> > {
     }
     return true;
   }
-  static std::string TypeName() {
-    return "Map[" +
-        ObjectTypeChecker<K>::TypeName() +
-        ", " +
-        ObjectTypeChecker<V>::TypeName()+ ']';
+  static void PrintName(std::ostringstream& os) { // NOLINT(*)
+    os << "Map[";
+    ObjectTypeChecker<K>::PrintName(os);
+    os << ',';
+    ObjectTypeChecker<V>::PrintName(os);
+    os << ']';
   }
 };
 
+template<typename T>
+inline std::string ObjectTypeName() {
+  std::ostringstream os;
+  ObjectTypeChecker<T>::PrintName(os);
+  return os.str();
+}
+
 // extensions for tvm arg value
-inline TVMPODValue_::operator tvm::Expr() const {
+
+template<typename TObjectRef>
+inline TObjectRef TVMArgValue::AsObjectRef() const {
+  static_assert(
+      std::is_base_of<ObjectRef, TObjectRef>::value,
+      "Conversion only works for ObjectRef");
+  if (type_code_ == kNull) return TObjectRef(NodePtr<Node>(nullptr));
+  TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+  CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
+      << "Expected type " << ObjectTypeName<TObjectRef>()
+      << " but get " << ptr->GetTypeKey();
+  return TObjectRef(ObjectPtr<Node>(ptr));
+}
+
+inline TVMArgValue::operator tvm::Expr() const {
   if (type_code_ == kNull) return Expr();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
@@ -121,12 +164,12 @@ inline TVMPODValue_::operator tvm::Expr() const {
     return Tensor(ObjectPtr<Node>(ptr))();
   }
   CHECK(ObjectTypeChecker<Expr>::Check(ptr))
-      << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
+      << "Expected type " << ObjectTypeName<Expr>()
       << " but get " << ptr->GetTypeKey();
   return Expr(ObjectPtr<Node>(ptr));
 }
 
-inline TVMPODValue_::operator tvm::Integer() const {
+inline TVMArgValue::operator tvm::Integer() const {
   if (type_code_ == kNull) return Integer();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
@@ -136,9 +179,51 @@ inline TVMPODValue_::operator tvm::Integer() const {
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
   CHECK(ObjectTypeChecker<Integer>::Check(ptr))
-      << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
+      << "Expected type " << ObjectTypeName<Expr>()
       << " but get " << ptr->GetTypeKey();
   return Integer(ObjectPtr<Node>(ptr));
+}
+
+template<typename TObjectRef, typename>
+inline bool TVMPODValue_::IsObjectRef() const {
+  TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+  return ObjectTypeChecker<TObjectRef>::Check(ptr);
+}
+
+// extensions for TVMRetValue
+template<typename TObjectRef>
+inline TObjectRef TVMRetValue::AsObjectRef() const {
+  static_assert(
+      std::is_base_of<ObjectRef, TObjectRef>::value,
+      "Conversion only works for ObjectRef");
+  if (type_code_ == kNull) return TObjectRef();
+  TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+
+  CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
+      << "Expected type " << ObjectTypeName<TObjectRef>()
+      << " but get " << ptr->GetTypeKey();
+  return TObjectRef(ObjectPtr<Object>(ptr));
+}
+
+// type related stuffs
+inline TVMRetValue& TVMRetValue::operator=(const DataType& t) {
+  return this->operator=(t.operator DLDataType());
+}
+
+inline TVMRetValue::operator tvm::DataType() const {
+  return DataType(operator DLDataType());
+}
+
+inline TVMArgValue::operator tvm::DataType() const {
+  return DataType(operator DLDataType());
+}
+
+inline void TVMArgsSetter::operator()(
+    size_t i, const DataType& t) const {
+  this->operator()(i, t.operator DLDataType());
 }
 }  // namespace runtime
 }  // namespace tvm

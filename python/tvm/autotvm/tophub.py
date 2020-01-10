@@ -18,7 +18,8 @@
 TopHub: Tensor Operator Hub
 To get the best performance, we typically need auto-tuning for the specific devices.
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
-TVM will download these parameters for you when you call relay.build.
+TVM will download these parameters for you when you call
+nnvm.compiler.build_module or relay.build.
 """
 # pylint: disable=invalid-name
 
@@ -223,7 +224,7 @@ def load_reference_log(backend, model, workload_name, template_key):
                 if model == inp.target.model:
                     find = True
                     break
-            # if device model is not find, use the device model with the most tuned workloads
+            # if device model is not find, use the device model with the most tuned worklaods
             if not find and counts:
                 model = max(counts.items(), key=lambda k: k[1])[0]
 

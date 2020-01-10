@@ -122,70 +122,6 @@ def _elemwise(name):
         return get_relay_op(name)(*inputs)
     return _impl
 
-def _pool3d(name):
-    def _impl(inputs, attr, params):
-        attr['data_format'] = attr['data_format'].decode("utf-8")
-        flip_layout = False
-
-        input_shape = attr['_input_shapes'][inputs[0]]
-
-        if attr['data_format'] == 'NDHWC':
-            attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2], attr['ksize'][3])
-            attr['strides'] = (attr['strides'][1], attr['strides'][2], attr['strides'][3])
-        elif attr['data_format'] == 'NCDHW':
-            attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3], attr['ksize'][4])
-            attr['strides'] = (attr['strides'][2], attr['strides'][3], attr['strides'][4])
-        else:
-            msg = 'Value {} of attribute "data_format" of operator Pooling ' \
-                  'is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
-        if attr['data_format'] == "NDHWC":
-            input_shape = [attr['_input_shapes'][inputs[0]][i] for i in (0, 4, 1, 2, 3)]
-            inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
-            attr['data_format'] = "NCDHW"
-            attr['_input_shapes'][inputs[0]] = input_shape
-            flip_layout = True
-
-        attr['padding'] = attr['padding'].decode("utf-8")
-
-        if attr['padding'] == 'VALID':
-            attr['padding'] = [0, 0, 0, 0, 0, 0]
-        elif attr['padding'] == 'SAME':
-            stride_d, stride_h, stride_w = attr['strides']
-            kernel_d, kernel_h, kernel_w = attr['kernel_shape']
-            if attr['data_format'] == 'NDHWC':
-                in_d = input_shape[1]
-                in_h = input_shape[2]
-                in_w = input_shape[3]
-            else:
-                in_d = input_shape[2]
-                in_h = input_shape[3]
-                in_w = input_shape[4]
-            pad_d = _get_pad_pair(in_d, kernel_d, stride_d)
-            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
-            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
-
-            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
-        else:
-            msg = 'Value {} in attribute "padding" of operator Pooling is ' \
-                  'not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
-
-        if name == "avg_pool":
-            attr['count_include_pad'] = False
-        attr['ceil_mode'] = False
-        out = AttrCvt(
-            op_name=name,
-            transforms={
-                'kernel_shape': 'pool_size',
-                'data_format': 'layout'},
-            ignores=['ksize'])(inputs, attr)
-        if flip_layout:
-            out = _op.transpose(out, axes=(0, 2, 3, 4, 1))
-        return out
-
-    return _impl
-
 def _pooling(name):
     def _impl(inputs, attr, params):
 
@@ -269,12 +205,6 @@ def _conv(opname):
             attr['strides'][1], attr['strides'][2], attr['strides'][3] = \
                 attr['strides'][3], attr['strides'][1], attr['strides'][2]
             attr['data_format'] = 'NCHW'
-
-            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
-                tmp_shape = attr['_output_shapes'][0]
-                tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
-                attr['_output_shapes'][0] = tmp_shape
-
             flip_layout = True
 
         inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
@@ -351,17 +281,12 @@ def _conv(opname):
         elif attr['padding'] == 'SAME':
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
-
-            pdata_shape = input_shape
-            if opname == 'conv_transpose' and len(attr['_output_shapes']) > 0:
-                pdata_shape = attr['_output_shapes'][0]
-
             if attr['data_format'] == 'NHWC':
-                in_h = pdata_shape[1]
-                in_w = pdata_shape[2]
+                in_h = input_shape[1]
+                in_w = input_shape[2]
             else:
-                in_h = pdata_shape[2]
-                in_w = pdata_shape[3]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
 
             dilation_h = attr['dilations'][0]
             dilation_w = attr['dilations'][1]
@@ -370,23 +295,21 @@ def _conv(opname):
             pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
-            if opname != 'conv_transpose':
-                if attr['data_format'] == 'NHWC':
-                    inputs_data = _op.nn.pad(data=inputs_data,
-                                             pad_width=((0, 0),
-                                                        (pad_v[0], pad_v[1]),
-                                                        (pad_h[0], pad_h[1]),
-                                                        (0, 0)))
-                else:
-                    inputs_data = _op.nn.pad(data=inputs_data,
-                                             pad_width=((0, 0),
-                                                        (0, 0),
-                                                        (pad_v[0], pad_v[1]),
-                                                        (pad_h[0], pad_h[1])))
 
-                attr['padding'] = [0, 0]
+            if attr['data_format'] == 'NHWC':
+                inputs_data = _op.nn.pad(data=inputs_data,
+                                         pad_width=((0, 0),
+                                                    (pad_v[0], pad_v[1]),
+                                                    (pad_h[0], pad_h[1]),
+                                                    (0, 0)))
             else:
-                attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+                inputs_data = _op.nn.pad(data=inputs_data,
+                                         pad_width=((0, 0),
+                                                    (0, 0),
+                                                    (pad_v[0], pad_v[1]),
+                                                    (pad_h[0], pad_h[1])))
+
+            attr['padding'] = [0, 0]
 
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' \
@@ -741,18 +664,76 @@ def _reshape():
 
 def _depth_to_space():
     def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
         block_size = int(attr['block_size'])
-        layout = attr['data_format'].decode("utf-8")
-        return _op.nn.depth_to_space(inputs[0], block_size, layout)
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_h, in_w, block_size, block_size, new_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else: # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_c = int(in_c / (block_size * block_size))
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
+            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
+            new_h = in_h * block_size
+            new_w = in_w * block_size
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
 
     return _impl
 
 
 def _space_to_depth():
     def _impl(inputs, attr, params):
+        # Need to handle data layouts differently.
+        input_shape = attr['_input_shapes'][inputs[0]]
         block_size = int(attr['block_size'])
-        layout = attr['data_format'].decode("utf-8")
-        return _op.nn.space_to_depth(inputs[0], block_size, layout)
+        if attr['data_format'].decode("utf-8") == 'NHWC':
+            in_n, in_h, in_w, in_c = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            # First expand input to larger dimension.
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, new_h, block_size, new_w, block_size, in_c))
+            # Now reorder to expand spatial blocks.
+            transposed = _op.transpose(expanded, axes=(0, 1, 3, 2, 4, 5))
+            # Finally reshape to proper output.
+            new_c = in_c * block_size * block_size
+            newshape = (in_n, new_h, new_w, new_c)
+
+        else:  # Handle NCHW layout
+            in_n, in_c, in_h, in_w = input_shape
+            new_h = int(in_h / block_size)
+            new_w = int(in_w / block_size)
+
+            expanded = _op.reshape(
+                inputs[0], newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
+            transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
+            new_c = int(in_c * block_size * block_size)
+            newshape = (in_n, new_c, new_h, new_w)
+
+        return AttrCvt(
+            op_name="reshape",
+            extras={'newshape': newshape},
+            ignores=['data_format', 'block_size'])([transposed], attr)
 
     return _impl
 
@@ -1428,7 +1409,6 @@ _convert_map = {
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
     'AvgPool'                           : _pooling('avg_pool'),
-    'AvgPool3D'                         : _pool3d('avg_pool3d'),
     'BatchMatMul'                       : _batch_matmul(),
     'BatchMatMulV2'                     : _batch_matmul(),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
@@ -1480,7 +1460,6 @@ _convert_map = {
     'MatMul'                            : _matmul(),
     'Max'                               : _reduce('max'),
     'MaxPool'                           : _pooling('max_pool'),
-    'MaxPool3D'                         : _pool3d('max_pool3d'),
     'Maximum'                           : _elemwise('maximum'),
     'Mean'                              : _mean(),
     'Min'                               : _reduce('min'),
