@@ -51,10 +51,41 @@ def create_shared(output,
     else:
         raise ValueError("Unsupported platform")
 
+def get_target_by_dump_machine(compiler):
+    """ Functor of get_target_triple that can get the target triple using compiler.
+
+    Parameters
+    ----------
+    compiler : Optional[str]
+        The compiler.
+
+    Returns
+    -------
+    out: Callable
+        A function that can get target triple according to dumpmachine option of compiler.
+    """
+    def get_target_triple():
+        """ Get target triple according to dumpmachine option of compiler."""
+        if compiler:
+            cmd = [compiler, "-dumpmachine"]
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            (out, _) = proc.communicate()
+            if proc.returncode != 0:
+                msg = "dumpmachine error:\n"
+                msg += py_str(out)
+                return None
+            return py_str(out)
+        else:
+            return None
+
+    return get_target_triple
+
 
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
-
+create_shared.get_target_triple = get_target_by_dump_machine(
+    "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None)
 
 def build_create_shared_func(options=None, compile_cmd="g++"):
     """Build create_shared function with particular default options and compile_cmd.
@@ -75,10 +106,11 @@ def build_create_shared_func(options=None, compile_cmd="g++"):
     def create_shared_wrapper(output, objects, options=options, compile_cmd=compile_cmd):
         create_shared(output, objects, options, compile_cmd)
     create_shared_wrapper.output_format = create_shared.output_format
+    create_shared_wrapper.get_target_triple = get_target_by_dump_machine(compile_cmd)
     return create_shared_wrapper
 
 
-def cross_compiler(compile_func, base_options=None, output_format="so"):
+def cross_compiler(compile_func, base_options=None, output_format="so", get_target_triple=None):
     """Create a cross compiler function.
 
     Parameters
@@ -91,6 +123,9 @@ def cross_compiler(compile_func, base_options=None, output_format="so"):
 
     output_format : Optional[str]
         Library output format.
+
+    get_target_triple: Optional[Callable]
+        Function that can target triple according to dumpmachine option of compiler.
 
     Returns
     -------
@@ -105,6 +140,7 @@ def cross_compiler(compile_func, base_options=None, output_format="so"):
             all_options += options
         compile_func(outputs, objects, options=all_options)
     _fcompile.output_format = output_format
+    _fcompile.get_target_triple = get_target_triple
     return _fcompile
 
 

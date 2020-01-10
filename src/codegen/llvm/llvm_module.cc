@@ -29,6 +29,7 @@
 #include <mutex>
 #include "llvm_common.h"
 #include "codegen_llvm.h"
+#include "codegen_blob.h"
 #include "../../runtime/file_util.h"
 #include "../../runtime/library_module.h"
 
@@ -62,6 +63,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return PackedFunc([flag](TVMArgs args, TVMRetValue *rv) {
           * rv = flag;
         });
+    } else if (name == "_get_target_triple") {
+      std::string target_triple = tm_->getTargetTriple().str();
+      return PackedFunc([target_triple](TVMArgs args, TVMRetValue *rv) {
+        * rv = target_triple;
+      });
     }
     if (ee_ == nullptr) LazyInitJIT();
     std::lock_guard<std::mutex> lock(mutex_);
@@ -218,15 +224,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     mptr_ = module_.get();
   }
 
-  void LoadIR(const std::string& file_name) {
+  void Init(std::unique_ptr<llvm::Module> module,
+            std::shared_ptr<llvm::LLVMContext> ctx) {
     InitializeLLVM();
-    ctx_ = std::make_shared<llvm::LLVMContext>();
+    ctx_ = ctx;
     llvm::SMDiagnostic err;
-    module_ = llvm::parseIRFile(file_name, err, *ctx_);
-    if (module_.get() == nullptr) {
+    module_ = std::move(module);
+    if (module_ == nullptr) {
       std::string msg = err.getMessage();
-      LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
-                 << "line " << err.getLineNo() << ":" << msg;
+      LOG(FATAL) << "Fail to load module: " << msg;
     }
     std::string target_;
     llvm::Metadata* mtarget = module_->getModuleFlag("tvm_target");
@@ -241,6 +247,18 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
     mptr_ = module_.get();
     tm_ = GetLLVMTargetMachine(target_);
+  }
+
+  void LoadIR(const std::string& file_name) {
+    auto ctx = std::make_shared<llvm::LLVMContext>();
+    llvm::SMDiagnostic err;
+    auto module = llvm::parseIRFile(file_name, err, *ctx);
+    if (module == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
+                 << "line " << err.getLineNo() << ":" << msg;
+    }
+    Init(std::move(module), ctx);
   }
 
  private:
@@ -339,7 +357,7 @@ TVM_REGISTER_GLOBAL("codegen.llvm_lookup_intrinsic_id")
 TVM_REGISTER_GLOBAL("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
-    n->Init(args[0], args[1]);
+    n->Init(args[0].operator Array<LoweredFunc>(), args[1].operator std::string());
     *rv = runtime::Module(n);
   });
 
@@ -362,6 +380,16 @@ TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     InitializeLLVM();
     *rv = (GetLLVMTargetMachine(args[0], true) != nullptr);
   });
+
+TVM_REGISTER_GLOBAL("codegen.codegen_blob")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  auto n = make_object<LLVMModuleNode>();
+  auto p = CodeGenBlob(args[0].operator std::string(),
+                       args[1].operator bool(),
+                       args[2].operator std::string());
+  n->Init(std::move(p.first), p.second);
+  *rv = runtime::Module(n);
+});
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
