@@ -24,7 +24,7 @@ from ..relay.base import NodeBase, register_relay_node
 
 import tvm
 from tvm._ffi.runtime_ctypes import TVMType
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 DType = TVMType
 
@@ -203,7 +203,7 @@ def build_node_index(graph):
     fvisit_build_index.idx_cnt = 0
     relay.analysis.post_order_visit(graph, fvisit_build_index)
     num_nodes = fvisit_build_index.idx_cnt
-    return node2idx, num_nodes
+    return node2idx
 
 def build_edge_index(graph):
     edge2idx = {} 
@@ -215,7 +215,16 @@ def build_edge_index(graph):
     fvisit_build_index.idx_cnt = 0
     relay.analysis.post_order_visit(graph, fvisit_build_index)
     num_edges = fvisit_build_index.idx_cnt
-    return edge2idx, num_edges
+    return edge2idx
+
+def build_edge_dict(graph):
+    edge_dict = OrderedDict()
+    def fvisit(e):
+        if isinstance(e, relay.Call):
+            for arg in e.args:
+                edge_dict[(arg, e)] = None
+    relay.analysis.post_order_visit(graph, fvisit)
+    return edge_dict
 
 def build_node2edges(graph):
     node2edges = defaultdict(list)
@@ -225,6 +234,18 @@ def build_node2edges(graph):
                 node2edges[src].append((src, node)) 
     relay.analysis.post_order_visit(graph, fvisit_build_index)
     return node2edges
+
+def complete_dict(alist, key2cond):
+    ret = OrderedDict()
+    cnt = 0
+    for key, cond in key2cond.items():
+        val = None
+        if cond:
+            val = alist[cnt]
+            cnt += 1
+        ret[key] = val
+    assert cnt == len(alist)
+    return ret
 
 
 def bind_params(func, params):
@@ -247,27 +268,101 @@ def bind_params(func, params):
         bind_dict[arg] = relay.const(v)
     return relay.bind(func, bind_dict)
 
-def node_str(e):
-    if isinstance(e, (relay.Var)):
-        return e.name_hint
-    if isinstance(e, relay.Constant):
-        return 'constant'
-    if isinstance(e, relay.Call):
-        return e.op.name
-    return None
 
-def edge_str(edge):
-    return "{} -> {}".format(node_str(edge[0]), node_str(edge[1]))
+def min_with_none(a, b):
+    # handle None
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return min(a, b)
 
-def print_bits_info(graph, bits):
-    edge2idx, num_edge = build_edge_index(graph)
+def max_with_none(a, b):
+    # handle None
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return max(a, b)
 
-    def fvisit_print(e):
-        if isinstance(e, relay.Call):
-            for src in e.args:
-                idx = edge2idx[(src, e)]
-                print('{} <- {}: {}'.format(node_str(e), node_str(src), bits[idx]))
+
+def node_str(node, node2idx=None):
+    def _str(node):
+        if isinstance(node, (relay.Var)):
+            return node.name_hint
+        elif isinstance(node, relay.Constant):
+            return 'constant'
+        elif isinstance(node, relay.Call):
+            return node.op.name
+        else:
+            raise ValueError("{}, {}".format(type(node), node))
+        return None
+    if node2idx:
+        return "{}[%{}]".format(_str(node), node2idx[node])
+    return _str(node) 
+
+def edge_str(edge, node2idx=None):
+    return "{} -> {}".format(node_str(edge[0], node2idx), node_str(edge[1], node2idx))
+
+
+def print_node_list(graph, alist):
+    node2idx = build_node_index(graph)
+    def fvisit_print(node):
+        if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
+            print("{}: {}".format(node_str(node), alist[node2idx[node]]))
     relay.analysis.post_order_visit(graph, fvisit_print)
+
+
+def print_edge_list(graph, alist):
+    node2idx = build_node_index(graph)
+    edge2idx = build_edge_index(graph)
+    node2edges = build_node2edges(graph)
+    def fvisit_print(node):
+        if isinstance(node, relay.Call):
+            oedges = node2edges[node]
+            out_infos = [alist[edge2idx[e]] for e in oedges]
+            print('--------')
+            print('{}: {}'.format(node_str(node, node2idx), out_infos))
+            for src in node.args:
+                info = alist[edge2idx[(src, node)]]
+                print('  {} : {}'.format(edge_str((src, node), node2idx), info))
+    relay.analysis.post_order_visit(graph, fvisit_print)
+
+
+def print_node_dict(graph, node2info):
+    node2idx = build_node_index(graph)
+    def fvisit_print(node):
+        if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
+            print('{}: {}'.format(node_str(node, node2idx), node2info[node]))
+    relay.analysis.post_order_visit(graph, fvisit_print)
+
+
+def print_edge_dict(graph, edge2info):
+    node2idx = build_node_index(graph)
+    node2edges = build_node2edges(graph)
+    def fvisit_print(node):
+        if isinstance(node, relay.Call):
+            oedges = node2edges[node]
+            out_infos = [edge2info[e] for e in oedges]
+            print('--------')
+            print('{}: {}'.format(node_str(node, node2idx), out_infos))
+            for src in node.args:
+                info = edge2info[(src, node)]
+                print('  {} : {}'.format(edge_str((src, node), node2idx), info))
+    relay.analysis.post_order_visit(graph, fvisit_print)
+
+
+def print_infos(graph, node2info, edge2info):
+    node2idx = build_node_index(graph)
+    def fvisit_print(node):
+        if isinstance(node, relay.Call):
+            print('--------')
+            print('{}: {}'.format(node_str(node, node2idx), node2info[node]))
+            for src in node.args:
+                info = edge2info[(src, node)]
+                print('  {} : {}'.format(edge_str((src, node), node2idx), info))
+    relay.analysis.post_order_visit(graph, fvisit_print)
+
 
 def print_scale_info(graph, bits, thresholds):
     node2idx, num_edge = build_node_index(graph)

@@ -244,7 +244,7 @@ def _global_scale(sq_call):
     return cfg.global_scale
 
 
-def threshold_estimate(graph, bits, dataset=None):
+def threshold_estimate(graph, topology, bits, dataset=None):
     print('calculating threshold...')
     cfg = qtz.current_qconfig()
     # check bit setting
@@ -268,10 +268,14 @@ def threshold_estimate(graph, bits, dataset=None):
         return max_ranges
     elif cfg.threshold_estimate_strategy == 'power2_range':
         max_ranges = [stats.range(i) for i in range(len(stats))]
-        # print(max_ranges)
         power2_ranges = [stats.range(i, power2=True) for i in range(len(stats))]
-        # print(power2_ranges)
-        return  power2_ranges
+        return power2_ranges
+        ret = []
+        assert len(topology.node2cond) == len(power2_ranges)
+        for key, arange in zip(topology.node2cond, power2_ranges):
+            if topology.node2cond[key]:
+                ret.append(arange)
+        return  ret
     elif cfg.threshold_estimate_strategy == 'kl':
         assert scipy is not None, "scipy need to be installed for \
         utilizing kl calibration during quantization"

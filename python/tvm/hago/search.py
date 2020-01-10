@@ -23,6 +23,8 @@ from . import _quantize
 from . import quantize as qtz
 from .. import relay
 from .threshold import threshold_estimate, threshold_rectify
+from .hardware import *
+from .topology import analyze_topology
 
 import tvm
 import random
@@ -98,62 +100,48 @@ except ImportError:
 #     return data
 
 
-def generate_bit_choices(graph, hw_desc):
-    _DEFAULT_BIT_LIMIT = 32
-    def get_inputs_bit_limit(node):
-        inputs_bit_limit = [None] * len(node.args)
-        if isinstance(node, relay.Call) and node.op.name in hw_desc.ops:
-            constraints = hw_desc[node.op.name]
-            # init with the first constraint
-            inputs_bit_limit = [dtype.bits for dtype in constraints[0].idtypes]
-            for cstr in constraints:
-                inputs_bit = [dtype.bits for dtype in cstr.idtypes]
-                inputs_bit_limit = [max(v1, v2) for v1, v2
-                                    in zip(inputs_bit, inputs_bit_limit)]
-        return inputs_bit_limit
+def generate_choices(graph, hw_desc, topology):
+    def get_in_bits(hw_desc, node):
+        in_bits = [None] * len(node.args)
+        int_cstrs = integer_constraints(hw_desc[node.op])
+        for cstr in int_cstrs:
+            cur_in_bits = [dtype.bits for dtype in cstr.idtypes]
+            in_bits = [max_with_none(v1, v2) for v1, v2 
+                       in zip(in_bits, cur_in_bits)]
+        return in_bits
 
-    def get_output_bit_limit(node):
-        output_bit_limit = None
-        if isinstance(node, relay.Call) and node.op.name in hw_desc.ops:
-            constraints = hw_desc[node.op.name]
-            output_bit_limit = max([cstr.odtype(0).bits for cstr in constraints])
-        return output_bit_limit
+    def get_out_bit(hw_desc, node):
+        if not isinstance(node, relay.Call):
+            return None
+        int_cstrs = integer_constraints(hw_desc[node.op])
+        if not int_cstrs:
+            return None
+        out_bit = max([cstr.odtype(0).bits for cstr in int_cstrs])
+        return out_bit
 
-    def smaller_limit(olimit, ilimit):
-        # handle None
-        if olimit is None:
-            return ilimit
-        if ilimit is None:
-            return olimit
-        return min(olimit, ilimit)
+    bits = []
+    def fvisit(node):
+        if isinstance(node, relay.Call):
+            if not topology.node2cond[node]:
+                return 
 
-    edge2idx, num_edges = build_edge_index(graph)
+            cur_in_bits = get_in_bits(hw_desc, node)
+            for idx, src in enumerate(node.args):
+                if topology.edge2cond[(src, node)]:
+                    src_out_bit = get_out_bit(hw_desc, src)
+                    bit = min_with_none(cur_in_bits[idx], src_out_bit)
+                    bits.append(bit)
+    relay.analysis.post_order_visit(graph, fvisit)
 
-    # analysis maximum num of bit on every tensor/edge
-    bit_limits = [None] * num_edges
-    def fvisit_bit_limits(e):
-        if isinstance(e, relay.Call):
-            dest = e
-            inputs_bit_limit = get_inputs_bit_limit(dest)
-            for src_idx, src in enumerate(dest.args):
-                # consider output constraint of src node and input
-                # constraint of dest node, take smaller one between them
-                output_bit_limit = get_output_bit_limit(src)
-                bit_limit = smaller_limit(output_bit_limit, inputs_bit_limit[src_idx])
-                eidx = edge2idx[(src, dest)]
-                bit_limits[eidx]= bit_limit
-        else:
-            return
-    relay.analysis.post_order_visit(graph, fvisit_bit_limits)
+    print('bits')
+    edge2bit = complete_dict(bits, topology.edge2cond)
+    print_edge_dict(graph, edge2bit)
 
-    for idx, limit in enumerate(bit_limits):
-        if limit is None:
-            bit_limits[idx] = _DEFAULT_BIT_LIMIT
-
-    print('bit limits')
-    print_bits_info(graph, bit_limits)
-    bit_choices = [list(reversed(range(4, limit + 1))) for limit in bit_limits]
-    return bit_choices
+    choices = [list(reversed(range(4, bit + 1))) for bit in bits]
+    # print('bit choices')
+    # edge2choices = complete_dict(choices, topology.edge2cond)
+    # print_edge_dict(graph, edge2choices)
+    return choices
 
 
 def eval_acc(func, dataset):
@@ -285,10 +273,10 @@ def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, por
     return best_guess, best_cost
 
 
-def search_bits_strategy(eval_func, bit_choices, graph, hw_desc, dataset):
+def search_bits_strategy(eval_func, bit_choices, graph, hw_desc, topology, dataset):
     cfg = qtz.current_qconfig()
 
-    args = (graph, hw_desc, dataset)
+    args = (graph, hw_desc, topology, dataset)
     if cfg.search_strategy == 'random_search':
         best_bits, best_acc = random_search(eval_func, bit_choices, args, 1000)
     elif cfg.search_strategy == 'grid_search':
@@ -304,26 +292,31 @@ def search_bits_strategy(eval_func, bit_choices, graph, hw_desc, dataset):
 def search_quantize_strategy(mod, hw_desc, dataset=None):
     graph = mod['main']
     print('original acc: {}'.format(eval_acc(graph, dataset)[1]))
-    bit_choices = generate_bit_choices(graph, hw_desc)
-    # bit_choices = [[choices[0]] for choices in bit_choices]
-    print(bit_choices)
-    print('number of bits: {}'.format(len(bit_choices)))
+    topology = analyze_topology(graph, hw_desc)
+    choices = generate_choices(graph, hw_desc, topology)
 
     # search for bits settings with learning method
-    def eval_func(bits, graph, hw_desc, dataset):
-        print('bits: {0}'.format(bits))
+    def eval_func(bits, graph, hw_desc, topology, dataset):
+        edge2bit = complete_dict(bits, topology.edge2cond)
+        print('bits')
+        print_edge_dict(graph, edge2bit)
         # coarse-grained threshold estimate
-        thresholds = threshold_estimate(graph, bits, dataset)
+        thresholds = threshold_estimate(graph, topology, bits, dataset)
+        # node2thold = complete_dict(thresholds, topology.node2cond)
+        # print('thresholds')
+        # print_node_dict(graph, node2thold)
+        # raise ValueError
         # print('\nafter threshold estimate')
         # for thold in thresholds:
         #     print(type(thold))
 
-        thresholds = threshold_rectify(graph, bits, thresholds)
+        # TODO(ziheng)
+        # thresholds = threshold_rectify(graph, topology, bits, thresholds)
         # print('\nafter threshold rectify')
         # for thold in thresholds:
         #     print(type(thold))
         # print('thresholds: {0}'.format(thresholds))
-        op_params = qtz.calculate_params(graph, bits, thresholds, hw_desc)
+        op_params = qtz.calculate_params(graph, hw_desc, topology, bits, thresholds)
         simulated_graph = qtz.simulate(graph, op_params)
         # print('simulated_graph')
         # print(simulated_graph)
@@ -331,7 +324,7 @@ def search_quantize_strategy(mod, hw_desc, dataset=None):
         # [optional] calibrate threshold estimation
         return float(acc)
 
-    best_bits, best_acc = search_bits_strategy(eval_func, bit_choices, graph, hw_desc, dataset)
+    best_bits, best_acc = search_bits_strategy(eval_func, choices, graph, hw_desc, topology, dataset)
     # # load config directly
     # with open('/sampa/home/ziheng/best_config.log', 'r') as fin:
     #     lines = [line.rstrip('\n') for line in fin]
@@ -342,6 +335,6 @@ def search_quantize_strategy(mod, hw_desc, dataset=None):
 
     print('finished search')
     print('best_acc: {0}'.format(best_acc))
-    best_thresholds = threshold_estimate(graph, best_bits, dataset)
-    best_thresholds = threshold_rectify(graph, best_bits, best_thresholds)
+    best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
+    # best_thresholds = threshold_rectify(graph, topology, best_bits, best_thresholds)
     return best_bits, best_thresholds, best_acc

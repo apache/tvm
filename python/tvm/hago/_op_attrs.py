@@ -51,11 +51,11 @@ def allclose(old, new, rtol, atol):
 @tvm.register_func("tvm.contrib.check_overflow")
 def check_overflow(data, in_dtype, output):
     arr = data.asnumpy()
-    print(in_dtype)
-    print('before: {}'.format(np.max(arr)))
+    # print(in_dtype)
+    # print('before: {}'.format(np.max(arr)))
     arr = arr.astype('int64')
     arr = arr.astype(in_dtype)
-    print('after: {}'.format(np.max(arr)))
+    # print('after: {}'.format(np.max(arr)))
 
     if 'float' in in_dtype:
         # skip overflow check for float input dtype
@@ -80,7 +80,8 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     assert attrs.rounding == "round"
 
     data, out_scale, in_scale, clip_min, clip_max = inputs
-    # return [topi.identity(data)]
+    if attrs.in_dtype == 'float32' and attrs.out_dtype == 'float32':
+        return [topi.identity(data)]
 
     # simulate overflow
     data = topi.divide(data, in_scale)

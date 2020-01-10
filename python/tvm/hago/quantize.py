@@ -21,6 +21,7 @@ from __future__ import absolute_import
 from . import _quantize
 from .. import relay
 from .base import *
+from .hardware import *
 
 import tvm
 import sys
@@ -36,7 +37,7 @@ SimulatedQuantizeParams = namedtuple("SimulatedQuantizeParams", ['out_scale',
                                                                  ])
 
 
-def calculate_params(graph, bits, thresholds, hw_desc):
+def calculate_params(graph, hardware, topology, bits, thresholds):
     """calculate parameters of simulated quantize op from bits and thresholds"""
     # integer_range = 2 ^ (bit - sign_bit) 
     # scale = threshold / integer_range
@@ -44,26 +45,16 @@ def calculate_params(graph, bits, thresholds, hw_desc):
     # clip_max =   (integer_range - 1)
 
     sign_bit = 1
-    # print('check threshold type')
-    # for thold in thresholds:
-    #     if not isinstance(thold, float):
-    #         print(type(thold))
 
-    edge2idx, num_edges  = build_edge_index(graph)
-    node2idx, num_nodes  = build_node_index(graph)
+    edge2idx  = build_edge_index(graph)
+    node2idx  = build_node_index(graph)
     node2edges = build_node2edges(graph)
-    assert len(bits) == num_edges
-    assert len(thresholds) == num_nodes
+    edge2bit = complete_dict(bits, topology.edge2cond)
+    assert len(thresholds) == len(node2idx)
 
-    prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, bits, hw_desc)
-    assert len(prov_dtypes) == num_nodes
-    assert len(req_dtypes) == num_edges
-    print('provided dtypes:')
-    print(prov_dtypes)
-    def fvisit_print(node):
-        if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
-            print("{}: {}".format(node_str(node), prov_dtypes[node2idx[node]]))
-    relay.analysis.post_order_visit(graph, fvisit_print)
+    prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, hardware, topology, edge2bit)
+    assert len(prov_dtypes) == len(node2idx)
+    assert len(req_dtypes) == len(edge2idx)
 
     op_params = []
     def infer_scale_for_node(node):
@@ -80,36 +71,47 @@ def calculate_params(graph, bits, thresholds, hw_desc):
     def fvisit(node):
         if isinstance(node, relay.Call):
             for src in node.args:
-                thold = thresholds[node2idx[src]]
                 eidx = edge2idx[(src, node)]
-                bit = bits[eidx]
-                integer_range = 2 ** (bit - sign_bit)
-                out_scale = thold / integer_range 
                 in_scale = infer_scale_for_node(src)
-                clip_min = - float(integer_range - 1)
-                clip_max =   float(integer_range - 1)
-                out_dtype = req_dtypes[eidx]
                 in_dtype = prov_dtypes[node2idx[src]]
+                out_dtype = req_dtypes[eidx]
 
-                print("{} -> {}: in_dtype={}, out_dtype={}".format(node_str(src), node_str(node), in_dtype, out_dtype))
+                if 'float' in str(out_dtype):
+                    # dequantize
+                    out_scale = 1.0
+                    clip_min = -sys.float_info.max
+                    clip_max = sys.float_info.max
+                else:
+                    bit = edge2bit[(src, node)]
+                    integer_range = 2 ** (bit - sign_bit)
+                    thold = thresholds[node2idx[src]]
+                    out_scale = thold / integer_range 
+                    clip_min = - float(integer_range - 1)
+                    clip_max =   float(integer_range - 1)
+
+                print("{}[{}] -> {}[{}]".format(node_str(src), in_dtype, node_str(node), out_dtype))
                 param = SimulatedQuantizeParams(out_scale, in_scale, clip_min, clip_max,
                                                 out_dtype, in_dtype)
                 op_params.append(param)
     relay.analysis.post_order_visit(graph, fvisit)
-
     return op_params
 
 
-def infer_quantized_dtypes(graph, bits, hw_desc):
-    def select_constraint(input_bits, output_bits, constraints):
+def infer_quantized_dtypes(graph, hardware, topology, edge2bit):
+    def select_constraint(in_bits, out_bits, hardware, node):
         # assume constraints have been sorted
-        for cstr in constraints:
+        # need to handle None
+        for cstr in integer_constraints(hardware[node.op]):
             selected = True
-            for dtype, bit in zip(cstr.idtypes, input_bits):
+            for dtype, bit in zip(cstr.idtypes, in_bits):
+                if bit is None:
+                    continue
                 if bit > dtype.bits:
                     selected = False
                     break
-            for dtype, bit in zip(cstr.odtypes, output_bits):
+            for dtype, bit in zip(cstr.odtypes, out_bits):
+                if bit is None:
+                    continue
                 if bit > dtype.bits:
                     selected = False
                     break
@@ -124,36 +126,36 @@ def infer_quantized_dtypes(graph, bits, hw_desc):
             assert dtypes[idx] == dtype, "previous dtype: {}, current dtype: {}".format(dtypes[idx], dtype)
         dtypes[idx] = dtype
 
-    node2idx, num_nodes = build_node_index(graph)
-    edge2idx, num_edges = build_edge_index(graph)
+    node2idx = build_node_index(graph)
+    edge2idx = build_edge_index(graph)
     node2edges = build_node2edges(graph)
 
-    assert len(bits) == num_edges
     # provided output data type
-    prov_dtypes = [None] * num_nodes
+    prov_dtypes = [None] * len(node2idx)
     # data type requirement from succeeded ops
-    req_dtypes = [None] * num_edges
+    req_dtypes = [None] * len(edge2idx)
 
-    print_bits_info(graph, bits)
-
-    # fill prov_dtypes and req_dtypes according to the constraints
-    def fvisit_infer_dtype(node):
+    # TODO(ziheng) consider datatype casting instead of only bit requirement
+    def fvisit(node):
         if isinstance(node, (relay.Var, relay.Constant)):
-            prov_dtypes[node2idx[node]] = "float32"
+            prov_dtypes[node2idx[node]] = TVMType("float32")
+        if isinstance(node, relay.Call):
+            print(node.op.name)
+            if not topology.node2cond[node]:
+                # use float computation
+                prov_dtypes[node2idx[node]] = TVMType('float32')
+                for src in node.args:
+                    eidx = edge2idx[(src, node)]
+                    req_dtypes[eidx] = TVMType('float32')
+                return
 
-        if isinstance(node, relay.Call) and node.op.name in hw_desc.ops:
-            # print(node.op.name)
-            input_bits = [bits[edge2idx[(src, node)]] for src in node.args]
+            # prepare in_bits, out_bits
+            in_bits = [edge2bit[(src, node)] for src in node.args]
             # op can be referred multiple times
-            output_bits = [bits[edge2idx[edge]] for edge in node2edges[node]]
-            # print('input_bits: {}'.format(input_bits))
-            # print('output_bits: {}'.format(output_bits))
-            # assume all op has only one output
-            if output_bits != []:
-                # handle output node, which does not have output edge/bit 
-                output_bits = [max(output_bits)]  # select the biggest bit
-
-            cstr = select_constraint(input_bits, output_bits, hw_desc[node.op.name])
+            out_bits = [edge2bit[edge] for edge in node2edges[node]]
+            print('in bits: {}'.format(in_bits))
+            print('out bits: {}'.format(out_bits))
+            cstr = select_constraint(in_bits, out_bits, hardware, node)
             print('select {0}'.format(cstr))
             assert len(cstr.odtypes) == 1 
             assign_dtype(prov_dtypes, node2idx[node], cstr.odtype(0))
@@ -161,35 +163,8 @@ def infer_quantized_dtypes(graph, bits, hw_desc):
             for src, dtype in zip(node.args, cstr.idtypes):
                 idx = edge2idx[(src, node)]
                 assign_dtype(req_dtypes, idx, dtype)
-    relay.analysis.post_order_visit(graph, fvisit_infer_dtype)
+    relay.analysis.post_order_visit(graph, fvisit)
 
-    # # (TODO) ziheng 
-    # # fill prov_dtypes and req_dtypes according each other
-    # def fvisi_infer(node):
-    #     out_edges = node2edges[node]
-    #     reqs = req_dtypes[edge2idx[edge] for edge in out_edges]
-
-    # relay.analysis.post_order_visit(graph, fvisit_infer_dtype)
-
-
-    # since prov_dtype has been only used for checking overflow,
-    # so if it is not specified by constraint, we make it as int32.
-    for idx, dtype in enumerate(prov_dtypes):
-        if dtype is None:
-            prov_dtypes[idx] = DType('int32')
-
-    # take the nearest feasible data type for req_dtypes
-    for idx, bit in enumerate(bits):
-        if req_dtypes[idx] is not None:
-            continue
-        if bit <= 8:
-            req_dtypes[idx] = DType('int8')
-        elif bit > 8 and bit <= 16:
-            req_dtypes[idx] = DType('int16')
-        elif bit > 16 and bit <= 32:
-            req_dtypes[idx] = DType('int32')
-        else:
-            raise ValueError
     return prov_dtypes, req_dtypes 
 
 
@@ -218,7 +193,7 @@ def simulate(graph, op_params):
 
         def create_simulated_graph(self, graph, op_params):
             self._op_params = op_params
-            self._edge2idx, _ = build_edge_index(graph)
+            self._edge2idx = build_edge_index(graph)
             return self.visit(graph)
 
         def visit_call(self, node):
