@@ -103,6 +103,7 @@ class OperatorConverter(object):
             'TANH':self.convert_tanh,
             'RELU':self.convert_relu,
             'SPLIT': self.convert_split,
+            'SLICE': self.convert_slice,
             'TRANSPOSE': self.convert_transpose,
             'CAST': self.convert_cast,
             'TILE': self.convert_tile,
@@ -1149,6 +1150,35 @@ class OperatorConverter(object):
         if isinstance(out, _expr.TupleWrapper):
             if out.size == 1:
                 out = out[0]
+
+        return out
+
+    def convert_slice(self, op):
+        """Convert TFLite SLICE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be == 3"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        begin = list(self.get_tensor_value(input_tensors[1]))
+        size = list(self.get_tensor_value(input_tensors[2]))
+        # strided_slice(Relay) needs the slice's end indices, not the size
+        end = size
+        input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
+        input_tensor_rank = len(input_tensor_shape)
+        for i in range(input_tensor_rank):
+            if size[i] == -1:
+                end[i] = input_tensor_shape[i]
+            else:
+                end[i] += begin[i]
+
+        out = _op.strided_slice(in_expr, begin, end)
 
         return out
 
