@@ -119,7 +119,8 @@ def get_model():
 #
 # For intermediate feature maps, we can find the scales with data-aware
 # quantization. Data-aware quantization takes a calibration dataset as the
-# input argument. Scales are calculated by minimizing the KL divergence between distribution of output of each layer before and after quantization.
+# input argument. Scales are calculated by minimizing the KL divergence between
+# distribution of activation before and after quantization.
 # Alternatively, we can also use pre-defined global scales. This saves the time
 # for calibration. But the accuracy might be impacted.
 
