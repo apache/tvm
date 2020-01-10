@@ -52,7 +52,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
     // split.
 
     // 1) Create a map from axis to param_width using old layout.
-    std::map<std::string, tvm::Array<tvm::Expr>> axis_pad_width;
+    std::map<std::string, tvm::Array<tvm::PrimExpr>> axis_pad_width;
     int index_counter = 0;
     CHECK_EQ(new_in_layouts.size(), 1);
     CHECK_EQ(old_in_layouts.size(), 1);
@@ -63,7 +63,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
     }
 
     // 2) Create new pad width by walking over the new layout and using the map.
-    tvm::Array<tvm::Array<tvm::Expr>> new_pad_width;
+    tvm::Array<tvm::Array<tvm::PrimExpr>> new_pad_width;
     for (auto iter_var : new_in_layouts[0]->axes) {
       const auto& new_layout_axis = LayoutAxis::Get(iter_var);
       auto axis_name = new_layout_axis.name();

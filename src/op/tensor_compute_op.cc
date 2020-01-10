@@ -57,7 +57,7 @@ Operation TensorComputeOpNode::make(std::string name,
                                     TensorIntrin intrin,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
-                                    Array<Expr> scalar_inputs) {
+                                    Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
@@ -147,7 +147,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     Buffer buffer = this->intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < region.size(); ++i) {
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
@@ -165,7 +165,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     Buffer buffer = this->intrin->buffers[num_inputs + i];
     Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < this->axis.size(); ++i) {
       auto ivar = this->axis[i];
       if (i < static_cast<size_t>(this->schedulable_ndim)) {
@@ -186,16 +186,16 @@ Stmt TensorComputeOpNode::BuildProvide(
   }
 
   // Check variable remap
-  std::unordered_map<const VarNode*, Expr> vmap;
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   ir::ArgBinder binder(&vmap);
 
   // Map the expressions passed in the call to the TensorIntrin, to the placeholder
   // variables
-  Array<Expr> user_expr = this->scalar_inputs;
+  Array<PrimExpr> user_expr = this->scalar_inputs;
   Array<Var> scalar_params = this->intrin->scalar_params;
-  Array<Expr> sp_expr;
+  Array<PrimExpr> sp_expr;
   for (auto sp : scalar_params) {
-    Expr esp = sp;
+    PrimExpr esp = sp;
     sp_expr.push_back(esp);
   }
   CHECK_EQ(sp_expr.size(), user_expr.size());

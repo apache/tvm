@@ -101,7 +101,7 @@ class EtaExpander : public ExprMutator {
       params.push_back(VarNode::make("eta_expand_param", param_type));
     }
     tvm::Array<Type> type_params;
-    TypeData adt_def = mod_->LookupDef(cons->belong_to);
+    TypeData adt_def = mod_->LookupTypeDef(cons->belong_to);
     for (const auto& type_var : adt_def->type_vars) {
       type_params.push_back(type_var_replacer_.VisitType(type_var));
     }

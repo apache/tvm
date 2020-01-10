@@ -187,8 +187,8 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
-    Expr offset = op->args[2];
-    Expr extent = op->args[3];
+    PrimExpr offset = op->args[2];
+    PrimExpr extent = op->args[3];
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
     StorageScope scope = GetScope(buffer);
     // The buffer scope.
@@ -197,7 +197,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = Downcast<VarExpr>(op->args[1]);
+      e.buffer = Downcast<Var>(op->args[1]);
       e.touched = arith::IntSet::range(
           Range::make_by_min_extent(offset, extent));
       e.scope = scope;
@@ -277,7 +277,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
       return MakeAccessPtr(op);
     } else {
@@ -287,15 +287,15 @@ class StorageAccessInfoLower : public StmtExprMutator {
 
  private:
   // tvm_access_ptr
-  Expr MakeAccessPtr(const CallNode* op) {
+  PrimExpr MakeAccessPtr(const CallNode* op) {
     // Specially handle the buffer packed intrinsic
-    Expr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     CHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
     Var buffer_var = Downcast<Var>(op->args[1]);
-    Expr offset = op->args[2];
+    PrimExpr offset = op->args[2];
     auto it = storage_info_.find(buffer);
     if (it != storage_info_.end() && it->second.info.defined()) {
       return MakeTaggedAccessPtr(
@@ -307,10 +307,10 @@ class StorageAccessInfoLower : public StmtExprMutator {
     return AddressOffset(buffer_var, dtype, offset);
   }
 
-  Expr MakeTaggedAccessPtr(DataType ptr_type,
+  PrimExpr MakeTaggedAccessPtr(DataType ptr_type,
                            Var buffer_var,
                            DataType dtype,
-                           Expr offset,
+                           PrimExpr offset,
                            const MemoryInfo& info) {
     if (ptr_type.is_handle()) {
       CHECK(info->head_address.defined())

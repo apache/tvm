@@ -65,7 +65,7 @@ class Tensor(NodeBase, _expr.ExprOp):
         indices = convert_to_node(indices)
         args = []
         for x in indices:
-            if isinstance(x, _expr.Expr):
+            if isinstance(x, _expr.PrimExpr):
                 args.append(x)
             elif isinstance(x, iter_var_cls):
                 args.append(x.var)

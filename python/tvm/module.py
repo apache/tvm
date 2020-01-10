@@ -123,6 +123,7 @@ class Module(ModuleBase):
         files = []
         is_system_lib = False
         has_c_module = False
+        llvm_target_triple = None
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 object_format = fcompile.object_format
@@ -138,17 +139,28 @@ class Module(ModuleBase):
             files.append(path_obj)
             is_system_lib = (module.type_key == "llvm" and
                              module.get_function("__tvm_is_system_module")())
-
-        if self.imported_modules:
-            path_cc = temp.relpath("devc.cc")
-            with open(path_cc, "w") as f:
-                f.write(_PackImportsToC(self, is_system_lib))
-            files.append(path_cc)
+            llvm_target_triple = (module.type_key == "llvm" and
+                                  module.get_function("_get_target_triple")())
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
             else:
                 fcompile = _cc.create_shared
+
+        if llvm_target_triple is None and hasattr(fcompile, "get_target_triple"):
+            llvm_target_triple = fcompile.get_target_triple()
+
+        if self.imported_modules:
+            if enabled("llvm") and llvm_target_triple:
+                path_obj = temp.relpath("devc.o")
+                m = _PackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m.save(path_obj)
+                files.append(path_obj)
+            else:
+                path_cc = temp.relpath("devc.cc")
+                with open(path_cc, "w") as f:
+                    f.write(_PackImportsToC(self, is_system_lib))
+                files.append(path_cc)
 
         if has_c_module:
             options = []

@@ -244,8 +244,8 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
 }
 
 void CodeGenStackVM::PushBinary(StackVM::OpCode op_int64,
-                                const Expr& a,
-                                const Expr& b) {
+                                const PrimExpr& a,
+                                const PrimExpr& b) {
   this->Push(a);
   this->Push(b);
   DataType t = a.dtype();

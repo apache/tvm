@@ -132,7 +132,7 @@ class Buffer(NodeBase):
         load : Expr
             The corresponding load expression.
         """
-        begin = (begin,) if isinstance(begin, (int, _expr.Expr)) else begin
+        begin = (begin,) if isinstance(begin, (int, _expr.PrimExpr)) else begin
         dtype = dtype if dtype else self.dtype
         return _api_internal._BufferVLoad(self, begin, dtype)
 
@@ -152,7 +152,7 @@ class Buffer(NodeBase):
         store : Stmt
             The corresponding store stmt.
         """
-        begin = (begin,) if isinstance(begin, (int, _expr.Expr)) else begin
+        begin = (begin,) if isinstance(begin, (int, _expr.PrimExpr)) else begin
         return _api_internal._BufferVStore(self, begin, value)
 
 

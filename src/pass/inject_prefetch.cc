@@ -79,7 +79,7 @@ class PrefetchInjector : public StmtMutator {
   }
 
  private:
-  std::vector<VarExpr> loop_nest_;
+  std::vector<Var> loop_nest_;
   std::unordered_map<const VarNode *, IntSet> vectorized_;
   static const Range none;
 };

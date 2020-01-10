@@ -63,7 +63,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
     return StmtExprMutator::VisitExpr_(op);
@@ -75,7 +75,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
 };
 
 LoweredFunc
-RemapThreadAxis(LoweredFunc f, Map<Expr, IterVar> thread_map) {
+RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     const StringImmNode* str = kv.first.as<StringImmNode>();

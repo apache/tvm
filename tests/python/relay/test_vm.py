@@ -572,4 +572,4 @@ def test_add_op_broadcast():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    pytest.main([__file__])

@@ -94,7 +94,7 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
                          attrs.operator->(), input_shape, out_dtype);
 }
 
-static inline int64_t get_const_int(const tvm::Expr& x) {
+static inline int64_t get_const_int(const tvm::PrimExpr& x) {
   auto* value_ptr = as_const_int(x);
   CHECK(value_ptr) << "Expr is not a constant int";
   return value_ptr[0];

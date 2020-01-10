@@ -57,7 +57,7 @@ namespace relay {
 /*!
  * \brief Symbolic expression for tensor shape.
  */
-using IndexExpr = ::tvm::Expr;
+using IndexExpr = ::tvm::PrimExpr;
 
 using SourceName = tvm::SourceName;
 using Span = tvm::Span;

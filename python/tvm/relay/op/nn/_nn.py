@@ -428,6 +428,18 @@ reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
 
 
+# max_pool1d
+@reg.register_schedule("nn.max_pool1d")
+def schedule_max_pool1d(attrs, outs, target):
+    """Schedule definition of max_pool1d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # max_pool2d
 @reg.register_schedule("nn.max_pool2d")
 def schedule_max_pool2d(attrs, outs, target):
@@ -450,6 +462,18 @@ def schedule_max_pool3d(attrs, outs, target):
 
 
 reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool1d
+@reg.register_schedule("nn.avg_pool1d")
+def schedule_avg_pool1d(attrs, outs, target):
+    """Schedule definition of avg_pool1d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool2d

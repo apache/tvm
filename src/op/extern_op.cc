@@ -50,7 +50,7 @@ DataType ExternOpNode::output_dtype(size_t i) const {
   return output_placeholders[i]->dtype;
 }
 
-Array<Expr> ExternOpNode::output_shape(size_t i) const {
+Array<PrimExpr> ExternOpNode::output_shape(size_t i) const {
   return output_placeholders[i]->shape;
 }
 
@@ -162,7 +162,7 @@ Stmt ExternOpNode::BuildProvide(
   Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     bind_spec.push_back(buffer);
     bind_spec.push_back(tensor);
     for (size_t k = 0; k < buffer->shape.size(); ++k) {

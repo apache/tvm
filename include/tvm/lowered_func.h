@@ -98,7 +98,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
    * \note Expr is used instead Type, because Type cannot be hold by Map.
    *  constant Expr of given type is used.
    */
-  Map<Var, Expr> handle_data_type;
+  Map<Var, PrimExpr> handle_data_type;
   /*! \brief The type of the function */
   LoweredFuncType func_type{kMixedFunc};
   /*! \brief Whether this function is packed function */

@@ -143,7 +143,7 @@ class LoopUnroller : public StmtExprMutator {
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return EvaluateNode::make(0);
     Stmt body = op->body;
-    Map<Var, Expr> vmap;
+    Map<Var, PrimExpr> vmap;
     Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
       vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
@@ -157,7 +157,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    Expr extent = ir::Simplify(op->extent);
+    PrimExpr extent = ir::Simplify(op->extent);
     const IntImmNode  *v1 = extent.as<IntImmNode>();
     const UIntImmNode *v2 = extent.as<UIntImmNode>();
     int value = -1;

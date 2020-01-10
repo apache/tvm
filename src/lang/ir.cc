@@ -31,41 +31,41 @@ namespace tvm {
 namespace ir {
 
 // constructors
-Expr UIntImmNode::make(DataType t, uint64_t value) {
+PrimExpr UIntImmNode::make(DataType t, uint64_t value) {
   CHECK(t.is_uint() && t.lanes() == 1)
       << "ValueError: UIntImm can only take scalar";
   ObjectPtr<UIntImmNode> node = make_object<UIntImmNode>();
   node->dtype = t;
   node->value = value;
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr FloatImmNode::make(DataType t, double value) {
+PrimExpr FloatImmNode::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
   node->dtype = t;
   node->value = value;
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr StringImmNode::make(std::string value) {
+PrimExpr StringImmNode::make(std::string value) {
   ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr CastNode::make(DataType t, Expr value) {
+PrimExpr CastNode::make(DataType t, PrimExpr value) {
   CHECK(value.defined());
   CHECK_EQ(t.lanes(), value.dtype().lanes());
   ObjectPtr<CastNode> node = make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr AndNode::make(Expr a, Expr b) {
+PrimExpr AndNode::make(PrimExpr a, PrimExpr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
   CHECK(a.dtype().is_bool());
@@ -76,10 +76,10 @@ Expr AndNode::make(Expr a, Expr b) {
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr OrNode::make(Expr a, Expr b) {
+PrimExpr OrNode::make(PrimExpr a, PrimExpr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(b.defined()) << "ValueError: b is undefined";
   CHECK(a.dtype().is_bool());
@@ -90,20 +90,20 @@ Expr OrNode::make(Expr a, Expr b) {
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
   node->b = std::move(b);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr NotNode::make(Expr a) {
+PrimExpr NotNode::make(PrimExpr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(a.dtype().is_bool());
 
   ObjectPtr<NotNode> node = make_object<NotNode>();
   node->dtype = DataType::Bool(a.dtype().lanes());
   node->a = std::move(a);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr SelectNode::make(Expr condition, Expr true_value, Expr false_value) {
+PrimExpr SelectNode::make(PrimExpr condition, PrimExpr true_value, PrimExpr false_value) {
   CHECK(condition.defined()) << "ValueError: condition is undefined";
   CHECK(true_value.defined()) << "ValueError: true_value is undefined";
   CHECK(false_value.defined()) << "ValueError: true_value is undefined";
@@ -116,10 +116,10 @@ Expr SelectNode::make(Expr condition, Expr true_value, Expr false_value) {
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
   node->false_value = std::move(false_value);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr LoadNode::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) {
+PrimExpr LoadNode::make(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate) {
   CHECK(buffer_var.defined());
   CHECK(predicate.defined());
   CHECK(index.defined());
@@ -132,10 +132,10 @@ Expr LoadNode::make(DataType dtype, Var buffer_var, Expr index, Expr predicate) 
   node->index = std::move(index);
   node->predicate = std::move(predicate);
 
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr RampNode::make(Expr base, Expr stride, int lanes) {
+PrimExpr RampNode::make(PrimExpr base, PrimExpr stride, int lanes) {
   CHECK(base.defined());
   CHECK(stride.defined());
   CHECK(base.dtype().is_scalar());
@@ -148,10 +148,10 @@ Expr RampNode::make(Expr base, Expr stride, int lanes) {
   node->base = base;
   node->stride = stride;
   node->lanes = lanes;
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr BroadcastNode::make(Expr value, int lanes) {
+PrimExpr BroadcastNode::make(PrimExpr value, int lanes) {
   CHECK(value.defined());
   CHECK(value.dtype().is_scalar());
   CHECK_GT(lanes, 1);
@@ -160,10 +160,10 @@ Expr BroadcastNode::make(Expr value, int lanes) {
   node->dtype = value.dtype().with_lanes(lanes);
   node->value = std::move(value);
   node->lanes = lanes;
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr LetNode::make(Var var, Expr value, Expr body) {
+PrimExpr LetNode::make(Var var, PrimExpr value, PrimExpr body) {
   CHECK(value.defined());
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
@@ -173,7 +173,7 @@ Expr LetNode::make(Var var, Expr value, Expr body) {
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
 const char* CallNode::vectorizable_intrinsics[] = {
@@ -192,9 +192,9 @@ bool CallNode::is_vectorizable() const {
   return false;
 }
 
-Expr CallNode::make(DataType dtype,
+PrimExpr CallNode::make(DataType dtype,
                 std::string name,
-                Array<Expr> args,
+                Array<PrimExpr> args,
                 CallType call_type,
                 FunctionRef func,
                 int value_index) {
@@ -215,18 +215,18 @@ Expr CallNode::make(DataType dtype,
   node->call_type = call_type;
   node->func = std::move(func);
   node->value_index = value_index;
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr ShuffleNode::make(Array<Expr> vectors,
-                   Array<Expr> indices) {
+PrimExpr ShuffleNode::make(Array<PrimExpr> vectors,
+                   Array<PrimExpr> indices) {
   CHECK_NE(vectors.size(), 0U);
   CHECK_NE(indices.size(), 0U);
 
   DataType base_type = vectors[0].dtype().element_of();
   int total_lanes = 0;
 
-  for (Expr val : vectors) {
+  for (PrimExpr val : vectors) {
     CHECK(val.dtype().element_of() == base_type);
     total_lanes += val.dtype().lanes();
   }
@@ -236,17 +236,17 @@ Expr ShuffleNode::make(Array<Expr> vectors,
   node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
-  return Expr(node);
+  return PrimExpr(node);
 }
 
-Expr ShuffleNode::make_concat(Array<Expr> vectors) {
+PrimExpr ShuffleNode::make_concat(Array<PrimExpr> vectors) {
   CHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
   }
-  Array<Expr> indices;
+  Array<PrimExpr> indices;
   int index = 0;
-  for (const Expr& e : vectors) {
+  for (const PrimExpr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
       indices.push_back(IntImmNode::make(DataType::Int(32), index++));
     }
@@ -254,14 +254,14 @@ Expr ShuffleNode::make_concat(Array<Expr> vectors) {
   return make(vectors, indices);
 }
 
-Expr ShuffleNode::make_extract_element(Expr vector, int index) {
+PrimExpr ShuffleNode::make_extract_element(PrimExpr vector, int index) {
   return make({vector}, {Integer(index)});
 }
 
 CommReducer CommReducerNode::make(Array<Var> lhs,
                                   Array<Var> rhs,
-                                  Array<Expr> result,
-                                  Array<Expr> identity_element) {
+                                  Array<PrimExpr> result,
+                                  Array<PrimExpr> identity_element) {
   auto node = make_object<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;
@@ -270,22 +270,22 @@ CommReducer CommReducerNode::make(Array<Var> lhs,
   return CommReducer(node);
 }
 
-Array<Expr> CommReducerNode::operator()(Array<Expr> a, Array<Expr> b) const {
+Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b) const {
   CHECK_EQ(a.size(), b.size());
   CHECK_EQ(lhs.size(), a.size());
   CHECK_EQ(rhs.size(), b.size());
-  Map<Var, Expr> value_map;
+  Map<Var, PrimExpr> value_map;
   for (size_t i = 0; i < a.size(); ++i) {
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  return UpdateArray(result, [&value_map] (const Expr& e) {
+  return UpdateArray(result, [&value_map] (const PrimExpr& e) {
       return Substitute(e, value_map);
     });
 }
 
-Expr ReduceNode::make(CommReducer combiner, Array<Expr> source,
-                  Array<IterVar> axis, Expr condition, int value_index) {
+PrimExpr ReduceNode::make(CommReducer combiner, Array<PrimExpr> source,
+                  Array<IterVar> axis, PrimExpr condition, int value_index) {
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
@@ -304,15 +304,15 @@ Expr ReduceNode::make(CommReducer combiner, Array<Expr> source,
   n->axis = std::move(axis);
   n->condition = condition;
   n->value_index = value_index;
-  return Expr(n);
+  return PrimExpr(n);
 }
 
-Expr AnyNode::make() {
+PrimExpr AnyNode::make() {
   auto n = make_object<AnyNode>();
-  return Expr(n);
+  return PrimExpr(n);
 }
 
-Stmt LetStmtNode::make(Var var, Expr value, Stmt body) {
+Stmt LetStmtNode::make(Var var, PrimExpr value, Stmt body) {
   CHECK(value.defined());
   CHECK(body.defined());
   CHECK_EQ(value.dtype(), var.dtype());
@@ -326,7 +326,7 @@ Stmt LetStmtNode::make(Var var, Expr value, Stmt body) {
 
 Stmt AttrStmtNode::make(ObjectRef node,
                     std::string attr_key,
-                    Expr value,
+                    PrimExpr value,
                     Stmt body) {
   auto n = make_object<AttrStmtNode>();
   n->node = node;
@@ -336,7 +336,7 @@ Stmt AttrStmtNode::make(ObjectRef node,
   return Stmt(n);
 }
 
-Stmt AssertStmtNode::make(Expr condition, Expr message, Stmt body) {
+Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
   CHECK(condition.defined());
   CHECK(message.dtype() == DataType::Int(32) ||
         message.as<StringImmNode>())
@@ -361,8 +361,8 @@ Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
 }
 
 Stmt ForNode::make(Var loop_var,
-               Expr min,
-               Expr extent,
+               PrimExpr min,
+               PrimExpr extent,
                ForType for_type,
                DeviceAPI device_api,
                Stmt body) {
@@ -383,7 +383,7 @@ Stmt ForNode::make(Var loop_var,
   return Stmt(node);
 }
 
-Stmt StoreNode::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
+Stmt StoreNode::make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate) {
   CHECK(value.defined());
   CHECK(index.defined());
   CHECK(predicate.defined());
@@ -398,7 +398,7 @@ Stmt StoreNode::make(Var buffer_var, Expr value, Expr index, Expr predicate) {
   return Stmt(node);
 }
 
-Stmt ProvideNode::make(FunctionRef func, int value_index, Expr value, Array<Expr> args) {
+Stmt ProvideNode::make(FunctionRef func, int value_index, PrimExpr value, Array<PrimExpr> args) {
   CHECK(value_index >=0 && value_index < func->num_outputs())
       << "value index output function return value bound";
   CHECK(value.defined()) << "Provide of undefined value\n";
@@ -417,10 +417,10 @@ Stmt ProvideNode::make(FunctionRef func, int value_index, Expr value, Array<Expr
 
 Stmt AllocateNode::make(Var buffer_var,
                     DataType dtype,
-                    Array<Expr> extents,
-                    Expr condition,
+                    Array<PrimExpr> extents,
+                    PrimExpr condition,
                     Stmt body,
-                    Expr new_expr,
+                    PrimExpr new_expr,
                     std::string free_function) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
@@ -441,7 +441,7 @@ Stmt AllocateNode::make(Var buffer_var,
     return Stmt(node);
 }
 
-int32_t AllocateNode::constant_allocation_size(const Array<Expr>& extents) {
+int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode *int_size = extents[i].as<IntImmNode>()) {
@@ -466,7 +466,7 @@ Stmt RealizeNode::make(FunctionRef func,
                    int value_index,
                    DataType dtype,
                    Region bounds,
-                   Expr condition,
+                   PrimExpr condition,
                    Stmt body) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
@@ -510,7 +510,7 @@ SeqStmt::SeqStmt(Array<Stmt> seq) {
   data_ = std::move(node);
 }
 
-Stmt IfThenElseNode::make(Expr condition, Stmt then_case, Stmt else_case) {
+Stmt IfThenElseNode::make(PrimExpr condition, Stmt then_case, Stmt else_case) {
   CHECK(condition.defined());
   CHECK(then_case.defined());
   // else_case may be null.
@@ -522,7 +522,7 @@ Stmt IfThenElseNode::make(Expr condition, Stmt then_case, Stmt else_case) {
   return Stmt(node);
 }
 
-Stmt EvaluateNode::make(Expr value) {
+Stmt EvaluateNode::make(PrimExpr value) {
   CHECK(value.defined());
 
   ObjectPtr<EvaluateNode> node = make_object<EvaluateNode>();

@@ -46,7 +46,7 @@ using runtime::StackVM;
  *  into device function when only device JIT is available.
  */
 class CodeGenStackVM
-    : public ExprFunctor<void(const Expr&)>,
+    : public ExprFunctor<void(const PrimExpr&)>,
       public StmtFunctor<void(const Stmt&)> {
  public:
  /*!
@@ -60,7 +60,7 @@ class CodeGenStackVM
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
   /*! \brief Push expr to generate new code */
-  void Push(const Expr& n) {
+  void Push(const PrimExpr& n) {
     VisitExpr(n);
   }
   /*!
@@ -105,8 +105,8 @@ class CodeGenStackVM
   int GetVarID(const VarNode* v) const;
   // Push binary operator
   void PushBinary(StackVM::OpCode op_int64,
-                  const Expr& a,
-                  const Expr& b);
+                  const PrimExpr& a,
+                  const PrimExpr& b);
   // push cast;
   void PushCast(DataType dst, DataType src);
   // overloadable functions

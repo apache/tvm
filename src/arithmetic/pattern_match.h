@@ -131,9 +131,9 @@ class PEqualChecker {
 };
 
 template<>
-class PEqualChecker<Expr> {
+class PEqualChecker<PrimExpr> {
  public:
-  bool operator()(const Expr& lhs, const Expr& rhs) const {
+  bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     if (lhs.same_as(rhs)) return true;
     return ir::Equal(lhs, rhs);
   }
@@ -260,10 +260,10 @@ class PBinaryExpr :
     }
   }
 
-  Expr Eval() const {
-    Expr lhs = a_.Eval();
-    Expr rhs = b_.Eval();
-    Expr ret = TryConstFold<NodeType>(lhs, rhs);
+  PrimExpr Eval() const {
+    PrimExpr lhs = a_.Eval();
+    PrimExpr rhs = b_.Eval();
+    PrimExpr ret = TryConstFold<NodeType>(lhs, rhs);
     if (ret.defined()) return ret;
     return NodeType::make(lhs, rhs);
   }
@@ -290,7 +290,7 @@ class PConstWithTypeLike :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return make_const(ref_.Eval().dtype(), value_);
   }
 
@@ -373,7 +373,7 @@ class PNotExpr : public Pattern<PNotExpr<TA> > {
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return ir::NotNode::make(value_.Eval());
   }
 
@@ -421,7 +421,7 @@ class PSelectExpr :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return ir::SelectNode::make(
         condition_.Eval(), true_value_.Eval(), false_value_.Eval());
   }
@@ -482,7 +482,7 @@ class PCastExpr :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return ir::CastNode::make(dtype_.Eval(), value_.Eval());
   }
 
@@ -541,7 +541,7 @@ class PRampExpr :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return ir::RampNode::make(base_.Eval(), stride_.Eval(), lanes_.Eval());
   }
 
@@ -602,7 +602,7 @@ class PBroadcastExpr :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     return ir::BroadcastNode::make(value_.Eval(), lanes_.Eval());
   }
 
@@ -675,7 +675,7 @@ struct PCallExprMatchFunctor {
 };
 
 struct PCallExprEvalArgsFunctor {
-  Array<Expr> args_;
+  Array<PrimExpr> args_;
 
   template<typename T>
   void operator()(size_t i, const T& pattern) {
@@ -716,7 +716,7 @@ class PCallExpr :
     }
   }
 
-  Expr Eval() const {
+  PrimExpr Eval() const {
     detail::PCallExprEvalArgsFunctor feval_args;
     detail::tuple_for_each(feval_args, args_);
     return Op::Eval(feval_args.args_);
@@ -729,7 +729,7 @@ class PCallExpr :
 // arithemetic intrinsics
 #define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinStr)          \
   struct OpName {                                                       \
-    static Expr Eval(Array<Expr> args) {                                \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                \
       return ir::CallNode::make(args[0].dtype(), kName, args,           \
                                 ir::CallNode::PureIntrinsic);           \
     }                                                                   \
@@ -750,7 +750,7 @@ TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, "bitwise_xor");
 // unary intrinsics
 #define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinStr)           \
   struct OpName {                                                       \
-    static Expr Eval(Array<Expr> args) {                                \
+    static PrimExpr Eval(Array<PrimExpr> args) {                                \
       return ir::CallNode::make(args[0].dtype(), kName, args,           \
                                 ir::CallNode::PureIntrinsic);           \
     }                                                                   \
@@ -766,7 +766,7 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, "bitwise_not");
 
 // if_then_else
 struct PIfThenElseOp {
-  static Expr Eval(Array<Expr> args) {
+  static PrimExpr Eval(Array<PrimExpr> args) {
     return ir::CallNode::make(
         args[1].dtype(), kName, args,
         ir::CallNode::PureIntrinsic);

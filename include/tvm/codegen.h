@@ -59,6 +59,21 @@ runtime::Module Build(const Array<LoweredFunc>& funcs,
  * \return cstr The C string representation of the file.
  */
 std::string PackImportsToC(const runtime::Module& m, bool system_lib);
+
+/*!
+ * \brief Pack imported device library to a LLVM module.
+ *  Compile the LLVM module and link with the host library
+ *  will allow the DSO loader to automatically discover and import
+ *  the dependency from the shared library.
+ *
+ * \param m The host module with the imports.
+ * \param system_lib Whether expose as system library.
+ * \param target_triple LLVM target triple
+ * \return runtime::Module The generated LLVM module.
+ */
+runtime::Module PackImportsToLLVM(const runtime::Module& m,
+                                  bool system_lib,
+                                  const std::string& target_triple);
 }  // namespace codegen
 }  // namespace tvm
 

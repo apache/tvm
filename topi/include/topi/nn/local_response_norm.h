@@ -59,10 +59,10 @@ inline Tensor lrn(const Tensor& data,
   CHECK_EQ(size % 2, 1) << "size should be odd number";
   CHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
   auto input_shape = data->shape;
-  Array<Expr> pad_before{ 0, 0, 0, 0};
-  Array<Expr> pad_after{ 0, 0, 0, 0};
-  pad_before.Set(axis, static_cast<Expr>(size/2));
-  pad_after.Set(axis, static_cast<Expr>(size/2));
+  Array<PrimExpr> pad_before{ 0, 0, 0, 0};
+  Array<PrimExpr> pad_after{ 0, 0, 0, 0};
+  pad_before.Set(axis, static_cast<PrimExpr>(size/2));
+  pad_after.Set(axis, static_cast<PrimExpr>(size/2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");
   auto rxs = tvm::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;

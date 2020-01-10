@@ -44,7 +44,7 @@ using namespace ir;
  * \brief Code generator into SPIRV
  */
 class CodeGenSPIRV:
-      public ExprFunctor<spirv::Value(const Expr&)>,
+      public ExprFunctor<spirv::Value(const PrimExpr&)>,
       public StmtFunctor<void(const Stmt&)> {
  public:
   /*!
@@ -58,7 +58,7 @@ class CodeGenSPIRV:
    * \param e The expression to be created value for.
    * \return created value.
    */
-  spirv::Value MakeValue(const Expr& e) {
+  spirv::Value MakeValue(const PrimExpr& e) {
     return VisitExpr(e);
   }
   // override codegen
@@ -128,9 +128,9 @@ class CodeGenSPIRV:
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
-  spirv::Value GetThreadIndex(const IterVar& iv, const Expr& extent);
+  spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
   spirv::Value CreateStorageSync(const CallNode* op);
-  void Scalarize(const Expr& e,
+  void Scalarize(const PrimExpr& e,
                  std::function<void(int i, spirv::Value v)> f);
   // The builder
   std::unique_ptr<spirv::IRBuilder> builder_;

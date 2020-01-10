@@ -24,7 +24,7 @@ TEST(Pattern, Basic) {
   using namespace tvm;
   using namespace tvm::arith;
   Var x("x"), y("y"), z("z");
-  arith::PVar<Expr> px, py, pz;
+  arith::PVar<PrimExpr> px, py, pz;
   arith::PVar<DataType> pt;
   arith::PVar<int> planes;
 
@@ -49,7 +49,7 @@ TEST(Pattern, Basic) {
   CHECK((px + min(py, px)).Match(z + min(y, z)));
   CHECK((px + truncdiv(py, px * py)).Match(x + truncdiv(2, x * 2)));
   CHECK((px - truncmod(py, px * pz)).Match(x - truncmod(2, x * 2)));
-  CHECK((px - floormod(py, px * PConst<Expr>(2))).Match(x - floormod(2, x * 2)));
+  CHECK((px - floormod(py, px * PConst<PrimExpr>(2))).Match(x - floormod(2, x * 2)));
 
   // logicals
   CHECK((px == pz).Match(x == 1));
@@ -111,10 +111,10 @@ TEST(Pattern, Basic) {
   }
   // ramp pattern
   {
-    CHECK(ramp(px, PConst<Expr>(1), planes).Match(
+    CHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(
         ir::RampNode::make(x, 1, 10)));
     CHECK(planes.Eval() == 10);
-    CHECK(!ramp(px, PConst<Expr>(1), planes).Match(
+    CHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(
         ir::RampNode::make(x, 2, 10)));
   }
   // broadcast pattern

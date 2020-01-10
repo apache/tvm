@@ -42,7 +42,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  Expr VisitExpr(const Expr& expr) final {
+  PrimExpr VisitExpr(const PrimExpr& expr) final {
     return analyzer_->Simplify(expr);
   }
 
@@ -58,7 +58,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const LetStmtNode* op) {
-    Expr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitExpr(op->value);
     if (!ir::HasSideEffect(value)) {
       // it is fine to discard the let binding
       // because the call to simplify will always inline the var.
@@ -103,7 +103,7 @@ Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
   return arith::StmtSimplifier(&analyzer).Simplify(std::move(stmt));
 }
 
-Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
+PrimExpr CanonicalSimplify(PrimExpr expr, Map<Var, Range> vrange) {
   arith::Analyzer analyzer;
   for (auto kv : vrange) {
     analyzer.Bind(kv.first, kv.second);
@@ -111,7 +111,7 @@ Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
   return analyzer.canonical_simplify(expr);
 }
 
-Expr Simplify(Expr expr, Map<Var, Range> vrange) {
+PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange) {
   arith::Analyzer analyzer;
   for (auto kv : vrange) {
     analyzer.Bind(kv.first, kv.second);
