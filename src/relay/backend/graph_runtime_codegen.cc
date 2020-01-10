@@ -24,7 +24,6 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
-#include <tvm/relay/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 
@@ -56,7 +55,6 @@ using TargetsMap = std::unordered_map<int, Target>;
 struct LoweredOutput {
   std::string graph_json;
   Map<std::string, Array<LoweredFunc> > lowered_funcs;
-  Array<tvm::runtime::Module> external_mods;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
 
@@ -228,7 +226,6 @@ class GraphRuntimeCodegen
       }
       ret.lowered_funcs.Set(kv.first, tmp);
     }
-    ret.external_mods = compile_engine_->LowerExternalFunctions();
     return ret;
   }
 
@@ -383,25 +380,6 @@ class GraphRuntimeCodegen
     }
     return fields;
   }
-
-  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op,
-                                             const std::string& op_name,
-                                             const std::string& func_name) {
-    std::vector<GraphNodeRef> inputs;
-    for (auto arg : op->args) {
-      auto res = VisitExpr(arg);
-      for (auto nr : res) {
-        inputs.push_back(nr);
-      }
-    }
-    auto node = GraphOpNode::make_node_ptr(op_name,
-                                           GraphAttrs(),
-                                           func_name,
-                                           inputs,
-                                           GraphAttrs());
-    return AddNode(node, GetRef<Expr>(op));
-  }
-
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* op) override {
     Expr expr = GetRef<Expr>(op);
     Function func;
@@ -420,26 +398,17 @@ class GraphRuntimeCodegen
                  << "(i.e functions composed of fusable operator invocations)";
     }
 
+    CHECK_GE(storage_device_map_.count(expr), 0);
     auto pf0 = GetPackedFunc("relay.backend._make_CCacheKey");
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
-    Target target;
-    // Handle external function
-    if (!func->UseDefaultCompiler()) {
-      target = tvm::target::ext_dev();
-      CCacheKey key = (*pf0)(func, target);
-      CachedFunc ext_func = (*pf1)(compile_engine_, key);
-      CHECK(ext_func.defined()) << "External function is not defined.";
-      return GraphAddCallNode(op, ext_func->func_name, ext_func->func_name);
-    }
-
-    CHECK_GE(storage_device_map_.count(expr), 0);
     auto &device_type = storage_device_map_[expr][1];
     auto call_dev_type = device_type[0]->value;
-    // Normal Relay Function
+    Target target;
     if (targets_.size() == 1) {
        // homogeneous execution.
-      const auto& it = targets_.begin();
-      target = (*it).second;
+       for (auto kv : targets_) {
+         target = kv.second;
+       }
     } else {
       // heterogeneous execution.
       std::string call_dev_name;
@@ -455,17 +424,28 @@ class GraphRuntimeCodegen
       target = targets_[call_dev_type];
     }
     CCacheKey key = (*pf0)(func, target);
-    CachedFunc lowered_func = (*pf1)(compile_engine_, key);
+    CachedFunc lowerd_func = (*pf1)(compile_engine_, key);
     if (!lowered_funcs_.count(target->str())) {
       lowered_funcs_[target->str()] = {};
     }
-    for (auto f : lowered_func->funcs) {
+    for (auto f : lowerd_func->funcs) {
       lowered_funcs_[target->str()].insert(f);
     }
 
-    return GraphAddCallNode(op,
-                           _GetUniqueName(lowered_func->func_name),
-                           lowered_func->func_name);
+    std::vector<GraphNodeRef> inputs;
+    for (auto arg : op->args) {
+      auto res = VisitExpr(arg);
+      for (auto nr : res) {
+        inputs.push_back(nr);
+      }
+    }
+    auto& op_name = lowerd_func->func_name;
+    auto node = GraphOpNode::make_node_ptr(_GetUniqueName(op_name),
+                                           GraphAttrs(),
+                                           op_name,
+                                           inputs,
+                                           GraphAttrs());
+    return AddNode(node, expr);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
@@ -490,7 +470,7 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    CHECK(!op->UseDefaultCompiler()) << "Only functions supported by custom codegen";
+    throw std::invalid_argument("function not supported");
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
@@ -648,6 +628,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
         }
         *rv = ret;
       });
+
     } else if (name == "get_param_by_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         std::string key = args[0];
@@ -657,10 +638,6 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_lowered_funcs") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.lowered_funcs;
-      });
-    } else if (name == "get_external_modules") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->output_.external_mods;
       });
     } else {
       return PackedFunc([](TVMArgs args, TVMRetValue* rv) {});

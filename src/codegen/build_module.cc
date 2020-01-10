@@ -309,10 +309,6 @@ Target intel_graphics(const std::vector<std::string>& options) {
 Target stackvm(const std::vector<std::string>& options) {
   return CreateTarget("stackvm", options);
 }
-
-Target ext_dev(const std::vector<std::string>& options) {
-  return CreateTarget("ext_dev", options);
-}
 }  // namespace target
 
 bool LLVMEnabled() {
@@ -334,12 +330,12 @@ Target DefaultTargetHost(Target target) {
 }
 
 Buffer BufferWithOffsetAlignment(Array<Expr> shape,
-                                 DataType dtype,
+                                 Type dtype,
                                  std::string name,
                                  int data_alignment,
                                  int offset_factor,
                                  bool compact) {
-  auto data = Var(name, DataType::Handle());
+  auto data = Var(name, Handle());
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -353,7 +349,7 @@ Buffer BufferWithOffsetAlignment(Array<Expr> shape,
 
   Expr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
+    elem_offset = Var(name + "_elem_offset", shape[0].type());
   } else {
     elem_offset = Expr();
   }

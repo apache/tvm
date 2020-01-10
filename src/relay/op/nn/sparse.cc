@@ -27,7 +27,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
-#include "../../pass/infer_layout_util.h"
+#include "../../pass/alter_op_layout.h"
 
 namespace tvm {
 namespace relay {

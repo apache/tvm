@@ -63,7 +63,7 @@ using NodeRef = tvm::NodeRef;
 /*!
  * \brief Content data type.
  */
-using DataType = ::tvm::DataType;
+using DataType = ::tvm::Type;
 
 /*!
  * \brief Symbolic expression for tensor shape.

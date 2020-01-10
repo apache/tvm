@@ -78,8 +78,6 @@ using common::LinkedList;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
-static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
-
 /*!
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
@@ -209,14 +207,14 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const ConstantNode* op) final {
     this->AddNode(op);
     Node* node = graph_.node_map.at(op);
-    DataType dtype = DataType(op->data->dtype);
+    DataType dtype = TVMType2Type(op->data->dtype);
     // This rule must be consistent with code generator.
     bool is_simple_const = (
-        dtype == DataType::Int(32) ||
-        dtype == DataType::Int(64) ||
-        dtype == DataType::Float(32) ||
-        dtype == DataType::Float(64) ||
-        dtype == DataType::Bool());
+        dtype == Int(32) ||
+        dtype == Int(64) ||
+        dtype == Float(32) ||
+        dtype == Float(64) ||
+        dtype == Bool());
     if (op->is_scalar() && is_simple_const) {
       node->pattern = kElemWise;
     } else {
@@ -241,8 +239,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // Finally if the operator position is not a call node we will
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
-    const OpNode* opnode = call->op.as<OpNode>();
-    if (opnode != nullptr && call->op != Op::Get("nn.batch_norm")) {
+    if (const OpNode* opnode = call->op.as<OpNode>()) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
     } else {
       this->Update(call->op, node, kOpaque);
@@ -862,6 +859,7 @@ class FuseMutator : private ExprMutator {
 
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
+    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
       static auto fnoncomputational =
         Op::GetAttr<TNonComputational>("TNonComputational");
@@ -873,7 +871,7 @@ class FuseMutator : private ExprMutator {
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
-      if (call->op == stop_fusion_op) {
+      if (call->op.same_as(stop_fusion)) {
         return ExprMutator::VisitExpr(call->args[0]);
       }
       auto* ret_group = gmap_.at(call)->FindRoot();
@@ -934,7 +932,7 @@ class FuseMutator : private ExprMutator {
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, attr::kPrimitive, tvm::Integer(visitor.has_call));
+    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 

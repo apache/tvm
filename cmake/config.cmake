@@ -175,10 +175,6 @@ set(USE_SORT ON)
 # Whether use TensorRT
 # /path/to/tensorrt that contains include and lib dirs
 set(USE_TENSORRT OFF)
-
-# Whether use MKL-DNN (DNNL) codegen
-set(USE_DNNL_CODEGEN OFF)
-
 # Build ANTLR parser for Relay text format
 # Possible values:
 # - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)

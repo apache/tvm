@@ -179,7 +179,7 @@ def var(name="tindex", dtype=int32):
     name : str
         The name
 
-    dtype : str
+    dtype : int
         The data type
 
     Returns

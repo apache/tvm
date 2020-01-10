@@ -66,18 +66,19 @@ inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::
  * \param typ
  * \return std::string string format of type
  */
-inline std::string DType2String(const tvm::DataType dtype) {
+inline std::string DType2String(const tvm::Type typ) {
   std::ostringstream os;
-  if (dtype.is_float()) {
+  auto tvm_type = Type2TVMType(typ);
+  if (tvm_type.code == kDLFloat) {
     os << "float";
-  } else if (dtype.is_int()) {
+  } else if (tvm_type.code == kDLInt) {
     os << "int";
-  } else if (dtype.is_uint()) {
+  } else if (tvm_type.code == kDLUInt) {
     os << "uint";
   } else {
     LOG(FATAL) << "Unknown type";
   }
-  os << dtype.bits();
+  os << typ.bits();
   return os.str();
 }
 

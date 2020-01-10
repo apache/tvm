@@ -379,9 +379,9 @@ def log_softmax_grad(orig, grad):
 @register_gradient("nn.bias_add")
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
-    data = orig.args[0]
+    data, bias = orig.args
     return [collapse_sum_like(grad, data),
-            _sum(grad, orig.attrs.axis, keepdims=False, exclude=True)]
+            collapse_sum_like(grad, bias)]
 
 
 @register_gradient("nn.dense")

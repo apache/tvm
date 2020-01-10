@@ -31,9 +31,8 @@
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
 #include <vector>
-#include <string>
 #include "../type_relations.h"
-#include "../../pass/infer_layout_util.h"
+#include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
 #include "nn.h"
 
@@ -405,7 +404,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   if (data == nullptr) return false;
   if (data->shape.size() == 0) return false;
 
-  auto target_dim = make_const(DataType::Int(32), 1);
+  auto target_dim = make_const(Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
     if (!data->shape[i].as<ir::Any>()) {
@@ -617,34 +616,6 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<Array<IndexExpr>>& old_in_shapes) {
-  BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
-
-  size_t axis =
-      param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);
-
-  Layout ret = Layout::Undef();
-
-  // If new_in_layouts are defined, this code tries to modify the layout.
-  if (new_in_layouts.defined() && old_in_layouts.defined()) {
-    // Get the new C axis. Extract the dim in old layout. Find the index of that dim in next layout.
-    const auto& bn_dim = old_in_layouts[0][axis];
-    auto new_index = new_in_layouts[0].IndexOf(bn_dim);
-    param->axis = new_index;
-    ret = new_in_layouts[0];
-  } else if (old_in_layouts.defined()) {
-    ret = old_in_layouts[0];
-  }
-  // BN has 5 inputs, 3 outputs. The last 4 inputs and last 2 outputs have "C" layout.
-  Layout c_layout = Layout("C");
-
-  return Array<Array<Layout>>{{ret, c_layout, c_layout, c_layout, c_layout},
-                              {ret, c_layout, c_layout}};
-}
-
 bool BatchNormRel(const Array<Type>& types,
                   int num_inputs,
                   const Attrs& attrs,
@@ -736,7 +707,6 @@ axis to be the last item in the input shape.
 .add_argument("beta", "Tensor", "The beta offset factor.")
 .add_argument("moving_mean", "Tensor", "Running mean of input.")
 .add_argument("moving_var", "Tensor", "Running variance of input.")
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", BatchNormInferCorrectLayout)
 .set_support_level(1)
 .add_type_rel("BatchNorm", BatchNormRel);
 
@@ -989,123 +959,6 @@ Accept logits.
 .set_support_level(10)
 .add_type_rel("CrossEntropy", CrossEntropyRel);
 
-// Depth to space and space to depth
-TVM_REGISTER_NODE_TYPE(SubPixelAttrs);
-
-bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-
-  static const Layout kNCHW("NCHW");
-
-  const SubPixelAttrs* param = attrs.as<SubPixelAttrs>();
-  CHECK(param != nullptr);
-  const int block_size = param->block_size;
-  const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
-      << "DepthToSpace only support input layouts that are convertible from NCHW."
-      << " But got " << in_layout;
-
-  auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, indexdiv(oshape[1], (block_size * block_size)));
-  oshape.Set(2, oshape[2] * block_size);
-  oshape.Set(3, oshape[3] * block_size);
-
-  // Assign output type
-  reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
-
-  return true;
-}
-
-// Positional relay function to create DepthToSpace operator
-// used by frontend FFI
-Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string mode) {
-  auto attrs = make_node<SubPixelAttrs>();
-  attrs->block_size = block_size;
-  attrs->layout = std::move(layout);
-  attrs->mode = std::move(mode);
-  static const Op& op = Op::Get("nn.depth_to_space");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_API("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
-
-RELAY_REGISTER_OP("nn.depth_to_space")
-    .describe(R"code(Rearrange input channels into spatial pixels.
-
-- **data**: data is a 4D array of shape
-            (batch, in_channels, in_height, in_width) for NCHW
-
-- **out**: Output is a 4D array of shape
-           (batch, in_channels / block_size * block_size, in_height * block_size, in_width * block_size) for NCHW.
-
-)code" TVM_ADD_FILELINE)
-    .set_attrs_type<SubPixelAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_support_level(5)
-    .add_type_rel("DepthToSpace", DepthToSpaceRel);
-
-bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                     const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-
-  static const Layout kNCHW("NCHW");
-
-  const SubPixelAttrs* param = attrs.as<SubPixelAttrs>();
-  CHECK(param != nullptr);
-  const int block_size = param->block_size;
-  const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
-  CHECK(layout_converter.defined())
-      << "SpaceToDepth only support input layouts that are convertible from NCHW."
-      << " But got " << in_layout;
-
-  auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(1, oshape[1] * (block_size * block_size));
-  oshape.Set(2, indexdiv(oshape[2], block_size));
-  oshape.Set(3, indexdiv(oshape[3], block_size));
-
-  // Assign output type
-  reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
-
-  return true;
-}
-
-// Positional relay function to create SpaceToDepth operator
-// used by frontend FFI
-Expr MakeSpaceToDepth(Expr data, int block_size, std::string layout) {
-  auto attrs = make_node<SubPixelAttrs>();
-  attrs->block_size = block_size;
-  attrs->layout = std::move(layout);
-  static const Op& op = Op::Get("nn.space_to_depth");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_API("relay.op.nn._make.space_to_depth").set_body_typed(MakeSpaceToDepth);
-
-RELAY_REGISTER_OP("nn.space_to_depth")
-    .describe(R"code(Rearrange spatial pixels into new output channels.
-
-- **data**: data is a 4D array of shape
-            (batch, in_channels, in_height, in_width) for NCHW
-
-- **out**: Output is a 4D array of shape
-           (batch, in_channels * block_size * block_size, in_height / block_size, in_width / block_size) for NCHW.
-
-)code" TVM_ADD_FILELINE)
-    .set_attrs_type<SubPixelAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor")
-    .set_support_level(5)
-    .add_type_rel("SpaceToDepth", SpaceToDepthRel);
 
 }  // namespace relay
 }  // namespace tvm

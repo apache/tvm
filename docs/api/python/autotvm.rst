@@ -83,6 +83,9 @@ tvm.autotvm.task
 .. automodule:: tvm.autotvm.task.topi_integration
     :members:
 
+.. automodule:: tvm.autotvm.task.nnvm_integration
+    :members:
+
 tvm.autotvm.record
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.record

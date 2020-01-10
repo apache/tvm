@@ -315,64 +315,6 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   }
 };
 
-/*! \brief Attributes used in 1D transposed convolution operator */
-struct Conv1DTransposeAttrs : public tvm::AttrsNode<Conv1DTransposeAttrs> {
-  IndexExpr channels;
-  Array<IndexExpr> kernel_size;
-  Array<IndexExpr> strides;
-  Array<IndexExpr> padding;
-  Array<IndexExpr> output_padding;
-  Array<IndexExpr> dilation;
-  int groups;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
-  DataType out_dtype;
-
-  TVM_DECLARE_ATTRS(Conv1DTransposeAttrs, "relay.attrs.Conv1DTransposeAttrs") {
-    TVM_ATTR_FIELD(channels)
-      .set_default(NullValue<IndexExpr>())
-      .describe("The dimensionality of the output space"
-                "i.e. the number of output channels in the convolution.");
-    TVM_ATTR_FIELD(kernel_size)
-      .describe("The dimensions of the convolution window.")
-      .set_default(NullValue<Array<IndexExpr> >());
-    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1}))
-      .describe("The strides of the convolution.");
-    TVM_ATTR_FIELD(output_padding).set_default(Array<IndexExpr>({0}))
-      .describe("Zero-padding added to one side of the output.");
-    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0}))
-      .describe("Symmetric or asymmetric padding."
-                "Single value: the input is implicitly zero-padded on both sides."
-                "Two values: padding[0] is used for left input padding, "
-                "padding[1] is used for right input padding,");
-    TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1}))
-      .describe("Specifies the dilation rate to use for dilated convolution.");
-    TVM_ATTR_FIELD(groups).set_default(1)
-      .describe("Controls the connections between inputs and outputs."
-                "At groups=1, all inputs are convolved to all outputs."
-                "At groups=2, the operation becomes equivalent to having two convolution"
-                "layers side by side, each seeing half the input channels, and producing"
-                "half the output channels, and both subsequently concatenated.");
-    TVM_ATTR_FIELD(data_layout).set_default("NCW")
-      .describe("Dimension ordering of data. Can be 'NCW', 'NWC', etc."
-                "'N', 'C', 'W' stands for batch, channel, and width"
-                "dimensions respectively. Convolution is applied on the"
-                "'W' dimension.");
-    TVM_ATTR_FIELD(kernel_layout).set_default("OIW")
-      .describe("Dimension ordering of data and weight. Can be 'OIW', 'OIW16o16i', etc."
-                "'O', 'I', 'W' stands for num_filter, input_channel, and width"
-                "dimensions respectively.");
-    TVM_ATTR_FIELD(out_layout).set_default("")
-        .describe("Dimension ordering of output. Can be 'NCW', 'NWC', etc."
-                      "'N', 'C', 'W' stands for batch, channel, and width"
-                      "dimensions respectively. Default to be same as input layout.");
-    TVM_ATTR_FIELD(out_dtype)
-        .set_default(NullValue<DataType>())
-        .describe("Output data type, set to explicit type under mixed precision setting");
-  }
-};
-
 /*! \brief Attributes for max pool operator */
 struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
   Array<IndexExpr> pool_size;
@@ -586,39 +528,6 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
                   "bicubic - Bicubic Interpolation");
     TVM_ATTR_FIELD(align_corners).set_default(false)
         .describe("Should be true to preserve the values at the corner pixels");
-  }
-};
-
-/*! \brief Attributes for upsampling3d operator */
-struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
-  double scale_d;
-  double scale_h;
-  double scale_w;
-  std::string layout;
-  std::string method;
-  std::string coordinate_transformation_mode;
-
-  TVM_DECLARE_ATTRS(UpSampling3DAttrs, "relay.attrs.UpSampling3DAttrs") {
-    TVM_ATTR_FIELD(scale_d)
-        .describe("The upsampling factor for depth");
-    TVM_ATTR_FIELD(scale_h)
-        .describe("The upsampling factor for height");
-    TVM_ATTR_FIELD(scale_w)
-        .describe("The upsampling factor for width");
-    TVM_ATTR_FIELD(layout).set_default("NCDHW")
-        .describe("Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
-                  "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
-                  "dimensions respectively. Upsampling is applied on the 'D', 'H' and"
-                  "'W' dimensions.");
-    TVM_ATTR_FIELD(method).set_default("nearest_neighbor")
-        .describe("Specify the mode to use for scaling."
-                  "nearest_neighbor -  Nearest Neighbor"
-                  "trilinear - Trilinear Interpolation");
-    TVM_ATTR_FIELD(coordinate_transformation_mode).set_default("half_pixel")
-        .describe("Describes how to transform the coordinate in the resized tensor"
-                  "to the coordinate in the original tensor."
-                  "Refer to the ONNX Resize operator specification for details"
-                  "Available options are half_pixel, align_corners and asymmetric");
   }
 };
 
@@ -853,26 +762,6 @@ struct DeformableConv2DAttrs : public tvm::AttrsNode<DeformableConv2DAttrs> {
         .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };
-
-/*! \brief Attributes used in subpixel operators */
-struct SubPixelAttrs : public tvm::AttrsNode<SubPixelAttrs> {
-  int block_size;
-  std::string layout;
-  std::string mode;
-
-  TVM_DECLARE_ATTRS(SubPixelAttrs, "relay.attrs.SubPixelAttrs") {
-    TVM_ATTR_FIELD(block_size)
-        .describe("The size of subpixel blocks to compose or decompose.")
-        .set_default(1);
-    TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
-        "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
-        "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-        "dimensions respectively.");
-    TVM_ATTR_FIELD(mode).set_default("DCR").describe(
-        "Indicates order in which channels are accessed. Must be one of"
-        "DCR or CDR.");
-  }
-};  // struct SubPixelAttrs
 
 }  // namespace relay
 }  // namespace tvm

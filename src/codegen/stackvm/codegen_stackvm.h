@@ -108,7 +108,7 @@ class CodeGenStackVM
                   const Expr& a,
                   const Expr& b);
   // push cast;
-  void PushCast(DataType dst, DataType src);
+  void PushCast(Type dst, Type src);
   // overloadable functions
   // expression
   void VisitExpr_(const Variable* op) final;

@@ -27,12 +27,6 @@
 #include <dmlc/logging.h>
 #include <dlpack/dlpack.h>
 #include <cublas_v2.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
-#include <cstdint>
-#if CUDART_VERSION >= 10010
-#include <cublasLt.h>
-#endif  // CUDART_VERSION >= 10010
 
 namespace tvm {
 namespace contrib {

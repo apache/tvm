@@ -19,6 +19,7 @@
 ROCM_PATH=/opt/rocm
 
 TVM_ROOT=$(shell cd ../..; pwd)
+NNVM_PATH=nnvm
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 
 PKG_CFLAGS = -std=c++11 -O2 -fPIC\
