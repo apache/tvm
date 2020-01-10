@@ -49,10 +49,10 @@ struct PartitionKeyHash {
 // condition cond is proven to have value cond_value (true or false) in interval.
 using Partition = std::unordered_map<PartitionKey, IntSet, PartitionKeyHash>;
 
-bool ExprUseVars(Expr expr, const std::unordered_set<const Variable*>& vars) {
+bool ExprUseVars(PrimExpr expr, const std::unordered_set<const VarNode*>& vars) {
   bool success = false;
   PostOrderVisit(expr, [&vars, &success](const ObjectRef& node) {
-    if (const Variable* v = node.as<Variable>()) {
+    if (const VarNode* v = node.as<VarNode>()) {
       if (vars.count(v)) {
         success = true;
         return;
@@ -72,10 +72,10 @@ class CandidateSelector final : public StmtExprVisitor {
   explicit CandidateSelector(bool split_const_loop)
       : split_const_loop_(split_const_loop) {}
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     // partition const loop when sets split_const_loop_
     if (!is_const(op->min) || !is_const(op->extent) || split_const_loop_) {
-      const Variable* var = op->loop_var.get();
+      const VarNode* var = op->loop_var.get();
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
       if (record_.at(var) && !no_split_) {
@@ -87,7 +87,7 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode *iv = op->node.as<IterVarNode>();
       CHECK(iv);
@@ -118,8 +118,8 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
-    if (op->is_intrinsic(Call::likely)) {
+  void VisitExpr_(const CallNode* op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
       in_likely_ = true;
       StmtExprVisitor::VisitExpr_(op);
       in_likely_ = false;
@@ -132,7 +132,7 @@ class CandidateSelector final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Variable* op) final {
+  void VisitExpr_(const VarNode* op) final {
     if (in_likely_ && record_.count(op)) {
       record_.at(op) = true;
     }
@@ -144,7 +144,7 @@ class CandidateSelector final : public StmtExprVisitor {
   bool in_likely_{false};
   bool no_split_{false};
   bool split_const_loop_{false};
-  std::unordered_map<const Variable*, VarIsUsed> record_;
+  std::unordered_map<const VarNode*, VarIsUsed> record_;
 };
 
 // Populate partitions data structure, i.e., for a specific variable,
@@ -152,9 +152,9 @@ class CandidateSelector final : public StmtExprVisitor {
 // (currently, "likely" conditions) has fixed true or false value
 class PartitionFinder : public StmtExprVisitor {
  public:
-  explicit PartitionFinder(VarExpr current_var,
-    const std::unordered_map<const Variable*, IntSet>& hint_map,
-    const std::unordered_map<const Variable*, IntSet>& relax_map)
+  explicit PartitionFinder(Var current_var,
+    const std::unordered_map<const VarNode*, IntSet>& hint_map,
+    const std::unordered_map<const VarNode*, IntSet>& relax_map)
       : current_var_(current_var), hint_map_(hint_map),  relax_map_(relax_map) {
         for (const auto& kv : hint_map) {
           out_vars_.insert(kv.first);
@@ -164,10 +164,10 @@ class PartitionFinder : public StmtExprVisitor {
         }
       }
 
-  void VisitStmt_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
 
-    const Variable* var = op->loop_var.get();
+    const VarNode* var = op->loop_var.get();
     hint_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
     relax_map_.insert({var, IntSet::interval(op->min, op->min + op->extent - 1)});
     StmtExprVisitor::VisitStmt_(op);
@@ -175,12 +175,12 @@ class PartitionFinder : public StmtExprVisitor {
     hint_map_.erase(var);
   }
 
-  void VisitStmt_(const AttrStmt* op) final {
+  void VisitStmt_(const AttrStmtNode* op) final {
     // handle thread_axis
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
-      const Variable* var = thread_axis->var.get();
+      const VarNode* var = thread_axis->var.get();
       IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
@@ -192,11 +192,11 @@ class PartitionFinder : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const Call* op) final {
-    if (op->is_intrinsic(Call::likely)) {
-      Expr cond = op->args[0];
+  void VisitExpr_(const CallNode* op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
+      PrimExpr cond = op->args[0];
       if (ExprUseVars(cond,
-          std::unordered_set<const Variable*>({current_var_.get()}))) {
+          std::unordered_set<const VarNode*>({current_var_.get()}))) {
         // For cond, find out the interval, if exists, in which we can prove that cond is
         // true. Also find the interval, if exists, in which we can prove that cond is
         // false.
@@ -206,7 +206,7 @@ class PartitionFinder : public StmtExprVisitor {
           // cond is true within interval
           partitions[{cond.get(), true}] = interval;
         }
-        Expr inverse_cond = InverseCond(cond);
+        PrimExpr inverse_cond = InverseCond(cond);
         if (inverse_cond.defined()) {
           IntSet interval =
                   DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
@@ -224,34 +224,34 @@ class PartitionFinder : public StmtExprVisitor {
   Partition partitions;
 
  private:
-  Expr InverseCond(const Expr& cond) {
-    Expr inverse_cond;
-    if (const LT* op = cond.as<LT>()) {
+  PrimExpr InverseCond(const PrimExpr& cond) {
+    PrimExpr inverse_cond;
+    if (const LTNode* op = cond.as<LTNode>()) {
       // a < b -> a >= b
-      inverse_cond = GE::make(op->a, op->b);
-    } else if (const GT* op = cond.as<GT>()) {
+      inverse_cond = GENode::make(op->a, op->b);
+    } else if (const GTNode* op = cond.as<GTNode>()) {
       // a > b -> a <= b
-      inverse_cond = LE::make(op->a, op->b);
-    } else if (const LE* op = cond.as<LE>()) {
+      inverse_cond = LENode::make(op->a, op->b);
+    } else if (const LENode* op = cond.as<LENode>()) {
       // a <= b -> a > b
-      inverse_cond = GT::make(op->a, op->b);
-    } else if (const GE* op = cond.as<GE>()) {
+      inverse_cond = GTNode::make(op->a, op->b);
+    } else if (const GENode* op = cond.as<GENode>()) {
       // a >= b -> a < b
-      inverse_cond = LT::make(op->a, op->b);
-    } else if (const EQ* op = cond.as<EQ>()) {
+      inverse_cond = LTNode::make(op->a, op->b);
+    } else if (const EQNode* op = cond.as<EQNode>()) {
       // a == b -> a != b
-      inverse_cond = NE::make(op->a, op->b);
+      inverse_cond = NENode::make(op->a, op->b);
       // a != b -> a == b
-    } else if (const NE* op = cond.as<NE>()) {
-      inverse_cond = EQ::make(op->a, op->b);
+    } else if (const NENode* op = cond.as<NENode>()) {
+      inverse_cond = EQNode::make(op->a, op->b);
     }
     return inverse_cond;
   }
 
-  VarExpr current_var_;
-  std::unordered_set<const Variable*> out_vars_;
-  std::unordered_map<const Variable*, IntSet> hint_map_;
-  std::unordered_map<const Variable*, IntSet> relax_map_;
+  Var current_var_;
+  std::unordered_set<const VarNode*> out_vars_;
+  std::unordered_map<const VarNode*, IntSet> hint_map_;
+  std::unordered_map<const VarNode*, IntSet> relax_map_;
 };
 
 // Replace the set of conditions given by ps with cond_value (true or false)
@@ -260,7 +260,7 @@ class ConditionEliminator : public StmtExprMutator {
   explicit ConditionEliminator(const std::unordered_set<const Object*>& ps, bool cond_value = true)
     : ps_(ps), cond_value_(cond_value) {}
 
-  Expr VisitExpr(const Expr& e) final {
+  PrimExpr VisitExpr(const PrimExpr& e) final {
     if (ps_.find(e.get()) != ps_.end()) {
       return VisitExpr(cond_value_ ? const_true() : const_false());
     }
@@ -277,18 +277,18 @@ class ConditionEliminator : public StmtExprMutator {
 class ThreadPartitionInserter : public StmtMutator {
  public:
   explicit ThreadPartitionInserter(const std::unordered_set<const Object*>& ps,
-    Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
+    PrimExpr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       innermost_thread_scope_ = true;
       Stmt stmt = StmtMutator::VisitStmt_(op);
       // add branch code inside the innermost thread scope
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
-        Stmt body = IfThenElse::make(cond_, simplified_body, op->body);
-        Expr value = this->VisitExpr(op->value);
-        stmt = AttrStmt::make(op->node, op->attr_key, value, body);
+        Stmt body = IfThenElseNode::make(cond_, simplified_body, op->body);
+        PrimExpr value = this->VisitExpr(op->value);
+        stmt = AttrStmtNode::make(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
       return stmt;
@@ -299,7 +299,7 @@ class ThreadPartitionInserter : public StmtMutator {
 
  private:
   const std::unordered_set<const Object*>& ps_;
-  Expr cond_;
+  PrimExpr cond_;
   bool innermost_thread_scope_;
 };
 
@@ -315,7 +315,7 @@ class LoopPartitioner : public StmtMutator {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (selector.candidates.count(op)) {
       Stmt s = TryPartition(op, GetRef<Stmt>(op), op->loop_var,
           op->min, op->min + op->extent - 1, op->body, false);
@@ -331,7 +331,7 @@ class LoopPartitioner : public StmtMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key != attr::thread_extent) {
       return StmtMutator::VisitStmt_(op);
     }
@@ -363,19 +363,19 @@ class LoopPartitioner : public StmtMutator {
   }
 
  private:
-  Stmt TryPartition(const Object* op, const Stmt& stmt, VarExpr var,
-      Expr min, Expr max, Stmt body, bool partition_thread_scope);
+  Stmt TryPartition(const Object* op, const Stmt& stmt, Var var,
+      PrimExpr min, PrimExpr max, Stmt body, bool partition_thread_scope);
 
   std::pair<IntSet, std::unordered_set<const Object*>>
   GetIntervalAndCondset(const Partition &partitions,
                         const arith::IntervalSet &for_interval,
                         bool cond_value);
 
-  inline Stmt MakeFor(const Object* op, Expr extent, Stmt body);
+  inline Stmt MakeFor(const Object* op, PrimExpr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
-  std::unordered_map<const Variable*, IntSet> hint_map_;
-  std::unordered_map<const Variable*, IntSet> relax_map_;
+  std::unordered_map<const VarNode*, IntSet> hint_map_;
+  std::unordered_map<const VarNode*, IntSet> relax_map_;
   arith::Analyzer analyzer_;
   CandidateSelector selector;
 };
@@ -452,9 +452,9 @@ LoopPartitioner::GetIntervalAndCondset(const Partition &partitions,
  */
 Stmt LoopPartitioner::TryPartition(const Object* node,
                                    const Stmt& stmt,
-                                   VarExpr var,
-                                   Expr min,
-                                   Expr max,
+                                   Var var,
+                                   PrimExpr min,
+                                   PrimExpr max,
                                    Stmt body,
                                    bool partition_thread_scope) {
   using namespace arith;
@@ -496,17 +496,17 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
 
   // Calculating pre-subrange and generating code for it.
   // pre-subrange = [min, body_begin)
-  Expr body_begin;
+  PrimExpr body_begin;
   Stmt pre_stmt;
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
     body_begin = ir::Simplify(middle_interval.min());
     if (!analyzer_.CanProve(body_begin == min)) {
-      Expr cond = (body_begin - min >= 0);
+      PrimExpr cond = (body_begin - min >= 0);
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the pre doubt loop";
-        body_begin = Max::make(body_begin, min);
+        body_begin = MaxNode::make(body_begin, min);
         // stop recursing on this interval if we can't prove it has non-negative length
         pre_stmt_recurse = false;
       }
@@ -521,18 +521,18 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
 
   // Calculating post-subrange and generating code for it.
   // post-subrange = [post_doubt_begin, max+1)
-  Expr post_doubt_begin;
+  PrimExpr post_doubt_begin;
   Stmt post_stmt;
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = ir::Simplify(middle_interval.max() + 1);
     if (!analyzer_.CanProve(middle_interval.max() == max)) {
       // require the extent to be non-negative
-      Expr cond = (max - post_doubt_begin + 1 >= 0);
+      PrimExpr cond = (max - post_doubt_begin + 1 >= 0);
       if (!analyzer_.CanProve(cond)) {
         LOG(WARNING) << "Cannot prove: " << cond
                      << ", when generating the post doubt loop";
-        post_doubt_begin = Min::make(post_doubt_begin, max+1);
+        post_doubt_begin = MinNode::make(post_doubt_begin, max+1);
         // stop recursing on this interval if we can't prove it has non-negative length
         post_stmt_recurse = false;
       }
@@ -571,7 +571,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
     }
     s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
   } else {
-    Expr cond = const_true();
+    PrimExpr cond = const_true();
     if (!analyzer_.CanProve(body_begin == min)) cond = cond && (var >= body_begin);
     if (!analyzer_.CanProve(post_doubt_begin == (max + 1))) cond = cond && (var < post_doubt_begin);
     s = ThreadPartitionInserter(cond_set, cond)(stmt);
@@ -580,22 +580,22 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
   return s;
 }
 
-inline Stmt LoopPartitioner::MakeFor(const Object *node, Expr extent, Stmt body) {
-  const For *for_node = static_cast<const For*>(node);
+inline Stmt LoopPartitioner::MakeFor(const Object *node, PrimExpr extent, Stmt body) {
+  const ForNode *for_node = static_cast<const ForNode*>(node);
   CHECK(for_node);
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1))) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
-    return For::make(for_node->loop_var, 0, extent,
+    return ForNode::make(for_node->loop_var, 0, extent,
                      for_node->for_type, for_node->device_api, body);
   }
 }
 
 class RemoveLikelyTags : public StmtExprMutator {
  public:
-  Expr VisitExpr_(const Call *op) final {
-    if (op->is_intrinsic(Call::likely)) {
+  PrimExpr VisitExpr_(const CallNode *op) final {
+    if (op->is_intrinsic(CallNode::likely)) {
       CHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {

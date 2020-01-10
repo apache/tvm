@@ -43,12 +43,15 @@ def get_numpy(tensor_proto):
 
 
 def dimension_picker(prefix, surfix=''):
+    """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
+        if len(kernel) == 1:
+            return prefix + '1d' + surfix
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        msg = 'Only 2D kernels are supported for operator {}.'
-        op_name = prefix + '2d'
+        msg = 'Only 1D and 2D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -77,21 +80,37 @@ def get_pad_pair(input1d, kernel1d, stride1d):
     return [pad_before, pad_after]
 
 
-def onnx_storage_order2layout(storage_order):
+def onnx_default_layout(dims):
+    if dims == 1:
+        return 'NCW'
+    if dims == 2:
+        return 'NCHW'
+
+    msg = "Only 1d and 2d layouts are currently supported"
+    raise tvm.error.OpAttributeInvalid(msg.format(op_name))
+
+
+def onnx_storage_order2layout(storage_order, dims=2):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
 
-    return 'NCHW' if storage_order == 0 else 'NHWC'
+    if dims == 1:
+        return 'NCW' if storage_order == 0 else 'NWC'
+    if dims == 2:
+        return 'NCHW' if storage_order == 0 else 'NHWC'
+
+    msg = "Only 1d and 2d layouts are currently supported"
+    raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2:
+        if len(attrs['kernel_shape']) == 2 or len(attrs['kernel_shape']) == 1:
             return True
         return False
 
-    return _dim_check, "Only 2d kernel supported."
+    return _dim_check, "Only 1d and 2d kernel supported."
 
 
 class OnnxOpConverter(object):
@@ -125,6 +144,19 @@ class OnnxOpConverter(object):
                 version, cls.__name__))
 
 
+class Unary(OnnxOpConverter):
+    """ A helper class for unary op converters.
+    """
+    name = ''
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        assert len(inputs) == 1, "Unary math op {} takes 1 input, {} given".format(
+            cls.name, len(inputs))
+        op_name = cls.name
+        return get_relay_op(op_name)(*inputs)
+
+
 class Elemwise(OnnxOpConverter):
     """ A helper class for elemwise op converters.
     """
@@ -132,8 +164,8 @@ class Elemwise(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(
-            len(inputs))
+        assert len(inputs) == 2, "Math op {} take 2 inputs, {} given".format(
+            cls.name, len(inputs))
         op_name = cls.name
         conv_ops = ["conv2d", "conv2d_transpose"]
         if attr.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
@@ -150,26 +182,48 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        input_shape = infer_shape(inputs[0])
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                pad_tuple = []
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    pad = get_pad_pair(axis_shape, kernel, stride)
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                attr['pads'] = pad_tuple
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = 0
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator {} is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad'], cls.name))
+            attr.pop("auto_pad")
+
+        if 'storage_order' in attr:
+            attr['layout'] = onnx_storage_order2layout(attr['storage_order'],
+                                                       dims=(len(input_shape) - 2))
+        else:
+            attr['layout'] = onnx_default_layout(dims=(len(input_shape) - 2))
+
         return AttrCvt(
             op_name=dimension_picker(cls.name),
             transforms={
                 'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                'pads': ('padding', 0)
             },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            # TODO(zhreshold): make sure ceil_mode in onnx, and layout?
-            extras={'ceil_mode': False},
+            ignores=['dilations'],
             custom_check=dimension_constraint())(inputs, attr, params)
 
 
-class Absolute(OnnxOpConverter):
+class Absolute(Unary):
     """ Operator converter for Absolute.
     """
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        return _op.nn.relu(inputs[0]) + _op.nn.relu(_op.negative(inputs[0]))
+    name = 'abs'
 
 
 class Add(Elemwise):
@@ -377,34 +431,6 @@ class MaxPool(Pool):
     """
     name = 'max_pool'
 
-    @classmethod
-    def _impl_v8(cls, inputs, attr, params):
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
-            },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
-            extras={'ceil_mode': False},
-            custom_check=dimension_constraint())(inputs, attr, params)
-
-    @classmethod
-    def _impl_v10(cls, inputs, attr, params):
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
-                'ceil_mode': 'ceil_mode'
-            },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
     """ Operator converter for Multiply.

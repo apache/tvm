@@ -91,7 +91,7 @@ def _allocate_tensor(func_id, args):
                      "allocate's first argument should be a tuple of shape!")
     shape = args[0]
     for i in shape:
-        _internal_assert(isinstance(i, _expr.Expr), "The shape should be an expression")
+        _internal_assert(isinstance(i, _expr.PrimExpr), "The shape should be an expression")
     if n > 1:
         _internal_assert(isinstance(args[1], str),
                          "The data type should be an str")
@@ -125,7 +125,7 @@ def len(func_id, args):
 
 
 def _cast(func_id, args):
-    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.Expr), \
+    _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.PrimExpr), \
                      "Only one expression can be cast")
     return _make.Cast(func_id, args[0])
 
@@ -137,8 +137,8 @@ uint8 = uint16 = uint32 = uint64 = _cast #pylint: disable=invalid-name
 def ceil_div(func_id, args):
     _internal_assert(func_id == "ceil_div", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() == 2, "2 arguments expected for division!")
-    _internal_assert(isinstance(args[0], _expr.Expr), "Only expressions can div")
-    _internal_assert(isinstance(args[1], _expr.Expr), "Only expressions can div")
+    _internal_assert(isinstance(args[0], _expr.PrimExpr), "Only expressions can div")
+    _internal_assert(isinstance(args[1], _expr.PrimExpr), "Only expressions can div")
     a, b = args[0], args[1]
     return (a + b - 1) // b
 

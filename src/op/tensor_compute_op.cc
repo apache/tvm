@@ -57,7 +57,7 @@ Operation TensorComputeOpNode::make(std::string name,
                                     TensorIntrin intrin,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
-                                    Array<Expr> scalar_inputs) {
+                                    Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
@@ -109,7 +109,7 @@ Operation TensorComputeOpNode::ReplaceInputs(
 void TensorComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (size_t i = 0; i < this->inputs.size(); ++i) {
     Tensor t = this->inputs[i];
@@ -135,7 +135,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   CHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = Evaluate::make(0);
+  Stmt nop = EvaluateNode::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 
@@ -147,14 +147,16 @@ Stmt TensorComputeOpNode::BuildProvide(
     Buffer buffer = this->intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < region.size(); ++i) {
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt::make(
+    input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // output binding
@@ -163,7 +165,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     Buffer buffer = this->intrin->buffers[num_inputs + i];
     Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < this->axis.size(); ++i) {
       auto ivar = this->axis[i];
       if (i < static_cast<size_t>(this->schedulable_ndim)) {
@@ -176,22 +178,24 @@ Stmt TensorComputeOpNode::BuildProvide(
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmt::make(
+    output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(DataType::Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   ir::ArgBinder binder(&vmap);
 
   // Map the expressions passed in the call to the TensorIntrin, to the placeholder
   // variables
-  Array<Expr> user_expr = this->scalar_inputs;
+  Array<PrimExpr> user_expr = this->scalar_inputs;
   Array<Var> scalar_params = this->intrin->scalar_params;
-  Array<Expr> sp_expr;
+  Array<PrimExpr> sp_expr;
   for (auto sp : scalar_params) {
-    Expr esp = sp;
+    PrimExpr esp = sp;
     sp_expr.push_back(esp);
   }
   CHECK_EQ(sp_expr.size(), user_expr.size());

@@ -198,7 +198,7 @@ def simplify(expr):
     out : Expr or int
         The simplified output
     """
-    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.Expr) else expr
+    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.PrimExpr) else expr
 
 
 def ravel_index(indices, shape):

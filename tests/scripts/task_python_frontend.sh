@@ -24,6 +24,8 @@ export PYTHONPATH=python:topi/python
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
+find . -type f -path "*.pyc" | xargs rm -f
+
 # Rebuild cython
 make cython3
 

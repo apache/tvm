@@ -140,7 +140,7 @@ class TypeVarEVisitor : private ExprVisitor {
 
   void VisitExpr_(const ConstructorNode* cn) final {
     // for constructors, type vars will be bound in the module
-    auto data = mod_->LookupDef(cn->belong_to);
+    auto data = mod_->LookupTypeDef(cn->belong_to);
     for (const auto& tv : data->type_vars) {
       type_vars_.Insert(tv);
       bound_type_vars_.Insert(tv);

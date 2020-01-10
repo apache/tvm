@@ -37,7 +37,7 @@ struct TensorDimKey {
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const ir::Call* op, int dim)
+  TensorDimKey(const ir::CallNode* op, int dim)
       : f(op->func), value_index(op->value_index), dim(dim) {
   }
   TensorDimKey(const Tensor& t, int dim)
@@ -263,13 +263,13 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
-        const ir::Call *call = n.as<ir::Call>();
+        const ir::CallNode *call = n.as<ir::CallNode>();
         if (call != nullptr && call->func.defined()) {
           if (!bset.count(call->func.get())) return;
           for (size_t i = 0; i < call->args.size(); ++i) {
             TensorDimKey dkey(call, static_cast<int>(i));
             auto fpush = [&dkey, &vmap, &reach](const ObjectRef& node) {
-              const Variable *v = node.as<Variable>();
+              const VarNode *v = node.as<VarNode>();
               auto it = vmap.find(v);
               if (it != vmap.end()) {
                 reach[it->second].push_back(dkey);
@@ -300,7 +300,7 @@ Array<Operation> ScanGetBody(const Operation& scan_op) {
   return GetSubGraph(scan->update, inputs, false);
 }
 
-Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
+Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
   const ScanOpNode* scan = scan_op.as<ScanOpNode>();
   Array<Operation> body = ScanGetBody(scan_op);
 
@@ -353,7 +353,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
           const ObjectRef& n) {
-        const ir::Call *call = n.as<ir::Call>();
+        const ir::CallNode *call = n.as<ir::CallNode>();
         if (call != nullptr && call->func.defined()) {
           for (size_t i = 0; i < call->args.size(); ++i) {
             auto it = vmap.find(call->args[i].get());
@@ -377,7 +377,7 @@ Map<IterVar, Expr> ScanFixPointAnalysis(const Operation& scan_op) {
     }
   }
   ReachGraph reach;
-  Map<IterVar, Expr> ret;
+  Map<IterVar, PrimExpr> ret;
   std::unordered_set<TensorDimKey> place_holder_ref;
   for (size_t i = 0; i < scan->state_placeholder.size(); ++i) {
     for (size_t k = 0; k < scan->state_placeholder[i]->shape.size(); ++k) {

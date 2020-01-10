@@ -486,11 +486,11 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLInt) {
     *ptr = static_cast<T>(val.value().v_int64);
   } else {
-    Expr expr = val;
+    PrimExpr expr = val;
     CHECK(expr.defined());
-    if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<T>(op->value);
-    } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
+    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
       *ptr = static_cast<T>(op->value);
     } else {
       LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
@@ -502,8 +502,8 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   if (val.type_code() == kStr) {
     *ptr = val.operator std::string();
   } else {
-    Expr expr = val;
-    const ir::StringImm* op = expr.as<ir::StringImm>();
+    PrimExpr expr = val;
+    const ir::StringImmNode* op = expr.as<ir::StringImmNode>();
     CHECK(op != nullptr);
     *ptr = op->value;
   }
@@ -517,13 +517,13 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
     *ptr = val.operator double();
   } else {
-    Expr expr = val;
+    PrimExpr expr = val;
     CHECK(expr.defined());
-    if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
-    } else if (const ir::IntImm* op = expr.as<ir::IntImm>()) {
+    } else if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
-    } else if (const ir::UIntImm* op = expr.as<ir::UIntImm>()) {
+    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else {
       LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();

@@ -41,7 +41,7 @@ namespace mac_count {
 inline int64_t GetCartesianProd(Array<IndexExpr> arr) {
   int64_t ret = 1;
   for (size_t i = 0; i < arr.size(); i++) {
-    const auto* intImm = arr[i].as<IntImm>();
+    const auto* intImm = arr[i].as<IntImmNode>();
     ret *= static_cast<int64_t>(intImm->value);
   }
   return ret;
@@ -75,9 +75,9 @@ int64_t ConvMacCount(const Call& call_node) {
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
   CHECK_NE(C_ind, -1)
     << "There is no input channel dimension.";
-  int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
+  int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImmNode>()->value);
   if (c_ind != -1)
-    input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
+    input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImmNode>()->value);
   Array<IndexExpr> kernel_size = conv_2d_attr->kernel_size;
   CHECK_EQ(kernel_size.size(), 2)
     << "The dimension of the kernel in Conv 2D should be 2.";
@@ -108,9 +108,9 @@ int64_t Conv2dTransposeMacCount(const Call& call_node) {
   int32_t c_ind = Layout(data_layout).IndexOf(LayoutAxis::Get('c'));
   CHECK_NE(C_ind, -1)
     << "There is no input channel dimension.";
-  int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImm>()->value);
+  int64_t input_channel = static_cast<int64_t>(data_shape[C_ind].as<IntImmNode>()->value);
   if (c_ind != -1)
-    input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImm>()->value);
+    input_channel *= static_cast<int64_t>(data_shape[c_ind].as<IntImmNode>()->value);
   Array<IndexExpr> kernel_size = conv_2d_transpose_attr->kernel_size;
   CHECK_EQ(kernel_size.size(), 2)
     << "The dimension of the kernel in Conv 2D Transpose should be 2.";
@@ -139,10 +139,10 @@ int64_t DenseMacCount(const Call& call_node) {
   Array<IndexExpr> weight_shape = weight_type->shape;
   CHECK(data_shape.size() == 2 && weight_shape.size() == 2)
     << "The dimension of an input tensor to Dense node should be 2.";
-  int64_t d1 = static_cast<int64_t>(data_shape[0].as<IntImm>()->value);
-  int64_t d2 = static_cast<int64_t>(data_shape[1].as<IntImm>()->value);
-  int64_t d3 = static_cast<int64_t>(weight_shape[0].as<IntImm>()->value);
-  int64_t d4 = static_cast<int64_t>(weight_shape[1].as<IntImm>()->value);
+  int64_t d1 = static_cast<int64_t>(data_shape[0].as<IntImmNode>()->value);
+  int64_t d2 = static_cast<int64_t>(data_shape[1].as<IntImmNode>()->value);
+  int64_t d3 = static_cast<int64_t>(weight_shape[0].as<IntImmNode>()->value);
+  int64_t d4 = static_cast<int64_t>(weight_shape[1].as<IntImmNode>()->value);
   CHECK_EQ(d2, d4)
     << "The dimensions of input arguments do not match.";
   int64_t count = d1 * d2 * d3;
@@ -158,10 +158,10 @@ int64_t BatchMatmulMacCount(const Call& call_node) {
   CHECK_EQ(args.size(), 2);
   Array<IndexExpr> x_shape = args[0]->checked_type().as<TensorTypeNode>()->shape;
   Array<IndexExpr> y_shape = args[1]->checked_type().as<TensorTypeNode>()->shape;
-  int64_t batch = x_shape[0].as<IntImm>()->value;
-  int64_t m = x_shape[1].as<IntImm>()->value;
-  int64_t k = x_shape[2].as<IntImm>()->value;
-  int64_t n = y_shape[1].as<IntImm>()->value;
+  int64_t batch = x_shape[0].as<IntImmNode>()->value;
+  int64_t m = x_shape[1].as<IntImmNode>()->value;
+  int64_t k = x_shape[2].as<IntImmNode>()->value;
+  int64_t n = y_shape[1].as<IntImmNode>()->value;
   return batch * m * k * n;
 }
 

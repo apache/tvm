@@ -62,7 +62,7 @@ void PassDownDomain(
  */
 void PassUpIndex(const Stage& stage,
                  const Map<IterVar, Range>& dom_map,
-                 std::unordered_map<IterVar, Expr>* p_state,
+                 std::unordered_map<IterVar, PrimExpr>* p_state,
                  bool allow_missing = false);
 
 /*!
@@ -76,7 +76,7 @@ void PassUpIndex(const Stage& stage,
  */
 void PassDownIndex(const Stage& stage,
                    const Map<IterVar, Range>& dom_map,
-                   std::unordered_map<IterVar, Expr>* p_state,
+                   std::unordered_map<IterVar, PrimExpr>* p_state,
                    bool allow_missing = false);
 
 /*!
@@ -120,11 +120,11 @@ void PassDownBitMaskOr(const Stage& stage,
  * \param skip_iter The set of variables to skip bound condition.
  * \return List of predicates that we need to check.
  */
-std::vector<Expr>
+std::vector<PrimExpr>
 MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, Expr>& value_map,
+    const std::unordered_map<IterVar, PrimExpr>& value_map,
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter);
 

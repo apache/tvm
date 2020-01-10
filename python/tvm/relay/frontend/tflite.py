@@ -61,6 +61,16 @@ class OperatorConverter(object):
 
         # Add more operators
         self.convert_map = {
+            'ABS': self.convert_abs,
+            'EXP': self.convert_exp,
+            'FLOOR': self.convert_floor,
+            'CEIL': self.convert_ceil,
+            'LOG': self.convert_log,
+            'SIN': self.convert_sin,
+            'COS': self.convert_cos,
+            'SQRT': self.convert_sqrt,
+            'RSQRT': self.convert_rsqrt,
+            'NEG': self.convert_neg,
             'CONV_2D': self.convert_conv2d,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
@@ -494,6 +504,93 @@ class OperatorConverter(object):
                     'Operator {} with fused activation is not supported yet.'
                     .format('qnn.op.concatenate'))
         return out
+
+    def _convert_unary_elemwise(self, relay_op, op):
+        """Generic method to convert TFLite unary elemwise functions"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        out = relay_op(in_expr)
+
+        return out
+
+    def convert_abs(self, op):
+        """Convert TFLite ABS"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ABS operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.abs, op)
+
+    def convert_ceil(self, op):
+        """Convert TFLite CEIL"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized CEIL operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.ceil, op)
+
+    def convert_floor(self, op):
+        """Convert TFLite FLOOR"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized FLOOR operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.floor, op)
+
+    def convert_exp(self, op):
+        """Convert TFLite EXP"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized EXP operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.exp, op)
+
+    def convert_log(self, op):
+        """Convert TFLite LOG"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized LOG operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.log, op)
+
+    def convert_sin(self, op):
+        """Convert TFLite SIN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SIN operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.sin, op)
+
+    def convert_cos(self, op):
+        """Convert TFLite COS"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized COS operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.cos, op)
+
+    def convert_sqrt(self, op):
+        """Convert TFLite SQRT"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SQRT operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.sqrt, op)
+
+    def convert_rsqrt(self, op):
+        """Convert TFLite RSQRT"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized RSQRT operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.rsqrt, op)
+
+    def convert_neg(self, op):
+        """Convert TFLite NEG"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized NEG operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.negative, op)
 
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""

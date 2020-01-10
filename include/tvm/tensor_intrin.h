@@ -150,7 +150,7 @@ class TensorIntrinCallNode : public Object {
   Array<IterVar> reduce_axis;
 
   /*! \brief scalar expression inputs */
-  Array<Expr> scalar_inputs;
+  Array<PrimExpr> scalar_inputs;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("intrin", &intrin);
@@ -163,7 +163,7 @@ class TensorIntrinCallNode : public Object {
                                Array<Tensor> tensors,
                                Array<Region> regions,
                                Array<IterVar> reduce_axis,
-                               Array<Expr> scalar_inputs);
+                               Array<PrimExpr> scalar_inputs);
 
   static constexpr const char* _type_key = "TensorIntrinCall";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinCallNode, Object);

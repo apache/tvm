@@ -29,41 +29,41 @@
 
 namespace tvm {
 
-Expr::Expr(int32_t value)
-    : Expr(IntImm::make(DataType::Int(32), value)) {}
+PrimExpr::PrimExpr(int32_t value)
+    : PrimExpr(IntImmNode::make(DataType::Int(32), value)) {}
 
-Expr::Expr(float value)
-    : Expr(ir::FloatImm::make(DataType::Float(32), value)) {}
+PrimExpr::PrimExpr(float value)
+    : PrimExpr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
 
-Expr::Expr(std::string str)
-    : Expr(ir::StringImm::make(str)) {}
+PrimExpr::PrimExpr(std::string str)
+    : PrimExpr(ir::StringImmNode::make(str)) {}
 
 Var::Var(std::string name_hint, DataType t)
-    : Var(Variable::make(t, name_hint)) {}
+    : Var(VarNode::make(t, name_hint)) {}
 
-Var Variable::make(DataType t, std::string name_hint) {
-  ObjectPtr<Variable> node = make_object<Variable>();
+Var VarNode::make(DataType t, std::string name_hint) {
+  ObjectPtr<VarNode> node = make_object<VarNode>();
   node->dtype = t;
   node->name_hint = std::move(name_hint);
   return Var(node);
 }
 
-Range::Range(Expr begin, Expr end)
+Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
 
-Integer IntImm::make(DataType t, int64_t value) {
+Integer IntImmNode::make(DataType t, int64_t value) {
   CHECK(t.is_int() && t.is_scalar())
       << "ValueError: IntImm can only take scalar.";
-  ObjectPtr<IntImm> node = make_object<IntImm>();
+  ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
   node->dtype = t;
   node->value = value;
   return Integer(node);
 }
 
-Range Range::make_by_min_extent(Expr min, Expr extent) {
+Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
   return Range(make_object<RangeNode>(min, extent));
 }
 
@@ -98,8 +98,8 @@ Var var(std::string name_hint, DataType t) {
 }
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<IntImm>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const IntImm*>(node.get());
+.set_dispatch<IntImmNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const IntImmNode*>(node.get());
     if (op->dtype == DataType::Int(32)) {
       p->stream << op->value;
     } else {

@@ -46,7 +46,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
               llvm::ValueAsMetadata::get(ConstInt32(1)) }));
   }
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     CHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
     if (op->new_expr.defined()) {
@@ -129,8 +129,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
     return builder_->CreateCall(f, {});
   }
 
-  llvm::Value* CreateStorageSync(const Call* op) final {
-    const std::string& sync = op->args[0].as<StringImm>()->value;
+  llvm::Value* CreateStorageSync(const CallNode* op) final {
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;

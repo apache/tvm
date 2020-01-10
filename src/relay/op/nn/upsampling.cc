@@ -83,8 +83,8 @@ bool UpSamplingRel(const Array<Type>& types,
     << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, ir::Cast::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_h)));
-  oshape.Set(3, ir::Cast::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_w)));
+  oshape.Set(2, ir::CastNode::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_h)));
+  oshape.Set(3, ir::CastNode::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_w)));
 
   // assign output type
   reporter->Assign(types[1],
@@ -162,9 +162,9 @@ bool UpSampling3DRel(const Array<Type>& types,
     << " But got " << in_layout;
 
   auto oshape = layout_converter.ForwardShape(data->shape);
-  oshape.Set(2, ir::Cast::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_d)));
-  oshape.Set(3, ir::Cast::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_h)));
-  oshape.Set(4, ir::Cast::make(oshape[4].dtype(), tvm::round(oshape[4] * param->scale_w)));
+  oshape.Set(2, ir::CastNode::make(oshape[2].dtype(), tvm::round(oshape[2] * param->scale_d)));
+  oshape.Set(3, ir::CastNode::make(oshape[3].dtype(), tvm::round(oshape[3] * param->scale_h)));
+  oshape.Set(4, ir::CastNode::make(oshape[4].dtype(), tvm::round(oshape[4] * param->scale_w)));
 
   // assign output type
   reporter->Assign(types[1],

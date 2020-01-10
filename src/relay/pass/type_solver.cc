@@ -182,27 +182,27 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Any::make();
     }
 
-    auto left_index0 = ulhs.as<tvm::Variable>();
-    auto right_index0 = urhs.as<tvm::IntImm>();
+    auto left_index0 = ulhs.as<tvm::VarNode>();
+    auto right_index0 = urhs.as<tvm::IntImmNode>();
     if (left_index0 && right_index0) {
       solver_->shape_uf_.Set(ulhs, urhs);
       return urhs;
     }
 
-    auto left_index1 = ulhs.as<tvm::IntImm>();
-    auto right_index1 = urhs.as<tvm::Variable>();
+    auto left_index1 = ulhs.as<tvm::IntImmNode>();
+    auto right_index1 = urhs.as<tvm::VarNode>();
     if (left_index1 && right_index1) {
       solver_->shape_uf_.Set(urhs, ulhs);
       return ulhs;
     }
 
-    auto left_index2 = ulhs.as<tvm::IntImm>();
-    auto right_index2 = urhs.as<tvm::IntImm>();
+    auto left_index2 = ulhs.as<tvm::IntImmNode>();
+    auto right_index2 = urhs.as<tvm::IntImmNode>();
     if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
       return ulhs;
     }
 
-    return tvm::Expr();
+    return tvm::PrimExpr();
   }
 
   Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
@@ -243,8 +243,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       if (!dim.defined()) {
         // NB: We push an arbitrary dimension here so we can continue error propogation.
         shape.push_back(tt1->shape[i]);
-        tvm::Expr shape1 = tt1->shape[i];
-        tvm::Expr shape2 = tt2->shape[i];
+        tvm::PrimExpr shape1 = tt1->shape[i];
+        tvm::PrimExpr shape2 = tt2->shape[i];
         std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
         mismatches.push_back(tuple);
       } else {

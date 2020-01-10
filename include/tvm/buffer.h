@@ -66,7 +66,7 @@ class Buffer : public ObjectRef {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  TVM_DLL Buffer MakeSlice(Array<Expr> begins, Array<Expr> extents) const;
+  TVM_DLL Buffer MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
@@ -74,22 +74,22 @@ class Buffer : public ObjectRef {
    * \param content_lanes The number of lanes for the (data) type.
    * \param offset The offset of ptr.
    */
-  TVM_DLL Expr access_ptr(int access_mask,
+  TVM_DLL PrimExpr access_ptr(int access_mask,
                           DataType ptr_type = DataType::Handle(),
                           int content_lanes = 1,
-                          Expr offset = make_const(DataType::Int(32), 0)) const;
+                          PrimExpr offset = make_const(DataType::Int(32), 0)) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
    */
-  TVM_DLL Expr vload(Array<Expr> begin, DataType dtype) const;
+  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
    */
-  TVM_DLL Stmt vstore(Array<Expr> begin, Expr value) const;
+  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -112,14 +112,14 @@ class BufferNode : public Object {
   /*! \brief data type in the content of the tensor */
   DataType dtype;
   /*! \brief The shape of the buffer */
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
    */
-  Array<Expr> strides;
+  Array<PrimExpr> strides;
   /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  Expr elem_offset;
+  PrimExpr elem_offset;
   // Meta data
   /*! \brief optional name of the buffer */
   std::string name;
@@ -159,9 +159,9 @@ class BufferNode : public Object {
   // A default value will be picked.
   TVM_DLL static Buffer make(Var ptr,
                              DataType dtype,
-                             Array<Expr> shape,
-                             Array<Expr> strides,
-                             Expr elem_offset,
+                             Array<PrimExpr> shape,
+                             Array<PrimExpr> strides,
+                             PrimExpr elem_offset,
                              std::string name,
                              std::string scope,
                              int data_alignment,
@@ -184,7 +184,7 @@ inline const BufferNode* Buffer::operator->() const {
  * \return The created buffer.
  * \sa BufferNode::make for complete constructor.
  */
-TVM_DLL Buffer decl_buffer(Array<Expr> shape,
+TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape,
                            DataType dtype = DataType::Float(32),
                            std::string name = "buffer");
 }  // namespace tvm

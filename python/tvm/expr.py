@@ -242,27 +242,27 @@ class NotEqualOp(NodeGeneric, ExprOp):
         return _make._OpNE(self.a, self.b)
 
 
-class Expr(ExprOp, NodeBase):
+class PrimExpr(ExprOp, NodeBase):
     """Base class of all tvm Expressions"""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
     __hash__ = NodeBase.__hash__
 
 
-class ConstExpr(Expr):
+class ConstExpr(PrimExpr):
     pass
 
-class BinaryOpExpr(Expr):
+class BinaryOpExpr(PrimExpr):
     pass
 
-class CmpExpr(Expr):
+class CmpExpr(PrimExpr):
     pass
 
-class LogicalExpr(Expr):
+class LogicalExpr(PrimExpr):
     pass
 
 @register_node("Variable")
-class Var(Expr):
+class Var(PrimExpr):
     """Symbolic variable.
 
     Parameters
@@ -279,7 +279,7 @@ class Var(Expr):
 
 
 @register_node
-class Reduce(Expr):
+class Reduce(PrimExpr):
     """Reduce node.
 
     Parameters
@@ -383,7 +383,7 @@ class StringImm(ConstExpr):
 
 
 @register_node
-class Cast(Expr):
+class Cast(PrimExpr):
     """Cast expression.
 
     Parameters
@@ -703,7 +703,7 @@ class Not(LogicalExpr):
 
 
 @register_node
-class Select(Expr):
+class Select(PrimExpr):
     """Select node.
 
     Note
@@ -731,7 +731,7 @@ class Select(Expr):
 
 
 @register_node
-class Load(Expr):
+class Load(PrimExpr):
     """Load node.
 
     Parameters
@@ -754,7 +754,7 @@ class Load(Expr):
 
 
 @register_node
-class Ramp(Expr):
+class Ramp(PrimExpr):
     """Ramp node.
 
     Parameters
@@ -774,7 +774,7 @@ class Ramp(Expr):
 
 
 @register_node
-class Broadcast(Expr):
+class Broadcast(PrimExpr):
     """Broadcast node.
 
     Parameters
@@ -791,7 +791,7 @@ class Broadcast(Expr):
 
 
 @register_node
-class Shuffle(Expr):
+class Shuffle(PrimExpr):
     """Shuffle node.
 
     Parameters
@@ -808,7 +808,7 @@ class Shuffle(Expr):
 
 
 @register_node
-class Call(Expr):
+class Call(PrimExpr):
     """Call node.
 
     Parameters
@@ -843,7 +843,7 @@ class Call(Expr):
 
 
 @register_node
-class Let(Expr):
+class Let(PrimExpr):
     """Let node.
 
     Parameters

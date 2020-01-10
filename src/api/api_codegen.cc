@@ -43,5 +43,8 @@ TVM_REGISTER_GLOBAL("codegen._Build")
 
 TVM_REGISTER_GLOBAL("module._PackImportsToC")
 .set_body_typed(PackImportsToC);
+
+TVM_REGISTER_GLOBAL("module._PackImportsToLLVM")
+.set_body_typed(PackImportsToLLVM);
 }  // namespace codegen
 }  // namespace tvm

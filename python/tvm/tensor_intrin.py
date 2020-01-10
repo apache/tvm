@@ -133,9 +133,9 @@ def decl_tensor_intrin(op,
     else:
         body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):])
         scalar_params = []
-    if isinstance(body, (_expr.Expr, _stmt.Stmt)):
+    if isinstance(body, (_expr.PrimExpr, _stmt.Stmt)):
         body = [body]
-    body = [_make.Evaluate(x) if isinstance(x, _expr.Expr) else x for x in body]
+    body = [_make.Evaluate(x) if isinstance(x, _expr.PrimExpr) else x for x in body]
     if len(body) < 3:
         body += [None] * (3 - len(body))
     return _api_internal._TensorIntrin(

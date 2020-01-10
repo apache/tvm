@@ -76,13 +76,13 @@ class StorageAccessVisitor : public StmtExprVisitor {
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void VisitExpr_(const Load* op) final;
-  void VisitStmt_(const Store* op) final;
-  void VisitStmt_(const Evaluate* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const IfThenElse* op) final;
-  void VisitExpr_(const Call* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const IfThenElseNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  protected:
   StorageAccessVisitor() {
@@ -106,7 +106,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
    * \param scope The scope of the buffer.
    * \return Whether the analysis of buffer is enabled.
    */
-  virtual bool Enabled(const Variable* buffer,
+  virtual bool Enabled(const VarNode* buffer,
                        const StorageScope& scope) const {
     return true;
   }
@@ -122,12 +122,12 @@ class StorageAccessVisitor : public StmtExprVisitor {
    *  the parent should taken care of to synchronize.
    */
   virtual std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) = 0;
+      std::vector<StmtEntry> seq, const ForNode* loop) = 0;
   /*!
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.
    */
-  StorageScope GetScope(const Variable* buf) const;
+  StorageScope GetScope(const VarNode* buf) const;
   // access scope
   std::vector<std::vector<StmtEntry> > scope_;
 
@@ -139,13 +139,13 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // Whether we are inside condition.
   int condition_counter_{0};
   // The current double buffer write scope.
-  const Variable* double_buffer_write_{nullptr};
+  const VarNode* double_buffer_write_{nullptr};
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads
   Array<IterVar> env_threads_;
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
 };
 
 }  // namespace ir

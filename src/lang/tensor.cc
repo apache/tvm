@@ -28,20 +28,20 @@
 namespace tvm {
 
 // Tensor
-Expr Tensor::operator()(Array<Var> indices) const {
-  Array<Expr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::operator()(Array<Var> indices) const {
+  Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
-Expr Tensor::operator()(Array<Expr> indices) const {
-  using ir::Call;
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
+  using ir::CallNode;
   if (ndim() != 0) {
     CHECK_EQ(ndim(), indices.size())
         << "Tensor dimension mismatch in read"
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
-  auto n = Call::make(
-      (*this)->dtype, (*this)->op->name, indices, Call::Halide,
+  auto n = CallNode::make(
+      (*this)->dtype, (*this)->op->name, indices, CallNode::Halide,
       (*this)->op, (*this)->value_index);
   return n;
 }
@@ -55,7 +55,7 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor TensorNode::make(Array<Expr> shape,
+Tensor TensorNode::make(Array<PrimExpr> shape,
                         DataType dtype,
                         Operation op,
                         int value_index) {
@@ -114,7 +114,7 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
                                             Array<Tensor> tensors,
                                             Array<Region> regions,
                                             Array<IterVar> reduce_axis,
-                                            Array<Expr> scalar_inputs) {
+                                            Array<PrimExpr> scalar_inputs) {
   auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);

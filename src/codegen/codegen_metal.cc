@@ -196,8 +196,8 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to Metal type";
 }
 
-void CodeGenMetal::PrintStorageSync(const Call* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+void CodeGenMetal::PrintStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "simdgroup_barrier(mem_flags::mem_threadgroup);\n";
@@ -234,7 +234,7 @@ void CodeGenMetal::PrintStorageScope(
   }
 }
 
-void CodeGenMetal::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   PrintType(op->dtype, os);
   os << "(";
@@ -245,8 +245,8 @@ void CodeGenMetal::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLI
   os << ')';
 }
 
-void CodeGenMetal::VisitExpr_(const Call* op, std::ostream& os) {  // NOLINT(*)
-  if (op->is_intrinsic(Call::reinterpret)) {
+void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+  if (op->is_intrinsic(CallNode::reinterpret)) {
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
     this->PrintType(op->dtype, os);

@@ -185,15 +185,15 @@ void ModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& 
   }
 }
 
-void ModuleNode::AddDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
-  AddDefUnchecked(var, type, update);
+void ModuleNode::AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update) {
+  AddTypeDefUnchecked(var, type, update);
   // need to kind check at the end because the check can look up
   // a definition potentially
   CHECK(KindCheck(type, GetRef<Module>(this)) == Kind::kTypeData)
     << "Invalid or malformed typedata given to module: " << type;
 }
 
-void ModuleNode::AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update) {
+void ModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update) {
   this->type_definitions.Set(var, type);
   if (!update) {
     // set global type var map
@@ -208,8 +208,8 @@ void ModuleNode::Update(const GlobalVar& var, const Function& func) {
   this->Add(var, func, true);
 }
 
-void ModuleNode::UpdateDef(const GlobalTypeVar& var, const TypeData& type) {
-  this->AddDef(var, type, true);
+void ModuleNode::UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type) {
+  this->AddTypeDef(var, type, true);
 }
 
 void ModuleNode::Remove(const GlobalVar& var) {
@@ -231,16 +231,16 @@ Function ModuleNode::Lookup(const std::string& name) const {
   return this->Lookup(id);
 }
 
-TypeData ModuleNode::LookupDef(const GlobalTypeVar& var) const {
+TypeData ModuleNode::LookupTypeDef(const GlobalTypeVar& var) const {
   auto it = type_definitions.find(var);
   CHECK(it != type_definitions.end())
     << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
-TypeData ModuleNode::LookupDef(const std::string& name) const {
+TypeData ModuleNode::LookupTypeDef(const std::string& name) const {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
-  return this->LookupDef(id);
+  return this->LookupTypeDef(id);
 }
 
 Constructor ModuleNode::LookupTag(const int32_t tag) {
@@ -257,13 +257,13 @@ void ModuleNode::Update(const Module& mod) {
     this->AddUnchecked(pair.first, pair.second);
   }
   for (auto pair : mod->type_definitions) {
-    this->AddDefUnchecked(pair.first, pair.second);
+    this->AddTypeDefUnchecked(pair.first, pair.second);
   }
   for (auto pair : mod->functions) {
     this->Update(pair.first, pair.second);
   }
   for (auto pair : mod->type_definitions) {
-    this->UpdateDef(pair.first, pair.second);
+    this->UpdateTypeDef(pair.first, pair.second);
   }
 }
 
@@ -347,7 +347,7 @@ TVM_REGISTER_GLOBAL("relay._module.Module_Add")
 });
 
 TVM_REGISTER_GLOBAL("relay._module.Module_AddDef")
-.set_body_method<Module>(&ModuleNode::AddDef);
+.set_body_method<Module>(&ModuleNode::AddTypeDef);
 
 TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalVar")
 .set_body_method<Module>(&ModuleNode::GetGlobalVar);
@@ -376,12 +376,12 @@ TVM_REGISTER_GLOBAL("relay._module.Module_Lookup_str")
 
 TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef")
 .set_body_typed([](Module mod, GlobalTypeVar var) {
-  return mod->LookupDef(var);
+  return mod->LookupTypeDef(var);
 });
 
 TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef_str")
 .set_body_typed([](Module mod, std::string var) {
-  return mod->LookupDef(var);
+  return mod->LookupTypeDef(var);
 });
 
 TVM_REGISTER_GLOBAL("relay._module.Module_LookupTag")
