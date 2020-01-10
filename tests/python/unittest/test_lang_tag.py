@@ -33,9 +33,9 @@ def compute_conv(data, weight):
                 axis=[ic, dh, dw]))
 
 def test_with():
-    n = tvm.var('n')
-    m = tvm.var('m')
-    l = tvm.var('l')
+    n = tvm.shape_var('n')
+    m = tvm.shape_var('m')
+    l = tvm.shape_var('l')
 
     A = tvm.placeholder((n, l), name='A')
     B = tvm.placeholder((m, l), name='B')
@@ -56,12 +56,12 @@ def test_with():
 
 
 def test_decorator():
-    n = tvm.var('n')
-    c = tvm.var('c')
-    h = tvm.var('h')
-    w = tvm.var('w')
-    kh = tvm.var('kh')
-    kw = tvm.var('kw')
+    n = tvm.shape_var('n')
+    c = tvm.shape_var('c')
+    h = tvm.shape_var('h')
+    w = tvm.shape_var('w')
+    kh = tvm.shape_var('kh')
+    kw = tvm.shape_var('kw')
 
     A = tvm.placeholder((n, c, h, w), name='A')
     B = tvm.placeholder((c, c, kh, kw), name='B')
@@ -70,12 +70,12 @@ def test_decorator():
     assert len(C.op.attrs) == 0
 
 def test_nested():
-    n = tvm.var('n')
-    c = tvm.var('c')
-    h = tvm.var('h')
-    w = tvm.var('w')
-    kh = tvm.var('kh')
-    kw = tvm.var('kw')
+    n = tvm.shape_var('n')
+    c = tvm.shape_var('c')
+    h = tvm.shape_var('h')
+    w = tvm.shape_var('w')
+    kh = tvm.shape_var('kh')
+    kw = tvm.shape_var('kw')
 
     A = tvm.placeholder((n, c, h, w), name='A')
     B = tvm.placeholder((c, c, kh, kw), name='B')

@@ -17,8 +17,8 @@
 import tvm
 
 def test_decorate_device():
-    m = tvm.var('m')
-    l = tvm.var('l')
+    m = tvm.shape_var('m')
+    l = tvm.shape_var('l')
     A = tvm.placeholder((m, l), name='A')
 
     A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
