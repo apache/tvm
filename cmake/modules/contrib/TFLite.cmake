@@ -26,8 +26,8 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   include_directories(${USE_TENSORFLOW_PATH})
 
   # Additional EdgeTPU libs
-  # Need to specify path to repo e.g. set(USE_EDGETPU /home/mendel/edgetpu)
-  if (NOT USE_EDGETPU STREQUAL "ON")
+  if (NOT USE_EDGETPU STREQUAL "OFF")
+    message(STATUS "Build with contrib.edgetpu")
     file(GLOB EDGETPU_CONTRIB_SRC src/runtime/contrib/edgetpu/*.cc)
     list(APPEND RUNTIME_SRCS ${EDGETPU_CONTRIB_SRC})
     include_directories(${USE_EDGETPU}/libedgetpu)
