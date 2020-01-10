@@ -24,7 +24,7 @@ from . import _make
 def conv1d(data,
            weight,
            strides=1,
-           padding=(0, 0),
+           padding=0,
            dilation=1,
            groups=1,
            channels=None,
@@ -69,7 +69,7 @@ def conv1d(data,
     strides : Optional[int, Tuple[int]]
         The strides of convolution.
 
-    padding : Optional[Tuple[int]]
+    padding : Optional[int, Tuple[int]]
         The padding of convolution on both sides of the input before convolution.
 
     dilation : Optional[int, Tuple[int]]
@@ -107,6 +107,8 @@ def conv1d(data,
         strides = (strides, )
     if isinstance(dilation, int):
         dilation = (dilation, )
+    if isinstance(padding, int):
+        padding = (padding, padding)
     return _make.conv1d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -157,13 +159,13 @@ def conv2d(data,
     weight : tvm.relay.Expr
         The weight expressions.
 
-    strides : Optional[Tuple[int]]
+    strides : Optional[int, Tuple[int]]
         The strides of convolution.
 
-    padding : Optional[Tuple[int]]
+    padding : Optional[int, Tuple[int]]
         The padding of convolution on both sides of inputs before convolution.
 
-    dilation : Optional[Tuple[int]]
+    dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
     groups : Optional[int]
@@ -172,7 +174,7 @@ def conv2d(data,
     channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : Optional[Tuple[int]]
+    kernel_size : Optional[int, Tuple[int]]
         The spatial of the convolution kernel.
 
     data_layout : Optional[str]
@@ -192,6 +194,15 @@ def conv2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -245,10 +256,10 @@ def conv3d(data,
     strides : Optional[Tuple[int]]
         The strides of convolution.
 
-    padding : Optional[Tuple[int]]
+    padding : Optional[int, Tuple[int]]
         The padding of convolution on both sides of inputs before convolution.
 
-    dilation : Optional[Tuple[int]]
+    dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
     groups : Optional[int]
@@ -257,7 +268,7 @@ def conv3d(data,
     channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : Optional[Tuple[int]]
+    kernel_size : Optional[int, Tuple[int]]
         The spatial of the convolution kernel.
 
     data_layout : Optional[str]
@@ -277,6 +288,15 @@ def conv3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding)
+
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
