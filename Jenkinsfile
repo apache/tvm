@@ -41,12 +41,12 @@
 
 // Hashtag in the source to build current CI docker builds
 //
-// - ci-cpu:v0.54: e7c88a99f830de30814df14eaa980547ecbd61c1
+// - ci-cpu:v0.55: 07b45d958d4af91ec1bab66f6cf391d1ce12ddaf
 //
 
 ci_lint = "tvmai/ci-lint:v0.51"
 ci_gpu = "tvmai/ci-gpu:v0.56"
-ci_cpu = "tvmai/ci-cpu:v0.54"
+ci_cpu = "tvmai/ci-cpu:v0.55"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries

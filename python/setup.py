@@ -147,7 +147,7 @@ if include_libs:
 
 def get_package_data_files():
     # Relay standard libraries
-    return ['relay/std/prelude.rly']
+    return ['relay/std/prelude.rly', 'relay/std/core.rly']
 
 
 setup(name='tvm',
