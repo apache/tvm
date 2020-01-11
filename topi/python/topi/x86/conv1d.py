@@ -23,7 +23,7 @@ from .. import generic, tag
 
 
 @generic.schedule_conv1d_ncw.register(["cpu"])
-def schedule_conv1d_nwc(outs):
+def schedule_conv1d_ncw(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
@@ -75,6 +75,7 @@ def schedule_conv1d_nwc(outs):
 
     traverse(output_op)
     return s
+
 
 @generic.schedule_conv1d_nwc.register(["cpu"])
 def schedule_conv1d_nwc(outs):
