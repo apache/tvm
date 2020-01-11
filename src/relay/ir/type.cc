@@ -101,30 +101,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
   });
 
-TypeRelation TypeRelationNode::make(TypeRelationFn func,
-                                    Array<Type> args,
-                                    int num_inputs,
-                                    Attrs attrs) {
-  ObjectPtr<TypeRelationNode> n = make_object<TypeRelationNode>();
-  n->func = std::move(func);
-  n->args = std::move(args);
-  n->num_inputs = num_inputs;
-  n->attrs = std::move(attrs);
-  return TypeRelation(n);
-}
-
-TVM_REGISTER_NODE_TYPE(TypeRelationNode);
-
-TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
-.set_body_typed(TypeRelationNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, NodePrinter* p) {
-    auto* node = static_cast<const TypeRelationNode*>(ref.get());
-    p->stream << "TypeRelationNode("
-              << node->func->name
-              << ", " << node->args << ")";
-});
 
 TupleType TupleTypeNode::make(Array<Type> fields) {
   ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
