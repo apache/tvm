@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker CPU env
-# tag: v0.54
+# tag: v0.55
 FROM ubuntu:16.04
 
 RUN apt-get update --fix-missing
