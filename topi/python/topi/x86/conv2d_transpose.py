@@ -28,9 +28,9 @@ from .conv2d import _declaration_conv_impl, \
 
 
 @autotvm.register_topi_compute(conv2d_transpose_nchw, 'cpu', ['direct'])
-def _conv2d_transpose_nchw(cfg, data, kernel, strides, padding, out_dtype):
+def _conv2d_transpose_nchw(cfg, data, kernel, strides, padding, out_dtype, output_padding=(0, 0)):
     data_pad, kernel_transform = \
-        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype)
+        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
     # reuse conv2d implementation
     _create_tuning_space_conv2d(cfg, data_pad, kernel_transform, strides=(1, 1), \
                                 padding=(0, 0), dilation=(1, 1), layout="NCHW")

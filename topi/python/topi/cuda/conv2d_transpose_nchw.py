@@ -25,7 +25,8 @@ from ..util import equal_const_int, get_const_tuple, traverse_inline
 
 
 @autotvm.task.register_topi_compute(nn.conv2d_transpose_nchw, ['cuda', 'gpu'], "direct")
-def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
+def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype,
+                               output_padding=(0, 0)):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -51,6 +52,7 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
     batch, in_c, in_h, in_w = get_const_tuple(Input.shape)
     _, out_c, filter_h, filter_w = get_const_tuple(Filter.shape)
     stride_h, stride_w = strides
+    opad_h, opad_w = output_padding
 
     # attach stride info to config, this is used in schedule space definition
     cfg.stride = strides
@@ -58,9 +60,9 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
     # padding stage
     fpad_top, fpad_left, fpad_bottom, fpad_right = nn.get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
+    bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    bpad_right = filter_w - 1 - fpad_right + opad_w
 
     # padding stage
     FirstPad = nn.pad(Input,
@@ -95,8 +97,8 @@ def conv2d_transpose_nchw_cuda(cfg, Input, Filter, strides, padding, out_dtype):
         return data(*index_tuple)
 
     # convolution stage
-    out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h
-    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
+    out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h + opad_h
+    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad_w
     dc = tvm.reduce_axis((0, in_c), name='dc')
     dh = tvm.reduce_axis((0, filter_h), name='dh')
     dw = tvm.reduce_axis((0, filter_w), name='dw')
