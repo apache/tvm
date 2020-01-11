@@ -17,11 +17,11 @@
 """Arithmetic data structure and utility"""
 from __future__ import absolute_import as _abs
 
-from ._ffi.node import NodeBase, register_node
+from ._ffi.object import Object, register_object
 from ._ffi.function import _init_api
 from . import _api_internal
 
-class IntSet(NodeBase):
+class IntSet(Object):
     """Represent a set of integer in one dimension."""
     def is_nothing(self):
         """Whether the set represent nothing"""
@@ -32,7 +32,7 @@ class IntSet(NodeBase):
         return _api_internal._IntSetIsEverything(self)
 
 
-@register_node("arith.IntervalSet")
+@register_object("arith.IntervalSet")
 class IntervalSet(IntSet):
     """Represent set of continuous interval [min_value, max_value]
 
@@ -49,16 +49,16 @@ class IntervalSet(IntSet):
             _make_IntervalSet, min_value, max_value)
 
 
-@register_node("arith.ModularSet")
-class ModularSet(NodeBase):
+@register_object("arith.ModularSet")
+class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z """
     def __init__(self, coeff, base):
         self.__init_handle_by_constructor__(
             _make_ModularSet, coeff, base)
 
 
-@register_node("arith.ConstIntBound")
-class ConstIntBound(NodeBase):
+@register_object("arith.ConstIntBound")
+class ConstIntBound(Object):
     """Represent constant integer bound
 
     Parameters
@@ -245,7 +245,7 @@ class Analyzer:
         var : tvm.Var
             The variable.
 
-        info : tvm.NodeBase
+        info : tvm.Object
             Related information.
 
         override : bool
