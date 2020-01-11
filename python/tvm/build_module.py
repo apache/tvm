@@ -294,7 +294,7 @@ def get_binds(args, compact=False, binds=None):
     arg_list = []
 
     def is_var(idx):
-        return isinstance(idx, expr.Var) or isinstance(idx, expr.ShapeVar)
+        return isinstance(idx, (expr.ShapeVar, expr.Var))
 
     for x in args:
         if isinstance(x, tensor.Tensor):

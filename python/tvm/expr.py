@@ -291,6 +291,7 @@ class ShapeVar(Var):
     dtype : int
         The data type
     """
+    # pylint: disable=super-init-not-called
     def __init__(self, name, dtype):
         self.__init_handle_by_constructor__(
             _api_internal._ShapeVar, name, dtype)
