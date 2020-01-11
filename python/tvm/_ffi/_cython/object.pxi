@@ -32,7 +32,7 @@ def _register_object(int index, object cls):
 
 cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE
-    global _CLASS_NODE
+    global _CLASS_OBJECT
     cdef unsigned tindex
     cdef object cls
     cdef object handle
@@ -44,11 +44,9 @@ cdef inline object make_ret_object(void* chandle):
         if cls is not None:
             obj = cls.__new__(cls)
         else:
-            # default use node base class
-            # TODO(tqchen) change to object after Node unifies with Object
-            obj = _CLASS_NODE.__new__(_CLASS_NODE)
+            obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     else:
-        obj = _CLASS_NODE.__new__(_CLASS_NODE)
+        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     (<ObjectBase>obj).chandle = chandle
     return obj
 

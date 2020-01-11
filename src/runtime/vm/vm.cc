@@ -613,18 +613,14 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
   return os;
 }
 
-ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
-  if (const TensorObj* obj = src.as<TensorObj>()) {
-    auto tensor = obj->data;
-    if (tensor->ctx.device_type != ctx.device_type) {
-      auto copy = tensor.CopyTo(ctx);
-      return Tensor(copy);
-    } else {
-      return src;
+inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
+  if (src->IsInstance<NDArray::ContainerType>()) {
+    auto nd_array = Downcast<NDArray>(src);
+    if (nd_array->ctx.device_type != ctx.device_type) {
+      return nd_array.CopyTo(ctx);
     }
-  } else {
-    return src;
   }
+  return src;
 }
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
@@ -770,16 +766,12 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
     if (const auto* dt_cell = args[i].as<ADTObj>()) {
       for (size_t fi = 0; fi < dt_cell->size; ++fi) {
         auto obj = (*dt_cell)[fi];
-        const auto* tensor = obj.as<TensorObj>();
-        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
-                                 << obj->GetTypeKey();
-        setter(idx++, tensor->data);
+        auto nd_array = Downcast<NDArray>(obj);
+        setter(idx++, nd_array);
       }
     } else {
-      const auto* tensor = args[i].as<TensorObj>();
-      CHECK(tensor != nullptr) << "Expect tensor object, but received: "
-                               << args[i]->GetTypeKey();
-      setter(idx++, tensor->data);
+      auto nd_array = Downcast<NDArray>(args[i]);
+      setter(idx++, nd_array);
     }
   }
 
@@ -824,10 +816,8 @@ inline ObjectRef VirtualMachine::ReadRegister(Index r) const {
 inline int32_t VirtualMachine::LoadScalarInt(Index r) const {
   int32_t result;
   const auto& obj = ReadRegister(r);
-  const auto* tensor = obj.as<TensorObj>();
-  CHECK(tensor != nullptr) << "Expect tensor object, but received: "
-                           << obj->GetTypeKey();
-  NDArray array = tensor->data.CopyTo({kDLCPU, 0});
+  auto nd_array = Downcast<NDArray>(obj);
+  NDArray array = nd_array.CopyTo({kDLCPU, 0});
 
   if (array->dtype.bits <= 8) {
     result = reinterpret_cast<int8_t*>(array->data)[0];
@@ -883,7 +873,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::LoadConsti: {
         auto tensor = NDArray::Empty({1}, {kDLInt, 64, 1}, {kDLCPU, 0});
         reinterpret_cast<int64_t*>(tensor->data)[0] = instr.load_consti.val;
-        WriteRegister(instr.dst, Tensor(tensor));
+        WriteRegister(instr.dst, tensor);
         pc_++;
         goto main_loop;
       }
@@ -943,7 +933,7 @@ void VirtualMachine::RunLoop() {
         auto tag = adt.tag();
         auto tag_tensor = NDArray::Empty({1}, {kDLInt, 32, 1}, {kDLCPU, 0});
         reinterpret_cast<int32_t*>(tag_tensor->data)[0] = tag;
-        WriteRegister(instr.dst, Tensor(tag_tensor));
+        WriteRegister(instr.dst, tag_tensor);
         pc_++;
         goto main_loop;
       }
@@ -974,9 +964,8 @@ void VirtualMachine::RunLoop() {
 
         auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
         auto storage = Downcast<Storage>(storage_obj);
-        auto data = storage->AllocNDArray(0, shape, instr.alloc_tensor.dtype);
+        auto obj = storage->AllocNDArray(0, shape, instr.alloc_tensor.dtype);
 
-        auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc_++;
         goto main_loop;
@@ -986,10 +975,8 @@ void VirtualMachine::RunLoop() {
         cpu_ctx.device_type = kDLCPU;
         cpu_ctx.device_id = 0;
         auto shape_tensor_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
-        const auto* tensor = shape_tensor_obj.as<TensorObj>();
-        CHECK(tensor != nullptr) << "Expect tensor object, but received: "
-                                 << shape_tensor_obj->GetTypeKey();
-        NDArray shape_tensor = tensor->data.CopyTo(cpu_ctx);
+        const auto shape_arr = Downcast<NDArray>(shape_tensor_obj);
+        NDArray shape_tensor = shape_arr.CopyTo(cpu_ctx);
         const DLTensor* dl_tensor = shape_tensor.operator->();
         CHECK_EQ(dl_tensor->dtype.code, 0u);
         CHECK_LE(dl_tensor->dtype.bits, 64);
@@ -1000,9 +987,8 @@ void VirtualMachine::RunLoop() {
 
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
-        auto data = storage->AllocNDArray(0, shape, instr.alloc_tensor_reg.dtype);
+        auto obj = storage->AllocNDArray(0, shape, instr.alloc_tensor_reg.dtype);
 
-        auto obj = Tensor(data);
         WriteRegister(instr.dst, obj);
         pc_++;
         goto main_loop;

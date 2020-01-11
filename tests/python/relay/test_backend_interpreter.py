@@ -17,8 +17,9 @@
 import numpy as np
 import tvm
 import tvm.testing
+from tvm import nd
 from tvm import relay
-from tvm.relay.backend.interpreter import Value, TupleValue, TensorValue
+from tvm.relay.backend.interpreter import TupleValue
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
@@ -37,18 +38,11 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
             result.asnumpy(), expected_result, rtol=rtol)
 
 
-def test_from_scalar():
-    np.testing.assert_allclose(Value.from_scalar(1, 'int32').asnumpy(), 1)
-    np.testing.assert_allclose(Value.from_scalar(10.0, 'float32').asnumpy(), 10.0)
-    np.testing.assert_allclose(Value.from_scalar(True).asnumpy(), True)
-
-
 def test_tuple_value():
-    tv = TupleValue(Value.from_scalar(
-        1), Value.from_scalar(2), Value.from_scalar(3))
-    np.testing.assert_allclose(tv[0].asnumpy(), 1)
-    np.testing.assert_allclose(tv[1].asnumpy(), 2)
-    np.testing.assert_allclose(tv[2].asnumpy(), 3)
+    tv = TupleValue(relay.const(1), relay.const(2), relay.const(3))
+    np.testing.assert_allclose(tv[0].data.asnumpy(), 1)
+    np.testing.assert_allclose(tv[1].data.asnumpy(), 2)
+    np.testing.assert_allclose(tv[2].data.asnumpy(), 3)
 
 
 def test_tuple_getitem():
@@ -158,12 +152,6 @@ def test_binds():
     tvm.testing.assert_allclose(xx + xx, res)
 
 
-def test_tensor_value():
-    x = relay.var("x", shape=(1, 10))
-    xx = np.ones((1, 10)).astype("float32")
-    check_eval(relay.Function([x], x), [TensorValue(xx)], xx)
-
-
 def test_kwargs_params():
     x = relay.var("x", shape=(1, 10))
     y = relay.var("y", shape=(1, 10))
@@ -174,7 +162,7 @@ def test_kwargs_params():
     z_data = np.random.rand(1, 10).astype('float32')
     params = { 'y': y_data, 'z': z_data }
     intrp = create_executor("debug")
-    res = intrp.evaluate(f)(x_data, **params).data
+    res = intrp.evaluate(f)(x_data, **params)
     tvm.testing.assert_allclose(res.asnumpy(), x_data + y_data + z_data)
 
 
@@ -185,13 +173,13 @@ def test_function_taking_adt_ref_tuple():
 
     nil_value = ConstructorValue(prelude.nil.tag, [], prelude.nil)
     cons_value = ConstructorValue(prelude.cons.tag, [
-        TensorValue(np.random.rand(1, 10).astype('float32')),
+        nd.array(np.random.rand(1, 10).astype('float32')),
         nil_value
     ], prelude.cons)
 
-    ref_value = RefValue(TensorValue(np.random.rand(1, 10).astype('float32')))
+    ref_value = RefValue(nd.array(np.random.rand(1, 10).astype('float32')))
     tuple_value = TupleValue(*[
-        TensorValue(np.random.rand(1, 10).astype('float32')) for _ in range(10)
+        nd.array(np.random.rand(1, 10).astype('float32')) for _ in range(10)
     ])
 
     id_func = intrp.evaluate(prelude.id)
@@ -236,9 +224,7 @@ def test_tuple_passing():
     out = f((10, 8))
     tvm.testing.assert_allclose(out.asnumpy(), np.array(10))
     # Second use a tuple value.
-    value_tuple = TupleValue(
-        TensorValue(np.array(11)),
-        TensorValue(np.array(12)))
+    value_tuple = TupleValue(nd.array(np.array(11)), nd.array(np.array(12)))
     out = f(value_tuple)
     tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 
@@ -252,7 +238,6 @@ if __name__ == "__main__":
     test_binds()
     test_kwargs_params()
     test_ref()
-    test_tensor_value()
     test_tuple_value()
     test_tuple_getitem()
     test_function_taking_adt_ref_tuple()

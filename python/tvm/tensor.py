@@ -17,13 +17,14 @@
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
-from ._ffi.node import NodeBase, NodeGeneric, register_node, convert_to_node
+from ._ffi.object import Object, register_object, ObjectGeneric, \
+        convert_to_object
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 
 
-class TensorSlice(NodeGeneric, _expr.ExprOp):
+class TensorSlice(ObjectGeneric, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
     def __init__(self, tensor, indices):
@@ -37,8 +38,8 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
             indices = (indices,)
         return TensorSlice(self.tensor, self.indices + indices)
 
-    def asnode(self):
-        """Convert slice to node."""
+    def asobject(self):
+        """Convert slice to object."""
         return self.tensor(*self.indices)
 
     @property
@@ -46,23 +47,23 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
         """Data content of the tensor."""
         return self.tensor.dtype
 
-@register_node
-class TensorIntrinCall(NodeBase):
+@register_object
+class TensorIntrinCall(Object):
     """Intermediate structure for calling a tensor intrinsic."""
 
 
 itervar_cls = None
 
 
-@register_node
-class Tensor(NodeBase, _expr.ExprOp):
+@register_object
+class Tensor(Object, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
     def __call__(self, *indices):
         ndim = self.ndim
         if len(indices) != ndim:
             raise ValueError("Need to provide %d index in tensor slice" % ndim)
-        indices = convert_to_node(indices)
+        indices = convert_to_object(indices)
         args = []
         for x in indices:
             if isinstance(x, _expr.PrimExpr):
@@ -127,7 +128,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
 
 
-class Operation(NodeBase):
+class Operation(Object):
     """Represent an operation that generates a tensor"""
 
     def output(self, index):
@@ -156,12 +157,12 @@ class Operation(NodeBase):
         return _api_internal._OpInputTensors(self)
 
 
-@register_node
+@register_object
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@register_node
+@register_object
 class BaseComputeOp(Operation):
     """Compute operation."""
     @property
@@ -175,18 +176,18 @@ class BaseComputeOp(Operation):
         return self.__getattr__("reduce_axis")
 
 
-@register_node
+@register_object
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
     pass
 
 
-@register_node
+@register_object
 class TensorComputeOp(BaseComputeOp):
     """Tensor operation."""
 
 
-@register_node
+@register_object
 class ScanOp(Operation):
     """Scan operation."""
     @property
@@ -195,12 +196,12 @@ class ScanOp(Operation):
         return self.__getattr__("scan_axis")
 
 
-@register_node
+@register_object
 class ExternOp(Operation):
     """External operation."""
 
 
-@register_node
+@register_object
 class HybridOp(Operation):
     """Hybrid operation."""
     @property
@@ -209,8 +210,8 @@ class HybridOp(Operation):
         return self.__getattr__("axis")
 
 
-@register_node
-class Layout(NodeBase):
+@register_object
+class Layout(Object):
     """Layout is composed of upper cases, lower cases and numbers,
     where upper case indicates a primal axis and
     the corresponding lower case with factor size indicates the subordinate axis.
@@ -269,8 +270,8 @@ class Layout(NodeBase):
         return _api_internal._LayoutFactorOf(self, axis)
 
 
-@register_node
-class BijectiveLayout(NodeBase):
+@register_object
+class BijectiveLayout(Object):
     """Bijective mapping for two layouts (src-layout and dst-layout).
     It provides shape and index conversion between each other.
 
