@@ -18,7 +18,6 @@
 """Conv1D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import autotvm
 from .. import generic, tag
 
 
