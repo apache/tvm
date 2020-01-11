@@ -403,7 +403,7 @@ Fuel MkFTop() {
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
- * Contains a mapping from relay::Var to relay::Value.
+ * Contains a mapping from relay::Var to relay::Object.
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
@@ -554,7 +554,7 @@ bool StatefulOp(const Expr& e) {
   return sov.stateful;
 }
 
-using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
+using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
 DLContext CPUContext() {
   DLContext ctx;
@@ -925,13 +925,14 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  PStatic Reify(const Value& v, LetList* ll) const {
-    if (const TensorValueNode* op = v.as<TensorValueNode>()) {
-      return HasStatic(MkSTensor(op->data), ll->Push(ConstantNode::make(op->data)));
+  PStatic Reify(const ObjectRef& v, LetList* ll) const {
+    if (v->IsInstance<runtime::NDArray::ContainerType>()) {
+      auto nd_array = Downcast<runtime::NDArray>(v);
+      return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
     } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const Value& field : op->fields) {
+      for (const ObjectRef& field : op->fields) {
         PStatic ps = Reify(field, ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);

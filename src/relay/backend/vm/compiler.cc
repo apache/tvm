@@ -854,7 +854,7 @@ void VMCompiler::Lower(Module mod,
 
   // populate constants
   for (auto data : context_.constants) {
-    exec_->constants.push_back(vm::Tensor(data));
+    exec_->constants.push_back(data);
   }
 
   // update global function map

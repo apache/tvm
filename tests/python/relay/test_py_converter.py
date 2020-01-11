@@ -19,7 +19,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
 from tvm.relay.prelude import Prelude
-from tvm.relay.backend.interpreter import TensorValue, TupleValue, RefValue, ConstructorValue
+from tvm.relay.backend.interpreter import TupleValue, RefValue, ConstructorValue
 
 # helper: uses a dummy let binding to sequence a list
 # of expressions: expr1; expr2; expr3, etc.
@@ -39,9 +39,9 @@ def init_box_adt(mod):
     return (box, box_ctor)
 
 
-# assert that the candidate is a TensorValue with value val
+# assert that the candidate is a NDArray with value val
 def assert_tensor_value(candidate, val):
-    assert isinstance(candidate, TensorValue)
+    assert isinstance(candidate, tvm.nd.NDArray)
     assert np.array_equal(candidate.asnumpy(), np.array(val))
 
 
@@ -68,6 +68,7 @@ def test_create_empty_tuple():
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
+    print(type(tensor_val))
     assert_tensor_value(tensor_val, 1)
 
 
@@ -544,7 +545,7 @@ def test_batch_norm():
 
         # there will be a change in accuracy so we need to check
         # approximate equality
-        assert isinstance(call_val, TensorValue)
+        assert isinstance(call_val, tvm.nd.NDArray)
         tvm.testing.assert_allclose(call_val.asnumpy(), ref_res, atol=eps, rtol=eps)
 
     verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])

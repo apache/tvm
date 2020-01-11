@@ -17,8 +17,8 @@
 """The computation schedule api of TVM."""
 from __future__ import absolute_import as _abs
 from ._ffi.base import string_types
-from ._ffi.node import NodeBase, register_node
-from ._ffi.node import convert_to_node as _convert_to_node
+from ._ffi.object import Object, register_object
+from ._ffi.object import convert_to_object as _convert_to_object
 from ._ffi.function import _init_api, Function
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from . import _api_internal
@@ -27,7 +27,7 @@ from . import expr as _expr
 from . import container as _container
 
 def convert(value):
-    """Convert value to TVM node or function.
+    """Convert value to TVM object or function.
 
     Parameters
     ----------
@@ -35,19 +35,19 @@ def convert(value):
 
     Returns
     -------
-    tvm_val : Node or Function
+    tvm_val : Object or Function
         Converted value in TVM
     """
-    if isinstance(value, (Function, NodeBase)):
+    if isinstance(value, (Function, Object)):
         return value
 
     if callable(value):
         return _convert_tvm_func(value)
 
-    return _convert_to_node(value)
+    return _convert_to_object(value)
 
-@register_node
-class Buffer(NodeBase):
+@register_object
+class Buffer(Object):
     """Symbolic data buffer in TVM.
 
     Buffer provide a way to represent data layout
@@ -156,23 +156,23 @@ class Buffer(NodeBase):
         return _api_internal._BufferVStore(self, begin, value)
 
 
-@register_node
-class Split(NodeBase):
+@register_object
+class Split(Object):
     """Split operation on axis."""
 
 
-@register_node
-class Fuse(NodeBase):
+@register_object
+class Fuse(Object):
     """Fuse operation on axis."""
 
 
-@register_node
-class Singleton(NodeBase):
+@register_object
+class Singleton(Object):
     """Singleton axis."""
 
 
-@register_node
-class IterVar(NodeBase, _expr.ExprOp):
+@register_object
+class IterVar(Object, _expr.ExprOp):
     """Represent iteration variable.
 
     IterVar is normally created by Operation, to represent
@@ -214,8 +214,8 @@ def create_schedule(ops):
     return _api_internal._CreateSchedule(ops)
 
 
-@register_node
-class Schedule(NodeBase):
+@register_object
+class Schedule(Object):
     """Schedule for all the stages."""
     def __getitem__(self, k):
         if isinstance(k, _tensor.Tensor):
@@ -348,8 +348,8 @@ class Schedule(NodeBase):
         return factored[0] if len(factored) == 1 else factored
 
 
-@register_node
-class Stage(NodeBase):
+@register_object
+class Stage(Object):
     """A Stage represents schedule for one operation."""
     def split(self, parent, factor=None, nparts=None):
         """Split the stage either by factor providing outer scope, or both

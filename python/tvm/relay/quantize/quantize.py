@@ -22,7 +22,7 @@ from ._calibrate import calibrate
 from .. import expr as _expr
 from .. import transform as _transform
 from ... import make as _make
-from ..base import NodeBase, register_relay_node
+from ..base import Object, register_relay_node
 
 
 class QAnnotateKind(object):
@@ -53,7 +53,7 @@ def _forward_op(ref_call, args):
 
 
 @register_relay_node("relay.quantize.QConfig")
-class QConfig(NodeBase):
+class QConfig(Object):
     """Configure the quantization behavior by setting config variables.
 
     Note
