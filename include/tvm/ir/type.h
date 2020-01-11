@@ -28,7 +28,7 @@
  *
  * ## Relation between Type and runtime::DataType
  *
- * Besides Type, we also store a dtype field in some of the low-level IR's Expr.
+ * Besides Type, we also store a dtype field in the low-level PrimExpr.
  * runtime::DataType(dtype) provides coarse grained type information
  * during compile time and runtime. It is eagerly built in
  * low-level expression construction and can be used for
