@@ -103,6 +103,9 @@ def test_conv1d():
         verify_conv1d(1, 16, 32, 16, 3, 1, 1, 'SAME', layout)
         verify_conv1d(1, 16, 32, 16, 2, 1, 1, 'SAME', layout)
         verify_conv1d(1, 16, 32, 16, 1, 1, 1, 'SAME', layout)
+        # Non-power-of-two shape
+        verify_conv1d(1, 17, 12, 21, 3, 1, 1, 'SAME', layout)
+        verify_conv1d(1, 5, 27, 18, 3, 1, 1, 'VALID', layout)
 
 
 
