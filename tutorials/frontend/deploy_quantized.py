@@ -20,7 +20,9 @@ Deploy a Quantized Model on Cuda
 **Author**: `Wuwei Lin <https://github.com/vinx13>`_
 
 This article is an introductory tutorial of automatic quantization with TVM.
-Automatic quantization is one of the quantization mode in TVM. More details of the quantization story in TVM can be found `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+Automatic quantization is one of the quantization modes in TVM. More details on
+the quantization story in TVM can be found
+`here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
 In this tutorial, we will import a GluonCV pre-trained model on ImageNet to
 Relay, quantize the Relay model and then perform the inference.
 """
@@ -42,7 +44,7 @@ ctx = tvm.context(target)
 # Prepare the Dataset
 # -------------------
 # We will demonstrate how to prepare the calibration dataset for quantization.
-# We first download the validate set of ImageNet and pre-process the dataset.
+# We first download the validation set of ImageNet and pre-process the dataset.
 calibration_rec = download_testdata(
     'http://data.mxnet.io.s3-website-us-west-1.amazonaws.com/data/val_256_q90.rec',
     'val_256_q90.rec')
@@ -73,7 +75,7 @@ def get_val_data(num_workers=4):
 
 
 ###############################################################################
-# The calibration dataset should be a iterable object. We define the
+# The calibration dataset should be an iterable object. We define the
 # calibration dataset as a generator object in Python. In this tutorial, we
 # only use a few samples for calibration.
 
@@ -114,7 +116,7 @@ def get_model():
 # intermediate feature maps are power of two, we can leverage bit shifting for
 # multiplications. This make it computationally more efficient. In `max` mode,
 # the maximum is used as the scale. Without rounding, `max` mode might have
-# better accuracy in some cases. When the scales are not power of two, fixed
+# better accuracy in some cases. When the scales are not powers of two, fixed
 # point multiplications will be used.
 #
 # For intermediate feature maps, we can find the scales with data-aware
