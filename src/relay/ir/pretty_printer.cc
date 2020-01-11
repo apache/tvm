@@ -486,7 +486,7 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc PrintFunc(const Doc& prefix, const Function& fn) {
+  Doc PrintFunc(const Doc& prefix, const relay::Function& fn) {
     Doc doc;
     doc << prefix;
     if (fn->type_params.size() > 0) {
@@ -512,6 +512,17 @@ class PrettyPrinter :
     }
     doc << PrintBody(fn->body);
     return doc;
+  }
+
+  Doc PrintFunc(const Doc& prefix, const BaseFunc& base_func) {
+    if (auto* n = base_func.as<relay::FunctionNode>()) {
+      return PrintFunc(prefix, GetRef<relay::Function>(n));
+    } else {
+      // def @xyz = meta['ExternalFunc'][id]
+      Doc doc;
+      doc << prefix << " = " <<  meta_.GetMetaNode(base_func);
+      return doc;
+    }
   }
 
   Doc PrintMod(const Module& mod) {

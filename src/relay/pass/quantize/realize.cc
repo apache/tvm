@@ -192,7 +192,7 @@ Expr QuantizeRealize(const Call& ref_call,
 Expr FoldConstantOpt(const Expr& expr) {
   auto mod = ModuleNode::FromExpr(expr);
   mod = transform::FoldConstant()(mod);
-  auto entry_func = mod->Lookup("main");
+  auto entry_func = Downcast<Function>(mod->Lookup("main"));
   return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
 }
 
