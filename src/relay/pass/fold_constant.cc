@@ -213,7 +213,7 @@ class ConstantFolder : public ExprMutator {
       {},
       module_->type_definitions,
       module_->Imports());
-    auto global = GlobalVarNode::make("main");
+    auto global = GlobalVar("main");
     mod->Add(global, func);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);

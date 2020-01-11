@@ -25,6 +25,7 @@
 #define TVM_RELAY_EXPR_H_
 
 #include <tvm/attrs.h>
+#include <tvm/ir/expr.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -33,47 +34,12 @@
 namespace tvm {
 namespace relay {
 
-/*!
- * \brief A Relay expression.
- */
-class Expr;
-/*!
- * \brief Base type of the Relay expression hiearchy.
- */
-class ExprNode : public RelayNode {
- public:
-  /*!
-   * \brief Stores the result of type inference(type checking).
-   *
-   * \note This can be undefined before type inference.
-   *       This value is discarded during serialization.
-   */
-  mutable Type checked_type_ = Type(nullptr);
-  /*!
-   * \return The checked_type
-   */
-  const Type& checked_type() const;
-  /*!
-   * \brief Check if the inferred(checked) type of the Expr
-   *  is backed by a TTypeNode and return it.
-   *
-   * \note This function will thrown an error if the node type
-   *       of this Expr is not TTypeNode.
-   *
-   * \return The corresponding TTypeNode pointer.
-   * \tparam The specific TypeNode we look for.
-   */
-  template<typename TTypeNode>
-  inline const TTypeNode* type_as() const;
-
-  static constexpr const char* _type_key = "relay.Expr";
-  TVM_DECLARE_BASE_OBJECT_INFO(ExprNode, RelayNode);
-};
-
-class Expr : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Expr, ObjectRef, ExprNode);
-};
+using Expr = tvm::RelayExpr;
+using ExprNode = tvm::RelayExprNode;
+using BaseFunc = tvm::BaseFunc;
+using BaseFuncNode = tvm::BaseFuncNode;
+using GlobalVar = tvm::GlobalVar;
+using GlobalVarNode = tvm::GlobalVarNode;
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
@@ -112,7 +78,7 @@ class ConstantNode : public ExprNode {
 
 class Constant : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Constant, Expr, ConstantNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
 };
 
 /*! \brief Tuple of multiple Exprs */
@@ -137,7 +103,7 @@ class TupleNode : public ExprNode {
 
 class Tuple : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
 };
 
 /*!
@@ -193,37 +159,7 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Var, Expr, VarNode);
-};
-
-/*!
- * \brief Global variable that leaves in the top-level module.
- * This is used to enable recursive calls between function.
- *
- * \note A GlobalVar may only point to functions.
- */
-class GlobalVar;
-/*! \brief A GlobalId from the node's current type to target type. */
-class GlobalVarNode : public ExprNode {
- public:
-  /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-  }
-
-  TVM_DLL static GlobalVar make(std::string name_hint);
-
-  static constexpr const char* _type_key = "relay.GlobalVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, ExprNode);
-};
-
-class GlobalVar : public Expr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, Expr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
 };
 
 /*!
@@ -231,7 +167,7 @@ class GlobalVar : public Expr {
  */
 class Function;
 /*! \brief Function container */
-class FunctionNode : public ExprNode {
+class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
   tvm::Array<Var> params;
@@ -312,12 +248,12 @@ class FunctionNode : public ExprNode {
   tvm::Map<Var, Constant> GetParams() const;
 
   static constexpr const char* _type_key = "relay.Function";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
-class Function : public Expr {
+class Function : public BaseFunc {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Function, Expr, FunctionNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
 };
 
 
@@ -388,7 +324,7 @@ class CallNode : public ExprNode {
 
 class Call : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Call, Expr, CallNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
 };
 
 /*!
@@ -429,7 +365,7 @@ class LetNode : public ExprNode {
 
 class Let : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Let, Expr, LetNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
 };
 
 /*!
@@ -470,7 +406,7 @@ class IfNode : public ExprNode {
 
 class If : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
 };
 
 /*! \brief Get index-th field out of a tuple. */
@@ -497,7 +433,7 @@ class TupleGetItemNode : public ExprNode {
 
 class TupleGetItem : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, Expr, TupleGetItemNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
 };
 
 /*! \brief Create a new Reference out of initial value. */
@@ -521,7 +457,7 @@ class RefCreateNode : public ExprNode {
 
 class RefCreate : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, Expr, RefCreateNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
 };
 
 /*! \brief Get value out of Reference. */
@@ -545,7 +481,7 @@ class RefReadNode : public ExprNode {
 
 class RefRead : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RefRead, Expr, RefReadNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
 };
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
@@ -571,7 +507,7 @@ class RefWriteNode : public ExprNode {
 
 class RefWrite : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, Expr, RefWriteNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
 };
 
 /*!
@@ -600,31 +536,8 @@ class TempExprNode : public ExprNode {
 
 class TempExpr : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TempExpr, Expr, TempExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(TempExpr, RelayExpr, TempExprNode);
 };
-
-// implementataions
-inline const Type& ExprNode::checked_type() const {
-  CHECK(checked_type_.defined())
-      << "internal error: the type checker has "
-      << "not populated the checked_type "
-      << "field for "
-      << GetRef<Expr>(this);
-  return this->checked_type_;
-}
-
-template<typename TTypeNode>
-inline const TTypeNode* ExprNode::type_as() const {
-  static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
-                "TType must be a special case of type");
-  CHECK(checked_type_.defined())
-      << "Type inference for this Expr has not completed. Try to call infer_type pass.";
-  const TTypeNode* node = checked_type_.as<TTypeNode>();
-  CHECK(node != nullptr)
-      << "Expected type to be " << TTypeNode::_type_key
-      << ", but get " << checked_type_->GetTypeKey();
-  return node;
-}
 
 /*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
 std::string PrettyPrint(const ObjectRef& node);

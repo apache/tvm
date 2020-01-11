@@ -279,7 +279,7 @@ Module ModuleNode::FromExpr(
   } else {
     func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, mod), {});
   }
-  auto main_gv = GlobalVarNode::make("main");
+  auto main_gv = GlobalVar("main");
   mod->Add(main_gv, func);
   return mod;
 }
