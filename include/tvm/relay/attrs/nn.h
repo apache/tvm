@@ -49,6 +49,54 @@ struct BiasAddAttrs : public tvm::AttrsNode<BiasAddAttrs> {
 };
 
 
+/*! \brief Attributes used in 1D convolution operators */
+struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  Array<IndexExpr> dilation;
+  int groups;
+  IndexExpr channels;
+  Array<IndexExpr> kernel_size;
+  std::string data_layout;
+  std::string kernel_layout;
+  std::string out_layout;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv1DAttrs, "relay.attrs.Conv1DAttrs") {
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, }))
+        .describe("Specifies the stride of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
+        .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                  "on both sides for padding number of points");
+    TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, }))
+        .describe("Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).set_default(1)
+        .describe("Currently unused but may be added in the future.");
+    TVM_ATTR_FIELD(channels)
+        .describe("The number of output channels in the convolution."
+                  " If it is not set, inferred by shape of the weight.")
+        .set_default(NullValue<IndexExpr>());
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("Specifies the dimensions of the convolution window.")
+        .set_default(NullValue<Array<IndexExpr> >());
+    TVM_ATTR_FIELD(data_layout).set_default("NCW")
+        .describe("Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+                  "'N', 'C', 'W' stands for batch, channel, and width"
+                  "dimensions respectively. Convolution is applied on the 'W'"
+                  "dimension.");
+    TVM_ATTR_FIELD(kernel_layout).set_default("OIW")
+        .describe("Dimension ordering of weight. Can be 'OIW', or 'WIO', etc."
+                  "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+                  "dimensions respectively.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
+
 /*! \brief Attributes used in convolution operators */
 struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> strides;

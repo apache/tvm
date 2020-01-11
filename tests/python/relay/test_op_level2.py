@@ -31,6 +31,101 @@ def run_infer_type(expr):
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
+
+def test_conv1d_infer_type():
+    # symbolic in batch dimension
+    n, c, w = tvm.var("n"), 10, 224
+    x = relay.var("x", relay.ty.TensorType((n, c, w), "float32"))
+    w = relay.var("w")
+    y = relay.nn.conv1d(x, w,
+                        kernel_size=3,
+                        padding=(1, 1),
+                        channels=2)
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 224), "float32")
+    assert yy.args[1].checked_type == relay.TensorType(
+        (2, 10, 3), "float32")
+
+    # infer by shape of w, mixed precision
+    n, c, w = tvm.var("n"), 10, 224
+    x = relay.var("x", relay.TensorType((n, c, w), "int8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3), "int8"))
+    y = relay.nn.conv1d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222), "int32")
+
+    # infer shape in case of different dtypes for input and weight.
+    n, c, w = tvm.var("n"), 10, 224
+    x = relay.var("x", relay.TensorType((n, c, w), "uint8"))
+    w = relay.var("w", relay.TensorType((2, 10, 3), "int8"))
+    y = relay.nn.conv1d(x, w, out_dtype="int32")
+    assert "out_dtype=\"int32\"" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, 2, 222), "int32")
+
+    # Infer with NWC
+    n, c, w = 4, 32, 224
+    x = relay.var("x", relay.TensorType((n, w, c), "int8"))
+    wt = relay.var("w")
+    y = relay.nn.conv1d(x, wt,
+                        kernel_size=3,
+                        padding=(1, 1),
+                        channels=16,
+                        data_layout="NWC",
+                        out_dtype="int32")
+    yy = run_infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, w, 16), "int32")
+
+
+def test_conv1d_run():
+    def run_test_conv1d(dtype, out_dtype, scale, dshape, kshape,
+                        padding=(1, 1),
+                        fref=None,
+                        dilation=1,
+                        except_targets=None,
+                        **attrs):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv1d(x, w,
+                            padding=padding,
+                            dilation=dilation,
+                            **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+        ref_res = topi.testing.conv1d_ncw_python(
+            data.astype(out_dtype), kernel.astype(out_dtype), 1, padding, dilation)
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data, kernel)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    # normal conv1d
+    dshape = (1, 3, 224)
+    kshape = (10, 3, 3)
+    run_test_conv1d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=10, kernel_size=3)
+    # mixed precision
+    run_test_conv1d("int8", "int32", 1, dshape, kshape,
+                    padding=(1, 1), channels=10, kernel_size=3)
+    # dilated conv2d
+    dshape = (1, 3, 18)
+    kshape = (10, 3, 3)
+    run_test_conv1d("float32", "float32", 1, dshape, kshape,
+                    padding=(1, 1), channels=10, kernel_size=3, dilation=3)
+
+
 def test_conv2d_infer_type():
     # symbolic in batch dimension
     n, c, h, w = tvm.var("n"), 10, 224, 224
@@ -1114,6 +1209,7 @@ if __name__ == "__main__":
     test_avg_pool2d_no_count_pad()
     test_lrn()
     test_l2_normalize()
+    test_conv1d_infer_type()
     test_conv2d_infer_type()
     test_conv3d_infer_type()
     test_bitpack_infer_type()
@@ -1126,6 +1222,7 @@ if __name__ == "__main__":
     test_conv2d_transpose_nchw_run()
     test_conv2d_transpose_nhwc_run()
     test_conv1d_transpose_ncw_run()
+    test_conv1d_run()
     test_conv2d_run()
     test_conv2d_winograd()
     test_conv3d_run()
