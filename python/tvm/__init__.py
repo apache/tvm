@@ -34,7 +34,7 @@ from . import codegen
 from . import container
 from . import schedule
 from . import module
-from . import node
+from . import object
 from . import attrs
 from . import ir_builder
 from . import target
@@ -55,7 +55,7 @@ from ._ffi.base import TVMError, __version__
 from .api import *
 from .intrin import *
 from .tensor_intrin import decl_tensor_intrin
-from .node import register_node
+from .object import register_object
 from .ndarray import register_extension
 from .schedule import create_schedule
 from .build_module import build, lower, build_config
