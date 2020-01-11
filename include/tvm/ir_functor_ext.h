@@ -303,6 +303,7 @@ class TVM_DLL ExprVisitor :
   using ExprFunctor::VisitExpr;
   // list of functions to override.
   void VisitExpr_(const VarNode* op) override;
+  void VisitExpr_(const ShapeVarNode* op) override;
   void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const LetNode* op) override;
   void VisitExpr_(const CallNode* op) override;
@@ -348,6 +349,7 @@ class TVM_DLL ExprMutator :
   using ExprFunctor::VisitExpr;
   // list of functions to override.
   PrimExpr VisitExpr_(const VarNode* op) override;
+  PrimExpr VisitExpr_(const ShapeVarNode* op) override;
   PrimExpr VisitExpr_(const LoadNode* op) override;
   PrimExpr VisitExpr_(const LetNode* op) override;
   PrimExpr VisitExpr_(const CallNode* op) override;
