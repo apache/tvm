@@ -32,15 +32,16 @@ OUTPUT_VAR_NAME = '_py_out'
 #     import numpy
 #     import tvm
 #     from tvm import relay
-#     from tvm.relay.backend.interpreter import RefValue, TupleValue, TensorValue, ConstructorValue
+#     from tvm import nd
+#     from tvm.relay.backend.interpreter import RefValue, TupleValue, ConstructorValue
 PROLOGUE = [
     ast.Import([alias('numpy', None)]),
     ast.Import([alias('tvm', None)]),
     ast.ImportFrom('tvm', [alias('relay', None)], 0),
+    ast.ImportFrom('tvm', [alias('nd', None)], 0),
     ast.ImportFrom('tvm.relay.backend.interpreter',
                    [alias('RefValue', None),
                     alias('TupleValue', None),
-                    alias('TensorValue', None),
                     alias('ConstructorValue', None)],
                    0)
 ]
@@ -245,7 +246,7 @@ class PythonConverter(ExprFunctor):
                a tensor or tuple (returns list of inputs to the lowered op call)"""
             # equivalent: input.data
             if isinstance(arg_type, relay.TensorType):
-                return [ast.Attribute(py_input, 'data', Load())]
+                return [py_input]
             assert isinstance(arg_type, relay.TupleType)
             # convert each input.fields[i]
             ret = []
@@ -265,15 +266,13 @@ class PythonConverter(ExprFunctor):
                 output_var_name = self.generate_var_name('_out')
                 output_var = Name(output_var_name, Load())
                 shape = ast.Tuple([Num(dim) for dim in ret_type.concrete_shape], Load())
-                # create a new TensorValue of the right shape and dtype
+                # create a new NDArray of the right shape and dtype
                 assign_output = Assign(
                     [Name(output_var_name, Store())],
-                    self.create_call('TensorValue', [
+                    self.create_call('nd.array', [
                         self.create_call('numpy.empty', [shape, Str(ret_type.dtype)])
                     ]))
-                # we pass the data field as an argument
-                extra_arg = ast.Attribute(output_var, 'data', Load())
-                return ([assign_output], [extra_arg], output_var)
+                return ([assign_output], [output_var], output_var)
             assert isinstance(ret_type, relay.TupleType)
             assignments = []
             extra_args = []
@@ -459,7 +458,7 @@ class PythonConverter(ExprFunctor):
         true_body, true_defs = self.visit(if_block.true_branch)
         false_body, false_defs = self.visit(if_block.false_branch)
 
-        # need to get the value out of a TensorValue to check the condition
+        # need to get the value out of a NDArray to check the condition
         # equvialent to: val.asnumpy()
         cond_check = ast.Call(ast.Attribute(cond_body, 'asnumpy', Load()), [], [])
         ret = ast.IfExp(cond_check, true_body, false_body)
@@ -474,7 +473,7 @@ class PythonConverter(ExprFunctor):
         const_expr = ast.Call(ast.Attribute(Name('numpy', Load()), 'array', Load()),
                               [self.parse_numpy_array(value)],
                               [ast.keyword('dtype', Str(constant.checked_type.dtype))])
-        return (self.create_call('TensorValue', [const_expr]), [])
+        return (self.create_call('nd.array', [const_expr]), [])
 
 
     def visit_function(self, func: Expr):

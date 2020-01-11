@@ -628,7 +628,7 @@ class CompileEngineImpl : public CompileEngineNode {
         auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
         const tvm::ir::StringImmNode* symbol_name = ext_symbol.as<tvm::ir::StringImmNode>();
         CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
-        auto gv = GlobalVarNode::make(symbol_name->value);
+        auto gv = GlobalVar(symbol_name->value);
         ext_mods[code_gen->value]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }

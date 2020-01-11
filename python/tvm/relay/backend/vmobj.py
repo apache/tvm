@@ -16,49 +16,10 @@
 # under the License.
 """TVM Runtime Object API."""
 from __future__ import absolute_import as _abs
-import numpy as _np
 
 from tvm._ffi.object import Object, register_object, getitem_helper
 from tvm import ndarray as _nd
 from . import _vmobj
-
-
-@register_object("vm.Tensor")
-class Tensor(Object):
-    """Tensor object.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray or tvm.nd.NDArray
-        The source array.
-
-    ctx :  TVMContext, optional
-        The device context to create the array
-    """
-    def __init__(self, arr, ctx=None):
-        if isinstance(arr, _np.ndarray):
-            ctx = ctx if ctx else _nd.cpu(0)
-            self.__init_handle_by_constructor__(
-                _vmobj.Tensor, _nd.array(arr, ctx=ctx))
-        elif isinstance(arr, _nd.NDArray):
-            self.__init_handle_by_constructor__(
-                _vmobj.Tensor, arr)
-        else:
-            raise RuntimeError("Unsupported type for tensor object.")
-
-    @property
-    def data(self):
-        return _vmobj.GetTensorData(self)
-
-    def asnumpy(self):
-        """Convert data to numpy array
-
-        Returns
-        -------
-        np_arr : numpy.ndarray
-            The corresponding numpy array.
-        """
-        return self.data.asnumpy()
 
 
 @register_object("vm.ADT")
@@ -75,7 +36,8 @@ class ADT(Object):
     """
     def __init__(self, tag, fields):
         for f in fields:
-            assert isinstance(f, Object)
+            assert isinstance(f, (Object, _nd.NDArray)), "Expect object or "
+            "tvm NDArray type, but received : {0}".format(type(f))
         self.__init_handle_by_constructor__(
             _vmobj.ADT, tag, *fields)
 
@@ -105,5 +67,6 @@ def tuple_object(fields):
         The created object.
     """
     for f in fields:
-        assert isinstance(f, Object)
+        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or tvm "
+        "NDArray type, but received : {0}".format(type(f))
     return _vmobj.Tuple(*fields)

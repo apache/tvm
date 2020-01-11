@@ -37,7 +37,7 @@ def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, 
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        b_np = topi.testing.conv1d_transpose_ncw_python(a_np, w_np, stride, padding)
+        b_np = topi.testing.conv1d_transpose_ncw_python(a_np, w_np, stride, padding, (0,))
         c_np = np.maximum(b_np, 0)
         return a_np, w_np, b_np, c_np
 

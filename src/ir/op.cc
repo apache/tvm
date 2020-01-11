@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/tvm/relay/op.cc
- * \brief Resolve incomplete types to complete types.
+ * \file src/tvm/ir/op.cc
+ * \brief Primitive operators and intrinsics.
  */
-#include <tvm/relay/op.h>
-#include <tvm/relay/type.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -31,11 +31,10 @@
 
 namespace dmlc {
 // enable registry
-DMLC_REGISTRY_ENABLE(::tvm::relay::OpRegistry);
+DMLC_REGISTRY_ENABLE(::tvm::OpRegistry);
 }  // namespace dmlc
 
 namespace tvm {
-namespace relay {
 
 ::dmlc::Registry<OpRegistry>* OpRegistry::Registry() {
   return ::dmlc::Registry<OpRegistry>::Get();
@@ -230,5 +229,4 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "Op(" << node->name << ")";
   });
 
-}  // namespace relay
 }  // namespace tvm

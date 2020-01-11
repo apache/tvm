@@ -110,19 +110,23 @@ struct PrimitiveInliner : ExprMutator {
     auto gvar_funcs = module_->functions;
     for (auto pair : gvar_funcs) {
       auto global = pair.first;
-      auto func = pair.second;
-      DLOG(INFO) << "Before inlining primitives: " << global
-                 << std::endl << AsText(func, false);
+      auto base_func = pair.second;
+      if (auto* n = base_func.as<FunctionNode>()) {
+        auto func = GetRef<Function>(n);
 
-      func = FunctionNode::make(func->params,
-                                VisitExpr(func->body),
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-      module_->Add(global, func, true);
+        DLOG(INFO) << "Before inlining primitives: " << global
+                   << std::endl << AsText(func, false);
 
-      DLOG(INFO) << "After inlining primitives: " << global
-                 << std::endl << AsText(func, false);
+        func = FunctionNode::make(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Add(global, func, true);
+
+        DLOG(INFO) << "After inlining primitives: " << global
+                   << std::endl << AsText(func, false);
+      }
     }
     return module_;
   }

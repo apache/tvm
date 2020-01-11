@@ -72,6 +72,47 @@ def test_resize():
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
+def test_crop_and_resize():
+    def verify_crop_and_resize(img_shape, boxes, box_indices, crop_size,
+                               layout, method, extrapolation_value=0.0):
+
+        image_data = np.random.uniform(size=img_shape).astype("float32")
+
+        ref_res = topi.testing.crop_and_resize_python(image_data,
+                                                      boxes,
+                                                      box_indices,
+                                                      crop_size,
+                                                      layout, method,
+                                                      extrapolation_value)
+
+        img = relay.var("img", relay.TensorType(img_shape, 'float32'))
+        bx = relay.var('bx', relay.TensorType(boxes.shape, 'float32'))
+        bx_idx = relay.var('bx_idx', relay.TensorType(box_indices.shape, 'int32'))
+
+        z = relay.image.crop_and_resize(img, bx, bx_idx, list(crop_size),
+                                        layout, method, extrapolation_value)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([img, bx, bx_idx], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(image_data, boxes, box_indices)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-04)
+
+    boxes_nhwc = np.array([[.1, .2, .8, .7], [.2, 0, 1, .6]]).astype("float32")
+    indices_nhwc = np.array([1, 0]).astype("int32")
+    size_nhwc = np.array([20, 30]).astype("int32")
+    boxes_nchw = np.array([[0, 0, 1, 1], [.2, .1, 1, .9]]).astype("float32")
+    indices_nchw = np.array([0, 1]).astype("int32")
+    size_nchw = np.array([30, 30]).astype("int32")
+
+    for method in ["bilinear", "nearest_neighbor"]:
+        verify_crop_and_resize((10, 224, 224, 3), boxes_nhwc, indices_nhwc,
+                               size_nhwc, 'NHWC', method)
+        verify_crop_and_resize((5, 3, 255, 255), boxes_nchw, indices_nchw,
+                               size_nchw, 'NCHW', method, 0.1)
 
 def test_multibox_prior():
     def get_ref_result(dshape, sizes=(1.0,),
@@ -639,6 +680,7 @@ def test_space_to_depth():
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
+    test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
     test_get_valid_counts()

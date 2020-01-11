@@ -267,22 +267,25 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # infer pads for auto_pad
+        # Use shape of input to determine convolution type.
+        input_shape = infer_shape(inputs[0])
+
         if 'auto_pad' in attr:
             attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
             if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
-                input_shape = infer_shape(inputs[0])
-                in_h, in_w = input_shape[2], input_shape[3]
-                stride_h, stride_w = attr['strides']
-                kernel_h, kernel_w = attr['kernel_shape']
-                dilation_h, dilation_w = attr['dilations']
-                dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-                dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-                pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
-                pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
-                attr['pads'] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
+                pad_tuple = []
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    dilation = attr['dilations'][axis]
+                    dilated_kernel = (kernel - 1) * dilation + 1
+                    pad = get_pad_pair(axis_shape, dilated_kernel, stride)
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                attr['pads'] = pad_tuple
             elif attr['auto_pad'] == 'VALID':
-                attr['pads'] = (0, 0)
+                attr['pads'] = tuple([0 for i in range(len(input_shape) - 2)])
             elif attr['auto_pad'] == 'NOTSET':
                 pass
             else:
@@ -294,10 +297,12 @@ class Conv(OnnxOpConverter):
             op_name=dimension_picker('conv'),
             transforms={
                 'kernel_shape': 'kernel_size',
-                'dilations': ('dilation', (0, 0)),
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'group': ('groups', 1)},
+                'dilations': ('dilation', 1),
+                'pads': ('padding', 0),
+                'group': ('groups', 1)
+            },
             custom_check=dimension_constraint())(inputs[:2], attr, params)
+
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -713,8 +718,8 @@ class Upsample(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale_h':scales[-2], 'scale_w':scales[-1], 'method':method,
-                'layout':'NCHW', 'align_corners':True}
+        attr = {'scale_h': scales[-2], 'scale_w': scales[-1], 'method': method,
+                'layout': 'NCHW', 'align_corners': True}
         return AttrCvt('upsampling')(inputs, attr)
 
 
@@ -848,7 +853,7 @@ class Gather(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
-                       extras={'axis':axis})(inputs, {})
+                       extras={'axis': axis})(inputs, {})
 
 
 class Greater(OnnxOpConverter):
@@ -880,7 +885,7 @@ class LRN(OnnxOpConverter):
         beta = attr.get('beta', 0.75)
         bias = attr.get('bias', 1.0)
         nsize = attr.get('size')
-        attr = {'size':nsize, 'axis':axis, 'alpha':alpha, 'beta':beta, 'bias':bias}
+        attr = {'size': nsize, 'axis': axis, 'alpha': alpha, 'beta': beta, 'bias': bias}
         return AttrCvt('lrn')(inputs, attr)
 
 class Maximum(OnnxOpConverter):
@@ -926,7 +931,7 @@ class HardSigmoid(OnnxOpConverter):
         alpha = attr.get('alpha', 0.2)
         beta = attr.get('beta', 0.5)
         transformX = (inputs[0] * _expr.const(alpha)) + _expr.const(beta)
-        attr = {'a_min':0, 'a_max':1}
+        attr = {'a_min': 0, 'a_max': 1}
         return AttrCvt('clip')([transformX], attr)
 
 class Reduce(OnnxOpConverter):
@@ -940,7 +945,7 @@ class Reduce(OnnxOpConverter):
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis':axis, 'keepdims':attr.get('keepdims', True)}
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
         return AttrCvt(cls.name)(inputs, attr)
 
 class ReduceMax(Reduce):
@@ -975,7 +980,7 @@ class ArgMax(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         keepdims = attr.get('keepdims', True)
-        attr = {'axis':axis, 'keepdims':keepdims}
+        attr = {'axis': axis, 'keepdims': keepdims}
         return AttrCvt('argmax')(inputs, attr)
 
 class ArgMin(OnnxOpConverter):
@@ -985,7 +990,7 @@ class ArgMin(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         keepdims = attr.get('keepdims', True)
-        attr = {'axis':axis, 'keepdims':keepdims}
+        attr = {'axis': axis, 'keepdims': keepdims}
         return AttrCvt('argmin')(inputs, attr)
 
 class Softmax(OnnxOpConverter):

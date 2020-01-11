@@ -1732,16 +1732,27 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
-def verify_conv(x_shape, w_shape, y_shape, p):
-    node = helper.make_node('Conv',
-                            inputs=['x', 'W'],
-                            outputs=['y'],
-                            kernel_shape=[3, 3],
-                            # Default values for other attributes:
-                            # strides=[1, 1],
-                            # dilations=[1, 1],
-                            # groups=1
-                            pads=p,)
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
+    if padding is None:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                auto_pad=auto_pad)
+    else:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                pads=padding)
 
     graph = helper.make_graph([node],
                               'conv_test',
@@ -1761,18 +1772,35 @@ def verify_conv(x_shape, w_shape, y_shape, p):
 
 def test_conv():
     # Convolution with padding
-    # (1, 1, 5, 5) input tensor
-    # (1, 1, 3, 3) tensor for convolution weights
-    # (1, 1, 5, 5) output tensor
-    # [1, 1, 1, 1] list for pads
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1])
+    # Conv2D
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1], [3, 3], [1, 1], [1, 1])
+    # Conv1D
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [1, 1], [3], [1], [1])
 
     # Convolution without padding
-    # (1, 1, 5, 5) input tensor
-    # (1, 1, 3, 3) tensor for convolution weights
-    # (1, 1, 3, 3) output tensor
-    # [0, 0, 0, 0] list for pads
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0])
+    # Conv2D
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0], [3, 3], [1, 1], [1, 1])
+    # Conv1D
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), [0, 0], [3], [1], [1])
+
+    # Convolution with autopadding
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5),
+                None, [3, 3], [1, 1], [1, 1],
+                auto_pad="SAME_UPPER")
+    # Conv1D
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), None, [3], [1], [1], auto_pad="SAME_UPPER")
+
+    # Convolution with non uniform stride
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3),
+                None, [3, 3], [2, 2], [1, 1],
+                auto_pad="SAME_UPPER")
+    # Conv1D
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), None, [3], [2], [1], auto_pad="SAME_UPPER")
+
+    # Convolution with dilation
+    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [2, 2, 2, 2], [3, 3], [1, 1], [2, 2])
+    # Conv1D
+    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [2, 2], [3], [1], [2])
 
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
@@ -1838,15 +1866,15 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
         raise ValueError("Pool method {} is not supported.".format(mode))
 
     if pads is None:
-        pool_node = helper.make_node(node_type, 
-                                    inputs=["x"], 
+        pool_node = helper.make_node(node_type,
+                                    inputs=["x"],
                                     outputs=["y"],
                                     kernel_shape=kernel_shape,
                                     auto_pad=auto_pad,
                                     strides=strides)
     else:
-        pool_node = helper.make_node(node_type, 
-                                    inputs=["x"], 
+        pool_node = helper.make_node(node_type,
+                                    inputs=["x"],
                                     outputs=["y"],
                                     kernel_shape=kernel_shape,
                                     pads=pads,
@@ -1866,6 +1894,7 @@ def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_p
         tvm_out = get_tvm_output(
             model, [x_np], target, ctx, out_shape)
         tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
 
 def test_pooling():
     for mode in ['max', 'average']:

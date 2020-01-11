@@ -155,7 +155,7 @@ def test_bias_add():
     for dtype in ['float16', 'float32']:
         xshape=(10, 2, 3, 4)
         bshape=(2,)
-        rtol = 1e-2 if dtype is 'float16' else 1e-5
+        rtol = 1e-2 if dtype == 'float16' else 1e-5
         x = relay.var("x", shape=xshape, dtype=dtype)
         bias = relay.var("bias", dtype=dtype)
         z = relay.nn.bias_add(x, bias)

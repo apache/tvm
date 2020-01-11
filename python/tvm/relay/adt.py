@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """Algebraic data types in Relay."""
-from .base import RelayNode, register_relay_node, NodeBase
+from .base import RelayNode, register_relay_node, Object
 from . import _make
 from .ty import Type
 from .expr import Expr, Call
@@ -184,7 +184,7 @@ class TypeData(Type):
 
 
 @register_relay_node
-class Clause(NodeBase):
+class Clause(Object):
     """Clause for pattern matching in Relay."""
 
     def __init__(self, lhs, rhs):

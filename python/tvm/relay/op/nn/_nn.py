@@ -131,6 +131,42 @@ def schedule_sparse_transpose(attrs, outputs, target):
 
 reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# Conv1D
+@reg.register_compute("nn.conv1d")
+def compute_conv1d(attrs, inputs, out_type, target):
+    """Compute definition of conv1d"""
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCW", "NWC"]
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+
+    return [topi.nn.conv1d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)]
+
+
+@reg.register_schedule("nn.conv1d")
+def schedule_conv1d(attrs, outs, target):
+    """Schedule definition of conv1d"""
+    layout = attrs.data_layout
+
+    with target:
+        if layout == "NCW":
+            return topi.generic.schedule_conv1d_ncw(outs)
+        elif layout == "NCW":
+            return topi.generic.schedule_conv1d_nwc(outs)
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv2d
 def _find_conv2d_op(op):
     """Find the op with conv2d in its tag by traversing."""
@@ -303,6 +339,7 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     padding = get_const_tuple(attrs.padding)
     strides = get_const_tuple(attrs.strides)
     dilation = get_const_tuple(attrs.dilation)
+    output_padding = get_const_tuple(attrs.output_padding)
     groups = attrs.groups
     layout = attrs.data_layout
     out_dtype = attrs.out_dtype
@@ -312,10 +349,7 @@ def compute_conv2d_transpose(attrs, inputs, out_dtype, target):
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
     out = topi.nn.conv2d_transpose_nchw(
-        inputs[0], inputs[1], strides, padding, out_dtype)
-    output_padding = get_const_tuple(attrs.output_padding)
-    out = topi.nn.pad(out,
-                      [0, 0, 0, 0], [0, 0, output_padding[0], output_padding[1]])
+        inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
     return [out]
 
 
@@ -408,10 +442,8 @@ def compute_conv1d_transpose(attrs, inputs, out_dtype, target):
     assert dilation == (1,), "conv1d_transpose dilation is not supported"
     assert groups == 1, "conv1d_transpose groups == 1 only supported"
     out = topi.nn.conv1d_transpose_ncw(
-        inputs[0], inputs[1], strides, padding, out_dtype)
-    output_padding = get_const_tuple(attrs.output_padding)
-    out = topi.nn.pad(out,
-                      [0, 0, 0], [0, 0, output_padding[0]])
+        inputs[0], inputs[1], strides, padding, out_dtype,
+        get_const_tuple(attrs.output_padding))
     return [out]
 
 

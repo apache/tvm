@@ -23,27 +23,13 @@ import numpy as np
 from . import _backend
 from .. import _make, analysis, transform
 from .. import module
-from ... import register_func, nd
-from ..base import NodeBase, register_relay_node
+from ... import nd
+from ..base import Object, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
-from . import _vm
-
-class Value(NodeBase):
-    """Base class of all values.
-    """
-    @staticmethod
-    @register_func("relay.from_scalar")
-    def from_scalar(value, dtype=None):
-        """Convert a Python scalar to a Relay scalar."""
-        return TensorValue(const(value, dtype).data)
-
-    def to_vm(self):
-        return _vm._ValueToVM(self)
-
 
 @register_relay_node
-class TupleValue(Value):
+class TupleValue(Object):
     """A tuple value produced by the interpreter."""
     def __init__(self, *fields):
         self.__init_handle_by_constructor__(
@@ -68,60 +54,32 @@ class TupleValue(Value):
 
 
 @register_relay_node
-class Closure(Value):
+class Closure(Object):
     """A closure produced by the interpreter."""
 
 
 @register_relay_node
-class RecClosure(Value):
+class RecClosure(Object):
     """A recursive closure produced by the interpreter."""
 
 
 @register_relay_node
-class ConstructorValue(Value):
+class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(
             _make.ConstructorValue, tag, fields, constructor)
 
 
 @register_relay_node
-class TensorValue(Value):
-    """A Tensor value produced by the interpreter."""
-
-    def __init__(self, data):
-        """Allocate a new TensorValue and copy the data from `array` into
-           the new array.
-        """
-        if isinstance(data, np.ndarray):
-            data = nd.array(data)
-
-        self.__init_handle_by_constructor__(
-            _make.TensorValue, data)
-
-    def asnumpy(self):
-        """Convert a Relay TensorValue into a numpy.ndarray."""
-        return self.data.asnumpy()
-
-    def __eq__(self, other):
-        return self.data == other.data
-
-    def __repr__(self):
-        return repr(self.data)
-
-    def __str__(self):
-        return str(self.data)
-
-
-@register_relay_node
-class RefValue(Value):
+class RefValue(Object):
     def __init__(self, value):
         self.__init_handle_by_constructor__(
             _make.RefValue, value)
 
 
 def _arg_to_ast(mod, arg):
-    if isinstance(arg, TensorValue):
-        return Constant(arg.data.copyto(nd.cpu(0)))
+    if isinstance(arg, nd.NDArray):
+        return Constant(arg.copyto(nd.cpu(0)))
     elif isinstance(arg, TupleValue):
         return Tuple([_arg_to_ast(mod, field) for field in arg.fields])
     elif isinstance(arg, tuple):
@@ -231,7 +189,7 @@ class Executor(object):
 
         Returns
         -------
-        val : Union[function, Value]
+        val : Union[function, Object]
             The evaluation result.
         """
         if binds:

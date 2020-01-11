@@ -22,9 +22,8 @@ from numbers import Integral as _Integral
 
 from ._ffi.base import string_types
 from ._ffi.object import register_object, Object
-from ._ffi.node import register_node, NodeBase
-from ._ffi.node import convert_to_node as _convert_to_node
-from ._ffi.node_generic import _scalar_type_inference
+from ._ffi.object import convert_to_object as _convert_to_object
+from ._ffi.object_generic import _scalar_type_inference
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
@@ -111,7 +110,7 @@ def get_env_func(name):
 
     Note
     ----
-    EnvFunc is a Node wrapper around
+    EnvFunc is a Object wrapper around
     global function that can be serialized via its name.
     This can be used to serialize function field in the language.
     """
@@ -127,16 +126,16 @@ def convert(value):
 
     Returns
     -------
-    tvm_val : Node or Function
+    tvm_val : Object or Function
         Converted value in TVM
     """
-    if isinstance(value, (Function, NodeBase)):
+    if isinstance(value, (Function, Object)):
         return value
 
     if callable(value):
         return _convert_tvm_func(value)
 
-    return _convert_to_node(value)
+    return _convert_to_object(value)
 
 
 def load_json(json_str):
@@ -149,7 +148,7 @@ def load_json(json_str):
 
     Returns
     -------
-    node : Node
+    node : Object
         The loaded tvm node.
     """
     return _api_internal._load_json(json_str)
@@ -160,8 +159,8 @@ def save_json(node):
 
     Parameters
     ----------
-    node : Node
-        A TVM Node object to be saved.
+    node : Object
+        A TVM object to be saved.
 
     Returns
     -------

@@ -35,6 +35,42 @@ def _default_schedule(outs, auto_inline):
 
 
 @tvm.target.generic_func
+def schedule_conv1d_ncw(outs):
+    """Schedule for conv1d_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv1d_ncw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv1d_nwc(outs):
+    """Schedule for conv1d_nwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv1d_nwc
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn
 
