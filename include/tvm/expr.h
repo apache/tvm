@@ -131,7 +131,7 @@ class VarNode : public PrimExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, PrimExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TVM */

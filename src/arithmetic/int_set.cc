@@ -536,9 +536,12 @@ class IntervalSetEvaluator :
     return set->min_value.same_as(value) && set->max_value.same_as(value);
   }
 
-  bool IsVar(const Expr& op) {
-    // Var or ShapeVar
-    return op.as<VarNode>();
+  bool SelfBoundedVar(const IntervalSet& set,
+                      const PrimExpr& value) const {
+    if (value.as<VarNode>()) {
+      return set->min_value.same_as(value) || set->max_value.same_as(value);
+    }
+    return false;
   }
 
   template<typename T>
@@ -555,13 +558,13 @@ class IntervalSetEvaluator :
   inline IntervalSet VisitDivExpr_(const T* op) {
     IntervalSet a = this->Eval(op->a);
     IntervalSet b = this->Eval(op->b);
-    if ((MatchPoint(a, op->a) && (MatchPoint(b, op->b) || IsVar(op->b)))
-          || (IsVar(op->a) && IsVar(op->b))) {
+    if ((MatchPoint(a, op->a) && (MatchPoint(b, op->b) || SelfBoundedVar(b, op->b)))
+          || (SelfBoundedVar(a, op->a) && SelfBoundedVar(b, op->b))) {
       // e.g.,
       // div(10, 5) evaluates to 2
       // div(10, {n|n>=0}) evaluates to itself
       // div({m|m>=0}, {n|n>=0}) evaluates to itself
-      return IntervalSet::SinglePoint(GetRef<Expr>(op));
+      return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
     }
     // e.g., div({m|m>=0}, 2) goes here
     return Combine<T>(analyzer_, a, b);

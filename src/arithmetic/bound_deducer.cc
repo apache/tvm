@@ -72,27 +72,27 @@ std::vector<const Object*> GetPath(PrimExpr target, PrimExpr expr) {
 
 class BoundRemover : public ExprMutator {
  public:
-  Expr Remove(const Expr& e) {
+  PrimExpr Remove(const PrimExpr& e) {
     remove_bounded_ = true;
     return ExprMutator::VisitExpr(e);
   }
 
-  Expr Reset(const Expr& e) {
+  PrimExpr Reset(const PrimExpr& e) {
     remove_bounded_ = false;
     return ExprMutator::VisitExpr(e);
   }
 
-  Expr VisitExpr_(const ShapeVarNode* op) final {
-    Expr shape_var = GetRef<Expr>(op);
+  PrimExpr VisitExpr_(const ShapeVarNode* op) final {
+    PrimExpr shape_var = GetRef<PrimExpr>(op);
     if (remove_bounded_) {
-      Expr var = VarNode::make(op->dtype, op->name_hint);
+      PrimExpr var = VarNode::make(op->dtype, op->name_hint);
       bounded_var_map_[var.as<VarNode>()] = shape_var;
       return var;
     }
     return shape_var;
   }
 
-  Expr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     if (!remove_bounded_ && bounded_var_map_.count(op)) {
       return bounded_var_map_[op];
     }
@@ -101,7 +101,7 @@ class BoundRemover : public ExprMutator {
 
  private:
   bool remove_bounded_ = false;
-  std::unordered_map<const VarNode*, Expr> bounded_var_map_;
+  std::unordered_map<const VarNode*, PrimExpr> bounded_var_map_;
 };
 
 enum CompareOp {kGreater, kLess, kEqual};
