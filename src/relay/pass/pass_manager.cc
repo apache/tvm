@@ -323,10 +323,14 @@ Module FunctionPassNode::operator()(const Module& mod,
   Module updated_mod = ModuleNode::make(mod->functions, mod->type_definitions, mod->Imports());
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : updated_mod->functions) {
-    auto updated_func = SkipFunction(it.second)
-                            ? it.second
-                            : pass_func(it.second, updated_mod, pass_ctx);
-    updates.push_back({it.first, updated_func});
+    // only picks up relay::Function
+    if (auto* n = it.second.as<FunctionNode>()) {
+      Function func = GetRef<Function>(n);
+      auto updated_func = SkipFunction(func)
+                          ? func
+                          : pass_func(func, updated_mod, pass_ctx);
+      updates.push_back({it.first, updated_func});
+    }
   }
 
   for (const auto& pair : updates) {
