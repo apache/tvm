@@ -155,8 +155,7 @@ def is_var(expr):
         Whether it is tvm.expr.Var or
         tvm_assert_bound intrinsic (which provides the boundary information of a Var).
     """
-    return isinstance(expr, tvm.expr.Var) \
-           or isinstance(expr, tvm.expr.ShapeVar)
+    return isinstance(expr, (tvm.expr.ShapeVar, tvm.expr.Var))
 
 
 def get_const_tuple(in_tuple):
