@@ -155,7 +155,7 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const
     Expr VisitExpr_(const GlobalVarNode* op, const MCont& k) final {
       auto gv = GetRef<GlobalVar>(op);
       if (cm->count(gv) == 0) {
-        auto cps_gv = GlobalVarNode::make(gv->name_hint + "_cps");
+        auto cps_gv = GlobalVar(gv->name_hint + "_cps");
         cm->insert({gv, cps_gv});
         m->Add(cps_gv, ToCPS(m->Lookup(gv), m, cm));
       }

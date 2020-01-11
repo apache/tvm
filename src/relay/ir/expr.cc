@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/expr.cc
+ * \file src/tvm/relay/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
 #include <tvm/relay/expr.h>
@@ -108,24 +108,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     }
     p->stream << ")";
   });
-
-GlobalVar GlobalVarNode::make(std::string name_hint) {
-  ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
-  n->name_hint = std::move(name_hint);
-  return GlobalVar(n);
-}
-
-TVM_REGISTER_NODE_TYPE(GlobalVarNode);
-
-TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
-.set_body_typed(GlobalVarNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<GlobalVarNode>([](const ObjectRef& ref, NodePrinter* p) {
-    auto* node = static_cast<const GlobalVarNode*>(ref.get());
-    p->stream << "GlobalVar(" << node->name_hint << ")";
-  });
-
 
 Function FunctionNode::make(tvm::Array<Var> params,
                             Expr body,

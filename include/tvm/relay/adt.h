@@ -25,6 +25,7 @@
 #define TVM_RELAY_ADT_H_
 
 #include <tvm/attrs.h>
+#include <tvm/ir/adt.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -33,6 +34,12 @@
 
 namespace tvm {
 namespace relay {
+
+using Constructor = tvm::Constructor;
+using ConstructorNode = tvm::ConstructorNode;
+
+using TypeData = tvm::TypeData;
+using TypeDataNode = tvm::TypeDataNode;
 
 /*! \brief Base type for declaring relay pattern. */
 class PatternNode : public RelayNode {
@@ -105,47 +112,6 @@ class PatternVar : public Pattern {
   TVM_DEFINE_OBJECT_REF_METHODS(PatternVar, Pattern, PatternVarNode);
 };
 
-/*!
- * \brief ADT constructor.
- * Constructors compare by pointer equality.
- */
-class Constructor;
-/*! \brief Constructor container node. */
-class ConstructorNode : public ExprNode {
- public:
-  /*! \brief The name (only a hint) */
-  std::string name_hint;
-  /*! \brief Input to the constructor. */
-  tvm::Array<Type> inputs;
-  /*! \brief The datatype the constructor will construct. */
-  GlobalTypeVar belong_to;
-  /*! \brief Index in the table of constructors (set when the type is registered). */
-  mutable int32_t tag = -1;
-
-  ConstructorNode() {}
-
-  TVM_DLL static Constructor make(std::string name_hint,
-                                  tvm::Array<Type> inputs,
-                                  GlobalTypeVar belong_to);
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("inputs", &inputs);
-    v->Visit("belong_to", &belong_to);
-    v->Visit("tag", &tag);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-  }
-
-  static constexpr const char* _type_key = "relay.Constructor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorNode, ExprNode);
-};
-
-class Constructor : public Expr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Constructor, Expr, ConstructorNode);
-};
-
 /*! \brief A constructor pattern. Matches a value with the given constructor, binds recursively. */
 class PatternConstructor;
 /*! \brief PatternVar container node */
@@ -199,53 +165,6 @@ class PatternTupleNode : public PatternNode {
 class PatternTuple : public Pattern {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(PatternTuple, Pattern, PatternTupleNode);
-};
-
-/*!
- * \brief Stores all data for an Algebraic Data Type (ADT).
- *
- * In particular, it stores the handle (global type var) for an ADT
- * and the constructors used to build it and is kept in the module. Note
- * that type parameters are also indicated in the type data: this means that
- * for any instance of an ADT, the type parameters must be indicated. That is,
- * an ADT definition is treated as a type-level function, so an ADT handle
- * must be wrapped in a TypeCall node that instantiates the type-level arguments.
- * The kind checker enforces this.
- */
-class TypeData;
-/*! \brief TypeData container node */
-class TypeDataNode : public TypeNode {
- public:
-  /*!
-   * \brief The header is simply the name of the ADT.
-   * We adopt nominal typing for ADT definitions;
-   * that is, differently-named ADT definitions with same constructors
-   * have different types.
-   */
-  GlobalTypeVar header;
-  /*! \brief The type variables (to allow for polymorphism). */
-  tvm::Array<TypeVar> type_vars;
-  /*! \brief The constructors. */
-  tvm::Array<Constructor> constructors;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("header", &header);
-    v->Visit("type_vars", &type_vars);
-    v->Visit("constructors", &constructors);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static TypeData make(GlobalTypeVar header,
-                               tvm::Array<TypeVar> type_vars,
-                               tvm::Array<Constructor> constructors);
-
-  static constexpr const char* _type_key = "relay.TypeData";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TypeDataNode, TypeNode);
-};
-
-class TypeData : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TypeData, Type, TypeDataNode);
 };
 
 /*! \brief A clause in a match expression. */
@@ -306,7 +225,7 @@ class MatchNode : public ExprNode {
 
 class Match : public Expr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Match, Expr, MatchNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
 };
 
 }  // namespace relay

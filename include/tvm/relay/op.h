@@ -140,7 +140,7 @@ class Op : public relay::Expr {
   /*! \brief default constructor  */
   Op() {}
   /*! \brief constructor from node pointer */
-  explicit Op(ObjectPtr<Object> n) : Expr(n) {}
+  explicit Op(ObjectPtr<Object> n) : RelayExpr(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

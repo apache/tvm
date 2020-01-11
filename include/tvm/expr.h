@@ -24,6 +24,7 @@
 #ifndef TVM_EXPR_H_
 #define TVM_EXPR_H_
 
+#include <tvm/ir/expr.h>
 #include <string>
 #include <algorithm>
 #include <unordered_map>
@@ -37,58 +38,6 @@
 
 namespace tvm {
 
-/*!
- * \brief Base node of all primitive expressions.
- *
- *  A primitive expression deals with low-level
- *  POD data types and handles without
- *  doing life-cycle management for objects.
- *
- *  PrimExpr is used in the low-level code
- *  optimizations and integer analysis.
- *
- * \sa PrimExpr
- */
-class PrimExprNode : public Object {
- public:
-  /*! \brief The data type of the expression. */
-  DataType dtype;
-
-  static constexpr const char* _type_key = "PrimExpr";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, Object);
-};
-
-/*!
- * \brief Container of all primitive expressions.
- * \sa PrimExprNode
- */
-class PrimExpr : public ObjectRef {
- public:
-  PrimExpr() {}
-  explicit PrimExpr(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  /*!
-   * \brief construct from integer.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL PrimExpr(int32_t value);  // NOLINT(*)
-  /*!
-   * \brief construct from float.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL PrimExpr(float value);  // NOLINT(*)
-  /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
-   */
-  TVM_DLL PrimExpr(std::string str);  // NOLINT(*)
-
-  /*! \return the data type of this expression. */
-  DataType dtype() const {
-    return static_cast<const PrimExprNode*>(get())->dtype;
-  }
-
-  using ContainerType = PrimExprNode;
-};
 
 /*! \brief Base node of all statements. */
 class StmtNode : public Object {
