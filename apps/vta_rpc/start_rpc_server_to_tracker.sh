@@ -15,7 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-PROJROOT="""$( cd "$( dirname '${BASH_SOURCE[0]}' )/../../" && pwd )"""
+PROJROOT="$( cd "$( dirname '${BASH_SOURCE[0]}' )/../../" && pwd )"
 
 # Derive target specified by vta_config.json
 VTA_CONFIG=${PROJROOT}/vta/config/vta_config.py
