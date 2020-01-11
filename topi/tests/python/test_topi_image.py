@@ -19,7 +19,6 @@ import numpy as np
 import tvm
 import topi
 import topi.testing
-import math
 
 from common import get_all_backend
 
@@ -99,7 +98,7 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
             'Layout not supported {} '.format(layout))
 
     B = topi.image.resize3d(A, (out_depth, out_height, out_width), layout=layout,
-                                coordinate_transformation_mode=coordinate_transformation_mode, method=method)
+                            coordinate_transformation_mode=coordinate_transformation_mode, method=method)
 
     if method == "trilinear":
         b_np = topi.testing.trilinear_resize3d_python(a_np, (out_depth, out_height, out_width), layout,
@@ -143,6 +142,68 @@ def test_resize3d():
     verify_resize3d(4, 8, 16, 16, 16, 25, 25, 25, 'NDHWC', method="nearest_neighbor")
 
 
+def test_crop_and_resize():
+    def verify_crop_and_resize(image_shape, np_boxes, np_box_indices, np_crop_size, layout='NHWC',
+                               method="bilinear", extrapolation_value=0.0):
+
+        images = tvm.placeholder(image_shape, name='images', dtype='float32')
+        np_images = np.random.uniform(size=image_shape).astype("float32")
+        boxes = tvm.placeholder(np_boxes.shape, name="boxes", dtype="float32")
+        box_ind = tvm.placeholder(np_box_indices.shape, name="box_ind", dtype="int32")
+
+        batch = len(np_box_indices)
+        target_height, target_width = np_crop_size[0], np_crop_size[1]
+        if layout == 'NHWC':
+            channel = image_shape[3]
+            out_shape = (batch, target_height, target_width, channel)
+        elif layout == 'NCHW':
+            channel = image_shape[1]
+            out_shape = (batch, channel, target_height, target_width)
+        else:
+            raise NotImplementedError(
+                'Layout {} is not supported.'.format(layout))
+
+        out = topi.image.crop_and_resize(images, boxes, box_ind, np_crop_size, layout=layout,
+                                         method=method, extrapolation_value=extrapolation_value)
+
+        baseline_np = topi.testing.crop_and_resize_python(np_images, np_boxes, np_box_indices,
+                                                          np_crop_size, layout, method,
+                                                          extrapolation_value)
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.generic.schedule_injective(out)
+            tvm_images = tvm.nd.array(np_images, ctx)
+            tvm_boxes = tvm.nd.array(np_boxes, ctx)
+            tvm_indices = tvm.nd.array(np_box_indices, ctx)
+            tvm_out = tvm.nd.array(np.zeros(out_shape, dtype="float32"), ctx)
+            f = tvm.build(s, [images, boxes, box_ind, out], device, name="crop_and_resize")
+            f(tvm_images, tvm_boxes, tvm_indices, tvm_out)
+
+            tvm.testing.assert_allclose(tvm_out.asnumpy(), baseline_np, rtol=1e-3, atol=1e-3)
+
+        for device in get_all_backend():
+            check_device(device)
+
+    boxes_1 = np.array([[.2, .3, .7, .9]], dtype="float32")
+    boxes_2 = np.array([[.2, .3, .7, .9], [0, .1, .8, 1]], dtype="float32")
+    indices_1 = np.array([0], dtype="int32")
+    indices_2 = np.array([1, 0], dtype="int32")
+    size_1 = (7, 11)
+    size_2 = (90, 60)
+
+    verify_crop_and_resize((1, 255, 255, 3), boxes_1, indices_1, size_1, layout="NHWC")
+    verify_crop_and_resize((10, 224, 224, 5), boxes_2, indices_2,
+                           size_2, extrapolation_value=0.3, layout="NHWC")
+    verify_crop_and_resize((1, 100, 100, 3), boxes_1, indices_1,
+                           size_1, method='nearest_neighbor')
+    verify_crop_and_resize((1, 3, 224, 224), boxes_1, indices_1, size_1, layout="NCHW")
+
 if __name__ == "__main__":
     test_resize()
     test_resize3d()
+    test_crop_and_resize()

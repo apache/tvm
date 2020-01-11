@@ -51,3 +51,4 @@ from .pool_grad_python import pool_grad_nchw
 from .one_hot import one_hot
 from .depth_to_space import depth_to_space_python
 from .space_to_depth import space_to_depth_python
+from .crop_and_resize_python import crop_and_resize_python
