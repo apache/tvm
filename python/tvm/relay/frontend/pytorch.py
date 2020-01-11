@@ -36,11 +36,6 @@ def _elemwise(name):
         data0 = convert_input(inputs[0])
         data1 = convert_input(inputs[1])
 
-        print('elemwise')
-        print(input_types)
-        print(data0)
-        print(data1)
-
         if not isinstance(data0, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
             temp = data0
             data0 = data1
@@ -146,9 +141,6 @@ def _ones():
             shape = inputs[0].shape
 
         fill_value = _get_fill_value(input_types)
-        print('ones')
-        print(fill_value)
-        print(input_types)
 
         return get_relay_op('full')(fill_value, shape, dtype=_convert_data_type(input_types[0]))
     return _impl
@@ -822,7 +814,6 @@ class Graph(object):
     def __init__(self, trace, input_shapes, input_types):
 
         self._trace = trace
-        print(trace.graph)
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
@@ -934,23 +925,12 @@ class Graph(object):
             input_shape = self._input_shapes[input_name]
             ir_input.setDebugName(input_name)
 
-            print(self._input_types[input_name])
-            #Not sure if below is needed
-
             self._inputs_r[input_name] = _expr.var(input_name,
                                                    shape=self._input_shapes[input_name],
                                                    dtype=_convert_data_type(self._input_types[input_name]))
             self._fn_param.append(_expr.var(input_name,
                                             shape=self._input_shapes[input_name],
                                             dtype=_convert_data_type(self._input_types[input_name])))
-            """
-            self._inputs_r[input_name] = _expr.var(input_name,
-                                                   shape=self._input_shapes[input_name],
-                                                   dtype=self._input_types[input_name])
-            self._fn_param.append(_expr.var(input_name,
-                                            shape=self._input_shapes[input_name],
-                                            dtype=self._input_types[input_name]))
-            """
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -962,14 +942,6 @@ class Graph(object):
         """ Map state dictionary values to corresponding prim::GetAttr op node. """
         # Grab weights, biases, etc. from graph
         state_dict = self._trace.state_dict()
-        print('parse params check')
-        print(type(state_dict))
-
-        types1 = [type(v) for v in state_dict.values()]
-        types1sub = [v.dtype for v in state_dict.values()]
-        print(types1)
-        print(types1sub)
-
         param_names = []
         for key, value in state_dict.items():
             param_str = str(key)
@@ -1064,11 +1036,7 @@ class Graph(object):
         self._ops[(op_name, operator)] = op_node
         input_list_r = []
         input_list_types = []
-        print('iterate inputs of')
-        print(op_node)
-        print('inputs')
         for input_node in op_node.inputs():
-            print(input_node)
             if input_node.debugName() in self._inputs_r.keys():
                 input_list_r.append(self._inputs_r[input_node.debugName()])
             elif input_node.debugName() in self._params.keys():
@@ -1087,11 +1055,8 @@ class Graph(object):
                 input_node_kind = input_node.type().kind()
                 if input_node_kind == 'TensorType':
                     if input_node.type().scalarType() is None:
-                        print('scalarType none, append float')
                         input_list_types.append('float')
                     else:
-                        print('scalarType not none')
-                        print(input_node.type().scalarType().lower())
                         input_list_types.append(input_node.type().scalarType().lower())
                 elif input_node_kind == 'ListType':
                     input_list_types.append(str(input_node.type().getElementType()).lower())
@@ -1149,7 +1114,7 @@ def from_pytorch(trace, input_shapes, input_types):
 
     Parameters
     ----------
-    trace : GraphDef object
+    trace : TopLevelTracedModule object
         Trace of PyTorch graph
 
     shape : Dictionary of input dimensions
