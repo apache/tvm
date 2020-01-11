@@ -16,7 +16,7 @@
 # under the License.
 
 # GH actions.
-# We use it to cover windows and mac build
+# We use it to cover windows and mac builds
 # Jenkins is still the primary CI
 
 name: WinMacBuild
