@@ -246,8 +246,8 @@ PrimExpr div(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr truncdiv(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   return div(a, b);
 }
 
@@ -276,8 +276,8 @@ PrimExpr indexmod(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr floordiv(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b);
   PrimExpr ret = arith::TryConstFold<ir::FloorDivNode>(a, b);
   if (ret.defined()) return ret;
@@ -285,8 +285,8 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr floormod(PrimExpr a, PrimExpr b) {
-  CHECK(a.dtype().is_int() || a.dtype().is_uint());
-  CHECK(b.dtype().is_int() || b.dtype().is_uint());
+  CHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  CHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b);
   PrimExpr ret = arith::TryConstFold<ir::FloorModNode>(a, b);
   if (ret.defined()) return ret;

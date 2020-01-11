@@ -546,47 +546,20 @@ def _crop_and_resize():
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
         # boxes is a 2-D tensor of shape [num_boxes, 4], 4 is for [y1, x1, y2, x2]
         try:
-            boxes = _get_list_param(params, inputs[1])
-            box_ind = _get_list_param(params, inputs[2])
             crop_size = _get_list_param(params, inputs[3])
         except (IndexError, KeyError):
-            boxes = _infer_value(inputs[1], params).asnumpy().tolist()
-            box_ind = _infer_value(inputs[2], params).asnumpy().tolist()
             crop_size = _infer_value(inputs[3], params).asnumpy().tolist()
 
-        data_shape = attr['_input_shapes'][inputs[0]]
-        data_dim = len(data_shape)
         method = attr['method'].decode()
-
-        attrs = {}
-        attrs['size'] = crop_size
-        attrs['layout'] = 'NHWC'
-        if method.lower() == 'nearest':
+        method = 'nearest_neighbor' if method == 'nearest' else method
+        if method not in ['bilinear', 'nearest_neighbor']:
             raise tvm.error.OpAttributeUnImplemented(
-                'Attribute method=nearest is not supported')
-        else:
-            attrs['coordinate_transformation_mode'] = 'align_corners'
-            attrs['method'] = 'bilinear'
+                'Method {} is not supported'.format(method))
+        layout = attr['layout'] if 'layout' in attr else 'NHWC'
+        extrapolation_value = attr['extrapolation_value']
 
-        out = None
-        begin = [0] * data_dim
-        size = data_shape[:]
-        for idx in box_ind:
-            # 1) Crop
-            # y is mapped to the image coordinate at y * (image_height - 1)
-            # x is mapped to the image coordinate at x * (image_width - 1)
-            begin[0] = idx
-            begin[1] = int(round(boxes[idx][0] * (data_shape[1] - 1)))
-            begin[2] = int(round(boxes[idx][1] * (data_shape[2] - 1)))
-            size[0] = idx + 1
-            size[1] = int(round((data_shape[1] - 1) * boxes[idx][2])) + 1
-            size[2] = int(round((data_shape[2] - 1) * boxes[idx][3])) + 1
-            res_crop = _op.strided_slice(inputs[0], begin=begin, end=size)
-
-            # 2) Resize
-            res_resize = get_relay_op('resize')(res_crop, **attrs)
-            out = _op.concatenate([out, res_resize], axis=0) if out else res_resize
-        return out
+        return get_relay_op("crop_and_resize")(inputs[0], inputs[1], inputs[2], crop_size,
+                                               layout, method, extrapolation_value)
     return _impl
 
 def _cast():

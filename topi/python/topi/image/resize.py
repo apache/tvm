@@ -21,13 +21,492 @@ import tvm
 from .. import tag
 
 
+def resize_nearest_neighbor(indices, data, image_height, image_width,
+                            target_height, target_width, boxes=None,
+                            box_indices=None, extrapolation_value=None, layout='NCHW',
+                            coordinate_transformation_mode="align_corners",
+                            out_dtype=None):
+
+    """Perform resize operation with nearest neighbor method on the data.
+    For details about Nearest-neighbor interpolation please refer to
+    https://en.wikipedia.org/wiki/Nearest-neighbor_interpolation.
+
+    Parameters
+    ----------
+    indices : tuple
+        The indices of input data
+
+    data : tvm.Tensor
+        inputs is a 4-D tensor with shape
+        [batch, channel, in_height, in_width]
+        or  [batch, in_height, in_width, channel]
+
+    image_height : integer
+        Input image height
+
+    image_width : integer
+        Input image width
+
+    target_height : integer
+        The target resized image height
+
+    target_width : integer
+        The target resized image width
+
+    boxes : tvm.Tensor, optional
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : tvm.Tensor, optional
+        A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
+        the i-th box refers to.
+
+    extrapolation_value: float, optional
+        Value used for extrapolation, when applicable.
+
+    layout: string, optional
+        "NCHW", "NHWC", or "NCHWc".
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    out_dtype: string, optional
+        Type to return. If left None will be same as input type.
+
+    Returns
+    -------
+    output : out_dtype
+        The computed result with type out_dtype
+    """
+
+    def _cast_output(value, data_dtype="float32", out_dtype=None):
+        if out_dtype:
+            dtype = out_dtype
+        else:
+            dtype = data_dtype
+        return value.astype(dtype)
+
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout)
+    box_idx = box_indices(n) if box_indices is not None else n
+    if boxes is not None:
+        y1, x1 = boxes(n, 0), boxes(n, 1)
+        y2, x2 = boxes(n, 2), boxes(n, 3)
+
+        in_h = (image_height - 1) * (y2 - y1)
+        in_w = (image_width - 1) * (x2 - x1)
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
+
+        in_y = y1 * (image_height - 1) + h_scale * y
+        in_x = x1 * (image_width - 1) + w_scale * x
+    else:
+        if coordinate_transformation_mode == "align_corners":
+            h_scale = (image_height - 1).astype('float') / (target_height - 1)
+            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
+            h_scale = image_height.astype('float') / target_height
+            w_scale = image_width.astype('float') / target_width
+        else:
+            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+                coordinate_transformation_mode))
+        in_y = h_scale * y
+        in_x = w_scale * x
+
+    if coordinate_transformation_mode == "align_corners" or boxes is not None:
+        closest_x_index = tvm.round(in_x).astype("int32")
+        closest_y_index = tvm.round(in_y).astype("int32")
+    else:
+        # Add epsilon to floor to prevent gpu rounding errors.
+        epsilon = 1e-5
+        closest_y_index = tvm.floor(in_y + epsilon).astype('int32')
+        closest_x_index = tvm.floor(in_x + epsilon).astype('int32')
+
+    value = _get_pixel(data, layout, box_idx, c, closest_y_index, closest_x_index, cc)
+
+    if extrapolation_value is not None:
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
+        # use extrapolation_value if in_x is out of boundary
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
+    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+
+def resize_bilinear(indices, data, image_height, image_width,
+                    target_height, target_width, boxes=None,
+                    box_indices=None, extrapolation_value=None, layout='NCHW',
+                    coordinate_transformation_mode="align_corners",
+                    out_dtype=None):
+
+    """Perform resize operation with bilinear method on the data.
+    For details about Bilinear interpolation please refer to
+    https://en.wikipedia.org/wiki/Bilinear_interpolation.
+
+    Parameters
+    ----------
+    indices : tuple
+        The indices of input data
+
+    data : tvm.Tensor
+        inputs is a 4-D tensor with shape
+        [batch, channel, in_height, in_width]
+        or  [batch, in_height, in_width, channel]
+
+    image_height : integer
+        Input image height
+
+    image_width : integer
+        Input image width
+
+    target_height : integer
+        The target resized image height
+
+    target_width : integer
+        The target resized image width
+
+    boxes : tvm.Tensor, optional
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : tvm.Tensor, optional
+        A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
+        the i-th box refers to.
+
+    extrapolation_value: float, optional
+        Value used for extrapolation, when applicable.
+
+    layout: string, optional
+        "NCHW", "NHWC", or "NCHWc".
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    out_dtype: string, optional
+        Type to return. If left None will be same as input type.
+
+    Returns
+    -------
+    output : out_dtype
+        The computed result with type out_dtype
+    """
+
+    def _cast_output(value, data_dtype="float32", out_dtype=None):
+        if out_dtype:
+            dtype = out_dtype
+        else:
+            dtype = data_dtype
+        return value.astype(dtype)
+
+    def _lerp(A, B, t):
+        return A * (1.0 - t) + B * t
+
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout=layout)
+    box_idx = box_indices(n) if box_indices is not None else n
+
+    if boxes is not None:
+        y1, x1 = boxes(n, 0), boxes(n, 1)
+        y2, x2 = boxes(n, 2), boxes(n, 3)
+
+        in_h = (image_height - 1) * (y2 - y1)
+        in_w = (image_width - 1) * (x2 - x1)
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
+
+        in_y = y1 * (image_height - 1) + h_scale * y
+        in_x = x1 * (image_width - 1) + w_scale * x
+    else:
+        if coordinate_transformation_mode == "align_corners":
+            h_scale = (image_height - 1).astype('float') / (target_height - 1)
+            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
+            h_scale = image_height.astype('float') / target_height
+            w_scale = image_width.astype('float') / target_width
+        else:
+            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+                coordinate_transformation_mode))
+
+        if coordinate_transformation_mode == "half_pixel":
+            in_y = h_scale * (y + 0.5) - 0.5
+            in_x = w_scale * (x + 0.5) - 0.5
+        else:
+            in_y = h_scale * y
+            in_x = w_scale * x
+
+    top_y_index = tvm.floor(in_y).astype('int32')
+    bottom_y_index = tvm.ceil(in_y).astype('int32')
+    y_lerp = in_y - top_y_index
+
+    left_x_index = tvm.floor(in_x).astype('int32')
+    right_x_index = tvm.ceil(in_x).astype('int32')
+    x_lerp = in_x - left_x_index
+
+    top_left = _get_pixel(data, layout, box_idx, c, top_y_index, left_x_index, cc)
+    top_right = _get_pixel(data, layout, box_idx, c, top_y_index, right_x_index, cc)
+    bottom_left = _get_pixel(data, layout, box_idx, c, bottom_y_index, left_x_index, cc)
+    bottom_right = _get_pixel(data, layout, box_idx, c, bottom_y_index, right_x_index, cc)
+
+    top = _lerp(top_left, top_right, x_lerp)
+    bottom = _lerp(bottom_left, bottom_right, x_lerp)
+    value = _lerp(top, bottom, y_lerp)
+
+    # use extrapolation_value if in_y/in_x is out of boundary
+    if extrapolation_value is not None:
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
+    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+
+def resize_bicubic(indices, data, image_height, image_width,
+                   target_height, target_width, boxes=None,
+                   box_indices=None, extrapolation_value=None, layout='NCHW',
+                   coordinate_transformation_mode="align_corners",
+                   out_dtype=None):
+    """Perform resize operation with bicubic method on the data.
+    More details about Bicubic interpolation please refer to
+    https://en.wikipedia.org/wiki/Bicubic_interpolation.
+
+    Parameters
+    ----------
+    indices : tuple
+        The indices of input data
+
+    data : tvm.Tensor
+        inputs is a 4-D tensor with shape
+        [batch, channel, in_height, in_width]
+        or  [batch, in_height, in_width, channel]
+
+    image_height : integer
+        Input image height
+
+    image_width : integer
+        Input image width
+
+    target_height : integer
+        The target resized image height
+
+    target_width : integer
+        The target resized image width
+
+    boxes : tvm.Tensor, optional
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : tvm.Tensor, optional
+        A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
+        the i-th box refers to.
+
+    extrapolation_value: float, optional
+        Value used for extrapolation, when applicable.
+
+    layout: string, optional
+        "NCHW", "NHWC", or "NCHWc".
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    out_dtype: string, optional
+        Type to return. If left None will be same as input type.
+
+    Returns
+    -------
+    output : out_dtype
+        The computed result with type out_dtype
+    """
+
+    def _cubic_kernel(A, B, C, D, t):
+        a = -A / 2.0 + (3.0 * B) / 2.0 - (3.0 * C) / 2.0 + D / 2.0
+        b = A - (5.0 * B) / 2.0 + 2.0 * C - D / 2.0
+        c = -A / 2.0 + C / 2.0
+        d = B
+        return a * t * t * t + b * t * t + c * t + d
+
+    def _cast_output(value, data_dtype="float32", out_dtype=None):
+        if out_dtype:
+            dtype = out_dtype
+        else:
+            dtype = data_dtype
+        return value.astype(dtype)
+
+    def _get_indices(indices, layout='NCHW'):
+        if layout == 'NHWC':
+            n, y, x, c = indices
+            cc = None
+        elif layout == 'NCHW':
+            n, c, y, x = indices
+            cc = None
+        else:
+            n, c, y, x, cc = indices
+        return n, c, y, x, cc
+
+    def _get_pixel(data, layout, n, c, y, x, cc):
+        if boxes is None:
+            y = tvm.max(tvm.min(y, image_height - 1), 0)
+            x = tvm.max(tvm.min(x, image_width - 1), 0)
+        if layout == 'NHWC':
+            return data(n, y, x, c).astype('float')
+        if layout == 'NCHW':
+            return data(n, c, y, x).astype('float')
+        # else must be NCHWxc
+        return data(n, c, y, x, cc).astype('float')
+
+    n, c, y, x, cc = _get_indices(indices, layout)
+    box_idx = box_indices(n) if box_indices is not None else n
+
+    if boxes is not None:
+        y1, x1 = boxes(n, 0), boxes(n, 1)
+        y2, x2 = boxes(n, 2), boxes(n, 3)
+
+        in_h = (image_height - 1) * (y2 - y1)
+        in_w = (image_width - 1) * (x2 - x1)
+        h_scale = in_h.astype('float') / (target_height - 1)
+        w_scale = in_w.astype('float') / (target_width - 1)
+
+        in_y = y1 * (image_height - 1) + h_scale * y
+        in_x = x1 * (image_width - 1) + w_scale * x
+    else:
+        if coordinate_transformation_mode == "align_corners":
+            h_scale = (image_height - 1).astype('float') / (target_height - 1)
+            w_scale = (image_width - 1).astype('float') / (target_width - 1)
+        elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
+            h_scale = image_height.astype('float') / target_height
+            w_scale = image_width.astype('float') / target_width
+        else:
+            raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
+                coordinate_transformation_mode))
+
+        if coordinate_transformation_mode == "half_pixel":
+            in_y = h_scale * (y + 0.5) - 0.5
+            in_x = w_scale * (x + 0.5) - 0.5
+        else:
+            in_y = h_scale * y
+            in_x = w_scale * x
+
+    xint = tvm.floor(in_x).astype('int32')
+    xfract = in_x - tvm.floor(in_x)
+
+    yint = tvm.floor(in_y).astype('int32')
+    yfract = in_y - tvm.floor(in_y)
+
+    # 1st row
+    p00 = _get_pixel(data, layout, box_idx, c, yint - 1, xint - 1, cc)
+    p10 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 0, cc)
+    p20 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 1, cc)
+    p30 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 2, cc)
+
+    # 2nd row
+    p01 = _get_pixel(data, layout, box_idx, c, yint + 0, xint - 1, cc)
+    p11 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 0, cc)
+    p21 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 1, cc)
+    p31 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 2, cc)
+
+    # 3rd row
+    p02 = _get_pixel(data, layout, box_idx, c, yint + 1, xint - 1, cc)
+    p12 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 0, cc)
+    p22 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 1, cc)
+    p32 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 2, cc)
+
+    # 4th row
+    p03 = _get_pixel(data, layout, box_idx, c, yint + 2, xint - 1, cc)
+    p13 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 0, cc)
+    p23 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 1, cc)
+    p33 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 2, cc)
+
+    # Interpolate bicubically
+    col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
+    col1 = _cubic_kernel(p01, p11, p21, p31, xfract)
+    col2 = _cubic_kernel(p02, p12, p22, p32, xfract)
+    col3 = _cubic_kernel(p03, p13, p23, p33, xfract)
+    value = _cubic_kernel(col0, col1, col2, col3, yfract)
+
+    # use extrapolation_value if in_y/in_x is out of boundary
+    if extrapolation_value is not None:
+        out = tvm.if_then_else(in_y < 0,
+                               extrapolation_value,
+                               tvm.if_then_else(in_y > image_height - 1,
+                                                extrapolation_value,
+                                                value))
+        value = tvm.if_then_else(in_x < 0,
+                                 extrapolation_value,
+                                 tvm.if_then_else(in_x > image_width - 1,
+                                                  extrapolation_value,
+                                                  out))
+    return _cast_output(value, data.dtype, out_dtype=out_dtype)
+
+
 def resize(data, size, layout="NCHW", method="bilinear",
            coordinate_transformation_mode="half_pixel", out_dtype=None):
     """Perform resize operation on the data.
 
     Parameters
     ----------
-    inputs : tvm.Tensor
+    data : tvm.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -65,154 +544,33 @@ def resize(data, size, layout="NCHW", method="bilinear",
     elif layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
         output_shape = [in_n, in_c, size[0], size[1]]
-    # Otherwise layout must be NCHWxc
-    else:
+    elif layout.startswith("NCHW"):# for NCHWxc
         in_n, in_c, in_h, in_w, in_cc = data.shape
         output_shape = [in_n, in_c, size[0], size[1], in_cc]
-
-    if coordinate_transformation_mode == "align_corners":
-        y_ratio = (in_h - 1).astype('float') / (size[0] - 1)
-        x_ratio = (in_w - 1).astype('float') / (size[1] - 1)
-    elif coordinate_transformation_mode in ["asymmetric", "half_pixel"]:
-        y_ratio = (in_h).astype('float') / (size[0])
-        x_ratio = (in_w).astype('float') / (size[1])
     else:
-        raise ValueError("Unsupported coordinate_transformation_mode: {}".format(
-            coordinate_transformation_mode))
+        raise ValueError('%s layout is not supported.' % layout)
 
-    def _get_pixel(n, c, y, x, cc):
-        y = tvm.max(tvm.min(y, in_h - 1), 0)
-        x = tvm.max(tvm.min(x, in_w - 1), 0)
-        if layout == 'NHWC':
-            return data(n, y, x, c).astype('float')
-        if layout == 'NCHW':
-            return data(n, c, y, x).astype('float')
-        # else must be NCHWxc
-        return data(n, c, y, x, cc).astype('float')
 
-    def _get_indices(*indices):
-        if layout == 'NHWC':
-            n, y, x, c = indices
-            cc = None
-        elif layout == 'NCHW':
-            n, c, y, x = indices
-            cc = None
-        else:
-            n, c, y, x, cc = indices
-
-        return n, c, y, x, cc
-
-    def _cast_output(value):
-        if out_dtype:
-            dtype = out_dtype
-        else:
-            dtype = data.dtype
-        return value.astype(dtype)
-
-    # Nearest neighbor computation
     def _nearest_neighbor(*indices):
-        n, c, y, x, cc = _get_indices(*indices)
-
-        in_y = y_ratio * y
-        in_x = x_ratio * x
-
-        if coordinate_transformation_mode == "align_corners":
-            yint = tvm.round(in_y).astype('int32')
-            xint = tvm.round(in_x).astype('int32')
-        else:
-            # Add epsilon to floor to prevent gpu rounding errors.
-            epsilon = 1e-5
-            yint = tvm.floor(in_y + epsilon).astype('int32')
-            xint = tvm.floor(in_x + epsilon).astype('int32')
-
-        return _cast_output(_get_pixel(n, c, yint, xint, cc))
-
-    # Bilinear helper functions and computation.
-    def _lerp(A, B, t):
-        return A * (1.0 - t) + B * t
+        return resize_nearest_neighbor(indices, data, in_h, in_w,
+                                       size[0], size[1], layout=layout,
+                                       coordinate_transformation_mode= \
+                                           coordinate_transformation_mode,
+                                       out_dtype=out_dtype)
 
     def _bilinear(*indices):
-        n, c, y, x, cc = _get_indices(*indices)
-
-        if coordinate_transformation_mode == "half_pixel":
-            in_y = y_ratio * (y + 0.5) - 0.5
-            in_x = x_ratio * (x + 0.5) - 0.5
-        else:
-            in_y = y_ratio * y
-            in_x = x_ratio * x
-
-        xint = tvm.floor(in_x).astype('int32')
-        xfract = in_x - tvm.floor(in_x)
-
-        yint = tvm.floor(in_y).astype('int32')
-        yfract = in_y - tvm.floor(in_y)
-
-        p00 = _get_pixel(n, c, yint, xint, cc)
-        p10 = _get_pixel(n, c, yint, xint + 1, cc)
-        p01 = _get_pixel(n, c, yint + 1, xint, cc)
-        p11 = _get_pixel(n, c, yint + 1, xint + 1, cc)
-
-        col0 = _lerp(p00, p10, xfract)
-        col1 = _lerp(p01, p11, xfract)
-        value = _lerp(col0, col1, yfract)
-        return _cast_output(value)
-
-    # Bicubic helper function and computation.
-    def _cubic_kernel(A, B, C, D, t):
-        a = -A / 2.0 + (3.0*B) / 2.0 - (3.0*C) / 2.0 + D / 2.0
-        b = A - (5.0*B) / 2.0 + 2.0*C - D / 2.0
-        c = -A / 2.0 + C / 2.0
-        d = B
-
-        return a*t*t*t + b*t*t + c*t + d
+        return resize_bilinear(indices, data, in_h, in_w,
+                               size[0], size[1], layout=layout,
+                               coordinate_transformation_mode= \
+                                   coordinate_transformation_mode,
+                               out_dtype=out_dtype)
 
     def _bicubic(*indices):
-        n, c, y, x, cc = _get_indices(*indices)
-
-        if coordinate_transformation_mode == "half_pixel":
-            in_y = y_ratio * (y + 0.5) - 0.5
-            in_x = x_ratio * (x + 0.5) - 0.5
-        else:
-            in_y = y_ratio * y
-            in_x = x_ratio * x
-
-        xint = tvm.floor(in_x).astype('int32')
-        xfract = in_x - tvm.floor(in_x)
-
-        yint = tvm.floor(in_y).astype('int32')
-        yfract = in_y - tvm.floor(in_y)
-
-        # 1st row
-        p00 = _get_pixel(n, c, yint - 1, xint - 1, cc)
-        p10 = _get_pixel(n, c, yint - 1, xint + 0, cc)
-        p20 = _get_pixel(n, c, yint - 1, xint + 1, cc)
-        p30 = _get_pixel(n, c, yint - 1, xint + 2, cc)
-
-        # 2nd row
-        p01 = _get_pixel(n, c, yint + 0, xint - 1, cc)
-        p11 = _get_pixel(n, c, yint + 0, xint + 0, cc)
-        p21 = _get_pixel(n, c, yint + 0, xint + 1, cc)
-        p31 = _get_pixel(n, c, yint + 0, xint + 2, cc)
-
-        # 3rd row
-        p02 = _get_pixel(n, c, yint + 1, xint - 1, cc)
-        p12 = _get_pixel(n, c, yint + 1, xint + 0, cc)
-        p22 = _get_pixel(n, c, yint + 1, xint + 1, cc)
-        p32 = _get_pixel(n, c, yint + 1, xint + 2, cc)
-
-        # 4th row
-        p03 = _get_pixel(n, c, yint + 2, xint - 1, cc)
-        p13 = _get_pixel(n, c, yint + 2, xint + 0, cc)
-        p23 = _get_pixel(n, c, yint + 2, xint + 1, cc)
-        p33 = _get_pixel(n, c, yint + 2, xint + 2, cc)
-
-        # Interpolate bicubically
-        col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
-        col1 = _cubic_kernel(p01, p11, p21, p31, xfract)
-        col2 = _cubic_kernel(p02, p12, p22, p32, xfract)
-        col3 = _cubic_kernel(p03, p13, p23, p33, xfract)
-        value = _cubic_kernel(col0, col1, col2, col3, yfract)
-        return _cast_output(value)
+        return resize_bicubic(indices, data, in_h, in_w,
+                              size[0], size[1], layout,
+                              coordinate_transformation_mode= \
+                                  coordinate_transformation_mode,
+                              out_dtype=out_dtype)
 
     # Determine which interpolation method to use then run it.
     if method == "nearest_neighbor":
@@ -226,35 +584,111 @@ def resize(data, size, layout="NCHW", method="bilinear",
 
     return tvm.compute(output_shape, compute_func, name='resize', tag=tag.INJECTIVE)
 
+
+def crop_and_resize(data, boxes, box_indices, crop_size, layout="NCHW",
+                    method="bilinear", extrapolation_value=0, out_dtype=None):
+    """Perform crop and resize operation on the data.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        inputs is a 4-D tensor with shape
+        [batch, channel, in_height, in_width]
+        or  [batch, in_height, in_width, channel]
+
+    boxes : tvm.Tensor
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : tvm.Tensor
+        A 1-D tensor of shape [num_boxes], box_indices[i] specifies the data that
+        the i-th box refers to.
+
+    crop_size : Tuple
+        The target size of each box.
+
+    layout : string, optional
+        "NCHW", "NHWC"
+
+    method : {"bilinear", "nearest_neighbor"}
+        Method to be used for resizing.
+
+    extrapolation_value: float, optional
+        Value used for extrapolation, when applicable.
+
+    out_dtype : string, optional
+        Type to return. If left None will be same as input type.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [num_boxes, channel, crop_height, crop_width]
+        or [num_boxes, crop_height, crop_width, channel]
+    """
+    method = method.lower()
+    target_h = crop_size[0]
+    target_w = crop_size[1]
+
+    if layout == 'NHWC':
+        output_shape = [box_indices.shape[0], crop_size[0], crop_size[1], data.shape[3]]
+        image_h = data.shape[1].astype("int32")
+        image_w = data.shape[2].astype("int32")
+    elif layout == 'NCHW':
+        output_shape = [box_indices.shape[0], data.shape[1], crop_size[0], crop_size[1]]
+        image_h = data.shape[2].astype("int32")
+        image_w = data.shape[3].astype("int32")
+    elif layout.startswith("NCHW"):# for NCHWxc
+        output_shape = [box_indices.shape[0], data.shape[1],
+                        crop_size[0], crop_size[1], data.shape[4]]
+        image_h = data.shape[2].astype("int32")
+        image_w = data.shape[3].astype("int32")
+    else:
+        raise ValueError('%s layout is not supported.' % layout)
+
+    def _bilinear(*indices):
+        return resize_bilinear(indices, data, image_h, image_w, target_h,
+                               target_w, boxes, box_indices, extrapolation_value,
+                               layout, out_dtype=out_dtype)
+
+    def _nearest_neighbor(*indices):
+        return resize_nearest_neighbor(indices, data, image_h, image_w, target_h,
+                                       target_w, boxes, box_indices, extrapolation_value,
+                                       layout, out_dtype=out_dtype)
+
+    # Determine which interpolation method to use then run it.
+    if method == "nearest_neighbor":
+        compute_func = _nearest_neighbor
+    elif method == "bilinear":
+        compute_func = _bilinear
+    else:
+        raise ValueError('%s method is not supported.' % method)
+
+    return tvm.compute(output_shape, compute_func, name='crop_and_resize', tag=tag.INJECTIVE)
+
+
+
 def resize3d(data, size, layout="NCDHW", method="nearest_neighbor",
              coordinate_transformation_mode="align_corners", out_dtype=None):
     """Perform resize operation on the data.
-
     Parameters
     ----------
     inputs: tvm.Tensor
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
-
     size: Tuple
         Output resolution scale to
-
     layout: string, optional
         "NCDHW", "NDHWC", or "NCDHWc".
-
     coordinate_transformation_mode: string, optional
         Describes how to transform the coordinate in the resized tensor
         to the coordinate in the original tensor.
         Refer to the ONNX Resize operator specification for details.
         Available options are "half_pixel", "align_corners" and "asymmetric".
-
     method: {"trilinear", "nearest_neighbor"}
         Method to be used for resizing.
-
     out_dtype: string, optional
         Type to return. If left None will be same as input type.
-
     Returns
     -------
     output : tvm.Tensor

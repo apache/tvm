@@ -676,12 +676,18 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitGlobalVar(const GlobalVar& gv) {
     CHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
-      Function func = mod_->Lookup(gv);
-      InitializeFuncId(func);
-      Func f = VisitFuncStatic(func, gv);
-      gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
-      func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
-      mod_->Update(gv, func);
+      BaseFunc base_func = mod_->Lookup(gv);
+      if (auto* n = base_func.as<FunctionNode>()) {
+        Function func = GetRef<Function>(n);
+        InitializeFuncId(func);
+        Func f = VisitFuncStatic(func, gv);
+        gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
+        func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
+        mod_->Update(gv, func);
+        return gv_map_.at(gv);
+      } else {
+        return NoStatic(gv);
+      }
     }
     return gv_map_.at(gv);
   }
@@ -951,7 +957,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     auto mod = ModuleNode::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup("main");
+    auto entry_func = Downcast<Function>(mod->Lookup("main"));
     auto fused_infered =
         expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
