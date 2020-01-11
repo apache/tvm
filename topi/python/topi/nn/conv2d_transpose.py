@@ -26,7 +26,7 @@ from ..util import simplify
 
 
 @tvm.target.generic_func
-def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
+def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype, output_padding=(0, 0)):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -46,28 +46,33 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     out_dtype : str
         The output data type. This is used for mixed precision.
 
+    output_padding : tuple of ints
+        Used to get the right output shape for gradients
+
     Returns
     -------
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype)
+    return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype,
+                                             output_padding=output_padding)
 
 
-def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype):
+def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding):
     """Preprocess data and kernel to make the compute pattern
        of conv2d_transpose the same as conv2d"""
     batch, in_c, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
     stride_h, stride_w = strides
+    opad_h, opad_w = output_padding
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name='data_dilate')
     # pad data
     fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(padding, (filter_h, filter_w))
     bpad_top = filter_h - 1 - fpad_top
-    bpad_bottom = filter_h - 1 - fpad_bottom
+    bpad_bottom = filter_h - 1 - fpad_bottom + opad_h
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right
+    bpad_right = filter_w - 1 - fpad_right + opad_w
     data_pad = pad(data_dilate, \
                    [0, 0, bpad_top, bpad_left], \
                    [0, 0, bpad_bottom, bpad_right], \
@@ -79,18 +84,17 @@ def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype):
     return data_pad, kernel_transform
 
 
-def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype):
+def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype, output_padding):
     """Implementation of conv2d transpose"""
     data_pad, kernel_transform = \
-        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype)
+        conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype, output_padding)
     batch, in_c, in_h, in_w = data_pad.shape
     out_c, _, filter_h, filter_w = kernel_transform.shape
-    stride_h, stride_w = strides
 
     # convolution stage
     out_c = simplify(out_c)
-    out_h = simplify(in_h - filter_h + 1)
-    out_w = simplify(in_w - filter_w + 1)
+    out_h = simplify(in_h - filter_h + 1 + output_padding[0])
+    out_w = simplify(in_w - filter_w + 1 + output_padding[1])
     dc = tvm.reduce_axis((0, in_c), name='dc')
     dh = tvm.reduce_axis((0, filter_h), name='dh')
     dw = tvm.reduce_axis((0, filter_w), name='dw')
