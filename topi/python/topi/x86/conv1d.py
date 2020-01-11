@@ -112,7 +112,7 @@ def schedule_conv1d_nwc(outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            n_pad, c_pad, w_pad = data_pad.op.axis
+            n_pad, w_pad, c_pad = data_pad.op.axis
             pad_fused = s[data_pad].fuse(n_pad, w_pad)
             s[data_pad].parallel(pad_fused)
             C = conv

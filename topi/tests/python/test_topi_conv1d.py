@@ -97,6 +97,13 @@ def test_conv1d():
         verify_conv1d(1, 16, 32, 16, 3, 2, 1, 'SAME', layout)
         # With dilation
         verify_conv1d(1, 16, 32, 16, 3, 1, 2, 'SAME', layout)
+        # Large batch size
+        verify_conv1d(8, 16, 32, 16, 3, 1, 1, 'SAME', layout)
+        # Other kernel sizes
+        verify_conv1d(1, 16, 32, 16, 3, 1, 1, 'SAME', layout)
+        verify_conv1d(1, 16, 32, 16, 2, 1, 1, 'SAME', layout)
+        verify_conv1d(1, 16, 32, 16, 1, 1, 1, 'SAME', layout)
+
 
 
 if __name__ == "__main__":
