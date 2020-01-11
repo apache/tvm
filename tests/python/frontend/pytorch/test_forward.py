@@ -79,12 +79,8 @@ def load_single_op(model_name, input_type=None):
         #input_data = torch.rand(input_shape).double()
         #input_data = torch.from_numpy(np.random.random_sample((1, 3, 224, 224))).double()
         temp = np.random.random_sample((1, 3, 224, 224))
-        print('what')
-        print(temp.dtype)
 
         input_data = torch.from_numpy(temp)
-        print('what')
-        print(input_data.dtype)
     elif input_type == 'float16':
         model = getattr(single_op, model_name)().float().eval()
         input_data = torch.rand(input_shape)
@@ -190,18 +186,11 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 def verify_model(model_name, input_type=None):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-
-    print(model_name)
-    print(input_type)
-
     baseline_model, baseline_input = load_model(model_name, input_type)
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
         baseline_input = baseline_input.cuda()
     baseline_outputs = baseline_model(baseline_input)
-    print(baseline_input)
-    print(baseline_outputs)
-    #dtype = 'float32'
     dtype = input_type
     if input_type is None or input_type == 'float32':
         baseline_input = baseline_input.float()
@@ -211,6 +200,7 @@ def verify_model(model_name, input_type=None):
         else:
             baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
         input_type = 'float32'
+        dtype = 'float32'
     elif input_type == 'float64':
         baseline_input = baseline_input.double()
         baseline_outputs = baseline_outputs.double()
@@ -237,18 +227,6 @@ def verify_model(model_name, input_type=None):
     input_shapes = {input_name: list(baseline_input.shape)}
     input_types = {input_name: input_type}
 
-    print('check inputs to trace')
-    print(input_shapes)
-    print(input_types)
-
-    #baseline_input = baseline_input.double()
-
-    baseline_model(baseline_input)
-
-    print('get size')
-    print(baseline_input.dtype)
-    print(sys.getsizeof(baseline_input))
-
     trace = torch.jit.trace(baseline_model, baseline_input)
     if input_type is None or input_type == 'float32':
         trace = trace.float().eval()
@@ -267,9 +245,6 @@ def verify_model(model_name, input_type=None):
         torch.jit.save(trace, path)
         mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
 
-    print('checkcompiledtype')
-    print(baseline_input.cpu().numpy().dtype)
-
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
     with relay.build_config(opt_level=3):
@@ -280,8 +255,6 @@ def verify_model(model_name, input_type=None):
         relay_model.run()
     for i, baseline_output in enumerate(baseline_outputs):
         output_shape = baseline_output.shape
-        print('output shape')
-        print(output_shape)
         compiled_output = relay_model.get_output(
             i, tvm.nd.array(np.zeros(output_shape).astype(dtype), CTX)).asnumpy()
 
@@ -394,13 +367,10 @@ def test_multiply5():
     verify_model('Multiply5')
 
 def test_unsqueeze1():
-        verify_model('Unsqueeze1')
+    verify_model('Unsqueeze1')
 
 def test_concatenate1():
     verify_model('Concatenate1')
-
-def test_unsqueeze1():
-    verify_model('Unsqueeze1', '')
 
 def test_concatenate1():
     verify_model('Concatenate1')
@@ -449,6 +419,9 @@ def test_batchnorm1():
 
 def test_batchnorm1float64():
     verify_model('BatchNorm1Float64', input_type='float64')
+
+def test_batchnorm1int32():
+    verify_model('BatchNorm1Int32', input_type='int32')
 
 def test_batchnorm2():
     verify_model('BatchNorm2')
@@ -585,7 +558,7 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
-    """
+
     # Single operator tests
     test_add1()
     test_add2()
@@ -664,7 +637,7 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-    """
+
 
     #test_batchnorm1()
     #test_batchnorm2()
@@ -682,4 +655,6 @@ if __name__ == '__main__':
     #test_add3float64()
 
     #test_batchnorm1()
-    test_batchnorm1float64()
+    #test_batchnorm1float64()
+
+    #test_batchnorm1int32()

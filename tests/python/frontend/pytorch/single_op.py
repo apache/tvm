@@ -256,6 +256,13 @@ class BatchNorm1Float64(Module):
     def forward(self, *args):
         return self.batch_norm(args[0])
 
+class BatchNorm1Int32(Module):
+    def __init__(self):
+        super(BatchNorm1Int32, self).__init__()
+        self.batch_norm = torch.nn.BatchNorm2d(3, affine=True)
+    def forward(self, *args):
+        return self.batch_norm(args[0])
+
 class BatchNorm2(Module):
     def __init__(self):
         super(BatchNorm2, self).__init__()
