@@ -188,13 +188,15 @@ class LambdaLifter : public ExprMutator {
     // There is an ordering bug here.
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
-      auto func = pair.second;
-      func = FunctionNode::make(func->params,
-                                VisitExpr(func->body),
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-      module_->Add(pair.first, func, true);
+      if (auto* n = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(n);
+        func = FunctionNode::make(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Add(pair.first, func, true);
+      }
     }
     return module_;
   }

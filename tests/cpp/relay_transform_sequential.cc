@@ -86,7 +86,7 @@ TEST(Relay, Sequential) {
   CHECK(mod.defined());
   auto entry_func = mod->GetGlobalVar("main");
   CHECK(entry_func.defined());
-  relay::Function f = mod->Lookup("main");
+  relay::Function f = Downcast<relay::Function>(mod->Lookup("main"));
   CHECK(f.defined());
 
   // Expected function

@@ -612,7 +612,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       CHECK(it != context_->global_map.end());
       DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                       << " with func_index=" << it->second;
-      auto func = context_->module->Lookup(global);
+
+      // TODO(tvm-team):
+      // Think about mixed call into global that is not a relay::Function
+      // perhaps establish as an invariance(all functions in mod must be relay::Function)
+      auto func = Downcast<Function>(context_->module->Lookup(global));
+
+
       if (IsClosure(func)) {
         auto arity = func->params.size();
         Emit(Instruction::AllocClosure(it->second, arity, args_registers, NewRegister()));
@@ -813,7 +819,10 @@ void VMCompiler::Lower(Module mod,
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
-    auto f = BindParamsByName(mod->Lookup("main"), params_);
+    BaseFunc base_func = mod->Lookup("main");
+    CHECK(base_func->IsInstance<FunctionNode>())
+        << "VM compiler expects to compile relay::Function";
+    auto f = BindParamsByName(Downcast<Function>(base_func), params_);
     auto gvar = mod->GetGlobalVar("main");
     mod->Add(gvar, f);
   }
@@ -837,13 +846,15 @@ void VMCompiler::Lower(Module mod,
 
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
-    auto func = named_func.second;
-    VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
-    auto vm_func = func_compiler.Compile(gvar, func);
+    if (auto* n = named_func.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(n);
+      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      auto vm_func = func_compiler.Compile(gvar, func);
 
-    size_t func_index = context_.global_map.at(gvar);
-    CHECK(func_index < exec_->functions.size());
-    exec_->functions[func_index] = vm_func;
+      size_t func_index = context_.global_map.at(gvar);
+      CHECK(func_index < exec_->functions.size());
+      exec_->functions[func_index] = vm_func;
+    }
   }
 
 #if USE_RELAY_DEBUG

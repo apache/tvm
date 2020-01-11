@@ -463,7 +463,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Optimize input Relay Function and returns Relay Module
     relay::Module relay_module = Optimize(func, targets_, params);
     // Get the updated function.
-    func = relay_module->Lookup("main");
+    func = Downcast<Function>(relay_module->Lookup("main"));
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
