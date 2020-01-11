@@ -97,7 +97,7 @@ def skipped_test_tflite_runtime():
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
 
-    check_local()
+    # check_local()
     check_remote()
 
 if __name__ == "__main__":

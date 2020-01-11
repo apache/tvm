@@ -99,8 +99,10 @@ def skipped_test_tflite_runtime():
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
     # Target CPU on coral board
+    # check_local()
     check_remote()
     # Target EdgeTPU on coral board
+    # check_local(targetedgetpu=True)
     check_remote(targetedgetpu=True)
 
 if __name__ == "__main__":
