@@ -318,6 +318,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     pass_seqs.push_back(transform::SimplifyInference());
     PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       Expr expr = args[0];
+      *rv = false;
       if (expr.as<CallNode>()) {
         auto call_node = expr.as<CallNode>();
         auto op_node = call_node->op.as<OpNode>();
@@ -328,7 +329,6 @@ class RelayBuildModule : public runtime::ModuleNode {
           }
         }
       }
-      *rv = false;
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
