@@ -25,8 +25,8 @@
  * Given a Relay module, and a Relay expression it produces a value.
  *
  * The interpreter's values are a naive representation of the values that
- * can be produced by a Relay program and are exposed via tvm::Node's
- * system to Python for introspection and debugging.
+ * can be produced by a Relay program and are exposed via tvm's object
+ * protocol to Python for introspection and debugging.
  *
  * The interpreter's intent is to serve as a reference semantics for the Relay IR,
  * as well as for debugging and testing.
@@ -38,6 +38,8 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/common_object.h>
 
 namespace tvm {
 namespace relay {
@@ -64,100 +66,42 @@ namespace relay {
 runtime::TypedPackedFunc<ObjectRef(Expr)>
 CreateInterpreter(IRModule mod, DLContext context, Target target);
 
-/*! \brief A Relay closure, i.e a scope and a function. */
-class Closure;
-
-/*! \brief The container type of Closures. */
-class ClosureNode : public Object {
- public:
-  /*! \brief The set of free variables in the closure.
-   *
-   * These are the captured variables which are required for
-   * evaluation when we call the closure.
-   */
-  tvm::Map<Var, ObjectRef> env;
-  /*! \brief The function which implements the closure.
-   *
-   * \note May reference the variables contained in the env.
-   */
-  Function func;
-
-  ClosureNode() {}
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("env", &env);
-    v->Visit("func", &func);
-  }
-
-  TVM_DLL static Closure make(tvm::Map<Var, ObjectRef> env, Function func);
-
-  static constexpr const char* _type_key = "relay.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClosureNode, Object);
-};
-
-class Closure : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureNode);
-};
-
 /*! \brief A Relay Recursive Closure. A closure that has a name. */
 class RecClosure;
 
 /*! \brief The container type of RecClosure. */
-class RecClosureNode : public Object {
+class RecClosureObj : public Object {
  public:
   /*! \brief The closure. */
-  Closure clos;
+  runtime::Closure clos;
   /*! \brief variable the closure bind to. */
   Var bind;
 
-  RecClosureNode() {}
+  RecClosureObj() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("clos", &clos);
     v->Visit("bind", &bind);
   }
 
-  TVM_DLL static RecClosure make(Closure clos, Var bind);
+  TVM_DLL static RecClosure make(runtime::Closure clos, Var bind);
 
   static constexpr const char* _type_key = "relay.RecClosure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RecClosureNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RecClosureObj, Object);
 };
 
 class RecClosure : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RecClosure, ObjectRef, RecClosureNode);
-};
-
-/*! \brief A tuple value. */
-class TupleValue;
-
-/*! \brief Tuple (x, ... y). */
-struct TupleValueNode : Object {
-  tvm::Array<ObjectRef> fields;
-
-  TupleValueNode() {}
-
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("fields", &fields); }
-
-  TVM_DLL static TupleValue make(tvm::Array<ObjectRef> value);
-
-  static constexpr const char* _type_key = "relay.TupleValue";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleValueNode, Object);
-};
-
-class TupleValue : public ObjectRef {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleValue, ObjectRef, TupleValueNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RecClosure, ObjectRef, RecClosureObj);
 };
 
 /*! \brief A reference value. */
 class RefValue;
 
-struct RefValueNode : Object {
+struct RefValueObj : Object {
   mutable ObjectRef value;
 
-  RefValueNode() {}
+  RefValueObj() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
@@ -166,18 +110,18 @@ struct RefValueNode : Object {
   TVM_DLL static RefValue make(ObjectRef val);
 
   static constexpr const char* _type_key = "relay.RefValue";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RefValueNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefValueObj, Object);
 };
 
 class RefValue : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RefValue, ObjectRef, RefValueNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RefValue, ObjectRef, RefValueObj);
 };
 
 /*! \brief An ADT constructor value. */
 class ConstructorValue;
 
-struct ConstructorValueNode : Object {
+struct ConstructorValueObj : Object {
   int32_t tag;
 
   tvm::Array<ObjectRef> fields;
@@ -196,12 +140,12 @@ struct ConstructorValueNode : Object {
                                        Constructor construtor = {});
 
   static constexpr const char* _type_key = "relay.ConstructorValue";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorValueNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorValueObj, Object);
 };
 
 class ConstructorValue : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(ConstructorValue, ObjectRef, ConstructorValueNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ConstructorValue, ObjectRef, ConstructorValueObj);
 };
 
 }  // namespace relay

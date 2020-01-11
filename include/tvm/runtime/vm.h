@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_VM_H_
 
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/common_object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <memory>
@@ -35,27 +36,6 @@
 namespace tvm {
 namespace runtime {
 namespace vm {
-
-/*! \brief An object representing a closure. */
-class ClosureObj : public Object {
- public:
-  /*! \brief The index into the VM function table. */
-  size_t func_index;
-  /*! \brief The free variables of the closure. */
-  std::vector<ObjectRef> free_vars;
-
-  static constexpr const uint32_t _type_index = TypeIndex::kVMClosure;
-  static constexpr const char* _type_key = "vm.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClosureObj, Object);
-};
-
-/*! \brief reference to closure. */
-class Closure : public ObjectRef {
- public:
-  Closure(size_t func_index, std::vector<ObjectRef> free_vars);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
-};
 
 /*! \brief Magic number for NDArray list file  */
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
