@@ -18,7 +18,7 @@ import tvm
 import numpy as np
 import re
 import topi
-from tvm.contrib import tedd
+# from tvm.contrib import tedd
 
 
 def findany(pattern, str):
