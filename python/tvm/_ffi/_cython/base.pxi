@@ -37,6 +37,7 @@ cdef enum TVMTypeCode:
     kStr = 11
     kBytes = 12
     kNDArrayContainer = 13
+    kADTHandle = 14
     kExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":

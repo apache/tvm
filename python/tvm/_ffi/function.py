@@ -31,20 +31,20 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_function, _set_class_module
+        from ._cy3.core import _set_class_function, _set_class_module, _set_class_adt
         from ._cy3.core import FunctionBase as _FunctionBase
         from ._cy3.core import NDArrayBase as _NDArrayBase
         from ._cy3.core import ObjectBase as _ObjectBase
         from ._cy3.core import convert_to_tvm_func
     else:
-        from ._cy2.core import _set_class_function, _set_class_module
+        from ._cy2.core import _set_class_function, _set_class_module, _set_class_adt
         from ._cy2.core import FunctionBase as _FunctionBase
         from ._cy2.core import NDArrayBase as _NDArrayBase
         from ._cy2.core import ObjectBase as _ObjectBase
         from ._cy2.core import convert_to_tvm_func
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.function import _set_class_function, _set_class_module
+    from ._ctypes.function import _set_class_function, _set_class_module, _set_class_adt
     from ._ctypes.function import FunctionBase as _FunctionBase
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
     from ._ctypes.object import ObjectBase as _ObjectBase
@@ -152,6 +152,14 @@ class ModuleBase(object):
             return self._entry(*args)
         f = self.entry_func
         return f(*args)
+
+
+class ADTBase(object):
+    """A simple ADT object for runtime."""
+    __slots__ = ["handle"]
+
+    def __init__(self, handle):
+        self.handle = handle
 
 
 def register_func(func_name, f=None, override=False):
@@ -290,6 +298,7 @@ def _get_api(f):
     flocal.is_global = True
     return flocal
 
+
 def _init_api(namespace, target_module_name=None):
     """Initialize api for a given module name
 
@@ -332,4 +341,4 @@ def _init_api_prefix(module_name, prefix):
         setattr(target_module, ff.__name__, ff)
 
 _set_class_function(Function)
-_set_class_objects((_ObjectBase, _NDArrayBase, ModuleBase))
+_set_class_objects((_ObjectBase, _NDArrayBase, ModuleBase, ADTBase))

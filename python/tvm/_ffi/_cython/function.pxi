@@ -44,6 +44,7 @@ cdef int tvm_callback(TVMValue* args,
         if (tcode == kObjectHandle or
             tcode == kFuncHandle or
             tcode == kModuleHandle or
+            tcode == kADTHandle or
             tcode > kExtBegin):
             CALL(TVMCbArgToReturn(&value, tcode))
 
@@ -157,6 +158,9 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kModuleHandle
+    elif isinstance(arg, _CLASS_ADT):
+        value[0].v_handle = c_handle(arg.handle)
+        tcode[0] = kADTHandle
     elif isinstance(arg, FunctionBase):
         value[0].v_handle = (<FunctionBase>arg).chandle
         tcode[0] = kFuncHandle
@@ -204,6 +208,8 @@ cdef inline object make_ret(TVMValue value, int tcode):
         return TVMContext(value.v_ctx.device_type, value.v_ctx.device_id)
     elif tcode == kModuleHandle:
         return _CLASS_MODULE(ctypes_handle(value.v_handle))
+    elif tcode == kADTHandle:
+        return _CLASS_ADT(ctypes_handle(value.v_handle))
     elif tcode == kFuncHandle:
         fobj = _CLASS_FUNCTION(None, False)
         (<FunctionBase>fobj).chandle = value.v_handle
@@ -308,6 +314,7 @@ cdef class FunctionBase:
 _CLASS_FUNCTION = None
 _CLASS_MODULE = None
 _CLASS_OBJECT = None
+_CLASS_ADT = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -321,3 +328,7 @@ def _set_class_function(func_class):
 def _set_class_object(obj_class):
     global _CLASS_OBJECT
     _CLASS_OBJECT = obj_class
+
+def _set_class_adt(adt_class):
+    global _CLASS_ADT
+    _CLASS_ADT = adt_class

@@ -16,8 +16,10 @@
 # under the License.
 """Container data structures used in TVM DSL."""
 from __future__ import absolute_import as _abs
-from ._ffi.object import Object, register_object
 from . import _api_internal
+from . import ndarray as _nd
+from ._ffi.function import ADTBase, _init_api, _set_class_adt
+from ._ffi.object import Object, register_object, getitem_helper
 
 @register_object
 class Array(Object):
@@ -114,3 +116,57 @@ class LoweredFunc(Object):
     MixedFunc = 0
     HostFunc = 1
     DeviceFunc = 2
+
+
+class ADT(ADTBase):
+    """Algebatic data type(ADT) object."""
+
+    @property
+    def tag(self):
+        return _GetADTTag(self)
+
+    def __getitem__(self, idx):
+        return getitem_helper(self, _GetADTFields, len(self), idx)
+
+    def __len__(self):
+        return _GetADTSize(self)
+
+
+def adt(tag, fields):
+    """Helper to create a algebatic data type(ADT) object.
+
+    Parameters
+    ----------
+    tag : int
+        The tag of ADT.
+
+    fields : list[Object] or tuple[Object]
+        The source tuple.
+    """
+    for f in fields:
+        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or " \
+        "tvm NDArray type, but received : {0}".format(type(f))
+    return _ADT(tag, *fields)
+
+
+def tuple_object(fields):
+    """Create a ADT object from source tuple.
+
+    Parameters
+    ----------
+    fields : list[Object] or tuple[Object]
+        The source tuple.
+
+    Returns
+    -------
+    ret : ADT
+        The created object.
+    """
+    for f in fields:
+        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or tvm " \
+        "NDArray type, but received : {0}".format(type(f))
+    return _Tuple(*fields)
+
+
+_init_api("tvm.container")
+_set_class_adt(ADT)

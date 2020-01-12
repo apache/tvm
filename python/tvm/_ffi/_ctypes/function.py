@@ -39,6 +39,7 @@ FunctionHandle = ctypes.c_void_p
 ModuleHandle = ctypes.c_void_p
 ObjectHandle = ctypes.c_void_p
 TVMRetValueHandle = ctypes.c_void_p
+ADTHandle = ctypes.c_void_p
 
 def _ctypes_free_resource(rhandle):
     """callback to free resources when it it not needed."""
@@ -152,6 +153,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, _CLASS_MODULE):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.MODULE_HANDLE
+        elif isinstance(arg, _CLASS_ADT):
+            values[i].v_handle = arg.handle
+            type_codes[i] = TypeCode.ADT_HANDLE
         elif isinstance(arg, FunctionBase):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.FUNC_HANDLE
@@ -235,6 +239,14 @@ def _return_module(x):
     return _CLASS_MODULE(handle)
 
 
+def _return_adt(x):
+    """Return function"""
+    handle = x.v_handle
+    if not isinstance(handle, ADTHandle):
+        handle = ADTHandle(handle)
+    return _CLASS_ADT(handle)
+
+
 def _handle_return_func(x):
     """Return function"""
     handle = x.v_handle
@@ -246,16 +258,20 @@ def _handle_return_func(x):
 _object.__init_by_constructor__ = __init_handle_by_constructor__
 RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
+RETURN_SWITCH[TypeCode.ADT_HANDLE] = _return_adt
 RETURN_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
 C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
     _handle_return_func, TypeCode.FUNC_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
+C_TO_PY_ARG_SWITCH[TypeCode.ADT_HANDLE] = _wrap_arg_func(
+    _return_module, TypeCode.ADT_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.ARRAY_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
 C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None
+_CLASS_ADT = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -265,3 +281,7 @@ def _set_class_module(module_class):
 def _set_class_function(func_class):
     global _CLASS_FUNCTION
     _CLASS_FUNCTION = func_class
+
+def _set_class_adt(adt_class):
+    global _CLASS_ADT
+    _CLASS_ADT = adt_class

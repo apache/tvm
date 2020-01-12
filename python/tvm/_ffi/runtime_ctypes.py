@@ -42,6 +42,7 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_CONTAINER = 13
+    ADT_HANDLE = 14
     EXT_BEGIN = 15
 
 

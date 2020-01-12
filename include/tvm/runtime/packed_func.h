@@ -33,6 +33,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/container.h>
 #include <functional>
 #include <tuple>
 #include <vector>
@@ -475,6 +476,14 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
     return value_.v_ctx;
   }
+  operator ADT() const {
+    if (type_code_ == kNull) {
+      return ADT(ObjectPtr<Object>(nullptr));
+    }
+    TVM_CHECK_TYPE_CODE(type_code_, kADTHandle);
+    return ADT(
+        ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
+  }
   int type_code() const {
     return type_code_;
   }
@@ -540,6 +549,7 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator Module;
+  using TVMPODValue_::operator ADT;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::operator tvm::PrimExpr;
@@ -627,6 +637,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Module;
+  using TVMPODValue_::operator ADT;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::operator tvm::PrimExpr;
@@ -738,6 +749,10 @@ class TVMRetValue : public TVMPODValue_ {
     SwitchToObject(kModuleHandle, std::move(m.data_));
     return *this;
   }
+  TVMRetValue& operator=(ADT adt) {
+    SwitchToObject(kADTHandle, std::move(adt.data_));
+    return *this;
+  }
   TVMRetValue& operator=(PackedFunc f) {
     this->SwitchToClass(kFuncHandle, f);
     return *this;
@@ -793,6 +808,7 @@ class TVMRetValue : public TVMPODValue_ {
     CHECK(type_code_ != kObjectHandle &&
           type_code_ != kFuncHandle &&
           type_code_ != kModuleHandle &&
+          type_code_ != kADTHandle &&
           type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
@@ -824,6 +840,10 @@ class TVMRetValue : public TVMPODValue_ {
       }
       case kModuleHandle: {
         *this = other.operator Module();
+        break;
+      }
+      case kADTHandle: {
+        *this = other.operator ADT();
         break;
       }
       case kNDArrayContainer: {
@@ -882,6 +902,10 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kModuleHandle: {
+        static_cast<Object*>(value_.v_handle)->DecRef();
+        break;
+      }
+      case kADTHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
@@ -1007,6 +1031,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kTVMContext: return "TVMContext";
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
+    case kADTHandle: return "ADTHandle";
     case kNDArrayContainer: return "NDArrayContainer";
     case kObjectHandle: return "Object";
     default: LOG(FATAL) << "unknown type_code="
@@ -1396,8 +1421,8 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 }
 
 // ObjectRef related conversion handling
-// Object can have three possible type codes:
-//      kNDArrayContainer, kModuleHandle, kObjectHandle
+// Object can have four possible type codes:
+//      kNDArrayContainer, kModuleHandle, kObjectHandle, kADTHandle
 //
 // We use type traits to eliminate un-necessary checks.
 template<typename TObjectRef, typename>
@@ -1409,6 +1434,11 @@ inline void TVMArgsSetter::operator()(size_t i, const TObjectRef& value) const {
          ptr->IsInstance<NDArray::ContainerType>())) {
       values_[i].v_handle = NDArray::FFIGetHandle(value);
       type_codes_[i] = kNDArrayContainer;
+    } else if (std::is_base_of<ADT, TObjectRef>::value ||
+               (std::is_base_of<TObjectRef, ADT>::value &&
+                ptr->IsInstance<ADT::ContainerType>())) {
+      values_[i].v_handle = ptr;
+      type_codes_[i] = kADTHandle;
     } else if (std::is_base_of<Module, TObjectRef>::value ||
                (std::is_base_of<TObjectRef, Module>::value &&
                 ptr->IsInstance<Module::ContainerType>())) {
@@ -1436,9 +1466,14 @@ inline bool TVMPODValue_::IsObjectRef() const {
     return type_code_ == kModuleHandle &&
         static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
   }
+  if (std::is_base_of<ADT, TObjectRef>::value) {
+    return type_code_ == kADTHandle &&
+        static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
+  }
   return
       (std::is_base_of<TObjectRef, NDArray>::value && type_code_ == kNDArrayContainer) ||
       (std::is_base_of<TObjectRef, Module>::value && type_code_ == kModuleHandle) ||
+      (std::is_base_of<TObjectRef, ADT>::value && type_code_ == kADTHandle) ||
       (type_code_ == kObjectHandle &&
        ObjectTypeChecker<TObjectRef>::Check(static_cast<Object*>(value_.v_handle)));
 }
@@ -1468,6 +1503,15 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
         << "Expect " << ContainerType::_type_key << " but get " << data->GetTypeKey();
     return TObjectRef(data);
   }
+  if (std::is_base_of<ADT, TObjectRef>::value) {
+    // Casting to a sub-class of ADT
+    TVM_CHECK_TYPE_CODE(type_code_, kADTHandle);
+    ObjectPtr<Object> data = GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle));
+    CHECK(data->IsInstance<ContainerType>())
+        << "Expect " << ContainerType::_type_key << " but get " << data->GetTypeKey();
+    return TObjectRef(data);
+  }
+
   if (type_code_ == kObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
@@ -1484,6 +1528,10 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   } else if (std::is_base_of<TObjectRef, Module>::value &&
              type_code_ == kModuleHandle) {
     // Casting to a base class that Module can sub-class
+    return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
+  } else if (std::is_base_of<TObjectRef, ADT>::value &&
+             type_code_ == kADTHandle) {
+    // Casting to a base class that ADT can sub-class
     return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   } else {
     TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
@@ -1504,6 +1552,11 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
         (std::is_base_of<TObjectRef, Module>::value &&
          ptr->IsInstance<Module::ContainerType>())) {
       return operator=(Module(std::move(other.data_)));
+    }
+    if (std::is_base_of<ADT, TObjectRef>::value ||
+        (std::is_base_of<TObjectRef, ADT>::value &&
+         ptr->IsInstance<ADT::ContainerType>())) {
+      return operator=(ADT(std::move(other.data_)));
     }
     SwitchToObject(kObjectHandle, std::move(other.data_));
   } else {
