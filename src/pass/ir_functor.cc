@@ -221,7 +221,9 @@ void StmtVisitor::VisitStmt_(const EvaluateNode* op) {
 
 void ExprVisitor::VisitExpr_(const VarNode* op) {}
 
-void ExprVisitor::VisitExpr_(const ShapeVarNode* op) {}
+void ExprVisitor::VisitExpr_(const ShapeVarNode* op) {
+  this->VisitExpr_(static_cast<const VarNode*>(op));
+}
 
 void ExprVisitor::VisitExpr_(const LoadNode* op) {
   this->VisitExpr(op->index);
@@ -600,7 +602,7 @@ PrimExpr ExprMutator::VisitExpr_(const VarNode* op) {
 }
 
 PrimExpr ExprMutator::VisitExpr_(const ShapeVarNode* op) {
-  return GetRef<PrimExpr>(op);
+  return this->VisitExpr_(static_cast<const VarNode*>(op));
 }
 
 PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
