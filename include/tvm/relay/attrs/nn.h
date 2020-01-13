@@ -49,6 +49,54 @@ struct BiasAddAttrs : public tvm::AttrsNode<BiasAddAttrs> {
 };
 
 
+/*! \brief Attributes used in 1D convolution operators */
+struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  Array<IndexExpr> dilation;
+  int groups;
+  IndexExpr channels;
+  Array<IndexExpr> kernel_size;
+  std::string data_layout;
+  std::string kernel_layout;
+  std::string out_layout;
+  DataType out_dtype;
+
+  TVM_DECLARE_ATTRS(Conv1DAttrs, "relay.attrs.Conv1DAttrs") {
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, }))
+        .describe("Specifies the stride of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
+        .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                  "on both sides for padding number of points");
+    TVM_ATTR_FIELD(dilation).set_default(Array<IndexExpr>({1, }))
+        .describe("Specifies the dilation rate to use for dilated convolution.");
+    TVM_ATTR_FIELD(groups).set_default(1)
+        .describe("Currently unused but may be added in the future.");
+    TVM_ATTR_FIELD(channels)
+        .describe("The number of output channels in the convolution."
+                  " If it is not set, inferred by shape of the weight.")
+        .set_default(NullValue<IndexExpr>());
+    TVM_ATTR_FIELD(kernel_size)
+        .describe("Specifies the dimensions of the convolution window.")
+        .set_default(NullValue<Array<IndexExpr> >());
+    TVM_ATTR_FIELD(data_layout).set_default("NCW")
+        .describe("Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
+                  "'N', 'C', 'W' stands for batch, channel, and width"
+                  "dimensions respectively. Convolution is applied on the 'W'"
+                  "dimension.");
+    TVM_ATTR_FIELD(kernel_layout).set_default("OIW")
+        .describe("Dimension ordering of weight. Can be 'OIW', or 'WIO', etc."
+                  "'O', 'I', 'W' stands for num_filter, input_channel, and width"
+                  "dimensions respectively.");
+
+    // use 0 bits to indicate none.
+    TVM_ATTR_FIELD(out_dtype)
+        .set_default(NullValue<DataType>())
+        .describe("Output data type, set to explicit type under mixed precision setting");
+  }
+};
+
+
 /*! \brief Attributes used in convolution operators */
 struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> strides;
@@ -477,6 +525,66 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Convolution is applied on the 'H' and"
                   "'W' dimensions.");
+  }
+};
+
+
+/*! \brief Attributes for 1D max pool operator */
+struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+
+  TVM_DECLARE_ATTRS(MaxPool1DAttrs, "relay.attrs.MaxPool1DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back, bottom, right will use same padding as front, top, left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCW")
+      .describe("Dimension ordering of data and weight. Can be 'NCW', 'NWC', etc."
+                "'N', 'C', 'W' stands for batch, channel, and width"
+                "dimensions respectively. Pooling is applied on the 'W' dimensions.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+  }
+};
+
+/*! \brief Attributes for 1D avg pool operator */
+struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+  bool count_include_pad;
+
+  TVM_DECLARE_ATTRS(AvgPool1DAttrs, "relay.attrs.AvgPool1DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "three int : back, bottom, right will use same padding as front, top, left"
+                "six int : padding width in the order of (front, top, left, back, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCW")
+      .describe("Dimension ordering of data and weight. Can be 'NCW', 'NHC', etc."
+                "'N', 'C', 'W' stands for batch, channel, and width"
+                "dimensions respectively. Pooling is applied on the 'W' dimension.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+    TVM_ATTR_FIELD(count_include_pad).set_default(false)
+      .describe("When true, will include padding to compute the average");
   }
 };
 

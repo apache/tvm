@@ -46,16 +46,16 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub
 
 # the version of each package
 PACKAGE_VERSION = {
-    'arm_cpu':          "v0.04",
+    'arm_cpu':          "v0.05",
     'llvm':             "v0.03",
 
-    'cuda':             "v0.06",
+    'cuda':             "v0.07",
     'rocm':             "v0.03",
     'opencl':           "v0.03",
     'mali':             "v0.05",
     'intel_graphics':   "v0.01",
 
-    'vta':              "v0.06",
+    'vta':              "v0.07",
 }
 
 logger = logging.getLogger('autotvm')
@@ -214,7 +214,11 @@ def load_reference_log(backend, model, workload_name, template_key):
 
     if key not in REFERENCE_LOG_CACHE:
         tmp = []
-        if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
+        # Download the config file from tophub if not exists.
+        if not os.path.exists(filename):
+            tophub_location = _get_tophub_location()
+            download_package(tophub_location, package_name)
+        if os.path.isfile(filename): # in case download failed
             find = False
             inp = None
             counts = {}

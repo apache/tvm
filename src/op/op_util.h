@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -55,7 +55,7 @@ MakeLoopNest(const Stage& stage,
              size_t begin_iter_pos,
              bool new_loop_var,
              const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, Expr>* p_value_map,
+             std::unordered_map<IterVar, PrimExpr>* p_value_map,
              bool debug_keep_trivial_loop);
 
 /*!
@@ -64,7 +64,7 @@ MakeLoopNest(const Stage& stage,
  * \param predicates The predicates to be checked.
  * \return List of If nest that checks the predicates.
  */
-std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates);
+std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates);
 
 /*!
  * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
@@ -78,7 +78,7 @@ Stmt ReplaceTensor(Stmt stmt,
  * \param expr The expression to be processed.
  * \param replace The replacement rule.
  */
-Expr ReplaceTensor(Expr expr,
+PrimExpr ReplaceTensor(PrimExpr expr,
                    const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
@@ -88,7 +88,7 @@ Expr ReplaceTensor(Expr expr,
  * \return Substituted result.
  */
 Stmt Substitute(Stmt stmt,
-                const std::unordered_map<IterVar, Expr>& value_map);
+                const std::unordered_map<IterVar, PrimExpr>& value_map);
 
 /*!
  * \brief Converts Halide ForType to its corresponding IterVarType

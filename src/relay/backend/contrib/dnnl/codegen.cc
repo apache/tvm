@@ -142,12 +142,12 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
     args.push_back(std::to_string(wshape[0]));
     args.push_back(std::to_string(conv2d_attr->groups));
-    args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImm>()->value));
-    args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImm>()->value));
+    args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
+    args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
     args.push_back(std::to_string(wshape[2]));
     args.push_back(std::to_string(wshape[3]));
-    args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImm>()->value));
-    args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImm>()->value));
+    args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));
+    args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImmNode>()->value));
 
     return args;
   }

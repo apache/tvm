@@ -100,15 +100,15 @@ struct ObjectTypeChecker<Map<K, V> > {
 };
 
 // extensions for tvm arg value
-inline TVMPODValue_::operator tvm::Expr() const {
-  if (type_code_ == kNull) return Expr();
+inline TVMPODValue_::operator tvm::PrimExpr() const {
+  if (type_code_ == kNull) return PrimExpr();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
     CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
-    return Expr(static_cast<int>(value_.v_int64));
+    return PrimExpr(static_cast<int>(value_.v_int64));
   }
   if (type_code_ == kDLFloat) {
-    return Expr(static_cast<float>(value_.v_float64));
+    return PrimExpr(static_cast<float>(value_.v_float64));
   }
 
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
@@ -120,10 +120,10 @@ inline TVMPODValue_::operator tvm::Expr() const {
   if (ptr->IsInstance<TensorNode>()) {
     return Tensor(ObjectPtr<Object>(ptr))();
   }
-  CHECK(ObjectTypeChecker<Expr>::Check(ptr))
-      << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
+  CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr))
+      << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
       << " but get " << ptr->GetTypeKey();
-  return Expr(ObjectPtr<Object>(ptr));
+  return PrimExpr(ObjectPtr<Object>(ptr));
 }
 
 inline TVMPODValue_::operator tvm::Integer() const {
@@ -136,7 +136,7 @@ inline TVMPODValue_::operator tvm::Integer() const {
   TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
   CHECK(ObjectTypeChecker<Integer>::Check(ptr))
-      << "Expect type " << ObjectTypeChecker<Expr>::TypeName()
+      << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
       << " but get " << ptr->GetTypeKey();
   return Integer(ObjectPtr<Object>(ptr));
 }

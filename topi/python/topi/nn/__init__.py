@@ -19,6 +19,7 @@
 """Neural network operators"""
 from __future__ import absolute_import as _abs
 
+from .conv1d import *
 from .conv2d import *
 from .conv3d import *
 from .deformable_conv2d import *

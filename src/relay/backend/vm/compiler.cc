@@ -50,7 +50,7 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
-Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions);
+Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
@@ -612,7 +612,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       CHECK(it != context_->global_map.end());
       DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                       << " with func_index=" << it->second;
-      auto func = context_->module->Lookup(global);
+
+      // TODO(tvm-team):
+      // Think about mixed call into global that is not a relay::Function
+      // perhaps establish as an invariance(all functions in mod must be relay::Function)
+      auto func = Downcast<Function>(context_->module->Lookup(global));
+
+
       if (IsClosure(func)) {
         auto arity = func->params.size();
         Emit(Instruction::AllocClosure(it->second, arity, args_registers, NewRegister()));
@@ -743,11 +749,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
                                    const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "compile") {
+  if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
       Module mod = args[0];
-      this->Compile(mod, args[1], args[2]);
+      this->Lower(mod, args[1], args[2]);
+    });
+  } else if (name == "codegen") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 0);
+      this->Codegen();
     });
   } else if (name == "get_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -802,18 +813,21 @@ relay::Function VMCompiler::BindParamsByName(
   return ret;
 }
 
-void VMCompiler::Compile(Module mod,
-                         const TargetsMap& targets,
-                         const tvm::Target& target_host) {
+void VMCompiler::Lower(Module mod,
+                       const TargetsMap& targets,
+                       const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
-    auto f = BindParamsByName(mod->Lookup("main"), params_);
+    BaseFunc base_func = mod->Lookup("main");
+    CHECK(base_func->IsInstance<FunctionNode>())
+        << "VM compiler expects to compile relay::Function";
+    auto f = BindParamsByName(Downcast<Function>(base_func), params_);
     auto gvar = mod->GetGlobalVar("main");
     mod->Add(gvar, f);
   }
 
-  InitVM();
+  exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
 
@@ -832,13 +846,15 @@ void VMCompiler::Compile(Module mod,
 
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
-    auto func = named_func.second;
-    VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
-    auto vm_func = func_compiler.Compile(gvar, func);
+    if (auto* n = named_func.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(n);
+      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      auto vm_func = func_compiler.Compile(gvar, func);
 
-    size_t func_index = context_.global_map.at(gvar);
-    CHECK(func_index < exec_->functions.size());
-    exec_->functions[func_index] = vm_func;
+      size_t func_index = context_.global_map.at(gvar);
+      CHECK(func_index < exec_->functions.size());
+      exec_->functions[func_index] = vm_func;
+    }
   }
 
 #if USE_RELAY_DEBUG
@@ -849,19 +865,28 @@ void VMCompiler::Compile(Module mod,
 
   // populate constants
   for (auto data : context_.constants) {
-    exec_->constants.push_back(vm::Tensor(data));
+    exec_->constants.push_back(data);
   }
 
-  LibraryCodegen();
-
+  // update global function map
   for (auto gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
+  }
+
+  // update primitive function map
+  size_t primitive_index = 0;
+  for (const auto& cfunc : context_.cached_funcs) {
+    if (cfunc->target->str() == "ext_dev") {
+      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    } else {
+      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    }
   }
 }
 
 Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::Expr> entry_functions{tvm::Expr{"main"}};
+  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -942,7 +967,11 @@ void VMCompiler::PopulateGlobalMap() {
   }
 }
 
-void VMCompiler::LibraryCodegen() {
+void VMCompiler::Codegen() {
+  if (!context_.module.defined()) {
+    LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
+    return;
+  }
   auto const &cached_funcs = context_.cached_funcs;
   if (cached_funcs.size() == 0) {
     return;
@@ -980,14 +1009,6 @@ void VMCompiler::LibraryCodegen() {
     }
   }
   exec_->lib = mod;
-  size_t primitive_index = 0;
-  for (auto cfunc : cached_funcs) {
-    if (cfunc->target->str() == "ext_dev") {
-      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
-    } else {
-      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
-    }
-  }
 }
 
 runtime::Module CreateVMCompiler() {

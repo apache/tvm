@@ -1,0 +1,79 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# GH actions.
+# We use it to cover windows and mac builds
+# Jenkins is still the primary CI
+
+name: WinMacBuild
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  Build:
+    strategy:
+      matrix:
+        os: [windows-latest, macOS-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+    - name: Lint Python
+      if: matrix.os == 'macOS-latest'
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7 --show-source --statistics
+    - name: Initialize submodules
+      run: git submodule update --recursive --init
+
+    - name: Make Build Directory
+      run: cmake -E make_directory build.common
+
+    # configuration for Windows
+    - name: CMake@Win
+      if: matrix.os == 'windows-latest'
+      working-directory: build.common
+      run: >-
+        cmake
+        "-DUSE_SORT=ON"
+        "-DUSE_RPC=ON"
+        "-DUSE_GRAPH_RUNTIME=ON"
+        ..
+
+    # configuration for Mac
+    - name: CMake@MacOS
+      if: matrix.os  == 'macOS-latest'
+      working-directory: build.common
+      run: >-
+        cmake
+        "-DUSE_SORT=ON"
+        "-DUSE_RPC=ON"
+        "-DUSE_GRAPH_RUNTIME=ON"
+        "-DUSE_METAL=ON"
+        ..
+
+    - name: Build
+      run: cmake --build build.common -j3

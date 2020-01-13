@@ -37,7 +37,8 @@ TVM_REGISTER_NODE_TYPE(IdNode);
 TVM_REGISTER_GLOBAL("relay._base.set_span")
 .set_body_typed([](ObjectRef node_ref, Span sp) {
   if (auto* rn = node_ref.as<RelayNode>()) {
-    CHECK(rn);
+    rn->span = sp;
+  } else if (auto* rn = node_ref.as<RelayExprNode>()) {
     rn->span = sp;
   } else if (auto* rn = node_ref.as<TypeNode>()) {
     rn->span = sp;

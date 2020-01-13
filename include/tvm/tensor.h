@@ -76,8 +76,8 @@ class Tensor : public ObjectRef {
    * \return the result expression representing tensor read.
    */
   template<typename... Args>
-  inline Expr operator()(Args&& ...args) const {
-    Array<Expr> indices{std::forward<Args>(args)...};
+  inline PrimExpr operator()(Args&& ...args) const {
+    Array<PrimExpr> indices{std::forward<Args>(args)...};
     return operator()(indices);
   }
   /*!
@@ -85,13 +85,13 @@ class Tensor : public ObjectRef {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL Expr operator()(Array<Expr> indices) const;
+  TVM_DLL PrimExpr operator()(Array<PrimExpr> indices) const;
   /*!
    * \brief Take elements from the tensor
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL Expr operator()(Array<Var> indices) const;
+  TVM_DLL PrimExpr operator()(Array<Var> indices) const;
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.
    *  This is used to enable syntax sugar of Tensor[x][y][z] to get the element.
@@ -99,15 +99,15 @@ class Tensor : public ObjectRef {
   class Slice {
    public:
     // construct via tensor and indices
-    Slice(const Tensor& tensor, std::vector<Expr> indices)
+    Slice(const Tensor& tensor, std::vector<PrimExpr> indices)
         : tensor_(tensor), indices_(indices) {}
     /*!
      * \brief get i-th slice from the current slice.
      * \param i the index of the coordinate
      * \return the subsequent slice.
      */
-    inline Slice operator[](Expr i) {
-      std::vector<Expr> other = indices_;
+    inline Slice operator[](PrimExpr i) {
+      std::vector<PrimExpr> other = indices_;
       other.emplace_back(i);
       return Slice(tensor_, other);
     }
@@ -116,20 +116,20 @@ class Tensor : public ObjectRef {
      *  This is only valid when all the coordinates are fully specified.
      * \return the corresponding expression of this slice.
      */
-    inline operator Expr() const {
+    inline operator PrimExpr() const {
       return tensor_(indices_);
     }
 
    private:
     const Tensor& tensor_;
-    std::vector<Expr> indices_;
+    std::vector<PrimExpr> indices_;
   };
   /*!
    * \brief get i-th slice from the current Tensor.
    * \param i the index of the coordinate
    * \return the subsequent slice.
    */
-  inline Slice operator[](Expr i) const {
+  inline Slice operator[](PrimExpr i) const {
     return Slice(*this, {i});
   }
   /*! \brief specify container node */
@@ -161,7 +161,7 @@ class Operation : public ir::FunctionRef {
 class TensorNode : public Object {
  public:
   /*! \brief The shape of the tensor */
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   /*! \brief data type in the content of the tensor */
   DataType dtype;
   /*! \brief the source operation, can be None */
@@ -177,7 +177,7 @@ class TensorNode : public Object {
     v->Visit("op", &op);
     v->Visit("value_index", &value_index);
   }
-  TVM_DLL static Tensor make(Array<Expr> shape,
+  TVM_DLL static Tensor make(Array<PrimExpr> shape,
                              DataType dtype,
                              Operation op,
                              int value_index);
@@ -213,21 +213,21 @@ inline bool Tensor::operator!=(const Tensor& other) const {
 
 // macro to turn every operation of slice to expression
 #define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
-  inline Expr operator Op (const Tensor::Slice& a) {                    \
-    return Op a.operator Expr() ;                                       \
+  inline PrimExpr operator Op (const Tensor::Slice& a) {           \
+    return Op a.operator PrimExpr() ;                              \
   }                                                                     \
 
 #define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
   template<typename T>                                                  \
-  inline Expr operator Op (const Tensor::Slice& a, const T& b) {        \
-    return a.operator Expr() Op b;                                      \
+  inline PrimExpr operator Op (const Tensor::Slice& a, const T& b) { \
+    return a.operator PrimExpr() Op b;                             \
   }                                                                     \
   template<typename T>                                                  \
-  inline Expr operator Op (const T& a, const Tensor::Slice& b) {        \
-    return a Op b.operator Expr();                                      \
-  }                                                                     \
-  inline Expr operator Op (const Tensor::Slice& a, const Tensor::Slice& b) { \
-    return a.operator Expr() Op b.operator Expr();                      \
+  inline PrimExpr operator Op (const T& a, const Tensor::Slice& b) {  \
+    return a Op b.operator PrimExpr();                                \
+  }                                                                        \
+  inline PrimExpr operator Op (const Tensor::Slice& a, const Tensor::Slice& b) { \
+    return a.operator PrimExpr() Op b.operator PrimExpr();                  \
   }
 
 DEFINE_OVERLOAD_SLICE_UNARY_OP(!);

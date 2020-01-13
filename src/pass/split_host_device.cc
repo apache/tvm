@@ -34,7 +34,7 @@ namespace ir {
 // use/def analysis, also delete unreferenced lets
 class IRUseDefAnalysis : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
@@ -46,7 +46,7 @@ class IRUseDefAnalysis : public StmtExprMutator {
         thread_extent_.push_back(op->value);
       }
 
-      Expr value = op->value;
+      PrimExpr value = op->value;
       if (visit_thread_extent_) {
         value = this->VisitExpr(value);
       }
@@ -54,13 +54,13 @@ class IRUseDefAnalysis : public StmtExprMutator {
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return GetRef<Stmt>(op);
       }
-      return AttrStmt::make(op->node, op->attr_key, value, body);
+      return AttrStmtNode::make(op->node, op->attr_key, value, body);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt VisitStmt_(const LetStmt* op) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     this->HandleDef(op->var.get());
     Stmt body = this->VisitStmt(op->body);
     // eliminate unreferenced let
@@ -68,60 +68,60 @@ class IRUseDefAnalysis : public StmtExprMutator {
         !HasSideEffect(op->value)) {
       return body;
     } else {
-      Expr value = this->VisitExpr(op->value);
+      PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) &&
           value.same_as(op->value)) {
         return GetRef<Stmt>(op);
       } else {
-        return LetStmt::make(op->var, value, body);
+        return LetStmtNode::make(op->var, value, body);
       }
     }
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     this->HandleDef(op->loop_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     this->HandleDef(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  Expr VisitExpr_(const Let* op) final {
+  PrimExpr VisitExpr_(const LetNode* op) final {
     this->HandleDef(op->var.get());
-    Expr body = this->VisitExpr(op->body);
+    PrimExpr body = this->VisitExpr(op->body);
     // eliminate unreferenced let
     if (use_count_.at(op->var.get()) == 0 &&
         !HasSideEffect(op->value)) {
       return body;
     } else {
-      Expr value = this->VisitExpr(op->value);
+      PrimExpr value = this->VisitExpr(op->value);
       if (body.same_as(op->body) &&
           value.same_as(op->value)) {
-        return GetRef<Expr>(op);
+        return GetRef<PrimExpr>(op);
       } else {
-        return Let::make(op->var, value, body);
+        return LetNode::make(op->var, value, body);
       }
     }
   }
 
-  Expr VisitExpr_(const Variable* op) final {
-    this->HandleUse(GetRef<Expr>(op));
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    this->HandleUse(GetRef<PrimExpr>(op));
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExpr_(const Load* op) final {
+  PrimExpr VisitExpr_(const LoadNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  void HandleDef(const Variable* v) {
+  void HandleDef(const VarNode* v) {
     CHECK(!def_count_.count(v))
         << "variable " << v->name_hint
         << " has already been defined, the Stmt is not SSA";
@@ -132,8 +132,8 @@ class IRUseDefAnalysis : public StmtExprMutator {
     def_count_[v] = 1;
   }
 
-  void HandleUse(const Expr& v) {
-    CHECK(v.as<Variable>());
+  void HandleUse(const PrimExpr& v) {
+    CHECK(v.as<VarNode>());
     Var var = Downcast<Var>(v);
     auto it = use_count_.find(var.get());
     if (it != use_count_.end()) {
@@ -151,19 +151,19 @@ class IRUseDefAnalysis : public StmtExprMutator {
   bool visit_thread_extent_{true};
   Array<Var> undefined_;
   Array<IterVar> thread_axis_;
-  Array<Expr> thread_extent_;
-  std::unordered_map<const Variable*, int> use_count_;
-  std::unordered_map<const Variable*, int> def_count_;
+  Array<PrimExpr> thread_extent_;
+  std::unordered_map<const VarNode*, int> use_count_;
+  std::unordered_map<const VarNode*, int> def_count_;
 };
 
 class HostDeviceSplitter : public StmtMutator {
  public:
-  Stmt VisitStmt_(const Allocate* op) final {
+  Stmt VisitStmt_(const AllocateNode* op) final {
     handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope ||
         op->attr_key == attr::device_scope) {
@@ -218,25 +218,25 @@ class HostDeviceSplitter : public StmtMutator {
       }
     }
     LoweredFunc f_device(n);
-    Array<Expr> call_args;
-    call_args.push_back(StringImm::make(f_device->name));
+    Array<PrimExpr> call_args;
+    call_args.push_back(StringImmNode::make(f_device->name));
     for (Var arg : n->args) {
       call_args.push_back(arg);
     }
-    for (Expr ext : m.thread_extent_) {
+    for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
     device_funcs_.emplace_back(f_device);
-    return Evaluate::make(Call::make(
+    return EvaluateNode::make(CallNode::make(
         DataType::Int(32), intrinsic::tvm_call_packed,
-        call_args, Call::Intrinsic));
+        call_args, CallNode::Intrinsic));
   }
 
   // function name
   std::string name_;
   // the device functions
   std::vector<LoweredFunc> device_funcs_;
-  std::unordered_map<const Variable*, Expr> handle_data_type_;
+  std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
 };
 
 

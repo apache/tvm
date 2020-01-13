@@ -68,9 +68,12 @@ class EtaExpander : public ExprMutator {
 
   Module Expand() {
     for (GlobalVar global_var : mod_->GetGlobalVars()) {
-      const Function func = mod_->Lookup(global_var);
-      const Function new_func = Downcast<Function>(VisitExpr(func));
-      mod_->Update(global_var, new_func);
+      const BaseFunc base_func = mod_->Lookup(global_var);
+      if (auto* n = base_func.as<FunctionNode>()) {
+        const Function new_func = Downcast<Function>(
+            VisitExpr(GetRef<Function>(n)));
+        mod_->Update(global_var, new_func);
+      }
     }
     return mod_;
   }
@@ -101,7 +104,7 @@ class EtaExpander : public ExprMutator {
       params.push_back(VarNode::make("eta_expand_param", param_type));
     }
     tvm::Array<Type> type_params;
-    TypeData adt_def = mod_->LookupDef(cons->belong_to);
+    TypeData adt_def = mod_->LookupTypeDef(cons->belong_to);
     for (const auto& type_var : adt_def->type_vars) {
       type_params.push_back(type_var_replacer_.VisitType(type_var));
     }
@@ -120,21 +123,26 @@ class EtaExpander : public ExprMutator {
     if (!expand_global_var_) {
       return std::move(gvar);
     }
-
-    const auto func = mod_->Lookup(gvar);
-    tvm::Array<Expr> params;
-    tvm::Array<Var> args;
-    for (size_t i = 0; i < func->params.size(); ++i) {
-      auto var = VarNode::make("eta_expand_param", func->params[i]->type_annotation);
-      params.push_back(var);
-      args.push_back(var);
-    }
+    const auto base_func = mod_->Lookup(gvar);
+    if (auto *ptr = base_func.as<FunctionNode>()) {
+      // handle relay function, skip external functions.
+      auto func = GetRef<Function>(ptr);
+      tvm::Array<Expr> params;
+      tvm::Array<Var> args;
+      for (size_t i = 0; i < func->params.size(); ++i) {
+        auto var = VarNode::make("eta_expand_param", func->params[i]->type_annotation);
+        params.push_back(var);
+        args.push_back(var);
+      }
 
     return FunctionNode::make(
-      args,
-      CallNode::make(gvar, params),
-      func->ret_type,
-      func->type_params);
+        args,
+        CallNode::make(gvar, params),
+        func->ret_type,
+        func->type_params);
+    } else {
+      return std::move(gvar);
+    }
   }
 
  private:

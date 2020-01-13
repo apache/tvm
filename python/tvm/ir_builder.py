@@ -24,7 +24,7 @@ from . import make as _make
 from . import ir_pass as _pass
 from . import container as _container
 from ._ffi.base import string_types
-from ._ffi.node import NodeGeneric
+from ._ffi.object import ObjectGeneric
 from ._ffi.runtime_ctypes import TVMType
 from .expr import Call as _Call
 
@@ -41,7 +41,7 @@ class WithScope(object):
         self._exit_cb()
 
 
-class BufferVar(NodeGeneric):
+class BufferVar(ObjectGeneric):
     """Buffer variable with content type, makes load store easily.
 
     Do not create it directly, create use IRBuilder.
@@ -70,7 +70,7 @@ class BufferVar(NodeGeneric):
         self._buffer_var = buffer_var
         self._content_type = content_type
 
-    def asnode(self):
+    def asobject(self):
         return self._buffer_var
 
     @property

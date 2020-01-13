@@ -28,3 +28,6 @@ tvm.relay.backend
 
 .. automodule:: tvm.relay.backend.graph_runtime_codegen
     :members:
+
+.. automodule:: tvm.relay.backend.vm
+    :members:

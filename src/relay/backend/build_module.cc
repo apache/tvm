@@ -83,9 +83,9 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::Expr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::PrimExpr> >("list_params_name", nullptr);
     for (auto expr : names) {
-      auto key = expr.as<ir::StringImm>()->value;
+      auto key = expr.as<ir::StringImmNode>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
     }
     return ret;
@@ -190,10 +190,10 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return Array<StringImm> names of params
    */
-  Array<tvm::Expr> ListParamNames() {
-    Array<tvm::Expr> ret;
+  Array<tvm::PrimExpr> ListParamNames() {
+    Array<tvm::PrimExpr> ret;
     for (const auto& kv : params_) {
-      ret.push_back(ir::StringImm::make(kv.first));
+      ret.push_back(ir::StringImmNode::make(kv.first));
     }
     return ret;
   }
@@ -318,6 +318,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     pass_seqs.push_back(transform::SimplifyInference());
     PackedFunc fskip = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       Expr expr = args[0];
+      *rv = false;
       if (expr.as<CallNode>()) {
         auto call_node = expr.as<CallNode>();
         auto op_node = call_node->op.as<OpNode>();
@@ -328,7 +329,6 @@ class RelayBuildModule : public runtime::ModuleNode {
           }
         }
       }
-      *rv = false;
     });
     pass_seqs.push_back(transform::EliminateCommonSubexpr(fskip));
     pass_seqs.push_back(transform::CombineParallelConv2D(3));
@@ -463,7 +463,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Optimize input Relay Function and returns Relay Module
     relay::Module relay_module = Optimize(func, targets_, params);
     // Get the updated function.
-    func = relay_module->Lookup("main");
+    func = Downcast<Function>(relay_module->Lookup("main"));
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());

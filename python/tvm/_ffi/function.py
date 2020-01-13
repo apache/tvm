@@ -22,7 +22,7 @@ from __future__ import absolute_import
 import sys
 import ctypes
 from .base import _LIB, check_call, py_str, c_str, string_types, _FFI_MODE
-from .node_generic import _set_class_objects
+from .object_generic import _set_class_objects
 
 IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 

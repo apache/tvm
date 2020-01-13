@@ -27,7 +27,8 @@ from ..util import get_const_tuple, traverse_inline
 from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
 @autotvm.task.register_topi_compute(conv2d_transpose_nchw, "arm_cpu", "direct")
-def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype):
+def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype,
+                              output_padding=(0, 0)):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -47,27 +48,33 @@ def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype):
     out_dtype: str
         The output data type. This is used for mixed precision.
 
+    output_padding : tuple of int
+        Used to get the right output shape in gradients
+
     Returns
     -------
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2)
+    return _decl_spatial_pack(cfg, Input, Filter, strides, padding, "NCHW", out_dtype, 2,
+                              output_padding)
 
-def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile):
+def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile,
+                       output_padding):
     assert layout == "NCHW", "Only support NCHW"
     out_dtype = out_dtype or data.dtype
 
     N, CI, IH, IW = get_const_tuple(data.shape)
     _, CO, KH, KW = get_const_tuple(kernel.shape)
+    opad_h, opad_w = output_padding
 
     pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
-    bpad_top, bpad_bottom = KH - 1 - pad_top, KH - 1 - pad_bottom
-    bpad_left, bpad_right = KW - 1 - pad_left, KW - 1 - pad_right
+    bpad_top, bpad_bottom = KH - 1 - pad_top, KH - 1 - pad_bottom + opad_h
+    bpad_left, bpad_right = KW - 1 - pad_left, KW - 1 - pad_right + opad_w
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
-    OH = (IH - 1) * HSTR - pad_top - pad_bottom + KH
-    OW = (IW - 1) * WSTR - pad_left - pad_right + KW
+    OH = (IH - 1) * HSTR - pad_top - pad_bottom + KH + opad_h
+    OW = (IW - 1) * WSTR - pad_left - pad_right + KW + opad_w
 
     dilated_input = dilate(data, [1, 1, HSTR, WSTR])
     data_pad = pad(dilated_input, [0, 0, bpad_top, bpad_left], [0, 0, bpad_bottom, bpad_right])

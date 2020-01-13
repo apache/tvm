@@ -142,7 +142,7 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to C type";
 }
 
-void CodeGenCHost::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
   PrintType(op->dtype, os);
@@ -194,11 +194,11 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_ar
   this->stream << "}\n";
 }
 
-void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const CallNode *op, std::ostream& os) { // NOLINT(*)
   if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     std::string stack_name = GetUniqueName("stack");
-    const std::string& type = op->args[0].as<StringImm>()->value;
-    const IntImm* num = op->args[1].as<IntImm>();
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
+    const IntImmNode* num = op->args[1].as<IntImmNode>();
     CHECK(num != nullptr);
     static_assert(alignof(TVMValue) % alignof(TVMArray) == 0, "invariant");
     size_t unit = sizeof(TVMValue);
@@ -218,10 +218,10 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
     this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
     os << stack_name;
   } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
-    const StringImm* s = op->args[0].as<StringImm>();
+    const StringImmNode* s = op->args[0].as<StringImmNode>();
     CHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
-    int64_t begin = op->args[3].as<IntImm>()->value;
-    int64_t end = op->args[4].as<IntImm>()->value;
+    int64_t begin = op->args[3].as<IntImmNode>()->value;
+    int64_t end = op->args[4].as<IntImmNode>()->value;
     int64_t num_args = end - begin;
     CHECK_GE(num_args, 0);
     std::string func_name = s->value;
@@ -237,14 +237,14 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
   }
 }
 
-void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
+void CodeGenCHost::VisitStmt_(const AssertStmtNode *op) { // NOLINT(*)
   if (emit_asserts_) {
     std::string cond = PrintExpr(op->condition);
     PrintIndent();
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
     PrintIndent();
-    stream << "TVMAPISetLastError(\"" << op->message.as<StringImm>()->value << "\");\n";
+    stream << "TVMAPISetLastError(\"" << op->message.as<StringImmNode>()->value << "\");\n";
     PrintIndent();
     stream << "return -1;\n";
     this->EndScope(assert_if_scope);
@@ -254,11 +254,11 @@ void CodeGenCHost::VisitStmt_(const AssertStmt *op) { // NOLINT(*)
   this->PrintStmt(op->body);
 }
 
-void CodeGenCHost::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const MinNode *op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, "<", os);
 }
 
-void CodeGenCHost::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenCHost::VisitExpr_(const MaxNode *op, std::ostream& os) {  // NOLINT(*)
   PrintTernaryCondExpr(op, ">", os);
 }
 

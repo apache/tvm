@@ -141,7 +141,7 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   // Second argument should be shape tensor.
   auto tt = types[1].as<TensorTypeNode>();
   CHECK(tt != nullptr) << "must be tensor type";
-  auto rank = tt->shape[0].as<tvm::IntImm>();
+  auto rank = tt->shape[0].as<tvm::IntImmNode>();
   CHECK(rank != nullptr);
   auto dims = rank->value;
 
