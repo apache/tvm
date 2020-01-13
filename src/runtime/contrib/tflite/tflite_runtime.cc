@@ -91,7 +91,6 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
   }
 }
 
-
 void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
                          TVMContext ctx) {
   const char* buffer = tflite_model_bytes.c_str();

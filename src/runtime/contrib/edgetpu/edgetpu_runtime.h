@@ -25,13 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
-#include <dlpack/dlpack.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-
-#include <vector>
-#include <string>
-#include <memory>
+#include "../tflite/tflite_runtime.h"
 
 namespace tvm {
 namespace runtime {
@@ -43,17 +37,8 @@ namespace runtime {
  *  This runtime can be accessed in various languages via
  *  the TVM runtime PackedFunc API.
  */
-class EdgeTPURuntime : public ModuleNode {
+class EdgeTPURuntime : public TFLiteRuntime {
  public:
-  /*!
-   * \brief Get member function to front-end.
-   * \param name The name of the function.
-   * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding member function.
-   */
-  virtual PackedFunc GetFunction(const std::string& name,
-                                 const ObjectPtr<Object>& sptr_to_self);
-
   /*!
    * \return The type key of the executor.
    */
@@ -62,44 +47,15 @@ class EdgeTPURuntime : public ModuleNode {
   }
 
   /*!
-   * \brief Invoke the internal tflite interpreter and run the whole model in 
-   * dependency order.
-   */
-  void Invoke();
-
-  /*!
-   * \brief Initialize the tflite runtime with tflite model and context.
+   * \brief Initialize the edge TPU tflite runtime with tflite model and context.
    * \param tflite_model_bytes The tflite model.
    * \param ctx The context where the tflite model will be executed on.
    */
   void Init(const std::string& tflite_model_bytes,
             TVMContext ctx);
 
-  /*!
-   * \brief set index-th input to the model.
-   * \param index The input index.
-   * \param data_in The input data.
-   */
-  void SetInput(int index, DLTensor* data_in);
-  /*!
-   * \brief Return NDArray for given input index.
-   * \param index The input index.
-   *
-   * \return NDArray corresponding to given input node index.
-   */
-  NDArray GetInput(int index) const;
-  /*!
-   * \brief Return NDArray for given output index.
-   * \param index The output index.
-   *
-   * \return NDArray corresponding to given output node index.
-   */
-  NDArray GetOutput(int index) const;
-
  private:
-  std::unique_ptr<tflite::Interpreter> interpreter_;
   std::shared_ptr<edgetpu::EdgeTpuContext> edgetpu_context_;
-  TVMContext ctx_;
 };
 
 }  // namespace runtime

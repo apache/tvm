@@ -57,7 +57,7 @@ class TFLiteRuntime : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final {
+  const char* type_key() const {
     return "TFLiteRuntime";
   }
 
@@ -96,8 +96,9 @@ class TFLiteRuntime : public ModuleNode {
    */
   NDArray GetOutput(int index) const;
 
- private:
+  // TFLite interpreter
   std::unique_ptr<tflite::Interpreter> interpreter_;
+  // TVM context
   TVMContext ctx_;
 };
 
