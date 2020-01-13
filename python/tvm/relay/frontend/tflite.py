@@ -740,9 +740,9 @@ class OperatorConverter(object):
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                'TFlite quantized greater operator is not supported yet.')
+                'TFlite quantized squared difference operator is not supported yet.')
         difference = self._convert_elemwise(_op.subtract, op)
-        out = _op.multiply(difference, difference)
+        out = _op.power(difference, relay.const(2, 'float32'))
         return out
 
     def convert_zeros_like(self, op):

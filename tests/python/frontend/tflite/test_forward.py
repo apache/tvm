@@ -866,7 +866,7 @@ def _test_greater(data):
 
 #######################################################################
 # Squared_difference
-# -------
+# ------------------
 
 def _test_squared_difference(data):
     """ One iteration of squared difference """
