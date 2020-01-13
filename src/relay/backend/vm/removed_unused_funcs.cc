@@ -53,33 +53,20 @@ struct CallTracer : ExprVisitor {
       called_funcs_{},
       visiting_{} {}
 
-  void CheckExpr(const Expr& expr) {
-    if (auto func_node = expr.as<FunctionNode>()) {
-      auto func = GetRef<Function>(func_node);
-      auto it = visiting_.find(func);
-      if (it != visiting_.end()) {
-        return;
-      }
-      visiting_.insert(func);
-      VisitExpr(func);
-    } else if (auto global = expr.as<GlobalVarNode>()) {
-      called_funcs_.insert(global->name_hint);
-      auto func = module_->Lookup(global->name_hint);
-      auto it = visiting_.find(func);
-      if (it != visiting_.end()) {
-        return;
-      }
-      visiting_.insert(func);
-      VisitExpr(func);
-    } else {
-      VisitExpr(expr);
-    }
+  void VisitExpr_(const GlobalVarNode* op) final {
+    called_funcs_.insert(op->name_hint);
+    auto func = module_->Lookup(op->name_hint);
+    VisitExpr(func);
   }
 
-  void VisitExpr_(const CallNode* call_node) final {
-    CheckExpr(call_node->op);
-    for (auto param : call_node->args) {
-      CheckExpr(param);
+  void VisitExpr_(const FunctionNode* func_node) final {
+    auto func = GetRef<Function>(func_node);
+    if (visiting_.find(func) == visiting_.end()) {
+      visiting_.insert(func);
+      for (auto param : func_node->params) {
+        ExprVisitor::VisitExpr(param);
+      }
+      ExprVisitor::VisitExpr(func_node->body);
     }
   }
 
