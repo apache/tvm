@@ -89,9 +89,10 @@ def load_single_op(model_name, input_type=None):
         input_data = torch.randint(0, 10, input_shape).int()
     return model, input_data
 
-def load_torchvision(model_name):
+def load_torchvision(model_name, input_type=None):
     """Given a model name, returns a Torchvision model in eval mode as well
     as an example input."""
+
     if model_name.startswith('inception'):
         height = width = 299
         mean = [0.5, 0.5, 0.5]
@@ -101,12 +102,21 @@ def load_torchvision(model_name):
         mean = [0.485, 0.456, 0.406]
         std = [0.229, 0.224, 0.225]
     input_shape = [1, 3, height, width]
-    input_data = torch.randn(input_shape).float()
+
+    model = getattr(torchvision.models, model_name)(pretrained=True)
+    #model = model.float().eval()
+
+    if input_type is None or input_type == 'float32':
+        model = model.float().eval()
+        input_data = torch.randn(input_shape).float()
+    elif input_type == 'float64':
+        model = model.double().eval()
+        input_data = torch.randn(input_shape).double()
+
     for channel in range(3):
         input_data[:, channel] -= mean[channel]
         input_data[:, channel] /= std[channel]
-    model = getattr(torchvision.models, model_name)(pretrained=True)
-    model = model.float().eval()
+
     return model, input_data
 
 def load_pretrainedmodels(model_name):
@@ -487,6 +497,9 @@ def test_chunk1():
 def test_resnet18():
     verify_model('resnet18')
 
+def test_resnet18float64():
+    verify_model('resnet18', input_type='float64')
+
 def test_resnet34():
     verify_model('resnet34')
 
@@ -558,7 +571,7 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
-
+    """
     # Single operator tests
     test_add1()
     test_add2()
@@ -637,7 +650,7 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-
+    """
 
     #test_batchnorm1()
     #test_batchnorm2()
@@ -658,3 +671,5 @@ if __name__ == '__main__':
     #test_batchnorm1float64()
 
     #test_batchnorm1int32()
+
+    test_resnet18float64()
