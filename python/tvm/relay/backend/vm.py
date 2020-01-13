@@ -31,16 +31,18 @@ from . import _vm
 from . import vmobj as _obj
 from .interpreter import Executor
 
-Tensor = _obj.Tensor
 ADT = _obj.ADT
 
 def _convert(arg, cargs):
     if isinstance(arg, _expr.Constant):
-        cargs.append(_obj.Tensor(arg.data))
+        cargs.append(arg.data)
     elif isinstance(arg, _obj.Object):
         cargs.append(arg)
-    elif isinstance(arg, (np.ndarray, tvm.nd.NDArray)):
-        cargs.append(_obj.Tensor(arg))
+    elif isinstance(arg, np.ndarray):
+        nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
+        cargs.append(nd_arr)
+    elif isinstance(arg, tvm.nd.NDArray):
+        cargs.append(arg)
     elif isinstance(arg, (tuple, list)):
         field_args = []
         for field in arg:
@@ -48,7 +50,7 @@ def _convert(arg, cargs):
         cargs.append(_obj.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
-        value = _obj.Tensor(np.array(arg, dtype=dtype))
+        value = tvm.nd.array(np.array(arg, dtype=dtype), ctx=tvm.cpu(0))
         cargs.append(value)
     else:
         raise TypeError("Unsupported type: %s" % (type(arg)))

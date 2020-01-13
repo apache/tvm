@@ -24,7 +24,7 @@ from . import make as _make
 from . import tensor as _tensor
 from . import schedule as _schedule
 from .build_module import current_build_config
-from ._ffi.node import NodeBase, register_node
+from ._ffi.object import Object, register_object
 
 
 def _get_region(tslice):
@@ -41,8 +41,8 @@ def _get_region(tslice):
             region.append(_make.range_by_min_extent(begin, 1))
     return region
 
-@register_node
-class TensorIntrin(NodeBase):
+@register_object
+class TensorIntrin(Object):
     """Tensor intrinsic functions for certain computation.
 
     See Also

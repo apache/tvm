@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
 from __future__ import absolute_import
 
 import sys
 import ctypes
+from .. import _api_internal
 from .base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
+from .object_generic import ObjectGeneric, convert_to_object, const
 
 IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 
@@ -29,23 +31,77 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_object, _set_class_node
+        from ._cy3.core import _set_class_object
         from ._cy3.core import ObjectBase as _ObjectBase
         from ._cy3.core import _register_object
     else:
-        from ._cy2.core import _set_class_object, _set_class_node
+        from ._cy2.core import _set_class_object
         from ._cy2.core import ObjectBase as _ObjectBase
         from ._cy2.core import _register_object
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position,unused-import
-    from ._ctypes.function import _set_class_object, _set_class_node
+    from ._ctypes.function import _set_class_object
     from ._ctypes.object import ObjectBase as _ObjectBase
     from ._ctypes.object import _register_object
 
 
+def _new_object(cls):
+    """Helper function for pickle"""
+    return cls.__new__(cls)
+
+
 class Object(_ObjectBase):
     """Base class for all tvm's runtime objects."""
-    pass
+    def __repr__(self):
+        return _api_internal._format_str(self)
+
+    def __dir__(self):
+        fnames = _api_internal._NodeListAttrNames(self)
+        size = fnames(-1)
+        return [fnames(i) for i in range(size)]
+
+    def __getattr__(self, name):
+        try:
+            return _api_internal._NodeGetAttr(self, name)
+        except AttributeError:
+            raise AttributeError(
+                "%s has no attribute %s" % (str(type(self)), name))
+
+    def __hash__(self):
+        return _api_internal._raw_ptr(self)
+
+    def __eq__(self, other):
+        return self.same_as(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __reduce__(self):
+        cls = type(self)
+        return (_new_object, (cls, ), self.__getstate__())
+
+    def __getstate__(self):
+        handle = self.handle
+        if handle is not None:
+            return {'handle': _api_internal._save_json(self)}
+        return {'handle': None}
+
+    def __setstate__(self, state):
+        # pylint: disable=assigning-non-slot
+        handle = state['handle']
+        if handle is not None:
+            json_str = handle
+            other = _api_internal._load_json(json_str)
+            self.handle = other.handle
+            other.handle = None
+        else:
+            self.handle = None
+
+    def same_as(self, other):
+        """check object identity equality"""
+        if not isinstance(other, Object):
+            return False
+        return self.__hash__() == other.__hash__()
 
 
 def register_object(type_key=None):

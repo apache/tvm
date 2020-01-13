@@ -25,7 +25,7 @@
 #define TVM_RELAY_FEATURE_H_
 
 #include <tvm/node/container.h>
-#include <tvm/expr.h>
+#include <tvm/relay/expr.h>
 #include <bitset>
 
 namespace tvm {
@@ -132,7 +132,6 @@ class FeatureSet {
   explicit FeatureSet(const std::bitset<feature_count>& bs) : bs_(bs) { }
 };
 
-class Expr;
 /*!
  * \brief Calculate the feature of the program.
  *
@@ -140,7 +139,7 @@ class Expr;
  *
  * \return The FeatureSet.
  */
-FeatureSet DetectFeature(const Expr& expr);
+FeatureSet DetectFeature(const RelayExpr& expr);
 
 struct Module;
 /*!

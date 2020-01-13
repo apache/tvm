@@ -31,7 +31,7 @@ def resize(data,
     with data of shape (n, c, h, w)
     out will have a shape (n, c, size[0], size[1])
 
-    method indicates the algorithm to be used while calculating ghe out value
+    method indicates the algorithm to be used while calculating the out value
     and method can be one of ("bilinear", "nearest_neighbor", "bicubic")
 
     Parameters
@@ -63,3 +63,53 @@ def resize(data,
         The resized result.
     """
     return _make.resize(data, size, layout, method, coordinate_transformation_mode, out_dtype)
+
+
+def crop_and_resize(data,
+                    boxes,
+                    box_indices,
+                    crop_size,
+                    layout,
+                    method="bilinear",
+                    extrapolation_value=0,
+                    out_dtype=None):
+    """Crop input images and resize them.
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be either "bilinear" or "nearest_neighbor".
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    boxes : relay.Expr
+        A 2-D tensor of shape [num_boxes, 4]. Each row of the tensor specifies
+        the coordinates of a box.
+
+    box_indices : relay.Expr
+        A 1-D tensor of shape [num_boxes], box_ind[i] specifies the data that
+        the i-th box refers to.
+
+    crop_size : Tuple of Expr
+        The target size to which each box will be resized.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method, it can be either "nearest_neighbor" or "bilinear".
+
+    extrapolation_value : float, optional
+        Value used for extrapolation, when applicable.
+
+    out_dtype : str, optional
+        Type to return. If left None returns the same type as input.
+
+    Returns
+    -------
+    result: relay.Expr
+        The computed result.
+    """
+    return _make.crop_and_resize(data, boxes, box_indices, crop_size,
+                                 layout, method, extrapolation_value, out_dtype)

@@ -16,7 +16,7 @@
 # under the License.
 
 # GH actions.
-# We use it to cover windows and mac build
+# We use it to cover windows and mac builds
 # Jenkins is still the primary CI
 
 name: WinMacBuild
@@ -40,6 +40,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/setup-python@v1
+    - name: Lint Python
+      if: matrix.os == 'macOS-latest'
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7 --show-source --statistics
     - name: Initialize submodules
       run: git submodule update --recursive --init
 

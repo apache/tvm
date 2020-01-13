@@ -403,7 +403,7 @@ Fuel MkFTop() {
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
- * Contains a mapping from relay::Var to relay::Value.
+ * Contains a mapping from relay::Var to relay::Object.
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
@@ -554,7 +554,7 @@ bool StatefulOp(const Expr& e) {
   return sov.stateful;
 }
 
-using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
+using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
 DLContext CPUContext() {
   DLContext ctx;
@@ -676,12 +676,18 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitGlobalVar(const GlobalVar& gv) {
     CHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
-      Function func = mod_->Lookup(gv);
-      InitializeFuncId(func);
-      Func f = VisitFuncStatic(func, gv);
-      gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
-      func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
-      mod_->Update(gv, func);
+      BaseFunc base_func = mod_->Lookup(gv);
+      if (auto* n = base_func.as<FunctionNode>()) {
+        Function func = GetRef<Function>(n);
+        InitializeFuncId(func);
+        Func f = VisitFuncStatic(func, gv);
+        gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
+        func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
+        mod_->Update(gv, func);
+        return gv_map_.at(gv);
+      } else {
+        return NoStatic(gv);
+      }
     }
     return gv_map_.at(gv);
   }
@@ -925,13 +931,14 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  PStatic Reify(const Value& v, LetList* ll) const {
-    if (const TensorValueNode* op = v.as<TensorValueNode>()) {
-      return HasStatic(MkSTensor(op->data), ll->Push(ConstantNode::make(op->data)));
+  PStatic Reify(const ObjectRef& v, LetList* ll) const {
+    if (v->IsInstance<runtime::NDArray::ContainerType>()) {
+      auto nd_array = Downcast<runtime::NDArray>(v);
+      return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
     } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const Value& field : op->fields) {
+      for (const ObjectRef& field : op->fields) {
         PStatic ps = Reify(field, ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
@@ -950,7 +957,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     auto mod = ModuleNode::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup("main");
+    auto entry_func = Downcast<Function>(mod->Lookup("main"));
     auto fused_infered =
         expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);

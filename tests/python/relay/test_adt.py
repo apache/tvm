@@ -115,10 +115,8 @@ def tree_to_dict(t):
 
 
 def vmobj_to_list(o, dtype="float32"):
-    if isinstance(o, tvm.relay.backend.vmobj.Tensor):
+    if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-        return [o.asnumpy()]
     elif isinstance(o, tvm.relay.backend.vmobj.ADT):
         if len(o) == 0:
             tensor_nil = p.get_var("tensor_nil", dtype=dtype)

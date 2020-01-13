@@ -16,14 +16,14 @@
 # under the License.
 
 import tvm
-from .base import NodeBase
+from .base import Object
 
 
-class PassContext(NodeBase):
+class PassContext(Object):
     def __init__(self):
         ...
 
-class PassInfo(NodeBase):
+class PassInfo(Object):
     name = ...  # type: str
     opt_level = ... # type: int
     required = ... # type: list
@@ -32,7 +32,7 @@ class PassInfo(NodeBase):
         # type: (str, int, list) -> None
 
 
-class Pass(NodeBase):
+class Pass(Object):
     def __init__(self):
         ...
 

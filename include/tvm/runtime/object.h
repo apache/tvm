@@ -650,6 +650,7 @@ struct ObjectEqual {
  * \param ParentType The name of the ParentType
  */
 #define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)              \
+  static_assert(!ParentType::_type_final, "ParentObj maked as final");  \
   static const uint32_t RuntimeTypeIndex()  {                           \
     if (TypeName::_type_index != ::tvm::runtime::TypeIndex::kDynamic) { \
       return TypeName::_type_index;                                     \

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,12 +15,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Node is the base class of all TVM AST.
+PROJROOT="$( cd "$( dirname '${BASH_SOURCE[0]}' )/../../" && pwd )"
 
-Normally user do not need to touch this api.
-"""
-# pylint: disable=unused-import
-from __future__ import absolute_import as _abs
-from ._ffi.node import NodeBase, register_node
+# Derive target specified by vta_config.json
+VTA_CONFIG=${PROJROOT}/vta/config/vta_config.py
+TARGET=$(python ${VTA_CONFIG} --target)
 
-Node = NodeBase
+export PYTHONPATH=${PYTHONPATH}:${PROJROOT}/python:${PROJROOT}/vta/python
+export PYTHONPATH=${PYTHONPATH}:/home/xilinx/pynq
+python3 -m vta.exec.rpc_server --tracker fleet:9190 --key $TARGET

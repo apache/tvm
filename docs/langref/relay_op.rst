@@ -169,6 +169,7 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.image.resize
+   tvm.relay.image.crop_and_resize
    tvm.relay.vision.multibox_prior
    tvm.relay.vision.multibox_transform_loc
    tvm.relay.vision.nms
@@ -335,6 +336,7 @@ Level 4 Definitions
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
+.. autofunction:: tvm.relay.image.crop_and_resize
 .. autofunction:: tvm.relay.vision.multibox_prior
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms

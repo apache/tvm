@@ -18,11 +18,11 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The type nodes of the Relay language."""
 from enum import IntEnum
-from .base import NodeBase, register_relay_node
+from .base import Object, register_relay_node
 from . import _make
 
 
-class Type(NodeBase):
+class Type(Object):
     """The base type for all Relay types."""
 
     def __eq__(self, other):
