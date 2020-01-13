@@ -67,7 +67,7 @@ Type WithGradientType(const Type&);
 /*! return an expression that represent differentiation of e (according to WithGradientType).
  *  This version only work on first order code without control flow.
  */
-Expr FirstOrderGradient(const Expr& e, const Module& mod);
+Expr FirstOrderGradient(const Expr& e, const IRModule& mod);
 
 Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
@@ -80,7 +80,7 @@ Type WithGradientType(const Type& t) {
 }
 
 //! \brief if the expression is a GlobalVar, transform to it's expression.
-Expr DeGlobal(const Module& mod, const Expr& e) {
+Expr DeGlobal(const IRModule& mod, const Expr& e) {
   if (const auto* x = e.as<GlobalVarNode>()) {
     BaseFunc base_func = mod->Lookup(GetRef<GlobalVar>(x));
     if (auto* n = base_func.as<FunctionNode>()) {
@@ -222,7 +222,7 @@ Type GradRetType(const Function& f) {
   return TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
 }
 
-Expr FirstOrderGradient(const Expr& re, const Module& mod) {
+Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
   // Currently we first remove any global functions for the first
   // order case.
   auto e = DeGlobal(mod, re);
@@ -532,7 +532,7 @@ bool MissingGrad(const Expr& e) {
   return false;
 }
 
-Expr Gradient(const Expr& re, const Module& mod) {
+Expr Gradient(const Expr& re, const IRModule& mod) {
   auto e = DeGlobal(mod, re);
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";

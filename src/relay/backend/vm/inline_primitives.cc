@@ -52,10 +52,10 @@ namespace vm {
  * (fn(...) { ... })(...)
  */
 struct PrimitiveInliner : ExprMutator {
-  Module module_;
+  IRModule module_;
   std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
 
-  explicit PrimitiveInliner(const Module& module) : module_(module) {}
+  explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) {
     var_map.insert({let_node->var, VisitExpr(let_node->value)});
@@ -106,7 +106,7 @@ struct PrimitiveInliner : ExprMutator {
     }
   }
 
-  Module Inline() {
+  IRModule Inline() {
     auto gvar_funcs = module_->functions;
     for (auto pair : gvar_funcs) {
       auto global = pair.first;
@@ -137,8 +137,8 @@ struct PrimitiveInliner : ExprMutator {
 namespace transform {
 
 Pass InlinePrimitives() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
       return relay::vm::PrimitiveInliner(m).Inline();
   };
   auto inline_pass = CreateModulePass(pass_func, 1, "Inline", {});

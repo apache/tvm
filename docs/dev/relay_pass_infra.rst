@@ -353,7 +353,7 @@ registration.
     auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
 
     // Create a module for optimization.
-    auto mod = relay::ModuleNode::FromExpr(fx);
+    auto mod = IRModule::FromExpr(fx);
 
     // Create a sequential pass.
     tvm::Array<relay::transform::Pass> pass_seqs{

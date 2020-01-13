@@ -33,7 +33,7 @@ TEST(Relay, SelfReference) {
   auto y = relay::VarNode::make("y", tensor_type);
   auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
   auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
-  auto mod = relay::ModuleNode::FromExpr(fx);
+  auto mod = IRModule::FromExpr(fx);
   mod = relay::transform::InferType()(mod);
   auto type_fx = mod->Lookup("main");
 

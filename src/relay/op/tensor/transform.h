@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 #define TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 
+#include <tvm/relay/error.h>
 #include <vector>
 #include <algorithm>
 #include <limits>

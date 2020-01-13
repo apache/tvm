@@ -294,7 +294,7 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return relay::Module The updated Relay module after optimization.
    */
-  relay::Module Optimize(
+  IRModule Optimize(
       Function func,
       const TargetsMap& targets,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
@@ -303,7 +303,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     // Perform Module->Module optimizations.
-    relay::Module relay_module = relay::ModuleNode::FromExpr(func);
+    IRModule relay_module = IRModule::FromExpr(func);
 
     Array<Pass> pass_seqs;
 
@@ -408,8 +408,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    *
    * \return updated_module The updated module after device annotation.
    */
-  relay::Module RunDeviceAnnotationPass(const relay::Module& relay_module,
-                                        int fallback_device) {
+  IRModule RunDeviceAnnotationPass(const IRModule& relay_module,
+                                          int fallback_device) {
     UpdateHeterogeneousInputs(fallback_device);
     auto rewrite = transform::RewriteAnnotatedOps(fallback_device);
     auto updated_module = rewrite(relay_module);
@@ -461,7 +461,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       Function func,
       const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
     // Optimize input Relay Function and returns Relay Module
-    relay::Module relay_module = Optimize(func, targets_, params);
+    IRModule relay_module = Optimize(func, targets_, params);
     // Get the updated function.
     func = Downcast<Function>(relay_module->Lookup("main"));
 

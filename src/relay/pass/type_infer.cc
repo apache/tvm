@@ -105,7 +105,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
  public:
   // constructors
 
-  explicit TypeInferencer(Module mod, GlobalVar current_func)
+  explicit TypeInferencer(IRModule mod, GlobalVar current_func)
       : mod_(mod), current_func_(current_func),
         err_reporter(), solver_(current_func, mod, &this->err_reporter) {
     CHECK(mod.defined()) << "internal error: Module must be set in the type inferencer";
@@ -118,7 +118,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   // type resolver that maps back to type
   class Resolver;
   // internal environment
-  Module mod_;
+  IRModule mod_;
 
   // The current function being type checked.
   GlobalVar current_func_;
@@ -798,7 +798,7 @@ void EnsureCheckedType(const Expr& e) {
   AllCheckTypePopulated().VisitExpr(e);
 }
 
-Expr InferType(const Expr& expr, const Module& mod) {
+Expr InferType(const Expr& expr, const IRModule& mod) {
   auto main = mod->GetGlobalVar("main");
   auto inferencer = TypeInferencer(mod, main);
   auto e = inferencer.Infer(expr);
@@ -811,7 +811,7 @@ Expr InferType(const Expr& expr, const Module& mod) {
 }
 
 Function InferType(const Function& func,
-                   const Module& mod,
+                   const IRModule& mod,
                    const GlobalVar& var) {
   CHECK(mod.defined()) << "internal error: module must be set for type inference";
   Function func_copy = Function(make_object<FunctionNode>(*func.operator->()));
@@ -832,8 +832,8 @@ Function InferType(const Function& func,
 namespace transform {
 
 Pass InferType() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(InferType(f, m));
   };
   return CreateFunctionPass(pass_func, 0, "InferType", {});
