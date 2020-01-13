@@ -405,22 +405,6 @@ class IntervalSetEvaluator :
     }
   }
 
-  IntervalSet VisitExpr_(const ShapeVarNode* op) final {
-    Var var = GetRef<Var>(op);
-    auto it = dom_map_.find(var);
-    if (it != dom_map_.end()) {
-      IntervalSet res = ToIntervalSet((*it).second);
-      if (res->min_value.same_as(var) &&
-          res->max_value.same_as(var)) {
-        return res;
-      }
-      // recursively evaluate mapped result
-      // in case the domain contains variables to be relaxed.
-      return Eval(res);
-    } else {
-      return IntervalSet(0, GetRef<ShapeVar>(op));
-    }
-  }
 
   IntervalSet VisitExpr_(const AddNode* op) final {
     return VisitBinaryExpr_(op);
@@ -435,19 +419,19 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet VisitExpr_(const DivNode* op) final {
-    return VisitDivExpr_(op);
+    return VisitBinaryExpr_(op);
   }
 
   IntervalSet VisitExpr_(const ModNode* op) final {
-    return VisitDivExpr_(op);
+    return VisitBinaryExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorDivNode* op) final {
-    return VisitDivExpr_(op);
+    return VisitBinaryExpr_(op);
   }
 
   IntervalSet VisitExpr_(const FloorModNode* op) final {
-    return VisitDivExpr_(op);
+    return VisitBinaryExpr_(op);
   }
 
   IntervalSet VisitExpr_(const MinNode* op) final {
@@ -551,22 +535,6 @@ class IntervalSetEvaluator :
     if (MatchPoint(a, op->a) && MatchPoint(b, op->b)) {
       return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
     }
-    return Combine<T>(analyzer_, a, b);
-  }
-
-  template<typename T>
-  inline IntervalSet VisitDivExpr_(const T* op) {
-    IntervalSet a = this->Eval(op->a);
-    IntervalSet b = this->Eval(op->b);
-    if ((MatchPoint(a, op->a) && (MatchPoint(b, op->b) || SelfBoundedVar(b, op->b)))
-          || (SelfBoundedVar(a, op->a) && SelfBoundedVar(b, op->b))) {
-      // e.g.,
-      // div(10, 5) evaluates to 2
-      // div(10, {n|n>=0}) evaluates to itself
-      // div({m|m>=0}, {n|n>=0}) evaluates to itself
-      return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
-    }
-    // e.g., div({m|m>=0}, 2) goes here
     return Combine<T>(analyzer_, a, b);
   }
 

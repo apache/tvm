@@ -60,7 +60,6 @@ def test_add_sub():
 def test_mul_div():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
-    sx, sy = tvm.shape_var("sx"), tvm.shape_var("sy")
 
     tdiv = tvm.truncdiv
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
@@ -70,35 +69,22 @@ def test_mul_div():
 
     ck.verify(tdiv(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, tdiv(10, y)))
     ck.verify(tdiv(x, 2), {x : tvm.arith.IntervalSet(1, 10)}, (0, 5))
-    ck.verify(tdiv(sx, 2), {}, (0,  tdiv(sx, 2)))
-    ck.verify(tdiv(2, sy), {}, (tdiv(2, sy),  tdiv(2, sy)))
-    ck.verify(tdiv(sx, sy), {}, (tdiv(sx, sy),  tdiv(sx, sy)))
 
     fld = tvm.floordiv
     ck.verify(fld(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, fld(10, y)))
     ck.verify(fld(x, 2), {x : tvm.arith.IntervalSet(-1, 10)}, (-1, 5))
-    ck.verify(fld(sx, 2), {}, (0,  fld(sx, 2)))
-    ck.verify(fld(2, sy), {}, (fld(2, sy),  fld(2, sy)))
-    ck.verify(fld(sx, sy), {}, (fld(sx, sy),  fld(sx, sy)))
 
 
 def test_mod():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
-    sx, sy = tvm.shape_var("sx"), tvm.shape_var("sy")
     tmod = tvm.truncmod
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(tmod(x, y), {x : tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
     ck.verify(tmod(x, 10), {x : tvm.arith.IntervalSet(1, 10)}, (0, 9))
-    ck.verify(tmod(sx, 2), {}, (0, 1))
-    ck.verify(tmod(2, sy), {}, (tmod(2, sy),  tmod(2, sy)))
-    ck.verify(tmod(sx, sy), {}, (tmod(sx, sy),  tmod(sx, sy)))
 
     flm = tvm.floormod
     ck.verify(flm(x, 10), {x : tvm.arith.IntervalSet(-10, 10)}, (0, 9))
-    ck.verify(flm(sx, 2), {}, (0, 1))
-    ck.verify(flm(2, sy), {}, (flm(2, sy),  flm(2, sy)))
-    ck.verify(flm(sx, sy), {}, (flm(sx, sy),  flm(sx, sy)))
 
 
 def test_max_min():
