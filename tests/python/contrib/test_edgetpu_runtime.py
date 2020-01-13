@@ -102,8 +102,8 @@ def skipped_test_tflite_runtime():
     # check_local()
     check_remote()
     # Target EdgeTPU on coral board
-    # check_local(targetedgetpu=True)
-    check_remote(targetedgetpu=True)
+    # check_local(target_edgetpu=True)
+    check_remote(target_edgetpu=True)
 
 if __name__ == "__main__":
     # skipped_test_tflite_runtime()
