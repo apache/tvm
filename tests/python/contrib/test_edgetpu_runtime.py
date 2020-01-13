@@ -33,7 +33,6 @@ def skipped_test_tflite_runtime():
         else:
             model_path = os.path.join(edgetpu_path, "test_data/mobilenet_v1_1.0_224_quant.tflite")
         return model_path
-    
 
     def init_interpreter(model_path, target_edgetpu):
         # Initialize interpreter
@@ -47,29 +46,6 @@ def skipped_test_tflite_runtime():
             interpreter = tflite.Interpreter(model_path=model_path)
         return interpreter
 
-    def check_local(target_edgetpu=False):
-        tflite_model_path = get_tflite_model_path(target_edgetpu)
-
-        # inference via tflite interpreter python apis
-        interpreter = init_interpreter(tflite_model_path, target_edgetpu)
-        interpreter.allocate_tensors()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
-        
-        input_shape = input_details[0]['shape']
-        tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.uint8)
-        interpreter.set_tensor(input_details[0]['index'], tflite_input)
-        interpreter.invoke()
-        tflite_output = interpreter.get_tensor(output_details[0]['index'])
-        
-        # inference via tvm tflite runtime
-        with open(tflite_model_path, 'rb') as model_fin:
-            runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0), target_edgetpu)
-            runtime.set_input(0, tvm.nd.array(tflite_input))
-            runtime.invoke()
-            out = runtime.get_output(0)
-            np.testing.assert_equal(out.asnumpy(), tflite_output)
-
     def check_remote(target_edgetpu=False):
         tflite_model_path = get_tflite_model_path(target_edgetpu)
 
@@ -78,7 +54,7 @@ def skipped_test_tflite_runtime():
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
-        
+
         input_shape = input_details[0]['shape']
         tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.uint8)
         interpreter.set_tensor(input_details[0]['index'], tflite_input)
@@ -89,20 +65,17 @@ def skipped_test_tflite_runtime():
         server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
         ctx = remote.cpu(0)
-        a = remote.upload(tflite_model_path)
 
         with open(tflite_model_path, 'rb') as model_fin:
-            runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
-            runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
+            runtime = tflite_runtime.create(model_fin.read(), ctx)
+            runtime.set_input(0, tvm.nd.array(tflite_input, ctx))
             runtime.invoke()
             out = runtime.get_output(0)
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
     # Target CPU on coral board
-    # check_local()
     check_remote()
     # Target EdgeTPU on coral board
-    # check_local(target_edgetpu=True)
     check_remote(target_edgetpu=True)
 
 if __name__ == "__main__":
