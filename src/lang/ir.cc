@@ -248,7 +248,7 @@ PrimExpr ShuffleNode::make_concat(Array<PrimExpr> vectors) {
   int index = 0;
   for (const PrimExpr& e : vectors) {
     for (int i = 0; i < e.dtype().lanes(); ++i) {
-      indices.push_back(IntImmNode::make(DataType::Int(32), index++));
+      indices.push_back(IntImm(DataType::Int(32), index++));
     }
   }
   return make(vectors, indices);

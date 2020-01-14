@@ -88,7 +88,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
     if (pval != nullptr) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
-      res.push_back(ir::IntImmNode::make(DataType::Int(32), *pval));
+      res.push_back(IntImm(DataType::Int(32), *pval));
     } else if (val->IsInstance<ir::AnyNode>()) {
       res.push_back(val.as<ir::AnyNode>()->ToVar());
     } else {
@@ -395,7 +395,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     // set inputs
     for (auto param : prim_func->params) {
       int state = param_states_[param];
-      cache_node->shape_func_param_states.push_back(IntImmNode::make(DataType::Int(32), state));
+      cache_node->shape_func_param_states.push_back(IntImm(DataType::Int(32), state));
       if (state & kNeedInputData) {
         for (auto t : param_data_[param]) {
           cache_node->inputs.push_back(t);
@@ -528,7 +528,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
     auto ret_type = call_node->checked_type();
     Array<IndexExpr> out_ndims;
     if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
-      out_ndims.push_back(IntImmNode::make(DataType::Int(32), ttype->shape.size()));
+      out_ndims.push_back(IntImm(DataType::Int(32), ttype->shape.size()));
     } else {
       auto rtype = ret_type.as<TupleTypeNode>();
       // TODO(@icemelon): Allow recursive tuple
@@ -536,7 +536,7 @@ class MakeShapeFunc : public ExprFunctor<Array<Tensor>(const Expr&)> {
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         auto ttype = rtype->fields[i].as<TensorTypeNode>();
         CHECK(ttype);
-        out_ndims.push_back(IntImmNode::make(DataType::Int(32), ttype->shape.size()));
+        out_ndims.push_back(IntImm(DataType::Int(32), ttype->shape.size()));
       }
     }
     // Call shape function

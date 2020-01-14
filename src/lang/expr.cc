@@ -30,7 +30,7 @@
 namespace tvm {
 
 PrimExpr::PrimExpr(int32_t value)
-    : PrimExpr(IntImmNode::make(DataType::Int(32), value)) {}
+    : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
 PrimExpr::PrimExpr(float value)
     : PrimExpr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
@@ -52,15 +52,6 @@ Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
-}
-
-Integer IntImmNode::make(DataType t, int64_t value) {
-  CHECK(t.is_int() && t.is_scalar())
-      << "ValueError: IntImm can only take scalar.";
-  ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
-  node->dtype = t;
-  node->value = value;
-  return Integer(node);
 }
 
 Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {

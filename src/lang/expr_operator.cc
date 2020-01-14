@@ -35,6 +35,14 @@ inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   return ir::CastNode::make(t, value);
 }
 
+PrimExpr BigUIntImm(DataType t, int64_t low, int64_t high) {
+  return ir::CallNode::make(
+      t, ir::intrinsic::tvm_big_uint_imm,
+      {make_const(DataType::UInt(32), low),
+       make_const(DataType::UInt(32), high)},
+      ir::CallNode::PureIntrinsic);
+}
+
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
   if (lhs.dtype() == rhs.dtype()) return;
@@ -85,11 +93,11 @@ PrimExpr max_value(const DataType& dtype) {
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
-      return IntImmNode::make(dtype, std::numeric_limits<int64_t>::max());
+      return IntImm(dtype, std::numeric_limits<int64_t>::max());
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = (val << (dtype.bits() - 1)) - 1;
-      return IntImmNode::make(dtype, val);
+      return IntImm(dtype, val);
     }
   } else if (dtype.is_uint()) {
     if (dtype.bits() == 64) {
@@ -117,11 +125,11 @@ PrimExpr min_value(const DataType& dtype) {
   CHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
-      return IntImmNode::make(dtype, std::numeric_limits<int64_t>::lowest());
+      return IntImm(dtype, std::numeric_limits<int64_t>::lowest());
     } else if (dtype.bits() < 64) {
       int64_t val = 1;
       val = -(val << (dtype.bits() - 1));
-      return IntImmNode::make(dtype, val);
+      return IntImm(dtype, val);
     }
   } else if (dtype.is_uint()) {
     return UIntImmNode::make(dtype, 0);
@@ -219,7 +227,7 @@ PrimExpr operator-(PrimExpr a) {
   using ir::FloatImmNode;
   const IntImmNode* pa = a.as<IntImmNode>();
   const FloatImmNode* fa = a.as<FloatImmNode>();
-  if (pa) return ir::IntImmNode::make(a.dtype(), -pa->value);
+  if (pa) return IntImm(a.dtype(), -pa->value);
   if (fa) return ir::FloatImmNode::make(a.dtype(), -fa->value);
   return make_zero(a.dtype()) - a;
 }
@@ -424,7 +432,7 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImmNode::make(rtype, (pa->value >> pb->value));
+      if (pa && pb) return IntImm(rtype, (pa->value >> pb->value));
       if (pb) {
         if (pb->value == 0) return a;
       }
@@ -437,7 +445,7 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImmNode::make(rtype, (pa->value << pb->value));
+      if (pa && pb) return IntImm(rtype, (pa->value << pb->value));
       if (pb) {
         if (pb->value == 0) return a;
       }
@@ -450,7 +458,7 @@ PrimExpr operator&(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImmNode::make(rtype, (pa->value & pb->value));
+      if (pa && pb) return IntImm(rtype, (pa->value & pb->value));
     });
   return ir::CallNode::make(
     a.dtype(), ir::CallNode::bitwise_and, { a, b }, ir::CallNode::PureIntrinsic);
@@ -460,7 +468,7 @@ PrimExpr operator|(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImmNode::make(rtype, (pa->value | pb->value));
+      if (pa && pb) return IntImm(rtype, (pa->value | pb->value));
     });
   return ir::CallNode::make(
     a.dtype(), ir::CallNode::bitwise_or, { a, b }, ir::CallNode::PureIntrinsic);
@@ -470,7 +478,7 @@ PrimExpr operator^(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
-      if (pa && pb) return IntImmNode::make(rtype, (pa->value ^ pb->value));
+      if (pa && pb) return IntImm(rtype, (pa->value ^ pb->value));
     });
   return ir::CallNode::make(
     a.dtype(), ir::CallNode::bitwise_xor, { a, b }, ir::CallNode::PureIntrinsic);
@@ -494,7 +502,7 @@ PrimExpr abs(PrimExpr x) {
     using ir::IntImmNode;
     const IntImmNode* px = x.as<IntImmNode>();
     if (px) {
-      return ir::IntImmNode::make(x.dtype(), std::abs(px->value));
+      return IntImm(x.dtype(), std::abs(px->value));
     }
     return ir::SelectNode::make(x >= make_zero(x.dtype()), x, -x);
   } else if (x.dtype().is_float()) {

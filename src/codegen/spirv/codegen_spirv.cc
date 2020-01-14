@@ -285,6 +285,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->is_intrinsic(CallNode::reinterpret)) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(intrinsic::tvm_big_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    return builder_->UIntImm(builder_->GetSType(op->dtype), val);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {

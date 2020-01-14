@@ -193,7 +193,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     // mark alignment of external bufs
     init_nest_.emplace_back(AttrStmtNode::make(
         vptr, ir::attr::storage_alignment,
-        IntImmNode::make(DataType::Int(32), buffer->data_alignment), nop));
+        IntImm(DataType::Int(32), buffer->data_alignment), nop));
   }
 
   Var v_shape(arg_name + ".shape", DataType::Handle());
@@ -206,7 +206,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     Bind_(buffer->shape[k],
           cast(buffer->shape[k].dtype(),
                LoadNode::make(tvm_shape_type, v_shape,
-                          IntImmNode::make(DataType::Int(32), k), const_true(1))),
+                          IntImm(DataType::Int(32), k), const_true(1))),
           field_name.str(), true);
   }
   // strides field
@@ -228,7 +228,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       PrimExpr svalue = cast(
           stype,
           LoadNode::make(tvm_shape_type, v_strides,
-                     IntImmNode::make(DataType::Int(32), k), const_true(1)));
+                     IntImm(DataType::Int(32), k), const_true(1)));
       conds.push_back(expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
     }
@@ -251,7 +251,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       field_name << v_strides->name_hint << '[' << k << ']';
       PrimExpr value = cast(buffer->shape[k].dtype(),
                         LoadNode::make(tvm_shape_type, v_strides,
-                                   IntImmNode::make(DataType::Int(32), k), const_true(1)));
+                                   IntImm(DataType::Int(32), k), const_true(1)));
       value = tvm::if_then_else(is_null, stride, value);
       value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
       Bind_(buffer->strides[k], value, field_name.str(), true);
@@ -270,7 +270,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       Bind_(buffer->strides[k],
             cast(buffer->shape[k].dtype(),
                  LoadNode::make(tvm_shape_type, v_strides,
-                            IntImmNode::make(DataType::Int(32), k), const_true(1))),
+                            IntImm(DataType::Int(32), k), const_true(1))),
             field_name.str(), true);
     }
   }

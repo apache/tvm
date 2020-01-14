@@ -476,7 +476,7 @@ class IntervalSetEvaluator :
   IntervalSet VisitExpr_(const RampNode* op) final {
     CHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
-    PVar<Integer> stride;
+    PVar<IntImm> stride;
     if (stride.Match(op->stride)) {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;

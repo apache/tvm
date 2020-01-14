@@ -852,7 +852,7 @@ bool ArgWhereRel(const Array<Type>& types,
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
   result_shape.push_back(Any::make());
-  result_shape.push_back(IntImmNode::make(DataType::Int(32), input_rank));
+  result_shape.push_back(IntImm(DataType::Int(32), input_rank));
   reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
   return true;
 }

@@ -722,6 +722,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(intrinsic::tvm_big_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    return llvm::ConstantInt::get(LLVMType(op->dtype), val);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     CHECK_EQ(op->args[0].dtype().lanes(), 1)
         << "if_then_else can only take scalar condition";

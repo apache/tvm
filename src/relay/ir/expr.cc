@@ -56,7 +56,7 @@ TensorType ConstantNode::tensor_type() const {
     CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
     CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(
-        tvm::ir::IntImmNode::make(DataType::Int(32), data->shape[i]));
+        tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 
   return TensorTypeNode::make(shape, dtype);
