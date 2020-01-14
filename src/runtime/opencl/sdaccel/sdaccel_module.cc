@@ -50,8 +50,7 @@ Module SDAccelModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  std::shared_ptr<SDAccelModuleNode> n =
-      std::make_shared<SDAccelModuleNode>(data, fmt, fmap, source);
+  auto n = make_object<SDAccelModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }

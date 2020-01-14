@@ -19,6 +19,12 @@
 from ...attrs import Attrs
 from ..base import register_relay_attr_node
 
+
+@register_relay_attr_node
+class Conv1DAttrs(Attrs):
+    """Attributes for nn.conv1d"""
+
+
 @register_relay_attr_node
 class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
@@ -62,6 +68,10 @@ class FIFOBufferAttrs(Attrs):
 @register_relay_attr_node
 class UpSamplingAttrs(Attrs):
     """Attributes for nn.upsampling"""
+
+@register_relay_attr_node
+class UpSampling3DAttrs(Attrs):
+    """Attributes for nn.upsampling3d"""
 
 @register_relay_attr_node
 class PadAttrs(Attrs):
@@ -110,6 +120,9 @@ class DeformableConv2DAttrs(Attrs):
 class ResizeAttrs(Attrs):
     """Attributes for image.resize"""
 
+@register_relay_attr_node
+class CropAndResizeAttrs(Attrs):
+    """Attributes for image.crop_and_resize"""
 
 @register_relay_attr_node
 class ArgsortAttrs(Attrs):
@@ -272,6 +285,26 @@ class AvgPool2DAttrs(Attrs):
 
 
 @register_relay_attr_node
+class MaxPool1DAttrs(Attrs):
+    """Attributes used in max_pool1d operators"""
+
+
+@register_relay_attr_node
+class AvgPool1DAttrs(Attrs):
+    """Attributes used in avg_pool1d operators"""
+
+
+@register_relay_attr_node
+class MaxPool3DAttrs(Attrs):
+    """Attributes used in max_pool3d operators"""
+
+
+@register_relay_attr_node
+class AvgPool3DAttrs(Attrs):
+    """Attributes used in avg_pool3d operators"""
+
+
+@register_relay_attr_node
 class BitPackAttrs(Attrs):
     """Attributes used in bitpack operator"""
 
@@ -289,3 +322,8 @@ class BinaryDenseAttrs(Attrs):
 @register_relay_attr_node
 class Conv2DTransposeAttrs(Attrs):
     """Attributes used in Transposed Conv2D operators"""
+
+
+@register_relay_attr_node
+class SubPixelAttrs(Attrs):
+    """Attributes used in depth to space and space to depth operators"""

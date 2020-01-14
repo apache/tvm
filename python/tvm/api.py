@@ -22,9 +22,8 @@ from numbers import Integral as _Integral
 
 from ._ffi.base import string_types
 from ._ffi.object import register_object, Object
-from ._ffi.node import register_node, NodeBase
-from ._ffi.node import convert_to_node as _convert_to_node
-from ._ffi.node_generic import _scalar_type_inference
+from ._ffi.object import convert_to_object as _convert_to_object
+from ._ffi.object_generic import _scalar_type_inference
 from ._ffi.function import Function
 from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
@@ -111,7 +110,7 @@ def get_env_func(name):
 
     Note
     ----
-    EnvFunc is a Node wrapper around
+    EnvFunc is a Object wrapper around
     global function that can be serialized via its name.
     This can be used to serialize function field in the language.
     """
@@ -127,16 +126,16 @@ def convert(value):
 
     Returns
     -------
-    tvm_val : Node or Function
+    tvm_val : Object or Function
         Converted value in TVM
     """
-    if isinstance(value, (Function, NodeBase)):
+    if isinstance(value, (Function, Object)):
         return value
 
     if callable(value):
         return _convert_tvm_func(value)
 
-    return _convert_to_node(value)
+    return _convert_to_object(value)
 
 
 def load_json(json_str):
@@ -149,7 +148,7 @@ def load_json(json_str):
 
     Returns
     -------
-    node : Node
+    node : Object
         The loaded tvm node.
     """
     return _api_internal._load_json(json_str)
@@ -160,8 +159,8 @@ def save_json(node):
 
     Parameters
     ----------
-    node : Node
-        A TVM Node object to be saved.
+    node : Object
+        A TVM object to be saved.
 
     Returns
     -------
@@ -179,7 +178,7 @@ def var(name="tindex", dtype=int32):
     name : str
         The name
 
-    dtype : int
+    dtype : str
         The data type
 
     Returns
@@ -256,7 +255,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     tensor: Tensor
         The created tensor
     """
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     dtype = float32 if dtype is None else dtype
     return _api_internal._Placeholder(
         shape, dtype, name)
@@ -293,7 +292,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     ndim = len(shape)
@@ -482,8 +481,8 @@ def extern(shape,
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
-    if shape == () or isinstance(shape[0], (_expr.Expr, _Integral)):
+    shape = (shape,) if isinstance(shape, (_expr.PrimExpr, _Integral)) else shape
+    if shape == () or isinstance(shape[0], (_expr.PrimExpr, _Integral)):
         shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
@@ -518,7 +517,7 @@ def extern(shape,
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
-    if isinstance(body, _expr.Expr):
+    if isinstance(body, _expr.PrimExpr):
         body = _make.Evaluate(body)
 
     op = _api_internal._ExternOp(name, tag, attrs,
@@ -626,7 +625,7 @@ def decl_buffer(shape,
     If user pass a fully generic symbolic array to the strides,
     then the resulting function becomes fully generic.
     """
-    shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
+    shape = (shape,) if isinstance(shape, (_expr.PrimExpr, _Integral)) else shape
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
@@ -827,7 +826,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             result = fcombine(lhs, rhs)
             id_elem = fidentity(*dtypes)
         else:
-            assert isinstance(expr, _expr.Expr)
+            assert isinstance(expr, _expr.PrimExpr)
             size = 1
             dtype = expr.dtype
             lvar = var(code.co_varnames[0], dtype)

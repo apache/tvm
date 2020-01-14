@@ -21,6 +21,99 @@ from ...expr import TupleWrapper
 from . import _make
 
 
+def conv1d(data,
+           weight,
+           strides=1,
+           padding=0,
+           dilation=1,
+           groups=1,
+           channels=None,
+           kernel_size=None,
+           data_layout="NCW",
+           kernel_layout="OIW",
+           out_layout="",
+           out_dtype=""):
+    r"""1D convolution.
+
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output.
+
+
+    In the default case, where the data_layout is `NCW`
+    and kernel_layout is `OIW`, conv1d takes in
+    a data Tensor with shape `(batch_size, in_channels, width)`,
+    and a weight Tensor with shape `(channels, in_channels, kernel_size)`
+    to produce an output Tensor with the following rule:
+
+    .. math::
+
+        \mbox{out}[b, c, w] = \sum_{dw, k}
+           \mbox{data}[b, k, \mbox{strides}[0] * w + dw] *
+           \mbox{weight}[c, k, dw]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification.
+    Semantically, the operator will convert the layout to the canonical layout
+    (`NCW` for data and `OIW` for weight), perform the computation,
+    then convert to the out_layout.
+
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Optional[int, Tuple[int]]
+        The strides of convolution.
+
+    padding : Optional[int, Tuple[int]]
+        The padding of convolution on both sides of the input before convolution.
+
+    dilation : Optional[int, Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : Optional[int]
+        Currently unused for 1D convolution.
+
+    channels : Optional[int]
+        Number of output channels of this convolution.
+
+    kernel_size : Optional[int, Tuple[int]]
+        The spatial dimension of the convolution kernel.
+
+    data_layout : Optional[str]
+        Layout of the input.
+
+    kernel_layout : Optional[str]
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, )
+    if isinstance(strides, int):
+        strides = (strides, )
+    if isinstance(dilation, int):
+        dilation = (dilation, )
+    if isinstance(padding, int):
+        padding = (padding, padding)
+    return _make.conv1d(data, weight, strides, padding, dilation,
+                        groups, channels, kernel_size, data_layout,
+                        kernel_layout, out_layout, out_dtype)
+
+
 def conv2d(data,
            weight,
            strides=(1, 1),
@@ -66,13 +159,13 @@ def conv2d(data,
     weight : tvm.relay.Expr
         The weight expressions.
 
-    strides : Optional[Tuple[int]]
+    strides : Optional[int, Tuple[int]]
         The strides of convolution.
 
-    padding : Optional[Tuple[int]]
+    padding : Optional[int, Tuple[int]]
         The padding of convolution on both sides of inputs before convolution.
 
-    dilation : Optional[Tuple[int]]
+    dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
     groups : Optional[int]
@@ -81,7 +174,7 @@ def conv2d(data,
     channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : Optional[Tuple[int]]
+    kernel_size : Optional[int, Tuple[int]]
         The spatial of the convolution kernel.
 
     data_layout : Optional[str]
@@ -101,6 +194,15 @@ def conv2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding)
+
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -154,10 +256,10 @@ def conv3d(data,
     strides : Optional[Tuple[int]]
         The strides of convolution.
 
-    padding : Optional[Tuple[int]]
+    padding : Optional[int, Tuple[int]]
         The padding of convolution on both sides of inputs before convolution.
 
-    dilation : Optional[Tuple[int]]
+    dilation : Optional[int, Tuple[int]]
         Specifies the dilation rate to be used for dilated convolution.
 
     groups : Optional[int]
@@ -166,7 +268,7 @@ def conv3d(data,
     channels : Optional[int]
         Number of output channels of this convolution.
 
-    kernel_size : Optional[Tuple[int]]
+    kernel_size : Optional[int, Tuple[int]]
         The spatial of the convolution kernel.
 
     data_layout : Optional[str]
@@ -186,6 +288,15 @@ def conv3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation, dilation)
+    if isinstance(padding, int):
+        padding = (padding, padding, padding)
+
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -257,6 +368,72 @@ def conv2d_transpose(data,
                                   kernel_layout, out_layout, output_padding, out_dtype)
 
 
+def conv1d_transpose(data,
+                     weight,
+                     strides=(1,),
+                     padding=(0,),
+                     dilation=(1,),
+                     groups=1,
+                     channels=None,
+                     kernel_size=None,
+                     data_layout="NCW",
+                     kernel_layout="OIW",
+                     out_layout="",
+                     output_padding=(0,),
+                     out_dtype=""):
+    """One dimensional transposed convolution operator.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Tuple[int], optional
+        The strides of convolution.
+
+    padding : Tuple[int], optional
+        The padding of convolution on both sides of inputs.
+
+    dilation : Tuple[int], optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    output_padding : Tuple[int], optional
+        Additional zero-padding to be added to one side of the output.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.conv1d_transpose(data, weight, strides, padding, dilation,
+                                  groups, channels, kernel_size, data_layout,
+                                  kernel_layout, out_layout, output_padding, out_dtype)
+
+
 def softmax(data, axis=-1):
     r"""Computes softmax.
 
@@ -305,6 +482,55 @@ def log_softmax(data, axis=-1):
         The computed result.
     """
     return _make.log_softmax(data, axis)
+
+
+def max_pool1d(data,
+               pool_size=(1,),
+               strides=(1,),
+               padding=(0,),
+               layout="NCW",
+               ceil_mode=False):
+    r"""1D maximum pooling operator.
+
+    This operator takes data as input and does 1D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : int or tuple of int, optional
+        The strides of pooling.
+
+    padding : int or tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(padding, int):
+        padding = (padding,)
+    return _make.max_pool1d(data, pool_size, strides, padding,
+                            layout, ceil_mode)
 
 
 def max_pool2d(data,
@@ -358,6 +584,105 @@ def max_pool2d(data,
     """
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
+
+def max_pool3d(data,
+               pool_size=(1, 1, 1),
+               strides=(1, 1, 1),
+               padding=(0, 0, 0),
+               layout="NCDHW",
+               ceil_mode=False):
+    r"""3D maximum pooling operator.
+
+    This operator takes data as input and does 3D max value calculation
+    with in pool_size sized window by striding defined by stride.
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.max_pool3d(data, pool_size, strides, padding,
+                            layout, ceil_mode)
+
+
+def avg_pool1d(data,
+               pool_size=(1,),
+               strides=(1,),
+               padding=(0,),
+               layout="NCW",
+               ceil_mode=False,
+               count_include_pad=False):
+    r"""1D average pooling operator.
+
+    This operator takes data as input and does 1D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+    In the default case, where the data_layout is `NCW`
+    a data Tensor with shape `(batch_size, channels, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : int or tuple of int, optional
+        The strides of pooling.
+
+    padding : int or tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    if isinstance(strides, int):
+        strides = (strides,)
+    if isinstance(padding, int):
+        padding = (padding,)
+    return _make.avg_pool1d(data, pool_size, strides, padding,
+                            layout, ceil_mode, count_include_pad)
+
 
 def avg_pool2d(data,
                pool_size=(1, 1),
@@ -414,6 +739,55 @@ def avg_pool2d(data,
         The computed result.
     """
     return _make.avg_pool2d(data, pool_size, strides, padding,
+                            layout, ceil_mode, count_include_pad)
+
+def avg_pool3d(data,
+               pool_size=(1, 1, 1),
+               strides=(1, 1, 1),
+               padding=(0, 0, 0),
+               layout="NCDHW",
+               ceil_mode=False,
+               count_include_pad=False):
+    r"""3D average pooling operator.
+
+    This operator takes data as input and does 3D average value calculation
+    with in pool_size sized window by striding defined by stride
+
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, channels, depth, height, width)`,
+    to produce an output Tensor.
+
+    The ceil_mode is used to take ceil or floor while computing out shape.
+    count_include_pad indicates including or excluding padded input values in computation.
+    This operator accepts data layout specification.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    strides : tuple of int, optional
+        The strides of pooling.
+
+    padding : tuple of int, optional
+        The padding for pooling.
+
+    layout : str, optional
+        Layout of the input.
+
+    ceil_mode : bool, optional
+        To enable or disable ceil while pooling.
+
+    count_include_pad : bool, optional
+        To include padding to compute the average.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.avg_pool3d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
 def max_pool2d_grad(out_grad,
@@ -609,6 +983,58 @@ def upsampling(data,
         The computed result.
     """
     return _make.upsampling(data, scale_h, scale_w, layout, method, align_corners)
+
+
+def upsampling3d(data,
+                 scale_d=1,
+                 scale_h=1,
+                 scale_w=1,
+                 layout="NCDHW",
+                 method="nearest_neighbor",
+                 coordinate_transformation_mode="half_pixel"):
+    """3D Upsampling.
+
+    This operator takes data as input and does 3D scaling to the given scale factor.
+    In the default case, where the data_layout is `NCDHW`
+    with data of shape (n, c, d, h, w)
+    out will have a shape (n, c, d*scale_d, h*scale_h, w*scale_w)
+
+    method indicates the algorithm to be used while calculating the out value
+    and method can be one of ("trilinear", "nearest_neighbor")
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    scale_d : tvm.relay.Expr
+        The scale factor for depth upsampling.
+
+    scale_h : tvm.relay.Expr
+        The scale factor for height upsampling.
+
+    scale_w : tvm.relay.Expr
+        The scale factor for width upsampling.
+
+    layout : str, optional
+        Layout of the input.
+
+    method : str, optional
+        Scale method to used [nearest_neighbor, trilinear].
+
+    coordinate_transformation_mode: string, optional
+        Describes how to transform the coordinate in the resized tensor
+        to the coordinate in the original tensor.
+        Refer to the ONNX Resize operator specification for details.
+        Available options are "half_pixel", "align_corners" and "asymmetric".
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.upsampling3d(data, scale_d, scale_h, scale_w, layout, method,
+                              coordinate_transformation_mode)
 
 
 def batch_flatten(data):
@@ -1919,3 +2345,53 @@ def cross_entropy_with_logits(predictions, targets):
       The computed result.
     """
     return _make.cross_entropy_with_logits(predictions, targets)
+
+
+def depth_to_space(data, block_size, layout='NCHW', mode='DCR'):
+    """Convert channels into spatial blocks.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with channels divisible by block_size**2
+
+    block_size : int
+        Size of blocks to convert channels into.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    mode : string
+        One of DCR or CDR, indicates which order channels
+        are accessed in.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel / block_size * block_size,
+                           in_height * block_size, in_width * block_size]
+    """
+    return _make.depth_to_space(data, block_size, layout, mode)
+
+
+def space_to_depth(data, block_size, layout='NCHW'):
+    """Convert spatial blocks into channels.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input data with spatial dimensions divisible by block_size
+
+    block_size : int
+        Size of blocks to decompose into channels.
+
+    layout : string
+        One of NCHW or NHWC, indicates channel axis.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        Tensor with shape [in_batch, in_channel * block_size * block_size,
+                           in_height / block_size, in_width / block_size]
+    """
+    return _make.space_to_depth(data, block_size, layout)

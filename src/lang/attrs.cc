@@ -21,7 +21,9 @@
  * \file attrs.cc
  */
 #include <tvm/attrs.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include "attr_functor.h"
 
 namespace tvm {
@@ -39,12 +41,12 @@ void DictAttrsNode::InitByPackedArgs(
   for (int i = 0; i < args.size(); i += 2) {
     std::string key = args[i];
     runtime::TVMArgValue val = args[i + 1];
-    if (val.type_code() == kObjectHandle) {
-      dict.Set(key, val.operator NodeRef());
+    if (val.IsObjectRef<ObjectRef>()) {
+      dict.Set(key, val.operator ObjectRef());
     } else if (val.type_code() == kStr) {
-      dict.Set(key, Expr(val.operator std::string()));
+      dict.Set(key, PrimExpr(val.operator std::string()));
     } else {
-      dict.Set(key, val.operator Expr());
+      dict.Set(key, val.operator PrimExpr());
     }
   }
 }
@@ -53,14 +55,14 @@ Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
   return {};
 }
 
-Attrs DictAttrsNode::make(Map<std::string, NodeRef> dict) {
-  NodePtr<DictAttrsNode> n = make_node<DictAttrsNode>();
+Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
+  ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
   return Attrs(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<DictAttrsNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const DictAttrsNode*>(node.get());
     p->stream << op->dict;
 });
@@ -88,29 +90,29 @@ bool AttrsEqualHandler::VisitAttrDefault_(const Object* lhs, const ObjectRef& ot
   return lhs == other.get();
 }
 
-bool AttrsEqualHandler::VisitAttr_(const IntImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<IntImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const IntImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<IntImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const UIntImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<UIntImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const UIntImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<UIntImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const FloatImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<FloatImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const FloatImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<FloatImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const StringImm* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<StringImm>()) {
+bool AttrsEqualHandler::VisitAttr_(const StringImmNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<StringImmNode>()) {
     return lhs->value == rhs->value;
   }
   return false;
@@ -149,46 +151,46 @@ bool AttrsEqualHandler::VisitAttr_(const StrMapNode* lhs, const ObjectRef& other
     }                                                                   \
   }                                                                     \
 
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Add);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Sub);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Mul);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Div);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Mod);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorDiv);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorMod);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Max);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Min);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(GE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(GT);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(LE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(LT);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(EQ);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(NE);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(And);
-TVM_DEFINE_ATTRS_BINOP_EQUAL(Or);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(AddNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(SubNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(MulNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(DivNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(ModNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorDivNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(FloorModNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(MaxNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(MinNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(GENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(GTNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(LENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(LTNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(EQNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(NENode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(AndNode);
+TVM_DEFINE_ATTRS_BINOP_EQUAL(OrNode);
 
-bool AttrsEqualHandler::VisitAttr_(const Not* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Not>()) {
+bool AttrsEqualHandler::VisitAttr_(const NotNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<NotNode>()) {
     return Equal(lhs->a, rhs->a);
   } else {
     return false;
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Cast* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Cast>()) {
-    if (lhs->type != rhs->type) return false;
+bool AttrsEqualHandler::VisitAttr_(const CastNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<CastNode>()) {
+    if (lhs->dtype != rhs->dtype) return false;
     return Equal(lhs->value, rhs->value);
   } else {
     return false;
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Call>()) {
+bool AttrsEqualHandler::VisitAttr_(const CallNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<CallNode>()) {
     return
         lhs->name == rhs->name &&
-        lhs->type == rhs->type &&
+        lhs->dtype == rhs->dtype &&
         lhs->call_type == rhs->call_type &&
         Equal(lhs->args, rhs->args);
   } else {
@@ -196,8 +198,8 @@ bool AttrsEqualHandler::VisitAttr_(const Call* lhs, const ObjectRef& other) {
   }
 }
 
-bool AttrsEqualHandler::VisitAttr_(const Select* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<Select>()) {
+bool AttrsEqualHandler::VisitAttr_(const SelectNode* lhs, const ObjectRef& other) {
+  if (const auto* rhs = other.as<SelectNode>()) {
     return
         Equal(lhs->condition, rhs->condition) &&
         Equal(lhs->true_value, rhs->true_value) &&
@@ -218,19 +220,19 @@ size_t AttrsHashHandler::VisitAttrDefault_(const Object* value) {
   }
 }
 
-size_t AttrsHashHandler::VisitAttr_(const IntImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const IntImmNode* op) {
   return std::hash<int64_t>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const UIntImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const UIntImmNode* op) {
   return std::hash<uint64_t>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const FloatImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const FloatImmNode* op) {
   return std::hash<double>()(op->value);
 }
 
-size_t AttrsHashHandler::VisitAttr_(const StringImm* op) {
+size_t AttrsHashHandler::VisitAttr_(const StringImmNode* op) {
   return std::hash<std::string>()(op->value);
 }
 
@@ -263,50 +265,50 @@ size_t AttrsHashHandler::VisitAttr_(const StrMapNode* lhs) {
     return Combine(key, Combine(Hash(op->a), Hash(op->b)));             \
   }                                                                     \
 
-TVM_DEFINE_ATTRS_BINOP_HASH(Add);
-TVM_DEFINE_ATTRS_BINOP_HASH(Sub);
-TVM_DEFINE_ATTRS_BINOP_HASH(Mul);
-TVM_DEFINE_ATTRS_BINOP_HASH(Div);
-TVM_DEFINE_ATTRS_BINOP_HASH(Mod);
-TVM_DEFINE_ATTRS_BINOP_HASH(FloorDiv);
-TVM_DEFINE_ATTRS_BINOP_HASH(FloorMod);
-TVM_DEFINE_ATTRS_BINOP_HASH(Max);
-TVM_DEFINE_ATTRS_BINOP_HASH(Min);
-TVM_DEFINE_ATTRS_BINOP_HASH(GE);
-TVM_DEFINE_ATTRS_BINOP_HASH(GT);
-TVM_DEFINE_ATTRS_BINOP_HASH(LE);
-TVM_DEFINE_ATTRS_BINOP_HASH(LT);
-TVM_DEFINE_ATTRS_BINOP_HASH(EQ);
-TVM_DEFINE_ATTRS_BINOP_HASH(NE);
-TVM_DEFINE_ATTRS_BINOP_HASH(And);
-TVM_DEFINE_ATTRS_BINOP_HASH(Or);
+TVM_DEFINE_ATTRS_BINOP_HASH(AddNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(SubNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(MulNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(DivNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(ModNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(FloorDivNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(FloorModNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(MaxNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(MinNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(GENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(GTNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(LENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(LTNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(EQNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(NENode);
+TVM_DEFINE_ATTRS_BINOP_HASH(AndNode);
+TVM_DEFINE_ATTRS_BINOP_HASH(OrNode);
 
-size_t AttrsHashHandler::VisitAttr_(const Not* op) {
-  static size_t key = std::hash<std::string>()(Not::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const NotNode* op) {
+  static size_t key = std::hash<std::string>()(NotNode::_type_key);
   return Combine(key, Hash(op->a));
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Cast* op) {
-  static size_t key = std::hash<std::string>()(Cast::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const CastNode* op) {
+  static size_t key = std::hash<std::string>()(CastNode::_type_key);
   AttrsHash hasher;
   size_t res = key;
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->value));
   return res;
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Call* op) {
-  static size_t key = std::hash<std::string>()(Call::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const CallNode* op) {
+  static size_t key = std::hash<std::string>()(CallNode::_type_key);
   AttrsHash hasher;
   size_t res = key;
   res = Combine(res, hasher(op->name));
-  res = Combine(res, hasher(op->type));
+  res = Combine(res, hasher(op->dtype));
   res = Combine(res, Hash(op->args));
   return res;
 }
 
-size_t AttrsHashHandler::VisitAttr_(const Select* op) {
-  static size_t key = std::hash<std::string>()(Select::_type_key);
+size_t AttrsHashHandler::VisitAttr_(const SelectNode* op) {
+  static size_t key = std::hash<std::string>()(SelectNode::_type_key);
   size_t res = key;
   res = Combine(res, Hash(op->condition));
   res = Combine(res, Hash(op->true_value));
@@ -345,7 +347,7 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
 
-TVM_REGISTER_API("_AttrsListFieldInfo")
+TVM_REGISTER_GLOBAL("_AttrsListFieldInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator Attrs()->ListFieldInfo();
 });

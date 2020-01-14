@@ -39,7 +39,7 @@ def main(target, out_dir):
 
     fadd.save(osp.join(out_dir, 'test_add.o'))
     if target == 'cuda':
-        fadd.imported_modules[0].save(os.path.join(out_dir, 'test_add.ptx'))
+        fadd.imported_modules[0].save(osp.join(out_dir, 'test_add.ptx'))
     cc.create_shared(
         osp.join(out_dir, 'test_add.so'), [osp.join(out_dir, 'test_add.o')])
 

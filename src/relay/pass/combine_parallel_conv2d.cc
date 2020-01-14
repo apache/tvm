@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -91,7 +91,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     const CallNode* group_root = branches[0][0];
     const auto* attrs = group_root->attrs.as<Conv2DAttrs>();
     CHECK(attrs);
-    const auto new_attrs = make_node<Conv2DAttrs>();
+    const auto new_attrs = make_object<Conv2DAttrs>();
     new_attrs->strides = attrs->strides;
     new_attrs->padding = attrs->padding;
     new_attrs->dilation = attrs->dilation;
@@ -204,7 +204,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
-                           MakeConstScalar(Int(32), num_filters));
+                           MakeConstScalar(DataType::Int(32), num_filters));
   }
 };
 
@@ -216,15 +216,15 @@ Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
 namespace transform {
 
 Pass CombineParallelConv2D(uint64_t min_num_branches) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CombineParallelConv2D")
+TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")
 .set_body_typed(CombineParallelConv2D);
 
 }  // namespace transform

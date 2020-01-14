@@ -135,12 +135,15 @@ FUNC_OPS = {
     "nn.dense": op.nn.dense,
     "nn.bias_add": op.nn.bias_add,
     "nn.max_pool2d": op.nn.max_pool2d,
+    "nn.max_pool3d": op.nn.max_pool3d,
     "nn.global_max_pool2d": op.nn.global_max_pool2d,
     "nn.avg_pool2d": op.nn.avg_pool2d,
+    "nn.avg_pool3d": op.nn.avg_pool3d,
     "nn.global_avg_pool2d": op.nn.global_avg_pool2d,
     "nn.softmax": op.nn.softmax,
     "reshape": op.reshape,
     "nn.conv2d_transpose": op.nn.conv2d_transpose,
+    "nn.conv1d_transpose": op.nn.conv1d_transpose,
     "concatenate": op.concatenate,
     "nn.dropout": op.nn.dropout_raw,
     "zeros": op.zeros,
@@ -269,7 +272,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
-            return "`{0}` ADT constructor".format(e.belong_to.var.name)
+            return "`{0}` ADT constructor".format(e.belong_to.name_hint)
         elif isinstance(e, ty.GlobalTypeVar):
             if e.kind == ty.Kind.AdtHandle:
                 return "ADT definition"

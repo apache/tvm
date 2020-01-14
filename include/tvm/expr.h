@@ -24,70 +24,32 @@
 #ifndef TVM_EXPR_H_
 #define TVM_EXPR_H_
 
+#include <tvm/ir/expr.h>
 #include <string>
 #include <algorithm>
 #include <unordered_map>
 #include <iostream>
 #include "base.h"
-#include "dtype.h"
 #include "node/node.h"
 #include "node/container.h"
 #include "node/functor.h"
 #include "runtime/c_runtime_api.h"
+#include "runtime/data_type.h"
 
 namespace tvm {
 
-/*! \brief Base node of all expressions. */
-class ExprNode : public Node {
- public:
-  /*! \brief The data type of the expression. */
-  DataType type;
-
-  static constexpr const char* _type_key = "Expr";
-  TVM_DECLARE_BASE_NODE_INFO(ExprNode, Node);
-};
-
-/*! \brief Container of all expressions. */
-class Expr : public NodeRef {
- public:
-  Expr() {}
-  explicit Expr(ObjectPtr<Object> ptr) : NodeRef(ptr) {}
-  /*!
-   * \brief construct from integer.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL Expr(int32_t value);  // NOLINT(*)
-  /*!
-   * \brief construct from float.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL Expr(float value);  // NOLINT(*)
-  /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
-   */
-  TVM_DLL Expr(std::string str);  // NOLINT(*)
-
-  /*! \return the data type of this expression. */
-  DataType type() const {
-    return static_cast<const ExprNode*>(get())->type;
-  }
-
-  /*! \brief type indicate the container type */
-  using ContainerType = ExprNode;
-};
 
 /*! \brief Base node of all statements. */
-class StmtNode : public Node {
+class StmtNode : public Object {
  public:
   static constexpr const char* _type_key = "Stmt";
-  TVM_DECLARE_BASE_NODE_INFO(StmtNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
 };
 
 /*! \brief Container of all statements */
-class Stmt : public NodeRef {
+class Stmt : public ObjectRef {
  public:
-  TVM_DEFINE_NODE_REF_METHODS(Stmt, NodeRef, StmtNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Stmt, ObjectRef, StmtNode);
 };
 
 class Var;
@@ -102,7 +64,7 @@ class Var;
  * - Let
  * - LetStmt
  */
-class Variable : public ExprNode {
+class VarNode : public PrimExprNode {
  public:
   /*!
    * \brief The hint to the variable name.
@@ -113,68 +75,62 @@ class Variable : public ExprNode {
   static Var make(DataType dtype, std::string name_hint);
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("name", &name_hint);
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_NODE_TYPE_INFO(Variable, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TVM */
-class Var : public Expr {
+class Var : public PrimExpr {
  public:
-  explicit Var(ObjectPtr<Object> n) : Expr(n) {}
+  explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
   TVM_DLL explicit Var(std::string name_hint = "v",
-                       Type t = Int(32));
+                       DataType t = DataType::Int(32));
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
   Var copy_with_suffix(const std::string& suffix) const {
-    return Var((*this)->name_hint + suffix, (*this)->type);
+    return Var((*this)->name_hint + suffix, (*this)->dtype);
   }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* operator->() const {
+  const VarNode* operator->() const {
     return get();
   }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* get() const {
-    return static_cast<const Variable*>(data_.get());
+  const VarNode* get() const {
+    return static_cast<const VarNode*>(data_.get());
   }
   /*! \brief type indicate the container type */
-  using ContainerType = Variable;
+  using ContainerType = VarNode;
 };
-
-// Backward compatibility, will be removed later.
-using VarExpr = Var;
-using BaseExprNode = ExprNode;
-using ExprHash = NodeHash;
-using ExprEqual = NodeEqual;
 
 class Integer;
 /*! \brief ExprNode: constant integer. */
-class IntImm : public ExprNode {
+class IntImmNode : public PrimExprNode {
  public:
   /*! \brief the Internal value. */
   int64_t value;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &type);
+    v->Visit("dtype", &dtype);
     v->Visit("value", &value);
   }
 
   TVM_DLL static Integer make(DataType t, int64_t value);
 
   static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_NODE_TYPE_INFO(IntImm, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
 };
 
 /*!
@@ -183,17 +139,17 @@ class IntImm : public ExprNode {
  * This is used to store and automate type check
  * attributes that must be constant integer.
  */
-class Integer : public Expr {
+class Integer : public PrimExpr {
  public:
-  Integer() : Expr() {}
+  Integer() : PrimExpr() {}
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : Expr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : PrimExpr(node) {}
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value) : Expr(value) {}  // NOLINT(*)
+  Integer(int value) : PrimExpr(value) {}  // NOLINT(*)
   /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
@@ -206,8 +162,8 @@ class Integer : public Expr {
    * \brief Get pointer to the internal value.
    * \return the content of the integer.
    */
-  const IntImm* operator->() const {
-    return static_cast<const IntImm*>(get());
+  const IntImmNode* operator->() const {
+    return static_cast<const IntImmNode*>(get());
   }
   /*!
    * \brief convert to int64_t
@@ -218,19 +174,19 @@ class Integer : public Expr {
     return (*this)->value;
   }
   /*! \brief type indicate the container type */
-  using ContainerType = IntImm;
+  using ContainerType = IntImmNode;
 };
 
 /*! \brief range over one dimension */
-class RangeNode : public Node {
+class RangeNode : public Object {
  public:
   /*! \brief beginning of the node */
-  Expr min;
+  PrimExpr min;
   /*! \brief the extend of range */
-  Expr extent;
+  PrimExpr extent;
   /*! \brief constructor */
   RangeNode() {}
-  RangeNode(Expr min, Expr extent) : min(min), extent(extent) {}
+  RangeNode(PrimExpr min, PrimExpr extent) : min(min), extent(extent) {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("min", &min);
@@ -238,18 +194,18 @@ class RangeNode : public Node {
   }
 
   static constexpr const char* _type_key = "Range";
-  TVM_DECLARE_NODE_TYPE_INFO(RangeNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 
 /*! \brief Range constainer  */
-class Range : public NodeRef {
+class Range : public ObjectRef {
  public:
   /*!
    * \brief constructor by begin and end
    * \param begin The begin of the range.
    * \param end The end of the range.
    */
-  TVM_DLL Range(Expr begin, Expr end);
+  TVM_DLL Range(PrimExpr begin, PrimExpr end);
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -259,9 +215,9 @@ class Range : public NodeRef {
    * \param min The minimum range.
    * \param extent The extent of the range.
    */
-  static Range make_by_min_extent(Expr min, Expr extent);
+  static Range make_by_min_extent(PrimExpr min, PrimExpr extent);
   // declare range.
-  TVM_DEFINE_NODE_REF_METHODS(Range, NodeRef, RangeNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
 
 /*! \brief container class of iteration variable. */
@@ -343,12 +299,12 @@ enum IterVarType : int {
  * \brief Iteration Variable,
  *  represents an iteration over an integer interval.
  */
-class IterVar : public NodeRef {
+class IterVar : public ObjectRef {
  public:
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IterVar(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -357,7 +313,7 @@ class IterVar : public NodeRef {
   /*!
    * \return the corresponding var in the IterVar.
    */
-  inline operator Expr() const;
+  inline operator PrimExpr() const;
   /*! \brief specify container node */
   using ContainerType = IterVarNode;
 };
@@ -384,14 +340,14 @@ using Domain = Array<Range>;
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
  */
-TVM_DLL void Dump(const NodeRef& node);
+TVM_DLL void Dump(const ObjectRef& node);
 
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
  *  over a one dimensional interval.
  */
-class IterVarNode : public Node {
+class IterVarNode : public Object {
  public:
   /*!
    * \brief the domain of iteration, if known, can be None
@@ -420,7 +376,7 @@ class IterVarNode : public Node {
                               std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
-  TVM_DECLARE_NODE_TYPE_INFO(IterVarNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
 };
 
 // inline implementations
@@ -428,7 +384,7 @@ inline const IterVarNode* IterVar::operator->() const {
   return static_cast<const IterVarNode*>(data_.get());
 }
 
-inline IterVar::operator Expr() const {
+inline IterVar::operator PrimExpr() const {
   return (*this)->var;
 }
 
@@ -452,7 +408,7 @@ inline const char* IterVarType2String(IterVarType t) {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(std::string name_hint, Type t = Int(32));
+TVM_DLL Var var(std::string name_hint, DataType t = DataType::Int(32));
 
 /*
  * \brief Template function to convert Map to unordered_map
@@ -470,37 +426,11 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   }
   return ret;
 }
-
-// Printer infra.
-/*! \brief A Pretty printer class to print the IR. */
-class IRPrinter {
- public:
-  /*! \brief The output stream */
-  std::ostream& stream;
-  /*! \brief The indentation level. */
-  int indent{0};
-  explicit IRPrinter(std::ostream& stream)  // NOLINT(*)
-      : stream(stream) {}
-
-  /*! \brief The node to be printed. */
-  TVM_DLL void Print(const ObjectRef& node);
-  /*! \brief Print indent to the stream */
-  TVM_DLL void PrintIndent();
-  // Allow registration to be printer.
-  using FType = NodeFunctor<void(const ObjectRef&, IRPrinter *)>;
-  TVM_DLL static FType& vtable();
-};
-
-// default print function for all nodes
-inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
-  IRPrinter(os).Print(n);
-  return os;
-}
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::IterVar> : public ::tvm::NodeHash {
+struct hash<::tvm::IterVar> : public ::tvm::ObjectHash {
 };
 }
 #endif  // TVM_EXPR_H_

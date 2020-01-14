@@ -28,26 +28,26 @@
 namespace tvm {
 
 // Tensor
-Expr Tensor::operator()(Array<Var> indices) const {
-  Array<Expr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::operator()(Array<Var> indices) const {
+  Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
-Expr Tensor::operator()(Array<Expr> indices) const {
-  using ir::Call;
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
+  using ir::CallNode;
   if (ndim() != 0) {
     CHECK_EQ(ndim(), indices.size())
         << "Tensor dimension mismatch in read"
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }
-  auto n = Call::make(
-      (*this)->dtype, (*this)->op->name, indices, Call::Halide,
+  auto n = CallNode::make(
+      (*this)->dtype, (*this)->op->name, indices, CallNode::Halide,
       (*this)->op, (*this)->value_index);
   return n;
 }
 
 Tensor Operation::output(size_t i) const {
-  auto node = make_node<TensorNode>();
+  auto node = make_object<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
@@ -55,11 +55,11 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor TensorNode::make(Array<Expr> shape,
-                        Type dtype,
+Tensor TensorNode::make(Array<PrimExpr> shape,
+                        DataType dtype,
                         Operation op,
                         int value_index) {
-  auto n = make_node<TensorNode>();
+  auto n = make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
@@ -67,8 +67,8 @@ Tensor TensorNode::make(Array<Expr> shape,
   return Tensor(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* t = static_cast<const TensorNode*>(node.get());
     p->stream << "Tensor(shape=" << t->shape
               << ", op.name=" << t->op->name << ')';
@@ -87,7 +87,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
                                     Stmt body,
                                     Stmt reduce_init,
                                     Stmt reduce_update) {
-  auto n = make_node<TensorIntrinNode>();
+  auto n = make_object<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
   n->inputs = std::move(inputs);
@@ -99,8 +99,8 @@ TensorIntrin TensorIntrinNode::make(std::string name,
   return TensorIntrin(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorIntrinNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorIntrinNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const TensorIntrinNode*>(node.get());
     p->stream << "TensorIntrin(name=" << op->name << ", " << op << ")";
   });
@@ -114,8 +114,8 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
                                             Array<Tensor> tensors,
                                             Array<Region> regions,
                                             Array<IterVar> reduce_axis,
-                                            Array<Expr> scalar_inputs) {
-  auto n = make_node<TensorIntrinCallNode>();
+                                            Array<PrimExpr> scalar_inputs) {
+  auto n = make_object<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);
@@ -124,8 +124,8 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
   return TensorIntrinCall(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* n = static_cast<const TensorIntrinCallNode*>(node.get());
     p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
   });

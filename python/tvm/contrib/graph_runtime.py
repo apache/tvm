@@ -22,12 +22,13 @@ from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
+
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
     graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
+        The graph to be deployed in json format output by json graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
     libmod : tvm.Module
@@ -56,6 +57,7 @@ def create(graph_json_str, libmod, ctx):
         fcreate = get_global_func("tvm.graph_runtime.create")
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
+
 
 def get_device_ctx(libmod, ctx):
     """Parse and validate all the device context(s).
@@ -112,12 +114,12 @@ class GraphModule(object):
     Parameters
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the actual graph functions.
 
     Attributes
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the actual graph functions.
     """
 
     def __init__(self, module):
@@ -142,7 +144,7 @@ class GraphModule(object):
            The input key
 
         params : dict of str to NDArray
-           Additonal arguments
+           Additional arguments
         """
         if key is not None:
             self._get_input(key).copyfrom(value)
@@ -211,7 +213,7 @@ class GraphModule(object):
         return self._get_output(index)
 
     def debug_get_output(self, node, out):
-        """Run graph upto node and get the output to out
+        """Run graph up to node and get the output to out
 
         Parameters
         ----------

@@ -118,38 +118,58 @@ class Module(ModuleBase):
             self.save(file_name)
             return
 
-        if not (self.type_key == "llvm" or self.type_key == "c"):
-            raise ValueError("Module[%s]: Only llvm and c support export shared" % self.type_key)
+        modules = self._collect_dso_modules()
         temp = _util.tempdir()
-        if fcompile is not None and hasattr(fcompile, "object_format"):
-            object_format = fcompile.object_format
-        else:
-            if self.type_key == "llvm":
-                object_format = "o"
+        files = []
+        is_system_lib = False
+        has_c_module = False
+        llvm_target_triple = None
+        for index, module in enumerate(modules):
+            if fcompile is not None and hasattr(fcompile, "object_format"):
+                object_format = fcompile.object_format
             else:
-                assert self.type_key == "c"
-                object_format = "cc"
-        path_obj = temp.relpath("lib." + object_format)
-        self.save(path_obj)
-        files = [path_obj]
-        is_system_lib = self.type_key == "llvm" and self.get_function("__tvm_is_system_module")()
-        if self.imported_modules:
-            path_cc = temp.relpath("devc.cc")
-            with open(path_cc, "w") as f:
-                f.write(_PackImportsToC(self, is_system_lib))
-            files.append(path_cc)
+                if module.type_key == "llvm":
+                    object_format = "o"
+                else:
+                    assert module.type_key == "c"
+                    object_format = "cc"
+                    has_c_module = True
+            path_obj = temp.relpath("lib" + str(index) + "." + object_format)
+            module.save(path_obj)
+            files.append(path_obj)
+            is_system_lib = (module.type_key == "llvm" and
+                             module.get_function("__tvm_is_system_module")())
+            llvm_target_triple = (module.type_key == "llvm" and
+                                  module.get_function("_get_target_triple")())
         if not fcompile:
             if file_name.endswith(".tar"):
                 fcompile = _tar.tar
             else:
                 fcompile = _cc.create_shared
-        if self.type_key == "c":
+
+        if llvm_target_triple is None and hasattr(fcompile, "get_target_triple"):
+            llvm_target_triple = fcompile.get_target_triple()
+
+        if self.imported_modules:
+            if enabled("llvm") and llvm_target_triple:
+                path_obj = temp.relpath("devc.o")
+                m = _PackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m.save(path_obj)
+                files.append(path_obj)
+            else:
+                path_cc = temp.relpath("devc.cc")
+                with open(path_cc, "w") as f:
+                    f.write(_PackImportsToC(self, is_system_lib))
+                files.append(path_cc)
+
+        if has_c_module:
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]
                 options = opts if isinstance(opts, (list, tuple)) else [opts]
             opts = options + ["-I" + path for path in find_include_path()]
             kwargs.update({'options': opts})
+
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
@@ -209,6 +229,25 @@ class Module(ModuleBase):
             return evaluator
         except NameError:
             raise NameError("time_evaluate is only supported when RPC is enabled")
+
+    def _collect_dso_modules(self):
+        """Helper function to collect dso modules, then return it."""
+        visited, stack, dso_modules = set(), [], []
+        # append root module
+        visited.add(self)
+        stack.append(self)
+        while stack:
+            module = stack.pop()
+            if module._dso_exportable():
+                dso_modules.append(module)
+            for m in module.imported_modules:
+                if m not in visited:
+                    visited.add(m)
+                    stack.append(m)
+        return dso_modules
+
+    def _dso_exportable(self):
+        return self.type_key == "llvm" or self.type_key == "c"
 
 
 def system_lib():

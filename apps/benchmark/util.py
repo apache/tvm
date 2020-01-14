@@ -34,8 +34,8 @@ def get_network(name, batch_size, dtype='float32'):
 
     Returns
     -------
-    net: nnvm.symbol
-        The NNVM symbol of network definition
+    net: relay.Module
+        The relay function of network definition
     params: dict
         The random parameters for benchmark
     input_shape: tuple

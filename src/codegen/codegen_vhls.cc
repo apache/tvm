@@ -37,7 +37,7 @@ void CodeGenVivadoHLS::Init(bool output_ssa) {
   this->stream << "#include <algorithm>\n\n";
 }
 
-void CodeGenVivadoHLS::PrintType(Type t, std::ostream& os) {
+void CodeGenVivadoHLS::PrintType(DataType t, std::ostream& os) {
   if (t.is_uint()) {
     switch (t.bits()) {
       case 8:
@@ -78,7 +78,7 @@ void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
     std::string vid = GetVarID(v.get());
-    if (v.type().is_handle()) {
+    if (v.dtype().is_handle()) {
       this->stream << "#pragma HLS INTERFACE m_axi port=" << vid << "  offset=slave bundle=gmem\n";
     }
     this->stream << "#pragma HLS INTERFACE s_axilite port=" << vid << " bundle=control\n";
@@ -98,10 +98,10 @@ inline void PrintBinaryExpr(const T* op,
   os << ')';
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenVivadoHLS::VisitExpr_(const MinNode *op, std::ostream& os) {  // NOLINT(*)
   const char *opstr = "std::min";
-  if (op->type.is_float()) {
-    switch (op->type.bits()) {
+  if (op->dtype.is_float()) {
+    switch (op->dtype.bits()) {
       case 32:
         opstr = "fminf"; break;
       case 64:
@@ -112,10 +112,10 @@ void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(
   PrintBinaryExpr(op, opstr, os, this);
 }
 
-void CodeGenVivadoHLS::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenVivadoHLS::VisitExpr_(const MaxNode *op, std::ostream& os) {  // NOLINT(*)
   const char *opstr = "std::max";
-  if (op->type.is_float()) {
-    switch (op->type.bits()) {
+  if (op->dtype.is_float()) {
+    switch (op->dtype.bits()) {
       case 32:
         opstr = "fmaxf"; break;
       case 64:
@@ -140,7 +140,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<Expr> > kernel_info;
+  Array<Array<PrimExpr> > kernel_info;
   for (LoweredFunc f : funcs) {
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
@@ -149,7 +149,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code).operator std::string();
     }
-    kernel_info.push_back(Array<Expr>({f->name, code}));
+    kernel_info.push_back(Array<PrimExpr>({f->name, code}));
   }
 
   std::string xclbin;
@@ -162,7 +162,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), whole_code);
 }
 
-TVM_REGISTER_API("codegen.build_sdaccel")
+TVM_REGISTER_GLOBAL("codegen.build_sdaccel")
 .set_body_typed(BuildSDAccel);
 
 }  // namespace codegen

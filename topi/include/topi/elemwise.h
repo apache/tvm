@@ -116,7 +116,7 @@ inline Tensor fast_tanh_float(const Tensor& in,
 inline Tensor tanh(const Tensor& x,
                    std::string name = "T_tanh",
                    std::string tag = kElementWise) {
-  if (x->dtype == Float(32)) {
+  if (x->dtype == DataType::Float(32)) {
     // invoke fast_tanh_float implementation
     return fast_tanh_float(x, name, tag);
   } else {
@@ -191,11 +191,11 @@ inline Tensor sign(const Tensor& x,
                    std::string name = "T_sign",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    Expr zero = make_zero(x->dtype);
-    Expr one = make_const(x->dtype, 1);
-    Expr minus_one = make_const(x->dtype, -1);
-    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
-    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    PrimExpr zero = make_zero(x->dtype);
+    PrimExpr one = make_const(x->dtype, 1);
+    PrimExpr minus_one = make_const(x->dtype, -1);
+    auto s1 = tvm::ir::SelectNode::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::ir::SelectNode::make((x(i) > zero), one, s1);
     return s2;
   }, name, tag);
 }
@@ -213,7 +213,7 @@ inline Tensor rsqrt(const Tensor& x,
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    Expr one = make_const(x->dtype, 1);
+    PrimExpr one = make_const(x->dtype, 1);
     return one/tvm::sqrt(x(i));
   }, name, tag);
 }
@@ -231,8 +231,8 @@ inline Tensor rsqrt(const Tensor& x,
 * \return A Tensor whose op member is the clip operation
 */
 inline Tensor clip(const Tensor& x,
-                   const Expr& a_min,
-                   const Expr& a_max,
+                   const PrimExpr& a_min,
+                   const PrimExpr& a_max,
                    std::string name = "T_clip",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
@@ -255,16 +255,16 @@ inline Tensor clip(const Tensor& x,
  * \return A Tensor whose op member is the cast operation
  */
 inline Tensor cast(const Tensor& x,
-                   Type type,
+                   DataType type,
                    std::string name = "T_cast",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     auto expr = x(i);
-    if (expr.type().code() == type.code() && expr.type().bits() == type.bits()) {
-      if (expr.type().lanes() == type.lanes()) {
+    if (expr.dtype().code() == type.code() && expr.dtype().bits() == type.bits()) {
+      if (expr.dtype().lanes() == type.lanes()) {
         return expr;
-      } else if (expr.type().lanes() == 1 && type.lanes() > 1) {
-        return tvm::ir::Broadcast::make(expr, type.lanes());
+      } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
+        return tvm::ir::BroadcastNode::make(expr, type.lanes());
       }
     }
 
@@ -282,12 +282,12 @@ inline Tensor cast(const Tensor& x,
  *
  * \return A Tensor whose op member is the reinterpret operation
  */
-inline Tensor reinterpret(const Tensor& x, Type type, std::string name = "tensor",
+inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "tensor",
                           std::string tag = kElementWise) {
   return compute(x->shape,
                  [&](const Array<Var>& i) {
-                   return tvm::ir::Call::make(type, "reinterpret", {x(i)},
-                                              tvm::ir::Call::PureIntrinsic);
+                   return tvm::ir::CallNode::make(type, "reinterpret", {x(i)},
+                                              tvm::ir::CallNode::PureIntrinsic);
                  },
                  name, tag);
 }
@@ -325,12 +325,12 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
 *
 * \return A Tensor whose op member is the full operation
 */
-inline Tensor full(const Array<Expr>& shape,
-                   Type dtype,
-                   const Expr fill_value,
+inline Tensor full(const Array<PrimExpr>& shape,
+                   DataType dtype,
+                   const PrimExpr fill_value,
                    std::string name = "T_full",
                    std::string tag = kElementWise) {
-  Expr ev = cast(dtype, fill_value);
+  PrimExpr ev = cast(dtype, fill_value);
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
@@ -351,10 +351,10 @@ inline Tensor full(const Array<Expr>& shape,
 * \return A Tensor whose op memeber is the full_like operation
 */
 inline Tensor full_like(const Tensor& x,
-                        const Expr fill_value,
+                        const PrimExpr fill_value,
                         std::string name = "T_full_like",
                         std::string tag = kElementWise) {
-  Expr ev = cast(x->dtype, fill_value);
+  PrimExpr ev = cast(x->dtype, fill_value);
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);

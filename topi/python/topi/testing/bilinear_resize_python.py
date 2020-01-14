@@ -19,7 +19,7 @@
 import math
 import numpy as np
 
-def bilinear_resize_python(image, out_size, layout, align_corners=True):
+def bilinear_resize_python(image, out_size, layout, coordinate_transformation_mode="align_corners"):
     """ Bilinear scaling using python"""
     (new_h, new_w) = out_size
 
@@ -30,32 +30,37 @@ def bilinear_resize_python(image, out_size, layout, align_corners=True):
         (batch, channel, h, w) = image.shape
         scaled_image = np.ones((batch, channel, new_h, new_w))
 
-    if align_corners:
+    if coordinate_transformation_mode == "align_corners":
         height_scale = np.float32(h-1) / np.float32(out_size[0]-1)
         width_scale = np.float32(w-1) / np.float32(out_size[1]-1)
     else:
         height_scale = np.float32(h) / np.float32(out_size[0])
         width_scale = np.float32(w) / np.float32(out_size[1])
 
+    def _lerp(A, B, t):
+        return A * (1.0 - t) + B * t
+
     for b in range(batch):
         for i in range(channel):
             for j in range(new_h):
                 for k in range(new_w):
-                    in_y = j * height_scale
-                    y0 = math.floor(in_y)
-                    y1 = min(math.ceil(in_y), h - 1)
-                    y_lerp = in_y - y0
+                    if coordinate_transformation_mode == "half_pixel":
+                        in_y = (j + 0.5) * height_scale - 0.5
+                    else:
+                        in_y = j * height_scale
+                    y0 = int(math.floor(in_y))
+                    y1 = max(min(y0 + 1, h - 1), 0)
+                    y0 = max(y0, 0)
+                    y_lerp = in_y - math.floor(in_y)
 
-                    y0 = int(y0)
-                    y1 = int(y1)
-
-                    in_x = k * width_scale
-                    x0 = math.floor(in_x)
-                    x1 = min(math.ceil(in_x), w - 1)
-                    x_lerp = in_x - x0
-
-                    x0 = int(x0)
-                    x1 = int(x1)
+                    if coordinate_transformation_mode == "half_pixel":
+                        in_x = (k + 0.5) * width_scale - 0.5
+                    else:
+                        in_x = k * width_scale
+                    x0 = int(math.floor(in_x))
+                    x1 = max(min(x0 + 1, w - 1), 0)
+                    x0 = max(x0, 0)
+                    x_lerp = in_x - math.floor(in_x)
 
                     if layout == 'NHWC':
                         A = image[b][y0][x0][i]
@@ -68,10 +73,10 @@ def bilinear_resize_python(image, out_size, layout, align_corners=True):
                         C = image[b][i][y1][x0]
                         D = image[b][i][y1][x1]
 
-                    top = A + (B - A) * x_lerp
-                    bottom = C + (D - C) * x_lerp
+                    top = _lerp(A, B, x_lerp)
+                    bottom = _lerp(C, D, x_lerp)
 
-                    pixel = np.float32(top + (bottom - top) * y_lerp)
+                    pixel = np.float32(_lerp(top, bottom, y_lerp))
 
                     if layout == 'NHWC':
                         scaled_image[b][j][k][i] = pixel

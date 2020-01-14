@@ -96,6 +96,7 @@ def config_cython():
                               "../3rdparty/dmlc-core/include",
                               "../3rdparty/dlpack/include",
                 ],
+                extra_compile_args=["-std=c++11"],
                 library_dirs=library_dirs,
                 libraries=libraries,
                 language="c++"))
@@ -146,7 +147,7 @@ if include_libs:
 
 def get_package_data_files():
     # Relay standard libraries
-    return ['relay/std/prelude.rly']
+    return ['relay/std/prelude.rly', 'relay/std/core.rly']
 
 
 setup(name='tvm',
@@ -159,7 +160,7 @@ setup(name='tvm',
         'attrs',
         'psutil',
         ],
-      extras_require={'test': ['PIL',
+      extras_require={'test': ['pillow<7',
                                'matplotlib'],
                       'extra_feature': ['tornado',
                                         'psutil',

@@ -25,8 +25,8 @@ TEST(Expr, Basic) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  NodeRef tmp = z;
-  Expr zz = Downcast<Expr>(tmp);
+  ObjectRef tmp = z;
+  PrimExpr zz = Downcast<PrimExpr>(tmp);
   std::ostringstream os;
   os << z;
   CHECK(zz.same_as(z));
@@ -37,9 +37,9 @@ TEST(Expr, Basic) {
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   Var x("x");
-  Expr z = max(x + 1 + 2, 100);
-  const ir::Max* op = z.as<ir::Max>();
-  CHECK(GetRef<NodeRef>(op).same_as(z));
+  PrimExpr z = max(x + 1 + 2, 100);
+  const ir::MaxNode* op = z.as<ir::MaxNode>();
+  CHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 
 

@@ -49,7 +49,7 @@ mkdir build && cd build
 cmake .. -DUSE_LLVM=ON -DUSE_SGX=/opt/sgxsdk -DRUST_SGX_SDK=/opt/rust-sgx-sdk
 make -j4
 cd ..
-pip install -e python -e topi/python -e nnvm/python
+pip install -e python -e topi/python
 cd apps/sgx
 ```
 

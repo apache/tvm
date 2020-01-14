@@ -18,7 +18,7 @@
 """Deformable convolution in python"""
 import itertools
 import numpy as np
-
+from topi.nn.util import get_pad_tuple
 
 def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilation,
                                   deformable_groups, groups):
@@ -39,8 +39,10 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str or a list/tuple of two ints
-        Padding size, or ['VALID', 'SAME'], or [pad_height, pad_width]
+    padding : int or str or a list/tuple of 2 or 4 ints
+        Padding size, or ['VALID', 'SAME'], or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
 
     dilation : int or a list/tuple of two ints
         Dilation size, or [dilate_height, dilate_width]
@@ -67,15 +69,9 @@ def deformable_conv2d_nchw_python(a_np, offset_np, w_np, stride, padding, dilati
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
-    if isinstance(padding, int):
-        pad_h = pad_w = padding * 2
-    elif isinstance(padding, (list, tuple)):
-        pad_h, pad_w = padding[0] * 2, padding[1] * 2
-    else:
-        pad_h = 0 if padding == 'VALID' else kernel_h - 1
-        pad_w = 0 if padding == 'VALID' else kernel_w - 1
-    pad_top = int(np.ceil(float(pad_h) / 2))
-    pad_left = int(np.ceil(float(pad_w) / 2))
+
+    pad_top, pad_left, _, _ = get_pad_tuple(padding, (kernel_h, kernel_w))
+
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation
     else:

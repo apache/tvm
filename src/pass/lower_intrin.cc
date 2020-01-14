@@ -22,9 +22,10 @@
  * \file lower_intrin.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <tvm/expr_operator.h>
 #include <unordered_set>
 #include "ir_util.h"
@@ -34,9 +35,10 @@
 namespace tvm {
 namespace ir {
 
-class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
+class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
-  using IRMutatorWithAnalyzer::Mutate_;
+  using IRMutatorWithAnalyzer::VisitStmt_;
+  using IRMutatorWithAnalyzer::VisitExpr_;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target)
       : IRMutatorWithAnalyzer(analyzer) {
@@ -51,32 +53,33 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
-      Expr r = ApplyPattern(op->name, e);
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
+      PrimExpr r = ApplyPattern(op->name, GetRef<PrimExpr>(op));
       if (r.defined()) return r;
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const Add* op, const Expr& e) final {
-    if (const Mul* mb = op->b.as<Mul>()) {
-      return MakeFMA(mb->a, mb->b, op->a, op, e);
-    } else if (const Mul* ma = op->a.as<Mul>()) {
-      return MakeFMA(ma->a, ma->b, op->b, op, e);
+  PrimExpr VisitExpr_(const AddNode* op) final {
+    if (const MulNode* mb = op->b.as<MulNode>()) {
+      return MakeFMA(mb->a, mb->b, op->a, op);
+    } else if (const MulNode* ma = op->a.as<MulNode>()) {
+      return MakeFMA(ma->a, ma->b, op->b, op);
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
   // We use floordiv for integer analysis,
   // but will need to lower them to native truncdiv instructions
-  Expr Mutate_(const FloorDiv* op, const Expr& e) final {
-    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
-    op = ret.as<FloorDiv>();
+  PrimExpr VisitExpr_(const FloorDivNode* op) final {
+    auto e = GetRef<PrimExpr>(op);
+    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+    op = ret.as<FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
-    const DataType& dtype = op->type;
+    const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
@@ -92,16 +95,16 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         return truncdiv(op->a, op->b);
       } else {
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
-        Expr rdiv = truncdiv(op->a, op->b);
-        Expr rmod = truncmod(op->a, op->b);
+        PrimExpr rdiv = truncdiv(op->a, op->b);
+        PrimExpr rmod = truncmod(op->a, op->b);
         // condition on b >= 0.
         // truncmod(a, b) < 0 will implies ceildiv,
         // So we need to correct these cases.
-        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
+        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return ir::Select::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+          return ir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -109,21 +112,21 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
       // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
-      Expr rdiv = truncdiv(op->a, op->b);
-      Expr rmod = truncmod(op->a, op->b);
-      return ir::Select::make(
+      PrimExpr rdiv = truncdiv(op->a, op->b);
+      PrimExpr rmod = truncmod(op->a, op->b);
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rdiv, rdiv - make_const(dtype, 1));
     }
   }
 
-  Expr Mutate_(const FloorMod* op, const Expr& e) final {
-    Expr ret = IRMutatorWithAnalyzer::Mutate_(op, e);
-    op = ret.as<FloorMod>();
+  PrimExpr VisitExpr_(const FloorModNode* op) final {
+    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+    op = ret.as<FloorModNode>();
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
-    const DataType& dtype = op->type;
+    const DataType& dtype = op->dtype;
     CHECK(dtype.is_int() || dtype.is_uint());
 
     if (support_bitwise_op_ &&
@@ -143,113 +146,116 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
         // NOTE:condition on b >= 0.
         // mod(a, b) < 0 will imply we are doing ceildiv,
         // So we need to correct these cases.
-        Expr rmod = truncmod(op->a, op->b);
-        if ((dtype == Int(32) || dtype == Int(64)) && support_bitwise_op_) {
+        PrimExpr rmod = truncmod(op->a, op->b);
+        if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
           // (rmod >> shift) & b
           // -> (rmod >= 0 ? 0: -1) & b
           // -> rmod >= 0 ? 0 : b
           return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
         } else {
-          return ir::Select::make(rmod >= 0, rmod, rmod + op->b);
+          return ir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
         }
       }
     } else {
       // uncommon case
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-      Expr rmod = truncmod(op->a, op->b);
+      PrimExpr rmod = truncmod(op->a, op->b);
       // b > 0 && rmod >= 0 -> rmod
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return ir::Select::make(
+      return ir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rmod, rmod + op->b);
     }
   }
 
-  Expr Mutate_(const Max* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const MaxNode* op) final {
     using namespace arith;
-    PVar<Expr> x, y;
+    PVar<PrimExpr> x, y;
     PVar<Integer> c;
+    auto e = GetRef<PrimExpr>(op);
     if (max(floordiv(x, y), c).Match(e) &&
         c.Eval()->value >= 0 &&
         analyzer_->CanProveGreaterEqual(y.Eval(), 0)) {
-      return max(Mutate(truncdiv(x, y).Eval()), c.Eval());
+      return max(VisitExpr(truncdiv(x, y).Eval()), c.Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const EQ* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const EQNode* op) final {
     using namespace arith;
-    PVar<Expr> x, y;
+    PVar<PrimExpr> x, y;
+    auto e = GetRef<PrimExpr>(op);
     if ((floormod(x, y) == 0).Match(e)) {
-      return Mutate((truncmod(x, y) == 0).Eval());
+      return VisitExpr((truncmod(x, y) == 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr Mutate_(const NE* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const NENode* op) final {
     using namespace arith;
-    PVar<Expr> x, y;
+    PVar<PrimExpr> x, y;
+    auto e = GetRef<PrimExpr>(op);
     if ((floormod(x, y) != 0).Match(e)) {
-      return Mutate((truncmod(x, y) != 0).Eval());
+      return VisitExpr((truncmod(x, y) != 0).Eval());
     }
-    return IRMutatorWithAnalyzer::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
  private:
-  Expr SwapBroadcastCast(const Expr& e) {
+  PrimExpr SwapBroadcastCast(const PrimExpr& e) {
     // Try to change broadcast(cast(x)) to cast(broadcast(x))
     // For some targets, LLVM will generate more efficient FMA
     // instruction with the latter. For example, vmla vs. vmlal
     // on ARM.
-    if (const Broadcast* bcast = e.as<Broadcast>()) {
-      if (const Cast* cast = bcast->value.as<Cast>()) {
+    if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
+      if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
-          if (cast->type.bits() == cast->value.type().bits() * 2) {
+          if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
             return true;
           }
           // Check both operands are integer-like.
-          if (!cast->type.is_uint() && !cast->type.is_int()) {
+          if (!cast->dtype.is_uint() && !cast->dtype.is_int()) {
             return false;
           }
-          if (!cast->value.type().is_uint() && !cast->value.type().is_int()) {
+          if (!cast->value.dtype().is_uint() && !cast->value.dtype().is_int()) {
             return false;
           }
           // If both are integer-like, swap if we have a widening cast.
-          return cast->type.bits() > cast->value.type().bits();
+          return cast->dtype.bits() > cast->value.dtype().bits();
         };
 
         if (should_swap()) {
-          Expr new_bcast = Broadcast::make(cast->value, bcast->lanes);
-          return Cast::make(bcast->type, new_bcast);
+          PrimExpr new_bcast = BroadcastNode::make(cast->value, bcast->lanes);
+          return CastNode::make(bcast->dtype, new_bcast);
         }
       }
     }
     return e;
   }
 
-  Expr MakeFMA(const Expr& a, const Expr& b, const Expr& c,
-               const Add* op, const Expr& e) {
+  PrimExpr MakeFMA(const PrimExpr& a, const PrimExpr& b, const PrimExpr& c,
+               const AddNode* op) {
     // emit fma instruction: a * b + c
-    Expr lhs = SwapBroadcastCast(a);
-    Expr rhs = SwapBroadcastCast(b);
+    PrimExpr lhs = SwapBroadcastCast(a);
+    PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && op->type.is_float()) {
-      Expr r = (*fma_)(Call::make(
-          op->type, "fma", {lhs, rhs, c}, Call::PureIntrinsic));
-      if (r.defined()) return this->Mutate(r);
+    if (fma_ != nullptr && op->dtype.is_float()) {
+      PrimExpr r = (*fma_)(CallNode::make(
+          op->dtype, "fma", {lhs, rhs, c}, CallNode::PureIntrinsic));
+      if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
-        Expr mul = this->Mutate(Mul::make(lhs, rhs));
-        return Add::make(mul, this->Mutate(c));
+        PrimExpr mul = this->VisitExpr(MulNode::make(lhs, rhs));
+        return AddNode::make(mul, this->VisitExpr(c));
       }
     }
-    return IRMutator::Mutate_(op, e);
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  Expr ApplyPattern(const std::string& name, const Expr& e) {
+  PrimExpr ApplyPattern(const std::string& name, const PrimExpr& e) {
     for (size_t i = 0; i < patterns_.size(); ++i) {
       std::string& p = patterns_[i];
       size_t psize = p.length();
@@ -259,14 +265,14 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
       p.resize(psize);
       // if pattern exists.
       if (f != nullptr) {
-        Expr r = (*f)(e);
+        PrimExpr r = (*f)(e);
         CHECK(r.defined()) << "intrinsic rule must always return valid Expr";
         if (!r.same_as(e)) {
-          return this->Mutate(r);
+          return this->VisitExpr(r);
         }
       }
     }
-    return Expr();
+    return PrimExpr();
   }
 
   // patterns
@@ -277,18 +283,18 @@ class IntrinInjecter : public arith::IRMutatorWithAnalyzer {
 
 Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
   arith::Analyzer analyzer;
-  return IntrinInjecter(&analyzer, target).Mutate(stmt);
+  return IntrinInjecter(&analyzer, target)(std::move(stmt));
 }
 
 LoweredFunc
 LowerIntrin(LoweredFunc f, const std::string& target) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = LowerIntrinStmt(n->body, target);
   return LoweredFunc(n);
 }
 
 // Register the api only for test purposes
-TVM_REGISTER_API("ir_pass._LowerIntrinStmt")
+TVM_REGISTER_GLOBAL("ir_pass._LowerIntrinStmt")
 .set_body_typed(LowerIntrinStmt);
 
 }  // namespace ir

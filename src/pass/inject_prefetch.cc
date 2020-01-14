@@ -22,8 +22,7 @@
  */
 // Inject prefetch op in HalideIR
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/arithmetic.h>
 #include <unordered_set>
@@ -34,11 +33,11 @@ namespace ir {
 using arith::IntSet;
 using arith::DomainTouched;
 
-class PrefetchInjector : public IRMutator {
+class PrefetchInjector : public StmtMutator {
  public:
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    Stmt ret = IRMutator::Mutate_(op, s);
-    op = ret.as<AttrStmt>();
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    Stmt ret = StmtMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
       Tensor ts = Downcast<Tensor>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);
@@ -59,19 +58,19 @@ class PrefetchInjector : public IRMutator {
 
       vectorized_.erase(iter_var);
 
-      Stmt prefetch = Prefetch::make(ts->op, ts->value_index, ts->dtype, region);
-      return Block::make(prefetch, op->body);
+      Stmt prefetch = PrefetchNode::make(ts->op, ts->value_index, ts->dtype, region);
+      return SeqStmt({prefetch, op->body});
     }
     return ret;
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     auto &var = op->loop_var;
     loop_nest_.push_back(var);
     if (op->for_type == ForType::Vectorized) {
       vectorized_[var.get()] = IntSet::interval(op->min, (op->min + op->extent) - 1);
     }
-    Stmt ret = IRMutator::Mutate_(op, s);
+    Stmt ret = StmtMutator::VisitStmt_(op);
     if (op->for_type == ForType::Vectorized) {
       vectorized_.erase(var.get());
     }
@@ -80,15 +79,15 @@ class PrefetchInjector : public IRMutator {
   }
 
  private:
-  std::vector<VarExpr> loop_nest_;
-  std::unordered_map<const Variable *, IntSet> vectorized_;
+  std::vector<Var> loop_nest_;
+  std::unordered_map<const VarNode *, IntSet> vectorized_;
   static const Range none;
 };
 
 const Range PrefetchInjector::none;
 
 Stmt InjectPrefetch(Stmt stmt) {
-  return PrefetchInjector().Mutate(stmt);
+  return PrefetchInjector()(std::move(stmt));
 }
 
 }  // namespace ir

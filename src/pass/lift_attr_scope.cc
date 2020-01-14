@@ -24,7 +24,7 @@
  * \file lift_attr_scope.cc
  */
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include "ir_util.h"
 
 namespace tvm {
@@ -32,32 +32,32 @@ namespace ir {
 
 // NOTE: this optimization can only be applied
 // to a few specified attr keys
-class AttrScopeLifter : public IRMutator {
+class AttrScopeLifter : public StmtMutator {
  public:
   explicit AttrScopeLifter(std::string attr_key)
       : attr_key_(attr_key) {}
 
   Stmt Lift(Stmt stmt) {
-    stmt = Mutate(stmt);
+    stmt = operator()(std::move(stmt));
     if (attr_node_.defined()) {
-      stmt = AttrStmt::make(
+      stmt = AttrStmtNode::make(
           attr_node_, attr_key_, attr_value_, stmt);
     }
     return stmt;
   }
 
   // do not go beyond
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
-    op = stmt.as<Allocate>();
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
+    op = stmt.as<AllocateNode>();
     if (attr_node_.defined()) {
-      Stmt body = AttrStmt::make(
+      Stmt body = AttrStmtNode::make(
           attr_node_, attr_key_, attr_value_, op->body);
       // undefine them
-      attr_node_ = NodeRef();
-      attr_value_ = Expr();
-      return Allocate::make(
-        op->buffer_var, op->type,
+      attr_node_ = ObjectRef();
+      attr_value_ = PrimExpr();
+      return AllocateNode::make(
+        op->buffer_var, op->dtype,
         op->extents, op->condition, body,
         op->new_expr, op->free_function);
     } else {
@@ -65,39 +65,78 @@ class AttrScopeLifter : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr_key_) {
       attr_node_ = op->node;
       attr_value_ = op->value;
       return op->body;
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const Block* op, const Stmt& s) final {
-    std::vector<Stmt> seq;
-    FlattenSeq(op->first, &seq);
-    FlattenSeq(op->rest, &seq);
-    seq = MutateSeq(seq);
-    if (seq.size() == 2 &&
-        seq[0].same_as(op->first) &&
-        seq[1].same_as(op->rest)) {
-      return s;
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    // remember the decorations.
+    std::vector<ObjectRef> attr_node;
+    std::vector<PrimExpr> attr_value;
+
+    auto fmutate = [&](const Stmt& s) {
+      attr_node_ = ObjectRef();
+      attr_value_ = PrimExpr();
+      Stmt ret = this->VisitStmt(s);
+      attr_node.push_back(attr_node_);
+      attr_value.push_back(attr_value_);
+      return ret;
+    };
+    Stmt ret = StmtMutator::VisitSeqStmt_(op, true, fmutate);
+    if (attr_node.size() == 0) return ret;
+
+    op = ret.as<SeqStmtNode>();
+    CHECK(op != nullptr);
+    Array<Stmt> reorg;
+    // check if all decorations are common.
+    for (size_t begin = 0; begin < attr_node.size();) {
+      size_t end = begin + 1;
+      while (end < attr_node.size() &&
+             attr_node[end].same_as(attr_node[begin]) &&
+             ValueSame(attr_value[end], attr_value[begin])) {
+        ++end;
+      }
+      // covers everything
+      // lift attr to parent.
+      if (begin == 0 && end == attr_node.size()) {
+        attr_node_ = attr_node[0];
+        attr_value_ = attr_value[0];
+        return ret;
+      }
+      // construct subsegments.
+      Array<Stmt> seq;
+      for (size_t i = begin; i < end; ++i) {
+        seq.push_back(op->seq[i]);
+      }
+      Stmt stmt = SeqStmt::Flatten(seq);
+      if (attr_node[begin].defined()) {
+        stmt = AttrStmtNode::make(
+            attr_node[begin], attr_key_, attr_value[begin], stmt);
+      }
+      reorg.push_back(stmt);
+      begin = end;
     }
-    return MergeSeq(seq);
+    attr_node_ = ObjectRef();
+    attr_value_ = PrimExpr();
+    return SeqStmt::Flatten(reorg);
   }
 
-  Stmt Mutate_(const IfThenElse* op, const Stmt& s) final {
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
     if (!op->else_case.defined()) {
-      return IRMutator::Mutate_(op, s);
+      return StmtMutator::VisitStmt_(op);
     }
-    Stmt then_case = this->Mutate(op->then_case);
-    NodeRef first_node;
-    Expr first_value;
+    Stmt then_case = this->VisitStmt(op->then_case);
+    ObjectRef first_node;
+    PrimExpr first_value;
     std::swap(first_node, attr_node_);
     std::swap(first_value, attr_value_);
-    Stmt else_case = this->Mutate(op->else_case);
+    Stmt else_case = this->VisitStmt(op->else_case);
     if (attr_node_.defined() &&
         attr_value_.defined() &&
         first_node.defined() &&
@@ -106,115 +145,54 @@ class AttrScopeLifter : public IRMutator {
         ValueSame(attr_value_, first_value)) {
       if (then_case.same_as(op->then_case) &&
           else_case.same_as(op->else_case)) {
-        return s;
+        return GetRef<Stmt>(op);
       } else {
-        return IfThenElse::make(op->condition, then_case, else_case);
+        return IfThenElseNode::make(op->condition, then_case, else_case);
       }
     } else {
       if (first_node.defined()) {
-        then_case = AttrStmt::make(
+        then_case = AttrStmtNode::make(
             first_node, attr_key_, first_value, then_case);
       }
       if (attr_node_.defined()) {
-        else_case = AttrStmt::make(
+        else_case = AttrStmtNode::make(
             attr_node_, attr_key_, attr_value_, else_case);
         // undefine them
-        attr_node_ = NodeRef();
-        attr_value_ = Expr();
+        attr_node_ = ObjectRef();
+        attr_value_ = PrimExpr();
       }
       if (then_case.same_as(op->then_case) &&
           else_case.same_as(op->else_case)) {
-        return s;
+        return GetRef<Stmt>(op);
       } else {
-        return IfThenElse::make(op->condition, then_case, else_case);
+        return IfThenElseNode::make(op->condition, then_case, else_case);
       }
     }
   }
 
  private:
-  void FlattenSeq(Stmt s, std::vector<Stmt>* res) {
-    if (const Block* op = s.as<Block>()) {
-      FlattenSeq(op->first, res);
-      FlattenSeq(op->rest, res);
-    } else if (const ProducerConsumer* op = s.as<ProducerConsumer>()) {
-      if (!op->is_producer) {
-        FlattenSeq(op->body, res);
-      } else {
-        res->emplace_back(s);
-      }
-    } else {
-      res->emplace_back(s);
-    }
-  }
-
-  std::vector<Stmt> MutateSeq(const std::vector<Stmt>& seq) {
-    std::vector<Stmt> res_seq;
-    NodeRef curr_node;
-    Expr curr_value;
-    Stmt curr_stmt;
-    for (const Stmt & stmt : seq) {
-      attr_node_ = NodeRef();
-      attr_value_ = Expr();
-      Stmt rest = this->Mutate(stmt);
-      if (attr_node_.defined() &&
-          attr_value_.defined() &&
-          curr_node.defined() &&
-          curr_value.defined() &&
-          attr_node_.same_as(curr_node) &&
-          ValueSame(attr_value_, curr_value)) {
-        curr_stmt = Block::make(curr_stmt, rest);
-      } else {
-        if (curr_stmt.defined()) {
-          if (curr_node.defined()) {
-            curr_stmt = AttrStmt::make(
-                curr_node, attr_key_, curr_value, curr_stmt);
-          }
-          res_seq.push_back(curr_stmt);
-        }
-        curr_stmt = rest;
-        curr_node = attr_node_;
-        curr_value = attr_value_;
-      }
-    }
-
-    if (curr_stmt.defined()) {
-      // keep attr_node_, attr_node_
-      if (res_seq.size() == 0) {
-        return {curr_stmt};
-      }
-      if (curr_node.defined()) {
-        curr_stmt = AttrStmt::make(
-            curr_node, attr_key_, curr_value, curr_stmt);
-      }
-      res_seq.push_back(curr_stmt);
-      // reset
-      attr_node_ = NodeRef();
-      attr_value_ = Expr();
-    }
-    return res_seq;
-  }
-
   // value comparison that also compares content of int constant
-  static bool ValueSame(const Expr& a, const Expr& b) {
+  static bool ValueSame(const PrimExpr& a, const PrimExpr& b) {
     if (a.same_as(b)) return true;
+    if (!a.defined() || !b.defined()) return false;
     if (a->type_index() != b->type_index()) return false;
-    if (a.type() != b.type()) return false;
-    if (const IntImm* op = a.as<IntImm>()) {
-      return op->value == b.as<IntImm>()->value;
+    if (a.dtype() != b.dtype()) return false;
+    if (const IntImmNode* op = a.as<IntImmNode>()) {
+      return op->value == b.as<IntImmNode>()->value;
     }
-    if (const UIntImm* op = a.as<UIntImm>()) {
-      return op->value == b.as<UIntImm>()->value;
+    if (const UIntImmNode* op = a.as<UIntImmNode>()) {
+      return op->value == b.as<UIntImmNode>()->value;
     }
     return false;
   }
 
   std::string attr_key_;
-  NodeRef attr_node_;
-  Expr attr_value_;
+  ObjectRef attr_node_;
+  PrimExpr attr_value_;
 };
 
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
-  return AttrScopeLifter(attr_key).Lift(stmt);
+  return AttrScopeLifter(attr_key).Lift(std::move(stmt));
 }
 
 }  // namespace ir

@@ -16,7 +16,7 @@
 # under the License.
 
 from typing import Union, Tuple, Dict, List
-from relay.ir import GlobalId, OperatorId, Item, NodeBase, Span, FileId
+from relay.ir import GlobalId, OperatorId, Item, Object, Span, FileId
 from relay.ir import ShapeExtension, Operator, Defn
 
-class Module(NodeBase): ...
+class Module(Object): ...

@@ -204,10 +204,10 @@ def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
 
     batch, in_channel, height, width = get_const_tuple(data.shape)
     filter_channel, channel_multiplier, kh, kw = get_const_tuple(kernel.shape)
-    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    pt, pl, pb, pr = get_pad_tuple(padding, kernel)
     sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    out_height = (height - kh + 2 * ph) // sh + 1
-    out_width = (width - kw + 2 * pw) // sw + 1
+    out_height = (height - kh + pt + pb) // sh + 1
+    out_width = (width - kw + pl + pr) // sw + 1
     out_channel = filter_channel * channel_multiplier
 
     # get config here

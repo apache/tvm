@@ -34,8 +34,8 @@ def test_for():
     body = body.body
     assert isinstance(body, tvm.stmt.For)
     body = body.body
-    assert isinstance(body, tvm.stmt.Block)
-    assert isinstance(body.rest, tvm.stmt.For)
+    assert isinstance(body, tvm.stmt.SeqStmt)
+    assert isinstance(body[1], tvm.stmt.For)
 
 def test_if():
     ib = tvm.ir_builder.create()

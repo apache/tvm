@@ -110,7 +110,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
  private:
   const DependencyGraph& dg_;
   std::unordered_map<DependencyGraph::Node*, Scope>* node_scope_;
-  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo;
+  std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo;
 
   Fill(const DependencyGraph& dg,
        std::unordered_map<DependencyGraph::Node*, Scope>* node_scope) :
@@ -291,7 +291,7 @@ Expr ToANormalFormAux(const Expr& e) {
   return Fill::ToANormalForm(e, dg, &node_scope);
 }
 
-Module ToANormalForm(const Module& m) {
+IRModule ToANormalForm(const IRModule& m) {
   DLOG(INFO) << "ToANF:" << std::endl << m;
 
   tvm::Map<GlobalVar, Function> updates;
@@ -321,14 +321,14 @@ Module ToANormalForm(const Module& m) {
 namespace transform {
 
 Pass ToANormalForm() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
-    return ToANormalForm(m);
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
+    return relay::ToANormalForm(m);
   };
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToANormalForm")
+TVM_REGISTER_GLOBAL("relay._transform.ToANormalForm")
 .set_body_typed(ToANormalForm);
 
 }  // namespace transform

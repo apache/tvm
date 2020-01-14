@@ -60,13 +60,13 @@ struct RPCEnv {
 };
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
-.set_body_typed<std::string(std::string)>([](std::string path) {
+.set_body_typed([](std::string path) {
     static RPCEnv env;
     return env.GetPath(path);
   });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
-.set_body_typed<Module(std::string)>([](std::string path) {
+.set_body_typed([](std::string path) {
     std::string file_name = "/rpc/" + path;
     LOG(INFO) << "Load module from " << file_name << " ...";
     return Module::LoadFromFile(file_name, "");

@@ -787,9 +787,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
         TVMValue ret_value_pack[2];
         int ret_tcode_pack[2];
         rv.MoveToCHost(&ret_value_pack[0], &ret_tcode_pack[0]);
-
-        NDArray::Container* nd = static_cast<NDArray::Container*>(ret_value_pack[0].v_handle);
-        ret_value_pack[1].v_handle = nd;
+        ret_value_pack[1].v_handle = ret_value_pack[0].v_handle;
         ret_tcode_pack[1] = kHandle;
         SendPackedSeq(ret_value_pack, ret_tcode_pack, 2, false, nullptr, true);
       } else {
@@ -1190,7 +1188,8 @@ void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
 
 void RPCNDArrayFree(TVMArgs args, TVMRetValue *rv) {
   void* handle = args[0];
-  static_cast<NDArray::Container*>(handle)->DecRef();
+  static_cast<NDArray::Container*>(
+      reinterpret_cast<NDArray::ContainerBase*>(handle))->DecRef();
 }
 
 void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {

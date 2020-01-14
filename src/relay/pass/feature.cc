@@ -25,7 +25,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include "pass_util.h"
 
 namespace tvm {
@@ -36,7 +36,7 @@ FeatureSet DetectFeature(const Expr& expr) {
     return FeatureSet::No();
   }
   struct FeatureDetector : ExprVisitor {
-    std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
     FeatureSet fs = FeatureSet::No();
 
     void VisitExpr(const Expr& expr) final {
@@ -89,7 +89,7 @@ FeatureSet DetectFeature(const Expr& expr) {
   return fd.fs;
 }
 
-FeatureSet DetectFeature(const Module& mod) {
+FeatureSet DetectFeature(const IRModule& mod) {
   FeatureSet fs = FeatureSet::No();
   if (mod.defined()) {
     for (const auto& f : mod->functions) {
@@ -99,12 +99,12 @@ FeatureSet DetectFeature(const Module& mod) {
   return fs;
 }
 
-Array<Integer> PyDetectFeature(const Expr& expr, const Module& mod) {
+Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
   FeatureSet fs = DetectFeature(expr) + DetectFeature(mod);
   return static_cast<Array<Integer>>(fs);
 }
 
-TVM_REGISTER_API("relay._analysis.detect_feature")
+TVM_REGISTER_GLOBAL("relay._analysis.detect_feature")
 .set_body_typed(PyDetectFeature);
 
 }  // namespace relay

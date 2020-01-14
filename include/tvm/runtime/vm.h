@@ -36,25 +36,6 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-/*! \brief An object containing an NDArray. */
-class TensorObj : public Object {
- public:
-  /*! \brief The NDArray. */
-  NDArray data;
-
-  static constexpr const uint32_t _type_index = TypeIndex::kVMTensor;
-  static constexpr const char* _type_key = "vm.Tensor";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorObj, Object);
-};
-
-/*! \brief reference to tensor. */
-class Tensor : public ObjectRef {
- public:
-  explicit Tensor(NDArray data);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Tensor, ObjectRef, TensorObj);
-};
-
 /*! \brief An object representing a closure. */
 class ClosureObj : public Object {
  public:

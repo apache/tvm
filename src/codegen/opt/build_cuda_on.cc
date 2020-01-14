@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -154,7 +154,7 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(funcs), code);
 }
 
-TVM_REGISTER_API("codegen.build_cuda")
+TVM_REGISTER_GLOBAL("codegen.build_cuda")
 .set_body_typed(BuildCUDA);
 }  // namespace codegen
 }  // namespace tvm

@@ -17,19 +17,19 @@
 """Backend code generation engine."""
 from __future__ import absolute_import
 
-from ..base import register_relay_node, NodeBase
+from ..base import register_relay_node, Object
 from ... import target as _target
 from .. import expr as _expr
 from . import _backend
 
 @register_relay_node
-class CachedFunc(NodeBase):
+class CachedFunc(Object):
     """Low-level tensor function to back a relay primitive function.
     """
 
 
 @register_relay_node
-class CCacheKey(NodeBase):
+class CCacheKey(Object):
     """Key in the CompileEngine.
 
     Parameters
@@ -46,7 +46,7 @@ class CCacheKey(NodeBase):
 
 
 @register_relay_node
-class CCacheValue(NodeBase):
+class CCacheValue(Object):
     """Value in the CompileEngine, including usage statistics.
     """
 
@@ -64,7 +64,7 @@ def _get_cache_key(source_func, target):
 
 
 @register_relay_node
-class CompileEngine(NodeBase):
+class CompileEngine(Object):
     """CompileEngine to get lowered code.
     """
     def __init__(self):

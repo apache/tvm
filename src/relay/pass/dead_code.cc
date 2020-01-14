@@ -36,8 +36,8 @@ namespace tvm {
 namespace relay {
 
 template<typename X>
-using VarMap = std::unordered_map<Var, X, NodeHash, NodeEqual>;
-using VarSet = std::unordered_set<Var, NodeHash, NodeEqual>;
+using VarMap = std::unordered_map<Var, X, ObjectHash, ObjectEqual>;
+using VarSet = std::unordered_set<Var, ObjectHash, ObjectEqual>;
 
 class CalcDep;
 class FindDef : private ExprVisitor {
@@ -140,14 +140,14 @@ Expr DeadCodeElimination(const Expr& e, bool inline_once) {
 namespace transform {
 
 Pass DeadCodeElimination(bool inline_once) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(DeadCodeElimination(f, inline_once));
   };
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_API("relay._transform.DeadCodeElimination")
+TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination")
 .set_body_typed(DeadCodeElimination);
 
 }  // namespace transform

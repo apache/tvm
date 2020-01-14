@@ -23,7 +23,7 @@
  */
 
 #include <tvm/operation.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
@@ -31,17 +31,13 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/attrs/memory.h>
-#include <topi/tags.h>
-#include <algorithm>
 #include <iostream>
 #include <memory>
-#include <set>
 #include <string>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
 #include "../../op/op_common.h"
@@ -54,7 +50,7 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
-Pass RemoveUnusedFunctions(Array<tvm::Expr> entry_functions);
+Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
@@ -72,8 +68,6 @@ using namespace relay::transform;
 
 // (@jroesch): VM passes, eventually declare as passes.
 bool IsClosure(const Function& func);
-
-void InstructionPrint(std::ostream& os, const Instruction& instr);
 
 // Represent a runtime object that's going to be matched by pattern match expressions
 struct MatchValue {
@@ -112,7 +106,7 @@ struct ConditionNode {
   virtual ~ConditionNode() {}
 };
 
-using ConditionNodePtr = std::shared_ptr<ConditionNode>;
+using ConditionObjectPtr = std::shared_ptr<ConditionNode>;
 
 /*!
  * \brief A var binding condition
@@ -144,24 +138,22 @@ struct TagCompare : ConditionNode {
   ~TagCompare() {}
 };
 
-using TreeNodePtr = typename relay::TreeNode<ConditionNodePtr>::pointer;
-using TreeLeafNode = relay::TreeLeafNode<ConditionNodePtr>;
-using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionNodePtr>;
-using TreeBranchNode = relay::TreeBranchNode<ConditionNodePtr>;
+using TreeObjectPtr = typename relay::TreeNode<ConditionObjectPtr>::pointer;
+using TreeLeafNode = relay::TreeLeafNode<ConditionObjectPtr>;
+using TreeLeafFatalNode = relay::TreeLeafFatalNode<ConditionObjectPtr>;
+using TreeBranchNode = relay::TreeBranchNode<ConditionObjectPtr>;
 
-TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
+TreeObjectPtr BuildDecisionTreeFromPattern(MatchValuePtr data,
                                          Pattern pattern,
-                                         TreeNodePtr then_branch,
-                                         TreeNodePtr else_branch) {
+                                         TreeObjectPtr then_branch,
+                                         TreeObjectPtr else_branch) {
   if (pattern.as<PatternWildcardNode>()) {
     // We ignore wildcard binding since it's not producing new vars
     return then_branch;
-  } else if (pattern.as<PatternVarNode>()) {
-    auto pat = pattern.as<PatternVarNode>();
-    auto pattern = GetRef<PatternVar>(pat);
-    auto cond = std::make_shared<VarBinding>(pattern->var, data);
+  } else if (const auto* pvn = pattern.as<PatternVarNode>()) {
+    auto cond = std::make_shared<VarBinding>(pvn->var, data);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
-  } else if (auto pcn = pattern.as<PatternConstructorNode>()) {
+  } else if (const auto* pcn = pattern.as<PatternConstructorNode>()) {
     auto tag = pcn->constructor->tag;
 
     size_t field_index = 0;
@@ -173,28 +165,27 @@ TreeNodePtr BuildDecisionTreeFromPattern(MatchValuePtr data,
     auto cond = std::make_shared<TagCompare>(data, tag);
     return TreeBranchNode::Make(cond, then_branch, else_branch);
   } else {
-    auto pt = pattern.as<PatternTupleNode>();
-    CHECK(pt) << "unhandled case: " << pattern;
+    const auto* pt = pattern.as<PatternTupleNode>();
+    CHECK(pt) << "unhandled case: " << AsText(pattern, false);
     size_t field_index = 0;
     for (auto& p : pt->patterns) {
-      auto d = std::make_shared<AccessField>(data, field_index);
+      auto d = std::make_shared<AccessField>(data, field_index++);
       then_branch = BuildDecisionTreeFromPattern(d, p, then_branch, else_branch);
-      field_index++;
     }
     return then_branch;
   }
 }
 
-TreeNodePtr BuildDecisionTreeFromClause(MatchValuePtr data,
+TreeObjectPtr BuildDecisionTreeFromClause(MatchValuePtr data,
                                         Clause clause,
-                                        TreeNodePtr else_branch) {
+                                        TreeObjectPtr else_branch) {
   return BuildDecisionTreeFromPattern(data, clause->lhs,
                                       TreeLeafNode::Make(clause->rhs), else_branch);
 }
 
-TreeNodePtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> clauses) {
+TreeObjectPtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause> clauses) {
   // When nothing matches, the VM throws fatal error
-  TreeNodePtr else_branch = TreeLeafFatalNode::Make();
+  TreeObjectPtr else_branch = TreeLeafFatalNode::Make();
   // Start from the last clause
   for (auto it = clauses.rbegin(); it != clauses.rend(); ++it) {
     else_branch = BuildDecisionTreeFromClause(data, *it, else_branch);
@@ -476,30 +467,39 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       argument_registers.push_back(reg->second);
     }
 
-    // Next generate the invoke instruction.
     Target target;
-    if (targets_.size() == 1) {
-      // homogeneous execution.
-      for (auto kv : targets_) {
-        target = kv.second;
-      }
+
+    if (!func->UseDefaultCompiler()) {
+      target = tvm::target::ext_dev();
     } else {
-      // heterogeneous execution.
-      LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      // Next generate the invoke instruction.
+      if (targets_.size() == 1) {
+        // homogeneous execution.
+        const auto& it = targets_.begin();
+        target = (*it).second;
+      } else {
+        // heterogeneous execution.
+        LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+      }
     }
 
     auto key = CCacheKeyNode::make(func, target);
     auto cfunc = engine_->Lower(key);
 
-    // TODO(jroesch): support lowered funcs for multiple targets
-    CHECK_EQ(cfunc->funcs.size(), 1);
     auto op_index = -1;
-    if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+    if (!func->UseDefaultCompiler()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
     } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
+      // TODO(jroesch): support lowered funcs for multiple targets
+      CHECK_EQ(cfunc->funcs.size(), 1);
+      if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+        op_index = context_->cached_funcs.size();
+        context_->cached_funcs.push_back(cfunc);
+        context_->seen_funcs[cfunc->funcs[0]] = op_index;
+      } else {
+        op_index = context_->seen_funcs[cfunc->funcs[0]];
+      }
     }
 
     Emit(Instruction::InvokePacked(op_index,
@@ -612,7 +612,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       CHECK(it != context_->global_map.end());
       DLOG(INFO) << "VisitExpr_: generating invoke for " << global->name_hint
                       << " with func_index=" << it->second;
-      auto func = context_->module->Lookup(global);
+
+      // TODO(tvm-team):
+      // Think about mixed call into global that is not a relay::Function
+      // perhaps establish as an invariance(all functions in mod must be relay::Function)
+      auto func = Downcast<Function>(context_->module->Lookup(global));
+
+
       if (IsClosure(func)) {
         auto arity = func->params.size();
         Emit(Instruction::AllocClosure(it->second, arity, args_registers, NewRegister()));
@@ -624,7 +630,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // and emit a call to allocate the data structure.
       auto constructor = GetRef<Constructor>(constructor_node);
       Emit(Instruction::AllocADT(constructor->tag, call_node->args.size(), args_registers,
-                                      NewRegister()));
+                                 NewRegister()));
     } else if (auto var_node = op.as<VarNode>()) {
       // If we are calling a variable, it must be the case that it is a closure so we
       // emit invoke closure here.
@@ -665,17 +671,14 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     }
   }
 
-  void CompileTreeNode(TreeNodePtr tree) {
-    if (std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
-      auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree);
+  void CompileTreeNode(TreeObjectPtr tree) {
+    if (auto node = std::dynamic_pointer_cast<TreeLeafNode>(tree)) {
       VisitExpr(node->body);
     } else if (std::dynamic_pointer_cast<TreeLeafFatalNode>(tree)) {
       Emit(Instruction::Fatal());
-    } else if (std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
-      auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree);
-      if (std::dynamic_pointer_cast<TagCompare>(node->cond)) {
+    } else if (auto node = std::dynamic_pointer_cast<TreeBranchNode>(tree)) {
+      if (auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond)) {
         // For Tag compariton, generate branches
-        auto cond = std::dynamic_pointer_cast<TagCompare>(node->cond);
         auto r = CompileMatchValue(cond->obj);
         Emit(Instruction::GetTag(r, NewRegister()));
         auto operand1 = last_register_;
@@ -698,8 +701,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         instructions_[goto_offset].pc_offset = else_offset - goto_offset + 1;
       } else {
         // For other non-branch conditions, move to then_branch directly
-        auto cond = std::dynamic_pointer_cast<VarBinding>(node->cond);
-        var_register_map_[cond->var] = CompileMatchValue(cond->val);
+        auto var_bind = std::dynamic_pointer_cast<VarBinding>(node->cond);
+        var_register_map_[var_bind->var] = CompileMatchValue(var_bind->val);
         CompileTreeNode(node->then_branch);
       }
     }
@@ -722,13 +725,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
  protected:
   /*! \brief Store the expression a variable points to. */
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> expr_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> expr_map_;
   /*! \brief Instructions in the VMFunction. */
   std::vector<Instruction> instructions_;
   /*! \brief Parameter names of the function. */
   std::vector<std::string> params_;
   /*! \brief Map from var to register number. */
-  std::unordered_map<Var, RegName, NodeHash, NodeEqual> var_register_map_;
+  std::unordered_map<Var, RegName, ObjectHash, ObjectEqual> var_register_map_;
   /*! \brief Last used register number. */
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
@@ -746,11 +749,16 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
 PackedFunc VMCompiler::GetFunction(const std::string& name,
                                    const ObjectPtr<Object>& sptr_to_self) {
-  if (name == "compile") {
+  if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
-      Module mod = args[0];
-      this->Compile(mod, args[1], args[2]);
+      IRModule mod = args[0];
+      this->Lower(mod, args[1], args[2]);
+    });
+  } else if (name == "codegen") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 0);
+      this->Codegen();
     });
   } else if (name == "get_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -777,7 +785,7 @@ relay::Function VMCompiler::BindParamsByName(
     relay::Function func,
     const std::unordered_map<std::string, runtime::NDArray>& params) {
   std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, NodeHash, NodeEqual> repeat_var;
+  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
   for (auto arg : func->params) {
     const auto &name = arg->name_hint();
     if (name_dict.count(name)) {
@@ -786,7 +794,7 @@ relay::Function VMCompiler::BindParamsByName(
       name_dict[name] = arg;
     }
   }
-  std::unordered_map<relay::Var, Expr, NodeHash, NodeEqual> bind_dict;
+  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
   for (auto &kv : params) {
     if (name_dict.count(kv.first) == 0) {
       continue;
@@ -805,18 +813,21 @@ relay::Function VMCompiler::BindParamsByName(
   return ret;
 }
 
-void VMCompiler::Compile(Module mod,
-                         const TargetsMap& targets,
-                         const tvm::Target& target_host) {
+void VMCompiler::Lower(IRModule mod,
+                       const TargetsMap& targets,
+                       const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
     << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
-    auto f = BindParamsByName(mod->Lookup("main"), params_);
+    BaseFunc base_func = mod->Lookup("main");
+    CHECK(base_func->IsInstance<FunctionNode>())
+        << "VM compiler expects to compile relay::Function";
+    auto f = BindParamsByName(Downcast<Function>(base_func), params_);
     auto gvar = mod->GetGlobalVar("main");
     mod->Add(gvar, f);
   }
 
-  InitVM();
+  exec_ = make_object<Executable>();
   targets_ = targets;
   target_host_ = target_host;
 
@@ -835,13 +846,15 @@ void VMCompiler::Compile(Module mod,
 
   for (auto named_func : context_.module->functions) {
     auto gvar = named_func.first;
-    auto func = named_func.second;
-    VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
-    auto vm_func = func_compiler.Compile(gvar, func);
+    if (auto* n = named_func.second.as<FunctionNode>()) {
+      auto func = GetRef<Function>(n);
+      VMFunctionCompiler func_compiler(&context_, targets_, target_host_);
+      auto vm_func = func_compiler.Compile(gvar, func);
 
-    size_t func_index = context_.global_map.at(gvar);
-    CHECK(func_index < exec_->functions.size());
-    exec_->functions[func_index] = vm_func;
+      size_t func_index = context_.global_map.at(gvar);
+      CHECK(func_index < exec_->functions.size());
+      exec_->functions[func_index] = vm_func;
+    }
   }
 
 #if USE_RELAY_DEBUG
@@ -852,19 +865,28 @@ void VMCompiler::Compile(Module mod,
 
   // populate constants
   for (auto data : context_.constants) {
-    exec_->constants.push_back(vm::Tensor(data));
+    exec_->constants.push_back(data);
   }
 
-  LibraryCodegen();
-
+  // update global function map
   for (auto gv : context_.global_map) {
     exec_->global_map.insert({gv.first->name_hint, gv.second});
   }
+
+  // update primitive function map
+  size_t primitive_index = 0;
+  for (const auto& cfunc : context_.cached_funcs) {
+    if (cfunc->target->str() == "ext_dev") {
+      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    } else {
+      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+    }
+  }
 }
 
-Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
+IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::Expr> entry_functions{tvm::Expr{"main"}};
+  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -886,7 +908,7 @@ Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) 
       auto op_node = call_node->op.as<OpNode>();
       if (op_node->name == "cast") {
         auto attrs = call_node->attrs.as<CastAttrs>();
-        if (attrs->dtype == Int(32)) {
+        if (attrs->dtype == DataType::Int(32)) {
           *rv = true;
         }
       }
@@ -945,38 +967,48 @@ void VMCompiler::PopulateGlobalMap() {
   }
 }
 
-void VMCompiler::LibraryCodegen() {
+void VMCompiler::Codegen() {
+  if (!context_.module.defined()) {
+    LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
+    return;
+  }
   auto const &cached_funcs = context_.cached_funcs;
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, Array<LoweredFunc>> tgt_funcs;
-  for (auto &cfunc : cached_funcs) {
+  std::unordered_map<std::string, Array<LoweredFunc>> funcs;
+  for (auto& cfunc : cached_funcs) {
     std::string target_str = cfunc->target->str();
-    if (tgt_funcs.count(target_str) == 0) {
-      tgt_funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+    if (target_str == "ext_dev") {
+      continue;
+    } else if (funcs.count(target_str) == 0) {
+      funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
     } else {
-      tgt_funcs[target_str].push_back(cfunc->funcs[0]);
+      funcs[target_str].push_back(cfunc->funcs[0]);
     }
   }
-  Map<Target, Array<LoweredFunc>> funcs;
-  for (auto &it : tgt_funcs) {
-    funcs.Set(Target::Create(it.first), it.second);
-  }
 
-  if (const auto *f = runtime::Registry::Get("relay.backend.build")) {
-    // The target is just a dummy arg because funcs already contains corresponding target
-    // therefore target won't be used in the build function
-    runtime::Module mod = (*f)(funcs, Target(), target_host_);
+  auto compile_engine = CompileEngine::Global();
+  auto ext_mods = compile_engine->LowerExternalFunctions();
+  runtime::Module mod;
+  if (funcs.size() > 0) {
+    mod = tvm::build(funcs, target_host_, tvm::BuildConfig::Current());
     CHECK(mod.operator->());
-    exec_->lib = mod;
   } else {
-    LOG(FATAL) << "relay.backend.build is not registered";
+    CHECK_EQ(ext_mods.size(), 1U)
+        << "Expect to have a TVM DSOModule when multiple runtime modules exist";
   }
-  size_t primitive_index = 0;
-  for (auto cfunc : cached_funcs) {
-    exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
+  if (!ext_mods.empty()) {
+    if (funcs.size() == 0) {
+      mod = ext_mods[0];
+    } else {
+      // Import all external runtime modules.
+      for (auto it : ext_mods) {
+        mod.Import(it);
+      }
+    }
   }
+  exec_->lib = mod;
 }
 
 runtime::Module CreateVMCompiler() {

@@ -39,7 +39,7 @@ namespace relay {
  * \param body The body expression.
  * \return The reference count mapping.
  */
-std::unordered_map<const Node*, size_t>
+std::unordered_map<const Object*, size_t>
 GetExprRefCount(const Expr& body);
 
 /*!
@@ -108,57 +108,57 @@ inline bool IsAtomic(const Expr& e) {
   return e.as<VarNode>() || e.as<OpNode>() || e.as<ConstructorNode>() || e.as<GlobalVarNode>();
 }
 
-template<typename ConditionNodePtr>
+template<typename ConditionObjectPtr>
 struct TreeNode {
-  typedef std::shared_ptr<TreeNode<ConditionNodePtr>> pointer;
+  typedef std::shared_ptr<TreeNode<ConditionObjectPtr>> pointer;
   virtual ~TreeNode() {}
 };
 
-template<typename ConditionNodePtr>
-struct TreeLeafNode : TreeNode<ConditionNodePtr> {
-  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+template<typename ConditionObjectPtr>
+struct TreeLeafNode : TreeNode<ConditionObjectPtr> {
+  using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
   Expr body;
 
   explicit TreeLeafNode(Expr body): body(body) {}
 
-  static TreeNodePtr Make(Expr body) {
+  static TreeObjectPtr Make(Expr body) {
     return std::make_shared<TreeLeafNode>(body);
   }
 
   ~TreeLeafNode() {}
 };
 
-template<typename ConditionNodePtr>
-struct TreeLeafFatalNode : TreeNode<ConditionNodePtr> {
-  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+template<typename ConditionObjectPtr>
+struct TreeLeafFatalNode : TreeNode<ConditionObjectPtr> {
+  using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
   TreeLeafFatalNode() = default;
 
-  static TreeNodePtr Make() {
+  static TreeObjectPtr Make() {
     return std::make_shared<TreeLeafFatalNode>();
   }
 
   ~TreeLeafFatalNode() {}
 };
 
-template<typename ConditionNodePtr>
-struct TreeBranchNode : TreeNode<ConditionNodePtr> {
-  using TreeNodePtr = typename TreeNode<ConditionNodePtr>::pointer;
+template<typename ConditionObjectPtr>
+struct TreeBranchNode : TreeNode<ConditionObjectPtr> {
+  using TreeObjectPtr = typename TreeNode<ConditionObjectPtr>::pointer;
 
-  ConditionNodePtr cond;
-  TreeNodePtr then_branch;
-  TreeNodePtr else_branch;
+  ConditionObjectPtr cond;
+  TreeObjectPtr then_branch;
+  TreeObjectPtr else_branch;
 
-  TreeBranchNode(ConditionNodePtr cond,
-                 TreeNodePtr then_branch,
-                 TreeNodePtr else_branch)
+  TreeBranchNode(ConditionObjectPtr cond,
+                 TreeObjectPtr then_branch,
+                 TreeObjectPtr else_branch)
   : cond(cond), then_branch(then_branch), else_branch(else_branch) {}
 
 
-  static TreeNodePtr Make(ConditionNodePtr cond,
-                          TreeNodePtr then_branch,
-                          TreeNodePtr else_branch) {
+  static TreeObjectPtr Make(ConditionObjectPtr cond,
+                          TreeObjectPtr then_branch,
+                          TreeObjectPtr else_branch) {
     return std::make_shared<TreeBranchNode>(cond, then_branch, else_branch);
   }
 

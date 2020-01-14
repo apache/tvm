@@ -53,6 +53,7 @@ def test_equal_compute():
             A[i] = A[i] + 1
             with ib.for_range(0, 10, name="j") as j:
                 A[j] = A[j] + 2
+                A[j] = A[j] + 2
         return ib.get()
 
     assert tvm.ir_pass.Equal(func1(), func1())

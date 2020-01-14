@@ -26,6 +26,7 @@
 
 #include <tvm/attrs.h>
 #include <tvm/relay/base.h>
+#include <tvm/relay/expr.h>
 #include <string>
 
 namespace tvm {
@@ -196,7 +197,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
 };  // struct SqueezeAttrs
 
 struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
-  NodeRef indices_or_sections;
+  ObjectRef indices_or_sections;
   int axis;
 
   TVM_DECLARE_ATTRS(SplitAttrs, "relay.attrs.SplitAttrs") {

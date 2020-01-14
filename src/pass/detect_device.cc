@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,13 +22,12 @@
  */
 
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
 #include "../pass/ir_util.h"
 
 namespace tvm {
 namespace ir {
 Stmt DecorateDeviceScope(Stmt stmt) {
-  Stmt body = AttrStmt::make(make_zero(Int(32)),
+  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)),
                              ir::attr::device_scope,
                              0,
                              stmt);

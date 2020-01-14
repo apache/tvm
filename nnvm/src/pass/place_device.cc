@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -105,8 +105,8 @@ Graph PlaceDevice(Graph src) {
     src.attrs["device"] = std::make_shared<any>(std::move(device));
     return src;
   }
-  std::map<std::tuple<uint32_t, uint32_t, int>, NodePtr> copy_map;
-  std::vector<NodePtr> new_node_map(idx.num_nodes(), nullptr);
+  std::map<std::tuple<uint32_t, uint32_t, int>, ObjectPtr> copy_map;
+  std::vector<ObjectPtr> new_node_map(idx.num_nodes(), nullptr);
   std::unordered_map<const Node*, int> new_device_map;
   static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
 
@@ -142,7 +142,7 @@ Graph PlaceDevice(Graph src) {
       CHECK(!need_mutate) << "consistency check";
     }
     if (need_mutate) {
-      NodePtr new_node = Node::Create();
+      ObjectPtr new_node = Node::Create();
       new_node->attrs = inode.source->attrs;
       new_node->inputs.reserve(inode.inputs.size());
       for (size_t i = 0; i < inode.inputs.size(); ++i) {
@@ -154,7 +154,7 @@ Graph PlaceDevice(Graph src) {
             new_node->inputs.emplace_back(
                 NodeEntry{it->second, 0, 0});
           } else {
-            NodePtr copy_node = Node::Create();
+            ObjectPtr copy_node = Node::Create();
             std::ostringstream os;
             os << inode.source->inputs[i].node->attrs.name << "_" << e.index <<"_copy";
             copy_node->attrs.op = copy_op;

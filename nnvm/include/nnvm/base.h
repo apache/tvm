@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,6 +45,24 @@ using dmlc::get;
 
 /*!\brief "unsafe" getter function of any type */
 using dmlc::unsafe_get;
+
+enum TypeFlag {
+  kFloat32 = 0,
+  kFloat64 = 1,
+  kFloat16 = 2,
+  kUint8 = 3,
+  kInt32 = 4,
+  kInt8  = 5,
+  kInt64 = 6,
+  // kBool = 7,
+  // 7 is reserved for kBool, in order to keep consistency with MXNet TypeFlag defined in
+  // https://github.com/apache/incubator-mxnet/blob/master/3rdparty/mshadow/mshadow/base.h#L314
+  kInt16 = 8,
+  kUint16 = 9,
+  kUint32 = 10,
+  kUint64 = 11,
+  kBfloat16 = 12,
+};
 
 }  // namespace nnvm
 

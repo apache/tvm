@@ -18,6 +18,7 @@
 """Convolution 3D in python"""
 import numpy as np
 import scipy.signal
+from topi.nn.util import get_pad_tuple3d
 
 
 def _conv3d_ncdhw_python(a_np, w_np, stride, padding):
@@ -27,20 +28,13 @@ def _conv3d_ncdhw_python(a_np, w_np, stride, padding):
         stride_d = stride_h = stride_w = stride
     else:
         stride_d, stride_h, stride_w = stride
-    if isinstance(padding, int):
-        pad_d = pad_h = pad_w = padding * 2
-    elif isinstance(padding, (list, tuple)):
-        pad_d, pad_h, pad_w = padding[0] * 2, padding[1] * 2, padding[2] * 2
-    else:
-        pad_d = 0 if padding == 'VALID' else kernel_d - 1
-        pad_h = 0 if padding == 'VALID' else kernel_h - 1
-        pad_w = 0 if padding == 'VALID' else kernel_w - 1
-    pad_front = int(np.ceil(float(pad_d) / 2))
-    pad_back = pad_d - pad_front
-    pad_top = int(np.ceil(float(pad_h) / 2))
-    pad_bottom = pad_h - pad_top
-    pad_left = int(np.ceil(float(pad_w) / 2))
-    pad_right = pad_w - pad_left
+
+    pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = \
+        get_pad_tuple3d(padding, (kernel_d, kernel_h, kernel_w))
+    pad_d = pad_front + pad_back
+    pad_h = pad_top + pad_bottom
+    pad_w = pad_left + pad_right
+
     # compute the output shape
     out_channel = num_filter
     out_depth = (in_depth - kernel_d + pad_d) // stride_d + 1
@@ -53,19 +47,8 @@ def _conv3d_ncdhw_python(a_np, w_np, stride, padding):
             for c in range(in_channel):
                 if pad_d > 0 or pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_depth + pad_d, in_height + pad_h, in_width + pad_w))
-                    if pad_d == 0 and pad_h == 0:
-                        apad[:, :, pad_left:-pad_right] = a_np[n, c]
-                    elif pad_d == 0 and pad_w == 0:
-                        apad[:, pad_top:-pad_bottom, :] = a_np[n, c]
-                    elif pad_d == 0 and pad_h != 0 and pad_w != 0:
-                        apad[:, pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
-                    elif pad_d != 0 and pad_h == 0:
-                        apad[pad_front:-pad_back, :, pad_left:-pad_right] = a_np[n, c]
-                    elif pad_d != 0 and pad_w == 0:
-                        apad[pad_front:-pad_back, pad_top:-pad_bottom, :] = a_np[n, c]
-                    elif pad_d != 0 and pad_h != 0 and pad_w != 0:
-                        apad[pad_front:-pad_back, pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
-
+                    apad[pad_front:pad_front + in_depth, pad_top:pad_top + in_height,\
+                        pad_left:pad_left + in_width] = a_np[n, c]
                 else:
                     apad = a_np[n, c]
                 out = scipy.signal.convolve(

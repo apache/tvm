@@ -61,14 +61,14 @@ class TempRealizer : private ExprMutator {
 class ForwardRewriter : private ExprMutator {
  public:
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
-                  std::function<NodeRef(const Call&)> fcontext,
+                  std::function<ObjectRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
       : rewrite_map_(rewrite_map),
         fcontext_(fcontext),
         fmulti_ref_trigger_(fmulti_ref_trigger) {}
 
   ForwardRewriter(const FForwardRewrite* rewrite_func,
-                  std::function<NodeRef(const Call&)> fcontext,
+                  std::function<ObjectRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
       : rewrite_func_(rewrite_func),
         fcontext_(fcontext),
@@ -88,11 +88,11 @@ class ForwardRewriter : private ExprMutator {
   const OpMap<FForwardRewrite>* rewrite_map_{nullptr};
   const FForwardRewrite* rewrite_func_{nullptr};
   // The context.const
-  std::function<NodeRef(const Call&)> fcontext_{nullptr};
+  std::function<ObjectRef(const Call&)> fcontext_{nullptr};
   // The multiple reference trigger
   std::function<Expr(const Expr&)> fmulti_ref_trigger_{nullptr};
   // Internal ref counter
-  std::unordered_map<const Node*, size_t> ref_counter_;
+  std::unordered_map<const Object*, size_t> ref_counter_;
   // internal realizer
   TempRealizer realizer_;
 
@@ -172,7 +172,7 @@ class ForwardRewriter : private ExprMutator {
     if (frewrite != nullptr) {
       Expr res = frewrite(
           ref_call, call_args,
-          fcontext_ != nullptr ? fcontext_(ref_call) : NodeRef(nullptr));
+          fcontext_ != nullptr ? fcontext_(ref_call) : ObjectRef(nullptr));
       if (res.defined()) return res;
       // abort, use old rule
       for (size_t i = 0; i < call_args.size(); ++i) {
@@ -192,7 +192,7 @@ class ForwardRewriter : private ExprMutator {
 
 Expr ForwardRewrite(const Expr& expr,
                     const std::string& rewrite_map_name,
-                    std::function<NodeRef(const Call&)> fcontext,
+                    std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   auto rewrite_map = Op::GetAttr<FForwardRewrite>(rewrite_map_name);
   return ForwardRewriter(&rewrite_map, fcontext, fmulti_ref_trigger).Rewrite(expr);
@@ -200,7 +200,7 @@ Expr ForwardRewrite(const Expr& expr,
 
 Expr ForwardRewrite(const Expr& expr,
                     const FForwardRewrite& rewrite_func,
-                    std::function<NodeRef(const Call&)> fcontext,
+                    std::function<ObjectRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   return ForwardRewriter(&rewrite_func, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }

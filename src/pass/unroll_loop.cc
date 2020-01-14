@@ -24,7 +24,7 @@
 // Unrolls the loop as in Halide pipeline.
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace ir {
 
-class LoopUnroller : public IRMutator {
+class LoopUnroller : public StmtExprMutator {
  public:
   explicit LoopUnroller(int auto_max_step,
                         int auto_max_depth,
@@ -45,12 +45,12 @@ class LoopUnroller : public IRMutator {
         explicit_unroll_(explicit_unroll) {
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
       int value = 0;
       CHECK(arith::GetConstInt(op->value, &value));
       std::swap(value, auto_max_step_);
-      Stmt ret = this->Mutate(op->body);
+      Stmt ret = this->VisitStmt(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
@@ -58,17 +58,17 @@ class LoopUnroller : public IRMutator {
       CHECK(arith::GetConstInt(op->value, &value));
       bool explicit_unroll = value;
       std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->Mutate(op->body);
+      Stmt ret = this->VisitStmt(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
       return ret;
     } else {
-      return IRMutator::Mutate_(op, stmt);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const For* op, const Stmt& s) {
-    Stmt stmt = IRMutator::Mutate_(op, s);
-    op = stmt.as<For>();
+  Stmt VisitStmt_(const ForNode* op) {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<ForNode>();
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (
@@ -101,7 +101,7 @@ class LoopUnroller : public IRMutator {
     } else {
       if (auto_unroll) {
         if (op->for_type != ForType::Unrolled) {
-          return For::make(
+          return ForNode::make(
               op->loop_var, op->min, op->extent,
               ForType::Unrolled, op->device_api, op->body);
         }
@@ -110,65 +110,56 @@ class LoopUnroller : public IRMutator {
     }
   }
 
-  Stmt Mutate_(const Store* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     ++step_count_;
-    return IRMutator::Mutate_(op, stmt);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Evaluate* op, const Stmt& stmt) final {
+  Stmt VisitStmt_(const EvaluateNode* op) final {
     ++step_count_;
-    return IRMutator::Mutate_(op, stmt);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Block* op, const Stmt& stmt) final {
-    Stmt first = this->Mutate(op->first);
-    // cleanup state
-    int step_count = step_count_;
-    int unroll_depth = unroll_depth_;
-    int normal_loop_depth = normal_loop_depth_;
-    step_count_ = 0;
-    unroll_depth_ = 0;
-    normal_loop_depth_ = 0;
-    // work on rest part
-    Stmt rest = this->Mutate(op->rest);
-    step_count_ += step_count;
-    normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
-    unroll_depth_ = std::max(unroll_depth_, unroll_depth);
-    if (first.same_as(op->first) &&
-        rest.same_as(op->rest)) {
-      return stmt;
-    } else {
-      return Block::make(first, rest);
-    }
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    auto fmutate = [this](const Stmt& s) {
+      int step_count = step_count_;
+      int unroll_depth = unroll_depth_;
+      int normal_loop_depth = normal_loop_depth_;
+      step_count_ = 0;
+      unroll_depth_ = 0;
+      normal_loop_depth_ = 0;
+      Stmt ret = this->VisitStmt(s);
+      step_count_ += step_count;
+      normal_loop_depth_ = std::max(normal_loop_depth, normal_loop_depth_);
+      unroll_depth_ = std::max(unroll_depth_, unroll_depth);
+      return ret;
+    };
+    return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
 
-  Stmt Unroll(const For* op) {
+  Stmt Unroll(const ForNode* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
     CHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
-    if (value == 0) return Evaluate::make(0);
+    if (value == 0) return EvaluateNode::make(0);
     Stmt body = op->body;
-    Map<Var, Expr> vmap;
-    Stmt unrolled;
+    Map<Var, PrimExpr> vmap;
+    Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.type(), i));
+      vmap.Set(op->loop_var, op->min + make_const(op->loop_var.dtype(), i));
       Stmt step = Substitute(body, vmap);
-      if (unrolled.defined()) {
-        unrolled = Block::make(unrolled, step);
-      } else {
-        unrolled = step;
-      }
+      unrolled.push_back(step);
     }
-    return unrolled;
+    return SeqStmt::Flatten(unrolled);
   }
 
  private:
   // returns the extent of the loop if it's a constant integer, otherwise return -1
-  int GetExtent(const For* op) {
+  int GetExtent(const ForNode* op) {
     // constant folding.
-    Expr extent = ir::Simplify(op->extent);
-    const IntImm  *v1 = extent.as<IntImm>();
-    const UIntImm *v2 = extent.as<UIntImm>();
+    PrimExpr extent = ir::Simplify(op->extent);
+    const IntImmNode  *v1 = extent.as<IntImmNode>();
+    const UIntImmNode *v2 = extent.as<UIntImmNode>();
     int value = -1;
     if (v1 != nullptr) {
       value = static_cast<int>(v1->value);
@@ -204,7 +195,7 @@ Stmt UnrollLoop(Stmt stmt,
       auto_max_step,
       auto_max_depth,
       auto_max_extent,
-      explicit_unroll).Mutate(stmt);
+      explicit_unroll)(stmt);
   if (!ret.same_as(stmt)) {
     return ConvertSSA(ret);
   } else {
@@ -213,7 +204,7 @@ Stmt UnrollLoop(Stmt stmt,
 }
 
 Stmt UnrollLoopExplicitly(Stmt stmt) {
-  const For* op = stmt.as<For>();
+  const ForNode* op = stmt.as<ForNode>();
   if (!op) {
     LOG(FATAL) << "attempted to unroll a non-loop statement";
   }

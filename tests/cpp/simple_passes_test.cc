@@ -25,10 +25,10 @@
 TEST(SimplePasses, HasSideEffect) {
   using namespace tvm;
   auto n = var("n");
-  Array<Expr> shape;
+  Array<PrimExpr> shape;
   shape.push_back(n);
 
-  auto A = placeholder(shape, Float(32), "A");
+  auto A = placeholder(shape, DataType::Float(32), "A");
 
   CHECK(!tvm::ir::HasSideEffect(A[0]));
 }

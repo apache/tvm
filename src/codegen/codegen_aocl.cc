@@ -71,12 +71,12 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
   return AOCLModuleCreate(aocxbin, "aocx", ExtractFuncInfo(funcs), code);
 }
 
-TVM_REGISTER_API("codegen.build_aocl")
+TVM_REGISTER_GLOBAL("codegen.build_aocl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAOCL(args[0], args[1], false);
   });
 
-TVM_REGISTER_API("codegen.build_aocl_sw_emu")
+TVM_REGISTER_GLOBAL("codegen.build_aocl_sw_emu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAOCL(args[0], args[1], true);
   });

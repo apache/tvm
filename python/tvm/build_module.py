@@ -23,7 +23,7 @@ from __future__ import absolute_import as _abs
 import warnings
 
 from ._ffi.function import Function
-from ._ffi.node import NodeBase, register_node
+from ._ffi.object import Object, register_object
 from . import api
 from . import _api_internal
 from . import tensor
@@ -115,22 +115,22 @@ class DumpIR(object):
         DumpIR.scope_level -= 1
 
 
-@register_node
-class BuildConfig(NodeBase):
+@register_object
+class BuildConfig(Object):
     """Configuration scope to set a build config option.
 
     Note
     ----
-    This object is backed by node system in C++, with arguments that can be
+    This object is backed by object protocol in C++, with arguments that can be
     exchanged between python and C++.
 
     Do not construct directly, use build_config instead.
 
-    The fields that are backed by the C++ node are immutable once an instance
-    is constructed. See _node_defaults for the fields.
+    The fields that are backed by the C++ object are immutable once an instance
+    is constructed. See _object_defaults for the fields.
     """
 
-    _node_defaults = {
+    _object_defaults = {
         "auto_unroll_max_step": 0,
         "auto_unroll_max_depth": 8,
         "auto_unroll_max_extent": 0,
@@ -191,7 +191,7 @@ class BuildConfig(NodeBase):
         _api_internal._ExitBuildConfigScope(self)
 
     def __setattr__(self, name, value):
-        if name in BuildConfig._node_defaults:
+        if name in BuildConfig._object_defaults:
             raise AttributeError(
                 "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
         return super(BuildConfig, self).__setattr__(name, value)
@@ -257,7 +257,7 @@ def build_config(**kwargs):
         The build configuration
     """
     node_args = {k: v if k not in kwargs else kwargs[k]
-                 for k, v in BuildConfig._node_defaults.items()}
+                 for k, v in BuildConfig._object_defaults.items()}
     config = make.node("BuildConfig", **node_args)
 
     if "add_lower_pass" in kwargs:

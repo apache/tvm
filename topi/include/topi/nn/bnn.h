@@ -55,7 +55,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
     << "binarize_pack: axis size must be a multiple of 32";
 
   auto n = ishape.size();
-  Array<Expr> oshape;
+  Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == static_cast<size_t>(axis) ?
                      tvm::ir::Simplify(indexdiv(ishape[i], 32)) :
@@ -65,21 +65,21 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
   return tvm::compute(
     oshape,
     [&](const Array<Var>& indices) {
-      Array<Expr> start_idx;
+      Array<PrimExpr> start_idx;
       for (size_t i = 0; i < n; ++i) {
         start_idx.push_back(i == static_cast<size_t>(axis) ?
                             indices[i] * 32 :
-                            static_cast<Expr>(indices[i]));
+                            static_cast<PrimExpr>(indices[i]));
       }
-      auto packed = make_const(UInt(32), 0);
+      auto packed = make_const(DataType::UInt(32), 0);
       for (size_t j = 0; j < 32; ++j) {
-        Array<Expr> idx;
+        Array<PrimExpr> idx;
         for (size_t i = 0; i < n; ++i) {
           idx.push_back(i == static_cast<size_t>(axis) ?
                         start_idx[i] + static_cast<int>(j) :
                         start_idx[i]);
         }
-        auto sign = tvm::cast(UInt(32), data(idx) >= 0);
+        auto sign = tvm::cast(DataType::UInt(32), data(idx) >= 0);
         packed = (packed | sign);
         if (j == 31) {
           return packed;
@@ -102,8 +102,8 @@ inline tvm::Tensor binary_dense(const tvm::Tensor& data,
                                 const tvm::Tensor& weight) {
   CHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
-  CHECK_EQ(data->dtype, UInt(32)) << "binary_dense requires uint32 data";
-  CHECK_EQ(weight->dtype, UInt(32)) << "binary_dense requires uint32 weight";
+  CHECK_EQ(data->dtype, DataType::UInt(32)) << "binary_dense requires uint32 data";
+  CHECK_EQ(weight->dtype, DataType::UInt(32)) << "binary_dense requires uint32 weight";
 
   auto batch = data->shape[0];
   auto in_dim = data->shape[1];

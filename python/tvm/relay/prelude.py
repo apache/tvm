@@ -33,11 +33,11 @@ class TensorArrayOps(object):
         self.dtype = dtype
 
     def get_name(self, canonical):
-        """Get name corresponding to the caninical name"""
+        """Get name corresponding to the canonical name"""
         return self.prelude.get_name(canonical, self.dtype)
 
     def get_var(self, canonical):
-        """Get var corresponding to the caninical name"""
+        """Get var corresponding to the canonical name"""
         return self.prelude.get_var(canonical, self.dtype)
 
     def define_tensor_adt(self):

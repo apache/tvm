@@ -21,7 +21,7 @@ from numbers import Integral
 
 import tvm
 from tvm.api import layout, bijective_layout
-from . import tag
+from . import tag, cpp
 
 class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
@@ -198,7 +198,7 @@ def simplify(expr):
     out : Expr or int
         The simplified output
     """
-    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.Expr) else expr
+    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.PrimExpr) else expr
 
 
 def ravel_index(indices, shape):
@@ -417,3 +417,19 @@ def make_idx(b, e, s, z, i):
                           (b - i) // tvm.abs(s),
                           (i - b) // s)
     return tvm.if_then_else(tvm.expr.Or(bc, ec), 88, ss)
+
+
+def is_empty_shape(shape):
+    """Check whether an input shape has dimesion with size 0.
+
+    Parameter
+    ---------
+    shape : list of Expr
+      Input shape
+
+    Returns
+    -------
+    is_empty: bool
+      Whether input shape is empty or has dimesion with size 0.
+    """
+    return cpp.util.is_empty_shape(shape)

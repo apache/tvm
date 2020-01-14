@@ -59,7 +59,7 @@ from __future__ import absolute_import
 import warnings
 
 from ._ffi.base import _LIB_NAME
-from ._ffi.node import NodeBase, register_node
+from ._ffi.object import Object, register_object
 from . import _api_internal
 
 try:
@@ -80,8 +80,8 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-@register_node
-class Target(NodeBase):
+@register_object
+class Target(Object):
     """Target device information, use through TVM API.
 
     Note
@@ -97,7 +97,7 @@ class Target(NodeBase):
     """
     def __new__(cls):
         # Always override new to enable class
-        obj = NodeBase.__new__(cls)
+        obj = Object.__new__(cls)
         obj._keys = None
         obj._options = None
         obj._libs = None
@@ -146,8 +146,8 @@ class Target(NodeBase):
         _api_internal._ExitTargetScope(self)
 
 
-@register_node
-class GenericFunc(NodeBase):
+@register_object
+class GenericFunc(Object):
     """GenericFunc node reference. This represents a generic function
     that may be specialized for different targets. When this object is
     called, a specialization is chosen based on the current target.

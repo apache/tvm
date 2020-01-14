@@ -64,7 +64,7 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     parent->children.Push(child_link);
   }
 
-  std::unordered_set<Expr, NodeHash, NodeEqual> visited_;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> visited_;
 
   DependencyGraph::Node* NewNode(bool new_scope) {
     auto* ret = arena_->make<DependencyGraph::Node>();

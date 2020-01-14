@@ -31,14 +31,14 @@ namespace tvm {
 
 using namespace ir;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ScanOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ScanOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ScanOpNode*>(node.get());
     p->stream << "scan(" << op->name << ", " << op << ")";
 });
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
-inline bool prove_equal(Expr lhs, Expr rhs) {
+inline bool prove_equal(PrimExpr lhs, PrimExpr rhs) {
   return is_zero(ir::Simplify(lhs - rhs));
 }
 
@@ -53,27 +53,27 @@ Array<IterVar> ScanOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type ScanOpNode::output_dtype(size_t i) const {
+DataType ScanOpNode::output_dtype(size_t i) const {
   return update[i]->dtype;
 }
 
-Array<Expr> ScanOpNode::output_shape(size_t i) const {
+Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   CHECK_LT(i, state_placeholder.size());
   return state_placeholder[i]->shape;
 }
 
 Operation ScanOpNode::make(std::string name,
                            std::string tag,
-                           Map<std::string, NodeRef> attrs,
+                           Map<std::string, ObjectRef> attrs,
                            IterVar axis,
                            Array<Tensor> init,
                            Array<Tensor> update,
                            Array<Tensor> state_placeholder,
                            Array<Tensor> inputs) {
   if (!attrs.defined()) {
-    attrs = Map<std::string, NodeRef>();
+    attrs = Map<std::string, ObjectRef>();
   }
-  auto n = make_node<ScanOpNode>();
+  auto n = make_object<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
   CHECK_EQ(init.size(), state_placeholder.size());
 
@@ -126,7 +126,7 @@ Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> inputs,
                    std::string name,
                    std::string tag,
-                   Map<std::string, NodeRef> attrs) {
+                   Map<std::string, ObjectRef> attrs) {
   IterVar scan_axis =
       IterVarNode::make(
           Range::make_by_min_extent(
@@ -157,7 +157,7 @@ Operation ScanOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = make_node<ScanOpNode>(*this);
+  auto n = make_object<ScanOpNode>(*this);
   for (size_t i = 0; i < n->init.size(); ++i) {
     if (rmap.count(n->init[i])) {
       n->init.Set(i, rmap.at(n->init[i]));
@@ -177,7 +177,7 @@ Operation ScanOpNode::ReplaceInputs(
 void ScanOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   for (size_t i = 0, sp_idx = 0; i < this->init.size(); ++i) {
@@ -232,7 +232,7 @@ void ScanOpNode::GatherBound(
   Range r = arith::Union(time_dom).cover_range(sdom);
   (*out_dom_map)[this->scan_axis] = Range::make_by_min_extent(
       sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
-  Map<IterVar, Expr> fix_pt = ScanFixPointAnalysis(self);
+  Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
   for (size_t i = 0; i < output.size(); ++i) {
@@ -241,7 +241,7 @@ void ScanOpNode::GatherBound(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       CHECK(!out_dom_map->count(sp_ax));
       CHECK(fix_pt.count(sp_ax));
-      if (fix_pt[sp_ax].as<ir::IntImm>()->value) {
+      if (fix_pt[sp_ax].as<ir::IntImmNode>()->value) {
         // fix point, we can slice it.
         (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
       } else {
@@ -271,7 +271,7 @@ Stmt ScanOpNode::BuildRealize(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = ir::Realize::make(t->op, t->value_index, t->dtype,
+    ret = ir::RealizeNode::make(t->op, t->value_index, t->dtype,
                             bounds, const_true(), ret);
   }
   return ret;
@@ -282,12 +282,12 @@ Stmt ScanOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt provide = AttrStmt::make(
+  Stmt provide = AttrStmtNode::make(
       stage->op, attr::scan_update_scope, this->scan_axis->var,
-      Evaluate::make(0));
-  Stmt init = AttrStmt::make(
+      EvaluateNode::make(0));
+  Stmt init = AttrStmtNode::make(
       stage->op, attr::scan_init_scope, 0,
-      Evaluate::make(0));
+      EvaluateNode::make(0));
   size_t begin_scan = 0;
   for (size_t  i = 0; i < stage->leaf_iter_vars.size(); ++i) {
     if (stage->leaf_iter_vars[i]->iter_type == kThreadIndex) {
@@ -295,7 +295,7 @@ Stmt ScanOpNode::BuildProvide(
       begin_scan = i + 1;
     }
   }
-  std::unordered_map<IterVar, Expr> vmap;
+  std::unordered_map<IterVar, PrimExpr> vmap;
   std::unordered_set<IterVar> empty;
   auto nest = op::MakeLoopNest(
       stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);

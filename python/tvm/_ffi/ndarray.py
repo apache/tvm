@@ -35,16 +35,16 @@ try:
     if sys.version_info >= (3, 0):
         from ._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy3.core import NDArrayBase as _NDArrayBase
-        from ._cy3.core import _reg_extension, _reg_ndarray
+        from ._cy3.core import _reg_extension
     else:
         from ._cy2.core import _set_class_ndarray, _make_array, _from_dlpack
         from ._cy2.core import NDArrayBase as _NDArrayBase
-        from ._cy2.core import _reg_extension, _reg_ndarray
+        from ._cy2.core import _reg_extension
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
     from ._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
-    from ._ctypes.ndarray import _reg_extension, _reg_ndarray
+    from ._ctypes.ndarray import _reg_extension
 
 
 def context(dev_type, dev_id=0):
@@ -157,10 +157,6 @@ def from_dlpack(dltensor):
 
 class NDArrayBase(_NDArrayBase):
     """A simple Device/CPU Array object in runtime."""
-    @property
-    def shape(self):
-        """Shape of this array"""
-        return tuple(self.handle.contents.shape[i] for i in range(self.handle.contents.ndim))
 
     @property
     def dtype(self):
@@ -240,6 +236,7 @@ class NDArrayBase(_NDArrayBase):
             except:
                 raise TypeError('array must be an array_like data,' +
                                 'type %s is not supported' % str(type(source_array)))
+
         t = TVMType(self.dtype)
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
@@ -294,28 +291,12 @@ class NDArrayBase(_NDArrayBase):
         target : NDArray
             The target array to be copied, must have same shape as this array.
         """
-        if isinstance(target, TVMContext):
-            target = empty(self.shape, self.dtype, target)
         if isinstance(target, NDArrayBase):
-            check_call(_LIB.TVMArrayCopyFromTo(
-                self.handle, target.handle, None))
-        else:
-            raise ValueError("Unsupported target type %s" % str(type(target)))
-        return target
-
-
-def free_extension_handle(handle, type_code):
-    """Free c++ extension type handle
-
-    Parameters
-    ----------
-    handle : ctypes.c_void_p
-        The handle to the extension type.
-
-    type_code : int
-         The tyoe code
-    """
-    check_call(_LIB.TVMExtTypeFree(handle, ctypes.c_int(type_code)))
+            return self._copyto(target)
+        elif isinstance(target, TVMContext):
+            res = empty(self.shape, self.dtype, target)
+            return self._copyto(res)
+        raise ValueError("Unsupported target type %s" % str(type(target)))
 
 
 def register_extension(cls, fcreate=None):
@@ -367,13 +348,8 @@ def register_extension(cls, fcreate=None):
            def _tvm_handle(self):
                return self.handle.value
     """
-    if issubclass(cls, _NDArrayBase):
-        assert fcreate is not None
-        assert hasattr(cls, "_array_type_code")
-        _reg_ndarray(cls, fcreate)
-    else:
-        assert hasattr(cls, "_tvm_tcode")
-        if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
-            raise ValueError("Cannot register create when extension tcode is same as buildin")
-        _reg_extension(cls, fcreate)
+    assert hasattr(cls, "_tvm_tcode")
+    if fcreate and cls._tvm_tcode < TypeCode.EXT_BEGIN:
+        raise ValueError("Cannot register create when extension tcode is same as buildin")
+    _reg_extension(cls, fcreate)
     return cls

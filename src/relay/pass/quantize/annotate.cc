@@ -50,10 +50,13 @@ class QAnnotateExprNode : public TempExprNode {
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QAnnotateExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QAnnotateExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QAnnotateExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QAnnotateExpr, QAnnotateExprNode, TempExpr);
+class QAnnotateExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
+};
 
 
 Expr QAnnotateExprNode::Realize() const {
@@ -61,13 +64,13 @@ Expr QAnnotateExprNode::Realize() const {
 }
 
 QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
-  auto rnode = make_node<QAnnotateExprNode>();
+  auto rnode = make_object<QAnnotateExprNode>();
   rnode->expr = expr;
   rnode->kind = kind;
   return QAnnotateExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.make_annotate_expr")
+TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QAnnotateExprNode::make(args[0],
       static_cast<QAnnotateKind>(args[1].operator int()));
@@ -89,8 +92,8 @@ Pass QuantizeAnnotate() {
     return e;
   };
 
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
       auto new_params = func->params;
       for (const auto& x : FreeVars(func)) {
@@ -105,7 +108,7 @@ Pass QuantizeAnnotate() {
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizeAnnotate")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizeAnnotate")
 .set_body_typed(QuantizeAnnotate);
 
 TVM_REGISTER_NODE_TYPE(QAnnotateExprNode);

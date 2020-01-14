@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,7 +30,7 @@ namespace relay {
 
 class ExprSubstituter : public ExprMutator {
  public:
-  explicit ExprSubstituter(std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map)
+  explicit ExprSubstituter(std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map)
       : subst_map_(subst_map) {}
 
   Expr VisitExpr(const Expr& expr) final {
@@ -45,7 +45,8 @@ class ExprSubstituter : public ExprMutator {
   tvm::Map<Expr, Expr> subst_map_;
 };
 
-Expr ExprSubst(const Expr& expr, std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map) {
+Expr ExprSubst(const Expr& expr,
+               std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> subst_map) {
   return ExprSubstituter(std::move(subst_map)).Mutate(expr);
 }
 

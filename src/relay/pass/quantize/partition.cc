@@ -50,10 +50,13 @@ class QPartitionExprNode : public TempExprNode {
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QPartitionExpr";
-  TVM_DECLARE_NODE_TYPE_INFO(QPartitionExprNode, TempExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(QPartitionExprNode, TempExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(QPartitionExpr, QPartitionExprNode, TempExpr);
+class QPartitionExpr : public TempExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(QPartitionExpr, TempExpr, QPartitionExprNode);
+};
 
 
 Expr QPartitionExprNode::Realize() const {
@@ -64,19 +67,19 @@ Expr QPartitionExprNode::Realize() const {
 }
 
 QPartitionExpr QPartitionExprNode::make(Expr expr) {
-  auto rnode = make_node<QPartitionExprNode>();
+  auto rnode = make_object<QPartitionExprNode>();
   rnode->expr = expr;
   return QPartitionExpr(rnode);
 }
 
-TVM_REGISTER_API("relay._quantize.make_partition_expr")
+TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = QPartitionExprNode::make(args[0]);
   });
 
 Pass QuantizePartition() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       auto ret = Downcast<Function>(
           ForwardRewrite(f, "FQPartitionRewrite", nullptr, nullptr));
       return ret;
@@ -84,7 +87,7 @@ Pass QuantizePartition() {
   return CreateFunctionPass(pass_func, 1, "QuantizePartition", {});
 }
 
-TVM_REGISTER_API("relay._quantize.QuantizePartition")
+TVM_REGISTER_GLOBAL("relay._quantize.QuantizePartition")
 .set_body_typed(QuantizePartition);
 
 TVM_REGISTER_NODE_TYPE(QPartitionExprNode);

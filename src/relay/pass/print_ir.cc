@@ -32,15 +32,15 @@ namespace relay {
 namespace transform {
 
 Pass PrintIR(bool show_meta_data) {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
       LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m, show_meta_data);
       return m;
   };
   return CreateModulePass(pass_func, 0, "PrintIR", {});
 }
 
-TVM_REGISTER_API("relay._transform.PrintIR")
+TVM_REGISTER_GLOBAL("relay._transform.PrintIR")
 .set_body_typed(PrintIR);
 
 }  // namespace transform

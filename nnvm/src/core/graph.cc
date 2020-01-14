@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -50,7 +50,7 @@ static void SubgraphSanityCheck(const std::vector<std::shared_ptr<Symbol>> &subg
     next_level.clear();
     for (const std::vector<NodeEntry> *graph_ptr : curr_level) {
       const std::vector<NodeEntry> &graph = *graph_ptr;
-      DFSVisit(graph, [&next_level, &node2level, level](const NodePtr& n) {
+      DFSVisit(graph, [&next_level, &node2level, level](const ObjectPtr& n) {
         nnvm::Node *node = n.get();
         // if the node is visited, but on a different level, then check failed
         // if check failed here or before, we stop doing anything, but raise an error
@@ -74,7 +74,7 @@ IndexedGraph::IndexedGraph(const Graph &g) {
   std::vector<std::shared_ptr<Symbol>> subgraphs;
 
   DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs]
-             (const NodePtr& n) {
+             (const ObjectPtr& n) {
       const auto& is_ghost = Op::GetAttr<TIsGhost>("TIsGhost");
       if (!n->is_variable() && is_ghost.get(n->op(), false)) return;
       CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());

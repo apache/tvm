@@ -32,7 +32,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 # pylint: disable=missing-docstring
 from __future__ import absolute_import as _abs
-from ._ffi.node import NodeBase, NodeGeneric, register_node
+from ._ffi.object import Object, register_object, ObjectGeneric
 from ._ffi.runtime_ctypes import TVMType, TypeCode
 from . import make as _make
 from . import generic as _generic
@@ -178,11 +178,11 @@ class ExprOp(object):
         return _generic.cast(self, dtype)
 
 
-class EqualOp(NodeGeneric, ExprOp):
+class EqualOp(ObjectGeneric, ExprOp):
     """Deferred equal operator.
 
     This is used to support sugar that a == b can either
-    mean NodeBase.same_as or NodeBase.equal.
+    mean Object.same_as or Object.equal.
 
     Parameters
     ----------
@@ -205,16 +205,16 @@ class EqualOp(NodeGeneric, ExprOp):
     def __bool__(self):
         return self.__nonzero__()
 
-    def asnode(self):
-        """Convert node."""
+    def asobject(self):
+        """Convert object."""
         return _make._OpEQ(self.a, self.b)
 
 
-class NotEqualOp(NodeGeneric, ExprOp):
+class NotEqualOp(ObjectGeneric, ExprOp):
     """Deferred NE operator.
 
     This is used to support sugar that a != b can either
-    mean not NodeBase.same_as or make.NE.
+    mean not Object.same_as or make.NE.
 
     Parameters
     ----------
@@ -237,32 +237,32 @@ class NotEqualOp(NodeGeneric, ExprOp):
     def __bool__(self):
         return self.__nonzero__()
 
-    def asnode(self):
-        """Convert node."""
+    def asobject(self):
+        """Convert object."""
         return _make._OpNE(self.a, self.b)
 
 
-class Expr(ExprOp, NodeBase):
+class PrimExpr(ExprOp, Object):
     """Base class of all tvm Expressions"""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
-    __hash__ = NodeBase.__hash__
+    __hash__ = Object.__hash__
 
 
-class ConstExpr(Expr):
+class ConstExpr(PrimExpr):
     pass
 
-class BinaryOpExpr(Expr):
+class BinaryOpExpr(PrimExpr):
     pass
 
-class CmpExpr(Expr):
+class CmpExpr(PrimExpr):
     pass
 
-class LogicalExpr(Expr):
+class LogicalExpr(PrimExpr):
     pass
 
-@register_node("Variable")
-class Var(Expr):
+@register_object("Variable")
+class Var(PrimExpr):
     """Symbolic variable.
 
     Parameters
@@ -278,8 +278,8 @@ class Var(Expr):
             _api_internal._Var, name, dtype)
 
 
-@register_node
-class Reduce(Expr):
+@register_object
+class Reduce(PrimExpr):
     """Reduce node.
 
     Parameters
@@ -305,7 +305,7 @@ class Reduce(Expr):
             condition, value_index)
 
 
-@register_node
+@register_object
 class FloatImm(ConstExpr):
     """Float constant.
 
@@ -321,7 +321,7 @@ class FloatImm(ConstExpr):
         self.__init_handle_by_constructor__(
             _make.FloatImm, dtype, value)
 
-@register_node
+@register_object
 class IntImm(ConstExpr):
     """Int constant.
 
@@ -341,7 +341,7 @@ class IntImm(ConstExpr):
         return self.value
 
 
-@register_node
+@register_object
 class UIntImm(ConstExpr):
     """UInt constant.
 
@@ -358,7 +358,7 @@ class UIntImm(ConstExpr):
             _make.UIntImm, dtype, value)
 
 
-@register_node
+@register_object
 class StringImm(ConstExpr):
     """String constant.
 
@@ -382,8 +382,8 @@ class StringImm(ConstExpr):
         return self.value != other
 
 
-@register_node
-class Cast(Expr):
+@register_object
+class Cast(PrimExpr):
     """Cast expression.
 
     Parameters
@@ -399,7 +399,7 @@ class Cast(Expr):
             _make.Cast, dtype, value)
 
 
-@register_node
+@register_object
 class Add(BinaryOpExpr):
     """Add node.
 
@@ -416,7 +416,7 @@ class Add(BinaryOpExpr):
             _make.Add, a, b)
 
 
-@register_node
+@register_object
 class Sub(BinaryOpExpr):
     """Sub node.
 
@@ -433,7 +433,7 @@ class Sub(BinaryOpExpr):
             _make.Sub, a, b)
 
 
-@register_node
+@register_object
 class Mul(BinaryOpExpr):
     """Mul node.
 
@@ -450,7 +450,7 @@ class Mul(BinaryOpExpr):
             _make.Mul, a, b)
 
 
-@register_node
+@register_object
 class Div(BinaryOpExpr):
     """Div node.
 
@@ -467,7 +467,7 @@ class Div(BinaryOpExpr):
             _make.Div, a, b)
 
 
-@register_node
+@register_object
 class Mod(BinaryOpExpr):
     """Mod node.
 
@@ -484,7 +484,7 @@ class Mod(BinaryOpExpr):
             _make.Mod, a, b)
 
 
-@register_node
+@register_object
 class FloorDiv(BinaryOpExpr):
     """FloorDiv node.
 
@@ -501,7 +501,7 @@ class FloorDiv(BinaryOpExpr):
             _make.FloorDiv, a, b)
 
 
-@register_node
+@register_object
 class FloorMod(BinaryOpExpr):
     """FloorMod node.
 
@@ -518,7 +518,7 @@ class FloorMod(BinaryOpExpr):
             _make.FloorMod, a, b)
 
 
-@register_node
+@register_object
 class Min(BinaryOpExpr):
     """Min node.
 
@@ -535,7 +535,7 @@ class Min(BinaryOpExpr):
             _make.Min, a, b)
 
 
-@register_node
+@register_object
 class Max(BinaryOpExpr):
     """Max node.
 
@@ -552,7 +552,7 @@ class Max(BinaryOpExpr):
             _make.Max, a, b)
 
 
-@register_node
+@register_object
 class EQ(CmpExpr):
     """EQ node.
 
@@ -569,7 +569,7 @@ class EQ(CmpExpr):
             _make.EQ, a, b)
 
 
-@register_node
+@register_object
 class NE(CmpExpr):
     """NE node.
 
@@ -586,7 +586,7 @@ class NE(CmpExpr):
             _make.NE, a, b)
 
 
-@register_node
+@register_object
 class LT(CmpExpr):
     """LT node.
 
@@ -603,7 +603,7 @@ class LT(CmpExpr):
             _make.LT, a, b)
 
 
-@register_node
+@register_object
 class LE(CmpExpr):
     """LE node.
 
@@ -620,7 +620,7 @@ class LE(CmpExpr):
             _make.LE, a, b)
 
 
-@register_node
+@register_object
 class GT(CmpExpr):
     """GT node.
 
@@ -637,7 +637,7 @@ class GT(CmpExpr):
             _make.GT, a, b)
 
 
-@register_node
+@register_object
 class GE(CmpExpr):
     """GE node.
 
@@ -654,7 +654,7 @@ class GE(CmpExpr):
             _make.GE, a, b)
 
 
-@register_node
+@register_object
 class And(LogicalExpr):
     """And node.
 
@@ -671,7 +671,7 @@ class And(LogicalExpr):
             _make.And, a, b)
 
 
-@register_node
+@register_object
 class Or(LogicalExpr):
     """Or node.
 
@@ -688,7 +688,7 @@ class Or(LogicalExpr):
             _make.Or, a, b)
 
 
-@register_node
+@register_object
 class Not(LogicalExpr):
     """Not node.
 
@@ -702,8 +702,8 @@ class Not(LogicalExpr):
             _make.Not, a)
 
 
-@register_node
-class Select(Expr):
+@register_object
+class Select(PrimExpr):
     """Select node.
 
     Note
@@ -730,8 +730,8 @@ class Select(Expr):
             _make.Select, condition, true_value, false_value)
 
 
-@register_node
-class Load(Expr):
+@register_object
+class Load(PrimExpr):
     """Load node.
 
     Parameters
@@ -753,8 +753,8 @@ class Load(Expr):
             _make.Load, dtype, buffer_var, index, predicate)
 
 
-@register_node
-class Ramp(Expr):
+@register_object
+class Ramp(PrimExpr):
     """Ramp node.
 
     Parameters
@@ -773,8 +773,8 @@ class Ramp(Expr):
             _make.Ramp, base, stride, lanes)
 
 
-@register_node
-class Broadcast(Expr):
+@register_object
+class Broadcast(PrimExpr):
     """Broadcast node.
 
     Parameters
@@ -790,8 +790,8 @@ class Broadcast(Expr):
             _make.Broadcast, value, lanes)
 
 
-@register_node
-class Shuffle(Expr):
+@register_object
+class Shuffle(PrimExpr):
     """Shuffle node.
 
     Parameters
@@ -807,8 +807,8 @@ class Shuffle(Expr):
             _make.Shuffle, vectors, indices)
 
 
-@register_node
-class Call(Expr):
+@register_object
+class Call(PrimExpr):
     """Call node.
 
     Parameters
@@ -842,8 +842,8 @@ class Call(Expr):
             _make.Call, dtype, name, args, call_type, func, value_index)
 
 
-@register_node
-class Let(Expr):
+@register_object
+class Let(PrimExpr):
     """Let node.
 
     Parameters

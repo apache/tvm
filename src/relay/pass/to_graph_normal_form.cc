@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -52,7 +52,7 @@ class UseVarVisitor : public ExprVisitor {
 
 class GNF : public ExprMutator {
  private:
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> var_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map_;
   Expr VisitExpr_(const VarNode* vn) override {
     Var v = GetRef<Var>(vn);
     return var_map_.count(v) == 0 ? v : var_map_.at(v);
@@ -79,14 +79,14 @@ Expr ToGraphNormalForm(const Expr& e) {
 namespace transform {
 
 Pass ToGraphNormalForm() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(ToGraphNormalForm(f));
   };
   return CreateFunctionPass(pass_func, 1, "ToGraphNormalForm", {});
 }
 
-TVM_REGISTER_API("relay._transform.ToGraphNormalForm")
+TVM_REGISTER_GLOBAL("relay._transform.ToGraphNormalForm")
 .set_body_typed(ToGraphNormalForm);
 
 }  // namespace transform

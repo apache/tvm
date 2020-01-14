@@ -452,24 +452,8 @@ def transpose_shape_func(attrs, inputs, _):
 @script
 def _squeeze_shape_func(data_shape, keep_axes):
     out = output_tensor((len(keep_axes),), "int64")
-    if len(keep_axes) == 0:
-        out_size = 0
-        for i in const_range(data_shape.shape[0]):
-            if data_shape[i] != 1:
-                out_size += 1
-
-        if out_size == 0:
-            out_size = 1
-        out = output_tensor((out_size,), "int64")
-        out[0] = int64(1)
-        pos = 0
-        for i in const_range(data_shape.shape[0]):
-            if data_shape[i] != 1:
-                out[pos] = data_shape[i]
-                pos += 1
-    else:
-        for i in const_range(len(keep_axes)):
-            out[i] = data_shape[keep_axes[i]]
+    for i in const_range(len(keep_axes)):
+        out[i] = data_shape[keep_axes[i]]
 
     return out
 
@@ -485,7 +469,16 @@ def squeeze_shape_func(attrs, inputs, _):
             if i not in axis:
                 keep_axes.append(i)
 
-    return [_squeeze_shape_func(inputs[0], convert(keep_axes))]
+    # Due to current relay type system, it is possible even
+    # a static kernel function needs shape function. To handle
+    # this case, we allow axis to be None in squeeze shape func
+    # for now.
+    # TODO(kevinthesun): Enhance relay type system to avoid this.
+    if keep_axes:
+        out = _squeeze_shape_func(inputs[0], convert(keep_axes))
+    else:
+        out = tvm.compute((), lambda *indices: 0)
+    return [out]
 
 @script
 def _reshape_like_shape_func(target_shape):
@@ -527,9 +520,56 @@ def _tile_shape_func(data, reps, ndim, tndim, rndim):
 
 @_reg.register_shape_func("tile", False)
 def tile_shape_func(attrs, inputs, _):
+    """
+    Shape function for tile op.
+    """
     reps = get_const_tuple(attrs.reps)
     ndim = inputs[0].shape[0].value
     rndim = len(reps)
     tndim = ndim if ndim > rndim else rndim
     return [_tile_shape_func(inputs[0], convert(reps), convert(ndim),
                              convert(tndim), convert(rndim))]
+
+@script
+def _split_shape_func(data_shape, index, indices_or_sections, axis):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    if len(indices_or_sections) == 1:
+        for i in const_range(data_shape.shape[0]):
+            if i == axis:
+                out[i] = ceil_div(data_shape[axis], indices_or_sections[0])
+            else:
+                out[i] = data_shape[i]
+    else:
+        start = int64(0)
+        if index > 0:
+            start = int64(indices_or_sections[index - 1])
+        end = data_shape[axis]
+        if index < len(indices_or_sections):
+            end = int64(indices_or_sections[index])
+        for i in const_range(data_shape.shape[0]):
+            if i == axis:
+                out[i] = end - start
+            else:
+                out[i] = data_shape[i]
+    return out
+
+@_reg.register_shape_func("split", False)
+def split_shape_func(attrs, inputs, _):
+    """
+    Shape function for split op.
+    """
+    if isinstance(attrs.indices_or_sections, (int, tvm.expr.IntImm)):
+        indices_or_sections = get_const_int(attrs.indices_or_sections)
+    else:
+        indices_or_sections = get_const_tuple(attrs.indices_or_sections)
+
+    axis = get_const_int(attrs.axis)
+
+    num_out = indices_or_sections if isinstance(indices_or_sections, int) \
+        else len(indices_or_sections) + 1
+    if isinstance(indices_or_sections, int):
+        indices_or_sections = [indices_or_sections]
+    return [_split_shape_func(inputs[0],
+                              convert(i),
+                              convert(indices_or_sections),
+                              convert(axis)) for i in range(num_out)]

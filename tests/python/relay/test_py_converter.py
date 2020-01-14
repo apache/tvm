@@ -19,7 +19,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
 from tvm.relay.prelude import Prelude
-from tvm.relay.backend.interpreter import TensorValue, TupleValue, RefValue, ConstructorValue
+from tvm.relay.backend.interpreter import TupleValue, RefValue, ConstructorValue
 
 # helper: uses a dummy let binding to sequence a list
 # of expressions: expr1; expr2; expr3, etc.
@@ -39,9 +39,9 @@ def init_box_adt(mod):
     return (box, box_ctor)
 
 
-# assert that the candidate is a TensorValue with value val
+# assert that the candidate is a NDArray with value val
 def assert_tensor_value(candidate, val):
-    assert isinstance(candidate, TensorValue)
+    assert isinstance(candidate, tvm.nd.NDArray)
     assert np.array_equal(candidate.asnumpy(), np.array(val))
 
 
@@ -68,6 +68,7 @@ def test_create_empty_tuple():
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
+    print(type(tensor_val))
     assert_tensor_value(tensor_val, 1)
 
 
@@ -510,7 +511,6 @@ def test_op_stack():
 
 # test an op with a tuple output
 # adapted from test_split_infer_type in test_op_level3
-# and test_split in nnvm's test_top_level1
 def test_split():
     def verify_split(shape, indices_or_sections, axis=0):
         x = np.random.normal(size=shape).astype('float32')
@@ -529,7 +529,6 @@ def test_split():
 
 
 # ensure we can generate code for batch_norm, since it requires simplify_inference
-# adapted from test_batchnorm in nnvm's test_top_level1
 def test_batch_norm():
     def verify_batch_norm(shapes):
         data = [np.absolute(np.random.normal(size=shape).astype('float32'))
@@ -546,7 +545,7 @@ def test_batch_norm():
 
         # there will be a change in accuracy so we need to check
         # approximate equality
-        assert isinstance(call_val, TensorValue)
+        assert isinstance(call_val, tvm.nd.NDArray)
         tvm.testing.assert_allclose(call_val.asnumpy(), ref_res, atol=eps, rtol=eps)
 
     verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])

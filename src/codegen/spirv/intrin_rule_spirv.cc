@@ -34,18 +34,18 @@ using namespace runtime;
 // num_signature means number of arguments used to query signature
 template<unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
-  Expr e = targs[0];
-  const ir::Call* call = e.as<ir::Call>();
+  PrimExpr e = targs[0];
+  const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
-  Array<Expr> cargs;
+  Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(UInt(32), id));
+  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
 
-  for (Expr arg : call->args) {
+  for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::Call::make(
-      call->type, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
+  *rv = ir::CallNode::make(
+      call->dtype, "spirv_glsl450", cargs, ir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")

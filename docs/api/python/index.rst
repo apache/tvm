@@ -40,6 +40,5 @@ Python API
    dev
    topi
    vta/index
-   nnvm/index
    hybrid
    relay/index

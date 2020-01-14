@@ -24,7 +24,6 @@
 #include <tvm/operation.h>
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
@@ -34,8 +33,8 @@
 namespace tvm {
 using namespace ir;
 // TensorComputeOpNode
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorComputeOpNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TensorComputeOpNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const TensorComputeOpNode*>(node.get());
     p->stream << "tensor_compute_op(" << op->name << ", " << op << ")";
   });
@@ -46,7 +45,7 @@ int TensorComputeOpNode::num_outputs() const {
   return static_cast<int>(this->intrin->buffers.size() - this->inputs.size());
 }
 
-Type TensorComputeOpNode::output_dtype(size_t i) const {
+DataType TensorComputeOpNode::output_dtype(size_t i) const {
   return this->intrin->buffers[this->inputs.size() + i]->dtype;
 }
 
@@ -58,8 +57,8 @@ Operation TensorComputeOpNode::make(std::string name,
                                     TensorIntrin intrin,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
-                                    Array<Expr> scalar_inputs) {
-  auto n = make_node<TensorComputeOpNode>();
+                                    Array<PrimExpr> scalar_inputs) {
+  auto n = make_object<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->axis = std::move(axis);
@@ -80,8 +79,8 @@ Operation TensorComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = make_node<TensorComputeOpNode>(*this);
-  auto intrin = make_node<TensorIntrinNode>(*(this->intrin.operator->()));
+  auto n = make_object<TensorComputeOpNode>(*this);
+  auto intrin = make_object<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = op::ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {
     intrin->reduce_init = op::ReplaceTensor(this->intrin->reduce_init, rmap);
@@ -110,7 +109,7 @@ Operation TensorComputeOpNode::ReplaceInputs(
 void TensorComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
-    const std::unordered_map<const Variable*, IntSet>& dom_map,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (size_t i = 0; i < this->inputs.size(); ++i) {
     Tensor t = this->inputs[i];
@@ -136,7 +135,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   CHECK_EQ(stage->op.operator->(), this);
 
   // Start bind data.
-  Stmt nop = Evaluate::make(0);
+  Stmt nop = EvaluateNode::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
   Array<Tensor> inputs = this->InputTensors();
 
@@ -146,25 +145,27 @@ Stmt TensorComputeOpNode::BuildProvide(
     Tensor tensor = inputs[i];
     Region region = this->input_regions[i];
     Buffer buffer = this->intrin->buffers[i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < region.size(); ++i) {
       tuple.push_back(region[i]->min);
       tuple.push_back(region[i]->extent);
     }
-    input_bind_nest.emplace_back(AttrStmt::make(
+    input_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // output binding
   for (int i = 0; i < this->num_outputs(); ++i) {
     Tensor tensor = stage->op.output(i);
     Buffer buffer = this->intrin->buffers[num_inputs + i];
-    Array<NodeRef> bind_spec{buffer, tensor};
+    Array<ObjectRef> bind_spec{buffer, tensor};
 
-    Array<Expr> tuple;
+    Array<PrimExpr> tuple;
     for (size_t i = 0; i < this->axis.size(); ++i) {
       auto ivar = this->axis[i];
       if (i < static_cast<size_t>(this->schedulable_ndim)) {
@@ -177,22 +178,24 @@ Stmt TensorComputeOpNode::BuildProvide(
       }
     }
 
-    output_bind_nest.emplace_back(AttrStmt::make(
+    output_bind_nest.emplace_back(AttrStmtNode::make(
         bind_spec, ir::attr::buffer_bind_scope,
-        Call::make(Handle(), ir::intrinsic::tvm_tuple, tuple, Call::Intrinsic), nop));
+        CallNode::make(DataType::Handle(),
+                       ir::intrinsic::tvm_tuple,
+                       tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap
-  std::unordered_map<const Variable*, Expr> vmap;
+  std::unordered_map<const VarNode*, PrimExpr> vmap;
   ir::ArgBinder binder(&vmap);
 
   // Map the expressions passed in the call to the TensorIntrin, to the placeholder
   // variables
-  Array<Expr> user_expr = this->scalar_inputs;
+  Array<PrimExpr> user_expr = this->scalar_inputs;
   Array<Var> scalar_params = this->intrin->scalar_params;
-  Array<Expr> sp_expr;
+  Array<PrimExpr> sp_expr;
   for (auto sp : scalar_params) {
-    Expr esp = sp;
+    PrimExpr esp = sp;
     sp_expr.push_back(esp);
   }
   CHECK_EQ(sp_expr.size(), user_expr.size());
@@ -243,7 +246,7 @@ Stmt TensorComputeOpNode::BuildProvide(
       update = MergeNest(binder.asserts(), update);
       update = op::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
-      return MergeNest(common, Block::make(init, update));
+      return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
       // When init op is not available, use body op for reset in the first iter.
       CHECK(this->intrin->body.defined())

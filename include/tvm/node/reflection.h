@@ -28,6 +28,7 @@
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/data_type.h>
 
 #include <vector>
 #include <string>
@@ -35,8 +36,6 @@
 namespace tvm {
 
 // forward declaration
-class DataType;
-
 using runtime::Object;
 using runtime::ObjectPtr;
 using runtime::ObjectRef;

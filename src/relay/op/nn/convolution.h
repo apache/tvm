@@ -28,8 +28,98 @@
 #include <string>
 #include <utility>
 
+#include "../op_common.h"
+
 namespace tvm {
 namespace relay {
+
+template <typename AttrType>
+bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  static const Layout kNCW("NCW");
+  static const Layout kOIW("OIW");
+
+  const AttrType* param = attrs.as<AttrType>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCW);
+  CHECK(trans_in_layout.defined())
+      << "Conv only support input layouts that are convertible from NCW."
+      << " But got " << in_layout;
+
+  const auto trans_kernel_layout = BijectiveLayoutNode::make(kernel_layout, kOIW);
+  CHECK(trans_kernel_layout.defined())
+      << "Conv only support kernel layouts that are convertible from OIW."
+      << " But got " << kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = BijectiveLayoutNode::make(out_layout, kNCW);
+  CHECK(trans_out_layout.defined())
+      << "Conv only support output layouts that are convertible from NCW."
+      << " But got " << out_layout;
+
+  Array<IndexExpr> dshape_ncw = trans_in_layout.ForwardShape(data->shape);
+
+  IndexExpr channels, dilated_ksize;
+  // infer weight if the kernel_size and channels are defined
+  if (param->kernel_size.defined() && param->channels.defined()) {
+    Array<IndexExpr> wshape;
+
+    wshape = {{param->channels, dshape_ncw[1], param->kernel_size[0]}};
+
+    wshape = trans_kernel_layout.BackwardShape(wshape);
+    channels = param->channels;
+    dilated_ksize = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+    DataType weight_dtype = data->dtype;
+    if (weight != nullptr) {
+      weight_dtype = weight->dtype;
+    }
+    // assign result to reporter
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+  } else {
+    // use weight to infer the conv shape.
+    if (weight == nullptr) return false;
+    auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
+    if (param->kernel_size.defined()) {
+      // check the size
+      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) )
+          << "Conv1D: shape of weight is inconsistent with kernel_size, "
+          << " kernel_size=" << param->kernel_size << " wshape=" << wshape;
+    }
+    if (param->channels.defined()) {
+      CHECK(reporter->AssertEQ(param->channels, wshape[0]))
+          << "Conv1D: shape of weight is inconsistent with channels, "
+          << " channels=" << param->channels << " wshape=" << wshape;
+    }
+    CHECK(reporter->AssertEQ(dshape_ncw[1], wshape[1]));
+    channels = wshape[0];
+    dilated_ksize = 1 + (wshape[2] - 1) * param->dilation[0];
+  }
+  // dilation
+  Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
+
+  if (!dshape_ncw[2].as<ir::AnyNode>()) {
+    oshape.Set(2, indexdiv(dshape_ncw[2] + param->padding[0] + param->padding[1] - dilated_ksize,
+                           param->strides[0]) + 1);
+  } else {
+    oshape.Set(2, dshape_ncw[2]);
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  return true;
+}
 
 template <typename AttrType>
 bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -115,15 +205,17 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
-  if (!dshape_nchw[2].as<ir::Any>()) {
-    oshape.Set(2, indexdiv(dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y,
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  if (!dshape_nchw[2].as<ir::AnyNode>()) {
+    oshape.Set(2, indexdiv(dshape_nchw[2] + pad_h - dilated_ksize_y,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
 
-  if (!dshape_nchw[3].as<ir::Any>()) {
-    oshape.Set(3, indexdiv(dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x,
+  if (!dshape_nchw[3].as<ir::AnyNode>()) {
+    oshape.Set(3, indexdiv(dshape_nchw[3] + pad_w - dilated_ksize_x,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_nchw[3]);
@@ -187,7 +279,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                  param->kernel_size[1], param->kernel_size[2]}};
     }
 
-    /*wshape = trans_kernel_layout.BackwardShape(wshape); */
+    wshape = trans_kernel_layout.BackwardShape(wshape);
     channels = param->channels;
     dilated_ksize_z = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_y = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
@@ -196,6 +288,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     if (weight != nullptr) {
       weight_dtype = weight->dtype;
     }
+
     // assign result to reporter
     reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
   } else {
@@ -225,22 +318,24 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_ncdhw[0], channels, 0, 0, 0});
 
-  if (!dshape_ncdhw[2].as<ir::Any>()) {
-    oshape.Set(2, indexdiv(dshape_ncdhw[2] + param->padding[0] * 2 - dilated_ksize_z,
+  IndexExpr pad_d, pad_h, pad_w;
+  GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
+  if (!dshape_ncdhw[2].as<ir::AnyNode>()) {
+    oshape.Set(2, indexdiv(dshape_ncdhw[2] + pad_d - dilated_ksize_z,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncdhw[2]);
   }
 
-  if (!dshape_ncdhw[3].as<ir::Any>()) {
-    oshape.Set(3, indexdiv(dshape_ncdhw[3] + param->padding[1] * 2 - dilated_ksize_y,
+  if (!dshape_ncdhw[3].as<ir::AnyNode>()) {
+    oshape.Set(3, indexdiv(dshape_ncdhw[3] + pad_h - dilated_ksize_y,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
 
-  if (!dshape_ncdhw[4].as<ir::Any>()) {
-    oshape.Set(4, indexdiv(dshape_ncdhw[4] + param->padding[2] * 2 - dilated_ksize_x,
+  if (!dshape_ncdhw[4].as<ir::AnyNode>()) {
+    oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x,
                            param->strides[2]) + 1);
   } else {
     oshape.Set(4, dshape_ncdhw[4]);
