@@ -32,7 +32,7 @@
  * contains a data type such as `int`, `float`, `uint`.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -55,11 +55,12 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
                         Kind expected, const std::string& description) {
     Kind k = this->VisitType(t);
     if (k != expected) {
-      ReportFatalError(RELAY_ERROR("Incorrect kind for a " << description
-                                   << ". Type " << t << " inside " << outer
-                                   << " is of kind " << k
-                                   << " but was expected to be "
-                                   << expected));
+      ReportFatalError(ErrorBuilder()
+        << "Incorrect kind for a " << description
+        << ". Type " << t << " inside " << outer
+        << " is of kind " << k
+        << " but was expected to be "
+        << expected);
     }
   }
 
@@ -127,8 +128,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
     if (gtv == nullptr) {
-      ReportFatalError(RELAY_ERROR("The callee in " << tc
-                                   << " is not a global type var, but is " << op->func));
+      ReportFatalError(
+        ErrorBuilder() <<"The callee in " << tc
+        << " is not a global type var, but is " << op->func);
     }
 
     CheckKindMatches(op->func, tc, Kind::kAdtHandle, "type call function");
@@ -141,8 +143,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     auto var = GetRef<GlobalTypeVar>(gtv);
     auto data = mod->LookupTypeDef(var);
     if (data->type_vars.size() != op->args.size()) {
-      ReportFatalError(RELAY_ERROR("Expected " << data->type_vars.size() << "arguments for " << tc
-                                   << "; got " << op->args.size()));
+      ReportFatalError(ErrorBuilder()
+        << "Expected " << data->type_vars.size() << "arguments for " << tc
+        << "; got " << op->args.size());
     }
     return Kind::kType;
   }
@@ -161,8 +164,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     for (const auto& con : op->constructors) {
       if (!con->belong_to.same_as(op->header)) {
-        ReportFatalError(RELAY_ERROR(con << " has header " << con->belong_to
-                                     << " but " << op << " has header " << op->header));
+        ReportFatalError(ErrorBuilder()
+          <<con << " has header " << con->belong_to
+          << " but " << op << " has header " << op->header);
       }
 
       for (const Type& t : con->inputs) {

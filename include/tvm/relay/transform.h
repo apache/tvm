@@ -59,7 +59,7 @@
 #include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/op.h>

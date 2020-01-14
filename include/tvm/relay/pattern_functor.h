@@ -26,12 +26,14 @@
 #define TVM_RELAY_PATTERN_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/ir/error.h>
+
 #include <string>
 #include <utility>
 #include <unordered_map>
+
 #include "./expr.h"
 #include "./op.h"
-#include "./error.h"
 #include "./adt.h"
 
 namespace tvm {

@@ -22,7 +22,7 @@
  * \brief Transform operators.
  */
 #include <tvm/relay/op.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir.h>
@@ -392,7 +392,7 @@ bool StackRel(const Array<Type>& types,
     for (size_t j = 0; j < first->shape.size(); ++j) {
       if (j == static_cast<size_t>(axis)) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw relay::Error("relay.stack requires all tensors have the same shape "
+      throw Error("relay.stack requires all tensors have the same shape "
                          "on non-stacking axes");
     }
   }
