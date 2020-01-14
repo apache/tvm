@@ -18,48 +18,52 @@
  */
 
 /*!
- * \file src/relay/pass/pass_manager.cc
- * \brief Relay pass manager implementation.
+ * \file src/ir/transform.cc
+ * \brief Infrastructure for transformation passes.
  */
 #include <dmlc/thread_local.h>
-#include <tvm/relay/expr_functor.h>
-#include <tvm/relay/transform.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/node/printer.h>
+#include <tvm/ir/transform.h>
 
-#include <algorithm>
+// TODO(tqchen): Update to use String container after it is merged.
+#include <tvm/ir.h>
+
 #include <stack>
 #include <unordered_set>
 
 namespace tvm {
-namespace relay {
 namespace transform {
 
+using tvm::runtime::TVMArgs;
+using tvm::runtime::TVMRetValue;
 using tvm::NodePrinter;
 
-struct RelayPassContextThreadLocalEntry {
+struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
   PassContext default_context;
 
   /*! \brief The current pass context. */
   std::stack<PassContext> context_stack;
 
-  RelayPassContextThreadLocalEntry() {
+  PassContextThreadLocalEntry() {
     default_context = PassContext(make_object<PassContextNode>());
   }
 };
 
 /*! \brief Thread local store to hold the pass context. */
-typedef dmlc::ThreadLocalStore<RelayPassContextThreadLocalEntry>
+typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry>
     RelayPassContextThreadLocalStore;
 
 void PassContext::EnterWithScope() {
-  RelayPassContextThreadLocalEntry* entry =
+  PassContextThreadLocalEntry* entry =
       RelayPassContextThreadLocalStore::Get();
   entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
-  RelayPassContextThreadLocalEntry* entry =
+  PassContextThreadLocalEntry* entry =
       RelayPassContextThreadLocalStore::Get();
   CHECK(!entry->context_stack.empty());
   CHECK(entry->context_stack.top().same_as(*this));
@@ -67,7 +71,7 @@ void PassContext::ExitWithScope() {
 }
 
 PassContext PassContext::Current() {
-  RelayPassContextThreadLocalEntry* entry =
+  PassContextThreadLocalEntry* entry =
       RelayPassContextThreadLocalStore::Get();
   if (!entry->context_stack.empty()) {
     return entry->context_stack.top();
@@ -121,84 +125,16 @@ class ModulePassNode : public PassNode {
    */
   PassInfo Info() const override { return pass_info; }
 
-  TVM_DLL static ModulePass make(
-      runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
-
   static constexpr const char* _type_key = "relay.ModulePass";
   TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
 };
 
 class ModulePass : public Pass {
  public:
+  ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
+             PassInfo pass_info);
+
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
-};
-
-class FunctionPass;
-
-/*!
- * \brief Function-level passes are used to implement various global
- * optimizations for a given Relay module. It fetches one function at a time
- * from the function list in the module for optimization.
- *
- * Note that the scope of passes at this level is a Relay function. Therefore,
- * we cannot add or delete a function through these passes as they are not aware
- * of the global information.
- */
-class FunctionPassNode : public PassNode {
- public:
-  /* \brief The pass meta data.*/
-  PassInfo pass_info;
-
-  /*! \brief The packed pass function sketches the real optimization. For
-   * instance, we can implement a pass that works on a Relay function as a
-   * `pass_func` and let it run on a given module. The same `pass_func` will
-   * then be applied on each function in the module.
-   */
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func;
-
-  FunctionPassNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-  }
-
-  /*!
-   * \brief Run a function pass on given pass context.
-   *
-   * \param mod The module that an optimization pass is applied on.
-   * \param mod The context that an optimization pass executes on.
-   *
-   * \return Return the updated module.
-   */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
-
-  /*!
-   * \brief Get the pass information/meta data.
-   */
-  PassInfo Info() const override { return pass_info; }
-
-  TVM_DLL static FunctionPass make(
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
-
-  static constexpr const char* _type_key = "relay.FunctionPass";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
-
- private:
-  /*
-   * \brief Check if a function should be skipped for optimization.
-   *
-   * \param func The target function to be checked.
-   *
-   * \return Return true if the function will be skipped, otherwise false.
-   */
-  bool SkipFunction(const Function& func) const;
-};
-
-class FunctionPass : public Pass {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
 };
 
 /*!
@@ -267,28 +203,28 @@ class SequentialNode : public PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
-PassInfo PassInfoNode::make(int opt_level,
-                            std::string name,
-                            tvm::Array<tvm::PrimExpr> required) {
+PassInfo::PassInfo(int opt_level,
+                   std::string name,
+                   tvm::Array<tvm::PrimExpr> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   pass_info->required = std::move(required);
-  return PassInfo(pass_info);
+  data_ = std::move(pass_info);
 }
 
-ModulePass ModulePassNode::make(
+ModulePass::ModulePass(
     runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
-  return ModulePass(n);
+  data_ = std::move(n);
 }
 
 // Module -> Module optimizations.
 IRModule ModulePassNode::operator()(const IRModule& mod,
-                                  const PassContext& pass_ctx) const {
+                                    const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : "
              << pass_info->name
@@ -298,51 +234,6 @@ IRModule ModulePassNode::operator()(const IRModule& mod,
   IRModule updated_mod = pass_func(mod, pass_ctx);
   CHECK(updated_mod.defined());
   return updated_mod;
-}
-
-FunctionPass FunctionPassNode::make(
-    runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
-  auto n = make_object<FunctionPassNode>();
-  n->pass_func = std::move(pass_func);
-  n->pass_info = std::move(pass_info);
-  return FunctionPass(n);
-}
-
-// Perform Module -> Module optimizations at the Function level.
-IRModule FunctionPassNode::operator()(const IRModule& mod,
-                                    const PassContext& pass_ctx) const {
-  const PassInfo& pass_info = Info();
-  CHECK(mod.defined());
-  DLOG(INFO) << "Executing function pass : "
-             << pass_info->name
-             << " with opt level: "
-             << pass_info->opt_level;
-
-  // Execute the pass function and return a new module.
-  IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
-  std::vector<std::pair<GlobalVar, Function> > updates;
-  for (const auto& it : updated_mod->functions) {
-    // only picks up relay::Function
-    if (auto* n = it.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(n);
-      auto updated_func = SkipFunction(func)
-                          ? func
-                          : pass_func(func, updated_mod, pass_ctx);
-      updates.push_back({it.first, updated_func});
-    }
-  }
-
-  for (const auto& pair : updates) {
-    updated_mod->Add(pair.first, pair.second, true);
-  }
-  return updated_mod;
-}
-
-bool FunctionPassNode::SkipFunction(const Function& func) const {
-  ObjectRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
-  const ir::IntImmNode* pval = skip_opt.as<ir::IntImmNode>();
-  return (pval && pval->value != 0) || (!func->UseDefaultCompiler());
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
@@ -355,7 +246,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, std::string name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfoNode::make(2, std::move(name), {});
+  PassInfo pass_info = PassInfo(2, std::move(name), {});
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
@@ -433,23 +324,16 @@ Pass CreateModulePass(
     int opt_level,
     const std::string& name,
     const tvm::Array<tvm::PrimExpr>& required) {
-  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  return ModulePassNode::make(pass_func, pass_info);
-}
-
-Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
-  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
-  return FunctionPassNode::make(pass_func, pass_info);
+  PassInfo pass_info = PassInfo(opt_level, name, required);
+  return ModulePass(pass_func, pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("relay._transform.PassInfo")
-.set_body_typed(PassInfoNode::make);
+.set_body_typed([](int opt_level, std::string name, tvm::Array<PrimExpr> required) {
+  return PassInfo(opt_level, name, required);
+});
 
 TVM_REGISTER_GLOBAL("relay._transform.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -474,7 +358,11 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_GLOBAL("relay._transform.MakeModulePass")
-.set_body_typed(ModulePassNode::make);
+.set_body_typed(
+  [](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
+     PassInfo pass_info) {
+  return ModulePass(pass_func, pass_info);
+});
 
 TVM_REGISTER_GLOBAL("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -491,19 +379,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
             << " at the optimization level " << info->opt_level;
 });
 
-TVM_REGISTER_NODE_TYPE(FunctionPassNode);
-
-TVM_REGISTER_GLOBAL("relay._transform.MakeFunctionPass")
-.set_body_typed(FunctionPassNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FunctionPassNode>([](const ObjectRef& ref, NodePrinter* p) {
-  auto* node = static_cast<const FunctionPassNode*>(ref.get());
-  const PassInfo info = node->Info();
-  p->stream << "Run Function pass: " << info->name
-            << " at the optimization level " << info->opt_level;
-});
-
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
 TVM_REGISTER_GLOBAL("relay._transform.Sequential")
@@ -512,7 +387,7 @@ TVM_REGISTER_GLOBAL("relay._transform.Sequential")
   int opt_level = args[1];
   std::string name = args[2];
   tvm::Array<tvm::PrimExpr> required = args[3];
-  PassInfo pass_info = PassInfoNode::make(opt_level, name, required);
+  PassInfo pass_info = PassInfo(opt_level, name, required);
   *ret = Sequential(passes, pass_info);
 });
 
@@ -589,5 +464,4 @@ TVM_REGISTER_GLOBAL("relay._transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
 
 }  // namespace transform
-}  // namespace relay
 }  // namespace tvm
