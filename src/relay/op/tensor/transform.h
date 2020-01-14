@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 #define TVM_RELAY_OP_TENSOR_TRANSFORM_H_
 
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <vector>
 #include <algorithm>
 #include <limits>
@@ -48,10 +48,10 @@ bool ConcatenateRel(const Array<Type>& types,
   */
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    throw relay::Error(
-        RELAY_ERROR(
-          "concatenate requires a tuple of tensors as the first argument, found "
-        << PrettyPrint(types[0])));
+    throw Error(
+        ErrorBuilder()
+        << "concatenate requires a tuple of tensors as the first argument, found "
+        << PrettyPrint(types[0]));
   } else if (types[0].as<IncompleteTypeNode>() != nullptr) {
     return false;
   }
@@ -68,10 +68,10 @@ bool ConcatenateRel(const Array<Type>& types,
   // Sanity check: axis
   int axis = param->axis;
   if (!(-ndim <= axis && axis < ndim)) {
-    throw relay::Error(RELAY_ERROR(
+    throw Error(ErrorBuilder() <<
       "concatenate only accepts `axis` in [-ndim, ndim)" <<
       ", but got axis = " << axis <<
-      ", and ndim = " << ndim));
+      ", and ndim = " << ndim);
   }
   axis = axis < 0 ? ndim + axis : axis;
 
@@ -85,16 +85,16 @@ bool ConcatenateRel(const Array<Type>& types,
     int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
     if (e_ndim != ndim) {
-      throw relay::Error("relay.concatenate requires all tensors have the same ndim");
+      throw Error("relay.concatenate requires all tensors have the same ndim");
     }
     if (e_dtype != dtype) {
-      throw relay::Error("relay.concatenate requires all tensors have the same dtype");
+      throw Error("relay.concatenate requires all tensors have the same dtype");
     }
     for (size_t j = 0; j < first->shape.size(); ++j) {
       if (j == static_cast<size_t>(axis)) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw relay::Error("relay.concatenate requires all tensors have the same shape "
-                         "on non-concatenating axes");
+      throw Error("relay.concatenate requires all tensors have the same shape "
+                   "on non-concatenating axes");
     }
   }
 

@@ -18,12 +18,13 @@
  */
 
 /*!
- * \file error.h
- * \brief The set of errors raised by Relay.
+ * \file tvm/ir/error.h
+ * \brief Utilities for error tracking and reporting.
  */
-#ifndef TVM_RELAY_ERROR_H_
-#define TVM_RELAY_ERROR_H_
+#ifndef TVM_IR_ERROR_H_
+#define TVM_IR_ERROR_H_
 
+#include <tvm/ir/span.h>
 #include <tvm/ir/module.h>
 
 #include <string>
@@ -31,49 +32,65 @@
 #include <sstream>
 #include <unordered_map>
 
-#include "./base.h"
-#include "./expr.h"
-
-
 namespace tvm {
-namespace relay {
-
-#define RELAY_ERROR(msg) (RelayErrorStream() << msg)
-
-// Forward declaratio for RelayErrorStream.
-struct Error;
-
-/*! \brief A wrapper around std::stringstream.
+/*!
+ * \brief A wrapper around std::stringstream to build error.
  *
- * This is designed to avoid platform specific
- * issues compiling and using std::stringstream
- * for error reporting.
+ * Can be consumed by Error to construct an error.
+ *
+ * \code
+ *
+ * void ReportError(const Error& err);
+ *
+ * void Test(int number) {
+ *   // Use error reporter to construct an error.
+ *   ReportError(ErrorBuilder() << "This is an error number=" << number);
+ * }
+ *
+ * \endcode
  */
-struct RelayErrorStream {
-  std::stringstream ss;
-
+struct ErrorBuilder {
+ public:
   template<typename T>
-  RelayErrorStream& operator<<(const T& t) {
-    ss << t;
+  ErrorBuilder& operator<<(const T& val) {  // NOLINT(*)
+    stream_ << val;
     return *this;
   }
 
-  std::string str() const {
-    return ss.str();
-  }
-
-  void Raise() const;
+ private:
+  std::stringstream stream_;
+  friend class Error;
 };
 
-struct Error : public dmlc::Error {
-  Span sp;
-  explicit Error(const std::string& msg) : dmlc::Error(msg), sp(nullptr) {}
-  Error(const RelayErrorStream& msg) : dmlc::Error(msg.str()), sp(nullptr) {} // NOLINT(*)
-  Error(const Error& err) : dmlc::Error(err.what()), sp(nullptr) {}
-  Error() : dmlc::Error(""), sp(nullptr) {}
+/*!
+ * \brief Custom Error class to be thrown during compilation.
+ */
+class Error : public dmlc::Error {
+ public:
+  /*! \brief Location of the error */
+  Span span;
+  /*!
+   * \brief construct error from message.
+   * \param msg The message
+   */
+  explicit Error(const std::string& msg) : dmlc::Error(msg), span(nullptr) {}
+  /*!
+   * \brief construct error from error builder.
+   * \param err The error builder
+   */
+  Error(const ErrorBuilder& err) : dmlc::Error(err.stream_.str()), span(nullptr) {} // NOLINT(*)
+  /*!
+   * \brief copy constructor.
+   * \param other The other ereor.
+   */
+  Error(const Error& other) : dmlc::Error(other.what()), span(other.span) {} // NOLINT(*)
+  /*!
+   * \brief default constructor. */
+  Error() : dmlc::Error(""), span(nullptr) {}
 };
 
-/*! \brief An abstraction around how errors are stored and reported.
+/*!
+ * \brief An abstraction around how errors are stored and reported.
  * Designed to be opaque to users, so we can support a robust and simpler
  * error reporting mode, as well as a more complex mode.
  *
@@ -94,23 +111,26 @@ struct Error : public dmlc::Error {
  */
 class ErrorReporter {
  public:
+  /*! \brief default constructor. */
   ErrorReporter() : errors_(), node_to_error_() {}
 
-  /*! \brief Report a tvm::relay::Error.
+  /*!
+   * \brief Report a tvm::Error.
    *
    * This API is useful for reporting spanned errors.
    *
    * \param err The error to report.
    */
   void Report(const Error& err) {
-    if (!err.sp.defined()) {
+    if (!err.span.defined()) {
       throw err;
     }
 
     this->errors_.push_back(err);
   }
 
-  /*! \brief Report an error against a program, using the full program
+  /*!
+   * \brief Report an error against a program, using the full program
    * error reporting strategy.
    *
    * This error reporting method requires the global function in which
@@ -121,12 +141,13 @@ class ErrorReporter {
    * \param node The expression or type to report the error at.
    * \param err The error message to report.
    */
-  inline void ReportAt(const GlobalVar& global, const ObjectRef& node, std::stringstream& err) {
+  void ReportAt(const GlobalVar& global, const ObjectRef& node, std::stringstream& err) {
     std::string err_msg = err.str();
     this->ReportAt(global, node, Error(err_msg));
   }
 
-  /*! \brief Report an error against a program, using the full program
+  /*!
+   * \brief Report an error against a program, using the full program
    * error reporting strategy.
    *
    * This error reporting method requires the global function in which
@@ -139,7 +160,8 @@ class ErrorReporter {
    */
   void ReportAt(const GlobalVar& global, const ObjectRef& node, const Error& err);
 
-  /*! \brief Render all reported errors and exit the program.
+  /*!
+   * \brief Render all reported errors and exit the program.
    *
    * This function should be used after executing a pass to render reported errors.
    *
@@ -161,7 +183,5 @@ class ErrorReporter {
   std::unordered_map<ObjectRef, GlobalVar, ObjectHash, ObjectEqual> node_to_gv_;
 };
 
-}  // namespace relay
 }  // namespace tvm
-
-#endif  // TVM_RELAY_ERROR_H_
+#endif  // TVM_IR_ERROR_H_

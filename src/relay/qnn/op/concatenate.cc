@@ -41,9 +41,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
   // Check the scale and zero point types
   const auto* input_scales_tuple = types[1].as<TupleTypeNode>();
   if (input_scales_tuple == nullptr) {
-    throw relay::Error(
-        RELAY_ERROR("qnn concatenate requires a tuple of scales as the second argument, found "
-                    << PrettyPrint(types[1])));
+    throw Error(
+        ErrorBuilder()
+        << "qnn concatenate requires a tuple of scales as the second argument, found "
+        << PrettyPrint(types[1]));
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
     CHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
@@ -51,9 +52,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
 
   const auto* input_zero_points_tuple = types[2].as<TupleTypeNode>();
   if (input_zero_points_tuple == nullptr) {
-    throw relay::Error(
-        RELAY_ERROR("qnn concatenate requires a tuple of zero_points as the third argument, found "
-                    << PrettyPrint(types[2])));
+    throw Error(
+        ErrorBuilder()
+        << "qnn concatenate requires a tuple of zero_points as the third argument, found "
+        << PrettyPrint(types[2]));
   }
   for (const auto& input_zero_point : input_zero_points_tuple->fields) {
     CHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]

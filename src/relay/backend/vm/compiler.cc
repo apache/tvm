@@ -23,7 +23,7 @@
  */
 
 #include <tvm/operation.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>

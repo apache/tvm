@@ -18,23 +18,24 @@
  */
 
 /*!
- * \file error_reporter.h
- * \brief The set of errors raised by Relay.
+ * \file ir/error.cc
+ * \brief Utilities for error tracking and reporting.
  */
 
-#include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
+// NOTE on dependencies on relay AsText.
+// We calls into relay's printing module for better rendering.
+// These dependency does not happen at the interface-level.
+// And is only used to enhance developer experiences when relay
+// functions are presented.
+#include <tvm/relay/expr.h>
+
 #include <string>
 #include <vector>
 #include <rang.hpp>
 
 namespace tvm {
-namespace relay {
-
-void RelayErrorStream::Raise() const {
-  throw Error(*this);
-}
 
 template<typename T, typename U>
 using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
@@ -43,7 +44,7 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
   // First we pick an error reporting strategy for each error.
   // TODO(@jroesch): Spanned errors are currently not supported.
   for (auto err : this->errors_) {
-    CHECK(!err.sp.defined()) << "attempting to use spanned errors, currently not supported";
+    CHECK(!err.span.defined()) << "attempting to use spanned errors, currently not supported";
   }
 
   NodeMap<GlobalVar, NodeMap<ObjectRef, std::string>> error_maps;
@@ -110,7 +111,7 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
     //
     // The annotation callback will annotate the error messages
     // contained in the map.
-    annotated_prog << AsText(func, false, [&err_map](tvm::relay::Expr expr) {
+    annotated_prog << relay::AsText(func, false, [&err_map](tvm::relay::Expr expr) {
       auto it = err_map.find(expr);
       if (it != err_map.end()) {
         CHECK_NE(it->second.size(), 0);
@@ -144,5 +145,4 @@ void ErrorReporter::ReportAt(const GlobalVar& global, const ObjectRef& node, con
   this->node_to_gv_.insert({ node, global });
 }
 
-}  // namespace relay
 }  // namespace tvm
