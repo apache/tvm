@@ -245,8 +245,9 @@ def run_ops(src_dtype, dst_dtype):
         check_binary_op(op, src_dtype, dst_dtype)
 
 
-def run_model(get_workload, input_shape, src_dtype, dst_dtype):
-    module, params = get_workload()
+def run_model(get_workload, input_shape, src_dtype, dst_dtype, num_classes):
+    module, params = get_workload(image_shape=input_shape,
+                                  num_classes=num_classes)
 
     # Convert the input into the correct format.
     input = tvm.nd.array(np.random.rand(*input_shape).astype(src_dtype))
@@ -265,11 +266,8 @@ def run_model(get_workload, input_shape, src_dtype, dst_dtype):
     # Vectorization is not implemented with custom datatypes.
     with tvm.transform.PassContext(config={"tir.disable_vectorize": True}):
         result = ex.evaluate()(input, **params)
-
-    tvm.testing.assert_allclose(convert_ndarray(src_dtype, result).asnumpy(),
-                                correct.asnumpy(),
-                                rtol=0.001,
-                                atol=0.001)
+        tvm.testing.assert_allclose(
+            convert_ndarray(src_dtype, result).asnumpy(), correct.asnumpy())
 
 
 def run_conv2d(src_dtype, dst_dtype):
@@ -411,14 +409,20 @@ def test_conv2d():
 # disabled for now, because it's slow
 @nottest
 def test_models():
-    run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
-    run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
-    run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
+    # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # Run cifar-10 sizes to be a little faster...
+    run_model(get_mobilenet, (3, 32, 32),
+              'float32',
+              'custom[posit]32',
+              num_classes=10)
+    # run_model(get_resnet, (3, 32, 32), 'float32', 'custom[posit]32', num_classes=10)
 
 
 if __name__ == "__main__":
     setup()
     test_ops()
-    # These all run very slowly:
+    test_models()
+    # Runs slowly:
     # test_conv2d()
-    # test_models()
