@@ -20,7 +20,7 @@
 /*!
  * \file env_func.cc
  */
-#include <tvm/node/env_func.h>
+#include <tvm/ir/env_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/expr.h>
 

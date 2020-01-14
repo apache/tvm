@@ -63,7 +63,7 @@ namespace relay {
 // we assume the data type has no closure - no idea how to look into datatype right now.
 
 Type Arrow(const Type& l, const Type& r) {
-  return FuncTypeNode::make({l}, r, {}, {});
+  return FuncType({l}, r, {}, {});
 }
 
 Type CPSType(const Type& t, const TypeVar& answer);
@@ -74,7 +74,7 @@ FuncType CPSFuncType(const FuncType& f, const TypeVar& answer) {
     new_arg_types.push_back(CPSType(t, answer));
   }
   new_arg_types.push_back(Arrow(CPSType(f->ret_type, answer), answer));
-  return FuncTypeNode::make(new_arg_types, answer, f->type_params, f->type_constraints);
+  return FuncType(new_arg_types, answer, f->type_params, f->type_constraints);
 }
 
 Type CPSType(const Type& t, const TypeVar& answer) {
@@ -302,7 +302,7 @@ Function ToCPS(const Function& f,
 }
 
 Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
-  TypeVar answer = TypeVarNode::make("answer", kType);
+  TypeVar answer = TypeVar("answer", kType);
   VarMap var;
   struct Remapper : ExprVisitor, PatternVisitor {
     Remapper(const TypeVar& answer, VarMap* vm) : answer(answer), vm(vm) { }
@@ -348,7 +348,7 @@ Function UnCPS(const Function& f) {
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
-    new_type_params.push_back(TypeVarNode::make(tp->name_hint, tp->kind));
+    new_type_params.push_back(TypeVar(tp->name_hint, tp->kind));
   }
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();

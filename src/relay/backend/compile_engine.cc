@@ -246,7 +246,7 @@ class ScheduleGetter :
           new_fields.push_back(field);
         }
       }
-      call_node_type = TupleTypeNode::make(new_fields);
+      call_node_type = TupleType(new_fields);
     }
 
     CHECK(call_node->op.as<OpNode>())

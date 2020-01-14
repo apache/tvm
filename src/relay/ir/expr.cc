@@ -135,7 +135,7 @@ FuncType FunctionNode::func_type_annotation() const {
 
   Type ret_type = (this->ret_type.defined()) ? this->ret_type
     : IncompleteTypeNode::make(Kind::kType);
-  return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
+  return FuncType(param_types, ret_type, this->type_params, {});
 }
 
 bool FunctionNode::IsPrimitive() const {
