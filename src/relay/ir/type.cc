@@ -63,25 +63,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
-TypeCall TypeCallNode::make(Type func, tvm::Array<Type> args) {
-  ObjectPtr<TypeCallNode> n = make_object<TypeCallNode>();
-  n->func = std::move(func);
-  n->args = std::move(args);
-  return TypeCall(n);
-}
-
-TVM_REGISTER_NODE_TYPE(TypeCallNode);
-
-TVM_REGISTER_GLOBAL("relay._make.TypeCall")
-.set_body_typed(TypeCallNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeCallNode>([](const ObjectRef& ref, NodePrinter* p) {
-    auto* node = static_cast<const TypeCallNode*>(ref.get());
-  p->stream << "TypeCallNode(" << node->func << ", "
-            << node->args << ")";
-});
-
 IncompleteType IncompleteTypeNode::make(Kind kind) {
   auto n = make_object<IncompleteTypeNode>();
   n->kind = std::move(kind);
@@ -101,23 +82,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
   });
 
-
-TupleType TupleTypeNode::make(Array<Type> fields) {
-  ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
-  n->fields = std::move(fields);
-  return TupleType(n);
-}
-
-TVM_REGISTER_NODE_TYPE(TupleTypeNode);
-
-TVM_REGISTER_GLOBAL("relay._make.TupleType")
-.set_body_typed(TupleTypeNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
-  auto* node = static_cast<const TupleTypeNode*>(ref.get());
-  p->stream << "TupleTypeNode(" << node->fields << ")";
-});
 
 RefType RefTypeNode::make(Type value) {
   ObjectPtr<RefTypeNode> n = make_object<RefTypeNode>();

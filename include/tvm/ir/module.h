@@ -48,13 +48,13 @@ class IRModule;
 class IRModuleNode : public Object {
  public:
   /*! \brief A map from ids to all global functions. */
-  tvm::Map<GlobalVar, BaseFunc> functions;
+  Map<GlobalVar, BaseFunc> functions;
   /*! \brief A map from global type vars to ADT type data. */
-  tvm::Map<GlobalTypeVar, TypeData> type_definitions;
+  Map<GlobalTypeVar, TypeData> type_definitions;
 
   IRModuleNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
@@ -146,7 +146,7 @@ class IRModuleNode : public Object {
    * \brief Collect all global vars defined in this module.
    * \returns An array of global vars
    */
-  TVM_DLL tvm::Array<GlobalVar> GetGlobalVars() const;
+  TVM_DLL Array<GlobalVar> GetGlobalVars() const;
 
   /*!
    * \brief Look up a global function by its name.
@@ -159,7 +159,7 @@ class IRModuleNode : public Object {
    * \brief Collect all global type vars defined in this module.
    * \returns An array of global type vars
    */
-  TVM_DLL tvm::Array<GlobalTypeVar> GetGlobalTypeVars() const;
+  TVM_DLL Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
    * \brief Look up a global function by its variable.
@@ -235,12 +235,12 @@ class IRModuleNode : public Object {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  tvm::Map<std::string, GlobalVar> global_var_map_;
+  Map<std::string, GlobalVar> global_var_map_;
 
   /*! \brief A map from string names to global type variables (ADT names)
    * that ensures global uniqueness.
    */
-  tvm::Map<std::string, GlobalTypeVar> global_type_var_map_;
+  Map<std::string, GlobalTypeVar> global_type_var_map_;
 
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
@@ -266,8 +266,8 @@ class IRModule : public ObjectRef {
    * \param type_definitions Type definitions in the module.
    * \param import_set Set of imported files in the module
    */
-  TVM_DLL explicit IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
-                            tvm::Map<GlobalTypeVar, TypeData> type_definitions = {},
+  TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
+                            Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<std::string> import_set = {});
   /*! \brief default constructor */
   IRModule() {}
@@ -296,8 +296,8 @@ class IRModule : public ObjectRef {
    */
   TVM_DLL static IRModule FromExpr(
     const RelayExpr& expr,
-    const tvm::Map<GlobalVar, BaseFunc>& global_funcs = {},
-    const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
+    const Map<GlobalVar, BaseFunc>& global_funcs = {},
+    const Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
   /*!
    * \brief Parse text format source file into an IRModule.

@@ -286,7 +286,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       Type field = Unify(tt1->fields[i], tt2->fields[i]);
       new_fields.push_back(field);
     }
-    return TupleTypeNode::make(new_fields);
+    return TupleType(new_fields);
   }
 
   Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
@@ -314,7 +314,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       subst_map.Set(op->type_params[i], IncompleteTypeNode::make(kType));
     }
 
-    FuncType ft = FuncTypeNode::make(op->arg_types,
+    FuncType ft = FuncType(op->arg_types,
                                      op->ret_type,
                                      ft_type_params,
                                      op->type_constraints);
@@ -339,7 +339,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
-    return FuncTypeNode::make(arg_types, ret_type, ft2->type_params, type_constraints);
+    return FuncType(arg_types, ret_type, ft2->type_params, type_constraints);
   }
 
   Type VisitType_(const RefTypeNode* op, const Type& tn) final {
@@ -361,7 +361,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     for (size_t i = 0; i < op->args.size(); i++) {
       args.push_back(Unify(op->args[i], tcn->args[i]));
     }
-    return TypeCallNode::make(func, args);
+    return TypeCall(func, args);
   }
 
  private:

@@ -42,7 +42,7 @@ class TypeVarReplacer : public TypeMutator {
   Type VisitType_(const TypeVarNode* type_var_node) final {
     const auto type_var = GetRef<TypeVar>(type_var_node);
     if (replace_map_.find(type_var) == replace_map_.end()) {
-      replace_map_[type_var] = TypeVarNode::make("A", Kind::kType);
+      replace_map_[type_var] = TypeVar("A", Kind::kType);
     }
     return replace_map_[type_var];
   }
@@ -109,7 +109,7 @@ class EtaExpander : public ExprMutator {
       type_params.push_back(type_var_replacer_.VisitType(type_var));
     }
     Expr body = CallNode::make(cons, params, Attrs());
-    Type ret_type = TypeCallNode::make(cons->belong_to, type_params);
+    Type ret_type = TypeCall(cons->belong_to, type_params);
 
     return FunctionNode::make(
       Downcast<tvm::Array<Var>>(params),

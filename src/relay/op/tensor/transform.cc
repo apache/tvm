@@ -2150,7 +2150,7 @@ bool SplitRel(const Array<Type>& types,
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
     auto begin = IndexExpr(make_zero(DataType::Int(32)));
@@ -2170,7 +2170,7 @@ bool SplitRel(const Array<Type>& types,
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
     fields.push_back(vec_type);
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   }
   return true;
 }

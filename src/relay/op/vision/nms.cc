@@ -44,7 +44,7 @@ bool GetValidCountRel(const Array<Type>& types,
   fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
 
   // assign output type
-  reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   return true;
 }
 

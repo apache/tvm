@@ -206,7 +206,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (Expr field : op->fields) {
       types.push_back(GetType(field));
     }
-    return TupleTypeNode::make(types);
+    return TupleType(types);
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
@@ -218,7 +218,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Type rtype = IncompleteTypeNode::make(Kind::kType);
     auto attrs = make_object<TupleGetItemAttrs>();
     attrs->index = op->index;
-    solver_.AddConstraint(TypeRelationNode::make(
+    solver_.AddConstraint(TypeRelation(
         tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)), GetRef<TupleGetItem>(op));
     return rtype;
   }
@@ -235,7 +235,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (size_t i = 0; i < td->type_vars.size(); i++) {
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
-    Type expected = TypeCallNode::make(con->constructor->belong_to, unknown_args);
+    Type expected = TypeCall(con->constructor->belong_to, unknown_args);
     Type unified = Unify(t, expected, GetRef<ObjectRef>(con));
 
     auto* tc = unified.as<TypeCallNode>();
@@ -277,7 +277,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (size_t i = 0; i < tup->patterns.size(); i++) {
       unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
     }
-    Type expected = TupleTypeNode::make(unknown_args);
+    Type expected = TupleType(unknown_args);
     Type unified = Unify(t, expected, GetRef<ObjectRef>(tup));
 
     auto* tt = unified.as<TupleTypeNode>();
@@ -388,7 +388,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Type rtype = IncompleteTypeNode::make(Kind::kType);
     arg_types.push_back(rtype);
     // we can do simple replacement here
-    solver_.AddConstraint(TypeRelationNode::make(
+    solver_.AddConstraint(TypeRelation(
         rel->func, arg_types, arg_types.size() - 1, attrs), loc);
     return rtype;
   }
@@ -418,7 +418,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       ret_type = IncompleteTypeNode::make(Kind::kType);
     }
 
-    Type inst_ty = FuncTypeNode::make(fn_ty->arg_types,
+    Type inst_ty = FuncType(fn_ty->arg_types,
                                       ret_type, {},
                                       fn_ty->type_constraints);
     inst_ty = Bind(inst_ty, subst_map);
@@ -467,7 +467,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // with an unknown return type
     if (inc_ty_node != nullptr) {
       Type ret_type = IncompleteTypeNode::make(Kind::kType);
-      Type func_type = FuncTypeNode::make(arg_types, ret_type, {}, {});
+      Type func_type = FuncType(arg_types, ret_type, {}, {});
       Type unified = this->Unify(ftype, func_type, GetRef<Call>(call));
       fn_ty_node = unified.as<FuncTypeNode>();
     }
@@ -513,7 +513,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (auto cs : fn_ty->type_constraints) {
       if (const auto* tr = cs.as<TypeRelationNode>()) {
         solver_.AddConstraint(
-          TypeRelationNode::make(tr->func, tr->args, tr->num_inputs, call->attrs),
+          TypeRelation(tr->func, tr->args, tr->num_inputs, call->attrs),
           GetRef<Call>(call));
       } else {
         solver_.AddConstraint(cs, GetRef<Call>(call));
@@ -557,7 +557,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       rtype = this->Unify(f->ret_type, rtype, GetRef<Function>(f));
     }
     CHECK(rtype.defined());
-    auto ret = FuncTypeNode::make(arg_types, rtype, f->type_params, {});
+    auto ret = FuncType(arg_types, rtype, f->type_params, {});
     return solver_.Resolve(ret);
   }
 
@@ -575,7 +575,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Type it = IncompleteTypeNode::make(Kind::kType);
     this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefWrite>(op));
     this->Unify(GetType(op->value), it, GetRef<RefWrite>(op));
-    return TupleTypeNode::make({});
+    return TupleType::Empty();
   }
 
   Type VisitExpr_(const ConstructorNode* c) final {
@@ -587,7 +587,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (const auto & t : td->type_vars) {
       types.push_back(t);
     }
-    return FuncTypeNode::make(c->inputs, TypeCallNode::make(c->belong_to, types),
+    return FuncType(c->inputs, TypeCall(c->belong_to, types),
                               td->type_vars, {});
   }
 
