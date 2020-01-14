@@ -18,7 +18,7 @@ import tvm
 from tvm.contrib import util
 import numpy as np
 
-def test_big_uint_imm():
+def test_large_uint_imm():
     value =  (1 << 63) + 123
     other = tvm.const(3, "uint64")
     n = 12
@@ -138,5 +138,5 @@ def test_add_pipeline():
 
 
 if __name__ == "__main__":
-    test_big_uint_imm()
+    test_large_uint_imm()
     test_add_pipeline()

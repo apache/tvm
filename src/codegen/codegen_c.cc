@@ -527,7 +527,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     os << ")";
   } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     PrintBinaryIntrinsic(op, " & ", os, this);
-  } else if (op->is_intrinsic(intrinsic::tvm_big_uint_imm)) {
+  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
     CHECK_EQ(op->args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
     uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);

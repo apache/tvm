@@ -1410,11 +1410,11 @@ namespace intrinsic {
  *
  *  Construct a big uint that may not be representable by int64
  *
- *  Expr tvm_big_uint_imm(uint32_t v0, uin32_t v1) {
+ *  Expr tvm_large_uint_imm(uint32_t v0, uin32_t v1) {
  *    return (v1 << 32) | v0;
  *  }
  */
-constexpr const char* tvm_big_uint_imm = "tvm_big_uint_imm";
+constexpr const char* tvm_large_uint_imm = "tvm_large_uint_imm";
 /*!
  * \brief See pesudo code
  *

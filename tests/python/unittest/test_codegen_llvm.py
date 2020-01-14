@@ -88,7 +88,7 @@ def test_llvm_lookup_intrin():
     fcode = tvm.build(func, None, "llvm")
 
 
-def test_llvm_big_uintimm():
+def test_llvm_large_uintimm():
     value =  (1 << 63) + 123
     other = tvm.const(3, "uint64")
     A = tvm.compute((), lambda : tvm.const(value, "uint64") + other, name='A')
@@ -664,7 +664,7 @@ def test_llvm_shuffle():
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 if __name__ == "__main__":
-    test_llvm_big_uintimm()
+    test_llvm_large_uintimm()
     test_llvm_import()
     test_alignment()
     test_rank_zero()

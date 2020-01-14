@@ -35,9 +35,9 @@ inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   return ir::CastNode::make(t, value);
 }
 
-PrimExpr BigUIntImm(DataType t, int64_t low, int64_t high) {
+PrimExpr LargeUIntImm(DataType t, int64_t low, int64_t high) {
   return ir::CallNode::make(
-      t, ir::intrinsic::tvm_big_uint_imm,
+      t, ir::intrinsic::tvm_large_uint_imm,
       {make_const(DataType::UInt(32), low),
        make_const(DataType::UInt(32), high)},
       ir::CallNode::PureIntrinsic);

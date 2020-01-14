@@ -584,13 +584,13 @@ TVM_DLL PrimExpr nearbyint(PrimExpr x);
 TVM_DLL PrimExpr trunc(PrimExpr x);
 
 /*!
- * \brief Construct a big uint constant by its low 32 bits and high 32bits.
+ * \brief Construct a large uint constant by its low 32 bits and high 32bits.
  * \param dtype The final data type.
  * \param low The lower 32 bits.
  * \param high The higher 32 bits.
  * \return The constructed expression.
  */
-TVM_DLL PrimExpr BigUIntImm(DataType dtype, int64_t low, int64_t high);
+TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                             \
@@ -674,7 +674,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
       uint64_t mask = (static_cast<uint64_t>(1) << 32U) - 1U;
       uint64_t low = uval & mask;
       uint64_t high = uval >> 32U;
-      return BigUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high));
+      return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high));
     }
   }
   if (t.is_float()) return ir::FloatImmNode::make(t, static_cast<double>(value));
