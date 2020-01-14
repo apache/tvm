@@ -27,18 +27,38 @@
 
 namespace tvm {
 
-TypeVar TypeVarNode::make(std::string name, TypeKind kind) {
+PrimType::PrimType(runtime::DataType dtype) {
+  ObjectPtr<PrimTypeNode> n = make_object<PrimTypeNode>();
+  n->dtype = dtype;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PrimTypeNode);
+
+TVM_REGISTER_GLOBAL("relay._make.PrimType")
+.set_body_typed([](runtime::DataType dtype) {
+  return PrimType(dtype);
+});
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<PrimTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+    auto* node = static_cast<const PrimTypeNode*>(ref.get());
+    p->stream << node->dtype;
+});
+
+
+TypeVar::TypeVar(std::string name, TypeKind kind) {
   ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
   n->name_hint = std::move(name);
   n->kind = std::move(kind);
-  return TypeVar(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_GLOBAL("relay._make.TypeVar")
 .set_body_typed([](std::string name, int kind) {
-  return TypeVarNode::make(name, static_cast<TypeKind>(kind));
+  return TypeVar(name, static_cast<TypeKind>(kind));
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -48,18 +68,19 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
               << node->kind << ")";
 });
 
-GlobalTypeVar GlobalTypeVarNode::make(std::string name, TypeKind kind) {
+
+GlobalTypeVar::GlobalTypeVar(std::string name, TypeKind kind) {
   ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
   n->name_hint = std::move(name);
   n->kind = std::move(kind);
-  return GlobalTypeVar(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 
 TVM_REGISTER_GLOBAL("relay._make.GlobalTypeVar")
 .set_body_typed([](std::string name, int kind) {
-  return GlobalTypeVarNode::make(name, static_cast<TypeKind>(kind));
+  return GlobalTypeVar(name, static_cast<TypeKind>(kind));
 });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -69,22 +90,27 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
               << node->kind << ")";
 });
 
-FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
-                            Type ret_type,
-                            tvm::Array<TypeVar> type_params,
-                            tvm::Array<TypeConstraint> type_constraints) {
+FuncType::FuncType(tvm::Array<Type> arg_types,
+                   Type ret_type,
+                   tvm::Array<TypeVar> type_params,
+                   tvm::Array<TypeConstraint> type_constraints) {
   ObjectPtr<FuncTypeNode> n = make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
   n->type_constraints = std::move(type_constraints);
-  return FuncType(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 
 TVM_REGISTER_GLOBAL("relay._make.FuncType")
-.set_body_typed(FuncTypeNode::make);
+.set_body_typed([](tvm::Array<Type> arg_types,
+                   Type ret_type,
+                   tvm::Array<TypeVar> type_params,
+                   tvm::Array<TypeConstraint> type_constraints) {
+  return FuncType(arg_types, ret_type, type_params, type_constraints);
+});
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<FuncTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
@@ -92,6 +118,29 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   p->stream << "FuncType(" << node->type_params << ", "
             << node->arg_types << ", " << node->ret_type << ", "
             << node->type_constraints << ")";
+});
+
+TupleType::TupleType(Array<Type> fields) {
+  ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
+  n->fields = std::move(fields);
+  data_ = std::move(n);
+}
+
+TupleType TupleType::Empty() {
+  return TupleType(Array<Type>());
+}
+
+TVM_REGISTER_NODE_TYPE(TupleTypeNode);
+
+TVM_REGISTER_GLOBAL("relay._make.TupleType")
+.set_body_typed([](Array<Type> fields) {
+  return TupleType(fields);
+});
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+  auto* node = static_cast<const TupleTypeNode*>(ref.get());
+  p->stream << "TupleTypeNode(" << node->fields << ")";
 });
 
 }  // namespace tvm

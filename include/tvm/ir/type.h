@@ -50,15 +50,26 @@
 #define TVM_IR_TYPE_H_
 
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/node/node.h>
-#include <tvm/node/env_func.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/span.h>
 #include <string>
 
 namespace tvm {
 
-/*! \brief Base type of all the types. */
+/*!
+ * \brief Type is the base type of all types.
+ *
+ * Relay's type system contains following subclasses:
+ *
+ * - PrimType: type of primitive type values used in the low-level IR.
+ * - FuncType: type of a function.
+ * - TensorType: type of certain Tensor values in the expression.
+ *
+ * There are also advanced types to support generic(polymorphic types).
+ * \sa Type
+ */
 class TypeNode : public Object {
  public:
   /*!
@@ -72,20 +83,50 @@ class TypeNode : public Object {
 };
 
 /*!
- * \brief Type is the base type of all types.
- *
- * Relay's type system contains following two key concepts:
- *
- * - PrimitiveType: type of primitive type values used in the low-level IR.
- * - TensorType: type of certain Tensor values in the expression.
- * - FunctionType: the type of the function.
- *
- * There are also advanced types to support generic(polymorphic types),
- * which can be ignored when first reading the code base.
+ * \brief Managed reference to TypeNode.
+ * \sa TypeNode
  */
 class Type : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(Type, ObjectRef, TypeNode);
+};
+
+/*!
+ * \brief Primitive data types used in the low-level IR.
+ *
+ * PrimType represents POD-values and handles that are
+ * not automatically managed by the runtime.
+ *
+ * \sa PrimType
+ */
+class PrimTypeNode : public TypeNode {
+ public:
+  /*!
+   * \brief The corresponding dtype field.
+   */
+  runtime::DataType dtype;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+  }
+
+  static constexpr const char* _type_key = "relay.PrimType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to PrimTypeNode.
+ * \sa PrimTypeNode
+ */
+class PrimType : public Type {
+ public:
+  /*!
+   * \brief Constructor
+   * \param dtype The corresponding dtype.
+   */
+  TVM_DLL PrimType(runtime::DataType dtype);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimType, Type, PrimTypeNode);
 };
 
 /*! \brief Possible kinds of TypeVars. */
@@ -94,7 +135,6 @@ enum TypeKind : int {
   /*! \brief Template variable in shape expression. */
   kShapeVar = 1,
   kBaseType = 2,
-  kShape = 3,
   kConstraint = 4,
   kAdtHandle = 5,
   kTypeData = 6
@@ -115,10 +155,8 @@ enum TypeKind : int {
  *  f(x : Tensor[i32, (n, n)]) -> Tensor[i32, (n * n)]
  *
  * \endcode
- * \sa TypeVarNode The actual container class of TypeVar
+ * \sa TypeVar, TypeKind
  */
-class TypeVar;
-/*! \brief TypeVar container node */
 class TypeVarNode : public TypeNode {
  public:
   /*!
@@ -130,28 +168,36 @@ class TypeVarNode : public TypeNode {
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
     v->Visit("span", &span);
   }
 
-  TVM_DLL static TypeVar make(std::string name, TypeKind kind);
-
   static constexpr const char* _type_key = "relay.TypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeVarNode, TypeNode);
 };
 
+/*!
+ * \brief Managed reference to TypeVarNode
+ * \sa TypeVarNode
+ */
 class TypeVar : public Type {
  public:
+  /*!
+   * \brief Constructor
+   * \param name_hint The name of the type var.
+   * \param kind The kind of the type var.
+   */
+  TVM_DLL TypeVar(std::string name_hint, TypeKind kind);
+
   TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
 };
 
 /*!
  * \brief A global type variable that is used for defining new types or type aliases.
+ * \sa GlobalTypeVar
  */
-class GlobalTypeVar;
-/*! \brief GlobalTypeVar container node */
 class GlobalTypeVarNode : public TypeNode {
  public:
   /*!
@@ -163,47 +209,98 @@ class GlobalTypeVarNode : public TypeNode {
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("kind", &kind);
   }
-
-  TVM_DLL static GlobalTypeVar make(std::string name, TypeKind kind);
 
   static constexpr const char* _type_key = "relay.GlobalTypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalTypeVarNode, TypeNode);
 };
 
+/*!
+ * \brief Managed reference to GlobalTypeVarNode
+ * \sa GlobalTypeVarNode
+ */
 class GlobalTypeVar : public Type {
  public:
+  /*!
+   * \brief Constructor
+   * \param name_hint The name of the type var.
+   * \param kind The kind of the type var.
+   */
+  TVM_DLL GlobalTypeVar(std::string name_hint, TypeKind kind);
+
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalTypeVar, Type, GlobalTypeVarNode);
 };
 
 /*!
- * \brief Potential Constraints in the type.
- * \note This is reserved for future use.
+ * \brief The type of tuple values.
+ * \sa TupleType
  */
-class TypeConstraint;
-/*! \brief TypeConstraint container node. */
+class TupleTypeNode : public TypeNode {
+ public:
+  /*! \brief The type of each field in the tuple. */
+  Array<Type> fields;
+
+  TupleTypeNode() {}
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("fields", &fields);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.TupleType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to TupleTypeNode.
+ * \sa TupleTypeNode.
+ */
+class TupleType : public Type {
+ public:
+  /*!
+   * \brief Constructor
+   * \param fields Fields in the tuple.
+   */
+  TVM_DLL explicit TupleType(Array<Type> fields);
+
+  /*!
+   * \brief Create an empty tuple type that constains nothing.
+   * \return A empty tuple type.
+   */
+  TVM_DLL TupleType static Empty();
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleType, Type, TupleTypeNode);
+};
+
+/*!
+ * \brief Potential Constraints in a function.
+ * \sa TypeConstraint
+ */
 class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.TypeConstraint";
   TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
 };
 
+/*!
+ * \brief Managed reference to TypeConstraintNode.
+ * \sa TypeConstraintNode, TypeRelation
+ */
 class TypeConstraint : public Type {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(TypeConstraint, Type, TypeConstraintNode);
 };
 
-class FuncType;
 /*!
- * \brief Function type in Relay.
+ * \brief Function type.
  *
- * Relay support polymorphic function type.
+ * We support polymorphic function type.
  * This can be roughly viewed as template function in C++.
  *
- * \sa TypeVar, TypeConstraint
+ * \sa FuncType, TypeVar, TypeConstraint
  */
 class FuncTypeNode : public TypeNode {
  public:
@@ -221,7 +318,7 @@ class FuncTypeNode : public TypeNode {
    */
   Array<TypeConstraint> type_constraints;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("arg_types", &arg_types);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
@@ -229,17 +326,29 @@ class FuncTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static FuncType make(Array<Type> arg_types,
-                               Type ret_type,
-                               Array<TypeVar> type_params,
-                               Array<TypeConstraint> type_constraints);
-
   static constexpr const char* _type_key = "relay.FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
 
+/*!
+ * \brief Managed reference to FuncTypeNode.
+ * \sa FuncTypeNode
+ */
 class FuncType : public Type {
  public:
+  /*!
+   * \brief Constructor
+   * \param arg_types The types of the arguments.
+   * \param ret_type The type of the return value.
+   * \param type_params The type parameters.
+   * \param type_constraints The type constraints.
+   * \sa FuncTypeNode for more docs about these fields.
+   */
+  TVM_DLL FuncType(Array<Type> arg_types,
+                   Type ret_type,
+                   Array<TypeVar> type_params,
+                   Array<TypeConstraint> type_constraints);
+
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
 
