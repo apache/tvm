@@ -501,6 +501,21 @@ Finally, we register this function to TVM backend:
 
 where ``ccompiler`` is a customized tag to let TVM know this is the codegen it should use to generate and offload subgraphs when the subgraph is annotated with ``ccompiler``.
 
+Finally, a good practice is to set up a CMake configuration flag to include your compiler only for your customers. We first create a cmake file: `cmake/modules/contrib/CODEGENC.cmake`:
+
+.. code-block:: cmake
+
+  if(USE_CODEGENC)
+    file(GLOB CSOURCE_RELAY_CONTRIB_SRC src/relay/backend/contrib/codegen_c/codegen.cc)
+    list(APPEND COMPILER_SRCS ${CSOURCE_RELAY_CONTRIB_SRC})
+  endif(USE_CODEGENC)
+
+So that users can configure whether to include your compiler when configuring TVM using `config.cmake`:
+
+.. code-block:: cmake
+
+  set(USE_CODEGENC ON)
+
 *******************************************
 Implement a Codegen for Your Representation
 *******************************************
