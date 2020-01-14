@@ -479,7 +479,7 @@ def _dense():
 
         if not isinstance(beta, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
             if data_type == 'double':
-                beta = _expr.const(np.foat64(beta), dtype='float64')
+                beta = _expr.const(np.float64(beta), dtype='float64')
             elif data_type == 'float':
                 beta = _expr.const(np.float32(beta), dtype='float32')
             elif data_type == 'half':

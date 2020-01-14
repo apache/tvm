@@ -203,6 +203,7 @@ def verify_model(model_name, input_type=None):
     baseline_outputs = baseline_model(baseline_input)
     dtype = input_type
     if input_type is None or input_type == 'float32':
+        baseline_model = baseline_model.float()
         baseline_input = baseline_input.float()
         baseline_outputs = baseline_outputs.float()
         if isinstance(baseline_outputs, tuple):
@@ -212,6 +213,7 @@ def verify_model(model_name, input_type=None):
         input_type = 'float32'
         dtype = 'float32'
     elif input_type == 'float64':
+        baseline_model = baseline_model.double()
         baseline_input = baseline_input.double()
         baseline_outputs = baseline_outputs.double()
         if isinstance(baseline_outputs, tuple):
@@ -219,6 +221,7 @@ def verify_model(model_name, input_type=None):
         else:
             baseline_outputs = (baseline_outputs.detach().double().cpu().numpy(),)
     elif input_type == 'float16':
+        baseline_model = baseline_model.half()
         baseline_input = baseline_input.half()
         baseline_outputs = baseline_outputs.half()
         if isinstance(baseline_outputs, tuple):
@@ -226,6 +229,7 @@ def verify_model(model_name, input_type=None):
         else:
             baseline_outputs = (baseline_outputs.detach().half().cpu().numpy(),)
     elif input_type == 'int32':
+        baseline_model = baseline_model.int()
         baseline_input = baseline_input.int()
         baseline_outputs = baseline_outputs.int()
         if isinstance(baseline_outputs, tuple):
@@ -571,7 +575,6 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
-    """
     # Single operator tests
     test_add1()
     test_add2()
@@ -650,26 +653,9 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-    """
 
-    #test_batchnorm1()
-    #test_batchnorm2()
-
-    #test_resnet18()
-    #test_add4int32()
-
-    #test_unsqueeze1int32()
-    #test_concatenate1int32()
-
-    #test_add4int32
-
-    #test_add3float16()
-
-    #test_add3float64()
-
-    #test_batchnorm1()
-    #test_batchnorm1float64()
-
-    #test_batchnorm1int32()
-
+    # TODO: Refactor how testing works for different types
+    test_add3float64()
+    test_add4int32
+    test_batchnorm1float64()
     test_resnet18float64()
