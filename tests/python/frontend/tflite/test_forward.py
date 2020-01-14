@@ -1755,6 +1755,30 @@ def test_all_reduce():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_reduce(_test_reduce_any, dtype="bool")
 
+#######################################################################
+# Arg_min_max
+# -----------
+
+def _test_arg_min_max(math_op, data, axis, output_dtype):
+    """ One iteration of arg_min_max"""
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = math_op(input=in_data, axis=axis, output_type=output_dtype)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def _test_arg_min(data, axis, output_dtype):
+    """ One iteration of arg_min """
+    return _test_arg_min_max(math_ops.argmin, data, axis, output_dtype)
+
+def _test_arg_max(data, axis, output_dtype):
+    """ One iteration of arg_max """
+    return _test_arg_min_max(math_ops.argmax, data, axis, output_dtype)
+
+def test_forward_arg_min_max():
+    data = np.array(np.random.uniform(0, 100, (3, 4)), dtype=np.float32)
+    for axis in [None, 0, 1, -1]:
+        _test_arg_min(data=data, axis=axis, output_dtype=np.int32)
+        _test_arg_max(data=data, axis=axis, output_dtype=np.int32)
 
 #######################################################################
 # Select, Where
@@ -2834,6 +2858,7 @@ if __name__ == '__main__':
     test_forward_sparse_to_dense()
     test_forward_select()
     test_forward_quantize_dequantize()
+    test_forward_arg_min_max()
 
     # NN
     test_forward_convolution()
