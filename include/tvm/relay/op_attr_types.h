@@ -123,7 +123,7 @@ using FTVMSchedule = runtime::TypedPackedFunc<
  *  operator with other expressions. This function will be invoked
  *  in AlterOpLayout pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
+ * \param args The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
@@ -153,8 +153,8 @@ using FTVMConvertOpLayout = runtime::TypedPackedFunc<
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
- * \param tinfos An array of placeholders, use for getting the inferred shape
+ * \param args The input symbols of the original node.
+ * \param arg_types An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */

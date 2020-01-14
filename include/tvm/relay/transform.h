@@ -310,6 +310,14 @@ TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
  */
 TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
+/*!
+ * \brief Partition a Relay program into regions that can be executed on
+ * different backends.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass PartitionGraph();
+
 }  // namespace transform
 
 /*!
