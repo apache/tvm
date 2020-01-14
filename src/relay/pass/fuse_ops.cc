@@ -970,15 +970,15 @@ class FuseMutator : private ExprMutator {
   }
 };
 
-Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
+Expr FuseOps(const Expr& expr, int fuse_opt_level, const IRModule& module) {
   return FuseMutator().Transform(expr, fuse_opt_level);
 }
 
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };

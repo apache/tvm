@@ -60,7 +60,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
     location = ref;
   }
 
-  TVM_DLL Module GetModule() final {
+  TVM_DLL IRModule GetModule() final {
     return this->solver_->module_;
   }
 
@@ -531,7 +531,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 // constructor
 TypeSolver::TypeSolver(
   const GlobalVar& current_func,
-  const Module& module,
+  const IRModule& module,
   ErrorReporter* err_reporter)
     : reporter_(make_object<Reporter>(this)),
       current_func(current_func),
@@ -661,7 +661,7 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
-    auto module = ModuleNode::make({}, {});
+    auto module = IRModule({}, {});
     auto dummy_fn_name = GlobalVar("test");
     module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
     auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);

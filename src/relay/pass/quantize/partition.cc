@@ -78,8 +78,8 @@ TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr")
   });
 
 Pass QuantizePartition() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       auto ret = Downcast<Function>(
           ForwardRewrite(f, "FQPartitionRewrite", nullptr, nullptr));
       return ret;

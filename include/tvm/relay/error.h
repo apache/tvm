@@ -24,13 +24,16 @@
 #ifndef TVM_RELAY_ERROR_H_
 #define TVM_RELAY_ERROR_H_
 
+#include <tvm/ir/module.h>
+
 #include <string>
 #include <vector>
 #include <sstream>
 #include <unordered_map>
+
 #include "./base.h"
 #include "./expr.h"
-#include "./module.h"
+
 
 namespace tvm {
 namespace relay {
@@ -146,7 +149,7 @@ class ErrorReporter {
    * \param module The module to report errors on.
    * \param use_color Controls whether to colorize the output.
    */
-  void RenderErrors(const Module& module, bool use_color = true);
+  void RenderErrors(const IRModule& module, bool use_color = true);
 
   inline bool AnyErrors() {
     return errors_.size() != 0;

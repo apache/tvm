@@ -26,6 +26,8 @@
 
 #include <tvm/node/container.h>
 #include <tvm/relay/expr.h>
+#include <tvm/ir/module.h>
+
 #include <bitset>
 
 namespace tvm {
@@ -141,7 +143,6 @@ class FeatureSet {
  */
 FeatureSet DetectFeature(const RelayExpr& expr);
 
-struct Module;
 /*!
  * \brief Calculate the feature of the program.
  *
@@ -149,7 +150,7 @@ struct Module;
  *
  * \return The FeatureSet.
  */
-FeatureSet DetectFeature(const Module& mod);
+FeatureSet DetectFeature(const IRModule& mod);
 
 /*!
  * \brief Calculate the feature of the program.
@@ -159,7 +160,7 @@ FeatureSet DetectFeature(const Module& mod);
  *
  * \return The FeatureSet.
  */
-inline FeatureSet DetectFeature(const Expr& expr, const Module& mod) {
+inline FeatureSet DetectFeature(const Expr& expr, const IRModule& mod) {
   return DetectFeature(expr) + DetectFeature(mod);
 }
 

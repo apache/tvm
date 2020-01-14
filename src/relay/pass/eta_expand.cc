@@ -57,7 +57,7 @@ class TypeVarReplacer : public TypeMutator {
  */
 class EtaExpander : public ExprMutator {
  public:
-  explicit EtaExpander(const Module& mod, bool expand_constructor, bool expand_global_var)
+  explicit EtaExpander(const IRModule& mod, bool expand_constructor, bool expand_global_var)
       : mod_(mod),
         type_var_replacer_(TypeVarReplacer()),
         expand_constructor_(expand_constructor),
@@ -66,7 +66,7 @@ class EtaExpander : public ExprMutator {
       << "must expand at least one language feature";
   }
 
-  Module Expand() {
+  IRModule Expand() {
     for (GlobalVar global_var : mod_->GetGlobalVars()) {
       const BaseFunc base_func = mod_->Lookup(global_var);
       if (auto* n = base_func.as<FunctionNode>()) {
@@ -147,7 +147,7 @@ class EtaExpander : public ExprMutator {
 
  private:
   /*! \brief reference to module being expanded */
-  const Module mod_;
+  const IRModule mod_;
   /*! \brief type variable replacer */
   TypeVarReplacer type_var_replacer_;
   /*! \brief whether to expand constructor nodes */
@@ -161,8 +161,8 @@ class EtaExpander : public ExprMutator {
 namespace transform {
 
 Pass EtaExpand(bool expand_constructor, bool expand_global_var) {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module mod, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule mod, PassContext pc) {
     return eta_expand::EtaExpander(mod, expand_constructor, expand_global_var).Expand();
   };
   return CreateModulePass(pass_func, 1, "EtaExpand", {});

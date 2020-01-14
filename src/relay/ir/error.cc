@@ -23,7 +23,7 @@
  */
 
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/error.h>
 #include <string>
 #include <vector>
@@ -39,7 +39,7 @@ void RelayErrorStream::Raise() const {
 template<typename T, typename U>
 using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
 
-void ErrorReporter::RenderErrors(const Module& module, bool use_color) {
+void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
   // First we pick an error reporting strategy for each error.
   // TODO(@jroesch): Spanned errors are currently not supported.
   for (auto err : this->errors_) {

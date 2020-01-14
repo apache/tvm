@@ -30,9 +30,8 @@
 namespace tvm {
 
 // TODO(tqchen): remove after migrate Module to ir.
-namespace relay {
-struct Module;
-}
+class IRModule;
+
 
 /*!
  * \brief reporter that reports back to the
@@ -76,7 +75,7 @@ class TypeReporterNode : public Object {
    * \brief Retrieve the current global module.
    * \return The global module.
    */
-  TVM_DLL virtual relay::Module GetModule() = 0;
+  TVM_DLL virtual IRModule GetModule() = 0;
 
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) {}

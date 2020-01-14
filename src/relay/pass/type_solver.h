@@ -62,7 +62,7 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver(const GlobalVar& current_func, const Module& _mod, ErrorReporter* err_reporter);
+  TypeSolver(const GlobalVar& current_func, const IRModule& _mod, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
@@ -179,7 +179,7 @@ class TypeSolver {
   /*! \brief Error reporting. */
   ErrorReporter* err_reporter_;
   /*! \brief The module. */
-  Module module_;
+  IRModule module_;
 
   /*!
    * \brief GetTypeNode that is corresponds to t.

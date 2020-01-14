@@ -190,7 +190,7 @@ Expr QuantizeRealize(const Call& ref_call,
 }
 
 Expr FoldConstantOpt(const Expr& expr) {
-  auto mod = ModuleNode::FromExpr(expr);
+  auto mod = IRModule::FromExpr(expr);
   mod = transform::FoldConstant()(mod);
   auto entry_func = Downcast<Function>(mod->Lookup("main"));
   return expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
@@ -522,8 +522,8 @@ RELAY_REGISTER_OP("annotation.cast_hint")
 .set_attr<FForwardRewrite>("FQRealizeRewrite", CastHintRealize);
 
 Pass QuantizeRealizePass() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(
           ForwardRewrite(f, "FQRealizeRewrite", nullptr, nullptr));
   };

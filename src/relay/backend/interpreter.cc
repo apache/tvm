@@ -233,7 +233,7 @@ class Interpreter :
       public ExprFunctor<ObjectRef(const Expr& n)>,
              PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  Interpreter(Module mod, DLContext context, Target target)
+  Interpreter(IRModule mod, DLContext context, Target target)
       : mod_(mod),
         context_(context),
         target_(target),
@@ -761,7 +761,7 @@ class Interpreter :
 
  private:
   // Module
-  Module mod_;
+  IRModule mod_;
   // For simplicity we only run the interpreter on a single context.
   // Context to run the interpreter on.
   DLContext context_;
@@ -779,7 +779,7 @@ class Interpreter :
 
 TypedPackedFunc<ObjectRef(Expr)>
 CreateInterpreter(
-    Module mod,
+    IRModule mod,
     DLContext context,
     Target target) {
   if (mod.defined()) {

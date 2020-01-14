@@ -752,7 +752,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
   if (name == "lower") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.num_args, 3);
-      Module mod = args[0];
+      IRModule mod = args[0];
       this->Lower(mod, args[1], args[2]);
     });
   } else if (name == "codegen") {
@@ -813,7 +813,7 @@ relay::Function VMCompiler::BindParamsByName(
   return ret;
 }
 
-void VMCompiler::Lower(Module mod,
+void VMCompiler::Lower(IRModule mod,
                        const TargetsMap& targets,
                        const tvm::Target& target_host) {
   CHECK_EQ(targets.size(), 1)
@@ -884,7 +884,7 @@ void VMCompiler::Lower(Module mod,
   }
 }
 
-Module VMCompiler::OptimizeModule(const Module& mod, const TargetsMap& targets) {
+IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
   Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));

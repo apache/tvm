@@ -61,7 +61,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <string>
@@ -236,7 +236,7 @@ class PassNode : public RelayNode {
    *
    * \return The transformed module.
    */
-  Module operator()(const Module& mod) const {
+  IRModule operator()(const IRModule& mod) const {
     return this->operator()(mod, PassContext::Current());
   }
 
@@ -248,8 +248,8 @@ class PassNode : public RelayNode {
    *
    * \return The transformed module.
    */
-  virtual Module operator()(const Module& mod,
-                            const PassContext& pass_ctx) const = 0;
+  virtual IRModule operator()(const IRModule& mod,
+                              const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
@@ -266,7 +266,7 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  Module operator()(const Module& mod) const {
+  IRModule operator()(const IRModule& mod) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
     return node->operator()(mod);
@@ -279,8 +279,8 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  Module operator()(const Module& mod,
-                    const PassContext& pass_ctx) const {
+  IRModule operator()(const IRModule& mod,
+                      const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
     return node->operator()(mod, pass_ctx);
@@ -329,7 +329,7 @@ class Sequential : public Pass {
  * \return The created module pass.
  */
 Pass CreateModulePass(
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
     const tvm::Array<tvm::PrimExpr>& required);
@@ -345,7 +345,7 @@ Pass CreateModulePass(
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
-                                Function(Function, Module, PassContext)>& pass_func,
+                                Function(Function, IRModule, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
                                 const tvm::Array<tvm::PrimExpr>& required);
@@ -624,7 +624,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  * \note this function mutates mod and is not thread-safe.
  */
 TVM_DLL Function InferType(const Function& f,
-                           const Module& mod,
+                           const IRModule& mod,
                            const GlobalVar& var);
 
 /*!
@@ -689,7 +689,7 @@ TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
  *
  * \return the converted Function.
  */
-TVM_DLL Function ToCPS(const Function& f, const Module& mod);
+TVM_DLL Function ToCPS(const Function& f, const IRModule& mod);
 
 /*!
  * \brief Remove the continuation argument of a CPS function.

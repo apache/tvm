@@ -41,10 +41,10 @@ namespace relay {
 using namespace tvm::runtime;
 
 struct KindChecker : TypeFunctor<Kind(const Type&)> {
-  const Module& mod;
+  const IRModule& mod;
   ErrorReporter err_reporter;
 
-  explicit KindChecker(const Module& mod) : mod(mod), err_reporter() {}
+  explicit KindChecker(const IRModule& mod) : mod(mod), err_reporter() {}
 
   void ReportFatalError(const Error& err) {
     this->err_reporter.Report(err);
@@ -177,7 +177,7 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   }
 };
 
-Kind KindCheck(const Type& t, const Module& mod) {
+Kind KindCheck(const Type& t, const IRModule& mod) {
   KindChecker kc(mod);
   return kc.Check(t);
 }
@@ -185,7 +185,7 @@ Kind KindCheck(const Type& t, const Module& mod) {
 TVM_REGISTER_GLOBAL("relay._analysis.check_kind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     if (args.size() == 1) {
-      *ret = KindCheck(args[0], ModuleNode::make({}, {}));
+      *ret = KindCheck(args[0], IRModule({}, {}));
     } else {
       *ret = KindCheck(args[0], args[1]);
     }
