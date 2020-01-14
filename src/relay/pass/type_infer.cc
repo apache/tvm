@@ -38,7 +38,7 @@
  * constraints we will trigger an error.
  */
 
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/analysis.h>
@@ -144,11 +144,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     } catch (const dmlc::Error &e) {
       this->ReportFatalError(
         expr,
-        RELAY_ERROR("Error unifying `"
+        ErrorBuilder()
+          << "Error unifying `"
           << t1
           << "` and `"
           << t2
-          << "`: " << e.what()));
+          << "`: " << e.what());
       return Type();
     }
   }
@@ -188,9 +189,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (!mod_.defined()) {
       this->ReportFatalError(
         GetRef<GlobalVar>(op),
-        RELAY_ERROR(
+        ErrorBuilder() <<
           "Cannot do type inference on global variables " \
-          "without a module"));
+          "without a module");
     }
     Expr e = mod_->Lookup(var);
     return e->checked_type();
@@ -239,16 +240,18 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     auto* tc = unified.as<TypeCallNode>();
     if (!tc) {
-      this->ReportFatalError(pc, RELAY_ERROR("Expected a type call, got " << unified));
+      this->ReportFatalError(pc, ErrorBuilder() << "Expected a type call, got " << unified);
     }
     if (td->header != tc->func) {
-      this->ReportFatalError(pc, RELAY_ERROR("ADT headers must match, but we have "
-                                             << td->header << " and " << tc->func));
+      this->ReportFatalError(pc,
+        ErrorBuilder() << "ADT headers must match, but we have "
+                        << td->header << " and " << tc->func);
     }
     if (td->type_vars.size() != tc->args.size()) {
-      this->ReportFatalError(pc, RELAY_ERROR("The number of type args must match"
-                                             << "the number of type vars in the type data: "
-                                             << td->type_vars.size() << " != " << tc->args.size()));
+      this->ReportFatalError(pc,
+        ErrorBuilder() << "The number of type args must match"
+                       << "the number of type vars in the type data: "
+                       << td->type_vars.size() << " != " << tc->args.size());
     }
     std::unordered_map<TypeVar, Type, ObjectHash, ObjectEqual> type_var_map_;
     for (size_t i = 0; i < td->type_vars.size(); ++i) {
@@ -256,9 +259,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
     CHECK(con->constructor->inputs.size() == con->patterns.size()) << "not enough pattern";
     if (con->constructor->inputs.size() != con->patterns.size()) {
-      this->ReportFatalError(pc, RELAY_ERROR("Not enough inputs for the constructor; "
-                                             << "expected " << con->constructor->inputs.size()
-                                             << ", got " << con->patterns.size()));
+      this->ReportFatalError(pc,
+        ErrorBuilder() << "Not enough inputs for the constructor; "
+                       << "expected " << con->constructor->inputs.size()
+                       << ", got " << con->patterns.size());
     }
     for (size_t i = 0; i < con->constructor->inputs.size(); ++i) {
       VisitPattern(con->patterns[i], Bind(con->constructor->inputs[i], type_var_map_));
@@ -278,7 +282,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     auto* tt = unified.as<TupleTypeNode>();
     if (!tt) {
-      this->ReportFatalError(pt, RELAY_ERROR("Expected a tuple type, got " << unified));
+      this->ReportFatalError(pt, ErrorBuilder() << "Expected a tuple type, got " << unified);
     }
     CHECK(tup->patterns.size() == tt->fields.size()) << "not enough pattern";
     for (size_t i = 0; i < tup->patterns.size(); ++i) {
@@ -310,7 +314,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       Match match = GetRef<Match>(op);
       Array<Pattern> unmatched_cases = UnmatchedCases(match, this->mod_);
       if (unmatched_cases.size() != 0) {
-        RelayErrorStream ss;
+        ErrorBuilder ss;
         ss << "match expression does not handle the following cases: ";
         int i = 0;
         for (auto cs : unmatched_cases) {
@@ -454,8 +458,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (fn_ty_node == nullptr && inc_ty_node == nullptr) {
       this->ReportFatalError(
         GetRef<Call>(call),
-        RELAY_ERROR("only expressions with function types can be called, found "
-        << ftype));
+        ErrorBuilder()
+          << "only expressions with function types can be called, found "
+          << ftype);
     }
 
     // incomplete type => it must be a function taking the arg types
@@ -470,11 +475,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     Array<Type> type_args = call->type_args;
     if (type_args.size() > fn_ty_node->type_params.size()) {
       this->ReportFatalError(GetRef<Call>(call),
-        RELAY_ERROR("Incorrect number of type args in "
+        ErrorBuilder()
+          << "Incorrect number of type args in "
           << call->span << ": "
           << "Expected "
           << fn_ty_node->type_params.size()
-          << "but got " << type_args.size()));
+          << "but got " << type_args.size());
     }
 
     FuncType fn_ty = InstantiateFuncType(fn_ty_node, type_args);
@@ -488,13 +494,15 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       if (type_arity < number_of_args) {
         this->ReportFatalError(
           GetRef<Call>(call),
-          RELAY_ERROR("the function is provided too many arguments "
-          << "expected " << type_arity << ", found " << number_of_args));
+          ErrorBuilder()
+            << "the function is provided too many arguments "
+            << "expected " << type_arity << ", found " << number_of_args);
       } else {
         this->ReportFatalError(
           GetRef<Call>(call),
-          RELAY_ERROR("the function is provided too few arguments "
-          << "expected " << type_arity << ", found " << number_of_args));
+          ErrorBuilder()
+            << "the function is provided too few arguments "
+            << "expected " << type_arity << ", found " << number_of_args);
       }
     }
 

@@ -27,7 +27,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <vector>
 #include <queue>
 #include <unordered_map>

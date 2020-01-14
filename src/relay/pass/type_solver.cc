@@ -124,10 +124,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     } else {
       Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
       if (!resolved.defined()) {
-        solver_->ReportError(RELAY_ERROR("unable to unify: "
-                                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
-                                         << PrettyPrint(rhs->resolved_type) << "`"),
-                             this->loc);
+        solver_->ReportError(
+          ErrorBuilder() << "unable to unify: "
+                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                         << PrettyPrint(rhs->resolved_type) << "`",
+          this->loc);
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
@@ -225,13 +226,13 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
       this->solver_->ReportError(
-        RELAY_ERROR(
+        ErrorBuilder() <<
           "tensor type `" << PrettyPrint(tt1) <<
           "` has " <<  tt1->shape.size() <<
           " dimensions, while `" <<
           PrettyPrint(tt2) <<
           "` has " << tt2->shape.size() <<
-          " dimensions"), this->loc);
+          " dimensions", this->loc);
       return Type(nullptr);
     }
 
@@ -253,7 +254,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     if (mismatches.size() != 0) {
-      RelayErrorStream err;
+      ErrorBuilder err;
       err << "in particular ";
       for (auto mismatch : mismatches) {
         err << "dimension "
@@ -639,10 +640,11 @@ bool TypeSolver::Solve() {
       rnode->resolved = false;
     } catch (const dmlc::Error& err) {
       rnode->resolved = false;
-      this->ReportError(RELAY_ERROR("an internal invariant was violated while "
-                                    "typechecking your program "
-                                    << err.what()),
-                        rnode->location);
+      this->ReportError(
+        ErrorBuilder() << "an internal invariant was violated while "
+                       << "typechecking your program "
+                       << err.what(),
+        rnode->location);
     }
 
     // Mark inqueue as false after the function call

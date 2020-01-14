@@ -26,13 +26,16 @@
 #define TVM_RELAY_EXPR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/ir/error.h>
+
 #include <string>
 #include <utility>
 #include <unordered_map>
+
 #include "./expr.h"
 #include "./adt.h"
 #include "./op.h"
-#include "./error.h"
+
 
 namespace tvm {
 namespace relay {
