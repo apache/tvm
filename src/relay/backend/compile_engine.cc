@@ -613,7 +613,7 @@ class CompileEngineImpl : public CompileEngineNode {
   }
 
   Array<tvm::runtime::Module> LowerExternalFunctions() {
-    std::unordered_map<std::string, relay::Module> ext_mods;
+    std::unordered_map<std::string, IRModule> ext_mods;
     std::vector<CCacheKey> cached_ext_funcs;
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
@@ -623,7 +623,7 @@ class CompileEngineImpl : public CompileEngineNode {
         const tvm::ir::StringImmNode* code_gen = compiler.as<tvm::ir::StringImmNode>();
         CHECK(code_gen) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
-          ext_mods[code_gen->value] = relay::ModuleNode::make({}, {});
+          ext_mods[code_gen->value] = IRModule({}, {});
         }
         auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
         const tvm::ir::StringImmNode* symbol_name = ext_symbol.as<tvm::ir::StringImmNode>();

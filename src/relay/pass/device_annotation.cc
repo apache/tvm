@@ -572,8 +572,8 @@ TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceAnnotationOps")
 namespace transform {
 
 Pass RewriteAnnotatedOps(int fallback_device) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
   };
   return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",

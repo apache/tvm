@@ -128,8 +128,8 @@ Expr ConvertLayout(const Expr& expr, const std::string& desired_layout) {
 namespace transform {
 
 Pass ConvertLayout(const std::string& desired_layout) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-      [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout));
       };
   return CreateFunctionPass(

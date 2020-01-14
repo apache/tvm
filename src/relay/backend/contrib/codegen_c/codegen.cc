@@ -186,8 +186,8 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     if (ref->IsInstance<FunctionNode>()) {
       GenCFunc(Downcast<Function>(ref));
-    } else if (ref->IsInstance<relay::ModuleNode>()) {
-      relay::Module mod = Downcast<relay::Module>(ref);
+    } else if (ref->IsInstance<IRModuleNode>()) {
+      IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
         GenCFunc(Downcast<Function>(it.second));
       }

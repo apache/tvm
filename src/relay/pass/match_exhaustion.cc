@@ -155,17 +155,17 @@ Array<Array<Pattern>> CartesianProduct(Array<Array<Pattern>> fields) {
 
 Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
                                           const Pattern& cand,
-                                          const Module& mod);
+                                          const IRModule& mod);
 
 Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
                                     const Pattern& cand,
-                                    const Module& mod);
+                                    const IRModule& mod);
 
 // Expands all wildcards in the candidate pattern once
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
                                const Pattern& cand,
-                               const Module& mod) {
+                               const IRModule& mod) {
   if (auto clause_ctor = clause_pat.as<PatternConstructorNode>()) {
     return ExpandWildcardsConstructor(GetRef<PatternConstructor>(clause_ctor), cand, mod);
   } else {
@@ -178,7 +178,7 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
                                           const Pattern& cand,
-                                          const Module& mod) {
+                                          const IRModule& mod) {
   auto gtv = Downcast<GlobalTypeVar>(clause_ctor->constructor->belong_to);
 
   // for a wildcard node, create constructor nodes with wildcards for all args.
@@ -228,7 +228,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
 // Returns a list of all possible expansions.
 Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
                                     const Pattern& cand,
-                                    const Module& mod) {
+                                    const IRModule& mod) {
   // for a wildcard node, create constructor nodes with wildcards for all args.
   if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
@@ -271,7 +271,7 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
  * \return Returns a list of cases that are not handled by the match
  * expression.
  */
-Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
+Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
   /* algorithm:
    * candidates = { Wildcard }
    * while candidates not empty {
@@ -328,10 +328,10 @@ Array<Pattern> UnmatchedCases(const Match& match, const Module& mod) {
 // expose for testing only
 TVM_REGISTER_GLOBAL("relay._analysis.unmatched_cases")
 .set_body_typed(
-  [](const Match& match, const Module& mod_ref) {
-    Module call_mod = mod_ref;
+  [](const Match& match, const IRModule& mod_ref) {
+    IRModule call_mod = mod_ref;
     if (!call_mod.defined()) {
-      call_mod = ModuleNode::make({}, {});
+      call_mod = IRModule({}, {});
     }
     return UnmatchedCases(match, call_mod);
   });

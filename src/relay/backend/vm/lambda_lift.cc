@@ -60,7 +60,7 @@ Function MarkClosure(const Function& func) {
  */
 class LambdaLifter : public ExprMutator {
  public:
-  explicit LambdaLifter(const Module& module) : module_(module) {}
+  explicit LambdaLifter(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) final {
     bool is_lambda = false;
@@ -184,7 +184,7 @@ class LambdaLifter : public ExprMutator {
     }
   }
 
-  Module Lift() {
+  IRModule Lift() {
     // There is an ordering bug here.
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
@@ -204,7 +204,7 @@ class LambdaLifter : public ExprMutator {
  private:
   std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
   std::vector<Var> letrec_;
-  Module module_;
+  IRModule module_;
 };
 
 }  // namespace vm
@@ -212,8 +212,8 @@ class LambdaLifter : public ExprMutator {
 namespace transform {
 
 Pass LambdaLift() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
     return relay::vm::LambdaLifter(m).Lift();
   };
   return CreateModulePass(pass_func, 1, "LambdaLift", {});

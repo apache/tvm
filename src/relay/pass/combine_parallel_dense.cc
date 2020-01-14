@@ -76,8 +76,8 @@ Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches) {
 namespace transform {
 
 Pass CombineParallelDense(uint64_t min_num_branches) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelDense(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelDense",

@@ -98,7 +98,7 @@ class ModulePassNode : public PassNode {
    * implement the algorithm in the `pass_func` and let it run on a module. It
    * will then remove the dead code including the unused functions in the module.
    */
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func;
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func;
 
   ModulePassNode() = default;
 
@@ -114,7 +114,7 @@ class ModulePassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -122,7 +122,7 @@ class ModulePassNode : public PassNode {
   PassInfo Info() const override { return pass_info; }
 
   TVM_DLL static ModulePass make(
-      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
+      runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.ModulePass";
@@ -155,7 +155,7 @@ class FunctionPassNode : public PassNode {
    * `pass_func` and let it run on a given module. The same `pass_func` will
    * then be applied on each function in the module.
    */
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func;
 
   FunctionPassNode() = default;
 
@@ -171,7 +171,7 @@ class FunctionPassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -179,7 +179,7 @@ class FunctionPassNode : public PassNode {
   PassInfo Info() const override { return pass_info; }
 
   TVM_DLL static FunctionPass make(
-      runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
+      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
   static constexpr const char* _type_key = "relay.FunctionPass";
@@ -248,7 +248,7 @@ class SequentialNode : public PassNode {
    * metadata, i.e. required_passes. Likely, we can have a data structure, i.e.
    * PassInfo, to store the relevant information including the parent passes.
    */
-  void ResolveDependency(const Module& mod);
+  void ResolveDependency(const IRModule& mod);
 
   /*!
    * \brief Perform optimizations on a series of passes. The aforementioned
@@ -261,7 +261,7 @@ class SequentialNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
 
   static constexpr const char* _type_key = "relay.Sequential";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
@@ -278,7 +278,7 @@ PassInfo PassInfoNode::make(int opt_level,
 }
 
 ModulePass ModulePassNode::make(
-    runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func,
+    runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
@@ -287,7 +287,7 @@ ModulePass ModulePassNode::make(
 }
 
 // Module -> Module optimizations.
-Module ModulePassNode::operator()(const Module& mod,
+IRModule ModulePassNode::operator()(const IRModule& mod,
                                   const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : "
@@ -295,13 +295,13 @@ Module ModulePassNode::operator()(const Module& mod,
              << " with opt level: "
              << pass_info->opt_level;
   CHECK(mod.defined());
-  Module updated_mod = pass_func(mod, pass_ctx);
+  IRModule updated_mod = pass_func(mod, pass_ctx);
   CHECK(updated_mod.defined());
   return updated_mod;
 }
 
 FunctionPass FunctionPassNode::make(
-    runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func,
+    runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_object<FunctionPassNode>();
   n->pass_func = std::move(pass_func);
@@ -310,7 +310,7 @@ FunctionPass FunctionPassNode::make(
 }
 
 // Perform Module -> Module optimizations at the Function level.
-Module FunctionPassNode::operator()(const Module& mod,
+IRModule FunctionPassNode::operator()(const IRModule& mod,
                                     const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
@@ -320,7 +320,7 @@ Module FunctionPassNode::operator()(const Module& mod,
              << pass_info->opt_level;
 
   // Execute the pass function and return a new module.
-  Module updated_mod = ModuleNode::make(mod->functions, mod->type_definitions, mod->Imports());
+  IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
   std::vector<std::pair<GlobalVar, Function> > updates;
   for (const auto& it : updated_mod->functions) {
     // only picks up relay::Function
@@ -364,7 +364,7 @@ const SequentialNode* Sequential::operator->() const {
   return static_cast<const SequentialNode*>(get());
 }
 
-void SequentialNode::ResolveDependency(const Module& mod) {
+void SequentialNode::ResolveDependency(const IRModule& mod) {
   // TODO(zhiics) Implement it.
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
@@ -410,9 +410,9 @@ Pass GetPass(const std::string& pass_name) {
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
-Module SequentialNode::operator()(const Module& module,
+IRModule SequentialNode::operator()(const IRModule& module,
                                   const PassContext& pass_ctx) const {
-  Module mod = module;
+  IRModule mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
@@ -429,7 +429,7 @@ Module SequentialNode::operator()(const Module& module,
 }
 
 Pass CreateModulePass(
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
     const tvm::Array<tvm::PrimExpr>& required) {
@@ -438,7 +438,7 @@ Pass CreateModulePass(
 }
 
 Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, Module, PassContext)>& pass_func,
+    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
     const tvm::Array<tvm::PrimExpr>& required) {
@@ -479,7 +479,7 @@ TVM_REGISTER_GLOBAL("relay._transform.MakeModulePass")
 TVM_REGISTER_GLOBAL("relay._transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
-  Module mod = args[1];
+  IRModule mod = args[1];
   *ret = pass(mod);
 });
 

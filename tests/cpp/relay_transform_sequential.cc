@@ -22,7 +22,7 @@
 #include <tvm/build_module.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
@@ -73,7 +73,7 @@ TEST(Relay, Sequential) {
       relay::transform::AlterOpLayout()
   };
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
-  auto mod = relay::ModuleNode::FromExpr(func);
+  auto mod = IRModule::FromExpr(func);
   auto pass_ctx = relay::transform::PassContext::Create();
   pass_ctx->opt_level = 3;
   pass_ctx->fallback_device = 1;
@@ -100,7 +100,7 @@ TEST(Relay, Sequential) {
       relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
-  auto mod1 = relay::ModuleNode::FromExpr(expected_func);
+  auto mod1 = IRModule::FromExpr(expected_func);
   mod1 = relay::transform::InferType()(mod1);
   auto expected = mod1->Lookup("main");
   CHECK(relay::AlphaEqual(f, expected));

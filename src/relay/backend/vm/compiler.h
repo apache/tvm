@@ -62,7 +62,7 @@ using TargetsMap = Map<tvm::Integer, tvm::Target>;
 
 struct VMCompilerContext {
   // The module context for the compilation
-  Module module;
+  IRModule module;
   // Error reporter
   ErrorReporter err_reporter;
   // Map from a unique integer to ADT constructor tag
@@ -107,7 +107,7 @@ class VMCompiler : public runtime::ModuleNode {
                     to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Lower(Module mod,
+  void Lower(IRModule mod,
              const TargetsMap& targets,
              const tvm::Target& target_host);
 
@@ -125,7 +125,7 @@ class VMCompiler : public runtime::ModuleNode {
       relay::Function func,
       const std::unordered_map<std::string, runtime::NDArray>& params);
 
-  Module OptimizeModule(const Module& mod, const TargetsMap& targets);
+  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
 

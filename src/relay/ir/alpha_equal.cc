@@ -60,8 +60,8 @@ class AlphaEqualHandler:
       if (!rhs->IsInstance<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
-    if (const auto lhsm = lhs.as<ModuleNode>()) {
-      auto rhsm = rhs.as<ModuleNode>();
+    if (const auto lhsm = lhs.as<IRModuleNode>()) {
+      auto rhsm = rhs.as<IRModuleNode>();
       if (!rhsm) return false;
       if (lhsm->functions.size() != rhsm->functions.size()) return false;
       for (const auto& p : lhsm->functions) {

@@ -40,7 +40,7 @@ namespace vm {
  * \brief Detects all the functions that can be possibly called by entry function.
  */
 struct CallTracer : ExprVisitor {
-  Module module_;
+  IRModule module_;
 
   // Record the names of all encountered functions
   std::unordered_set<std::string> called_funcs_;
@@ -48,7 +48,7 @@ struct CallTracer : ExprVisitor {
   // Record the expressions that are being visited
   std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
 
-  explicit CallTracer(const Module& module)
+  explicit CallTracer(const IRModule& module)
     : module_{module},
       called_funcs_{},
       visiting_{} {}
@@ -99,7 +99,7 @@ struct CallTracer : ExprVisitor {
  *
  * \return The module with dead functions removed.
  */
-Module RemoveUnusedFunctions(const Module& module,
+IRModule RemoveUnusedFunctions(const IRModule& module,
                              Array<tvm::PrimExpr> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
@@ -122,8 +122,8 @@ Module RemoveUnusedFunctions(const Module& module,
 namespace transform {
 
 Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions) {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
     return relay::vm::RemoveUnusedFunctions(m, entry_functions);
   };
   return CreateModulePass(pass_func, 1, "RemoveUnusedFunctions", {});

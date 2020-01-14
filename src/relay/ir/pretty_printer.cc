@@ -33,7 +33,7 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
 #include "type_functor.h"
@@ -242,8 +242,8 @@ class PrettyPrinter :
       return PrintType(Downcast<Type>(node), meta);
     } else if (node.as<PatternNode>()) {
       return PrintPattern(Downcast<Pattern>(node), meta);
-    } else if (node.as<ModuleNode>()) {
-      return PrintMod(Downcast<Module>(node));
+    } else if (node.as<IRModuleNode>()) {
+      return PrintMod(Downcast<IRModule>(node));
     } else {
       Doc doc;
       return doc << node;
@@ -525,7 +525,7 @@ class PrettyPrinter :
     }
   }
 
-  Doc PrintMod(const Module& mod) {
+  Doc PrintMod(const IRModule& mod) {
     Doc doc;
     int counter = 0;
     // type definitions
