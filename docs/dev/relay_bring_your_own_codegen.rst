@@ -20,9 +20,9 @@ Bring Your Own Codegen To TVM
 =============================
 **Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Hao Yu <https:://github.com/comaniac>`_
 
-As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge for users to achieve high performance on various devices keeps increasing as well. To free data scientists from worrying about the performance when developing a new model, hardware vendors either provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks such as TensorRT to let users describe their models in a certain way to achieve high performance. However, users have to learn a new programming interface when they attempt to work on a new library or device. As a result, the demand for a unified programming interface becomes more and more important to 1) let all users and hardware vendors stand on the same page, and 2) provide a feasible solution to allow specialized hardware or library to only support widely used operators with extremely high performance, but fallback unsupported operators to general devices like CPU/GPU.
+As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge for users to achieve high performance on various devices keeps increasing as well. To free data scientists from worrying about the performance when developing a new model, hardware backend providers either provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks such as TensorRT to let users describe their models in a certain way to achieve high performance. However, users have to learn a new programming interface when they attempt to work on a new library or device. As a result, the demand for a unified programming interface becomes more and more important to 1) let all users and hardware backend providers stand on the same page, and 2) provide a feasible solution to allow specialized hardware or library to only support widely used operators with extremely high performance, but fallback unsupported operators to general devices like CPU/GPU.
 
-In this developer guide, we demonstrate how you, as a hardware vendor, can easily implement your own codegen and register it as a Relay backend compiler to support your hardware device/library. This guide covers two types of codegen based on different graph representations you need:
+In this developer guide, we demonstrate how you, as a hardware backend provider, can easily implement your own codegen and register it as a Relay backend compiler to support your hardware device/library. This guide covers two types of codegen based on different graph representations you need:
 
 **1. You want to generate C code.**
 
@@ -63,13 +63,13 @@ With the two macros, we can generate binary operators for 1-D and 2-D tensors. F
 
 ::
 
-       gcc_input0
+    c_compiler_input0
            |
-          add <-- gcc_input1
+          add <-- c_compiler_input1
            |
-        subtract <-- gcc_input2
+        subtract <-- c_compiler_input2
            |
-        multiply <-- gcc_input3
+        multiply <-- c_compiler_input3
            |
           out
 
