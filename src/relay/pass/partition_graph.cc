@@ -32,6 +32,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -168,8 +169,9 @@ class Partitioner : public ExprMutator {
       // Find the corresponding subgraph and add the argument.
       auto subgraph = GetSubgraph(GetRef<Call>(call));
       if (!subgraph) {
-        throw Error(RELAY_ERROR("Cannot find the corresponding subgraph for start annotation:\n"
-                                << AsText(GetRef<Call>(call), false)));
+        throw Error(ErrorBuilder()
+                    << "Cannot find the corresponding subgraph for start annotation:\n"
+                    << AsText(GetRef<Call>(call), false));
       }
       subgraph->args.push_back({var, input_expr});
       return std::move(var);
