@@ -1639,7 +1639,7 @@ _convert_map = {
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    "ring_buffer": _mx_contrib_fifo_buffer,
+    "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops
     "_contrib_quantize_v2": _qnn_mx_contrib_quantize,
     "_contrib_quantized_ring_buffer": _qnn_contrib_quantized_ring_buffer,
