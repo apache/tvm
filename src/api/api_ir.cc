@@ -33,12 +33,12 @@ namespace ir {
 
 TVM_REGISTER_GLOBAL("_Var")
 .set_body_typed([](std::string s, DataType t) {
-    return VarNode::make(t, s);
+    return Var(s, t);
   });
 
 TVM_REGISTER_GLOBAL("_ShapeVar")
 .set_body_typed([](std::string s, DataType t) {
-    return ShapeVarNode::make(t, s);
+    return ShapeVar(s, t);
   });
 
 TVM_REGISTER_GLOBAL("make.abs")

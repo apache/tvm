@@ -39,24 +39,18 @@ PrimExpr::PrimExpr(std::string str)
     : PrimExpr(ir::StringImmNode::make(str)) {}
 
 Var::Var(std::string name_hint, DataType t)
-    : Var(VarNode::make(t, name_hint)) {}
+    : Var(make_object<VarNode>(t, name_hint)) {}
 
-Var VarNode::make(DataType t, std::string name_hint) {
-  ObjectPtr<VarNode> node = make_object<VarNode>();
-  node->dtype = t;
-  node->name_hint = std::move(name_hint);
-  return Var(node);
+VarNode::VarNode(DataType t, std::string name_hint) {
+  this->dtype = t;
+  this->name_hint = std::move(name_hint);
 }
 
 ShapeVar::ShapeVar(std::string name_hint, DataType t)
-        : ShapeVar(ShapeVarNode::make(t, name_hint)) {}
+    : ShapeVar(make_object<ShapeVarNode>(t, name_hint)) {}
 
-ShapeVar ShapeVarNode::make(DataType t, std::string name_hint) {
-  ObjectPtr<ShapeVarNode> node = make_object<ShapeVarNode>();
-  node->dtype = t;
-  node->name_hint = std::move(name_hint);
-  return ShapeVar(node);
-}
+ShapeVarNode::ShapeVarNode(DataType t, std::string name_hint)
+    : VarNode(t, std::move(name_hint)) {}
 
 Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(

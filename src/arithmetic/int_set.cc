@@ -520,14 +520,6 @@ class IntervalSetEvaluator :
     return set->min_value.same_as(value) && set->max_value.same_as(value);
   }
 
-  bool SelfBoundedVar(const IntervalSet& set,
-                      const PrimExpr& value) const {
-    if (value.as<VarNode>()) {
-      return set->min_value.same_as(value) || set->max_value.same_as(value);
-    }
-    return false;
-  }
-
   template<typename T>
   inline IntervalSet VisitBinaryExpr_(const T* op) {
     IntervalSet a = this->Eval(op->a);

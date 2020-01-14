@@ -66,13 +66,15 @@ class Var;
  */
 class VarNode : public PrimExprNode {
  public:
+  /*! \brief constructor */
+  VarNode() {}
+  VarNode(DataType dtype, std::string name_hint);
+
   /*!
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
   std::string name_hint;
-
-  static Var make(DataType dtype, std::string name_hint);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -122,7 +124,9 @@ class ShapeVar;
  */
 class ShapeVarNode : public VarNode {
  public:
-  static ShapeVar make(DataType dtype, std::string name_hint);
+  /*! \brief constructor */
+  ShapeVarNode() {}
+  ShapeVarNode(DataType dtype, std::string name_hint);
 
   static constexpr const char* _type_key = "ShapeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeVarNode, VarNode);

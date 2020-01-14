@@ -143,21 +143,6 @@ def equal_const_int(expr, value):
     return expr.value == value
 
 
-def is_var(expr):
-    """Check whether the input is tvm.expr.Var or tvm.expr.ShapeVar
-    Parameters
-    ----------
-    expr : tvm.Expr
-        The input expression.
-    Returns
-    -------
-    equal : bool
-        Whether it is tvm.expr.Var or
-        tvm_assert_bound intrinsic (which provides the boundary information of a Var).
-    """
-    return isinstance(expr, (tvm.expr.ShapeVar, tvm.expr.Var))
-
-
 def get_const_tuple(in_tuple):
     """Verifies input tuple is IntImm or Var, returns tuple of int or Var.
 
@@ -173,7 +158,7 @@ def get_const_tuple(in_tuple):
     """
     ret = []
     for elem in in_tuple:
-        if is_var(elem):
+        if isinstance(elem, tvm.expr.Var):
             ret.append(elem)
         elif not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm, int)):
             elem = tvm.ir_pass.Simplify(elem)
