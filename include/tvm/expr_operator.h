@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <type_traits>
+#include <limits>
 #include "expr.h"
 #include "ir.h"
 
@@ -76,21 +77,6 @@ inline PrimExpr const_false(int lanes = 1) {
 inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const ir::IntImmNode* op = x.as<ir::IntImmNode>()) {
-    return &(op->value);
-  } else {
-    return nullptr;
-  }
-}
-
-/*!
- * \brief Get x as constant uint expression.
- * \param x The expression
- * \return the address to the int expression,
- *         return nullptr, if x is not UIntImm.
- */
-inline const uint64_t* as_const_uint(const PrimExpr& x) {
-  if (!x.defined()) return nullptr;
-  if (const ir::UIntImmNode* op = x.as<ir::UIntImmNode>()) {
     return &(op->value);
   } else {
     return nullptr;
@@ -626,11 +612,11 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 
 // Implementation details after this
 inline bool is_const(const PrimExpr& x) {
-  if (x.as<ir::IntImmNode>() || x.as<ir::UIntImmNode>()) {
+  if (x.as<ir::IntImmNode>()) {
     return true;
   } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
-    if (val.as<ir::IntImmNode>() || val.as<ir::UIntImmNode>()) {
+    if (val.as<ir::IntImmNode>()) {
       return true;
     }
   }
@@ -639,8 +625,6 @@ inline bool is_const(const PrimExpr& x) {
 
 inline bool is_positive_const(const PrimExpr& a) {
   if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
-    return op->value > 0;
-  } else if (const ir::UIntImmNode* op = a.as<ir::UIntImmNode>()) {
     return op->value > 0;
   } else {
     return false;
@@ -658,14 +642,10 @@ inline bool is_negative_const(const PrimExpr& a) {
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
   if (const auto* op = x.as<ir::IntImmNode>()) {
     return op->value == value;
-  } else if (const auto* op = x.as<ir::UIntImmNode>()) {
-    return op->value == static_cast<uint64_t>(value);
   } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
     if (const auto* opv = val.as<ir::IntImmNode>()) {
       return opv->value == value;
-    } else if (const auto* opv = val.as<ir::UIntImmNode>()) {
-      return opv->value == static_cast<uint64_t>(value);
     }
   }
   return false;

@@ -386,10 +386,6 @@ inline void PrintUIntConst(DataType dtype, uint64_t val, std::ostream& os, CodeG
   }
 }
 
-inline void PrintConst(const UIntImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
-  PrintUIntConst(op->dtype, op->value, os, p);
-}
-
 inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
   switch (op->dtype.bits()) {
     case 64: case 32: {
@@ -413,9 +409,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { 
 void CodeGenC::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const UIntImmNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintConst(op, os, this);
-}
+
 void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }

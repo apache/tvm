@@ -48,7 +48,7 @@ class CodeGenARM final : public CodeGenCPU {
 llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic("llvm_intrin")) {
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        op->args[0].as<UIntImmNode>()->value);
+        Downcast<IntImm>(op->args[0])->value);
     if (id == ::llvm::Intrinsic::ctpop) {
       PrimExpr e = ARMPopcount(op);
       return CodeGenCPU::CreateIntrinsic(e.as<CallNode>());
@@ -68,8 +68,8 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   if (!call->dtype.is_vector() || call->dtype.bits() == 8 ||
      (total_size != 128 && total_size != 64)) {
     Array<PrimExpr> vcnt_args;
-    vcnt_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), ctpop_id));
-    vcnt_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
+    vcnt_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
+    vcnt_args.push_back(IntImm(DataType::UInt(32), 1));
     vcnt_args.push_back(e);
     return ir::CallNode::make(call->dtype,  "llvm_intrin", vcnt_args, CallNode::PureIntrinsic);
   }
@@ -93,16 +93,16 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   const CallNode* c0 = input8.as<CallNode>();
   CHECK(c0 != nullptr);
   Array<PrimExpr> vcnt8_args;
-  vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), ctpop_id));
-  vcnt8_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
+  vcnt8_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
+  vcnt8_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt8_args.push_back(input8);
   PrimExpr vcnt8 = ir::CallNode::make(
     uint8_type,  "llvm_intrin", vcnt8_args, CallNode::PureIntrinsic);
 
   // Accumulation 8->16bit
   Array<PrimExpr> vcnt16_args;
-  vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
-  vcnt16_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
+  vcnt16_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
+  vcnt16_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt16_args.push_back(vcnt8);
   PrimExpr vcnt16 = ir::CallNode::make(
     uint16_type, "llvm_intrin", vcnt16_args, CallNode::PureIntrinsic);
@@ -112,8 +112,8 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
 
   // Accumulation 16->32bit
   Array<PrimExpr> vcnt32_args;
-  vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
-  vcnt32_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
+  vcnt32_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
+  vcnt32_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt32_args.push_back(vcnt16);
   PrimExpr vcnt32 = ir::CallNode::make(
     uint32_type,  "llvm_intrin", vcnt32_args, CallNode::PureIntrinsic);
@@ -123,8 +123,8 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
 
   // Accumulation 32->64bit
   Array<PrimExpr> vcnt64_args;
-  vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), vpaddlu_id));
-  vcnt64_args.push_back(ir::UIntImmNode::make(DataType::UInt(32), 1));
+  vcnt64_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
+  vcnt64_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt64_args.push_back(vcnt32);
   return ir::CallNode::make(
     call->dtype,  "llvm_intrin", vcnt64_args, CallNode::PureIntrinsic);

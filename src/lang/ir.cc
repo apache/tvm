@@ -31,14 +31,6 @@ namespace tvm {
 namespace ir {
 
 // constructors
-PrimExpr UIntImmNode::make(DataType t, uint64_t value) {
-  CHECK(t.is_uint() && t.lanes() == 1)
-      << "ValueError: UIntImm can only take scalar";
-  ObjectPtr<UIntImmNode> node = make_object<UIntImmNode>();
-  node->dtype = t;
-  node->value = value;
-  return PrimExpr(node);
-}
 
 PrimExpr FloatImmNode::make(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
@@ -531,11 +523,6 @@ Stmt EvaluateNode::make(PrimExpr value) {
 }
 
 // Printers
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<UIntImmNode>([](const ObjectRef& node, NodePrinter* p) {
-    auto* op = static_cast<const UIntImmNode*>(node.get());
-    p->stream << "(" << op->dtype << ")" << op->value;
-  });
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<FloatImmNode>([](const ObjectRef& node, NodePrinter* p) {
@@ -1153,7 +1140,6 @@ TVM_REGISTER_NODE_TYPE(AnyNode);
 TVM_REGISTER_NODE_TYPE(AttrStmtNode);
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 TVM_REGISTER_NODE_TYPE(IntImmNode);
-TVM_REGISTER_NODE_TYPE(UIntImmNode);
 TVM_REGISTER_NODE_TYPE(StringImmNode);
 TVM_REGISTER_NODE_TYPE(CastNode);
 TVM_REGISTER_NODE_TYPE(VarNode);

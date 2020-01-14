@@ -77,7 +77,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::UIntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
@@ -113,7 +112,6 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(StrMapNode);
     ATTR_FUNCTOR_DISPATCH(ArrayNode);
     ATTR_FUNCTOR_DISPATCH(IntImmNode);
-    ATTR_FUNCTOR_DISPATCH(UIntImmNode);
     ATTR_FUNCTOR_DISPATCH(FloatImmNode);
     ATTR_FUNCTOR_DISPATCH(StringImmNode);
     ATTR_FUNCTOR_DISPATCH(VarNode);
@@ -157,7 +155,6 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::IntImmNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::UIntImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::FloatImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::StringImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::AddNode* lhs, const ObjectRef& other) final;
@@ -198,7 +195,6 @@ class AttrsHashHandler :
  protected:
   size_t VisitAttrDefault_(const Object* lhs) final;
   size_t VisitAttr_(const ir::IntImmNode* lhs) final;
-  size_t VisitAttr_(const ir::UIntImmNode* lhs) final;
   size_t VisitAttr_(const ir::FloatImmNode* lhs) final;
   size_t VisitAttr_(const ir::StringImmNode* lhs) final;
   size_t VisitAttr_(const ArrayNode* lhs) final;

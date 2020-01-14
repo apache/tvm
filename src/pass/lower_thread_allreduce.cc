@@ -120,7 +120,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     const CommReducerNode *combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
 
-    const UIntImmNode *size_of_args = call->args[0].as<UIntImmNode>();
+    const IntImmNode *size_of_args = call->args[0].as<IntImmNode>();
     CHECK(size_of_args) << call->args[0]->GetTypeKey();
     CHECK_EQ(size, size_of_args->value);
     Array<PrimExpr> inits = combiner->identity_element;

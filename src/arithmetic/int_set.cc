@@ -384,10 +384,6 @@ class IntervalSetEvaluator :
     return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
   }
 
-  IntervalSet VisitExpr_(const UIntImmNode* op) final {
-    return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
-  }
-
   IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto it = dom_map_.find(var);

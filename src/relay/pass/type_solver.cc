@@ -41,7 +41,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   }
 
   bool Assert(const IndexExpr& cond) final {
-    if (const uint64_t* pdiff = as_const_uint(cond)) {
+    if (const int64_t* pdiff = as_const_int(cond)) {
       return pdiff[0];
     }
     return true;

@@ -86,7 +86,6 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs) {  // NOLINT(*)
   }
 }
 
-
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype) {
   using namespace ir;
@@ -101,11 +100,11 @@ PrimExpr max_value(const DataType& dtype) {
     }
   } else if (dtype.is_uint()) {
     if (dtype.bits() == 64) {
-      return UIntImmNode::make(dtype, std::numeric_limits<uint64_t>::max());
+      return make_const(dtype, std::numeric_limits<uint64_t>::max());
     } else if (dtype.bits() < 64) {
       uint64_t val = 1;
       val = (val << static_cast<uint64_t>(dtype.bits())) - 1;
-      return UIntImmNode::make(dtype, val);
+      return IntImm(dtype, static_cast<int64_t>(val));
     }
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
@@ -132,7 +131,7 @@ PrimExpr min_value(const DataType& dtype) {
       return IntImm(dtype, val);
     }
   } else if (dtype.is_uint()) {
-    return UIntImmNode::make(dtype, 0);
+    return IntImm(dtype, 0);
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
       return FloatImmNode::make(dtype, std::numeric_limits<double>::lowest());
@@ -163,23 +162,17 @@ inline bool ConstPowerHelper(ValueType val, int *shift) {
 bool is_const_power_of_two_integer(const PrimExpr& x, int* shift) {
   if (const auto* op = x.as<ir::IntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
-  } else if (const auto* op = x.as<ir::UIntImmNode>()) {
-    return ConstPowerHelper(op->value, shift);
   } else {
     return false;
   }
 }
 
 PrimExpr cast(const DataType& t, PrimExpr value) {
-  using ir::IntImmNode;
-  using ir::UIntImmNode;
   using ir::FloatImmNode;
   if (value.dtype() == t) return value;
   // const fold IntImm as they are used in index computations
   if (t.lanes() == 1) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
-      return make_const(t, op->value);
-    } else if (const UIntImmNode* op = value.as<UIntImmNode>()) {
       return make_const(t, op->value);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return make_const(t, op->value);
@@ -192,8 +185,6 @@ PrimExpr cast(const DataType& t, PrimExpr value) {
       if (value.dtype() != vtype) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
           value = make_const(vtype, op->value);
-        } else if (const UIntImmNode* op = value.as<UIntImmNode>()) {
-          return make_const(t, op->value);
         } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
           value = make_const(vtype, op->value);
         } else {
@@ -330,18 +321,10 @@ PrimExpr max(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
-  using ir::IntImmNode;
-  using ir::UIntImmNode;
   CHECK(cond.dtype() == DataType::Bool(1))
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value);
-  if (const UIntImmNode* op = cond.as<UIntImmNode>()) {
-    if (op->value != 0) {
-      return true_value;
-    } else {
-      return false_value;
-    }
-  } else if (const IntImmNode* op = cond.as<IntImmNode>()) {
+  if (const IntImmNode* op = cond.as<IntImmNode>()) {
     if (op->value != 0) {
       return true_value;
     } else {

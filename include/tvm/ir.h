@@ -39,23 +39,6 @@ namespace ir {
 using IntImmNode = tvm::IntImmNode;
 using VarNode = tvm::VarNode;
 
-/*! \brief constant unsigned integer. */
-class UIntImmNode : public PrimExprNode {
- public:
-  /*! \brief The constant value content. */
-  uint64_t value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static PrimExpr make(DataType t, uint64_t value);
-
-  static constexpr const char* _type_key = "UIntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImmNode, PrimExprNode);
-};
-
 /*! \brief Floating point constants. */
 class FloatImmNode : public PrimExprNode {
  public:

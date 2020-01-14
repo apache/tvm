@@ -50,7 +50,6 @@ class CodeGenOpenGL final : public CodeGenC {
 
   // Codegen for immediate values
   void VisitExpr_(const IntImmNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const UIntImmNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const StringImmNode* op, std::ostream& os) final;  // NOLINT(*)
 

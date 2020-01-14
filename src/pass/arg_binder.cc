@@ -179,11 +179,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   std::ostringstream type_err_msg;
   type_err_msg << arg_name << ".dtype is expected to be " << dtype;
   PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, intrinsic::kArrTypeCode) ==
-               UIntImmNode::make(DataType::UInt(8), dtype.code()) &&
+               IntImm(DataType::UInt(8), dtype.code()) &&
                TVMArrayGet(DataType::UInt(8), handle, intrinsic::kArrTypeBits) ==
-               UIntImmNode::make(DataType::UInt(8), dtype.bits()) &&
+               IntImm(DataType::UInt(8), dtype.bits()) &&
                TVMArrayGet(DataType::UInt(16), handle, intrinsic::kArrTypeLanes) ==
-               UIntImmNode::make(DataType::UInt(16), dtype.lanes()));
+               IntImm(DataType::UInt(16), dtype.lanes()));
   asserts_.emplace_back(AssertStmtNode::make(cond, type_err_msg.str(), nop));
   // data field
   if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrData),
