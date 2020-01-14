@@ -29,7 +29,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include "type_functor.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 namespace tvm {
 namespace relay {
 

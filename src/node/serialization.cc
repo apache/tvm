@@ -29,7 +29,7 @@
 #include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 
 #include <string>
 #include <map>

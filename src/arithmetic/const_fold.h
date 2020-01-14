@@ -102,7 +102,7 @@ inline PrimExpr TryConstFold<ir::AddNode>(PrimExpr a, PrimExpr b) {
       if (pa && pb) return IntImm(rtype, pa->value + pb->value);
       if (pa && pa->value == 0) return b;
       if (pb && pb->value == 0) return a;
-      if (fa && fb) return FloatImmNode::make(rtype, fa->value + fb->value);
+      if (fa && fb) return FloatImm(rtype, fa->value + fb->value);
       if (fa && fa->value == 0) return b;
       if (fb && fb->value == 0) return a;
     });
@@ -115,7 +115,7 @@ inline PrimExpr TryConstFold<ir::SubNode>(PrimExpr a, PrimExpr b) {
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm(rtype, pa->value - pb->value);
       if (pb && pb->value == 0) return a;
-      if (fa && fb) return FloatImmNode::make(rtype, fa->value - fb->value);
+      if (fa && fb) return FloatImm(rtype, fa->value - fb->value);
       if (fb && fb->value == 0) return a;
     });
   return PrimExpr();
@@ -134,7 +134,7 @@ inline PrimExpr TryConstFold<ir::MulNode>(PrimExpr a, PrimExpr b) {
         if (pb->value == 1) return a;
         if (pb->value == 0) return b;
       }
-      if (fa && fb) return FloatImmNode::make(rtype, fa->value * fb->value);
+      if (fa && fb) return FloatImm(rtype, fa->value * fb->value);
       if (fa) {
         if (fa->value == 1) return b;
         if (fa->value == 0) return a;
@@ -165,7 +165,7 @@ inline PrimExpr TryConstFold<ir::DivNode>(PrimExpr a, PrimExpr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
       if (fa && fb && fb->value != 0) {
-        return FloatImmNode::make(rtype, fa->value / fb->value);
+        return FloatImm(rtype, fa->value / fb->value);
       }
       if (fa && fa->value == 0) return a;
       if (fb) {
@@ -210,7 +210,7 @@ inline PrimExpr TryConstFold<ir::FloorDivNode>(PrimExpr a, PrimExpr b) {
         CHECK_NE(pb->value, 0) << "Divide by zero";
       }
       if (fa && fb && fb->value != 0) {
-        return FloatImmNode::make(rtype, std::floor(fa->value / fb->value));
+        return FloatImm(rtype, std::floor(fa->value / fb->value));
       }
       if (fa && fa->value == 0) return a;
       if (fb) {
@@ -244,7 +244,7 @@ inline PrimExpr TryConstFold<ir::MinNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm(rtype, std::min(pa->value, pb->value));
-      if (fa && fb) return FloatImmNode::make(rtype, std::min(fa->value, fb->value));
+      if (fa && fb) return FloatImm(rtype, std::min(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
   return PrimExpr();
@@ -255,7 +255,7 @@ inline PrimExpr TryConstFold<ir::MaxNode>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) return IntImm(rtype, std::max(pa->value, pb->value));
-      if (fa && fb) return FloatImmNode::make(rtype, std::max(fa->value, fb->value));
+      if (fa && fb) return FloatImm(rtype, std::max(fa->value, fb->value));
     });
   if (a.same_as(b)) return a;
   return PrimExpr();

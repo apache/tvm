@@ -37,24 +37,8 @@ namespace tvm {
 namespace ir {
 
 using IntImmNode = tvm::IntImmNode;
+using FloatImmNode = tvm::FloatImmNode;
 using VarNode = tvm::VarNode;
-
-/*! \brief Floating point constants. */
-class FloatImmNode : public PrimExprNode {
- public:
-  /*! \brief The constant value content. */
-  double value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static PrimExpr make(DataType t, double value);
-
-  static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
-};
 
 /*! \brief String constants, only used in asserts. */
 class StringImmNode : public PrimExprNode {

@@ -26,9 +26,9 @@
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include "type_functor.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {

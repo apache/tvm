@@ -25,9 +25,13 @@
 #include <tvm/node/node.h>
 #include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 
 namespace tvm {
+
+using runtime::TVMRetValue;
+using runtime::TVMArgs;
+using runtime::PackedFunc;
 
 // Attr getter.
 class AttrGetter : public AttrVisitor {

@@ -38,7 +38,7 @@
 #include "doc.h"
 #include "type_functor.h"
 #include "../pass/dependency_graph.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {

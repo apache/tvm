@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_ATTRS_REDUCE_H_
 #define TVM_RELAY_ATTRS_REDUCE_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <string>
 
 namespace tvm {

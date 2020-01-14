@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_ATTRS_TRANSFORM_H_
 #define TVM_RELAY_ATTRS_TRANSFORM_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
 #include <string>
