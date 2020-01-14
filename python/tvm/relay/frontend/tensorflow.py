@@ -2400,9 +2400,7 @@ class GraphProto(object):
 
             array_ndim = len(np_array.shape)
             if array_ndim == 0:
-                new_array = np.empty([1], dtype=np_array.dtype)
-                new_array[0] = np_array
-                self._nodes[name] = [tvm.relay.const(new_array)]
+                self._nodes[name] = [tvm.relay.const(np_array)]
             else:
                 self._params[name] = tvm.nd.array(np_array)
                 self._nodes[name] = [_expr.var(name,
