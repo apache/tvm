@@ -18,21 +18,24 @@
  */
 
 /*!
- * \file tvm/node/env_func.h
- * \brief Serializable global function.
+ * \file tvm/ir/env_func.h
+ * \brief Serializable global function used in IR.
  */
-#ifndef TVM_NODE_ENV_FUNC_H_
-#define TVM_NODE_ENV_FUNC_H_
+#ifndef TVM_IR_ENV_FUNC_H_
+#define TVM_IR_ENV_FUNC_H_
 
 #include <tvm/node/reflection.h>
 
 #include <string>
 #include <utility>
 
-
 namespace tvm {
 /*!
- * \brief Node container of EnvFunc
+ * \brief A serializable function backed by TVM's global environment.
+ *
+ * This is a wrapper to enable serializable global PackedFunc.
+ * An EnvFunc is saved by its name in the global registry
+ * under the assumption that the same function is registered during load.
  * \sa EnvFunc
  */
 class EnvFuncNode : public Object {
@@ -53,11 +56,8 @@ class EnvFuncNode : public Object {
 };
 
 /*!
- * \brief A serializable function backed by TVM's global environment.
- *
- * This is a wrapper to enable serializable global PackedFunc.
- * An EnvFunc is saved by its name in the global registry
- * under the assumption that the same function is registered during load.
+ * \brief Managed reference to EnvFuncNode.
+ * \sa EnvFuncNode
  */
 class EnvFunc : public ObjectRef {
  public:
@@ -140,4 +140,4 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
 };
 
 }  // namespace tvm
-#endif  // TVM_NODE_ENV_FUNC_H_
+#endif  // TVM_IR_ENV_FUNC_H_

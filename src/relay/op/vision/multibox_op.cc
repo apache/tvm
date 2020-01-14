@@ -125,7 +125,7 @@ bool MultiBoxTransformLocRel(const Array<Type>& types,
   fields.push_back(TensorTypeNode::make(oshape1, DataType::Int(32)));
 
   // assign output type
-  reporter->Assign(types[3], TupleTypeNode::make(Array<Type>(fields)));
+  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
   return true;
 }
 

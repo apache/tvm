@@ -91,7 +91,7 @@ class OpNode : public RelayExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);
@@ -476,7 +476,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   std::string input_name_prefix = "in";
   for (int i = 0; i < get()->num_inputs; i++) {
     auto name = input_name_prefix + std::to_string(i);
-    auto param = TypeVarNode::make(name, TypeKind::kType);
+    auto param = TypeVar(name, TypeKind::kType);
     type_params.push_back(param);
     arg_types.push_back(param);
   }
@@ -484,7 +484,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   Array<Type> ty_call_args = arg_types;
 
   // Add output type.
-  auto out_param = TypeVarNode::make("out", TypeKind::kType);
+  auto out_param = TypeVar("out", TypeKind::kType);
   type_params.push_back(out_param);
   // this will trigger copy on write.
   ty_call_args.push_back(out_param);
@@ -498,13 +498,13 @@ inline OpRegistry& OpRegistry::add_type_rel(
   // A common example is sum(x, axis), where the choice of axis
   // can affect the type of the function.
   TypeConstraint type_rel =
-      TypeRelationNode::make(env_type_rel_func,
+      TypeRelation(env_type_rel_func,
                              ty_call_args,
                              arg_types.size(),
                              Attrs());
 
   auto func_type =
-      FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});
+      FuncType(arg_types, out_param, type_params, {type_rel});
 
   get()->op_type = func_type;
 

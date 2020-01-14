@@ -19,19 +19,56 @@
 
 /*!
  * \file tvm/ir/type_relation.h
- * \brief Type relation function for type checking.
+ * \brief Type relation and function for type inference(checking).
  */
 #ifndef TVM_IR_TYPE_RELATION_H_
 #define TVM_IR_TYPE_RELATION_H_
 
 #include <tvm/ir/type.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/env_func.h>
 #include <tvm/attrs.h>
 
 namespace tvm {
 
-// TODO(tqchen): remove after migrate Module to ir.
-class IRModule;
+/*!
+ * \brief Type function application.
+ * \sa TypeCall
+ */
+class TypeCallNode : public TypeNode {
+ public:
+  /*!
+   * \brief The type-level function (ADT that takes type params).
+   */
+  Type func;
+  /*! \brief The arguments. */
+  Array<Type> args;
 
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("func", &func);
+    v->Visit("args", &args);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.TypeCall";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TypeCallNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to TypeCallNode.
+ * \sa TypeCallNode
+ */
+class TypeCall : public Type {
+ public:
+  /*!
+   * \brief Constructor
+   * \param func The type function to apply.
+   * \param args The arguments to the type function.
+   */
+  TVM_DLL TypeCall(Type func, Array<Type> args);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TypeCall, Type, TypeCallNode);
+};
 
 /*!
  * \brief reporter that reports back to the
@@ -78,7 +115,7 @@ class TypeReporterNode : public Object {
   TVM_DLL virtual IRModule GetModule() = 0;
 
   // solver is not serializable.
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.TypeReporter";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeReporterNode, Object);
@@ -91,7 +128,7 @@ class TypeReporterNode : public Object {
 class TypeReporter : public ObjectRef {
  public:
   TypeReporter() {}
-  explicit TypeReporter(::tvm::ObjectPtr<::tvm::Object> n) : ObjectRef(n) {
+  explicit TypeReporter(ObjectPtr<Object> n) : ObjectRef(n) {
   }
   TypeReporterNode* operator->() const {
     return const_cast<TypeReporterNode*>(
@@ -127,12 +164,11 @@ using TypeRelationFn =
 
 /*!
  * \brief User defined type relation, is an input-output relation on types.
- */
-class TypeRelation;
-/*!
- * \brief TypeRelation container.
- * \note This node is not directly serializable.
- * The type function need to be lookedup in the module.
+ *
+ * TypeRelation is more generalized than type call as it allows inference
+ * of both inputs and outputs.
+ *
+ * \sa TypeRelation
  */
 class TypeRelationNode : public TypeConstraintNode {
  public:
@@ -143,13 +179,13 @@ class TypeRelationNode : public TypeConstraintNode {
    */
   TypeRelationFn func;
   /*! \brief The type arguments to the type function. */
-  tvm::Array<Type> args;
+  Array<Type> args;
   /*! \brief Number of inputs arguments */
   int num_inputs;
   /*! \brief Attributes to the relation function */
   Attrs attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("func", &func);
     v->Visit("args", &args);
     v->Visit("num_inputs", &num_inputs);
@@ -157,17 +193,29 @@ class TypeRelationNode : public TypeConstraintNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static TypeRelation make(TypeRelationFn func,
-                                   Array<Type> args,
-                                   int num_args,
-                                   Attrs attrs);
-
   static constexpr const char* _type_key = "relay.TypeRelation";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeRelationNode, TypeConstraintNode);
 };
 
+/*!
+ * \brief Managed reference to TypeRelationNode.
+ * \sa TypeRelationNode
+ */
 class TypeRelation : public TypeConstraint {
  public:
+  /*!
+   * \brief Constructor
+   * \param func The relation function.
+   * \param args The arguments to the type relation.
+   * \param num_inputs Number of inputs.
+   * \param attrs Attributes to the relation function.
+   * \sa TypeRelationNode for more docs about these fields.
+   */
+  TVM_DLL TypeRelation(TypeRelationFn func,
+                       Array<Type> args,
+                       int num_inputs,
+                       Attrs attrs);
+
   TVM_DEFINE_OBJECT_REF_METHODS(TypeRelation, TypeConstraint, TypeRelationNode);
 };
 }  // namespace tvm

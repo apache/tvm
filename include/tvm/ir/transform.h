@@ -84,13 +84,13 @@ class PassContextNode : public Object {
   int fallback_device{static_cast<int>(kDLCPU)};
 
   /*! \brief The list of required passes. */
-  tvm::Array<tvm::PrimExpr> required_pass;
+  Array<PrimExpr> required_pass;
   /*! \brief The list of disabled passes. */
-  tvm::Array<tvm::PrimExpr> disabled_pass;
+  Array<PrimExpr> disabled_pass;
 
   PassContextNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("fallback_device", &fallback_device);
     v->Visit("required_pass", &required_pass);
@@ -118,7 +118,7 @@ class PassContextNode : public Object {
 class PassContext : public ObjectRef {
  public:
   PassContext() {}
-  explicit PassContext(ObjectPtr<::tvm::Object> n) : ObjectRef(n) {}
+  explicit PassContext(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief const accessor.
    * \return const access pointer.
@@ -158,7 +158,7 @@ class PassContext : public ObjectRef {
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
-  friend class tvm::With<PassContext>;
+  friend class With<PassContext>;
 };
 
 /*!
@@ -174,11 +174,11 @@ class PassInfoNode : public Object {
   std::string name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  tvm::Array<tvm::PrimExpr> required;
+  Array<PrimExpr> required;
 
   PassInfoNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("opt_level", &opt_level);
     v->Visit("name", &name);
     v->Visit("required", &required);
@@ -202,7 +202,7 @@ class PassInfo : public ObjectRef {
    */
   TVM_DLL PassInfo(int opt_level,
                    std::string name,
-                   tvm::Array<tvm::PrimExpr> required);
+                   Array<PrimExpr> required);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -241,7 +241,7 @@ class PassNode : public Object {
   virtual IRModule operator()(const IRModule& mod,
                               const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  void VisitAttrs(AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "relay.Pass";
   TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
@@ -289,7 +289,7 @@ class Sequential : public Pass {
    * \param passes The passes to apply.
    * \param pass_info The pass metadata.
    */
-  TVM_DLL Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
+  TVM_DLL Sequential(Array<Pass> passes, PassInfo pass_info);
 
   /*!
    * \brief The constructor of `Sequential`.
@@ -299,10 +299,10 @@ class Sequential : public Pass {
    *        This allows users to only provide a list of passes and execute them
    *        under a given context.
    */
-  TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
+  TVM_DLL Sequential(Array<Pass> passes, std::string name = "sequential");
 
   Sequential() = default;
-  explicit Sequential(tvm::ObjectPtr<::tvm::Object> n) : Pass(n) {}
+  explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
 
   const SequentialNode* operator->() const;
   using ContainerType = Sequential;
@@ -322,7 +322,7 @@ Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required);
+    const Array<PrimExpr>& required);
 
 }  // namespace transform
 }  // namespace tvm
