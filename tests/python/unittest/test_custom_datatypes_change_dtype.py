@@ -244,6 +244,13 @@ def run_ops(src_dtype, dst_dtype):
     ]:
         check_binary_op(op, src_dtype, dst_dtype)
 
+def test_cast():
+    """Test cast of a random image"""
+    ex = relay.create_executor()
+    image = np.random.rand(3, 224, 224).astype('float32')
+    image_converted = convert_ndarray('custom[posit]32', image, ex).data
+    image_converted = convert_ndarray('float32', image_converted, ex).data
+    tvm.testing.assert_allclose(image, image_converted.asnumpy())
 
 def run_model(get_workload, input_shape, src_dtype, dst_dtype, num_classes):
     module, params = get_workload(image_shape=input_shape,
@@ -423,6 +430,7 @@ def test_models():
 if __name__ == "__main__":
     setup()
     test_ops()
+    test_cast()
     test_models()
     # Runs slowly:
     # test_conv2d()
