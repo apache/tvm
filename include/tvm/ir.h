@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 #include <utility>
-#include "base.h"
 #include "expr.h"
 #include "runtime/util.h"
 

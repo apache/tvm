@@ -18,11 +18,12 @@
  */
 
 /*!
- * \file tvm/base.h
- * \brief Base utilities
+ * \file tvm/support/with.h
+ * \brief RAII wrapper function to enter and exit a context object
+ *        similar to python's with syntax.
  */
-#ifndef TVM_BASE_H_
-#define TVM_BASE_H_
+#ifndef TVM_SUPPORT_WITH_H_
+#define TVM_SUPPORT_WITH_H_
 
 #include <dmlc/logging.h>
 #include <utility>
@@ -73,14 +74,5 @@ class With {
   ContextType ctx_;
 };
 
-#define TVM_STRINGIZE_DETAIL(x) #x
-#define TVM_STRINGIZE(x) TVM_STRINGIZE_DETAIL(x)
-#define TVM_DESCRIBE(...) describe(__VA_ARGS__ "\n\nFrom:" __FILE__ ":" TVM_STRINGIZE(__LINE__))
-/*!
- * \brief Macro to include current line as string
- */
-#define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
-
-
 }  // namespace tvm
-#endif  // TVM_BASE_H_
+#endif  // TVM_SUPPORT_WITH_H_
