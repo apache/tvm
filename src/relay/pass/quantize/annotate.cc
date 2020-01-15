@@ -92,8 +92,8 @@ Pass QuantizeAnnotate() {
     return e;
   };
 
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       auto func = Downcast<Function>(ForwardRewrite(f, "FQAnnotateRewrite", nullptr, fmulti_ref));
       auto new_params = func->params;
       for (const auto& x : FreeVars(func)) {

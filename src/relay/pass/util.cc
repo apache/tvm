@@ -72,7 +72,7 @@ class TypeVarTVisitor : public TypeVisitor {
 
 class TypeVarEVisitor : private ExprVisitor {
  public:
-  explicit TypeVarEVisitor(const Module& mod) : mod_(mod) {}
+  explicit TypeVarEVisitor(const IRModule& mod) : mod_(mod) {}
 
   Array<TypeVar> CollectFree() {
     Array<TypeVar> ret;
@@ -156,7 +156,7 @@ class TypeVarEVisitor : private ExprVisitor {
  private:
   InsertionSet<TypeVar> type_vars_;
   InsertionSet<TypeVar> bound_type_vars_;
-  const Module& mod_;
+  const IRModule& mod_;
 };
 
 class VarVisitor : protected ExprVisitor, protected PatternVisitor {
@@ -234,27 +234,27 @@ class VarVisitor : protected ExprVisitor, protected PatternVisitor {
   InsertionSet<Var> bound_vars_;
 };
 
-tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod) {
+tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const IRModule& mod) {
   return TypeVarEVisitor(mod).Free(expr);
 }
 
-tvm::Array<TypeVar> FreeTypeVars(const Type& type, const Module& mod) {
+tvm::Array<TypeVar> FreeTypeVars(const Type& type, const IRModule& mod) {
   return TypeVarEVisitor(mod).Free(type);
 }
 
-tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod) {
+tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const IRModule& mod) {
   return TypeVarEVisitor(mod).Bound(expr);
 }
 
-tvm::Array<TypeVar> BoundTypeVars(const Type& type, const Module& mod) {
+tvm::Array<TypeVar> BoundTypeVars(const Type& type, const IRModule& mod) {
   return TypeVarEVisitor(mod).Bound(type);
 }
 
-tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod) {
+tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const IRModule& mod) {
   return TypeVarEVisitor(mod).All(expr);
 }
 
-tvm::Array<TypeVar> AllTypeVars(const Type& type, const Module& mod) {
+tvm::Array<TypeVar> AllTypeVars(const Type& type, const IRModule& mod) {
   return TypeVarEVisitor(mod).All(type);
 }
 
@@ -293,7 +293,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.all_vars")
 TVM_REGISTER_GLOBAL("relay._analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     ObjectRef x = args[0];
-    Module mod = args[1];
+    IRModule mod = args[1];
     if (x.as<TypeNode>()) {
       *ret = FreeTypeVars(Downcast<Type>(x), mod);
     } else {
@@ -304,7 +304,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.free_type_vars")
 TVM_REGISTER_GLOBAL("relay._analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       ObjectRef x = args[0];
-      Module mod = args[1];
+      IRModule mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = BoundTypeVars(Downcast<Type>(x), mod);
       } else {
@@ -315,7 +315,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.bound_type_vars")
 TVM_REGISTER_GLOBAL("relay._analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       ObjectRef x = args[0];
-      Module mod = args[1];
+      IRModule mod = args[1];
       if (x.as<TypeNode>()) {
         *ret = AllTypeVars(Downcast<Type>(x), mod);
       } else {

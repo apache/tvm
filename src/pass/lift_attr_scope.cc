@@ -180,9 +180,6 @@ class AttrScopeLifter : public StmtMutator {
     if (const IntImmNode* op = a.as<IntImmNode>()) {
       return op->value == b.as<IntImmNode>()->value;
     }
-    if (const UIntImmNode* op = a.as<UIntImmNode>()) {
-      return op->value == b.as<UIntImmNode>()->value;
-    }
     return false;
   }
 

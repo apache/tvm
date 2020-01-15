@@ -39,7 +39,7 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   CHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImmNode::make(DataType::UInt(32), id));
+  cargs.push_back(IntImm(DataType::UInt(32), id));
 
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);

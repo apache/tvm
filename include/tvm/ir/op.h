@@ -26,7 +26,7 @@
 #define TVM_IR_OP_H_
 
 #include <dmlc/registry.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
@@ -91,7 +91,7 @@ class OpNode : public RelayExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("op_type", &op_type);
     v->Visit("description", &description);
@@ -296,7 +296,8 @@ class OpRegistry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpMap
-  TVM_DLL void UpdateAttr(const std::string& key, TVMRetValue value,
+  TVM_DLL void UpdateAttr(const std::string& key,
+                          runtime::TVMRetValue value,
                           int plevel);
 };
 
@@ -316,7 +317,7 @@ class GenericOpMap {
    * \param op The key to the map
    * \return the const reference to the content value.
    */
-  inline const TVMRetValue& operator[](const Op& op) const;
+  inline const runtime::TVMRetValue& operator[](const Op& op) const;
   /*!
    * \brief get the corresponding value element at op with default value.
    * \param op The key to the map
@@ -342,7 +343,7 @@ class GenericOpMap {
   // the attribute field.
   std::string attr_name_;
   // internal data
-  std::vector<std::pair<TVMRetValue, int> > data_;
+  std::vector<std::pair<runtime::TVMRetValue, int> > data_;
   // The value
   GenericOpMap() = default;
 };
@@ -476,7 +477,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   std::string input_name_prefix = "in";
   for (int i = 0; i < get()->num_inputs; i++) {
     auto name = input_name_prefix + std::to_string(i);
-    auto param = TypeVarNode::make(name, TypeKind::kType);
+    auto param = TypeVar(name, TypeKind::kType);
     type_params.push_back(param);
     arg_types.push_back(param);
   }
@@ -484,7 +485,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   Array<Type> ty_call_args = arg_types;
 
   // Add output type.
-  auto out_param = TypeVarNode::make("out", TypeKind::kType);
+  auto out_param = TypeVar("out", TypeKind::kType);
   type_params.push_back(out_param);
   // this will trigger copy on write.
   ty_call_args.push_back(out_param);
@@ -498,13 +499,13 @@ inline OpRegistry& OpRegistry::add_type_rel(
   // A common example is sum(x, axis), where the choice of axis
   // can affect the type of the function.
   TypeConstraint type_rel =
-      TypeRelationNode::make(env_type_rel_func,
+      TypeRelation(env_type_rel_func,
                              ty_call_args,
                              arg_types.size(),
                              Attrs());
 
   auto func_type =
-      FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});
+      FuncType(arg_types, out_param, type_params, {type_rel});
 
   get()->op_type = func_type;
 
@@ -532,7 +533,7 @@ template <typename ValueType>
 inline OpRegistry& OpRegistry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  TVMRetValue rv;
+  runtime::TVMRetValue rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);
   return *this;
@@ -548,7 +549,8 @@ inline int GenericOpMap::count(const Op& op) const {
   }
 }
 
-inline const TVMRetValue& GenericOpMap::operator[](const Op& op) const {
+inline const runtime::TVMRetValue&
+GenericOpMap::operator[](const Op& op) const {
   CHECK(op.defined());
   const uint32_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second != 0)

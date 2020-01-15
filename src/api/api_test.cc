@@ -23,9 +23,9 @@
  */
 #include <tvm/expr.h>
 #include <tvm/tensor.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/env_func.h>
+#include <tvm/ir/env_func.h>
 #include <tvm/packed_func_ext.h>
 
 

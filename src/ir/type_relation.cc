@@ -27,22 +27,49 @@
 #include <tvm/packed_func_ext.h>
 
 namespace tvm {
-TypeRelation TypeRelationNode::make(TypeRelationFn func,
-                                    Array<Type> args,
-                                    int num_inputs,
-                                    Attrs attrs) {
+
+TypeCall::TypeCall(Type func, tvm::Array<Type> args) {
+  ObjectPtr<TypeCallNode> n = make_object<TypeCallNode>();
+  n->func = std::move(func);
+  n->args = std::move(args);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(TypeCallNode);
+
+TVM_REGISTER_GLOBAL("relay._make.TypeCall")
+.set_body_typed([](Type func, Array<Type> type) {
+  return TypeCall(func, type);
+});
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TypeCallNode>([](const ObjectRef& ref, NodePrinter* p) {
+    auto* node = static_cast<const TypeCallNode*>(ref.get());
+  p->stream << "TypeCallNode(" << node->func << ", "
+            << node->args << ")";
+});
+
+TypeRelation::TypeRelation(TypeRelationFn func,
+                           Array<Type> args,
+                           int num_inputs,
+                           Attrs attrs) {
   ObjectPtr<TypeRelationNode> n = make_object<TypeRelationNode>();
   n->func = std::move(func);
   n->args = std::move(args);
   n->num_inputs = num_inputs;
   n->attrs = std::move(attrs);
-  return TypeRelation(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 
 TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
-.set_body_typed(TypeRelationNode::make);
+.set_body_typed([](TypeRelationFn func,
+                   Array<Type> args,
+                   int num_inputs,
+                   Attrs attrs) {
+  return TypeRelation(func, args, num_inputs, attrs);
+});
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<TypeRelationNode>([](const ObjectRef& ref, NodePrinter* p) {

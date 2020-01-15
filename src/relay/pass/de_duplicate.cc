@@ -37,7 +37,7 @@ Expr DeDup(const Expr& e) {
                        public PatternMutator {
    public:
     TypeVar Fresh(const TypeVar& tv) {
-      TypeVar ret = TypeVarNode::make(tv->name_hint, tv->kind);
+      TypeVar ret = TypeVar(tv->name_hint, tv->kind);
       type_rename_[tv] = ret;
       return ret;
     }

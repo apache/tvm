@@ -140,8 +140,8 @@ Expr DeadCodeElimination(const Expr& e, bool inline_once) {
 namespace transform {
 
 Pass DeadCodeElimination(bool inline_once) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(DeadCodeElimination(f, inline_once));
   };
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});

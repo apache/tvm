@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relay/adt.h
+ * \file tvm/ir/adt.h
  * \brief Algebraic data type definitions.
  *
  * We adopt relay's ADT definition as a unified class

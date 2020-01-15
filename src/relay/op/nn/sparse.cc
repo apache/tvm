@@ -109,7 +109,7 @@ bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   output_types.push_back(TensorTypeNode::make(sparse_indices->shape, sparse_indices->dtype));
   output_types.push_back(TensorTypeNode::make(sparse_indptr->shape, sparse_indptr->dtype));
 
-  reporter->Assign(types[3], TupleTypeNode::make(Array<Type>(output_types)));
+  reporter->Assign(types[3], TupleType(Array<Type>(output_types)));
   return true;
 }
 

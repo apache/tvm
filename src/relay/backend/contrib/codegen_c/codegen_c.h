@@ -99,63 +99,52 @@ class CodegenCBase {
    * \code
    *
    * // An example code for the generated C function.
-   * extern "C" void foo(TVMValue* value, int* type_code, int nargs) {
-   *   if (nargs != 3) {
-   *     printf("foo expects 3 args, but received %d\n", nargs);
-   *     return 1;
-   *   }
-   *
-   *   DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-   *   DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-   *   DLTensor* out = static_cast<DLTensor*>(value[2].v_handle);
-   *
+   * extern "C" void foo_wrapper_(DLTensor* arg0,
+   *                              DLTensor* arg1,
+   *                              DLTensor* out) {
    *   foo_(static_cast<float*>(arg0->data),
    *        static_cast<float*>(arg1->data),
    *        static_cast<float*>(out->data));
    *   return 0;
    * }
    *
+   * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
+   *
    * \endcode
    */
   void GenerateBackendCFunc(const std::string& func_name, int arg_cnt) {
     // Print signature
     code_stream_ << "\n";
-    code_stream_ << "extern \"C\" int " << func_name;
-    code_stream_ << "(TVMValue* value, int* type_code, int nargs) {\n";
-    EnterScope();
-    // Print guard
-    PrintIndents();
-    code_stream_ << "if (nargs != " << arg_cnt << "){\n";
-    EnterScope();
-    PrintIndents();
-    code_stream_ << "printf(\"" << func_name << " expects " << arg_cnt
-                 << " arguments, but received %d\\n\", nargs);\n";
-    PrintIndents();
-    code_stream_ << "return 1;\n";
-    ExitScope();
-    PrintIndents();
-    code_stream_ << "}\n";
-
-    // According to TVM's calling convention, the last one is output.
-    for (int i = 0; i < arg_cnt; i++) {
-      PrintIndents();
-      code_stream_ << "DLTensor* arg" << i << " = "
-                   << "static_cast<DLTensor*>(value[" << i << "].v_handle);\n";
+    code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
+    for (int i = 0; i < arg_cnt - 1; i++) {
+      code_stream_ << "DLTensor* arg" << i << ",\n";
+      code_stream_ << "\t";
     }
-    // Generate the call.
+    if (arg_cnt > 0) {
+      code_stream_ << "DLTensor* arg" << arg_cnt - 1 << ") {\n";
+    }
+
+    EnterScope();
+
+    // Generate the internal call.
     PrintIndents();
     code_stream_ << func_name << "_(";
     for (int i = 0; i < arg_cnt - 1; i++) {
-      code_stream_ << "static_cast<float*>(arg" << i << "->data), ";
+      code_stream_ << "static_cast<float*>(arg" << i << "->data),\n";
+      PrintIndents();
     }
     if (arg_cnt > 0) {
       code_stream_ << "static_cast<float*>(arg" << arg_cnt - 1 << "->data)";
     }
-    code_stream_ << ");\n\n";
+    code_stream_ << ");\n";
     PrintIndents();
     code_stream_ << "return 0;\n";
     ExitScope();
-    code_stream_ << "}";
+    code_stream_ << "}\n\n";
+
+    // Generate the macro
+    code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(" << func_name << ", "
+                 << func_name << "_wrapper_);\n\n";
   }
 
   /*!

@@ -33,7 +33,7 @@ from ..container import Array
 #pylint: disable=invalid-name
 np_arg_types = tuple(list(numeric_types) + [numpy.ndarray])
 tvm_arg_types = (Tensor, Array, _expr.Var, _expr.ConstExpr)
-halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
+halide_imm_types = (_expr.IntImm, _expr.FloatImm)
 
 
 def _internal_assert(cond, err):

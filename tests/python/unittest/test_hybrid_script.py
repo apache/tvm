@@ -24,7 +24,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
-        assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm))
+        assert isinstance(val, (tvm.expr.IntImm,))
         return val.value
 
     ctx = tvm.context(target, 0)

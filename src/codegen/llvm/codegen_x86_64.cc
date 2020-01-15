@@ -95,9 +95,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
                 ir::CallNode::PureIntrinsic)),
                 MakeValue(
                     ir::BroadcastNode::make(
-                      ir::FloatImmNode::make(DataType::Float(32), 0), from.lanes())),
-                /*mask=*/MakeValue(ir::IntImmNode::make(DataType::Int(16), -1)),
-                /*rounding-mode=*/MakeValue(ir::IntImmNode::make(DataType::Int(32), 4)),
+                      FloatImm(DataType::Float(32), 0), from.lanes())),
+                /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
+                /*rounding-mode=*/MakeValue(IntImm(DataType::Int(32), 4)),
           });
     }
 

@@ -23,7 +23,7 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/runtime/registry.h>

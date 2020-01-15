@@ -124,7 +124,7 @@ VisitExpr_(const AddNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2, c3;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -239,7 +239,7 @@ VisitExpr_(const SubNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2, c3;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -438,7 +438,7 @@ VisitExpr_(const MulNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1, b2, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
   // Vector rules
@@ -477,7 +477,7 @@ VisitExpr_(const DivNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2, c3;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -700,7 +700,7 @@ VisitExpr_(const ModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -789,7 +789,7 @@ VisitExpr_(const FloorDivNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2, c3;
+  PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -934,7 +934,7 @@ VisitExpr_(const FloorModNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, b1;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
   PVar<int> lanes;
 
@@ -1004,7 +1004,7 @@ VisitExpr_(const MinNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1189,7 +1189,7 @@ VisitExpr_(const MaxNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1362,7 +1362,7 @@ VisitExpr_(const EQNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<Integer> c1;
+  PVar<IntImm> c1;
   PVar<int> lanes;
 
   // vector rule
@@ -1416,7 +1416,7 @@ VisitExpr_(const LTNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   PVar<int> lanes;
 
   // vector rule
@@ -1597,7 +1597,7 @@ VisitExpr_(const AndNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   PVar<int> lanes;
 
   if (op->dtype.lanes() != 1) {
@@ -1646,7 +1646,7 @@ VisitExpr_(const OrNode* op) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
-  PVar<Integer> c1, c2;
+  PVar<IntImm> c1, c2;
   PVar<int> lanes;
 
   if (op->dtype.lanes() != 1) {
