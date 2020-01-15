@@ -391,6 +391,14 @@ class OpMap {
   const GenericOpMap& map_;
 };
 
+#define TVM_STRINGIZE_DETAIL(x) #x
+#define TVM_STRINGIZE(x) TVM_STRINGIZE_DETAIL(x)
+#define TVM_DESCRIBE(...) describe(__VA_ARGS__ "\n\nFrom:" __FILE__ ":" TVM_STRINGIZE(__LINE__))
+/*!
+ * \brief Macro to include current line as string
+ */
+#define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
+
 // internal macros to make
 #define TVM_OP_REGISTER_VAR_DEF \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::OpRegistry& __make_##Op

@@ -56,7 +56,7 @@
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
 
-#include <tvm/base.h>
+#include <tvm/support/with.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
