@@ -87,8 +87,8 @@ Expr EliminateCommonSubexpr(const Expr& expr, PackedFunc callback) {
 namespace transform {
 
 Pass EliminateCommonSubexpr(PackedFunc fskip) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
   };
   return CreateFunctionPass(pass_func, 3, "EliminateCommonSubexpr",

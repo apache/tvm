@@ -28,7 +28,7 @@
 #include <tvm/ir/type_relation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/node/env_func.h>
+#include <tvm/ir/env_func.h>
 
 #include <tvm/ir.h>
 #include <string>
@@ -39,6 +39,8 @@
 namespace tvm {
 namespace relay {
 
+// namespace update for backward compact
+// will be removed later.
 using Any = tvm::ir::AnyNode;
 using Kind = TypeKind;
 using Type = tvm::Type;
@@ -47,10 +49,14 @@ using TypeVar = tvm::TypeVar;
 using TypeVarNode = tvm::TypeVarNode;
 using GlobalTypeVar = tvm::GlobalTypeVar;
 using GlobalTypeVarNode = tvm::GlobalTypeVarNode;
+using TupleType = tvm::TupleType;
+using TupleTypeNode = tvm::TupleTypeNode;
 using TypeConstraint = tvm::TypeConstraint;
 using TypeConstraintNode = tvm::TypeConstraintNode;
 using FuncType = tvm::FuncType;
 using FuncTypeNode = tvm::FuncTypeNode;
+using TypeCall = tvm::TypeCall;
+using TypeCallNode = tvm::TypeCallNode;
 using TypeRelation = tvm::TypeRelation;
 using TypeRelationNode = tvm::TypeRelationNode;
 using TypeRelationFn = tvm::TypeRelationFn;
@@ -119,37 +125,6 @@ class TensorType : public Type {
 };
 
 /*!
- * \brief Type application.
- */
-class TypeCall;
-/*! \brief TypeCall container node */
-class TypeCallNode : public TypeNode {
- public:
-  /*!
-   * \brief The type-level function (ADT that takes type params).
-   */
-  Type func;
-  /*! \brief The arguments. */
-  tvm::Array<Type> args;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("args", &args);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
-
-  static constexpr const char* _type_key = "relay.TypeCall";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TypeCallNode, TypeNode);
-};
-
-class TypeCall : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TypeCall, Type, TypeCallNode);
-};
-
-/*!
  * \brief IncompleteType.
  * This is intermediate values that is used during type inference.
  *
@@ -178,36 +153,6 @@ class IncompleteTypeNode : public TypeNode {
 class IncompleteType : public Type {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
-};
-
-/*!
- * \brief The type of tuple values.
- */
-class TupleType;
-/*!
- * \brief TupleType container.
- */
-class TupleTypeNode : public TypeNode {
- public:
-  /*! \brief The type of each field in the tuple. */
-  tvm::Array<Type> fields;
-
-  TupleTypeNode() {}
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("fields", &fields);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static TupleType make(tvm::Array<Type> fields);
-
-  static constexpr const char* _type_key = "relay.TupleType";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
-};
-
-class TupleType : public Type {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleType, Type, TupleTypeNode);
 };
 
 /*!

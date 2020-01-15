@@ -45,7 +45,7 @@
  *  }
  *
  *  tvm::Var tx, ty;
- *  arith::PVar<Integer> c;
+ *  arith::PVar<IntImm> c;
  *  arith::PVar<Var> v;
  *  // We can match integer and Var, both of which are
  *  // special case container of Expr
@@ -140,9 +140,9 @@ class PEqualChecker<PrimExpr> {
 };
 
 template<>
-class PEqualChecker<Integer> {
+class PEqualChecker<IntImm> {
  public:
-  bool operator()(const Integer& lhs, const Integer& rhs) const {
+  bool operator()(const IntImm& lhs, const IntImm& rhs) const {
     return lhs->value == rhs->value;
   }
 };

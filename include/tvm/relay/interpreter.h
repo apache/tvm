@@ -35,7 +35,7 @@
 #define TVM_RELAY_INTERPRETER_H_
 
 #include <tvm/build_module.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 
@@ -62,7 +62,7 @@ namespace relay {
  * \return A function that takes in an expression and returns a value.
  */
 runtime::TypedPackedFunc<ObjectRef(Expr)>
-CreateInterpreter(Module mod, DLContext context, Target target);
+CreateInterpreter(IRModule mod, DLContext context, Target target);
 
 /*! \brief A Relay closure, i.e a scope and a function. */
 class Closure;

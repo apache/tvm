@@ -186,8 +186,8 @@ namespace transform {
 Pass CombineParallelOpBatch(const std::string& op_name,
                             const std::string& batch_op_name,
                             uint64_t min_num_branches) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelOpBatch(f,
                                                        op_name,
                                                        batch_op_name,

@@ -22,7 +22,7 @@
  * \brief Transform operators.
  */
 #include <tvm/relay/op.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir.h>
@@ -392,7 +392,7 @@ bool StackRel(const Array<Type>& types,
     for (size_t j = 0; j < first->shape.size(); ++j) {
       if (j == static_cast<size_t>(axis)) continue;
       if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
-      throw relay::Error("relay.stack requires all tensors have the same shape "
+      throw Error("relay.stack requires all tensors have the same shape "
                          "on non-stacking axes");
     }
   }
@@ -852,7 +852,7 @@ bool ArgWhereRel(const Array<Type>& types,
   const auto& input_rank = input_shape.size();
   std::vector<IndexExpr> result_shape;
   result_shape.push_back(Any::make());
-  result_shape.push_back(IntImmNode::make(DataType::Int(32), input_rank));
+  result_shape.push_back(IntImm(DataType::Int(32), input_rank));
   reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
   return true;
 }
@@ -2150,7 +2150,7 @@ bool SplitRel(const Array<Type>& types,
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
     auto begin = IndexExpr(make_zero(DataType::Int(32)));
@@ -2170,7 +2170,7 @@ bool SplitRel(const Array<Type>& types,
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
     fields.push_back(vec_type);
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   }
   return true;
 }

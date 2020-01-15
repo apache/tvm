@@ -63,7 +63,7 @@ namespace relay {
 // we assume the data type has no closure - no idea how to look into datatype right now.
 
 Type Arrow(const Type& l, const Type& r) {
-  return FuncTypeNode::make({l}, r, {}, {});
+  return FuncType({l}, r, {}, {});
 }
 
 Type CPSType(const Type& t, const TypeVar& answer);
@@ -74,7 +74,7 @@ FuncType CPSFuncType(const FuncType& f, const TypeVar& answer) {
     new_arg_types.push_back(CPSType(t, answer));
   }
   new_arg_types.push_back(Arrow(CPSType(f->ret_type, answer), answer));
-  return FuncTypeNode::make(new_arg_types, answer, f->type_params, f->type_constraints);
+  return FuncType(new_arg_types, answer, f->type_params, f->type_constraints);
 }
 
 Type CPSType(const Type& t, const TypeVar& answer) {
@@ -111,21 +111,27 @@ using VarMap = std::unordered_map<Var, Var, ObjectHash, ObjectEqual>;
  */
 using MCont = std::function<Expr(const Expr&)>;
 
-Function ToCPS(const Function& f, const Module& m, CPSMap* cm);
+Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm);
 
-Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const TypeVar& answer) {
-  std::function<Var(Var)> remap = [&](const Var& v) { return vm->count(v) == 0 ? v : vm->at(v); };
+Function ToCPS(const Function& f,
+               const IRModule& m,
+               CPSMap* cm,
+               VarMap* vm,
+               const TypeVar& answer) {
+  std::function<Var(Var)> remap = [&](const Var& v) {
+    return vm->count(v) == 0 ? v : vm->at(v);
+  };
   auto function_type = Downcast<FuncType>(f->checked_type());
   // Each MCont can be used at most once.
   struct CPSFunctor : ExprFunctor<Expr(const Expr&, const MCont&)>, PatternMutator {
     CPSFunctor(const std::function<Var(Var)>& remap,
                const TypeVar& answer,
-               const Module& m,
+               const IRModule& m,
                VarMap* vm,
                CPSMap* cm) : remap(remap), answer(answer), m(m), vm(vm), cm(cm) { }
     const std::function<Var(Var)>& remap;
     TypeVar answer;
-    Module m;
+    IRModule m;
     VarMap* vm;
     CPSMap* cm;
 
@@ -295,8 +301,8 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm, VarMap* vm, const
                             f->attrs);
 }
 
-Function ToCPS(const Function& f, const Module& m, CPSMap* cm) {
-  TypeVar answer = TypeVarNode::make("answer", kType);
+Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
+  TypeVar answer = TypeVar("answer", kType);
   VarMap var;
   struct Remapper : ExprVisitor, PatternVisitor {
     Remapper(const TypeVar& answer, VarMap* vm) : answer(answer), vm(vm) { }
@@ -325,7 +331,7 @@ Function ToCPS(const Function& f, const Module& m, CPSMap* cm) {
   return FunctionNode::make(ret->params, ret->body, ret->ret_type, new_type_params, ret->attrs);
 }
 
-Function ToCPS(const Function& f, const Module& m) {
+Function ToCPS(const Function& f, const IRModule& m) {
   CPSMap cps;
   return ToCPS(f, m, &cps);
 }
@@ -342,7 +348,7 @@ Function UnCPS(const Function& f) {
   auto new_ret_type = Type(cont_type->arg_types[0]);
   std::vector<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
-    new_type_params.push_back(TypeVarNode::make(tp->name_hint, tp->kind));
+    new_type_params.push_back(TypeVar(tp->name_hint, tp->kind));
   }
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();
@@ -368,7 +374,7 @@ Function UnCPS(const Function& f) {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.to_cps")
-.set_body_typed(static_cast<Function (*)(const Function&, const Module&)>(ToCPS));
+.set_body_typed(static_cast<Function (*)(const Function&, const IRModule&)>(ToCPS));
 
 TVM_REGISTER_GLOBAL("relay._transform.un_cps")
 .set_body_typed(UnCPS);
@@ -376,8 +382,8 @@ TVM_REGISTER_GLOBAL("relay._transform.un_cps")
 namespace transform {
 
 Pass ToCPS() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Function(ToCPS(f, m));
   };
   return CreateFunctionPass(pass_func, 1, "ToCPS", {});
@@ -388,8 +394,8 @@ TVM_REGISTER_GLOBAL("relay._transform.ToCPS")
 
 
 Pass UnCPS() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Function(UnCPS(f));
     };
   return CreateFunctionPass(pass_func, 1, "UnCPS", {});

@@ -88,6 +88,25 @@ def test_llvm_lookup_intrin():
     fcode = tvm.build(func, None, "llvm")
 
 
+def test_llvm_large_uintimm():
+    value =  (1 << 63) + 123
+    other = tvm.const(3, "uint64")
+    A = tvm.compute((), lambda : tvm.const(value, "uint64") + other, name='A')
+    s = tvm.create_schedule(A.op)
+
+    def check_llvm():
+        if not tvm.module.enabled("llvm"):
+            return
+        f = tvm.build(s, [A], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.empty((), dtype=A.dtype, ctx=ctx)
+        f(a)
+        assert a.asnumpy() == value + 3
+
+    check_llvm()
+
+
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)
@@ -645,6 +664,7 @@ def test_llvm_shuffle():
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 if __name__ == "__main__":
+    test_llvm_large_uintimm()
     test_llvm_import()
     test_alignment()
     test_rank_zero()

@@ -21,7 +21,7 @@ import scipy
 import topi
 from topi.nn.util import get_pad_tuple1d
 
-def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
+def conv1d_transpose_ncw_python(a_np, w_np, stride, padding):
     """Transposed 1D convolution operator in NCW layout.
 
     Parameters
@@ -47,7 +47,6 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     """
     batch, in_c, in_w = a_np.shape
     _, out_c, filter_w = w_np.shape
-    opad = output_padding[0]
     if isinstance(stride, int):
         stride_w = stride
     else:
@@ -57,11 +56,11 @@ def conv1d_transpose_ncw_python(a_np, w_np, stride, padding, output_padding):
     dilated_a_np = topi.testing.dilate_python(a_np, [1, 1, stride_w])
     # padding stage
     bpad_left = filter_w - 1 - fpad_left
-    bpad_right = filter_w - 1 - fpad_right + opad
+    bpad_right = filter_w - 1 - fpad_right
     padded_a_np = np.zeros((batch, in_c, dilated_a_np.shape[2]+bpad_left+bpad_right))
     padded_a_np[:, :, bpad_left:dilated_a_np.shape[2]+bpad_left] = dilated_a_np
     # convolution stage
-    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad
+    out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w
     b_np = np.zeros((batch, out_c, out_w))
     for n in range(batch):
         for f in range(out_c):

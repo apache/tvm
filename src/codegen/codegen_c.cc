@@ -372,16 +372,17 @@ inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) { //
   }
 }
 
-inline void PrintConst(const UIntImmNode* op, std::ostream& os, CodeGenC* p) { // NOLINT(*)
-  if (op->dtype == DataType::UInt(32)) {
+
+inline void PrintUIntConst(DataType dtype, uint64_t val, std::ostream& os, CodeGenC* p) { // NOLINT(*)
+  if (dtype == DataType::UInt(32)) {
     std::ostringstream temp;
-    temp << op->value << "U";
+    temp << val << "U";
     p->MarkConst(temp.str());
     os << temp.str();
   } else {
     os << "(";
-    p->PrintType(op->dtype, os);
-    os << ")" << op->value;
+    p->PrintType(dtype, os);
+    os << ")" << val;
   }
 }
 
@@ -408,9 +409,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenC* p) { 
 void CodeGenC::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeGenC::VisitExpr_(const UIntImmNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintConst(op, os, this);
-}
+
 void CodeGenC::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
@@ -528,6 +527,12 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     os << ")";
   } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     PrintBinaryIntrinsic(op, " & ", os, this);
+  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    PrintUIntConst(op->dtype, val, os, this);
   } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     PrintBinaryIntrinsic(op, " ^ ", os, this);
   } else if (op->is_intrinsic(CallNode::bitwise_or)) {

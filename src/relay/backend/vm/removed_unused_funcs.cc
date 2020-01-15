@@ -40,7 +40,7 @@ namespace vm {
  * \brief Detects all the functions that can be possibly called by entry function.
  */
 struct CallTracer : ExprVisitor {
-  Module module_;
+  IRModule module_;
 
   // Record the names of all encountered functions
   std::unordered_set<std::string> called_funcs_;
@@ -48,38 +48,25 @@ struct CallTracer : ExprVisitor {
   // Record the expressions that are being visited
   std::unordered_set<Expr, ObjectHash, ObjectEqual> visiting_;
 
-  explicit CallTracer(const Module& module)
+  explicit CallTracer(const IRModule& module)
     : module_{module},
       called_funcs_{},
       visiting_{} {}
 
-  void CheckExpr(const Expr& expr) {
-    if (auto func_node = expr.as<FunctionNode>()) {
-      auto func = GetRef<Function>(func_node);
-      auto it = visiting_.find(func);
-      if (it != visiting_.end()) {
-        return;
-      }
-      visiting_.insert(func);
-      VisitExpr(func);
-    } else if (auto global = expr.as<GlobalVarNode>()) {
-      called_funcs_.insert(global->name_hint);
-      auto func = module_->Lookup(global->name_hint);
-      auto it = visiting_.find(func);
-      if (it != visiting_.end()) {
-        return;
-      }
-      visiting_.insert(func);
-      VisitExpr(func);
-    } else {
-      VisitExpr(expr);
-    }
+  void VisitExpr_(const GlobalVarNode* op) final {
+    called_funcs_.insert(op->name_hint);
+    auto func = module_->Lookup(op->name_hint);
+    VisitExpr(func);
   }
 
-  void VisitExpr_(const CallNode* call_node) final {
-    CheckExpr(call_node->op);
-    for (auto param : call_node->args) {
-      CheckExpr(param);
+  void VisitExpr_(const FunctionNode* func_node) final {
+    auto func = GetRef<Function>(func_node);
+    if (visiting_.find(func) == visiting_.end()) {
+      visiting_.insert(func);
+      for (auto param : func_node->params) {
+        ExprVisitor::VisitExpr(param);
+      }
+      ExprVisitor::VisitExpr(func_node->body);
     }
   }
 
@@ -99,7 +86,7 @@ struct CallTracer : ExprVisitor {
  *
  * \return The module with dead functions removed.
  */
-Module RemoveUnusedFunctions(const Module& module,
+IRModule RemoveUnusedFunctions(const IRModule& module,
                              Array<tvm::PrimExpr> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
@@ -122,8 +109,8 @@ Module RemoveUnusedFunctions(const Module& module,
 namespace transform {
 
 Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions) {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
     return relay::vm::RemoveUnusedFunctions(m, entry_functions);
   };
   return CreateModulePass(pass_func, 1, "RemoveUnusedFunctions", {});

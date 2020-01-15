@@ -51,7 +51,7 @@ def create_shared(output,
     else:
         cmd += objects
 
-    options = options if options else ["-shared", "-fPIC"]
+    options = options if options else ["-shared", "-fPIC", "-lm"]
     cmd += options
 
     proc = subprocess.Popen(

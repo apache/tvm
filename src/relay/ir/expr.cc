@@ -56,7 +56,7 @@ TensorType ConstantNode::tensor_type() const {
     CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
     CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(
-        tvm::ir::IntImmNode::make(DataType::Int(32), data->shape[i]));
+        tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 
   return TensorTypeNode::make(shape, dtype);
@@ -135,7 +135,7 @@ FuncType FunctionNode::func_type_annotation() const {
 
   Type ret_type = (this->ret_type.defined()) ? this->ret_type
     : IncompleteTypeNode::make(Kind::kType);
-  return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
+  return FuncType(param_types, ret_type, this->type_params, {});
 }
 
 bool FunctionNode::IsPrimitive() const {

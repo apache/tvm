@@ -129,8 +129,8 @@ class BuiltinLower : public StmtExprMutator {
                        {cast(DataType::Int(32), device_type_),
                         cast(DataType::Int(32), device_id_),
                         cast(DataType::UInt(64), total_bytes),
-                        IntImmNode::make(DataType::Int(32), op->dtype.code()),
-                        IntImmNode::make(DataType::Int(32), op->dtype.bits())},
+                        IntImm(DataType::Int(32), op->dtype.code()),
+                        IntImm(DataType::Int(32), op->dtype.bits())},
                        CallNode::Extern),
         body);
 

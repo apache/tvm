@@ -79,7 +79,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.check_constant")
 // or make a more powerful partial evaluator.
 class ConstantFolder : public ExprMutator {
  public:
-  explicit ConstantFolder(FInterpreter executor, Module module)
+  explicit ConstantFolder(FInterpreter executor, IRModule module)
       : executor_(executor),
         module_(module),
         shape_of_op_(Op::Get("shape_of")),
@@ -168,7 +168,7 @@ class ConstantFolder : public ExprMutator {
   // Internal constant checker
   ConstantChecker checker_;
   // Module
-  Module module_;
+  IRModule module_;
 
   // Cache the following ops for equivalence checking in this pass.
   const Op& shape_of_op_;
@@ -209,7 +209,7 @@ class ConstantFolder : public ExprMutator {
       // TODO(@jroesch): fix this
       func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
     }
-    auto mod = ModuleNode::make(
+    auto mod = IRModule(
       {},
       module_->type_definitions,
       module_->Imports());
@@ -277,7 +277,7 @@ class ConstantFolder : public ExprMutator {
 };
 
 
-Expr FoldConstant(const Expr& expr, const Module& mod) {
+Expr FoldConstant(const Expr& expr, const IRModule& mod) {
   DLContext ctx;
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
@@ -292,8 +292,8 @@ Expr FoldConstant(const Expr& expr, const Module& mod) {
 namespace transform {
 
 Pass FoldConstant() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(FoldConstant(f, m));
   };
   return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
