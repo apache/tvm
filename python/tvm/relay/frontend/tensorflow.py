@@ -2391,7 +2391,7 @@ class GraphProto(object):
             if np_array.dtype == np.dtype(object):
                 # Object types are generally tensorflow DT_STRING (DecodeJpeg op).
                 # Just leave it as placeholder.
-                if shape:
+                if shape and name in shape:
                     var_shape = shape[name]
                 else:
                     var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)
