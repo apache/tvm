@@ -857,10 +857,6 @@ class PrettyPrinter :
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::UIntImmNode* op) final {
-    return PrintConstScalar(op->dtype, &(op->value));
-  }
-
   Doc VisitAttr_(const ir::FloatImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }

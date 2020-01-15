@@ -53,6 +53,9 @@ TVM_REGISTER_GLOBAL("_const")
     }
   });
 
+TVM_REGISTER_GLOBAL("_LargeUIntImm")
+.set_body_typed(LargeUIntImm);
+
 TVM_REGISTER_GLOBAL("_str")
 .set_body_typed(ir::StringImmNode::make);
 

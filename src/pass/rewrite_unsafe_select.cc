@@ -96,7 +96,6 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
     return false;
   }
   bool VisitExpr_(const VarNode* op) final { return false; }
-  bool VisitExpr_(const UIntImmNode* op) final { return false; }
   bool VisitExpr_(const IntImmNode* op) final { return false; }
   bool VisitExpr_(const FloatImmNode* op) final { return false; }
   bool VisitExpr_(const StringImmNode* op) final { return false; }

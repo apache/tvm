@@ -256,7 +256,7 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
 
     Array<PrimExpr> attr{std::string("_attr_"),
                      FloatImmNode::make(DataType::Float(32), trans(fea.length)),
-                     IntImmNode::make(DataType::Int(32), fea.nest_level),
+                     IntImm(DataType::Int(32), fea.nest_level),
                      FloatImmNode::make(DataType::Float(32), trans(fea.topdown_product)),
                      FloatImmNode::make(DataType::Float(32), trans(fea.bottomup_product)),
     };

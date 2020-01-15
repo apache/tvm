@@ -136,10 +136,6 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const IntImmNode* op) {
   return builder_->IntImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const UIntImmNode* op) {
-  return builder_->UIntImm(builder_->GetSType(op->dtype), op->value);
-}
-
 spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
   return builder_->FloatImm(builder_->GetSType(op->dtype), op->value);
 }
@@ -242,7 +238,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic("spirv_glsl450")) {
     CHECK_GE(op->args.size(), 2U);
-    uint32_t inst_id = op->args[0].as<UIntImmNode>()->value;
+    uint32_t inst_id = static_cast<uint32_t>(
+        op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
     for (size_t i = 1; i < op->args.size(); ++i) {
       values.push_back(MakeValue(op->args[i]));
@@ -285,6 +282,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->is_intrinsic(CallNode::reinterpret)) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    return builder_->UIntImm(builder_->GetSType(op->dtype), val);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {

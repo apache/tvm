@@ -280,12 +280,6 @@ void CodeGenStackVM::VisitExpr_(const IntImmNode* op) {
     this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
 }
 
-void CodeGenStackVM::VisitExpr_(const UIntImmNode* op) {
-  CHECK(op->value <= std::numeric_limits<int>::max())
-      << "Int constant exceed bound";
-  this->PushOp(StackVM::PUSH_I64, static_cast<int>(op->value));
-}
-
 void CodeGenStackVM::VisitExpr_(const FloatImmNode* op) {
   LOG(FATAL) << "Float Imm is not supported";
 }

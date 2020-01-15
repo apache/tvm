@@ -109,7 +109,7 @@ class ModularSetAnalyzer::Impl :
   // Detect useful constraints and use them in the analysis scope.
   std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     PVar<Var> var;
-    PVar<Integer> coeff, base;
+    PVar<IntImm> coeff, base;
     // pattern match interesting constraints
     if ((truncmod(var, coeff) == base).Match(constraint) ||
         (floormod(var, coeff) == base).Match(constraint)) {
@@ -130,14 +130,6 @@ class ModularSetAnalyzer::Impl :
 
   Entry VisitExpr_(const IntImmNode* op) final {
     return Entry(0, op->value);
-  }
-
-  Entry VisitExpr_(const UIntImmNode* op) final {
-    if (op->value < std::numeric_limits<int64_t>::max()) {
-      return Entry(0, static_cast<int>(op->value));
-    } else {
-      return Everything();
-    }
   }
 
   Entry VisitExpr_(const AddNode* op) final {
