@@ -79,10 +79,7 @@ void CodeGenHybrid::PrintType(DataType t, std::ostream &os) {
 void CodeGenHybrid::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
   os << op->value;
 }
-void CodeGenHybrid::VisitExpr_(const UIntImmNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->dtype, os);
-  os << "(" << op->value << ")";
-}
+
 void CodeGenHybrid::VisitExpr_(const FloatImmNode* op, std::ostream& os) { // NOLINT(*)
   PrintType(op->dtype, os);
   os << "(" << std::setprecision(20) << op->value << ")";

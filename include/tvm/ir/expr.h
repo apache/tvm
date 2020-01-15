@@ -132,6 +132,56 @@ class PrimExpr : public BaseExpr {
 };
 
 /*!
+ * \brief Constant integer literals in the program.
+ * \sa IntImm
+ */
+class IntImmNode : public PrimExprNode {
+ public:
+  /*! \brief the Internal value. */
+  int64_t value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
+  }
+
+  static constexpr const char* _type_key = "IntImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference class to IntImmNode.
+ *
+ * \sa IntImmNode
+ */
+class IntImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor
+   */
+  IntImm() {}
+  /*!
+   * \brief constructor from node.
+   */
+  explicit IntImm(ObjectPtr<Object> node) : PrimExpr(node) {}
+  /*!
+   * \brief Constructor.
+   * \param dtype The data type of the value.
+   * \param value The internal value.
+   */
+  TVM_DLL IntImm(DataType dtype, int64_t value);
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the content of the integer.
+   */
+  const IntImmNode* operator->() const {
+    return static_cast<const IntImmNode*>(get());
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = IntImmNode;
+};
+
+/*!
  * \brief Base node of all non-primitive expressions.
  *
  * RelayExpr supports tensor types, functions and ADT as

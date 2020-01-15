@@ -462,7 +462,7 @@ class BufferAnalyser : public StmtExprVisitor {
       strides = bi.strides;
     } else {
       for (size_t i = 1; i < bi.shape.size(); ++i) {
-        PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
+        PrimExpr stride = IntImm(DataType::Int(32), 1);
         for (size_t j = bi.shape.size() - 1; j >= i; --j) {
           stride = MulNode::make(stride, bi.shape[j]);
         }
@@ -575,7 +575,7 @@ class BufferAnalyser : public StmtExprVisitor {
         strides = bi.strides;
       } else {
         for (size_t i = 1; i < bi.shape.size(); ++i) {
-          PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
+          PrimExpr stride = IntImm(DataType::Int(32), 1);
           for (size_t j = bi.shape.size() - 1; j >= i; --j) {
             stride = MulNode::make(stride, bi.shape[j]);
           }
@@ -765,7 +765,7 @@ class ThreadIdxMutator : public StmtExprMutator {
     op = expr.as<VarNode>();
     if (op != nullptr) {
       if (op->name_hint == "threadIdx.x") {
-        PrimExpr zero = IntImmNode::make(DataType::Int(32), 0);
+        PrimExpr zero = IntImm(DataType::Int(32), 0);
         return zero;
       }
       if (op->name_hint == "threadIdx.y") {
@@ -934,7 +934,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
       PrimExpr stride = strides[strides.size()-2];
 
       // thread index unification inside a warp
-      PrimExpr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
+      PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       PrimExpr mutated_value = thread_idx_mutator(op->value);
       PrimExpr src = CallNode::make(value->dtype,
@@ -984,7 +984,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
       PrimExpr dst = it3->second;
       // thread index unification inside a warp
-      PrimExpr warp_y = IntImmNode::make(DataType::Int(32), warp_threads_y_);
+      PrimExpr warp_y = IntImm(DataType::Int(32), warp_threads_y_);
       ThreadIdxMutator thread_idx_mutator(warp_y);
       dst = thread_idx_mutator(dst);
       dst = CallNode::make(DataType::Handle(),
@@ -1089,7 +1089,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
 
     Array<PrimExpr> strides;
     for (size_t i = 1; i < shape.size(); ++i) {
-      PrimExpr stride = IntImmNode::make(DataType::Int(32), 1);
+      PrimExpr stride = IntImm(DataType::Int(32), 1);
       for (size_t j = shape.size() - 1; j >= i; --j) {
         stride = MulNode::make(stride, shape[j]);
       }
@@ -1097,7 +1097,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     }
     strides.push_back(make_const(DataType::Int(32), 1));
 
-    PrimExpr elem_offset = IntImmNode::make(DataType::Int(32), 0);
+    PrimExpr elem_offset = IntImm(DataType::Int(32), 0);
     CHECK_EQ(call->args.size(), min_bound.size());
     for (size_t i = 0; i < min_bound.size(); i++) {
       elem_offset = AddNode::make(

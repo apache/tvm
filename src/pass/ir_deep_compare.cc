@@ -252,10 +252,6 @@ class IRDeepCompare :
     CompareValue(op->value, other.as<IntImmNode>()->value);
   }
 
-  void VisitExpr_(const UIntImmNode *op, const PrimExpr& other) final {
-    CompareValue(op->value, other.as<UIntImmNode>()->value);
-  }
-
   void VisitExpr_(const FloatImmNode *op, const PrimExpr& other) final {
     CompareValue(op->value, other.as<FloatImmNode>()->value);
   }

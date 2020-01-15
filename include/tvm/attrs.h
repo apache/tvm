@@ -490,8 +490,6 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
     CHECK(expr.defined());
     if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<T>(op->value);
-    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
-      *ptr = static_cast<T>(op->value);
     } else {
       LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
     }
@@ -522,8 +520,6 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
     if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
-      *ptr = static_cast<double>(op->value);
-    } else if (const ir::UIntImmNode* op = expr.as<ir::UIntImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else {
       LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();

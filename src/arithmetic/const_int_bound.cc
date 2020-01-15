@@ -150,14 +150,6 @@ class ConstIntBoundAnalyzer::Impl :
     return MakeBound(op->value, op->value);
   }
 
-  Entry VisitExpr_(const UIntImmNode* op) final {
-    if (op->value <= static_cast<uint64_t>(kPosInf)) {
-      return MakeBound(op->value, op->value);
-    } else {
-      return Everything(op->dtype);
-    }
-  }
-
   Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
@@ -496,7 +488,7 @@ class ConstIntBoundAnalyzer::Impl :
    */
   static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
     PVar<PrimExpr> x, y;
-    PVar<Integer> c;
+    PVar<IntImm> c;
     // NOTE: canonical form always use <= or <
     if ((c <= x).Match(cond)) {
       return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};

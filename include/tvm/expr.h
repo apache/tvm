@@ -115,55 +115,37 @@ class Var : public PrimExpr {
   using ContainerType = VarNode;
 };
 
-class Integer;
-/*! \brief ExprNode: constant integer. */
-class IntImmNode : public PrimExprNode {
- public:
-  /*! \brief the Internal value. */
-  int64_t value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static Integer make(DataType t, int64_t value);
-
-  static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
-};
-
 /*!
- * \brief Container of constant integer (IntImm).
+ * \brief Container of constant int that adds more constructors.
  *
  * This is used to store and automate type check
  * attributes that must be constant integer.
+ *
+ * \sa IntImm
  */
-class Integer : public PrimExpr {
+class Integer : public IntImm {
  public:
-  Integer() : PrimExpr() {}
+  Integer() {}
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : PrimExpr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value) : PrimExpr(value) {}  // NOLINT(*)
+  Integer(int value) : IntImm(DataType::Int(32), value) {}  // NOLINT(*)
+  /*!
+   * \brief Construct integer from int imm.
+   * \param other The other value.
+   */
+  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
   /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
    */
-  Integer& operator=(const Integer& other) {
-    data_ = other.data_;
+  Integer& operator=(const IntImm& other) {
+    data_ = ObjectRef::GetDataPtr<Object>(other);
     return *this;
-  }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the content of the integer.
-   */
-  const IntImmNode* operator->() const {
-    return static_cast<const IntImmNode*>(get());
   }
   /*!
    * \brief convert to int64_t
@@ -173,8 +155,6 @@ class Integer : public PrimExpr {
         << " Trying to reference a null Integer";
     return (*this)->value;
   }
-  /*! \brief type indicate the container type */
-  using ContainerType = IntImmNode;
 };
 
 /*! \brief range over one dimension */

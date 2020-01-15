@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <type_traits>
+#include <limits>
 #include "expr.h"
 #include "ir.h"
 
@@ -76,21 +77,6 @@ inline PrimExpr const_false(int lanes = 1) {
 inline const int64_t* as_const_int(const PrimExpr& x) {
   if (!x.defined()) return nullptr;
   if (const ir::IntImmNode* op = x.as<ir::IntImmNode>()) {
-    return &(op->value);
-  } else {
-    return nullptr;
-  }
-}
-
-/*!
- * \brief Get x as constant uint expression.
- * \param x The expression
- * \return the address to the int expression,
- *         return nullptr, if x is not UIntImm.
- */
-inline const uint64_t* as_const_uint(const PrimExpr& x) {
-  if (!x.defined()) return nullptr;
-  if (const ir::UIntImmNode* op = x.as<ir::UIntImmNode>()) {
     return &(op->value);
   } else {
     return nullptr;
@@ -597,6 +583,15 @@ TVM_DLL PrimExpr nearbyint(PrimExpr x);
  */
 TVM_DLL PrimExpr trunc(PrimExpr x);
 
+/*!
+ * \brief Construct a large uint constant by its low 32 bits and high 32bits.
+ * \param dtype The final data type.
+ * \param low The lower 32 bits.
+ * \param high The higher 32 bits.
+ * \return The constructed expression.
+ */
+TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
+
 // Intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                             \
   inline PrimExpr OpName(PrimExpr x) {                                     \
@@ -617,11 +612,11 @@ TVM_DECLARE_INTRIN_UNARY(atan);
 
 // Implementation details after this
 inline bool is_const(const PrimExpr& x) {
-  if (x.as<ir::IntImmNode>() || x.as<ir::UIntImmNode>()) {
+  if (x.as<ir::IntImmNode>()) {
     return true;
   } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
-    if (val.as<ir::IntImmNode>() || val.as<ir::UIntImmNode>()) {
+    if (val.as<ir::IntImmNode>()) {
       return true;
     }
   }
@@ -630,8 +625,6 @@ inline bool is_const(const PrimExpr& x) {
 
 inline bool is_positive_const(const PrimExpr& a) {
   if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
-    return op->value > 0;
-  } else if (const ir::UIntImmNode* op = a.as<ir::UIntImmNode>()) {
     return op->value > 0;
   } else {
     return false;
@@ -649,14 +642,10 @@ inline bool is_negative_const(const PrimExpr& a) {
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
   if (const auto* op = x.as<ir::IntImmNode>()) {
     return op->value == value;
-  } else if (const auto* op = x.as<ir::UIntImmNode>()) {
-    return op->value == static_cast<uint64_t>(value);
   } else if (const auto* op = x.as<ir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
     if (const auto* opv = val.as<ir::IntImmNode>()) {
       return opv->value == value;
-    } else if (const auto* opv = val.as<ir::UIntImmNode>()) {
-      return opv->value == static_cast<uint64_t>(value);
     }
   }
   return false;
@@ -675,15 +664,27 @@ inline bool is_no_op(const Stmt& stmt) {
 
 template<typename ValueType>
 inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
-  if (t.is_int()) return ir::IntImmNode::make(t, static_cast<int64_t>(value));
-  if (t.is_uint()) return ir::UIntImmNode::make(t, static_cast<uint64_t>(value));
+  if (t.is_int()) return IntImm(t, static_cast<int64_t>(value));
+  if (t.is_uint()) {
+    // Use IntImm if it is a small integer
+    uint64_t uval = static_cast<uint64_t>(value);
+    if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      return IntImm(t, static_cast<int64_t>(value));
+    } else {
+      uint64_t mask = (static_cast<uint64_t>(1) << 32U) - 1U;
+      uint64_t low = uval & mask;
+      uint64_t high = uval >> 32U;
+      return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high));
+    }
+  }
   if (t.is_float()) return ir::FloatImmNode::make(t, static_cast<double>(value));
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kCustomBegin))
+  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kCustomBegin)) {
     return ir::FloatImmNode::make(t, static_cast<double>(value));
+  }
   LOG(FATAL) << "cannot make const for type " << t;
   return PrimExpr();
 }
