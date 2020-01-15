@@ -21,7 +21,7 @@
  * \file src/runtime/vm/object.cc
  * \brief VM related objects.
  */
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm.h>

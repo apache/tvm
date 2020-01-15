@@ -34,7 +34,7 @@
 #include <string>
 #include <map>
 
-#include "../common/base64.h"
+#include "../support/base64.h"
 
 namespace tvm {
 
@@ -392,7 +392,7 @@ struct JSONGraph {
     for (DLTensor* tensor : indexer.tensor_list_) {
       std::string blob;
       dmlc::MemoryStringStream mstrm(&blob);
-      common::Base64OutStream b64strm(&mstrm);
+      support::Base64OutStream b64strm(&mstrm);
       runtime::SaveDLTensor(&b64strm, tensor);
       b64strm.Finish();
       g.b64ndarrays.emplace_back(std::move(blob));
@@ -420,7 +420,7 @@ ObjectRef LoadJSON(std::string json_str) {
   // load in tensors
   for (const std::string& blob : jgraph.b64ndarrays) {
     dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
-    common::Base64InStream b64strm(&mstrm);
+    support::Base64InStream b64strm(&mstrm);
     b64strm.InitPosition();
     runtime::NDArray temp;
     CHECK(temp.Load(&b64strm));

@@ -28,7 +28,6 @@
 #ifndef TVM_SCHEDULE_PASS_H_
 #define TVM_SCHEDULE_PASS_H_
 
-#include "base.h"
 #include "schedule.h"
 
 namespace tvm {

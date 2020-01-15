@@ -26,7 +26,6 @@
 
 #include <string>
 
-#include "base.h"
 #include "expr.h"
 #include "expr_operator.h"
 #include "tvm/node/container.h"
