@@ -25,7 +25,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
@@ -130,7 +130,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
 
 class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  public:
-  explicit StorageAllocaInit(common::Arena* arena)
+  explicit StorageAllocaInit(support::Arena* arena)
       : arena_(arena) {}
 
   /*! \return The internal token map */
@@ -183,7 +183,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
 
  private:
   // allocator
-  common::Arena* arena_;
+  support::Arena* arena_;
   Map<Expr, Integer> node_device_map_;
 };
 
@@ -374,7 +374,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
  private:
   // allocator
-  common::Arena arena_;
+  support::Arena arena_;
   // scale used for rough match
   size_t match_range_{16};
   // free list of storage entry

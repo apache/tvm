@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,14 +23,14 @@
  * \brief Arena allocator that allocates
  *  memory chunks and frees them all during destruction time.
  */
-#ifndef TVM_COMMON_ARENA_H_
-#define TVM_COMMON_ARENA_H_
+#ifndef TVM_SUPPORT_ARENA_H_
+#define TVM_SUPPORT_ARENA_H_
 
 #include <utility>
 #include <type_traits>
 
 namespace tvm {
-namespace common {
+namespace support {
 
 const constexpr int kArenaPageSize = 16 << 10;
 
@@ -162,6 +162,6 @@ struct LinkedList {
   }
 };
 
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_COMMON_ARENA_H_
+#endif  // TVM_SUPPORT_ARENA_H_

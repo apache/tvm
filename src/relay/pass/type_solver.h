@@ -32,14 +32,14 @@
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 
 namespace tvm {
 namespace relay {
 
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 /*!
  * \brief Interface of type solver used in type inference.
@@ -171,7 +171,7 @@ class TypeSolver {
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*! \brief The global representing the current function. */

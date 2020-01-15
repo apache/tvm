@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,8 +22,8 @@
  * \brief this file aims to provide a wrapper of sockets
  * \author Tianqi Chen
  */
-#ifndef TVM_COMMON_SOCKET_H_
-#define TVM_COMMON_SOCKET_H_
+#ifndef TVM_SUPPORT_SOCKET_H_
+#define TVM_SUPPORT_SOCKET_H_
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -50,7 +50,7 @@ using ssize_t = int;
 #include <cstring>
 #include <vector>
 #include <unordered_map>
-#include "../common/util.h"
+#include "../support/util.h"
 
 #if defined(_WIN32)
 static inline int poll(struct pollfd *pfd, int nfds,
@@ -62,7 +62,7 @@ static inline int poll(struct pollfd *pfd, int nfds,
 #endif  // defined(_WIN32)
 
 namespace tvm {
-namespace common {
+namespace support {
 /*!
  * \brief Get current host name.
  * \return The hostname.
@@ -648,6 +648,6 @@ struct PollHelper {
   std::unordered_map<TCPSocket::SockType, pollfd> fds;
 };
 
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_COMMON_SOCKET_H_
+#endif  // TVM_SUPPORT_SOCKET_H_

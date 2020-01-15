@@ -164,7 +164,7 @@ void LinuxShared(const std::string output,
     }
     cmd += " " + options;
     std::string err_msg;
-    auto executed_status = common::Execute(cmd, &err_msg);
+    auto executed_status = support::Execute(cmd, &err_msg);
     if (executed_status) {
       LOG(FATAL) << err_msg;
     }
@@ -195,22 +195,22 @@ void CreateShared(const std::string output, const std::vector<std::string> &file
  */
 Module Load(std::string *fileIn, const std::string fmt) {
   std::string file = *fileIn;
-  if (common::EndsWith(file, ".so")) {
+  if (support::EndsWith(file, ".so")) {
       return Module::LoadFromFile(file, fmt);
   }
 
   #if defined(__linux__) || defined(__ANDROID__)
     std::string file_name = file + ".so";
-    if (common::EndsWith(file, ".o")) {
+    if (support::EndsWith(file, ".o")) {
       std::vector<std::string> files;
       files.push_back(file);
       CreateShared(file_name, files);
-    } else if (common::EndsWith(file, ".tar")) {
+    } else if (support::EndsWith(file, ".tar")) {
       std::string tmp_dir = "./rpc/tmp/";
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
       std::string err_msg;
-      int executed_status = common::Execute(cmd, &err_msg);
+      int executed_status = support::Execute(cmd, &err_msg);
       if (executed_status) {
         LOG(FATAL) << err_msg;
       }

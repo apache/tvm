@@ -21,7 +21,7 @@ Header files in include are public APIs that share across modules.
 There can be internal header files within each module that sit in src.
 
 ## Modules
-- common: Internal common utilities.
+- support: Internal support utilities.
 - runtime: Minimum runtime related codes.
 - node: base infra for IR/AST nodes that is dialect independent.
 - api: API function registration.

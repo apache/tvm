@@ -30,7 +30,7 @@
 #include <string>
 #include <memory>
 #include <utility>
-#include "../../common/ring_buffer.h"
+#include "../../support/ring_buffer.h"
 
 namespace tvm {
 namespace runtime {
@@ -270,7 +270,7 @@ class RPCSession {
   // Internal mutex
   std::recursive_mutex mutex_;
   // Internal ring buffer.
-  common::RingBuffer reader_, writer_;
+  support::RingBuffer reader_, writer_;
   // Event handler.
   std::shared_ptr<EventHandler> handler_;
   // call remote with specified function code.
