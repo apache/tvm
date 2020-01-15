@@ -38,16 +38,11 @@ def test_expr_constructor():
     assert x.value == 2
     assert x.dtype == "int64"
 
-    x = tvm.expr.UIntImm("uint16", 2)
-    assert isinstance(x, tvm.expr.UIntImm)
-    assert x.value == 2
-    assert x.dtype == "uint16"
-
     x = tvm.expr.StringImm("xyza")
     assert isinstance(x, tvm.expr.StringImm)
     assert x.value == "xyza"
 
-    x = tvm.expr.Cast("float32", tvm.expr.IntImm("int32", 1))
+    x = tvm.expr.Cast("float32", tvm.expr.IntImm("uint32", 1))
     assert isinstance(x, tvm.expr.Cast)
     assert x.dtype == "float32"
     assert x.value.value == 1

@@ -342,23 +342,6 @@ class IntImm(ConstExpr):
 
 
 @register_object
-class UIntImm(ConstExpr):
-    """UInt constant.
-
-    Parameters
-    ----------
-    dtype : str
-        The data type
-
-    value : int
-        The constant value.
-    """
-    def __init__(self, dtype, value):
-        self.__init_handle_by_constructor__(
-            _make.UIntImm, dtype, value)
-
-
-@register_object
 class StringImm(ConstExpr):
     """String constant.
 

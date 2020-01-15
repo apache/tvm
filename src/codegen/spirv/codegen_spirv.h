@@ -65,7 +65,6 @@ class CodeGenSPIRV:
   spirv::Value VisitExpr_(const VarNode* op) override;
   spirv::Value VisitExpr_(const CastNode* op) override;
   spirv::Value VisitExpr_(const IntImmNode* op) override;
-  spirv::Value VisitExpr_(const UIntImmNode* op) override;
   spirv::Value VisitExpr_(const FloatImmNode* op) override;
   spirv::Value VisitExpr_(const StringImmNode* op) override;
   spirv::Value VisitExpr_(const AddNode* op) override;

@@ -173,7 +173,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const MaxNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
-    PVar<Integer> c;
+    PVar<IntImm> c;
     auto e = GetRef<PrimExpr>(op);
     if (max(floordiv(x, y), c).Match(e) &&
         c.Eval()->value >= 0 &&

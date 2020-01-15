@@ -384,10 +384,6 @@ class IntervalSetEvaluator :
     return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
   }
 
-  IntervalSet VisitExpr_(const UIntImmNode* op) final {
-    return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
-  }
-
   IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = GetRef<Var>(op);
     auto it = dom_map_.find(var);
@@ -476,7 +472,7 @@ class IntervalSetEvaluator :
   IntervalSet VisitExpr_(const RampNode* op) final {
     CHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
-    PVar<Integer> stride;
+    PVar<IntImm> stride;
     if (stride.Match(op->stride)) {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;

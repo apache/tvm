@@ -737,7 +737,7 @@ VisitExpr_(const DivNode* op) {
   // const folding
   PrimExpr const_res = TryConstFold<DivNode>(a, b);
   if (const_res.defined()) return const_res;
-  PVar<Integer> c1;
+  PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -797,7 +797,7 @@ VisitExpr_(const FloorDivNode* op) {
   // const folding
   PrimExpr const_res = TryConstFold<FloorDivNode>(a, b);
   if (const_res.defined()) return const_res;
-  PVar<Integer> c1;
+  PVar<IntImm> c1;
   // x / c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -905,7 +905,7 @@ VisitExpr_(const ModNode* op) {
   PrimExpr const_res = TryConstFold<ModNode>(a, b);
   if (const_res.defined()) return const_res;
 
-  PVar<Integer> c1;
+  PVar<IntImm> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;
@@ -975,7 +975,7 @@ VisitExpr_(const FloorModNode* op) {
   PrimExpr const_res = TryConstFold<FloorModNode>(a, b);
   if (const_res.defined()) return const_res;
 
-  PVar<Integer> c1;
+  PVar<IntImm> c1;
   // x % c1
   if (c1.Match(b) && c1.Eval()->value > 0) {
     int64_t cval = c1.Eval()->value;

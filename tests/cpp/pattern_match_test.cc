@@ -127,10 +127,10 @@ TEST(Pattern, Basic) {
   }
 }
 
-TEST(Pattern, Integer) {
+TEST(Pattern, IntImm) {
   using namespace tvm;
   tvm::Var tx, ty;
-  arith::PVar<Integer> c;
+  arith::PVar<IntImm> c;
   arith::PVar<Var> v;
   {
     // We can match integer and Var, both of which are

@@ -29,7 +29,7 @@ def test_const_fold():
     def check(f, *args):
         x = f(*[tvm.const(x, "int32") for x in args])
         y = f(*args)
-        if not isinstance(x, (tvm.expr.IntImm, tvm.expr.UIntImm)) or x.value != int(y):
+        if not isinstance(x, (tvm.expr.IntImm,)) or x.value != int(y):
             raise ValueError("check error: %s vs %s " % (x, y))
 
     tmod = tvm.truncmod
