@@ -260,6 +260,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cstdlib>\n";
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
     // dnnl_kernel file is saved under src/runtime/contrib/dnnl so that we don't
     // expose it to ordinary users. To make export_library use it, users need to

@@ -154,12 +154,9 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
   runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     // Create headers
-    code_stream_ << "#include <cstdint>\n";
-    code_stream_ << "#include <iostream>\n";
-    code_stream_ << "#include <cstdlib>\n";
-    code_stream_ << "#include <stdio.h>\n";
     code_stream_ << "#include <cstring>\n";
     code_stream_ << "#include <tvm/runtime/c_runtime_api.h>\n";
+    code_stream_ << "#include <tvm/runtime/packed_func.h>\n";
     code_stream_ << "#include <dlpack/dlpack.h>\n";
 
     // Append some common macro for operator definition.
