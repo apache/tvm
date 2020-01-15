@@ -570,8 +570,11 @@ def test_conv2d_transpose_nchw_run():
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-    ref_res = topi.testing.conv2d_transpose_nchw_python(
-        data, kernel, 2, 1, (2, 2))
+    c_np = topi.testing.conv2d_transpose_nchw_python(
+        data, kernel, 2, 1)
+    d_np = np.zeros(shape=oshape)
+    d_np[:,:,0:c_np.shape[2],0:c_np.shape[3]] = c_np
+    ref_res = d_np
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
@@ -596,14 +599,9 @@ def test_conv2d_transpose_nhwc_run():
     data = np.random.uniform(size=dshape_nhwc).astype(dtype)
     kernel = np.random.uniform(size=kshape_hwoi).astype(dtype)
     # use true kshape layout here - HWOI
-
-    ref_res = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI',
-                                                        2, 1, output_padding=(2, 2))
-
-    for target, ctx in ctx_list():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(data, kernel)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+    c_np = topi.testing.conv2d_transpose_nhwc_python(data, kernel, 'HWOI', 2, 1)
+    d_np = np.zeros(shape=oshape_nhwc)
+    d_np[:,0:c_np.shape[1],0:c_np.shape[2],:] = c_np
 
 
 def test_conv1d_transpose_ncw_run():
@@ -619,8 +617,11 @@ def test_conv1d_transpose_ncw_run():
     dtype = "float32"
     data = np.random.uniform(size=dshape).astype(dtype)
     kernel = np.random.uniform(size=kshape).astype(dtype)
-    ref_res = topi.testing.conv1d_transpose_ncw_python(
-        data, kernel, 2, 1, output_padding=(2,))
+    c_np = topi.testing.conv1d_transpose_ncw_python(
+        data, kernel, 2, 1)
+    d_np = np.zeros(shape=oshape)
+    d_np[:,:,0:c_np.shape[2]] = c_np
+    ref_res = d_np
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
