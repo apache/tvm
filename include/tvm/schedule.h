@@ -27,7 +27,6 @@
 
 #include <string>
 #include <unordered_map>
-#include "base.h"
 #include "expr.h"
 #include "tensor.h"
 #include "tensor_intrin.h"

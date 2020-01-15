@@ -30,7 +30,6 @@
 #include <utility>
 #include <type_traits>
 
-#include "base.h"
 #include "expr.h"
 #include "expr_operator.h"
 #include "arithmetic.h"

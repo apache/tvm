@@ -20,7 +20,7 @@
 /*!
  * \file ir.cc
  */
-#include <tvm/base.h>
+
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>

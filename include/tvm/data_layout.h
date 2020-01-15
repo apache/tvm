@@ -25,7 +25,7 @@
 #ifndef TVM_DATA_LAYOUT_H_
 #define TVM_DATA_LAYOUT_H_
 
-#include <tvm/base.h>
+
 #include <tvm/expr.h>
 
 #include <string>

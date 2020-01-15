@@ -24,6 +24,8 @@
 #ifndef TVM_ARITHMETIC_H_
 #define TVM_ARITHMETIC_H_
 
+#include <tvm/support/with.h>
+
 #include <vector>
 #include <unordered_map>
 #include <memory>
