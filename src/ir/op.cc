@@ -36,6 +36,10 @@ DMLC_REGISTRY_ENABLE(::tvm::OpRegistry);
 
 namespace tvm {
 
+using runtime::TVMRetValue;
+using runtime::TVMArgs;
+using runtime::PackedFunc;
+
 ::dmlc::Registry<OpRegistry>* OpRegistry::Registry() {
   return ::dmlc::Registry<OpRegistry>::Get();
 }
