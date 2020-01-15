@@ -78,6 +78,7 @@ Our goal is to generate the following compilable code to execute the subgraph:
 .. code-block:: c++
 
     #include <tvm/runtime/c_runtime_api.h>
+    #include <tvm/runtime/packed_func.h>
     #include <dlpack/dlpack.h>
     #include <cstdint>
     #include <cstring>
@@ -118,21 +119,14 @@ Our goal is to generate the following compilable code to execute the subgraph:
     }
 
     // Note 3
-    extern "C" int gcc_0(TVMValue* value, int* type_code, int nargs) {
-      if (nargs != 5) {
-        printf("Expect 5 args, but get %d", nargs);
-        return 1;
-      }
-      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
+    extern "C" int gcc_0_wrapper(DLTensor* arg0, DLTensor* arg1, DLTensor* arg2,
+                                 DLTensor* arg3, DLTensor* out) {
       gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
              static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
              static_cast<float*>(out->data));
       return 0;
     }
+    TVM_DLL_EXPORT_TYPED_FUNC(gcc_0, gcc_0_wrapper);
 
 Here we highlight the notes marked in the above code:
 
@@ -140,7 +134,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 2** is a function to execute the subgraph by allocating intermediate buffers and invoking corresponding functions.
 
-* **Note 3** is a TVM runtime compatible wrapper function with unified arguments. It accepts and unpacks the packed data ``TVMValue``, and invokes the corresponding function to execute the subgraph. Due to the unified function arguments, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
+* **Note 3** is a TVM runtime compatible wrapper function. It accepts a list of input tensors and one output tensor (the last argument), casts them to the right data type, and invokes the subgraph function described in Note 2. In addition, ``TVM_DLL_EXPORT_TYPED_FUNC`` is a TVM macro that generates another function ``gcc_0`` with unified the function arguments by packing all tensors to ``TVMArgs``. As a result, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
 In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under ``src/relay/backend/contrib/codegen_c/codegen.cc``. Feel free to check this file for a complete implementation.
 
@@ -366,11 +360,13 @@ The final part in this codegen class is a ``JIT`` function that emits a C functi
           {"gcc_0_2(gcc_input0, gcc_input1, buf_0);"} /* Function body */,
           {"out"} /* Output */);
 
-The above call will generate two functions:
+The above call will generate three functions (one from the TVM wrapper macro):
 
 1. The subgraph function ``gcc_0_`` (with one more underline at the end of the function name) with all C code we generated to execute a subgaph.
 
-2. The wrapper function ``gcc_0`` with TVM unified function arguments that unpacks TVM packed tensors and invokes ``gcc_0_``.
+2. The wrapper function ``gcc_0__wrapper_`` with a list of ``DLTensor`` arguments that casts data to the right type and invokes ``gcc_0_``.
+
+3. The TVM runtime compatible function ``gcc_0`` with TVM unified function arguments that unpacks TVM packed tensors and invokes ``gcc_0__wrapper_``.
 
 Accordingly, the only thing we need in ``JIT`` implementation is passing all subgraph function code we generated to ``JitImpl``:
 
