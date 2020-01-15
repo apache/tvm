@@ -342,9 +342,9 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   if (dtype.type == DataType::UInt(1)) {
     // bool types.
     if (*pvalue) {
-      ib_.Begin(spv::OpConstantTrue).AddSeq(ret);
+      ib_.Begin(spv::OpConstantTrue).AddSeq(dtype, ret);
     } else {
-      ib_.Begin(spv::OpConstantFalse).AddSeq(ret);
+      ib_.Begin(spv::OpConstantFalse).AddSeq(dtype, ret);
     }
   } else {
     // Integral/floating-point types.

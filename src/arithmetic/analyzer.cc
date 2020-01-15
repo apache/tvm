@@ -87,15 +87,15 @@ bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
 }
 
 bool Analyzer::CanProve(const PrimExpr& expr) {
-  if (const auto* ptr = expr.as<ir::UIntImmNode>()) {
+  if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   auto res = this->rewrite_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImmNode>()) {
+  if (const auto* ptr = res.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   res = this->canonical_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImmNode>()) {
+  if (const auto* ptr = res.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   return false;
