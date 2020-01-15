@@ -32,7 +32,7 @@ namespace relay {
 // Creator of DependencyGraph
 class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
  public:
-  explicit Creator(common::Arena* arena)
+  explicit Creator(support::Arena* arena)
     : arena_(arena) {}
 
   DependencyGraph Create(const Expr& body) {
@@ -42,7 +42,7 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
 
  private:
   /*! \brief allocator of all the internal node object */
-  common::Arena* arena_;
+  support::Arena* arena_;
   // The output.
   DependencyGraph graph_;
   // Update the message stored at the node.
@@ -175,7 +175,7 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
   void VisitExpr_(const ConstructorNode* c) final { }
 };
 
-DependencyGraph DependencyGraph::Create(common::Arena* arena, const Expr& body) {
+DependencyGraph DependencyGraph::Create(support::Arena* arena, const Expr& body) {
   return Creator(arena).Create(body);
 }
 

@@ -36,8 +36,8 @@
 #include <algorithm>
 #include "rpc_session.h"
 #include "../object_internal.h"
-#include "../../common/ring_buffer.h"
-#include "../../common/socket.h"
+#include "../../support/ring_buffer.h"
+#include "../../support/socket.h"
 
 namespace tvm {
 namespace runtime {
@@ -73,8 +73,8 @@ struct RPCArgBuffer {
 // Event handler for RPC events.
 class RPCSession::EventHandler : public dmlc::Stream {
  public:
-  EventHandler(common::RingBuffer* reader,
-               common::RingBuffer* writer,
+  EventHandler(support::RingBuffer* reader,
+               support::RingBuffer* writer,
                int rpc_sess_table_index,
                std::string name,
                std::string* remote_key)
@@ -819,9 +819,9 @@ class RPCSession::EventHandler : public dmlc::Stream {
   // Number of pending bytes requests
   size_t pending_request_bytes_;
   // The ring buffer to read data from.
-  common::RingBuffer* reader_;
+  support::RingBuffer* reader_;
   // The ringr buffer to write reply to.
-  common::RingBuffer* writer_;
+  support::RingBuffer* writer_;
   // Session table index.
   int rpc_sess_table_index_;
   // Name of session.
@@ -1336,7 +1336,7 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
   bytes.size = size;
   int64_t n = fsend_(bytes);
   if (n == -1) {
-    common::Socket::Error("CallbackChannel::Send");
+    support::Socket::Error("CallbackChannel::Send");
   }
   return static_cast<size_t>(n);
 }
@@ -1344,7 +1344,7 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
 size_t CallbackChannel::Recv(void* data, size_t size) {
   TVMRetValue ret = frecv_(size);
   if (ret.type_code() != kBytes) {
-    common::Socket::Error("CallbackChannel::Recv");
+    support::Socket::Error("CallbackChannel::Recv");
   }
   std::string* bytes = ret.ptr<std::string>();
   memcpy(static_cast<char*>(data), bytes->c_str(), bytes->length());

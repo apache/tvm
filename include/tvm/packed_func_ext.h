@@ -30,7 +30,6 @@
 #include <limits>
 #include <type_traits>
 
-#include "base.h"
 #include "expr.h"
 #include "tensor.h"
 #include "runtime/packed_func.h"

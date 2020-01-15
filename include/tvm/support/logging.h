@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/logging.h
+ * \file tvm/support/logging.h
  * \brief logging utilities on top of dmlc-core
  */
-#ifndef TVM_LOGGING_H_
-#define TVM_LOGGING_H_
+#ifndef TVM_SUPPORT_LOGGING_H_
+#define TVM_SUPPORT_LOGGING_H_
 
 // a technique that enables overriding macro names on the number of parameters. This is used
 // to define other macros below
@@ -114,4 +114,4 @@
 #define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
 #define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
 
-#endif   // TVM_LOGGING_H_
+#endif   // TVM_SUPPORT_LOGGING_H_

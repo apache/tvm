@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -23,8 +23,8 @@
  * \brief data stream support to input and output from/to base64 stream
  *   base64 is easier to store and pass as text format in mapreduce
  */
-#ifndef TVM_COMMON_BASE64_H_
-#define TVM_COMMON_BASE64_H_
+#ifndef TVM_SUPPORT_BASE64_H_
+#define TVM_SUPPORT_BASE64_H_
 
 #include <dmlc/logging.h>
 #include <dmlc/logging.h>
@@ -33,7 +33,7 @@
 #include <string>
 
 namespace tvm {
-namespace common {
+namespace support {
 /*! \brief namespace of base64 decoding and encoding table */
 namespace base64 {
 // decoding table
@@ -297,6 +297,6 @@ class Base64OutStream: public dmlc::Stream {
     }
   }
 };
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_COMMON_BASE64_H_
+#endif  // TVM_SUPPORT_BASE64_H_

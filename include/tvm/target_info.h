@@ -25,7 +25,6 @@
 #define TVM_TARGET_INFO_H_
 
 #include <string>
-#include "base.h"
 #include "expr.h"
 
 namespace tvm {

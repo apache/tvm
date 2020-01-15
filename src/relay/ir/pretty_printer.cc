@@ -887,7 +887,7 @@ class PrettyPrinter :
   /*! \brief whether the printer is currently in an ADT definition */
   bool in_adt_def_;
   /*! \brief arena for dependency graph */
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief dependency graph of the expr */
   DependencyGraph dg_;
   class AttrPrinter;
