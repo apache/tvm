@@ -18,8 +18,8 @@ import tvm
 import numpy as np
 
 def test_scan():
-    m = tvm.shape_var("m")
-    n = tvm.shape_var("n")
+    m = tvm.size_var("m")
+    n = tvm.size_var("n")
     X = tvm.placeholder((m, n), name="X")
     s_state = tvm.placeholder((m, n))
     s_init = tvm.compute((1, n), lambda _, i: X[0, i])

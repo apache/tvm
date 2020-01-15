@@ -19,7 +19,7 @@ from tvm.contrib import util
 import numpy as np
 
 def test_add_pipeline():
-    n = tvm.shape_var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(), name='C')

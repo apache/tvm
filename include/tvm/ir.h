@@ -38,7 +38,7 @@ namespace ir {
 
 using IntImmNode = tvm::IntImmNode;
 using VarNode = tvm::VarNode;
-using ShapeVarNode = tvm::ShapeVarNode;
+using SizeVarNode = tvm::SizeVarNode;
 
 /*! \brief constant unsigned integer. */
 class UIntImmNode : public PrimExprNode {

@@ -46,10 +46,10 @@ VarNode::VarNode(DataType t, std::string name_hint) {
   this->name_hint = std::move(name_hint);
 }
 
-ShapeVar::ShapeVar(std::string name_hint, DataType t)
-    : ShapeVar(make_object<ShapeVarNode>(t, name_hint)) {}
+SizeVar::SizeVar(std::string name_hint, DataType t)
+    : SizeVar(make_object<SizeVarNode>(t, name_hint)) {}
 
-ShapeVarNode::ShapeVarNode(DataType t, std::string name_hint)
+SizeVarNode::SizeVarNode(DataType t, std::string name_hint)
     : VarNode(t, std::move(name_hint)) {}
 
 Range::Range(PrimExpr begin, PrimExpr end)

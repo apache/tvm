@@ -36,9 +36,9 @@ TVM_REGISTER_GLOBAL("_Var")
     return Var(s, t);
   });
 
-TVM_REGISTER_GLOBAL("_ShapeVar")
+TVM_REGISTER_GLOBAL("_SizeVar")
 .set_body_typed([](std::string s, DataType t) {
-    return ShapeVar(s, t);
+    return SizeVar(s, t);
   });
 
 TVM_REGISTER_GLOBAL("make.abs")

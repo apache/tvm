@@ -17,8 +17,8 @@
 import tvm
 
 def test_lower_rfactor():
-    n = tvm.shape_var("n")
-    m = tvm.shape_var("m")
+    n = tvm.size_var("n")
+    m = tvm.size_var("m")
     A = tvm.placeholder((n, m), name='A')
     k = tvm.reduce_axis((0, m), "k")
     B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
@@ -33,7 +33,7 @@ def test_lower_rfactor():
     fapi = tvm.lower(s, [A, B])
 
 def test_dependent_output_shape():
-    n, m, x = tvm.shape_var('n'), tvm.shape_var('m'), tvm.shape_var('x')
+    n, m, x = tvm.size_var('n'), tvm.size_var('m'), tvm.size_var('x')
     A = tvm.placeholder((n, m))
     B = tvm.compute((m, n//x), lambda i, j: A[i,j] , name='B')
     s = tvm.create_schedule(B.op)

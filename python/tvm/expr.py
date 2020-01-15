@@ -279,8 +279,8 @@ class Var(PrimExpr):
 
 
 @register_object
-class ShapeVar(Var):
-    """Symbolic variable to represent a tensor shape size
+class SizeVar(Var):
+    """Symbolic variable to represent a tensor index size
        which is greater or equal to zero
 
     Parameters
@@ -294,7 +294,7 @@ class ShapeVar(Var):
     # pylint: disable=super-init-not-called
     def __init__(self, name, dtype):
         self.__init_handle_by_constructor__(
-            _api_internal._ShapeVar, name, dtype)
+            _api_internal._SizeVar, name, dtype)
 
 
 @register_object

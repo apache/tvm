@@ -89,6 +89,10 @@ class VarNode : public PrimExprNode {
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
   TVM_DLL explicit Var(std::string name_hint = "v",
                        DataType t = DataType::Int(32));
   /*!
@@ -117,43 +121,51 @@ class Var : public PrimExpr {
   using ContainerType = VarNode;
 };
 
-class ShapeVar;
+class SizeVar;
 /*!
- * \brief A variable node represent a tensor shape size,
+ * \brief A variable node represent a tensor index size,
  * whose value must be non-negative.
  */
-class ShapeVarNode : public VarNode {
+class SizeVarNode : public VarNode {
  public:
   /*! \brief constructor */
-  ShapeVarNode() {}
-  ShapeVarNode(DataType dtype, std::string name_hint);
+  SizeVarNode() {}
+  /*! \brief constructor
+   * \param dtype data type
+   * \param name_hint variable name
+   */
+  SizeVarNode(DataType dtype, std::string name_hint);
 
-  static constexpr const char* _type_key = "ShapeVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeVarNode, VarNode);
+  static constexpr const char* _type_key = "SizeVar";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
 };
 
-/*! \brief a named variable represents a tensor shape size */
-class ShapeVar : public Var {
+/*! \brief a named variable represents a tensor index size */
+class SizeVar : public Var {
  public:
-  explicit ShapeVar(ObjectPtr<Object> n) : Var(n) {}
-  TVM_DLL explicit ShapeVar(std::string name_hint = "s",
+  explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
+  TVM_DLL explicit SizeVar(std::string name_hint = "s",
                             DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const ShapeVarNode* operator->() const {
+  const SizeVarNode* operator->() const {
     return get();
   }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const ShapeVarNode* get() const {
-    return static_cast<const ShapeVarNode*>(data_.get());
+  const SizeVarNode* get() const {
+    return static_cast<const SizeVarNode*>(data_.get());
   }
   /*! \brief type indicate the container type */
-  using ContainerType = ShapeVarNode;
+  using ContainerType = SizeVarNode;
 };
 
 class Integer;

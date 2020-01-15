@@ -189,7 +189,7 @@ def var(name="tindex", dtype=int32):
     return _api_internal._Var(name, dtype)
 
 
-def shape_var(name="tindex", dtype=int32):
+def size_var(name="tindex", dtype=int32):
     """Create a new variable represents a tensor shape size, which is non-negative.
 
     Parameters
@@ -202,10 +202,10 @@ def shape_var(name="tindex", dtype=int32):
 
     Returns
     -------
-    var : ShapeVar
+    var : SizeVar
         The result symbolic shape variable.
     """
-    return _api_internal._ShapeVar(name, dtype)
+    return _api_internal._SizeVar(name, dtype)
 
 
 def any(*args):
