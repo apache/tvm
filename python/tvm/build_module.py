@@ -292,7 +292,6 @@ def get_binds(args, compact=False, binds=None):
     binds = {} if binds is None else binds.copy()
     cfg = current_build_config()
     arg_list = []
-
     for x in args:
         if isinstance(x, tensor.Tensor):
             any_dim = any(isinstance(i, expr.Var) for i in x.shape)

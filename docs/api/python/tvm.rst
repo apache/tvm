@@ -24,7 +24,7 @@ The user facing API for computation declaration.
    tvm.load_json
    tvm.save_json
    tvm.var
-   tvm.shape_var
+   tvm.size_var
    tvm.const
    tvm.convert
    tvm.placeholder
@@ -50,7 +50,7 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.load_json
 .. autofunction:: tvm.save_json
 .. autofunction:: tvm.var
-.. autofunction:: tvm.shape_var
+.. autofunction:: tvm.size_var
 .. autofunction:: tvm.const
 .. autofunction:: tvm.convert
 .. autofunction:: tvm.placeholder
