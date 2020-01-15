@@ -79,7 +79,6 @@ def load_single_op(model_name, input_type=None):
         #input_data = torch.rand(input_shape).double()
         #input_data = torch.from_numpy(np.random.random_sample((1, 3, 224, 224))).double()
         temp = np.random.random_sample((1, 3, 224, 224))
-
         input_data = torch.from_numpy(temp)
     elif input_type == 'float16':
         model = getattr(single_op, model_name)().float().eval()
@@ -87,6 +86,15 @@ def load_single_op(model_name, input_type=None):
     elif input_type == 'int32':
         model = getattr(single_op, model_name)().eval()
         input_data = torch.randint(0, 10, input_shape).int()
+    elif input_type == 'int16':
+        model = getattr(single_op, model_name)().eval()
+        input_data = torch.randint(0, 10, input_shape).short()
+    elif input_type == 'int8':
+        model = getattr(single_op, model_name)().eval()
+        input_data = torch.randint(0, 10, input_shape).char()
+    elif input_type == 'uint8':
+        model = getattr(single_op, model_name)().eval()
+        input_data = torch.randint(0, 10, input_shape).byte()
     return model, input_data
 
 def load_torchvision(model_name, input_type=None):
@@ -229,13 +237,33 @@ def verify_model(model_name, input_type=None):
         else:
             baseline_outputs = (baseline_outputs.detach().half().cpu().numpy(),)
     elif input_type == 'int32':
-        baseline_model = baseline_model.int()
         baseline_input = baseline_input.int()
         baseline_outputs = baseline_outputs.int()
         if isinstance(baseline_outputs, tuple):
             baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
         else:
             baseline_outputs = (baseline_outputs.detach().int().cpu().numpy(),)
+    elif input_type == 'int16':
+        baseline_input = baseline_input.short()
+        baseline_outputs = baseline_outputs.short()
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().short().cpu().numpy(),)
+    elif input_type == 'int8':
+        baseline_input = baseline_input.char()
+        baseline_outputs = baseline_outputs.char()
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().char().cpu().numpy(),)
+    elif input_type == 'uint8':
+        baseline_input = baseline_input.byte()
+        baseline_outputs = baseline_outputs.byte()
+        if isinstance(baseline_outputs, tuple):
+            baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        else:
+            baseline_outputs = (baseline_outputs.detach().byte().cpu().numpy(),)
     output_shapes = [out.shape for out in baseline_outputs]
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
@@ -250,6 +278,12 @@ def verify_model(model_name, input_type=None):
         trace = trace.half().eval()
     elif input_type == 'int32':
         trace = trace.float().eval()
+    elif input_type == 'int16':
+        trace = trace.float().eval()
+    elif input_type == 'int8':
+        trace = trace.eval()
+    elif input_type == 'uint8':
+        trace = trace.eval()
     if torch.cuda.is_available():
         trace = trace.cuda()
     else:
@@ -257,6 +291,9 @@ def verify_model(model_name, input_type=None):
     with TemporaryDirectory() as tmp:
         path = os.path.join(tmp, 'model.pth')
         torch.jit.save(trace, path)
+
+        print(model_name)
+
         mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
@@ -319,6 +356,9 @@ def print_results():
 def test_add1():
     verify_model('Add1')
 
+def test_add1int16():
+    verify_model('Add1', input_type='int16')
+
 def test_add2():
     verify_model('Add2')
 
@@ -353,11 +393,26 @@ def test_add4float64():
 def test_subtract1():
     verify_model('Subtract1')
 
+def test_subtract1int32():
+    verify_model('Subtract1', input_type='int32')
+
+def test_subtract1int16():
+    verify_model('Subtract1', input_type='int16')
+
+def test_subtract1int8():
+    verify_model('Subtract1', input_type='int8')
+
+def test_subtract1uint8():
+    verify_model('Subtract1', input_type='uint8')
+
 def test_subtract2():
     verify_model('Subtract2')
 
 def test_subtract3():
     verify_model('Subtract3')
+
+def test_subtract3int32():
+    verify_model('Subtract3Int32', input_type='int32')
 
 def test_subtract4():
     verify_model('Subtract4')
@@ -419,6 +474,9 @@ def test_hardtanh1():
 def test_conv2d1():
     verify_model('Conv2D1')
 
+def test_conv2d1float64():
+    verify_model('Conv2D1Float64', input_type='float64')
+
 def test_conv2d2():
     verify_model('Conv2D2')
 
@@ -433,9 +491,6 @@ def test_batchnorm1():
 
 def test_batchnorm1float64():
     verify_model('BatchNorm1Float64', input_type='float64')
-
-def test_batchnorm1int32():
-    verify_model('BatchNorm1Int32', input_type='int32')
 
 def test_batchnorm2():
     verify_model('BatchNorm2')
@@ -525,6 +580,9 @@ def test_squeezenet1_1():
 def test_vgg11():
     verify_model('vgg11')
 
+def test_vgg11float64():
+    verify_model('vgg11', input_type='float64')
+
 def test_vgg13():
     verify_model('vgg13')
 
@@ -563,6 +621,9 @@ def test_inception_v3():
 
 def test_alexnet():
     verify_model('alexnet')
+
+def test_alexnetfloat64():
+    verify_model('alexnet', input_type='float64')
 
 def test_googlenet():
     verify_model('googlenet')
@@ -656,6 +717,13 @@ if __name__ == '__main__':
 
     # TODO: Refactor how testing works for different types
     test_add3float64()
-    test_add4int32
+    test_add4int32()
     test_batchnorm1float64()
+    test_subtract3int32()
+    test_subtract1int32()
+    test_subtract1int16()
+    test_subtract1int8()
+    test_subtract1uint8()
+    test_conv2d1float64()
+    test_alexnetfloat64()
     test_resnet18float64()

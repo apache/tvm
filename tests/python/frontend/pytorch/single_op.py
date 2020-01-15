@@ -106,6 +106,13 @@ class Subtract3(Module):
             ones = ones.cuda()
         return args[0] - ones
 
+class Subtract3Int32(Module):
+    def forward(self, *args):
+        ones = torch.ones([1, 3, 224, 224], dtype=torch.int32)
+        if torch.cuda.is_available():
+            ones = ones.cuda()
+        return args[0] - ones
+
 class Subtract4(Module):
     def forward(self, *args):
         ones = torch.ones([1, 1, 224, 224])
@@ -206,6 +213,26 @@ class Conv2D1(Module):
     def forward(self, *args):
         return self.softmax(self.conv(args[0]))
 
+class Conv2D1Float64(Module):
+
+    def __init__(self):
+        super(Conv2D1Float64, self).__init__()
+        self.conv = torch.nn.Conv2d(3, 64, 7, bias=True).double()
+        self.softmax = torch.nn.Softmax().double()
+
+    def forward(self, *args):
+        return self.softmax(self.conv(args[0])).double()
+
+class Conv2D1Float16(Module):
+
+    def __init__(self):
+        super(Conv2D1Float16, self).__init__()
+        self.conv = torch.nn.Conv2d(3, 64, 7, bias=True).half()
+        self.softmax = torch.nn.Softmax().half()
+
+    def forward(self, *args):
+        return self.softmax(self.conv(args[0])).half()
+
 class Conv2D2(Module):
 
     def __init__(self):
@@ -253,6 +280,13 @@ class BatchNorm1Float64(Module):
     def __init__(self):
         super(BatchNorm1Float64, self).__init__()
         self.batch_norm = torch.nn.BatchNorm2d(3, affine=True).double()
+    def forward(self, *args):
+        return self.batch_norm(args[0])
+
+class BatchNorm1Float16(Module):
+    def __init__(self):
+        super(BatchNorm1Float16, self).__init__()
+        self.batch_norm = torch.nn.BatchNorm2d(3, affine=True).half()
     def forward(self, *args):
         return self.batch_norm(args[0])
 
