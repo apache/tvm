@@ -182,6 +182,56 @@ class IntImm : public PrimExpr {
 };
 
 /*!
+ * \brief Constant floating point literals in the program.
+ * \sa FloatImm
+ */
+class FloatImmNode : public PrimExprNode {
+ public:
+  /*! \brief The constant value content. */
+  double value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
+  }
+
+  static constexpr const char* _type_key = "FloatImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference class to FloatImmNode.
+ *
+ * \sa FloatImmNode
+ */
+class FloatImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor
+   */
+  FloatImm() {}
+  /*!
+   * \brief constructor from node.
+   */
+  explicit FloatImm(ObjectPtr<Object> node) : PrimExpr(node) {}
+  /*!
+   * \brief Constructor.
+   * \param dtype The data type of the value.
+   * \param value The internal value.
+   */
+  TVM_DLL FloatImm(DataType dtype, double value);
+  /*!
+   * \brief Get pointer to the container.
+   * \return The pointer.
+   */
+  const FloatImmNode* operator->() const {
+    return static_cast<const FloatImmNode*>(get());
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = FloatImmNode;
+};
+
+/*!
  * \brief Base node of all non-primitive expressions.
  *
  * RelayExpr supports tensor types, functions and ADT as
