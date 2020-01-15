@@ -32,7 +32,7 @@ namespace ir {
 
 // constructors
 
-PrimExpr FloatImmNode::make(DataType t, double value) {
+PrimExpr FloatImm(DataType t, double value) {
   CHECK_EQ(t.lanes(), 1)
       << "ValueError: FloatImm can only take scalar";
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();

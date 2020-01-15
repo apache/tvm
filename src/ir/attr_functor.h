@@ -27,8 +27,8 @@
  *  - array of attributes
  *  - map of attributes
  */
-#ifndef TVM_LANG_ATTR_FUNCTOR_H_
-#define TVM_LANG_ATTR_FUNCTOR_H_
+#ifndef TVM_IR_ATTR_FUNCTOR_H_
+#define TVM_IR_ATTR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
 #include <utility>
@@ -230,4 +230,4 @@ class AttrsHashHandler :
   }
 };
 }  // namespace tvm
-#endif  // TVM_LANG_ATTR_FUNCTOR_H_
+#endif  // TVM_IR_ATTR_FUNCTOR_H_

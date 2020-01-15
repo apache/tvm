@@ -108,11 +108,11 @@ PrimExpr max_value(const DataType& dtype) {
     }
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
-      return FloatImmNode::make(dtype, std::numeric_limits<double>::max());
+      return FloatImm(dtype, std::numeric_limits<double>::max());
     } else if (dtype.bits() == 32) {
-      return FloatImmNode::make(dtype, std::numeric_limits<float>::max());
+      return FloatImm(dtype, std::numeric_limits<float>::max());
     } else if (dtype.bits() == 16) {
-      return FloatImmNode::make(dtype, 65504.0);
+      return FloatImm(dtype, 65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
@@ -134,11 +134,11 @@ PrimExpr min_value(const DataType& dtype) {
     return IntImm(dtype, 0);
   } else if (dtype.is_float()) {
     if (dtype.bits() == 64) {
-      return FloatImmNode::make(dtype, std::numeric_limits<double>::lowest());
+      return FloatImm(dtype, std::numeric_limits<double>::lowest());
     } else if (dtype.bits() == 32) {
-      return FloatImmNode::make(dtype, std::numeric_limits<float>::lowest());
+      return FloatImm(dtype, std::numeric_limits<float>::lowest());
     } else if (dtype.bits() == 16) {
-      return FloatImmNode::make(dtype, -65504.0);
+      return FloatImm(dtype, -65504.0);
     }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
@@ -219,7 +219,7 @@ PrimExpr operator-(PrimExpr a) {
   const IntImmNode* pa = a.as<IntImmNode>();
   const FloatImmNode* fa = a.as<FloatImmNode>();
   if (pa) return IntImm(a.dtype(), -pa->value);
-  if (fa) return ir::FloatImmNode::make(a.dtype(), -fa->value);
+  if (fa) return FloatImm(a.dtype(), -fa->value);
   return make_zero(a.dtype()) - a;
 }
 
@@ -492,7 +492,7 @@ PrimExpr abs(PrimExpr x) {
     using ir::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
-      return ir::FloatImmNode::make(x.dtype(), std::fabs(fx->value));
+      return FloatImm(x.dtype(), std::fabs(fx->value));
     }
     return ir::CallNode::make(x.dtype(), "fabs", {x}, ir::CallNode::PureIntrinsic);
   } else if (x.dtype().is_uint()) {
@@ -593,28 +593,28 @@ PrimExpr fmod(PrimExpr x, PrimExpr y) {
 PrimExpr floor(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImmNode::make(x.dtype(), std::floor(fx->value));
+  if (fx) return FloatImm(x.dtype(), std::floor(fx->value));
   return ir::CallNode::make(x.dtype(), "floor", {x}, ir::CallNode::PureIntrinsic);
 }
 
 PrimExpr ceil(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImmNode::make(x.dtype(), std::ceil(fx->value));
+  if (fx) return FloatImm(x.dtype(), std::ceil(fx->value));
   return ir::CallNode::make(x.dtype(), "ceil", {x}, ir::CallNode::PureIntrinsic);
 }
 
 PrimExpr round(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
+  if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
   return ir::CallNode::make(x.dtype(), "round", {x}, ir::CallNode::PureIntrinsic);
 }
 
 PrimExpr nearbyint(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
-  if (fx) return FloatImmNode::make(x.dtype(), std::nearbyint(fx->value));
+  if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
   return ir::CallNode::make(x.dtype(), "nearbyint", {x}, ir::CallNode::PureIntrinsic);
 }
 
@@ -622,7 +622,7 @@ PrimExpr trunc(PrimExpr x) {
   using ir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {
-    return FloatImmNode::make(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) :
+    return FloatImm(x.dtype(), (fx->value < 0 ? std::ceil(fx->value) :
                                      std::floor(fx->value)));
   }
   return ir::CallNode::make(x.dtype(), "trunc", {x}, ir::CallNode::PureIntrinsic);

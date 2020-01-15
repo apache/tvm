@@ -25,7 +25,7 @@
 #define TVM_PASS_STORAGE_ACCESS_H_
 
 #include <tvm/ir.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
 #include <vector>
