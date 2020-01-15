@@ -33,6 +33,7 @@ def generate_csource_module():
 
     code = r'''
     #include <tvm/runtime/c_runtime_api.h>
+    #include <tvm/runtime/packed_func.h>
     #include <dlpack/dlpack.h>
     #include <cstdint>
     #include <cstring>
@@ -69,21 +70,16 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
-      if (nargs != 5) {
-        printf("Expect 5 args, but get %d", nargs);
-        return 1;
-      }
-      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-      gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
-             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
-             static_cast<float*>(out->data));
-      return 0;
+    extern "C" int ccompiler_wrapper_1_(DLTensor* arg0, DLTensor* arg1,
+                                        DLTensor* arg2, DLTensor* arg3,
+                                        DLTensor* out) {
+        gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+               static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+               static_cast<float*>(out->data));
+        return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_1, ccompiler_wrapper_1_);
 
     GCC_BINARY_OP_2D(gcc_0_0, *, 10, 10);
     GCC_BINARY_OP_2D(gcc_0_1, -, 10, 10);
@@ -100,21 +96,17 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
-      if (nargs != 5) {
-        printf("Expect 5 args, but get %d", nargs);
-        return 1;
-      }
-      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-      gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
-             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
-             static_cast<float*>(out->data));
-      return 0;
+    extern "C" int ccompiler_wrapper_0_(DLTensor* arg0, DLTensor* arg1,
+                                        DLTensor* arg2, DLTensor* arg3,
+                                        DLTensor* out) {
+        gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+               static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+               static_cast<float*>(out->data));
+        return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, ccompiler_wrapper_0_);
+
     '''
     csource_module = _tvm_module.csource_module_create(code, "cc")
     return csource_module
@@ -128,11 +120,12 @@ def generate_engine_module():
 
     code = r'''
     #include <tvm/runtime/c_runtime_api.h>
+    #include <tvm/runtime/packed_func.h>
     #include <dlpack/dlpack.h>
-    #include "gcc_engine.h"
+    #include "json_engine.h"
 
-    extern "C" void gcc_1_(float* gcc_input4, float* gcc_input5,
-            float* gcc_input6, float* gcc_input7, float* out) {
+    extern "C" void json_1_(float* json_input4, float* json_input5,
+                            float* json_input6, float* json_input7, float* out) {
             
         std::string graph =
             "add_2d,10,10\n"
@@ -140,28 +133,22 @@ def generate_engine_module():
             "mul_2d,10,10\n";
 
         Engine engine;
-        engine.run(graph, {gcc_input4, gcc_input5, gcc_input6, gcc_input7}, out);
+        engine.run(graph, {json_input4, json_input5, json_input6, json_input7}, out);
     }
 
-
-    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
-        if (nargs != 5) {
-            printf("Expect 5 args, but get %d", nargs);
-            return 1;
-        }
-        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-        gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+    extern "C" int json_wrapper_1_(DLTensor* arg0, DLTensor* arg1,
+                                   DLTensor* arg2, DLTensor* arg3,
+                                   DLTensor* out) {
+        json_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
                 static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
                 static_cast<float*>(out->data));
         return 0;
     }
 
-    extern "C" void gcc_0_(float* gcc_input0, float* gcc_input1,
-            float* gcc_input2, float* gcc_input3, float* out) {
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_1, json_wrapper_1_);
+
+    extern "C" void json_0_(float* json_input0, float* json_input1,
+                            float* json_input2, float* json_input3, float* out) {
             
         std::string graph =
             "add_2d,10,10\n"
@@ -169,40 +156,36 @@ def generate_engine_module():
             "mul_2d,10,10\n";
 
         Engine engine;
-        engine.run(graph, {gcc_input0, gcc_input1, gcc_input2, gcc_input3}, out);
+        engine.run(graph, {json_input0, json_input1, json_input2, json_input3}, out);
 
     }
 
-    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
-        if (nargs != 5) {
-            printf("Expect 5 args, but get %d", nargs);
-            return 1;
-        }
-        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-        gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+    extern "C" int json_wrapper_0_(DLTensor* arg0, DLTensor* arg1,
+                                   DLTensor* arg2, DLTensor* arg3,
+                                   DLTensor* out) {
+        json_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
                 static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
                 static_cast<float*>(out->data));
         return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, json_wrapper_0_);
+
     '''
 
-    gen_gcc_engine()
+    gen_json_engine()
     csource_module = _tvm_module.csource_module_create(code, "cc")
     return csource_module
 
 
-def gen_gcc_engine():
+def gen_json_engine():
     """An example of external backend runtime engine. This is supposed to be provided
       by third-party vendors and included when building the generated external kernel code.
     """
 
     code = r'''
-    #ifndef _GCC_ENGINE_H_
-    #define _GCC_ENGINE_H_
+    #ifndef _JSON_ENGINE_H_
+    #define _JSON_ENGINE_H_
     #include <cstdint>
     #include <string>
     #include <sstream>
@@ -298,9 +281,9 @@ def gen_gcc_engine():
         std::vector<float*> buffers;
     };
 
-    #endif
+    #endif  // _JSON_ENGINE_H_
     '''
-    header_file = tmp_path.relpath("gcc_engine.h")
+    header_file = tmp_path.relpath("json_engine.h")
     with open(header_file, 'w') as f:
         f.write(code)
 
