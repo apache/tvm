@@ -41,7 +41,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   }
 
   bool Assert(const IndexExpr& cond) final {
-    if (const uint64_t* pdiff = as_const_uint(cond)) {
+    if (const int64_t* pdiff = as_const_int(cond)) {
       return pdiff[0];
     }
     return true;
@@ -60,7 +60,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
     location = ref;
   }
 
-  TVM_DLL Module GetModule() final {
+  TVM_DLL IRModule GetModule() final {
     return this->solver_->module_;
   }
 
@@ -124,10 +124,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     } else {
       Type resolved = this->VisitType(lhs->resolved_type, rhs->resolved_type);
       if (!resolved.defined()) {
-        solver_->ReportError(RELAY_ERROR("unable to unify: "
-                                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
-                                         << PrettyPrint(rhs->resolved_type) << "`"),
-                             this->loc);
+        solver_->ReportError(
+          ErrorBuilder() << "unable to unify: "
+                         << "`" << PrettyPrint(lhs->resolved_type) << "` and `"
+                         << PrettyPrint(rhs->resolved_type) << "`",
+          this->loc);
         return lhs->resolved_type;
       } else {
         TypeNode* top = solver_->GetTypeNode(resolved);
@@ -182,27 +183,27 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Any::make();
     }
 
-    auto left_index0 = ulhs.as<tvm::Variable>();
-    auto right_index0 = urhs.as<tvm::IntImm>();
+    auto left_index0 = ulhs.as<tvm::VarNode>();
+    auto right_index0 = urhs.as<tvm::IntImmNode>();
     if (left_index0 && right_index0) {
       solver_->shape_uf_.Set(ulhs, urhs);
       return urhs;
     }
 
-    auto left_index1 = ulhs.as<tvm::IntImm>();
-    auto right_index1 = urhs.as<tvm::Variable>();
+    auto left_index1 = ulhs.as<tvm::IntImmNode>();
+    auto right_index1 = urhs.as<tvm::VarNode>();
     if (left_index1 && right_index1) {
       solver_->shape_uf_.Set(urhs, ulhs);
       return ulhs;
     }
 
-    auto left_index2 = ulhs.as<tvm::IntImm>();
-    auto right_index2 = urhs.as<tvm::IntImm>();
+    auto left_index2 = ulhs.as<tvm::IntImmNode>();
+    auto right_index2 = urhs.as<tvm::IntImmNode>();
     if (left_index2 && right_index2 && left_index2->value == right_index2->value) {
       return ulhs;
     }
 
-    return tvm::Expr();
+    return tvm::PrimExpr();
   }
 
   Type VisitType_(const TensorTypeNode* op, const Type& tn) final {
@@ -225,13 +226,13 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     tvm::Array<IndexExpr> shape;
     if (tt1->shape.size() != tt2->shape.size()) {
       this->solver_->ReportError(
-        RELAY_ERROR(
+        ErrorBuilder() <<
           "tensor type `" << PrettyPrint(tt1) <<
           "` has " <<  tt1->shape.size() <<
           " dimensions, while `" <<
           PrettyPrint(tt2) <<
           "` has " << tt2->shape.size() <<
-          " dimensions"), this->loc);
+          " dimensions", this->loc);
       return Type(nullptr);
     }
 
@@ -243,8 +244,8 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       if (!dim.defined()) {
         // NB: We push an arbitrary dimension here so we can continue error propogation.
         shape.push_back(tt1->shape[i]);
-        tvm::Expr shape1 = tt1->shape[i];
-        tvm::Expr shape2 = tt2->shape[i];
+        tvm::PrimExpr shape1 = tt1->shape[i];
+        tvm::PrimExpr shape2 = tt2->shape[i];
         std::tuple<int, IndexExpr, IndexExpr> tuple = std::make_tuple(i, shape1, shape2);
         mismatches.push_back(tuple);
       } else {
@@ -253,7 +254,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     if (mismatches.size() != 0) {
-      RelayErrorStream err;
+      ErrorBuilder err;
       err << "in particular ";
       for (auto mismatch : mismatches) {
         err << "dimension "
@@ -285,7 +286,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       Type field = Unify(tt1->fields[i], tt2->fields[i]);
       new_fields.push_back(field);
     }
-    return TupleTypeNode::make(new_fields);
+    return TupleType(new_fields);
   }
 
   Type VisitType_(const FuncTypeNode* op, const Type& tn) final {
@@ -313,7 +314,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       subst_map.Set(op->type_params[i], IncompleteTypeNode::make(kType));
     }
 
-    FuncType ft = FuncTypeNode::make(op->arg_types,
+    FuncType ft = FuncType(op->arg_types,
                                      op->ret_type,
                                      ft_type_params,
                                      op->type_constraints);
@@ -338,7 +339,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
-    return FuncTypeNode::make(arg_types, ret_type, ft2->type_params, type_constraints);
+    return FuncType(arg_types, ret_type, ft2->type_params, type_constraints);
   }
 
   Type VisitType_(const RefTypeNode* op, const Type& tn) final {
@@ -360,7 +361,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     for (size_t i = 0; i < op->args.size(); i++) {
       args.push_back(Unify(op->args[i], tcn->args[i]));
     }
-    return TypeCallNode::make(func, args);
+    return TypeCall(func, args);
   }
 
  private:
@@ -531,7 +532,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 // constructor
 TypeSolver::TypeSolver(
   const GlobalVar& current_func,
-  const Module& module,
+  const IRModule& module,
   ErrorReporter* err_reporter)
     : reporter_(make_object<Reporter>(this)),
       current_func(current_func),
@@ -639,10 +640,11 @@ bool TypeSolver::Solve() {
       rnode->resolved = false;
     } catch (const dmlc::Error& err) {
       rnode->resolved = false;
-      this->ReportError(RELAY_ERROR("an internal invariant was violated while "
-                                    "typechecking your program "
-                                    << err.what()),
-                        rnode->location);
+      this->ReportError(
+        ErrorBuilder() << "an internal invariant was violated while "
+                       << "typechecking your program "
+                       << err.what(),
+        rnode->location);
     }
 
     // Mark inqueue as false after the function call
@@ -661,8 +663,8 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
-    auto module = ModuleNode::make({}, {});
-    auto dummy_fn_name = GlobalVarNode::make("test");
+    auto module = IRModule({}, {});
+    auto dummy_fn_name = GlobalVar("test");
     module->Add(dummy_fn_name, FunctionNode::make({}, TupleNode::make({}), Type(), {}, {}));
     auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 

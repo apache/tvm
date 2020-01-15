@@ -57,7 +57,7 @@ namespace relay {
 /*!
  * \brief Symbolic expression for tensor shape.
  */
-using IndexExpr = ::tvm::Expr;
+using IndexExpr = ::tvm::PrimExpr;
 
 using SourceName = tvm::SourceName;
 using Span = tvm::Span;
@@ -105,9 +105,6 @@ class Id : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
-
-
-struct Module;
 
 }  // namespace relay
 }  // namespace tvm

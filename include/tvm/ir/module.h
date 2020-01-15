@@ -18,66 +18,48 @@
  */
 
 /*!
- * \file tvm/relay/module.h
- * \brief The global environment: contains information needed to
- * compile & optimize Relay programs.
+ * \file tvm/ir/module.h
+ * \brief IRModule that holds the functions and type definitions.
  */
-#ifndef TVM_RELAY_MODULE_H_
-#define TVM_RELAY_MODULE_H_
+#ifndef TVM_IR_MODULE_H_
+#define TVM_IR_MODULE_H_
 
-#include <tvm/relay/error.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/adt.h>
-#include <tvm/relay/op.h>
-#include <tvm/relay/type.h>
+#include <tvm/ir/type.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/adt.h>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace tvm {
-namespace relay {
-
-struct Module;
-
-/*! \brief The global environment of Relay programs.
+class IRModule;
+/*!
+ * \brief IRModule that holds functions and type definitions.
  *
- *  The global environment contains the global
- *  information needed to compile a Relay program.
+ *  IRModule is the basic unit for all IR transformations across the stack.
  *
- *  It contains all global functions, and configuration
- *  options.
- *
- *  Many operations require access to the global
- *  Module. We pass the Module by value
- *  in a functional style as an explicit argument,
- *  but we mutate the Module while optimizing
- *  Relay programs.
- *
- *  The functional style allows users to construct custom
- *  environments easily, for example each thread can store
- *  a Module while auto-tuning.
+ *  Many operations require access to the global IRModule.
+ *  We pass the IRModule by value in a functional style as an explicit argument,
+ *  but we mutate the Module while optimizing programs.
+ * \sa IRModule
  */
-
-class ModuleNode : public RelayNode {
+class IRModuleNode : public Object {
  public:
   /*! \brief A map from ids to all global functions. */
-  tvm::Map<GlobalVar, Function> functions;
+  Map<GlobalVar, BaseFunc> functions;
   /*! \brief A map from global type vars to ADT type data. */
-  tvm::Map<GlobalTypeVar, TypeData> type_definitions;
+  Map<GlobalTypeVar, TypeData> type_definitions;
 
-  ModuleNode() {}
+  IRModuleNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("functions", &functions);
     v->Visit("type_definitions", &type_definitions);
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
   }
-
-  TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs,
-                             tvm::Map<GlobalTypeVar, TypeData> global_type_defs,
-                             std::unordered_set<std::string> imports = {});
 
   /*!
    * \brief Add a function to the global environment.
@@ -86,7 +68,7 @@ class ModuleNode : public RelayNode {
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
-  TVM_DLL void Add(const GlobalVar& var, const Function& func, bool update = false);
+  TVM_DLL void Add(const GlobalVar& var, const BaseFunc& func, bool update = false);
 
   /*!
    * \brief Add a function to the global environment.
@@ -95,7 +77,7 @@ class ModuleNode : public RelayNode {
    *
    * It does not do type inference as Add does.
    */
-  TVM_DLL void AddUnchecked(const GlobalVar& var, const Function& func);
+  TVM_DLL void AddUnchecked(const GlobalVar& var, const BaseFunc& func);
 
   /*!
    * \brief Add a type-level definition to the global environment.
@@ -104,32 +86,34 @@ class ModuleNode : public RelayNode {
    * \param update Controls whether you can replace a definition in the
    * environment.
    */
-  TVM_DLL void AddDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
+  TVM_DLL void AddTypeDef(const GlobalTypeVar& var, const TypeData& type, bool update = false);
 
   /*!
-   * \brief Add a type definition to the global environment.
-   * \param var The name of the global function.
+   * \brief Add a type-level definition to the global environment.
+   * \param var The var of the global type definition.
    * \param type The ADT.
    * \param update Controls whether you can replace a definition in the
    * environment.
    *
-   * It does not do type inference as AddDef does.
+   * It does not do type checking as AddTypeDef does.
    */
-  TVM_DLL void AddDefUnchecked(const GlobalTypeVar& var, const TypeData& type, bool update = false);
+  TVM_DLL void AddTypeDefUnchecked(const GlobalTypeVar& var,
+                                   const TypeData& type,
+                                   bool update = false);
 
   /*!
    * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
    */
-  TVM_DLL void Update(const GlobalVar& var, const Function& func);
+  TVM_DLL void Update(const GlobalVar& var, const BaseFunc& func);
 
   /*!
    * \brief Update a type definition in the global environment.
    * \param var The name of the global type definition to update.
    * \param type The new ADT.
    */
-  TVM_DLL void UpdateDef(const GlobalTypeVar& var, const TypeData& type);
+  TVM_DLL void UpdateTypeDef(const GlobalTypeVar& var, const TypeData& type);
 
   /*!
    * \brief Remove a function from the global environment.
@@ -162,7 +146,7 @@ class ModuleNode : public RelayNode {
    * \brief Collect all global vars defined in this module.
    * \returns An array of global vars
    */
-  tvm::Array<GlobalVar> GetGlobalVars() const;
+  TVM_DLL Array<GlobalVar> GetGlobalVars() const;
 
   /*!
    * \brief Look up a global function by its name.
@@ -175,35 +159,35 @@ class ModuleNode : public RelayNode {
    * \brief Collect all global type vars defined in this module.
    * \returns An array of global type vars
    */
-  tvm::Array<GlobalTypeVar> GetGlobalTypeVars() const;
+  TVM_DLL Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
    * \brief Look up a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
-  TVM_DLL Function Lookup(const GlobalVar& var) const;
+  TVM_DLL BaseFunc Lookup(const GlobalVar& var) const;
 
   /*!
    * \brief Look up a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
-  TVM_DLL Function Lookup(const std::string& name) const;
+  TVM_DLL BaseFunc Lookup(const std::string& name) const;
 
   /*!
    * \brief Look up a global type definition by its variable.
    * \param var The var of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const GlobalTypeVar& var) const;
+  TVM_DLL TypeData LookupTypeDef(const GlobalTypeVar& var) const;
 
   /*!
    * \brief Look up a global type definition by its name.
    * \param var The name of the global type definition.
    * \return The type definition.
    */
-  TVM_DLL TypeData LookupDef(const std::string& var) const;
+  TVM_DLL TypeData LookupTypeDef(const std::string& var) const;
 
   /*!
    * \brief Look up a constructor by its tag.
@@ -217,7 +201,7 @@ class ModuleNode : public RelayNode {
    *        functions in another environment.
    * \param other The other environment.
    */
-  TVM_DLL void Update(const Module& other);
+  TVM_DLL void Update(const IRModule& other);
 
   /*!
    * \brief Import Relay code from the file at path.
@@ -241,24 +225,8 @@ class ModuleNode : public RelayNode {
    */
   TVM_DLL std::unordered_set<std::string> Imports() const;
 
-  /*! \brief Construct a module from a standalone expression.
-   *
-   * Allows one to optionally pass a global function map and
-   * map of type definitions as well.
-   *
-   * \param expr The expression to set as the main function to the module.
-   * \param global_funcs The global function map.
-   * \param type_definitions Map of global type definitions
-   *
-   * \returns A module with expr set as the main function.
-   */
-  TVM_DLL static Module FromExpr(
-    const Expr& expr,
-    const tvm::Map<GlobalVar, Function>& global_funcs = {},
-    const tvm::Map<GlobalTypeVar, TypeData>& type_definitions = {});
-
   static constexpr const char* _type_key = "relay.Module";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:
   /*! \brief Helper function for registering a typedef's constructors */
@@ -267,12 +235,12 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  tvm::Map<std::string, GlobalVar> global_var_map_;
+  Map<std::string, GlobalVar> global_var_map_;
 
   /*! \brief A map from string names to global type variables (ADT names)
    * that ensures global uniqueness.
    */
-  tvm::Map<std::string, GlobalTypeVar> global_type_var_map_;
+  Map<std::string, GlobalTypeVar> global_type_var_map_;
 
   /*! \brief A map from constructor tags to constructor objects
    * for convenient access
@@ -283,27 +251,62 @@ class ModuleNode : public RelayNode {
       importing is idempotent for each module.
    */
   std::unordered_set<std::string> import_set_;
+  friend class IRModule;
 };
 
-struct Module : public ObjectRef {
-  Module() {}
-  explicit Module(ObjectPtr<::tvm::Object> p) : ObjectRef(p) {}
-
-  ModuleNode* operator->() const {
-    return static_cast<ModuleNode*>(get_mutable());
-  }
-
-  using ContainerType = ModuleNode;
-};
-
-/*! \brief Parse Relay source into a module.
- * \param source A string of Relay source code.
- * \param source_name The name of the source file.
- * \return A Relay module.
+/*!
+ * \brief Managed reference class to IRModuleNode.
+ * \sa IRModuleNode
  */
-Module FromText(const std::string& source, const std::string& source_name);
+class IRModule : public ObjectRef {
+ public:
+  /*!
+   * \brief constructor
+   * \param functions Functions in the module.
+   * \param type_definitions Type definitions in the module.
+   * \param import_set Set of imported files in the module
+   */
+  TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
+                            Map<GlobalTypeVar, TypeData> type_definitions = {},
+                            std::unordered_set<std::string> import_set = {});
+  /*! \brief default constructor */
+  IRModule() {}
+  /*!
+   * \brief constructor
+   * \param n The object pointer.
+   */
+  explicit IRModule(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*! \return mutable pointers to the node. */
+  IRModuleNode* operator->() const {
+    auto* ptr = get_mutable();
+    CHECK(ptr != nullptr);
+    return static_cast<IRModuleNode*>(ptr);
+  }
+  /*!
+   * \brief Construct a module from a standalone expression.
+   *
+   * Allows one to optionally pass a global function map and
+   * map of type definitions as well.
+   *
+   * \param expr The expression to set as the main function to the module.
+   * \param global_funcs The global function map.
+   * \param type_definitions Map of global type definitions
+   *
+   * \returns A module with expr set as the main function.
+   */
+  TVM_DLL static IRModule FromExpr(
+    const RelayExpr& expr,
+    const Map<GlobalVar, BaseFunc>& global_funcs = {},
+    const Map<GlobalTypeVar, TypeData>& type_definitions = {});
 
-}  // namespace relay
+  /*!
+   * \brief Parse text format source file into an IRModule.
+   * \param text A string of Relay source code.
+   * \param source_path The path to the source file.
+   * \return A Relay module.
+   */
+  TVM_DLL static IRModule FromText(const std::string& text, const std::string& source_path);
+};
+
 }  // namespace tvm
-
-#endif  // TVM_RELAY_MODULE_H_
+#endif  // TVM_IR_MODULE_H_

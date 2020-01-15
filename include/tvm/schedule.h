@@ -112,7 +112,7 @@ class Stage : public ObjectRef {
    * \param predicate The condition to be checked.
    * \return reference to self.
    */
-  TVM_DLL Stage& set_store_predicate(Expr predicate);
+  TVM_DLL Stage& set_store_predicate(PrimExpr predicate);
   /*!
    * \brief Specify environment threads that launched around the group's scope.
    *  This can only be used in group stage.
@@ -130,7 +130,7 @@ class Stage : public ObjectRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  TVM_DLL Stage& split(IterVar parent, Expr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
+  TVM_DLL Stage& split(IterVar parent, PrimExpr factor, IterVar* p_outer, IterVar* p_inner);  // NOLINT(*)
   /*!
    * \brief Split the iteration with given number of parts.
    *
@@ -140,7 +140,7 @@ class Stage : public ObjectRef {
    * \param p_inner The result inner domain.
    * \return reference to self.
    */
-  TVM_DLL Stage& split_by_nparts(IterVar parent, Expr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
+  TVM_DLL Stage& split_by_nparts(IterVar parent, PrimExpr nparts, IterVar* p_outer, IterVar* p_inner);   // NOLINT(*)
   /*!
    * \brief Fuse the inner outer domain to the target
    * \param outer The outer domain to be fused.
@@ -185,7 +185,7 @@ class Stage : public ObjectRef {
    * \return reference to self.
    */
   TVM_DLL Stage& tile(IterVar x_parent, IterVar y_parent,   // NOLINT(*)
-                     Expr x_factor, Expr y_factor,
+                     PrimExpr x_factor, PrimExpr y_factor,
                      IterVar* p_x_outer, IterVar* p_y_outer,
                      IterVar* p_x_inner, IterVar* p_y_inner);
   /*!
@@ -225,7 +225,7 @@ class Stage : public ObjectRef {
    */
   TVM_DLL Stage& pragma(IterVar var,
                        const std::string& pragma_type,
-                       const Expr& pragma_value = Expr());   // NOLINT(*)
+                       const PrimExpr& pragma_value = PrimExpr());   // NOLINT(*)
   /*!
    * \brief Fetch data in advance.
    * \param domain the tensor to be prefetched
@@ -233,7 +233,7 @@ class Stage : public ObjectRef {
    * \param offset the number of iterations be to fetched in advance
    * \return reference to self
    */
-  TVM_DLL Stage& prefetch(const Tensor &domain, IterVar var, Expr offset); //NOLINT(*)
+  TVM_DLL Stage& prefetch(const Tensor &domain, IterVar var, PrimExpr offset); //NOLINT(*)
   /*!
    * \brief Set alignment requirement for specific dimension.
    *
@@ -468,7 +468,7 @@ class StageNode : public Object {
    *  Use this when there can be duplicated threads doing the same store.
    * \note Experimental primitive: used by cross thread-reduction.
    */
-  Expr store_predicate;
+  PrimExpr store_predicate;
   /*! \brief The relation bwteen of IterVars */
   Array<IterVarRelation> relations;
   /*! \brief additional attributes about iter var. */
@@ -598,7 +598,7 @@ class IterVarAttrNode : public Object {
   /*! \brief List of tensor to be prefetched in this loop */
   Array<Tensor> prefetch_data;
   /*! \brief The offset used in each prefetch */
-  Array<Expr> prefetch_offset;
+  Array<PrimExpr> prefetch_offset;
   /*!
    * \brief Tensor intrinsic used in tensorization,
    *   when the axis is marked as Tensorized
@@ -611,11 +611,11 @@ class IterVarAttrNode : public Object {
   /*!
    * \brief Additional pragma keys, array of StringImm
    */
-  Array<Expr> pragma_keys;
+  Array<PrimExpr> pragma_keys;
   /*!
    * \brief Additional values of pragma, if any
    */
-  Array<Expr> pragma_values;
+  Array<PrimExpr> pragma_values;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter_type", &iter_type);
@@ -653,9 +653,9 @@ class SplitNode : public IterVarRelationNode {
   /*! \brief The inner domain */
   IterVar inner;
   /*! \brief The split factor */
-  Expr factor;
+  PrimExpr factor;
   /*! \brief Number of parts, only factor or nparts can be given */
-  Expr nparts;
+  PrimExpr nparts;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("parent", &parent);
@@ -668,8 +668,8 @@ class SplitNode : public IterVarRelationNode {
   static IterVarRelation make(IterVar parent,
                               IterVar outer,
                               IterVar inner,
-                              Expr factor,
-                              Expr nparts);
+                              PrimExpr factor,
+                              PrimExpr nparts);
 
   static constexpr const char* _type_key = "Split";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitNode, IterVarRelationNode);

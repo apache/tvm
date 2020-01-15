@@ -42,7 +42,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  Expr VisitExpr(const Expr& expr) final {
+  PrimExpr VisitExpr(const PrimExpr& expr) final {
     return analyzer_->Simplify(expr);
   }
 
@@ -50,15 +50,15 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return operator()(std::move(stmt));
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const LetStmt* op) {
-    Expr value = this->VisitExpr(op->value);
+  Stmt VisitStmt_(const LetStmtNode* op) {
+    PrimExpr value = this->VisitExpr(op->value);
     if (!ir::HasSideEffect(value)) {
       // it is fine to discard the let binding
       // because the call to simplify will always inline the var.
@@ -78,13 +78,13 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   // eliminate useless stores
-  Stmt VisitStmt_(const Store* op) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<Store>();
-    if (const Load* load = op->value.as<Load>()) {
+    op = stmt.as<StoreNode>();
+    if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
           Equal(load->index, op->index)) {
-        return Evaluate::make(0);
+        return EvaluateNode::make(0);
       }
     }
     return GetRef<Stmt>(op);
@@ -103,7 +103,7 @@ Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
   return arith::StmtSimplifier(&analyzer).Simplify(std::move(stmt));
 }
 
-Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
+PrimExpr CanonicalSimplify(PrimExpr expr, Map<Var, Range> vrange) {
   arith::Analyzer analyzer;
   for (auto kv : vrange) {
     analyzer.Bind(kv.first, kv.second);
@@ -111,7 +111,7 @@ Expr CanonicalSimplify(Expr expr, Map<Var, Range> vrange) {
   return analyzer.canonical_simplify(expr);
 }
 
-Expr Simplify(Expr expr, Map<Var, Range> vrange) {
+PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange) {
   arith::Analyzer analyzer;
   for (auto kv : vrange) {
     analyzer.Bind(kv.first, kv.second);

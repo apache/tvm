@@ -36,10 +36,10 @@ using namespace tvm;
  *
  * \return True if the input shape is empty.
  */
-inline bool is_empty_shape(const Array<Expr>& x) {
+inline bool is_empty_shape(const Array<PrimExpr>& x) {
   bool is_empty = false;
   for (const auto& dim : x) {
-    if (auto int_dim = dim.as<IntImm>()) {
+    if (auto int_dim = dim.as<IntImmNode>()) {
       if (int_dim->value == 0) {
         is_empty = true;
         break;

@@ -44,7 +44,7 @@ inline std::string GenerateName(const Function& func) {
 
 bool IsClosure(const Function& func) {
   ObjectRef res = FunctionGetAttr(func, attr::kClosure);
-  const ir::IntImm* pval = res.as<ir::IntImm>();
+  const ir::IntImmNode* pval = res.as<ir::IntImmNode>();
   return pval && pval->value != 0;
 }
 
@@ -60,7 +60,7 @@ Function MarkClosure(const Function& func) {
  */
 class LambdaLifter : public ExprMutator {
  public:
-  explicit LambdaLifter(const Module& module) : module_(module) {}
+  explicit LambdaLifter(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) final {
     bool is_lambda = false;
@@ -101,7 +101,7 @@ class LambdaLifter : public ExprMutator {
     }
 
     auto name = GenerateName(func);
-    auto global = GlobalVarNode::make(name);
+    auto global = GlobalVar(name);
     auto free_vars = FreeVars(func);
     auto free_type_vars = FreeTypeVars(func, module_);
 
@@ -184,17 +184,19 @@ class LambdaLifter : public ExprMutator {
     }
   }
 
-  Module Lift() {
+  IRModule Lift() {
     // There is an ordering bug here.
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
-      auto func = pair.second;
-      func = FunctionNode::make(func->params,
-                                VisitExpr(func->body),
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-      module_->Add(pair.first, func, true);
+      if (auto* n = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(n);
+        func = FunctionNode::make(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Add(pair.first, func, true);
+      }
     }
     return module_;
   }
@@ -202,7 +204,7 @@ class LambdaLifter : public ExprMutator {
  private:
   std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
   std::vector<Var> letrec_;
-  Module module_;
+  IRModule module_;
 };
 
 }  // namespace vm
@@ -210,8 +212,8 @@ class LambdaLifter : public ExprMutator {
 namespace transform {
 
 Pass LambdaLift() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
     return relay::vm::LambdaLifter(m).Lift();
   };
   return CreateModulePass(pass_func, 1, "LambdaLift", {});

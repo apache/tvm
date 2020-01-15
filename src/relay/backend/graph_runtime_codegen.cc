@@ -24,7 +24,7 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 
@@ -623,7 +623,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
          Map<Integer, tvm::Target> tmp = args[1];
          TargetsMap targets;
          for (const auto& it : tmp) {
-           auto dev_type = it.first.as<ir::IntImm>();
+           auto dev_type = it.first.as<ir::IntImmNode>();
            CHECK(dev_type);
            targets[dev_type->value] = it.second;
          }
@@ -641,9 +641,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<tvm::Expr> ret;
+        Array<tvm::PrimExpr> ret;
         for (const auto &kv : this->output_.params) {
-          tvm::Expr name = ir::StringImm::make(kv.first);
+          tvm::PrimExpr name = ir::StringImmNode::make(kv.first);
           ret.push_back(name);
         }
         *rv = ret;

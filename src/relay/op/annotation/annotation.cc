@@ -171,5 +171,55 @@ Mark a checkpoint for checkpointing memory optimization.
                          return outputs;
                        });
 
+RELAY_REGISTER_OP("annotation.compiler_begin")
+.describe(R"code(
+Beginning of a region that is handled by a given compiler.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_begin")
+.set_body_typed([](Expr expr, std::string compiler) {
+  auto attrs = make_object<CompilerAttrs>();
+  attrs->compiler = compiler;
+  static const Op& op = Op::Get("annotation.compiler_begin");
+  return CallNode::make(op, {expr}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("annotation.compiler_end")
+.describe(R"code(
+End of a region that is handled by a given compiler.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(10)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute",
+                       [](const Attrs& attrs, const Array<Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                         return {topi::identity(inputs[0])};
+                       });
+
+TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
+.set_body_typed([](Expr expr, std::string compiler) {
+  auto attrs = make_object<CompilerAttrs>();
+  attrs->compiler = compiler;
+  static const Op& op = Op::Get("annotation.compiler_end");
+  return CallNode::make(op, {expr}, Attrs(attrs), {});
+});
+
 }  // namespace relay
 }  // namespace tvm

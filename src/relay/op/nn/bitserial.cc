@@ -211,7 +211,7 @@ bool BinaryDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   CHECK(static_cast<int>(data->shape.size()) != 0);
   CHECK(param->units.defined());
 
-  Array<tvm::Expr> oshape = data->shape;
+  Array<tvm::PrimExpr> oshape = data->shape;
   oshape.Set((oshape.size() - 1), param->units);
 
   DataType out_dtype = param->out_dtype;

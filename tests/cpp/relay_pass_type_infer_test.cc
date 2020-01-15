@@ -29,15 +29,15 @@ TEST(Relay, SelfReference) {
   auto tensor_type = relay::TensorTypeNode::make({}, DataType::Bool());
   auto x = relay::VarNode::make("x", relay::Type());
   auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
-
+  CHECK(f->IsInstance<BaseFuncNode>());
   auto y = relay::VarNode::make("y", tensor_type);
   auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
   auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
-  auto mod = relay::ModuleNode::FromExpr(fx);
+  auto mod = IRModule::FromExpr(fx);
   mod = relay::transform::InferType()(mod);
   auto type_fx = mod->Lookup("main");
 
-  auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
+  auto expected = relay::FuncType(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
   CHECK(relay::AlphaEqual(type_fx->checked_type(), expected));
 }
 

@@ -81,14 +81,14 @@ inline Array<T> UpdateArray(Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline Expr TVMStructGet(
+inline PrimExpr TVMStructGet(
     DataType dtype, Var handle, int index,
     intrinsic::TVMStructFieldKind kind) {
-  Array<Expr> args ={
+  Array<PrimExpr> args ={
     handle,
     make_const(DataType::Int(32), index),
     make_const(DataType::Int(32), static_cast<int>(kind))};
-  return Call::make(dtype, intrinsic::tvm_struct_get, args, Call::PureIntrinsic);
+  return CallNode::make(dtype, intrinsic::tvm_struct_get, args, CallNode::PureIntrinsic);
 }
 
 /*!
@@ -97,12 +97,12 @@ inline Expr TVMStructGet(
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, DataType dtype, int offset) {
-  return Call::make(
+inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
+  return CallNode::make(
       DataType::Handle(), intrinsic::tvm_address_of,
-      {Load::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
+      {LoadNode::make(dtype, handle, make_const(DataType::Int(32), offset * dtype.lanes()),
                   const_true(dtype.lanes()))},
-      Call::PureIntrinsic);
+      CallNode::PureIntrinsic);
 }
 
 /*!
@@ -111,16 +111,16 @@ inline Expr AddressOffset(Var handle, DataType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline Expr AddressOffset(Var handle, DataType dtype, Expr offset) {
+inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
-    offset = Ramp::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    offset = RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   }
-  return Call::make(
+  return CallNode::make(
       DataType::Handle(), intrinsic::tvm_address_of,
-      {Load::make(dtype, handle, offset,
+      {LoadNode::make(dtype, handle, offset,
                   const_true(dtype.lanes()))},
-      Call::PureIntrinsic);
+      CallNode::PureIntrinsic);
 }
 
 /*!
@@ -133,14 +133,14 @@ inline Expr AddressOffset(Var handle, DataType dtype, Expr offset) {
  */
 inline Stmt TVMStructSet(
     Var handle, int index,
-    intrinsic::TVMStructFieldKind kind, Expr value) {
-  Array<Expr> args ={
+    intrinsic::TVMStructFieldKind kind, PrimExpr value) {
+  Array<PrimExpr> args ={
     handle,
     make_const(DataType::Int(32), index),
     make_const(DataType::Int(32), static_cast<int>(kind)),
     value};
-  return Evaluate::make(
-      Call::make(DataType::Int(32), intrinsic::tvm_struct_set, args, Call::Intrinsic));
+  return EvaluateNode::make(
+      CallNode::make(DataType::Int(32), intrinsic::tvm_struct_set, args, CallNode::Intrinsic));
 }
 
 /*!
@@ -182,8 +182,8 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
  * \param base The result base.
  * \return true if pattern match success and store the base to base.
  */
-inline bool GetRamp1Base(Expr index, int lanes, Expr *base) {
-  const Ramp* r = index.as<Ramp>();
+inline bool GetRamp1Base(PrimExpr index, int lanes, PrimExpr *base) {
+  const RampNode* r = index.as<RampNode>();
   if (!r) return false;
   if (!is_one(r->stride)) return false;
   CHECK_EQ(r->lanes, lanes);

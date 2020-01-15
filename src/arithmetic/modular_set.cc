@@ -85,7 +85,7 @@ struct ModularSetAnalyzer::Entry {
 };
 
 class ModularSetAnalyzer::Impl :
-      public ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
+      public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
  public:
   explicit Impl(Analyzer* parent)
       : parent_(parent) {}
@@ -107,9 +107,9 @@ class ModularSetAnalyzer::Impl :
   }
 
   // Detect useful constraints and use them in the analysis scope.
-  std::function<void()> EnterConstraint(const Expr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     PVar<Var> var;
-    PVar<Integer> coeff, base;
+    PVar<IntImm> coeff, base;
     // pattern match interesting constraints
     if ((truncmod(var, coeff) == base).Match(constraint) ||
         (floormod(var, coeff) == base).Match(constraint)) {
@@ -124,37 +124,29 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Cast* op) final {
+  Entry VisitExpr_(const CastNode* op) final {
     return VisitExpr(op->value);
   }
 
-  Entry VisitExpr_(const IntImm* op) final {
+  Entry VisitExpr_(const IntImmNode* op) final {
     return Entry(0, op->value);
   }
 
-  Entry VisitExpr_(const UIntImm* op) final {
-    if (op->value < std::numeric_limits<int64_t>::max()) {
-      return Entry(0, static_cast<int>(op->value));
-    } else {
-      return Everything();
-    }
-  }
-
-  Entry VisitExpr_(const Add* op) final {
+  Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base + b.base);
   }
 
-  Entry VisitExpr_(const Sub* op) final {
+  Entry VisitExpr_(const SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     int64_t coeff = ZeroAwareGCD(a.coeff, b.coeff);
     return Entry(coeff, a.base - b.base);
   }
 
-  Entry VisitExpr_(const Mul* op) final {
+  Entry VisitExpr_(const MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     // Simplification rule, x, y, z are in Z
@@ -168,7 +160,7 @@ class ModularSetAnalyzer::Impl :
     return Entry(coeff, a.base * b.base);
   }
 
-  Entry DivByConst(const Expr& lhs,
+  Entry DivByConst(const PrimExpr& lhs,
                    int64_t val,
                    bool round_down) {
     Entry a = VisitExpr(lhs);
@@ -188,7 +180,7 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Div* op) final {
+  Entry VisitExpr_(const DivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, false);
@@ -196,7 +188,7 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const FloorDiv* op) final {
+  Entry VisitExpr_(const FloorDivNode* op) final {
     Entry b = VisitExpr(op->b);
     if (b.is_const()) {
       return DivByConst(op->a, b.base, true);
@@ -204,35 +196,35 @@ class ModularSetAnalyzer::Impl :
     return Everything();
   }
 
-  Entry VisitExpr_(const Min* op) final {
+  Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Max* op) final {
+  Entry VisitExpr_(const MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Select* op) final {
+  Entry VisitExpr_(const SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Call* op) final {
+  Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
-    if (op->is_intrinsic(Call::shift_right)) {
+    if (op->is_intrinsic(CallNode::shift_right)) {
       return VisitRightShift(op);
     } else {
       return Everything();
     }
   }
 
-  Entry VisitExpr_(const Variable* op) final {
+  Entry VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -242,7 +234,7 @@ class ModularSetAnalyzer::Impl :
     }
   }
 
-  Entry VisitRightShift(const Call* op) {
+  Entry VisitRightShift(const CallNode* op) {
     Entry b = VisitExpr(op->args[1]);
     // a c x  / c -> a x
     if (b.is_const()) {
@@ -255,7 +247,7 @@ class ModularSetAnalyzer::Impl :
   /*! \brief pointer to parent. */
   Analyzer* parent_{nullptr};
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   /*!
    * \brief Update var by intersecting entry with var's current set.
    * \param var The variable.
@@ -398,7 +390,7 @@ class ModularSetAnalyzer::Impl :
   }
 };
 
-ModularSet ModularSetAnalyzer::operator()(const Expr& expr) {
+ModularSet ModularSetAnalyzer::operator()(const PrimExpr& expr) {
   Entry ret = impl_->VisitExpr(expr);
   return ModularSet(ret.coeff, ret.base);
 }
@@ -409,7 +401,7 @@ void ModularSetAnalyzer::Update(const Var& var,
   impl_->Update(var, info, override);
 }
 
-std::function<void()> ModularSetAnalyzer::EnterConstraint(const Expr& constraint) {
+std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
 }
 

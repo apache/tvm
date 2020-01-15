@@ -35,8 +35,8 @@ Analyzer::Analyzer()
       int_set(this) {
 }
 
-void Analyzer::Bind(const VarExpr& var, const Expr& expr) {
-  Expr new_expr = expr;
+void Analyzer::Bind(const Var& var, const PrimExpr& expr) {
+  PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);
 
@@ -46,7 +46,7 @@ void Analyzer::Bind(const VarExpr& var, const Expr& expr) {
   this->canonical_simplify.Update(var, new_expr);
 }
 
-void Analyzer::Bind(const VarExpr& var, const Range& range) {
+void Analyzer::Bind(const Var& var, const Range& range) {
   CHECK(range.defined());
   if (is_one(range->extent)) {
     this->Bind(var, range->min);
@@ -77,8 +77,8 @@ void ConstraintContext::ExitWithScope() {
   exit_();
 }
 
-bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
-  if (const auto* ptr = expr.as<ir::IntImm>()) {
+bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
+  if (const auto* ptr = expr.as<ir::IntImmNode>()) {
     return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -86,22 +86,22 @@ bool Analyzer::CanProveGreaterEqual(const Expr& expr, int64_t lower_bound) {
   return false;
 }
 
-bool Analyzer::CanProve(const Expr& expr) {
-  if (const auto* ptr = expr.as<ir::UIntImm>()) {
+bool Analyzer::CanProve(const PrimExpr& expr) {
+  if (const auto* ptr = expr.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   auto res = this->rewrite_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImm>()) {
+  if (const auto* ptr = res.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   res = this->canonical_simplify(expr);
-  if (const auto* ptr = res.as<ir::UIntImm>()) {
+  if (const auto* ptr = res.as<IntImmNode>()) {
     return ptr->value != 0;
   }
   return false;
 }
 
-Expr Analyzer::Simplify(const Expr& expr) {
+PrimExpr Analyzer::Simplify(const PrimExpr& expr) {
   if (is_const(expr)) return expr;
   auto res = this->rewrite_simplify(expr);
   if (is_const(res)) return res;

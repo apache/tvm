@@ -35,22 +35,22 @@ namespace ir {
 class ContextCallCombiner final : public StmtExprMutator {
  public:
   struct CompareExpr {
-    bool operator()(const Expr& lhs, const Expr& rhs) const {
+    bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
       return Compare(lhs, rhs) < 0;
     }
   };
 
-  Expr VisitExpr_(const Call* op) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
-      Expr ctx = op->args[0];
+      PrimExpr ctx = op->args[0];
       auto it  = ctx_map_.find(ctx);
       if (it != ctx_map_.end()) {
         return it->second;
       } else {
         CHECK(ctx.dtype().is_handle());
         std::string name;
-        if (const Call* call = ctx.as<Call>()) {
+        if (const CallNode* call = ctx.as<CallNode>()) {
           name = call->name + "_cache";
         } else {
           name = "ctx_cache_";
@@ -64,11 +64,11 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AttrStmt* op) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
-      std::map<Expr, Var, CompareExpr> temp;
+      std::map<PrimExpr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
@@ -78,10 +78,10 @@ class ContextCallCombiner final : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const For* op) final {
+  Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Parallel) {
       // Map of comparison expression to variable
-      std::map<Expr, Var, CompareExpr> temp;
+      std::map<PrimExpr, Var, CompareExpr> temp;
       std::swap(temp, ctx_map_);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
@@ -96,15 +96,15 @@ class ContextCallCombiner final : public StmtExprMutator {
   }
 
  private:
-  static Stmt BuildContext(const std::map<Expr, Var, CompareExpr>& cmap,
+  static Stmt BuildContext(const std::map<PrimExpr, Var, CompareExpr>& cmap,
                            Stmt body) {
     for (const auto& kv : cmap) {
-      body = LetStmt::make(kv.second, kv.first, body);
+      body = LetStmtNode::make(kv.second, kv.first, body);
     }
     return body;
   }
   // Map of comparison expression to variable
-  std::map<Expr, Var, CompareExpr> ctx_map_;
+  std::map<PrimExpr, Var, CompareExpr> ctx_map_;
 };
 
 LoweredFunc CombineContextCall(LoweredFunc f) {

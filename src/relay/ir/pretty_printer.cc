@@ -33,7 +33,7 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
 #include "type_functor.h"
@@ -242,8 +242,8 @@ class PrettyPrinter :
       return PrintType(Downcast<Type>(node), meta);
     } else if (node.as<PatternNode>()) {
       return PrintPattern(Downcast<Pattern>(node), meta);
-    } else if (node.as<ModuleNode>()) {
-      return PrintMod(Downcast<Module>(node));
+    } else if (node.as<IRModuleNode>()) {
+      return PrintMod(Downcast<IRModule>(node));
     } else {
       Doc doc;
       return doc << node;
@@ -486,7 +486,7 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc PrintFunc(const Doc& prefix, const Function& fn) {
+  Doc PrintFunc(const Doc& prefix, const relay::Function& fn) {
     Doc doc;
     doc << prefix;
     if (fn->type_params.size() > 0) {
@@ -514,7 +514,18 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc PrintMod(const Module& mod) {
+  Doc PrintFunc(const Doc& prefix, const BaseFunc& base_func) {
+    if (auto* n = base_func.as<relay::FunctionNode>()) {
+      return PrintFunc(prefix, GetRef<relay::Function>(n));
+    } else {
+      // def @xyz = meta['ExternalFunc'][id]
+      Doc doc;
+      doc << prefix << " = " <<  meta_.GetMetaNode(base_func);
+      return doc;
+    }
+  }
+
+  Doc PrintMod(const IRModule& mod) {
     Doc doc;
     int counter = 0;
     // type definitions
@@ -813,7 +824,7 @@ class PrettyPrinter :
   Doc PrintAttr(const ObjectRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
-      if (value.as<tvm::ir::Any>()) {
+      if (value.as<tvm::ir::AnyNode>()) {
         printed_attr << "?";
       } else if (meta) {
         printed_attr = meta_.GetMetaNode(Downcast<ObjectRef>(value));
@@ -842,19 +853,15 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc VisitAttr_(const ir::IntImm* op) final {
+  Doc VisitAttr_(const ir::IntImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::UIntImm* op) final {
+  Doc VisitAttr_(const ir::FloatImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::FloatImm* op) final {
-    return PrintConstScalar(op->dtype, &(op->value));
-  }
-
-  Doc VisitAttr_(const ir::StringImm* op) final {
+  Doc VisitAttr_(const ir::StringImmNode* op) final {
     return PrintString(op->value);
   }
 

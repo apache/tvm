@@ -131,6 +131,42 @@ def schedule_sparse_transpose(attrs, outputs, target):
 
 reg.register_pattern("nn.sparse_transpose", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
+
+# Conv1D
+@reg.register_compute("nn.conv1d")
+def compute_conv1d(attrs, inputs, out_type, target):
+    """Compute definition of conv1d"""
+    strides = get_const_tuple(attrs.strides)
+    padding = get_const_tuple(attrs.padding)
+    dilation = get_const_tuple(attrs.dilation)
+    layout = attrs.data_layout
+    out_dtype = attrs.out_dtype
+    out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                 else out_dtype)
+
+    assert layout in ["NCW", "NWC"]
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+
+    return [topi.nn.conv1d(inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype)]
+
+
+@reg.register_schedule("nn.conv1d")
+def schedule_conv1d(attrs, outs, target):
+    """Schedule definition of conv1d"""
+    layout = attrs.data_layout
+
+    with target:
+        if layout == "NCW":
+            return topi.generic.schedule_conv1d_ncw(outs)
+        elif layout == "NCW":
+            return topi.generic.schedule_conv1d_nwc(outs)
+    raise ValueError("No compatible schedule")
+
+
+reg.register_pattern("nn.conv1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # conv2d
 def _find_conv2d_op(op):
     """Find the op with conv2d in its tag by traversing."""
@@ -428,6 +464,18 @@ reg.register_schedule("nn.bias_add", schedule_injective)
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
 
 
+# max_pool1d
+@reg.register_schedule("nn.max_pool1d")
+def schedule_max_pool1d(attrs, outs, target):
+    """Schedule definition of max_pool1d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.max_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # max_pool2d
 @reg.register_schedule("nn.max_pool2d")
 def schedule_max_pool2d(attrs, outs, target):
@@ -450,6 +498,18 @@ def schedule_max_pool3d(attrs, outs, target):
 
 
 reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# avg_pool1d
+@reg.register_schedule("nn.avg_pool1d")
+def schedule_avg_pool1d(attrs, outs, target):
+    """Schedule definition of avg_pool1d"""
+    layout = attrs.layout
+    with target:
+        return topi.generic.schedule_pool(outs, layout)
+
+
+reg.register_pattern("nn.avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool2d

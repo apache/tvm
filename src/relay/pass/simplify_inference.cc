@@ -183,12 +183,12 @@ Expr SimplifyInference(const Expr& e) {
 namespace transform {
 
 Pass SimplifyInference() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(SimplifyInference(f));
   };
   return CreateFunctionPass(pass_func, 0, "SimplifyInference",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference")

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/expr.cc
+ * \file src/tvm/relay/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
 #include <tvm/relay/expr.h>
@@ -51,12 +51,12 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 
 TensorType ConstantNode::tensor_type() const {
   auto dtype = DataType(data->dtype);
-  Array<tvm::Expr> shape;
+  Array<tvm::PrimExpr> shape;
   for (int i = 0; i < data->ndim; i++) {
     CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
     CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
     shape.push_back(
-        tvm::ir::IntImm::make(DataType::Int(32), data->shape[i]));
+        tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 
   return TensorTypeNode::make(shape, dtype);
@@ -109,24 +109,6 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << ")";
   });
 
-GlobalVar GlobalVarNode::make(std::string name_hint) {
-  ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
-  n->name_hint = std::move(name_hint);
-  return GlobalVar(n);
-}
-
-TVM_REGISTER_NODE_TYPE(GlobalVarNode);
-
-TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
-.set_body_typed(GlobalVarNode::make);
-
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<GlobalVarNode>([](const ObjectRef& ref, NodePrinter* p) {
-    auto* node = static_cast<const GlobalVarNode*>(ref.get());
-    p->stream << "GlobalVar(" << node->name_hint << ")";
-  });
-
-
 Function FunctionNode::make(tvm::Array<Var> params,
                             Expr body,
                             Type ret_type,
@@ -153,12 +135,12 @@ FuncType FunctionNode::func_type_annotation() const {
 
   Type ret_type = (this->ret_type.defined()) ? this->ret_type
     : IncompleteTypeNode::make(Kind::kType);
-  return FuncTypeNode::make(param_types, ret_type, this->type_params, {});
+  return FuncType(param_types, ret_type, this->type_params, {});
 }
 
 bool FunctionNode::IsPrimitive() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
-  const ir::IntImm* pval = res.as<ir::IntImm>();
+  const ir::IntImmNode* pval = res.as<ir::IntImmNode>();
   return pval && pval->value != 0;
 }
 
@@ -184,7 +166,7 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionGetParams")
 
 bool FunctionNode::UseDefaultCompiler() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
-  const ir::StringImm* pval = res.as<ir::StringImm>();
+  const ir::StringImmNode* pval = res.as<ir::StringImmNode>();
   return pval == nullptr || pval->value == "default";
 }
 

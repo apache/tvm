@@ -316,9 +316,9 @@ class BijectiveLayoutNode : public Object {
   /*! \brief Describes how source axes can be mapped to the destination axes,
    *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
    */
-  Array<Expr> forward_rule;
+  Array<PrimExpr> forward_rule;
   /*! \brief Describes how destination axes can be mapped to the source axes */
-  Array<Expr> backward_rule;
+  Array<PrimExpr> backward_rule;
 
   /*! \brief The source layout */
   Layout src_layout;
@@ -350,13 +350,13 @@ class BijectiveLayout : public ObjectRef {
   explicit BijectiveLayout(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   // Given the source shape, infer the destination shape.
-  TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
+  TVM_DLL Array<PrimExpr> ForwardShape(const Array<PrimExpr>& shape) const;
   // Given the destination shape, recover the source shape.
-  TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& dst_shape) const;
+  TVM_DLL Array<PrimExpr> BackwardShape(const Array<PrimExpr>& dst_shape) const;
   // Given the destination indices, infer the destination indices.
-  TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
+  TVM_DLL Array<PrimExpr> ForwardIndex(const Array<PrimExpr>& index) const;
   // Given the destination indices, recover the source indices.
-  TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& dst_index) const;
+  TVM_DLL Array<PrimExpr> BackwardIndex(const Array<PrimExpr>& dst_index) const;
 
   /*!
    * \brief access the internal node container

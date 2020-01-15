@@ -19,6 +19,12 @@
 from ...attrs import Attrs
 from ..base import register_relay_attr_node
 
+
+@register_relay_attr_node
+class Conv1DAttrs(Attrs):
+    """Attributes for nn.conv1d"""
+
+
 @register_relay_attr_node
 class Conv2DAttrs(Attrs):
     """Attributes for nn.conv2d"""
@@ -114,6 +120,9 @@ class DeformableConv2DAttrs(Attrs):
 class ResizeAttrs(Attrs):
     """Attributes for image.resize"""
 
+@register_relay_attr_node
+class CropAndResizeAttrs(Attrs):
+    """Attributes for image.crop_and_resize"""
 
 @register_relay_attr_node
 class ArgsortAttrs(Attrs):
@@ -273,6 +282,16 @@ class MaxPool2DAttrs(Attrs):
 @register_relay_attr_node
 class AvgPool2DAttrs(Attrs):
     """Attributes used in avg_pool2d operators"""
+
+
+@register_relay_attr_node
+class MaxPool1DAttrs(Attrs):
+    """Attributes used in max_pool1d operators"""
+
+
+@register_relay_attr_node
+class AvgPool1DAttrs(Attrs):
+    """Attributes used in avg_pool1d operators"""
 
 
 @register_relay_attr_node

@@ -112,14 +112,14 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
         *rv = Op(args[0].operator tvm::Tensor(),                        \
                  args[1].operator tvm::Tensor());                       \
       } else if (!lhs_is_tensor && rhs_is_tensor) {                     \
-        *rv = Op(args[0].operator tvm::Expr(),                          \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
                  args[1].operator tvm::Tensor());                       \
       } else if (lhs_is_tensor && !rhs_is_tensor) {                     \
         *rv = Op(args[0].operator tvm::Tensor(),                        \
-                 args[1].operator tvm::Expr());                         \
+                 args[1].operator tvm::PrimExpr());                         \
       } else if (!lhs_is_tensor && !rhs_is_tensor) {                    \
-        *rv = Op(args[0].operator tvm::Expr(),                          \
-                 args[1].operator tvm::Expr());                         \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
+                 args[1].operator tvm::PrimExpr());                         \
       }                                                                 \
     });                                                                 \
 
@@ -433,7 +433,7 @@ TVM_REGISTER_GLOBAL("topi.tensordot")
   } else if (args.size() == 3) {
     *rv = tensordot(args[0], args[1], args[2]);
   } else {
-    Array<Expr> axes = args[3];
+    Array<PrimExpr> axes = args[3];
     *rv = tensordot(args[0], args[1], args[2], axes);
   }
   });
@@ -527,7 +527,7 @@ TVM_REGISTER_GLOBAL("topi.nn.pool_grad")
 TVM_REGISTER_GLOBAL("topi.nn.global_pool")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::global_pool(args[0],
-                        static_cast<nn::PoolType>(static_cast<int>(args[1])));
+                        static_cast<nn::PoolType>(static_cast<int>(args[1])), args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
@@ -536,6 +536,13 @@ TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
                           static_cast<nn::PoolType>(static_cast<int>(args[2])),
                           args[3]);
 });
+
+TVM_REGISTER_GLOBAL("topi.nn.pool1d")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::pool1d(args[0], args[1], args[2], args[3],
+                   static_cast<nn::PoolType>(static_cast<int>(args[4])),
+                   args[5], args[6], args[7]);
+  });
 
 TVM_REGISTER_GLOBAL("topi.nn.pool3d")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

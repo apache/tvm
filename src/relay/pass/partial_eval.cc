@@ -403,7 +403,7 @@ Fuel MkFTop() {
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
- * Contains a mapping from relay::Var to relay::Value.
+ * Contains a mapping from relay::Var to relay::Object.
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
@@ -554,7 +554,7 @@ bool StatefulOp(const Expr& e) {
   return sov.stateful;
 }
 
-using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
+using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
 DLContext CPUContext() {
   DLContext ctx;
@@ -569,7 +569,7 @@ FInterpreter CPUInterpreter() {
   // in case we are already in a build context.
   With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
-  return CreateInterpreter(Module(nullptr), CPUContext(), target);
+  return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }
 
 using FuncId = int;
@@ -623,7 +623,7 @@ Function AsFunc(const Expr& e) {
 class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>,
                          public PatternFunctor<MatchStatus(const Pattern&, const PStatic&)> {
  public:
-  PartialEvaluator(const Module& mod) : mod_(mod) { }
+  PartialEvaluator(const IRModule& mod) : mod_(mod) { }
 
   PStatic VisitExpr(const Expr& e, LetList* ll) final {
     PStatic ret = ExprFunctor<PStatic(const Expr&, LetList*)>::VisitExpr(e, ll);
@@ -676,12 +676,18 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitGlobalVar(const GlobalVar& gv) {
     CHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
-      Function func = mod_->Lookup(gv);
-      InitializeFuncId(func);
-      Func f = VisitFuncStatic(func, gv);
-      gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
-      func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
-      mod_->Update(gv, func);
+      BaseFunc base_func = mod_->Lookup(gv);
+      if (auto* n = base_func.as<FunctionNode>()) {
+        Function func = GetRef<Function>(n);
+        InitializeFuncId(func);
+        Func f = VisitFuncStatic(func, gv);
+        gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
+        func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
+        mod_->Update(gv, func);
+        return gv_map_.at(gv);
+      } else {
+        return NoStatic(gv);
+      }
     }
     return gv_map_.at(gv);
   }
@@ -925,13 +931,14 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  PStatic Reify(const Value& v, LetList* ll) const {
-    if (const TensorValueNode* op = v.as<TensorValueNode>()) {
-      return HasStatic(MkSTensor(op->data), ll->Push(ConstantNode::make(op->data)));
+  PStatic Reify(const ObjectRef& v, LetList* ll) const {
+    if (v->IsInstance<runtime::NDArray::ContainerType>()) {
+      auto nd_array = Downcast<runtime::NDArray>(v);
+      return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
     } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const Value& field : op->fields) {
+      for (const ObjectRef& field : op->fields) {
         PStatic ps = Reify(field, ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
@@ -947,10 +954,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0),
                                            transform::InferType()};
-    auto mod = ModuleNode::FromExpr(expr);
+    auto mod = IRModule::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup("main");
+    auto entry_func = Downcast<Function>(mod->Lookup("main"));
     auto fused_infered =
         expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
@@ -1177,7 +1184,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
  private:
   Environment env_;
-  Module mod_;
+  IRModule mod_;
   std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
@@ -1248,7 +1255,7 @@ Expr PostProcess(const Expr& e) {
 
 }  // namespace partial_eval
 
-Module PartialEval(const Module& m) {
+IRModule PartialEval(const IRModule& m) {
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {
@@ -1263,9 +1270,9 @@ Module PartialEval(const Module& m) {
 namespace transform {
 
 Pass PartialEval() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
-    return PartialEval(m);
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
+    return relay::PartialEval(m);
   };
   return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }

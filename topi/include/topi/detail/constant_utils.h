@@ -41,10 +41,9 @@ using namespace tvm;
  *
  * \return true if the given expr is a constant int or uint, false otherwise.
  */
-inline bool IsConstInt(Expr expr) {
+inline bool IsConstInt(PrimExpr expr) {
   return
-    expr->IsInstance<tvm::ir::IntImm>() ||
-    expr->IsInstance<tvm::ir::UIntImm>();
+    expr->IsInstance<tvm::ir::IntImmNode>();
 }
 
 /*!
@@ -55,12 +54,9 @@ inline bool IsConstInt(Expr expr) {
  *
  * \return The integer value.
  */
-inline int64_t GetConstInt(Expr expr) {
-  if (expr->IsInstance<tvm::ir::IntImm>()) {
-    return expr.as<tvm::ir::IntImm>()->value;
-  }
-  if (expr->IsInstance<tvm::ir::UIntImm>()) {
-    return expr.as<tvm::ir::UIntImm>()->value;
+inline int64_t GetConstInt(PrimExpr expr) {
+  if (expr->IsInstance<tvm::IntImmNode>()) {
+    return expr.as<tvm::IntImmNode>()->value;
   }
   LOG(ERROR) << "expr must be a constant integer";
   return -1;
@@ -75,11 +71,13 @@ inline int64_t GetConstInt(Expr expr) {
  *
  * \return A vector of the integer values
  */
-inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
+inline std::vector<int> GetConstIntValues(
+    Array<PrimExpr> exprs, const std::string& var_name) {
   std::vector<int> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
-    CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    CHECK(IsConstInt(expr)) << "All elements of "
+                            << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
   }
   return result;
@@ -94,7 +92,8 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
  *
  * \return A vector of the int64_t values
  */
-inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::string& var_name) {
+inline std::vector<int64_t> GetConstInt64Values(
+    Array<PrimExpr> exprs, const std::string& var_name) {
   std::vector<int64_t> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
@@ -113,10 +112,10 @@ inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::st
  *
  * \return result True if both expressions are equal, else false
  */
-inline bool EqualCheck(Expr lhs, Expr rhs) {
+inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
   bool result = tvm::ir::Equal(lhs, rhs);
   if (!result) {
-    Expr zero(0);
+    PrimExpr zero(0);
     result = tvm::ir::Equal(tvm::ir::CanonicalSimplify(lhs-rhs), zero);
   }
   return result;

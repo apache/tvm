@@ -17,12 +17,12 @@
 
 from typing import List
 import tvm
-from .base import Span, NodeBase
+from .base import Span, Object
 from .ty import Type, TypeParam
 from ._analysis import _get_checked_type
 
 
-class Expr(NodeBase):
+class Expr(Object):
     def checked_type(self):
         ...
 

@@ -216,12 +216,12 @@ Expr CombineParallelConv2D(const Expr& expr, uint64_t min_num_branches) {
 namespace transform {
 
 Pass CombineParallelConv2D(uint64_t min_num_branches) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")

@@ -34,12 +34,6 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-Tensor::Tensor(NDArray data) {
-  auto ptr = make_object<TensorObj>();
-  ptr->data = std::move(data);
-  data_ = std::move(ptr);
-}
-
 Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
   auto ptr = make_object<ClosureObj>();
   ptr->func_index = func_index;
@@ -47,14 +41,6 @@ Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
   data_ = std::move(ptr);
 }
 
-
-TVM_REGISTER_GLOBAL("_vmobj.GetTensorData")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto* cell = obj.as<TensorObj>();
-  CHECK(cell != nullptr);
-  *rv = cell->data;
-});
 
 TVM_REGISTER_GLOBAL("_vmobj.GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -80,11 +66,6 @@ TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
   *rv = adt[idx];
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.Tensor")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-*rv = Tensor(args[0].operator NDArray());
-});
-
 TVM_REGISTER_GLOBAL("_vmobj.Tuple")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> fields;
@@ -105,7 +86,6 @@ TVM_REGISTER_GLOBAL("_vmobj.ADT")
   *rv = ADT(tag, fields);
 });
 
-TVM_REGISTER_OBJECT_TYPE(TensorObj);
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 }  // namespace vm

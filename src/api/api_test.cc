@@ -25,7 +25,7 @@
 #include <tvm/tensor.h>
 #include <tvm/attrs.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/env_func.h>
+#include <tvm/ir/env_func.h>
 #include <tvm/packed_func_ext.h>
 
 
@@ -34,7 +34,7 @@ namespace tvm {
 struct TestAttrs : public AttrsNode<TestAttrs> {
   int axis;
   std::string name;
-  Array<Expr> padding;
+  Array<PrimExpr> padding;
   TypedEnvFunc<int(int)> func;
 
   TVM_DECLARE_ATTRS(TestAttrs, "attrs.TestAttrs") {
@@ -47,7 +47,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
         .describe("name");
     TVM_ATTR_FIELD(padding)
         .describe("padding of input")
-        .set_default(Array<Expr>({0, 0}));
+        .set_default(Array<PrimExpr>({0, 0}));
     TVM_ATTR_FIELD(func)
         .describe("some random env function")
         .set_default(TypedEnvFunc<int(int)>(nullptr));

@@ -242,8 +242,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // Finally if the operator position is not a call node we will
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
-    const OpNode* opnode = call->op.as<OpNode>();
-    if (opnode != nullptr && call->op != Op::Get("nn.batch_norm")) {
+    if (const OpNode* opnode = call->op.as<OpNode>()) {
       op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
     } else {
       this->Update(call->op, node, kOpaque);
@@ -970,20 +969,20 @@ class FuseMutator : private ExprMutator {
   }
 };
 
-Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
+Expr FuseOps(const Expr& expr, int fuse_opt_level, const IRModule& module) {
   return FuseMutator().Transform(expr, fuse_opt_level);
 }
 
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
   return CreateFunctionPass(pass_func, 1, "FuseOps",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps")

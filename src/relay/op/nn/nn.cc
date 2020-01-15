@@ -136,7 +136,7 @@ bool FIFOBufferRel(const Array<Type>& types,
   }
   reporter->Assert(input->shape[buffer_axis] < buffer->shape[buffer_axis]);
 
-  Array<tvm::Expr> oshape = buffer->shape;
+  Array<tvm::PrimExpr> oshape = buffer->shape;
 
   reporter->Assign(types[2], TensorTypeNode::make(oshape, buffer->dtype));
   return true;
@@ -408,7 +408,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   auto target_dim = make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<ir::Any>()) {
+    if (!data->shape[i].as<ir::AnyNode>()) {
       target_dim = target_dim * data->shape[i];
     } else {
       target_dim = data->shape[i];
@@ -586,7 +586,7 @@ bool DropoutRel(const Array<Type>& types,
   // dropout returns the original tensor with dropout applied
   // and a mask tensor (1.0 where element not dropped, 0.0 where dropped)
   auto ret_type = TensorTypeNode::make(data->shape, data->dtype);
-  reporter->Assign(types[1], TupleTypeNode::make(Array<Type>({ret_type, ret_type})));
+  reporter->Assign(types[1], TupleType(Array<Type>({ret_type, ret_type})));
   return true;
 }
 
@@ -674,7 +674,7 @@ bool BatchNormRel(const Array<Type>& types,
   fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
   fields.push_back(vec_ty);
   fields.push_back(vec_ty);
-  reporter->Assign(types[5], TupleTypeNode::make(Array<Type>(fields)));
+  reporter->Assign(types[5], TupleType(Array<Type>(fields)));
   return true;
 }
 
@@ -877,7 +877,7 @@ bool BatchMatmulRel(const Array<Type>& types,
       << " x shape=" << x->shape
       << ", y shape=" << y->shape;
 
-  Array<tvm::Expr> oshape = x->shape;
+  Array<tvm::PrimExpr> oshape = x->shape;
   oshape.Set(2, y->shape[1]);
 
   // assign output type

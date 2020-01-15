@@ -325,7 +325,7 @@ class HybridParser(ast.NodeVisitor):
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
-        if isinstance(rhs, _expr.Expr):
+        if isinstance(rhs, _expr.PrimExpr):
             rhs = _ir_pass.Simplify(rhs)
         if isinstance(lhs, ast.Name):
             #TODO: support defined intermediate buffer later
@@ -386,7 +386,7 @@ class HybridParser(ast.NodeVisitor):
                 if isinstance(i, numbers.Integral):
                     arr = arr[i]
                 else:
-                    _internal_assert(isinstance(i, (_expr.IntImm, _expr.UIntImm)), \
+                    _internal_assert(isinstance(i, (_expr.IntImm,)), \
                                      "All indices are supposed to be constants")
                     arr = arr[i.value]
             return arr
@@ -413,7 +413,7 @@ class HybridParser(ast.NodeVisitor):
         cond = _ir_pass.CanonicalSimplify(self.visit(node.test))
 
         # Return no IfThenElse if proven
-        if isinstance(cond, _expr.UIntImm):
+        if isinstance(cond, _expr.IntImm):
             if cond.value:
                 return visit_list_to_block(self.visit, node.body)
             if node.orelse:

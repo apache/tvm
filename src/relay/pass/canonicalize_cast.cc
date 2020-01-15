@@ -129,12 +129,12 @@ Expr CanonicalizeCast(const Expr& e) {
 namespace transform {
 
 Pass CanonicalizeCast() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(CanonicalizeCast(f));
   };
   return CreateFunctionPass(pass_func, 3, "CanonicalizeCast",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeCast")

@@ -32,8 +32,8 @@ namespace relay {
 namespace transform {
 
 Pass PrintIR(bool show_meta_data) {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
       LOG(INFO) << "Dumping the module IR: " << std::endl << AsText(m, show_meta_data);
       return m;
   };

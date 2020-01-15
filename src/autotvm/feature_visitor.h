@@ -51,12 +51,12 @@ enum AnnotationType {
 class FeatureVisitor : public StmtExprVisitor {
  public:
   // for loop
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
 
   // memory access
-  void VisitExpr_(const Load* op) final;
-  void VisitStmt_(const Store* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
 
   using StmtExprVisitor::VisitStmt_;
   using StmtExprVisitor::VisitExpr_;
@@ -69,7 +69,7 @@ class FeatureVisitor : public StmtExprVisitor {
  * \param ann_type The type for the for loop
  * \return skip Whether skip this node
  */
-  virtual bool EnterItervar_(tvm::VarExpr var, int64_t length, AnnotationType ann_type) = 0;
+  virtual bool EnterItervar_(tvm::Var var, int64_t length, AnnotationType ann_type) = 0;
   /*! \brief Exit a for loop subtree */
   virtual void ExitItervar_() = 0;
   /*!
@@ -77,7 +77,7 @@ class FeatureVisitor : public StmtExprVisitor {
    * \param buffer_var The buffer to access.
    * \param index Index expression
    */
-  virtual void EnterMem_(tvm::VarExpr buffer_var, tvm::Expr index) = 0;
+  virtual void EnterMem_(tvm::Var buffer_var, tvm::PrimExpr index) = 0;
   /*! \brief Exit a memory access node */
   virtual void ExitMem_() = 0;
 };

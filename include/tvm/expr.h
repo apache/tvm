@@ -24,6 +24,7 @@
 #ifndef TVM_EXPR_H_
 #define TVM_EXPR_H_
 
+#include <tvm/ir/expr.h>
 #include <string>
 #include <algorithm>
 #include <unordered_map>
@@ -37,45 +38,6 @@
 
 namespace tvm {
 
-/*! \brief Base node of all expressions. */
-class ExprNode : public Object {
- public:
-  /*! \brief The data type of the expression. */
-  DataType dtype;
-
-  static constexpr const char* _type_key = "Expr";
-  TVM_DECLARE_BASE_OBJECT_INFO(ExprNode, Object);
-};
-
-/*! \brief Container of all expressions. */
-class Expr : public ObjectRef {
- public:
-  Expr() {}
-  explicit Expr(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  /*!
-   * \brief construct from integer.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL Expr(int32_t value);  // NOLINT(*)
-  /*!
-   * \brief construct from float.
-   * \param value The value to be constructed.
-   */
-  TVM_DLL Expr(float value);  // NOLINT(*)
-  /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
-   */
-  TVM_DLL Expr(std::string str);  // NOLINT(*)
-
-  /*! \return the data type of this expression. */
-  DataType dtype() const {
-    return static_cast<const ExprNode*>(get())->dtype;
-  }
-
-  /*! \brief type indicate the container type */
-  using ContainerType = ExprNode;
-};
 
 /*! \brief Base node of all statements. */
 class StmtNode : public Object {
@@ -102,7 +64,7 @@ class Var;
  * - Let
  * - LetStmt
  */
-class Variable : public ExprNode {
+class VarNode : public PrimExprNode {
  public:
   /*!
    * \brief The hint to the variable name.
@@ -118,13 +80,13 @@ class Variable : public ExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(Variable, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TVM */
-class Var : public Expr {
+class Var : public PrimExpr {
  public:
-  explicit Var(ObjectPtr<Object> n) : Expr(n) {}
+  explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
   TVM_DLL explicit Var(std::string name_hint = "v",
                        DataType t = DataType::Int(32));
   /*!
@@ -139,75 +101,51 @@ class Var : public Expr {
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* operator->() const {
+  const VarNode* operator->() const {
     return get();
   }
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
    */
-  const Variable* get() const {
-    return static_cast<const Variable*>(data_.get());
+  const VarNode* get() const {
+    return static_cast<const VarNode*>(data_.get());
   }
   /*! \brief type indicate the container type */
-  using ContainerType = Variable;
-};
-
-// Backward compatibility, will be removed later.
-using VarExpr = Var;
-using BaseExprNode = ExprNode;
-using ExprHash = ObjectHash;
-using ExprEqual = ObjectEqual;
-
-class Integer;
-/*! \brief ExprNode: constant integer. */
-class IntImm : public ExprNode {
- public:
-  /*! \brief the Internal value. */
-  int64_t value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static Integer make(DataType t, int64_t value);
-
-  static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImm, ExprNode);
+  using ContainerType = VarNode;
 };
 
 /*!
- * \brief Container of constant integer (IntImm).
+ * \brief Container of constant int that adds more constructors.
  *
  * This is used to store and automate type check
  * attributes that must be constant integer.
+ *
+ * \sa IntImm
  */
-class Integer : public Expr {
+class Integer : public IntImm {
  public:
-  Integer() : Expr() {}
+  Integer() {}
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : Expr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value) : Expr(value) {}  // NOLINT(*)
+  Integer(int value) : IntImm(DataType::Int(32), value) {}  // NOLINT(*)
+  /*!
+   * \brief Construct integer from int imm.
+   * \param other The other value.
+   */
+  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
   /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
    */
-  Integer& operator=(const Integer& other) {
-    data_ = other.data_;
+  Integer& operator=(const IntImm& other) {
+    data_ = ObjectRef::GetDataPtr<Object>(other);
     return *this;
-  }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the content of the integer.
-   */
-  const IntImm* operator->() const {
-    return static_cast<const IntImm*>(get());
   }
   /*!
    * \brief convert to int64_t
@@ -217,20 +155,18 @@ class Integer : public Expr {
         << " Trying to reference a null Integer";
     return (*this)->value;
   }
-  /*! \brief type indicate the container type */
-  using ContainerType = IntImm;
 };
 
 /*! \brief range over one dimension */
 class RangeNode : public Object {
  public:
   /*! \brief beginning of the node */
-  Expr min;
+  PrimExpr min;
   /*! \brief the extend of range */
-  Expr extent;
+  PrimExpr extent;
   /*! \brief constructor */
   RangeNode() {}
-  RangeNode(Expr min, Expr extent) : min(min), extent(extent) {}
+  RangeNode(PrimExpr min, PrimExpr extent) : min(min), extent(extent) {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("min", &min);
@@ -249,7 +185,7 @@ class Range : public ObjectRef {
    * \param begin The begin of the range.
    * \param end The end of the range.
    */
-  TVM_DLL Range(Expr begin, Expr end);
+  TVM_DLL Range(PrimExpr begin, PrimExpr end);
   /*!
    * \brief construct a new range with min and extent
    *  The corresponding constructor is removed,
@@ -259,7 +195,7 @@ class Range : public ObjectRef {
    * \param min The minimum range.
    * \param extent The extent of the range.
    */
-  static Range make_by_min_extent(Expr min, Expr extent);
+  static Range make_by_min_extent(PrimExpr min, PrimExpr extent);
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
@@ -357,7 +293,7 @@ class IterVar : public ObjectRef {
   /*!
    * \return the corresponding var in the IterVar.
    */
-  inline operator Expr() const;
+  inline operator PrimExpr() const;
   /*! \brief specify container node */
   using ContainerType = IterVarNode;
 };
@@ -428,7 +364,7 @@ inline const IterVarNode* IterVar::operator->() const {
   return static_cast<const IterVarNode*>(data_.get());
 }
 
-inline IterVar::operator Expr() const {
+inline IterVar::operator PrimExpr() const {
   return (*this)->var;
 }
 

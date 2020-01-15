@@ -25,7 +25,7 @@
 #ifndef TVM_RELAY_BACKEND_VM_COMPILER_H_
 #define TVM_RELAY_BACKEND_VM_COMPILER_H_
 
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/logging.h>
@@ -62,7 +62,7 @@ using TargetsMap = Map<tvm::Integer, tvm::Target>;
 
 struct VMCompilerContext {
   // The module context for the compilation
-  Module module;
+  IRModule module;
   // Error reporter
   ErrorReporter err_reporter;
   // Map from a unique integer to ADT constructor tag
@@ -91,10 +91,6 @@ class VMCompiler : public runtime::ModuleNode {
     return "VMCompiler";
   }
 
-  void InitVM() {
-    exec_ = make_object<Executable>();
-  }
-
   /*!
    * \brief Set the parameters
    *
@@ -104,16 +100,19 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Compile functions in a Module
+   * \brief Lower the functions in a Module
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating context
                     to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Compile(Module mod,
-               const TargetsMap& targets,
-               const tvm::Target& target_host);
+  void Lower(IRModule mod,
+             const TargetsMap& targets,
+             const tvm::Target& target_host);
+
+  /*! \brief Generate the machine code for lowered functions. */
+  void Codegen();
 
  protected:
   /*!
@@ -126,11 +125,9 @@ class VMCompiler : public runtime::ModuleNode {
       relay::Function func,
       const std::unordered_map<std::string, runtime::NDArray>& params);
 
-  Module OptimizeModule(const Module& mod, const TargetsMap& targets);
+  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
-
-  void LibraryCodegen();
 
  protected:
   /*! \brief Target devices. */

@@ -25,14 +25,14 @@ from numbers import Number, Integral
 
 from ..base import _LIB, get_last_ffi_error, py2cerror
 from ..base import c_str, string_types
-from ..node_generic import convert_to_node, NodeGeneric
+from ..object_generic import convert_to_object, ObjectGeneric
 from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
-from .object import ObjectBase, _set_class_node
+from .object import ObjectBase, _set_class_object
 from . import object as _object
 
 FunctionHandle = ctypes.c_void_p
@@ -144,8 +144,8 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR
-        elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
-            arg = convert_to_node(arg)
+        elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
+            arg = convert_to_object(arg)
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.OBJECT_HANDLE
             temp_args.append(arg)
@@ -256,7 +256,6 @@ C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handl
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None
-_CLASS_OBJECT = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -266,7 +265,3 @@ def _set_class_module(module_class):
 def _set_class_function(func_class):
     global _CLASS_FUNCTION
     _CLASS_FUNCTION = func_class
-
-def _set_class_object(obj_class):
-    global _CLASS_OBJECT
-    _CLASS_OBJECT = obj_class
