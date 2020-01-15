@@ -24,11 +24,13 @@
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/common_object.h>
+#include <tvm/runtime/vm.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {
+
+using namespace vm;
 
 TVM_REGISTER_GLOBAL("container._GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {

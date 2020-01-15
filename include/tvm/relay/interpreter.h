@@ -39,7 +39,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
-#include <tvm/runtime/common_object.h>
+#include <tvm/runtime/vm.h>
 
 namespace tvm {
 namespace relay {
@@ -73,7 +73,7 @@ class RecClosure;
 class RecClosureObj : public Object {
  public:
   /*! \brief The closure. */
-  runtime::Closure clos;
+  runtime::vm::Closure clos;
   /*! \brief variable the closure bind to. */
   Var bind;
 
@@ -84,7 +84,7 @@ class RecClosureObj : public Object {
     v->Visit("bind", &bind);
   }
 
-  TVM_DLL static RecClosure make(runtime::Closure clos, Var bind);
+  TVM_DLL static RecClosure make(runtime::vm::Closure clos, Var bind);
 
   static constexpr const char* _type_key = "relay.RecClosure";
   TVM_DECLARE_FINAL_OBJECT_INFO(RecClosureObj, Object);

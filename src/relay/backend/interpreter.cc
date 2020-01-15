@@ -37,6 +37,7 @@ namespace tvm {
 namespace relay {
 
 using namespace runtime;
+using namespace runtime::vm;
 
 inline const PackedFunc& GetPackedFunc(const std::string& name) {
   const PackedFunc* pf = tvm::runtime::Registry::Get(name);
