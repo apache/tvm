@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -41,7 +41,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
-                       TVMType type_hint) final {
+                       DLDataType type_hint) final {
     auto sess = GetSess(ctx);
     void *data = sess->CallRemote(
             RPCCode::kDevAllocData, ctx, nbytes, alignment, type_hint);
@@ -67,7 +67,7 @@ class RPCDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final {
     int from_dev_type = ctx_from.device_type;
     int to_dev_type = ctx_to.device_type;

@@ -44,7 +44,7 @@ class DataType {
     kInt = kDLInt,
     kUInt = kDLUInt,
     kFloat = kDLFloat,
-    kHandle = TVMTypeCode::kHandle,
+    kHandle = TVMTypeCode::kTVMOpaqueHandle,
   };
   /*! \brief default constructor */
   DataType() {}

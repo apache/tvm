@@ -129,10 +129,10 @@ void OpRegistry::UpdateAttr(const std::string& key,
   CHECK(p.second != plevel)
       << "Attribute " << key << " of operator " << this->name
       << " is already registered with same plevel=" << plevel;
-  CHECK(value.type_code() != kNull)
+  CHECK(value.type_code() != kTVMNullptr)
       << "Registered packed_func is Null for " << key
       << " of operator " << this->name;
-  if (p.second < plevel && value.type_code() != kNull) {
+  if (p.second < plevel && value.type_code() != kTVMNullptr) {
     op_map->data_[index] = std::make_pair(value, plevel);
   }
 }
@@ -195,7 +195,7 @@ TVM_REGISTER_GLOBAL("relay.op._Register")
       LOG(FATAL) << "attrs type key no longer supported";
     } else {
       // normal attr table override.
-      if (args[2].type_code() == kFuncHandle) {
+      if (args[2].type_code() == kTVMPackedFuncHandle) {
         // do an eager copy of the PackedFunc
         PackedFunc f = args[2];
         // If we get a function from frontend, avoid deleting it.

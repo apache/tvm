@@ -43,7 +43,7 @@ void DictAttrsNode::InitByPackedArgs(
     runtime::TVMArgValue val = args[i + 1];
     if (val.IsObjectRef<ObjectRef>()) {
       dict.Set(key, val.operator ObjectRef());
-    } else if (val.type_code() == kStr) {
+    } else if (val.type_code() == kTVMStr) {
       dict.Set(key, PrimExpr(val.operator std::string()));
     } else {
       dict.Set(key, val.operator PrimExpr());

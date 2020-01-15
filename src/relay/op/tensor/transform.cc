@@ -1182,7 +1182,7 @@ double ToScalar(const runtime::NDArray& array) {
       return reinterpret_cast<double*>(array->data)[0];
     }
   }
-  LOG(FATAL) << "Unknown data type: " << tvm::runtime::TVMType2String(array->dtype);
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
   // make compiler happy
   return -std::numeric_limits<double>::infinity();
 }

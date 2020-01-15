@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -184,7 +184,7 @@ class OpenGLWorkspace final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
-                       TVMType type_hint) final;
+                       DLDataType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_offset,
@@ -193,7 +193,7 @@ class OpenGLWorkspace final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
 
@@ -216,7 +216,7 @@ class OpenGLWorkspace final : public DeviceAPI {
    * \param nbytes Number of bytes in the array.
    * \return The OpenGL texture.
    */
-  Texture CreateTexture(TVMType type, size_t nbytes);
+  Texture CreateTexture(DLDataType type, size_t nbytes);
 
   /*!
    * \brief Upload user data into a sub-region of an OpenGL texture.
@@ -256,7 +256,7 @@ class OpenGLWorkspace final : public DeviceAPI {
    */
   void SetUniform(const Program& program,
                   const std::string& name,
-                  TVMType type,
+                  DLDataType type,
                   void* value);
 
   /*!

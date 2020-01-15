@@ -98,7 +98,7 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgString(
   value.v_str = env->GetStringUTFChars(garg, 0);
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kStr);
+  e->tvmFuncArgTypes.push_back(kTVMStr);
   // release string args later
   e->tvmFuncArgPushedStrs.push_back(std::make_pair(garg, value.v_str));
 }
@@ -126,7 +126,7 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgBytes(
 
   TVMFuncArgsThreadLocalEntry *e = TVMFuncArgsThreadLocalStore::Get();
   e->tvmFuncArgValues.push_back(value);
-  e->tvmFuncArgTypes.push_back(kBytes);
+  e->tvmFuncArgTypes.push_back(kTVMBytes);
 
   e->tvmFuncArgPushedBytes.push_back(std::make_pair(garg, byteArray));
   // release (garg, data), byteArray later
@@ -242,7 +242,9 @@ extern "C" int funcInvokeCallback(TVMValue *args,
   for (int i = 0; i < numArgs; ++i) {
     TVMValue arg = args[i];
     int tcode = typeCodes[i];
-    if (tcode == kObjectHandle || tcode == kFuncHandle || tcode == kModuleHandle) {
+    if (tcode == kTVMObjectHandle ||
+        tcode == kTVMPackedFuncHandle ||
+        tcode == kTVMModuleHandle) {
       TVMCbArgToReturn(&arg, tcode);
     }
     jobject jarg = tvmRetValueToJava(env, arg, tcode);
@@ -393,7 +395,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayAlloc(
 
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayGetShape(
   JNIEnv *env, jobject obj, jlong jhandle, jobject jshape) {
-  TVMArray *array = reinterpret_cast<TVMArray *>(jhandle);
+  DLTensor *array = reinterpret_cast<DLTensor *>(jhandle);
   int64_t *shape = array->shape;
   int ndim = array->ndim;
 
@@ -424,7 +426,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyFromJArray(
   JNIEnv *env, jobject obj, jbyteArray jarr, jlong jfrom, jlong jto) {
   jbyte *data = env->GetByteArrayElements(jarr, NULL);
 
-  TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
+  DLTensor *from = reinterpret_cast<DLTensor *>(jfrom);
   from->data = static_cast<void *>(data);
 
   int ret = TVMArrayCopyFromTo(static_cast<TVMArrayHandle>(from),
@@ -438,7 +440,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyFromJArray(
 
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmArrayCopyToJArray(
   JNIEnv *env, jobject obj, jlong jfrom, jbyteArray jarr) {
-  TVMArray *from = reinterpret_cast<TVMArray *>(jfrom);
+  DLTensor *from = reinterpret_cast<DLTensor *>(jfrom);
   int size = static_cast<int>(env->GetArrayLength(jarr));
   jbyte *pdata = env->GetByteArrayElements(jarr, NULL);
   int ret = 0;
