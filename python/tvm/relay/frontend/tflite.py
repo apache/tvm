@@ -611,7 +611,16 @@ class OperatorConverter(object):
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
         lhs_tensor = input_tensors[0]
-        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        if self.has_expr(lhs_tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses elemwise operators
+            # with constants - it means both will be tensors.
+            lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the elemwise operator is not fused,
+            # we can receive as constant.
+            lhs_type_str = self.get_tensor_type_str(lhs_tensor.tensor.Type())
+            lhs_expr = self.exp_tab.new_const(self.get_tensor_value(lhs_tensor),
+                                              dtype=lhs_type_str)
 
         rhs_tensor = input_tensors[1]
         if self.has_expr(rhs_tensor.tensor_idx):
