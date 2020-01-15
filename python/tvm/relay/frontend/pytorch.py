@@ -927,10 +927,12 @@ class Graph(object):
 
             self._inputs_r[input_name] = _expr.var(input_name,
                                                    shape=self._input_shapes[input_name],
-                                                   dtype=_convert_data_type(self._input_types[input_name]))
+                                                   dtype=_convert_data_type(
+                                                       self._input_types[input_name]))
             self._fn_param.append(_expr.var(input_name,
                                             shape=self._input_shapes[input_name],
-                                            dtype=_convert_data_type(self._input_types[input_name])))
+                                            dtype=_convert_data_type(
+                                                self._input_types[input_name])))
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
