@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, len-as-condition, no-else-return
+# pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
 from __future__ import absolute_import as _abs
 
 import json
 import tvm
+import numpy as np
+from tvm import relay
 from topi.util import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
@@ -38,9 +40,6 @@ from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
 from .nnvm_common import _clip, _transpose, _upsampling
 from .nnvm_common import _elemwise_sum, _reshape
 from .nnvm_common import _warn_not_used
-import numpy as np
-import mxnet as mx
-from tvm import relay
 from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
                                 quantize_conv_weights_channel_mkldnn_from_var, \
                                 quantize_conv_bias_mkldnn_from_var, \
@@ -60,8 +59,9 @@ _activation_map = {
     "relu"   : _op.nn.relu
 }
 
+
 def _mx_fully_connected(inputs, attrs):
-    import mxnet as mx
+    import mxnet as mx #pylint: disable=import-outside-toplevel
     units = attrs.get_int("num_hidden")
     use_bias = not attrs.get_bool("no_bias", False)
     try:
@@ -697,7 +697,8 @@ def _mx_resize(inputs, attrs):
     if scale_width is not None:
         width = (scale_width * shape[3]).astype("int32")
     size = (height, width)
-    return _op.image.resize(inputs[0], size, align_corners=True)
+    return _op.image.resize(inputs[0], size,
+                            coordinate_transformation_mode="align_corners")
 
 def _mx_roi_pooling(inputs, attrs):
     new_attrs = {}
@@ -1112,7 +1113,7 @@ def _qnn_mx_contrib_quantize(inputs, attrs):
         raise ValueError('Unsupported out_dtype: %s' % out_dtype)
     min_calib_range = attrs.get_float('min_calib_range', 0.0)
     max_calib_range = attrs.get_float('max_calib_range', 0.0)
-    quantized_output, scale, zero_point = \
+    quantized_output, _, _ = \
         quantize_mxnet_min_max(inputs[0],
                                min_range=min_calib_range,
                                max_range=max_calib_range,
@@ -1120,7 +1121,7 @@ def _qnn_mx_contrib_quantize(inputs, attrs):
     return quantized_output, min_calib_range, max_calib_range
 
 
-def _qnn_contrib_quantized_ring_buffer(inputs, attrs, params):
+def _qnn_contrib_quantized_fifo_buffer(inputs, attrs, params):
     data = inputs[0]
     buffer = inputs[1]
     min_calib_range = inputs[2]
@@ -1137,14 +1138,14 @@ def _qnn_contrib_quantized_ring_buffer(inputs, attrs, params):
 
 def _get_subgraph_op(subgraphs, op_name):
     assert len(subgraphs) == 1, \
-        "Subgraph should have 1 node but has %d".format(len(subgraphs))
+        "Subgraph should have 1 node but has {}".format(len(subgraphs))
     subgraph = subgraphs[0]
     nodes = subgraph['nodes']
     assert nodes is not None
     for node in nodes:
         if node['op'] == op_name:
             return node
-    raise ValueError("Op %s was not found in the subgraph".format(op_name))
+    raise ValueError("Op {} was not found in the subgraph".format(op_name))
 
 
 def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
@@ -1158,7 +1159,8 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
             subgraph_activation_attrs = _get_subgraph_op(subgraphs, 'Activation')['attrs']
             act_type = subgraph_activation_attrs['act_type']
             if act_type not in _supported_activations:
-                raise ValueError('Fused activation {} is not supported at this time'.format(act_type))
+                raise ValueError('Fused activation {} is not supported at '
+                                 'this time'.format(act_type))
             has_fused_activation = True
         return has_fused_activation
 
@@ -1182,7 +1184,7 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
         # Extract relevant attrs from bn.
         bn_attrs = _get_subgraph_op(subgraphs, 'BatchNorm')['attrs']
         bn_epsilon_param = float(bn_attrs['eps'])
-        bn_scale_param = True if bn_attrs['fix_gamma'] == "False" else False
+        bn_scale_param = bn_attrs['fix_gamma'] == "False"
         bn_center_param = True
         # Extract the relevant relay expressions.
         bn_running_var = inputs[_bn_running_var_idx]
@@ -1304,7 +1306,7 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
         # Get Qnn conv2d
         conv2d_attrs = _get_mx_conv2d_attrs(subgraph_conv_attrs)
         res = _get_qnn_conv2d(data, kernel, data_zero_point, kernel_zero_point, data_scale,
-                kernel_vector_scale, conv2d_attrs)
+                              kernel_vector_scale, conv2d_attrs)
         # Extract bias
         if has_bias or has_bn:
             bias, bias_scale = _get_quantized_bias(bn_scale,
@@ -1329,6 +1331,7 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
 
 
 def _qnn_mx_quantized_flatten(inputs, attrs):
+    #pylint: disable=unused-argument
     data = inputs[0]
     output_min = inputs[1]
     output_max = inputs[2]
@@ -1337,6 +1340,7 @@ def _qnn_mx_quantized_flatten(inputs, attrs):
 
 
 def _qnn_mx_dequantize(inputs, attrs):
+    #pylint: disable=unused-argument
     data = inputs[0]
     input_min = inputs[1]
     input_max = inputs[2]
@@ -1348,7 +1352,7 @@ def _qnn_mx_dequantize(inputs, attrs):
 def _qnn_mx_quantized_act(inputs, attrs):
     act_type = attrs.get_str("act_type")
     assert len(inputs) == 3
-    assert(act_type == "relu", "Currently only relu is supported")
+    assert act_type == "relu", "Currently only relu is supported"
     data = inputs[0]
     range_min = inputs[1]
     range_max = inputs[2]
@@ -1642,7 +1646,7 @@ _convert_map = {
     "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops
     "_contrib_quantize_v2": _qnn_mx_contrib_quantize,
-    "_contrib_quantized_ring_buffer": _qnn_contrib_quantized_ring_buffer,
+    "_contrib_quantized_fifo_buffer": _qnn_contrib_quantized_fifo_buffer,
     "_sg_mkldnn_conv": _qnn_mx_mkldnn_conv,
     "_contrib_quantized_flatten": _qnn_mx_quantized_flatten,
     "_contrib_dequantize": _qnn_mx_dequantize,
@@ -1672,7 +1676,7 @@ def _get_op_params(children, attrs, op_name, node, params):
     return op_params
 
 
-def _from_mxnet_impl(symbol, shape_dict, dtype_info, params, mod=None):
+def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
     #pylint: disable=unused-argument
     """Convert mxnet symbol to compatible relay Function.
 
@@ -1804,7 +1808,7 @@ def from_mxnet(symbol,
         The parameter dict to be used by nnvm
     """
     try:
-        import mxnet as mx
+        import mxnet as mx #pylint: disable=import-outside-toplevel
     except ImportError as e:
         raise ImportError("{}. MXNet is required to parse symbols.".format(e))
 
