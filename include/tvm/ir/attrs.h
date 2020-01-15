@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 /*!
- * \file tvm/attrs.h
- * \brief TVM attribute module
+ * \file tvm/ir/attrs.h
+ * \brief Helpers for attribute objects.
  *
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
@@ -42,20 +41,19 @@
  *
  * \sa AttrsNode, TVM_DECLARE_ATTRS, TVM_ATTR_FIELD
  */
-#ifndef TVM_ATTRS_H_
-#define TVM_ATTRS_H_
+#ifndef TVM_IR_ATTRS_H_
+#define TVM_IR_ATTRS_H_
 
 #include <dmlc/common.h>
+#include <tvm/ir/expr.h>
+#include <tvm/runtime/packed_func.h>
+
 #include <unordered_map>
 #include <vector>
 #include <functional>
 #include <type_traits>
 #include <string>
 #include <utility>
-#include "ir.h"
-#include "base.h"
-#include "expr.h"
-#include "packed_func_ext.h"
 
 namespace tvm {
 /*!
@@ -63,10 +61,10 @@ namespace tvm {
  * \param ClassName The name of the class.
  * \param TypeKey The type key to be used by the TVM node system.
  */
-#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                   \
-  static constexpr const char* _type_key = TypeKey;             \
+#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                      \
+  static constexpr const char* _type_key = TypeKey;                \
   TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode)   \
-  template<typename FVisit>                                     \
+  template<typename FVisit>                                        \
   void __VisitAttrs__(FVisit& __fvisit__)  // NOLINT(*)
 
 
@@ -481,45 +479,36 @@ template<typename T>
 inline void SetValue(T* ptr, const TVMArgValue& val) {
   *ptr = val.operator T();
 }
+
 template<typename T>
 inline void SetIntValue(T* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLInt) {
     *ptr = static_cast<T>(val.value().v_int64);
   } else {
-    PrimExpr expr = val;
-    CHECK(expr.defined());
-    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
-      *ptr = static_cast<T>(op->value);
-    } else {
-      LOG(FATAL) << "Expect int value, but get " << expr->GetTypeKey();
-    }
+    IntImm expr = val;
+    *ptr = static_cast<T>(expr->value);
   }
 }
+
 template<>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   if (val.type_code() == kStr) {
     *ptr = val.operator std::string();
   } else {
-    PrimExpr expr = val;
-    const ir::StringImmNode* op = expr.as<ir::StringImmNode>();
-    CHECK(op != nullptr);
-    *ptr = op->value;
+    LOG(FATAL) << "Expect str";
   }
 }
-template<>
-inline void SetValue(DataType* ptr, const TVMArgValue& val) {
-  *ptr = val.operator DataType();
-}
+
 template<>
 inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
     *ptr = val.operator double();
   } else {
-    PrimExpr expr = val;
+    ObjectRef expr = val;
     CHECK(expr.defined());
-    if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
+    if (const IntImmNode* op = expr.as<IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
-    } else if (const ir::IntImmNode* op = expr.as<ir::IntImmNode>()) {
+    } else if (const FloatImmNode* op = expr.as<FloatImmNode>()) {
       *ptr = static_cast<double>(op->value);
     } else {
       LOG(FATAL) << "Expect float value, but get " << expr->GetTypeKey();
@@ -611,7 +600,7 @@ struct TypeName<uint64_t> {
 
 template<>
 struct TypeName<DataType> {
-  static constexpr const char* value = "Type";
+  static constexpr const char* value = "DataType";
 };
 
 template<>
@@ -872,4 +861,4 @@ inline void BaseAttrsNode::PrintDocString(std::ostream &os) const { // NOLINT(*)
 }
 
 }  // namespace tvm
-#endif  // TVM_ATTRS_H_
+#endif  // TVM_IR_ATTRS_H_

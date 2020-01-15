@@ -677,13 +677,13 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
       return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high));
     }
   }
-  if (t.is_float()) return ir::FloatImmNode::make(t, static_cast<double>(value));
+  if (t.is_float()) return FloatImm(t, static_cast<double>(value));
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
   // specified by the datatype.
   // TODO(gus) when do we need to start worrying about doubles not being precise enough?
   if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(kCustomBegin)) {
-    return ir::FloatImmNode::make(t, static_cast<double>(value));
+    return FloatImm(t, static_cast<double>(value));
   }
   LOG(FATAL) << "cannot make const for type " << t;
   return PrimExpr();

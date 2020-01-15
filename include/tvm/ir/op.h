@@ -26,7 +26,7 @@
 #define TVM_IR_OP_H_
 
 #include <dmlc/registry.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
@@ -296,7 +296,8 @@ class OpRegistry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpMap
-  TVM_DLL void UpdateAttr(const std::string& key, TVMRetValue value,
+  TVM_DLL void UpdateAttr(const std::string& key,
+                          runtime::TVMRetValue value,
                           int plevel);
 };
 
@@ -316,7 +317,7 @@ class GenericOpMap {
    * \param op The key to the map
    * \return the const reference to the content value.
    */
-  inline const TVMRetValue& operator[](const Op& op) const;
+  inline const runtime::TVMRetValue& operator[](const Op& op) const;
   /*!
    * \brief get the corresponding value element at op with default value.
    * \param op The key to the map
@@ -342,7 +343,7 @@ class GenericOpMap {
   // the attribute field.
   std::string attr_name_;
   // internal data
-  std::vector<std::pair<TVMRetValue, int> > data_;
+  std::vector<std::pair<runtime::TVMRetValue, int> > data_;
   // The value
   GenericOpMap() = default;
 };
@@ -532,7 +533,7 @@ template <typename ValueType>
 inline OpRegistry& OpRegistry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  TVMRetValue rv;
+  runtime::TVMRetValue rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);
   return *this;
@@ -548,7 +549,8 @@ inline int GenericOpMap::count(const Op& op) const {
   }
 }
 
-inline const TVMRetValue& GenericOpMap::operator[](const Op& op) const {
+inline const runtime::TVMRetValue&
+GenericOpMap::operator[](const Op& op) const {
   CHECK(op.defined());
   const uint32_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second != 0)

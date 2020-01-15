@@ -33,7 +33,7 @@ PrimExpr::PrimExpr(int32_t value)
     : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
 PrimExpr::PrimExpr(float value)
-    : PrimExpr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
+    : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
 PrimExpr::PrimExpr(std::string str)
     : PrimExpr(ir::StringImmNode::make(str)) {}
