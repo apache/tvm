@@ -21,8 +21,8 @@
  * Refer to std::index_sequence (since c++14)
  * Utilities to invoke variadic function with template <size_t N> 
  */
-#ifndef __TFTVM_INDEX_SEQ__
-#define __TFTVM_INDEX_SEQ__
+#ifndef TVM_CONTRIB_TF_OP_INDEX_SEQ_H_
+#define TVM_CONTRIB_TF_OP_INDEX_SEQ_H_
 
 template <std::size_t ...>
 struct IndexSeq {};
@@ -59,5 +59,5 @@ void apply_variadic_by_ptrs(F f, T(&t)[N]) {
     apply_variadic_by_ptrs_impl(f, t, make_index_sequence<N>{});
 }
 
-#endif
+#endif  // TVM_CONTRIB_TF_OP_INDEX_SEQ_H_
 

@@ -195,4 +195,4 @@ set(USE_VTA_FPGA OFF)
 set(USE_EXAMPLE_EXT_RUNTIME OFF)
 
 # Whether to build the TensorFlow TVMDSOOp module
-set(USE_TFOP OFF)
+set(USE_TF_TVMDSOOP OFF)
