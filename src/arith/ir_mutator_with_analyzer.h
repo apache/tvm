@@ -21,11 +21,11 @@
  * \file tvm/arithmetic/ir_mutator_with_analyzer.h
  * \brief IR mutator base-class with an analyzer context.
  */
-#ifndef TVM_ARITHMETIC_IR_MUTATOR_WITH_ANALYZER_H_
-#define TVM_ARITHMETIC_IR_MUTATOR_WITH_ANALYZER_H_
+#ifndef TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
+#define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/ir_functor_ext.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <utility>
 
 namespace tvm {
@@ -66,4 +66,4 @@ class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_IR_MUTATOR_WITH_ANALYZER_H_
+#endif  // TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_

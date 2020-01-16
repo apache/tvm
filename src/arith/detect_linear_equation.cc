@@ -24,7 +24,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 
 namespace tvm {
 namespace arith {

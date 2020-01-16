@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file tvm/arithmetic/analyzer.cc
+ * \file tvm/arith/analyzer.cc
  */
 #include <tvm/ir.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 
 namespace tvm {
