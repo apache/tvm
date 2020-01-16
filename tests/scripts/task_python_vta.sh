@@ -40,7 +40,12 @@ python3 -m pytest -v vta/tests/python/unittest
 echo "Running integration test in fsim..."
 python3 -m pytest -v vta/tests/python/integration
 
+# Check style of scala code
+echo "Check style of scala code..."
+make -C vta/hardware/chisel lint
+
 # Build VTA chisel design and verilator simulator
+echo "Building VTA chisel design..."
 make -C vta/hardware/chisel cleanall
 make -C vta/hardware/chisel lib
 
