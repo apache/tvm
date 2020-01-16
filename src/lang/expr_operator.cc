@@ -20,7 +20,7 @@
 /*!
  * \file expr_operator.cc
  */
-#include <tvm/base.h>
+
 #include <tvm/ir.h>
 #include <tvm/expr_operator.h>
 #include <cmath>

@@ -28,13 +28,13 @@
 #include <unordered_map>
 #include <vector>
 #include "let_list.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
 
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 /* DependencyGraph track input and output of an Expr.
  * Additionally, dummy scope is created to model scope.
@@ -64,7 +64,7 @@ class DependencyGraph {
    * \param arena The arena used for data allocation.
    * \param body The body of the expression to create a graph.
    */
-  static DependencyGraph Create(common::Arena* arena, const Expr& body);
+  static DependencyGraph Create(support::Arena* arena, const Expr& body);
 
  private:
   class Creator;

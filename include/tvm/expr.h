@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <unordered_map>
 #include <iostream>
-#include "base.h"
 #include "node/node.h"
 #include "node/container.h"
 #include "node/functor.h"

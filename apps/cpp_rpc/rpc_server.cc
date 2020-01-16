@@ -122,8 +122,8 @@ class RPCServer {
   void ListenLoopProc() {
     TrackerClient tracker(tracker_addr_, key_, custom_addr_);
     while (true) {
-      common::TCPSocket conn;
-      common::SockAddr addr("0.0.0.0", 0);
+      support::TCPSocket conn;
+      support::SockAddr addr("0.0.0.0", 0);
       std::string opts;
       try {
         // step 1: setup tracker and report to tracker
@@ -221,8 +221,8 @@ class RPCServer {
    * \param ping_period Timeout for select call waiting
    */
   void AcceptConnection(TrackerClient* tracker,
-                        common::TCPSocket* conn_sock,
-                        common::SockAddr* addr,
+                        support::TCPSocket* conn_sock,
+                        support::SockAddr* addr,
                         std::string* opts,
                         int ping_period = 2) {
     std::set <std::string> old_keyset;
@@ -233,7 +233,7 @@ class RPCServer {
 
     while (true) {
       tracker->WaitConnectionAndUpdateKey(listen_sock_, my_port_, ping_period, &matchkey);
-      common::TCPSocket conn = listen_sock_.Accept(addr);
+      support::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
       CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
@@ -289,7 +289,7 @@ class RPCServer {
    * \param sock The socket information
    * \param addr The socket address information
    */
-  void ServerLoopProc(common::TCPSocket sock, common::SockAddr addr) {
+  void ServerLoopProc(support::TCPSocket sock, support::SockAddr addr) {
       // Server loop
       auto env = RPCEnv();
       RPCServerLoop(sock.sockfd);
@@ -308,7 +308,7 @@ class RPCServer {
 
     if (opts.find(option) == 0) {
       cmd = opts.substr(opts.find_last_of(option) + 1);
-      CHECK(common::IsNumber(cmd)) << "Timeout is not valid";
+      CHECK(support::IsNumber(cmd)) << "Timeout is not valid";
       return std::stoi(cmd);
     }
     return 0;
@@ -321,8 +321,8 @@ class RPCServer {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
-  common::TCPSocket listen_sock_;
-  common::TCPSocket tracker_sock_;
+  support::TCPSocket listen_sock_;
+  support::TCPSocket tracker_sock_;
 };
 
 /*!

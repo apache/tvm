@@ -37,7 +37,7 @@ TclSocket::~TclSocket() {
   tcp_socket_.Close();
 }
 
-void TclSocket::Connect(tvm::common::SockAddr addr) {
+void TclSocket::Connect(tvm::support::SockAddr addr) {
   CHECK(tcp_socket_.Connect(addr)) << "failed to connect";
 }
 

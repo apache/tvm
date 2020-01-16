@@ -21,8 +21,8 @@
  * \file util.h
  * \brief Defines some common utility function..
  */
-#ifndef TVM_COMMON_UTIL_H_
-#define TVM_COMMON_UTIL_H_
+#ifndef TVM_SUPPORT_UTIL_H_
+#define TVM_SUPPORT_UTIL_H_
 
 #include <stdio.h>
 #ifndef _WIN32
@@ -38,7 +38,7 @@
 #include <memory>
 
 namespace tvm {
-namespace common {
+namespace support {
 /*!
  * \brief TVMPOpen wrapper of popen between windows / unix.
  * \param command executed command
@@ -153,6 +153,6 @@ inline int Execute(std::string cmd, std::string* err_msg) {
   return 255;
 }
 
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_COMMON_UTIL_H_
+#endif  // TVM_SUPPORT_UTIL_H_

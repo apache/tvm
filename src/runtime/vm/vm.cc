@@ -23,7 +23,7 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/runtime/memory.h>

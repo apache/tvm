@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,8 +21,8 @@
  * \file pipe.h
  * \brief Platform independent pipe, used for IPC.
  */
-#ifndef TVM_COMMON_PIPE_H_
-#define TVM_COMMON_PIPE_H_
+#ifndef TVM_SUPPORT_PIPE_H_
+#define TVM_SUPPORT_PIPE_H_
 
 #include <dmlc/logging.h>
 #include <dmlc/io.h>
@@ -37,7 +37,7 @@
 #endif
 
 namespace tvm {
-namespace common {
+namespace support {
 
 /*! \brief Platform independent pipe */
 class Pipe : public dmlc::Stream {
@@ -118,7 +118,7 @@ class Pipe : public dmlc::Stream {
  private:
   PipeHandle handle_;
 };
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_COMMON_PIPE_H_
+#endif  // TVM_SUPPORT_PIPE_H_
