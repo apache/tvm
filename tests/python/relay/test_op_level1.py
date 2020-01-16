@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 import tvm
 import scipy
 from tvm import relay
@@ -336,6 +337,16 @@ def test_batch_norm():
             relay.ty.TensorType((3,), dtype)
         ]))
 
+@pytest.mark.xfail
+def test_dense_type_check():
+    dtype = 'float16'
+    n, c , h, w = 2, 2 , 2 ,2
+    x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
+    # it should fail since it does not match with m(2)
+    mismatch_w = 3
+    w = relay.var("w", relay.TensorType((2, mismatch_w), dtype))
+    y = relay.nn.dense(x, w)
+    yy = run_infer_type(y)
 
 def test_dense():
     for dtype in ['float16', 'float32']:
