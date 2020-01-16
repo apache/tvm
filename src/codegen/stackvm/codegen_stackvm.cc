@@ -32,6 +32,28 @@ namespace codegen {
 
 using namespace ir;
 
+// map struct field kind to runtime variants
+// We keep two separate enums to ensure runtime/compiler isolation.
+StackVM::StructFieldKind MapFieldKind(int64_t kind) {
+  auto val = static_cast<intrinsic::TVMStructFieldKind>(kind);
+  switch (val) {
+    case intrinsic::kArrData: return StackVM::kArrData;
+    case intrinsic::kArrShape: return StackVM::kArrShape;
+    case intrinsic::kArrAddr: return StackVM::kArrAddr;
+    case intrinsic::kArrStrides: return StackVM::kArrStrides;
+    case intrinsic::kArrNDim: return StackVM::kArrNDim;
+    case intrinsic::kArrTypeCode: return StackVM::kArrTypeCode;
+    case intrinsic::kArrTypeBits: return StackVM::kArrTypeBits;
+    case intrinsic::kArrTypeLanes: return StackVM::kArrTypeLanes;
+    case intrinsic::kArrByteOffset: return StackVM::kArrByteOffset;
+    case intrinsic::kArrDeviceId: return StackVM::kArrDeviceId;
+    case intrinsic::kArrDeviceType: return StackVM::kArrDeviceType;
+    case intrinsic::kTVMValueContent: return StackVM::kTVMValueContent;
+    default: LOG(FATAL) << "Do not know how to map field " << kind;
+  }
+  return StackVM::kArrData;
+}
+
 StackVM CodeGenStackVM::Compile(LoweredFunc f) {
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
@@ -163,7 +185,7 @@ void CodeGenStackVM::VisitExpr_(const CallNode* op) {
     vm_.code.push_back(code);
     code.v_int = index->value;
     vm_.code.push_back(code);
-    code.v_int = kind;
+    code.v_int = MapFieldKind(kind);
     vm_.code.push_back(code);
   } else if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     CHECK_GE(op->args.size(), 5U);
@@ -431,7 +453,7 @@ void CodeGenStackVM::VisitStmt_(const EvaluateNode *ev) {
     vm_.code.push_back(code);
     code.v_int = index->value;
     vm_.code.push_back(code);
-    code.v_int = op->args[2].as<IntImmNode>()->value;
+    code.v_int = MapFieldKind(op->args[2].as<IntImmNode>()->value);
     vm_.code.push_back(code);
   } else {
     this->Push(ev->value);

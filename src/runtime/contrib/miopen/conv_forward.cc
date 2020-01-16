@@ -21,7 +21,7 @@
  * \file Use external miopen utils function
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include "miopen_utils.h"
 
