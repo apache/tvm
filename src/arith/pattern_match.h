@@ -62,8 +62,8 @@
  *       Please be aware that the filled value in a PVar
  *       can be overriden in the next call to Match.
  */
-#ifndef TVM_ARITHMETIC_PATTERN_MATCH_H_
-#define TVM_ARITHMETIC_PATTERN_MATCH_H_
+#ifndef TVM_ARITH_PATTERN_MATCH_H_
+#define TVM_ARITH_PATTERN_MATCH_H_
 
 #include <tvm/ir_pass.h>
 #include <tuple>
@@ -798,4 +798,4 @@ if_then_else(const Pattern<TCond>& cond,
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_PATTERN_MATCH_H_
+#endif  // TVM_ARITH_PATTERN_MATCH_H_

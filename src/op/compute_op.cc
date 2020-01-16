@@ -22,7 +22,7 @@
  * \file compute_op.cc
  */
 #include <tvm/operation.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
@@ -32,8 +32,8 @@
 #include "compute_op.h"
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arithmetic/compute_expr.h"
-#include "../arithmetic/int_set.h"
+#include "../arith/compute_expr.h"
+#include "../arith/interval_set.h"
 
 namespace tvm {
 

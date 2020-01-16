@@ -21,8 +21,8 @@
  * \file const_fold.h
  * \brief Centralized location for constant folding.
  */
-#ifndef TVM_ARITHMETIC_CONST_FOLD_H_
-#define TVM_ARITHMETIC_CONST_FOLD_H_
+#ifndef TVM_ARITH_CONST_FOLD_H_
+#define TVM_ARITH_CONST_FOLD_H_
 
 #include <tvm/ir.h>
 #include <tvm/expr_operator.h>
@@ -400,4 +400,4 @@ inline bool is_neg_inf(const PrimExpr& value) {
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_CONST_FOLD_H_
+#endif  // TVM_ARITH_CONST_FOLD_H_

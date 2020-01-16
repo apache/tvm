@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/arithmetic/ir_mutator_with_analyzer.cc
+ * \file tvm/arith/ir_mutator_with_analyzer.cc
  */
 #include <tvm/ir_pass.h>
 #include <tvm/expr_operator.h>

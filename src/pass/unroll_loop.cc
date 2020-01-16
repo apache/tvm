@@ -28,7 +28,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {

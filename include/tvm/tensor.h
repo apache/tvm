@@ -25,6 +25,8 @@
 #define TVM_TENSOR_H_
 
 #include <tvm/node/container.h>
+#include <tvm/arith/bound.h>
+
 #include <string>
 #include <vector>
 #include <utility>
@@ -32,7 +34,6 @@
 
 #include "expr.h"
 #include "expr_operator.h"
-#include "arithmetic.h"
 
 namespace tvm {
 

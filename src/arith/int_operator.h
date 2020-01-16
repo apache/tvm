@@ -21,8 +21,8 @@
  * \file int_operator.h
  * \brief Additional useful operators for integer.
  */
-#ifndef TVM_ARITHMETIC_INT_OPERATOR_H_
-#define TVM_ARITHMETIC_INT_OPERATOR_H_
+#ifndef TVM_ARITH_INT_OPERATOR_H_
+#define TVM_ARITH_INT_OPERATOR_H_
 
 #include <limits>
 
@@ -143,4 +143,4 @@ inline int64_t floormod(int64_t x, int64_t y) {
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_INT_OPERATOR_H_
+#endif  // TVM_ARITH_INT_OPERATOR_H_

@@ -26,7 +26,7 @@
 #include <utility>
 #include "ir_util.h"
 #include "storage_access.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {

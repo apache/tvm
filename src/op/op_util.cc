@@ -28,7 +28,7 @@
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace op {

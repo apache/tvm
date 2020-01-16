@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "../src/arithmetic/pattern_match.h"
+#include "../src/arith/pattern_match.h"
 
 TEST(Pattern, Basic) {
   using namespace tvm;
