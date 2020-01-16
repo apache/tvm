@@ -192,7 +192,7 @@ def var(name="tindex", dtype=int32):
     return _api_internal._Var(name, dtype)
 
 
-def size_var(name="tindex", dtype=int32):
+def size_var(name="size", dtype=int32):
     """Create a new variable represents a tensor shape size, which is non-negative.
 
     Parameters
