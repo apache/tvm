@@ -18,7 +18,7 @@
 =============================
 Bring Your Own Codegen To TVM
 =============================
-**Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Hao Yu <https:://github.com/comaniac>`_
+**Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Yu <https://github.com/comaniac>`_
 
 As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge for users to achieve high performance on various devices keeps increasing as well. To free data scientists from worrying about the performance when developing a new model, hardware backend providers either provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks such as TensorRT to let users describe their models in a certain way to achieve high performance. However, users have to learn a new programming interface when they attempt to work on a new library or device. As a result, the demand for a unified programming interface becomes more and more important to 1) let all users and hardware backend providers stand on the same page, and 2) provide a feasible solution to allow specialized hardware or library to only support widely used operators with extremely high performance, but fallback unsupported operators to general devices like CPU/GPU.
 
@@ -136,7 +136,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 3** is a TVM runtime compatible wrapper function. It accepts a list of input tensors and one output tensor (the last argument), casts them to the right data type, and invokes the subgraph function described in Note 2. In addition, ``TVM_DLL_EXPORT_TYPED_FUNC`` is a TVM macro that generates another function ``gcc_0`` with unified the function arguments by packing all tensors to ``TVMArgs``. As a result, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
-In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under ``src/relay/backend/contrib/codegen_c/codegen.cc``. Feel free to check this file for a complete implementation.
+In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `here<https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
 
 Specifically, we are going to implement two classes in this file and here is their relationship:
 
@@ -624,7 +624,7 @@ The next step is to implement a customized runtime to make use of the output of 
 Implement a Customized Runtime
 ==============================
 
-In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime" and put it under ``src/runtime/contrib/example_ext_runtime/example_ext_runtime.cc``. Feel free to check this file for a complete implementation.
+In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime" and put it under `here<src/runtime/contrib/example_ext_runtime/example_ext_runtime.cc>`_. Feel free to check this file for a complete implementation.
 
 Again, we first define a customized runtime class as follows. The class has to be derived from TVM ``ModuleNode`` in order to be compatible with other TVM runtime modules.
 
