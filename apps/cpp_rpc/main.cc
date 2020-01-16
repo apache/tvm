@@ -31,13 +31,13 @@
 #include <vector>
 #include <sstream>
 
-#include "../../src/common/util.h"
-#include "../../src/common/socket.h"
+#include "../../src/support/util.h"
+#include "../../src/support/socket.h"
 #include "rpc_server.h"
 
 using namespace std;
 using namespace tvm::runtime;
-using namespace tvm::common;
+using namespace tvm::support;
 
 static const string kUSAGE = \
 "Command line usage\n" \
