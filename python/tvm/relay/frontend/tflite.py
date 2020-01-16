@@ -742,6 +742,7 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized squared difference operator is not supported yet.')
         difference = self._convert_elemwise(_op.subtract, op)
+        # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
         out = _op.power(difference, relay.const(2, exp_type))
         return out
