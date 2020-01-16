@@ -32,7 +32,7 @@
 #include <string>
 
 #include "../../src/runtime/rpc/rpc_session.h"
-#include "../../src/common/socket.h"
+#include "../../src/support/socket.h"
 
 namespace tvm {
 namespace runtime {
