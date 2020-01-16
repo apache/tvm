@@ -96,8 +96,7 @@ def skipped_test_tflite_runtime():
             out = runtime.get_output(0)
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
-    # TODO(ZihengJiang): Test below needs to be re-enabled upon fix
-    # check_local()
+    check_local()
     check_remote()
 
 if __name__ == "__main__":
