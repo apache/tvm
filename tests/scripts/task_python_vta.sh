@@ -42,7 +42,7 @@ python3 -m pytest -v vta/tests/python/integration
 
 # Build VTA chisel design and verilator simulator
 make -C vta/hardware/chisel cleanall
-make -C vta/hardware/chisel USE_THREADS=0 lib
+make -C vta/hardware/chisel lib
 
 # Set default VTA config to use TSIM cycle accurate sim
 cp vta/config/tsim_sample.json vta/config/vta_config.json

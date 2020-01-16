@@ -81,7 +81,7 @@ jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 scalalint:
-	cd vta/hardware/chisel && make lint && cd ../../..
+	make -C vta/hardware/chisel lint
 
 lint: cpplint pylint jnilint scalalint
 
