@@ -88,7 +88,7 @@ inline TObjectRef NullValue() {
 
 template<>
 inline DataType NullValue<DataType>() {
-  return DataType(kHandle, 0, 0);
+  return DataType(DataType::kHandle, 0, 0);
 }
 
 /*! \brief Error thrown during attribute checking. */
@@ -492,7 +492,7 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
 
 template<>
 inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kStr) {
+  if (val.type_code() == kTVMStr) {
     *ptr = val.operator std::string();
   } else {
     LOG(FATAL) << "Expect str";
@@ -762,7 +762,7 @@ class AttrsNode : public BaseAttrsNode {
       // linear search.
       auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {
         for (int i = 0; i < args.size(); i += 2) {
-          CHECK_EQ(args.type_codes[i], kStr);
+          CHECK_EQ(args.type_codes[i], kTVMStr);
           if (!std::strcmp(key, args.values[i].v_str)) {
             *val = args[i + 1];
             return true;
@@ -777,7 +777,7 @@ class AttrsNode : public BaseAttrsNode {
       // construct a map then do lookup.
       std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
-        CHECK_EQ(args.type_codes[i], kStr);
+        CHECK_EQ(args.type_codes[i], kTVMStr);
         kwargs[args[i].operator std::string()] = args[i + 1];
       }
       auto ffind = [&kwargs](const char *key, runtime::TVMArgValue* val) {

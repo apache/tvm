@@ -119,7 +119,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     *rv = value;
   }
   void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment,
-                       TVMType type_hint) final {
+                       DLDataType type_hint) final {
     ROCM_CALL(hipSetDevice(ctx.device_id));
     CHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
@@ -134,7 +134,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
 
   void CopyDataFromTo(const void* from, size_t from_offset, void* to,
                       size_t to_offset, size_t size, TVMContext ctx_from,
-                      TVMContext ctx_to, TVMType type_hint,
+                      TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     hipStream_t hip_stream = static_cast<hipStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
@@ -169,7 +169,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     ROCMThreadEntry::ThreadLocal()->stream = static_cast<hipStream_t>(stream);
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
     return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
 

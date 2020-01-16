@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -118,7 +118,7 @@ void OpenCLWorkspace::GetAttr(
 }
 
 void* OpenCLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
+    TVMContext ctx, size_t size, size_t alignment, DLDataType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
@@ -144,7 +144,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      size_t size,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
-                                     TVMType type_hint,
+                                     DLDataType type_hint,
                                      TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
@@ -182,7 +182,7 @@ void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
 
 void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx,
                                       size_t size,
-                                      TVMType type_hint) {
+                                      DLDataType type_hint) {
   return GetThreadEntry()->pool.AllocWorkspace(ctx, size);
 }
 

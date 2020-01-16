@@ -124,10 +124,10 @@ LoweredFunc MakeAPI(Stmt body,
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kHandle ||
-                             tcode == kNDArrayContainer ||
-                             tcode == kArrayHandle ||
-                             tcode == kNull, msg.str(), nop));
+            AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
+                             tcode == kTVMNDArrayHandle ||
+                             tcode == kTVMDLTensorHandle ||
+                             tcode == kTVMNullptr, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be int";
