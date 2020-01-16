@@ -47,7 +47,7 @@ make -C vta/hardware/chisel lint
 # Build VTA chisel design and verilator simulator
 echo "Building VTA chisel design..."
 make -C vta/hardware/chisel cleanall
-make -C vta/hardware/chisel lib
+make -C vta/hardware/chisel USE_THREADS=0 lib
 
 # Set default VTA config to use TSIM cycle accurate sim
 cp vta/config/tsim_sample.json vta/config/vta_config.json
