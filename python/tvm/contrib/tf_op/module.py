@@ -66,9 +66,7 @@ class Func():
     elif output_shape is not None:
       self.dynamic_output_shape = self._pack_shape_tensor(output_shape)
     
-    # TODO: support non-xpu device 
-    #self.device = device
-    # delay initialization to called first time, where num input arguments is known
+    # delay op initialization to where Func.apply() get called first time
     self.tvm_dso_op = None
     self.module = load_library.load_op_library('tvm_dso_op.so')
     
@@ -113,7 +111,7 @@ class Func():
             d = tf.cast(d, tf.int64)
           shape_dims.append(d)
         else:
-          raise TypeError("Input shape dimension is neither scala tensor nor int")
+          raise TypeError("Input shape dimension is neither scalar tensor nor int")
       return tf.stack(shape_dims) 
     else:
       raise TypeError("Input shape is neither tensor nor list")

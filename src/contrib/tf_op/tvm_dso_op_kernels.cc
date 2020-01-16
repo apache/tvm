@@ -34,10 +34,16 @@ typedef Eigen::GpuDevice GPUDevice;
 typedef tensorflow::gtl::InlinedVector<tensorflow::int64, 4> ShapeContainer;
 
 
+// Op utility trait for diffrent device type template
 template <typename DEVICE_TYPE>
 class TVMDSOOpTrait;
 
 
+// Buffer information used for actual computation.
+// Each buffer is associated with one TensorFlow tensor
+// whose underlying buffer is record into "origin_buf".
+// For input tensor, we copy data from origin_buf to buf
+// and for output tensor, copy data from buf to origin_buf
 class TensorAsBuf {
   public:
     tensorflow::Tensor inline_tensor;
@@ -57,8 +63,11 @@ class TensorAsBuf {
         }
         if (device_type == kDLCPU) {
             memcpy(origin_buf, buf + offset, size); 
-        } else {
+        } else if (device_type == kDLGPU) {
             cudaMemcpy(origin_buf, buf + offset, size, cudaMemcpyDeviceToDevice);
+        } else {
+            LOG(FATAL) << "Only support CPU and CUDA now. Device "
+                << device_type << " is not implemented currently";
         }
     }
 
@@ -68,8 +77,11 @@ class TensorAsBuf {
         }
         if (device_type == kDLCPU) {
             memcpy(buf + offset, origin_buf, size); 
-        } else {
+        } else if (device_type == kDLGPU) {
             cudaMemcpy(buf + offset, origin_buf, size, cudaMemcpyDeviceToDevice);
+        } else {
+            LOG(FATAL) << "Only support CPU and CUDA now. Device "
+                << device_type << " is not implemented currently";
         }
     }
 };
@@ -90,6 +102,7 @@ tensorflow::Status GetDLPackDtype(const tensorflow::Tensor& tf_tensor, DLDataTyp
 }
 
 
+// Ensure buffer used for actual computation take 64byte alignment 
 void EnsureAlignment(tensorflow::OpKernelContext* ctx, const tensorflow::Tensor& tensor, TensorAsBuf* out) {
     char* buf = (char*) tensor.tensor_data().data();
     out->origin_buf = buf;
@@ -117,6 +130,7 @@ void EnsureAlignment(tensorflow::OpKernelContext* ctx, const tensorflow::Tensor&
 }
 
 
+// Create DLPack tensor from TensorFlow tensor
 tensorflow::Status MakeDLTensor(const TensorAsBuf& src, const DLContext& ctx, int64_t* tf_shape, DLTensor* out) {
     DLDataType dlpack_type;
     const tensorflow::Tensor& tensor = *src.tensor;
