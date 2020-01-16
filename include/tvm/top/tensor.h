@@ -18,24 +18,26 @@
  */
 
 /*!
- * \file tvm/tensor.h
+ * \file tvm/top/tensor.h
  * \brief Dataflow tensor object
  */
-#ifndef TVM_TENSOR_H_
-#define TVM_TENSOR_H_
+#ifndef TVM_TOP_TENSOR_H_
+#define TVM_TOP_TENSOR_H_
 
 #include <tvm/node/container.h>
 #include <tvm/arith/bound.h>
+#include <tvm/expr.h>
+#include <tvm/expr_operator.h>
 
 #include <string>
 #include <vector>
 #include <utility>
 #include <type_traits>
 
-#include "expr.h"
-#include "expr_operator.h"
+
 
 namespace tvm {
+namespace top {
 
 // Internal node container of Tensor
 class TensorNode;
@@ -246,16 +248,17 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<<);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(>);  // NOLINT(*)
 DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
+}  // namespace top
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::Operation> : public ::tvm::ObjectHash {
+struct hash<::tvm::top::Operation> : public ::tvm::ObjectHash {
 };
 
 template <>
-struct hash<::tvm::Tensor> {
-  std::size_t operator()(const ::tvm::Tensor& k) const {
+struct hash<::tvm::top::Tensor> {
+  std::size_t operator()(const ::tvm::top::Tensor& k) const {
     ::tvm::ObjectHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);
@@ -265,4 +268,4 @@ struct hash<::tvm::Tensor> {
   }
 };
 }  // namespace std
-#endif  // TVM_TENSOR_H_
+#endif  // TVM_TOP_TENSOR_H_

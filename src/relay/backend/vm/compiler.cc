@@ -22,7 +22,7 @@
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>

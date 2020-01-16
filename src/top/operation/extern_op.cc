@@ -21,13 +21,14 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <unordered_set>
 #include "op_util.h"
 
 namespace tvm {
+namespace top {
 using namespace ir;
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -94,7 +95,7 @@ Operation ExternOpNode::ReplaceInputs(
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
   auto n = make_object<ExternOpNode>(*this);
-  n->body = op::ReplaceTensor(this->body, rmap);
+  n->body = ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
     if (rmap.count(t)) {
@@ -181,4 +182,5 @@ Stmt ExternOpNode::BuildProvide(
   }
   return ret;
 }
+}  // namespace top
 }  // namespace tvm

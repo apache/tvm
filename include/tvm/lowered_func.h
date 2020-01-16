@@ -25,10 +25,11 @@
 #ifndef TVM_LOWERED_FUNC_H_
 #define TVM_LOWERED_FUNC_H_
 
+#include <tvm/top/tensor.h>
+
 #include <string>
 
 #include "expr.h"
-#include "tensor.h"
 #include "tvm/node/container.h"
 
 namespace tvm {

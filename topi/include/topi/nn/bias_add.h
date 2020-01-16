@@ -29,7 +29,7 @@
 #include "topi/tags.h"
 #include "topi/broadcast.h"
 #include "topi/transform.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
@@ -43,7 +43,9 @@ namespace nn {
 * \param axis The axis to add the bias to.
 * \return Tensor with shape [batch, in_dim]
 */
-inline tvm::Tensor bias_add(const tvm::Tensor& data, const tvm::Tensor& bias, int axis) {
+inline tvm::top::Tensor bias_add(const tvm::top::Tensor& data,
+                                 const tvm::top::Tensor& bias,
+                                 int axis) {
   int data_ndim = data->shape.size();
   if (axis < 0) {
     axis += data_ndim;

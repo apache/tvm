@@ -21,16 +21,17 @@
  * \brief Helper utilities to implement compute_op.
  * \file compute_op.h
  */
-#ifndef TVM_OP_COMPUTE_OP_H_
-#define TVM_OP_COMPUTE_OP_H_
+#ifndef TVM_TOP_OPERATION_COMPUTE_OP_H_
+#define TVM_TOP_OPERATION_COMPUTE_OP_H_
 
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <vector>
 #include <unordered_map>
 
 namespace tvm {
+namespace top {
 // loop nest structure for general compute
 // This the loop nest structured used in compute.
 // Does not include the loop body.
@@ -106,6 +107,7 @@ Stmt TransformUpdate(const Stage& stage,
                      const ComputeLoopNest& n,
                      Stmt body,
                      Stmt update);
+}  // namespace top
 }  // namespace tvm
 
-#endif  // TVM_OP_COMPUTE_OP_H_
+#endif  // TVM_TOP_OPERATION_COMPUTE_OP_H_

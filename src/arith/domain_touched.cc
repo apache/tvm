@@ -24,7 +24,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/tensor.h>
+#include <tvm/top/tensor.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
@@ -40,7 +40,7 @@ using namespace ir;
 // Find Read region of the tensor in the stmt.
 class FuncTouchedDomain final : public StmtExprVisitor {
  public:
-  FuncTouchedDomain(const Tensor &tensor, bool consider_calls, bool consider_provides)
+  FuncTouchedDomain(const top::Tensor &tensor, bool consider_calls, bool consider_provides)
     : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
 
   Domain Find(const Stmt& stmt) {
@@ -108,13 +108,16 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  const Tensor &tensor_;
+  const top::Tensor &tensor_;
   bool consider_calls_, consider_provides_;
   std::vector<std::vector<IntSet> > bounds_;
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
-Domain DomainTouched(Stmt stmt, const Tensor &tensor, bool consider_calls, bool consider_provides) {
+Domain DomainTouched(Stmt stmt,
+                     const top::Tensor &tensor,
+                     bool consider_calls,
+                     bool consider_provides) {
   return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
 

@@ -26,6 +26,7 @@
 #include "op_util.h"
 
 namespace tvm {
+namespace top {
 using namespace ir;
 
 Stmt MakeCrossThreadReduction(
@@ -38,9 +39,9 @@ Stmt MakeCrossThreadReduction(
     args.push_back(iv->var);
   }
   std::unordered_map<IterVar, PrimExpr> value_map;
-  auto nest = op::MakeLoopNest(
+  auto nest = MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
-  auto conds = schedule::MakeBoundCheck(
+  auto conds = MakeBoundCheck(
       stage, dom_map, value_map, false,
       std::unordered_set<IterVar>());
 
@@ -101,8 +102,8 @@ Stmt MakeCrossThreadReduction(
       LoadNode::make(t, res_handles[idx], 0, const_true(t.lanes())), args);
   }
   Stmt assign_body = SeqStmt::Flatten(assigns);
-  assign_body = MergeNest(op::MakeIfNest(thread_head_check), assign_body);
-  assign_body = MergeNest(op::MakeIfNest(conds), assign_body);
+  assign_body = MergeNest(MakeIfNest(thread_head_check), assign_body);
+  assign_body = MergeNest(MakeIfNest(conds), assign_body);
   Stmt body = SeqStmt::Flatten(reduce_body, assign_body);
   for (size_t idx = size; idx != 0; --idx) {
     body = AllocateNode::make(
@@ -110,7 +111,8 @@ Stmt MakeCrossThreadReduction(
     body = AttrStmtNode::make(
       res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);
   }
-  body = op::Substitute(body, value_map);
+  body = Substitute(body, value_map);
   return MergeNest(nest, body);
 }
+}  // namespace top
 }  // namespace tvm

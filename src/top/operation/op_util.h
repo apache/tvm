@@ -21,20 +21,20 @@
  * \file op_util.h
  * \brief Common utility used in operator construction.
  */
-#ifndef TVM_OP_OP_UTIL_H_
-#define TVM_OP_OP_UTIL_H_
+#ifndef TVM_TOP_OPERATION_OP_UTIL_H_
+#define TVM_TOP_OPERATION_OP_UTIL_H_
 
 #include <tvm/expr.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
+#include "../../pass/ir_util.h"
+#include "../../pass/arg_binder.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {
-namespace op {
+namespace top {
 
 using ir::MergeNest;
 
@@ -102,6 +102,6 @@ IterVarType ForTypeToIterVarType(ir::ForType for_type);
  */
 ir::ForType IterVarTypeToForType(IterVarType iter_type);
 
-}  // namespace op
+}  // namespace top
 }  // namespace tvm
-#endif  // TVM_OP_OP_UTIL_H_
+#endif  // TVM_TOP_OPERATION_OP_UTIL_H_

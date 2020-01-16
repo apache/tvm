@@ -23,17 +23,17 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/operation.h>
-#include <tvm/schedule_pass.h>
+#include <tvm/top/operation.h>
+#include <tvm/top/schedule_pass.h>
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
 #include "graph.h"
-#include "../op/op_util.h"
-#include "../pass/ir_util.h"
+#include "../operation/op_util.h"
+#include "../../pass/ir_util.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 using namespace ir;
 
@@ -423,5 +423,5 @@ Stmt ScheduleOps(
   return post_proc(std::move(body));
 }
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

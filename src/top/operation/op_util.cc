@@ -24,14 +24,14 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace op {
+namespace top {
 
 using namespace arith;
 using namespace ir;
@@ -172,7 +172,7 @@ MakeLoopNest(const Stage& stage,
     }
   }
   // message passing to get offset of root iter vars.
-  schedule::PassUpIndex(stage, dom_map, &value_map);
+  top::PassUpIndex(stage, dom_map, &value_map);
   return nest;
 }
 
@@ -220,7 +220,7 @@ Stmt ReplaceTensor(Stmt stmt,
   return repl.found ? ret : stmt;
 }
 PrimExpr ReplaceTensor(PrimExpr expr,
-                   const std::unordered_map<Tensor, Tensor>& replace) {
+                       const std::unordered_map<Tensor, Tensor>& replace) {
   TensorReplacer repl(replace);
   PrimExpr ret = repl(expr);
   return repl.found ? ret : expr;
@@ -266,5 +266,5 @@ ir::ForType IterVarTypeToForType(IterVarType iter_type) {
   }
 }
 
-}  // namespace op
+}  // namespace top
 }  // namespace tvm
