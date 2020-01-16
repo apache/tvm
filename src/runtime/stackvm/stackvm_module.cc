@@ -28,7 +28,6 @@
 #include <unordered_map>
 #include "stackvm_module.h"
 #include "../file_util.h"
-#include "../module_util.h"
 
 namespace tvm {
 namespace runtime {

@@ -30,5 +30,4 @@ from .dispatcher import dispatcher, DispatchContext, ApplyConfig, ApplyHistoryBe
 
 from .topi_integration import register_topi_compute, register_topi_schedule, \
     TaskExtractEnv
-from .nnvm_integration import extract_from_graph, extract_from_multiple_graph
 from .relay_integration import extract_from_program, extract_from_multiple_program

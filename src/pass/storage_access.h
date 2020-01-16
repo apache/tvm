@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2017 by Contributors
  * \file storage_access.h
  * \brief Common data structure for storage access analysis.
  */
@@ -26,9 +25,9 @@
 #define TVM_PASS_STORAGE_ACCESS_H_
 
 #include <tvm/ir.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <vector>
 #include <unordered_map>
 #include "../runtime/thread_storage_scope.h"
@@ -41,7 +40,7 @@ using runtime::StorageRank;
 /*!
  * \brief Base class of storage access analysis
  */
-class StorageAccessVisitor : public IRVisitor {
+class StorageAccessVisitor : public StmtExprVisitor {
  public:
   /*! \brief Storage access type */
   enum AccessType {
@@ -59,7 +58,7 @@ class StorageAccessVisitor : public IRVisitor {
     /*! \brief The buffer variable, if any */
     Var buffer = NullValue<Var>();
     /*! \brief The access data type */
-    Type dtype;
+    DataType dtype;
     /*! \brief The touched access range */
     arith::IntSet touched;
     /*! \brief The type of access */
@@ -72,18 +71,18 @@ class StorageAccessVisitor : public IRVisitor {
   /*! \brief Access pattern about a single statement */
   struct StmtEntry {
     /*! \brief The statement */
-    const Node* stmt;
+    const Object* stmt;
     /*! \brief access patterns in the statement */
     std::vector<AccessEntry> access;
   };
   // override visitor pattern
-  void Visit_(const Load* op) final;
-  void Visit_(const Store* op) final;
-  void Visit_(const Evaluate* op) final;
-  void Visit_(const AttrStmt* op) final;
-  void Visit_(const For* op) final;
-  void Visit_(const IfThenElse* op) final;
-  void Visit_(const Call* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const IfThenElseNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  protected:
   StorageAccessVisitor() {
@@ -107,7 +106,7 @@ class StorageAccessVisitor : public IRVisitor {
    * \param scope The scope of the buffer.
    * \return Whether the analysis of buffer is enabled.
    */
-  virtual bool Enabled(const Variable* buffer,
+  virtual bool Enabled(const VarNode* buffer,
                        const StorageScope& scope) const {
     return true;
   }
@@ -123,12 +122,12 @@ class StorageAccessVisitor : public IRVisitor {
    *  the parent should taken care of to synchronize.
    */
   virtual std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) = 0;
+      std::vector<StmtEntry> seq, const ForNode* loop) = 0;
   /*!
    * \brief Get the scope of the buffer array.
    * \return The scope of the final buffer array.
    */
-  StorageScope GetScope(const Variable* buf) const;
+  StorageScope GetScope(const VarNode* buf) const;
   // access scope
   std::vector<std::vector<StmtEntry> > scope_;
 
@@ -140,13 +139,13 @@ class StorageAccessVisitor : public IRVisitor {
   // Whether we are inside condition.
   int condition_counter_{0};
   // The current double buffer write scope.
-  const Variable* double_buffer_write_{nullptr};
+  const VarNode* double_buffer_write_{nullptr};
   // the current free stmt entry.
   StmtEntry curr_stmt_;
   // The involving threads
   Array<IterVar> env_threads_;
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
 };
 
 }  // namespace ir

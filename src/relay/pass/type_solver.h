@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_solver.h
  * \brief Solver logic for type inference.
  */
@@ -28,19 +27,19 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <vector>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 
 namespace tvm {
 namespace relay {
 
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 /*!
  * \brief Interface of type solver used in type inference.
@@ -63,14 +62,14 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver(const GlobalVar& current_func, const Module& _mod, ErrorReporter* err_reporter);
+  TypeSolver(const GlobalVar& current_func, const IRModule& _mod, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
    * \param constraint The constraint to be added.
    * \param location The location at which the constraint was incurred.
    */
-  void AddConstraint(const TypeConstraint& constraint, const NodeRef& lcoation);
+  void AddConstraint(const TypeConstraint& constraint, const ObjectRef& lcoation);
   /*!
    * \brief Resolve type to the solution type in the solver.
    * \param type The type to be resolved.
@@ -88,13 +87,13 @@ class TypeSolver {
    * \param rhs The right operand
    * \param location The location at which the unification problem arose.
    */
-  Type Unify(const Type& lhs, const Type& rhs, const NodeRef& location);
+  Type Unify(const Type& lhs, const Type& rhs, const ObjectRef& location);
   /*!
    * \brief Report an error at the provided location.
    * \param err The error to report.
    * \param loc The location at which to report the error.
    */
-  void ReportError(const Error& err, const NodeRef& location);
+  void ReportError(const Error& err, const ObjectRef& location);
 
  private:
   class OccursChecker;
@@ -156,7 +155,7 @@ class TypeSolver {
     /*! \brief list types to this relation */
     LinkedList<TypeNode*> type_list;
     /*! \brief The location this type relation originated from. */
-    NodeRef location;
+    ObjectRef location;
   };
 
   /*! \brief A simple union find between shapes. */
@@ -168,11 +167,11 @@ class TypeSolver {
   /*! \brief Number of resolved relations */
   size_t num_resolved_rels_{0};
   /*! \brief map from types to type nodes. */
-  std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
+  std::unordered_map<Type, TypeNode*, ObjectHash, ObjectEqual> tmap_;
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*! \brief The global representing the current function. */
@@ -180,7 +179,7 @@ class TypeSolver {
   /*! \brief Error reporting. */
   ErrorReporter* err_reporter_;
   /*! \brief The module. */
-  Module module_;
+  IRModule module_;
 
   /*!
    * \brief GetTypeNode that is corresponds to t.

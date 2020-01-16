@@ -25,9 +25,13 @@
 #include <tvm/node/node.h>
 #include <tvm/node/container.h>
 #include <tvm/node/reflection.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 
 namespace tvm {
+
+using runtime::TVMRetValue;
+using runtime::TVMArgs;
+using runtime::PackedFunc;
 
 // Attr getter.
 class AttrGetter : public AttrVisitor {
@@ -61,7 +65,7 @@ class AttrGetter : public AttrVisitor {
   void Visit(const char* key, void** value) final {
     if (skey == key) *ret = static_cast<void*>(value[0]);
   }
-  void Visit(const char* key, Type* value) final {
+  void Visit(const char* key, DataType* value) final {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, std::string* value) final {
@@ -135,7 +139,7 @@ class AttrDir : public AttrVisitor {
   void Visit(const char* key, void** value) final {
     names->push_back(key);
   }
-  void Visit(const char* key, Type* value) final {
+  void Visit(const char* key, DataType* value) final {
     names->push_back(key);
   }
   void Visit(const char* key, std::string* value) final {

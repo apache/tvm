@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,14 +18,13 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file combine_parallel_dense.cc
  * \brief Combine parallel dense ops into a single dense.
  *
  * This pass replaces dense ops that share the same input node, same shape,
- * and don't have "units" defined with a single batch matrix multiplication. 
- * The inputs of the new batch_matmul is the stack of the original inputs. 
+ * and don't have "units" defined with a single batch matrix multiplication.
+ * The inputs of the new batch_matmul is the stack of the original inputs.
  * Elemwise and broadcast ops following dense are also combined if possible.
  *
  * This prevents launching multiple kernels in networks with multiple
@@ -77,15 +76,15 @@ Expr CombineParallelDense(const Expr& expr, uint64_t min_num_branches) {
 namespace transform {
 
 Pass CombineParallelDense(uint64_t min_num_branches) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelDense(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelDense",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.CombineParallelDense")
+TVM_REGISTER_GLOBAL("relay._transform.CombineParallelDense")
 .set_body_typed(CombineParallelDense);
 
 }  // namespace transform

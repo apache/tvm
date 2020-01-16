@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file kindchecker.cc
  *
@@ -33,7 +32,7 @@
  * contains a data type such as `int`, `float`, `uint`.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -42,10 +41,10 @@ namespace relay {
 using namespace tvm::runtime;
 
 struct KindChecker : TypeFunctor<Kind(const Type&)> {
-  const Module& mod;
+  const IRModule& mod;
   ErrorReporter err_reporter;
 
-  explicit KindChecker(const Module& mod) : mod(mod), err_reporter() {}
+  explicit KindChecker(const IRModule& mod) : mod(mod), err_reporter() {}
 
   void ReportFatalError(const Error& err) {
     this->err_reporter.Report(err);
@@ -56,11 +55,12 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
                         Kind expected, const std::string& description) {
     Kind k = this->VisitType(t);
     if (k != expected) {
-      ReportFatalError(RELAY_ERROR("Incorrect kind for a " << description
-                                   << ". Type " << t << " inside " << outer
-                                   << " is of kind " << k
-                                   << " but was expected to be "
-                                   << expected));
+      ReportFatalError(ErrorBuilder()
+        << "Incorrect kind for a " << description
+        << ". Type " << t << " inside " << outer
+        << " is of kind " << k
+        << " but was expected to be "
+        << expected);
     }
   }
 
@@ -128,8 +128,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     TypeCall tc = GetRef<TypeCall>(op);
     const auto* gtv = op->func.as<GlobalTypeVarNode>();
     if (gtv == nullptr) {
-      ReportFatalError(RELAY_ERROR("The callee in " << tc
-                                   << " is not a global type var, but is " << op->func));
+      ReportFatalError(
+        ErrorBuilder() <<"The callee in " << tc
+        << " is not a global type var, but is " << op->func);
     }
 
     CheckKindMatches(op->func, tc, Kind::kAdtHandle, "type call function");
@@ -140,10 +141,11 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     // finally we need to check the module to check the number of type params
     auto var = GetRef<GlobalTypeVar>(gtv);
-    auto data = mod->LookupDef(var);
+    auto data = mod->LookupTypeDef(var);
     if (data->type_vars.size() != op->args.size()) {
-      ReportFatalError(RELAY_ERROR("Expected " << data->type_vars.size() << "arguments for " << tc
-                                   << "; got " << op->args.size()));
+      ReportFatalError(ErrorBuilder()
+        << "Expected " << data->type_vars.size() << "arguments for " << tc
+        << "; got " << op->args.size());
     }
     return Kind::kType;
   }
@@ -162,8 +164,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
 
     for (const auto& con : op->constructors) {
       if (!con->belong_to.same_as(op->header)) {
-        ReportFatalError(RELAY_ERROR(con << " has header " << con->belong_to
-                                     << " but " << op << " has header " << op->header));
+        ReportFatalError(ErrorBuilder()
+          <<con << " has header " << con->belong_to
+          << " but " << op << " has header " << op->header);
       }
 
       for (const Type& t : con->inputs) {
@@ -178,15 +181,15 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
   }
 };
 
-Kind KindCheck(const Type& t, const Module& mod) {
+Kind KindCheck(const Type& t, const IRModule& mod) {
   KindChecker kc(mod);
   return kc.Check(t);
 }
 
-TVM_REGISTER_API("relay._analysis.check_kind")
+TVM_REGISTER_GLOBAL("relay._analysis.check_kind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     if (args.size() == 1) {
-      *ret = KindCheck(args[0], ModuleNode::make({}, {}));
+      *ret = KindCheck(args[0], IRModule({}, {}));
     } else {
       *ret = KindCheck(args[0], args[1]);
     }

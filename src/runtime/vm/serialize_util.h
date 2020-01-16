@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/vm/serialize_util.h
  * \brief Definitions of helpers for serializing and deserializing a Relay VM.
  */

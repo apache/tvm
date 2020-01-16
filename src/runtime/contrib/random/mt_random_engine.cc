@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file random/mt_random_engine.cc
  * \brief mt19937 random engine
  */

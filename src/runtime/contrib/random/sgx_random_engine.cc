@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file random/sgx_random_engine.h
  * \brief SGX trusted random engine
  */

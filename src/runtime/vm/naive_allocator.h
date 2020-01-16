@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/runtime/naive_allocator.h
  */
 #ifndef TVM_RUNTIME_VM_NAIVE_ALLOCATOR_H_

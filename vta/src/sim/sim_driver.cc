@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sim_driver.cc
  * \brief VTA driver for simulated backend.
  */

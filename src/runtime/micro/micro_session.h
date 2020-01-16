@@ -47,7 +47,6 @@
 #include <tuple>
 
 #include "low_level_device.h"
-#include "device/utvm_runtime.h"
 #include "target_data_layout_encoder.h"
 
 namespace tvm {
@@ -75,9 +74,55 @@ class MicroSession : public ModuleNode {
   }
 
   /*!
-   * \brief constructor
+   * \brief creates session by setting up a low-level device and initting allocators for it
+   * \param comms_method method of communication with the device (e.g., "openocd")
+   * \param binary_path file system path to the runtime binary
+   * \param toolchain_prefix GCC toolchain prefix
+   * \param text_start text section start address
+   * \param text_size text section size
+   * \param rodata_start text section start address
+   * \param rodata_size rodata section size
+   * \param data_start data section start address
+   * \param data_size data section size
+   * \param bss_start bss section start address
+   * \param bss_size bss section size
+   * \param args_start args section start address
+   * \param args_size args section size
+   * \param heap_start heap section start address
+   * \param heap_size heap section size
+   * \param workspace_start workspace section start address
+   * \param workspace_size workspace section size
+   * \param stack_start stack section start address
+   * \param stack_size stack section size
+   * \param word_size number of bytes in a word on the target device
+   * \param thumb_mode whether the target device requires a thumb-mode bit on function addresses
+   * \param server_addr address of the OpenOCD server to connect to (if `comms_method == "openocd"`)
+   * \param port port of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    */
-  MicroSession();
+  MicroSession(
+      const std::string& comms_method,
+      const std::string& binary_path,
+      const std::string& toolchain_prefix,
+      uint64_t text_start,
+      size_t text_size,
+      uint64_t rodata_start,
+      size_t rodata_size,
+      uint64_t data_start,
+      size_t data_size,
+      uint64_t bss_start,
+      size_t bss_size,
+      uint64_t args_start,
+      size_t args_size,
+      uint64_t heap_start,
+      size_t heap_size,
+      uint64_t workspace_start,
+      size_t workspace_size,
+      uint64_t stack_start,
+      size_t stack_size,
+      size_t word_size,
+      bool thumb_mode,
+      const std::string& server_addr,
+      int port);
 
   /*!
    * \brief destructor
@@ -87,20 +132,20 @@ class MicroSession : public ModuleNode {
   static ObjectPtr<MicroSession>& Current();
 
   /*!
-   * \brief creates session by setting up a low-level device and initting allocators for it
-   * \param args TVMArgs passed into the micro.init packedfunc
+   * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
+   * \param func address of the function to be executed
+   * \param args args to the packed function
+   * \return elapsed time during function execution on the device
    */
-  void CreateSession(const std::string& device_type,
-                     const std::string& binary_path,
-                     const std::string& toolchain_prefix,
-                     std::uintptr_t base_addr,
-                     const std::string& server_addr,
-                     int port);
+  double PushToExecQueue(DevPtr func, const TVMArgs& args);
 
   /*!
-   * \brief ends the session by destructing the low-level device and its allocators
+   * \brief loads binary onto device
+   * \param binary_path path to binary object file
+   * \param patch_dylib_pointers whether to patch runtime API function pointers
+   * \return info about loaded binary
    */
-  void EndSession();
+  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers);
 
   /*!
    * \brief allocate memory in section
@@ -108,36 +153,21 @@ class MicroSession : public ModuleNode {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevBaseOffset AllocateInSection(SectionKind type, size_t size);
+  DevPtr AllocateInSection(SectionKind type, size_t size);
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
-   * \param ptr pointer to allocated memory
+   * \param addr device address of allocated memory
    */
-  void FreeInSection(SectionKind type, DevBaseOffset ptr);
+  void FreeInSection(SectionKind type, DevPtr addr);
 
   /*!
    * \brief read string from device to host
-   * \param str_offset device offset of first character of string
+   * \param str_addr device address of first character of string
    * \return host copy of device string that was read
    */
-  std::string ReadString(DevBaseOffset str_offset);
-
-  /*!
-   * \brief sets up runtime metadata for `func` and copies arguments for on-device execution
-   * \param func address of the function to be executed
-   * \param args args to the packed function
-   */
-  void PushToExecQueue(DevBaseOffset func, const TVMArgs& args);
-
-  /*!
-   * \brief loads binary onto device
-   * \param binary_path path to binary object file
-   * \param patch_dylib_pointers whether runtime API function pointer patching is needed
-   * \return info about loaded binary
-   */
-  BinaryInfo LoadBinary(const std::string& binary_path, bool patch_dylib_pointers = true);
+  std::string ReadString(DevPtr str_addr);
 
   /*!
   * \brief read value of symbol from device memory
@@ -174,28 +204,23 @@ class MicroSession : public ModuleNode {
   /*! \brief array of memory allocators for each on-device section */
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
-  /*! \brief total number of bytes of usable device memory for this session */
-  size_t memory_size_;
-  /*! \brief uTVM runtime binary info */
-  BinaryInfo runtime_bin_info_;
-  /*! \brief path to uTVM runtime source code */
-  std::string runtime_binary_path_;
-  /*! \brief offset of the runtime entry function */
-  DevBaseOffset utvm_main_symbol_;
-  /*! \brief offset of the runtime exit breakpoint */
-  DevBaseOffset utvm_done_symbol_;
+  /*! \brief number of bytes in a word on the target device */
+  size_t word_size_;
+  /*! \brief whether the target device requires a thumb-mode bit on function addresses
+   *
+   * ARM and other manufacturers use the lowest bit of a function address to determine
+   * whether it's a "thumb mode" function.  The Thumb ISA is more restricted, but
+   * results in more compact binaries.
+   */
+  bool thumb_mode_;
+  /*! \brief symbol map for the device runtime */
+  SymbolMap runtime_symbol_map_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation
    * \param func_name name of the function pointer being patched
    */
   void PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name);
-
-  /*!
-   * \brief sets the runtime binary path
-   * \param path to runtime binary
-   */
-  void SetRuntimeBinaryPath(std::string path);
 
   /*!
    * \brief appends arguments to the host-side buffer of `encoder`
@@ -211,6 +236,7 @@ class MicroSession : public ModuleNode {
    * \param arr TVMArray to be appended
    * \return device address of the allocated `TVMArray`
    */
+  template <typename T>
   DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
 
   /*!
@@ -228,18 +254,11 @@ class MicroSession : public ModuleNode {
   }
 
   /*!
-   * \brief returns the symbol map for the uTVM runtime
-   * \return reference to symbol map
-   */
-  const SymbolMap& runtime_symbol_map() {
-    return runtime_bin_info_.symbol_map;
-  }
-
-  /*!
     * \brief Push a new session context onto the thread-local stack.
     *  The session on top of the stack is used as the current global session.
     */
   static void EnterWithScope(ObjectPtr<MicroSession> session);
+
   /*!
     * \brief Pop a session off the thread-local context stack,
     *  restoring the previous session as the current context.
@@ -259,6 +278,118 @@ struct MicroDevSpace {
   /*! \brief shared ptr to session where this data is valid */
   ObjectPtr<MicroSession> session;
 };
+
+// TODO(weberlo): maybe templatize serialization to reduce redundancy
+
+/*! \brief TVM array for serialization to 32-bit devices */
+struct TVMArray32 {
+  TVMArray32(
+      TargetVal data,
+      DLContext ctx,
+      int32_t ndim,
+      DLDataType dtype,
+      TargetVal shape,
+      TargetVal strides,
+      TargetVal byte_offset)
+    : data(data.val32),
+      ctx(ctx),
+      ndim(ndim),
+      pad0(0),
+      dtype(dtype),
+      shape(shape.val32),
+      strides(strides.val32),
+      pad1(0),
+      byte_offset(byte_offset.val32),
+      pad2(0) { }
+
+  /*! \brief opaque pointer to the allocated data */
+  uint32_t data;
+  /*! \brief The device context of the tensor */
+  DLContext ctx;
+  /*! \brief Number of dimensions */
+  int32_t ndim;
+  /*! \brief Padding to enforce struct alignment */
+  uint32_t pad0;
+  /*! \brief The data type of the pointer */
+  DLDataType dtype;
+  /*! \brief The shape of the tensor */
+  uint32_t shape;
+  /*!
+   * \brief strides of the tensor,
+   *  can be NULL, indicating tensor is compact.
+   */
+  uint32_t strides;
+  /*! \brief Padding to enforce struct alignment */
+  uint32_t pad1;
+  /*! \brief The offset in bytes to the beginning pointer to data */
+  uint32_t byte_offset;
+  /*! \brief Padding to enforce struct alignment */
+  uint32_t pad2;
+};
+
+/*! \brief TVM array for serialization to 64-bit devices */
+struct TVMArray64 {
+  TVMArray64(
+      TargetVal data,
+      DLContext ctx,
+      int32_t ndim,
+      DLDataType dtype,
+      TargetVal shape,
+      TargetVal strides,
+      TargetVal byte_offset)
+    : data(data.val64),
+      ctx(ctx),
+      ndim(ndim),
+      pad0(0),
+      dtype(dtype),
+      shape(shape.val64),
+      strides(strides.val64),
+      byte_offset(byte_offset.val64) { }
+
+  /*! \brief opaque pointer to the allocated data */
+  uint64_t data;
+  /*! \brief The device context of the tensor */
+  DLContext ctx;
+  /*! \brief Number of dimensions */
+  int32_t ndim;
+  /*! \brief Padding to enforce struct alignment */
+  uint32_t pad0;
+  /*! \brief The data type of the pointer */
+  DLDataType dtype;
+  /*! \brief The shape of the tensor */
+  uint64_t shape;
+  /*!
+   * \brief strides of the tensor,
+   *  can be NULL, indicating tensor is compact.
+   */
+  uint64_t strides;
+  /*! \brief The offset in bytes to the beginning pointer to data */
+  uint64_t byte_offset;
+};
+
+/*! \brief MicroTVM task for serialization to 32-bit devices */
+typedef struct StructUTVMTask32 {
+  /*! \brief Pointer to function to call for this task */
+  uint32_t func;
+  /*! \brief Array of argument values */
+  uint32_t arg_values;
+  /*! \brief Array of type codes for each argument value */
+  uint32_t arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+} UTVMTask32;
+
+/*! \brief MicroTVM task for serialization to 64-bit devices */
+typedef struct StructUTVMTask64 {
+  /*! \brief Pointer to function to call for this task */
+  uint64_t func;
+  /*! \brief Array of argument values */
+  uint64_t arg_values;
+  /*! \brief Array of type codes for each argument value */
+  uint64_t arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+} UTVMTask64;
 
 }  // namespace runtime
 }  // namespace tvm

@@ -26,7 +26,7 @@
 
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
 #include <string>
 
@@ -49,7 +49,7 @@ namespace relay {
  *
  * \return The kind of the passed type.
  */
-TVM_DLL Kind KindCheck(const Type& t, const Module& mod);
+TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod);
 
 /*!
  * \brief Check whether an expression is constant.
@@ -188,7 +188,7 @@ TVM_DLL tvm::Array<Var> AllVars(const Expr& expr);
  *
  * \return List of free vars, in the PostDFS order visited by expr.
  */
-TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const IRModule& mod);
 
 /*!
  * \brief Get free TypeVars from type t.
@@ -201,7 +201,7 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Expr& expr, const Module& mod);
  *
  * \return List of free type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const IRModule& mod);
 
 /*!
  * \brief Get all bound type variables from expression expr.
@@ -214,7 +214,7 @@ TVM_DLL tvm::Array<TypeVar> FreeTypeVars(const Type& t, const Module& mod);
  *
  * \return List of bound type vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const IRModule& mod);
 
 /*!
  * \brief Get all bound type variables from type t.
@@ -227,7 +227,7 @@ TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Expr& expr, const Module& mod);
  *
  * \return List of bound type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const IRModule& mod);
 
 /*!
  * \brief Get all type variables in expression expr.
@@ -237,7 +237,7 @@ TVM_DLL tvm::Array<TypeVar> BoundTypeVars(const Type& t, const Module& mod);
  *
  * \return List of type vars, in the PostDFS order in the expression.
  */
-TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const IRModule& mod);
 
 /*!
  * \brief Get all type variables in type t.
@@ -247,7 +247,7 @@ TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Expr& expr, const Module& mod);
  *
  * \return List of type vars, in the PostDFS order visited by type.
  */
-TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const Module& mod);
+TVM_DLL tvm::Array<TypeVar> AllTypeVars(const Type& t, const IRModule& mod);
 
 /*!
  * \brief Collect the device mapping information of each expression.
@@ -277,7 +277,7 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  * \return Returns a list of cases (as patterns) that are not handled by the match
  * expression.
  */
-TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const Module& mod);
+TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {

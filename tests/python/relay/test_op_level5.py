@@ -39,7 +39,7 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", True)
+    z= relay.image.resize(x, (100, 200), "NCHW", "bilinear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -57,7 +57,7 @@ def test_resize():
         else:
             ref_res = topi.testing.upsampling_python(x_data, (scale, scale), layout)
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize(x, size, layout, method, True)
+        z = relay.image.resize(x, size, layout, method, "align_corners")
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -72,6 +72,47 @@ def test_resize():
         for layout in ["NHWC", "NCHW"]:
             verify_resize((1, 4, 4, 4), 2, method, layout)
 
+def test_crop_and_resize():
+    def verify_crop_and_resize(img_shape, boxes, box_indices, crop_size,
+                               layout, method, extrapolation_value=0.0):
+
+        image_data = np.random.uniform(size=img_shape).astype("float32")
+
+        ref_res = topi.testing.crop_and_resize_python(image_data,
+                                                      boxes,
+                                                      box_indices,
+                                                      crop_size,
+                                                      layout, method,
+                                                      extrapolation_value)
+
+        img = relay.var("img", relay.TensorType(img_shape, 'float32'))
+        bx = relay.var('bx', relay.TensorType(boxes.shape, 'float32'))
+        bx_idx = relay.var('bx_idx', relay.TensorType(box_indices.shape, 'int32'))
+
+        z = relay.image.crop_and_resize(img, bx, bx_idx, list(crop_size),
+                                        layout, method, extrapolation_value)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([img, bx, bx_idx], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(image_data, boxes, box_indices)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-3, atol=1e-04)
+
+    boxes_nhwc = np.array([[.1, .2, .8, .7], [.2, 0, 1, .6]]).astype("float32")
+    indices_nhwc = np.array([1, 0]).astype("int32")
+    size_nhwc = np.array([20, 30]).astype("int32")
+    boxes_nchw = np.array([[0, 0, 1, 1], [.2, .1, 1, .9]]).astype("float32")
+    indices_nchw = np.array([0, 1]).astype("int32")
+    size_nchw = np.array([30, 30]).astype("int32")
+
+    for method in ["bilinear", "nearest_neighbor"]:
+        verify_crop_and_resize((10, 224, 224, 3), boxes_nhwc, indices_nhwc,
+                               size_nhwc, 'NHWC', method)
+        verify_crop_and_resize((5, 3, 255, 255), boxes_nchw, indices_nchw,
+                               size_nchw, 'NCHW', method, 0.1)
 
 def test_multibox_prior():
     def get_ref_result(dshape, sizes=(1.0,),
@@ -573,9 +614,73 @@ def test_deformable_conv2d():
     test_run(2, 4, 16, 4, 4, 1)
 
 
+def test_depth_to_space():
+    def verify_depth_to_space(dshape, block_size, layout, mode):
+        if layout == "NHWC":
+            out_shape = [dshape[0], dshape[1] * block_size, dshape[2] * block_size, dshape[3] / (block_size * block_size)]
+        else:
+            out_shape = [dshape[0], dshape[1] / (block_size * block_size), dshape[2] * block_size, dshape[3] * block_size]
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        if layout == "NHWC":
+            x_data = np.transpose(x_data, axes=[0, 3, 1, 2])
+        ref_res = topi.testing.depth_to_space_python(x_data, block_size, mode=mode)
+        if layout == "NHWC":
+            x_data = np.transpose(x_data, axes=[0, 2, 3, 1])
+            ref_res = np.transpose(ref_res, axes=[0, 2, 3, 1])
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.depth_to_space(x, block_size, layout, mode)
+        assert "block_size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for layout in ["NHWC", "NCHW"]:
+        for mode in ["DCR", "CDR"]:
+            verify_depth_to_space((1, 4, 4, 4), 2, layout, mode)
+
+
+def test_space_to_depth():
+    def verify_space_to_depth(dshape, block_size, layout):
+        if layout == "NHWC":
+            out_shape = [dshape[0], dshape[1] / block_size, dshape[2] / block_size, dshape[3] * (block_size * block_size)]
+        else:
+            out_shape = [dshape[0], dshape[1] * (block_size * block_size), dshape[2] / block_size, dshape[3] / block_size]
+
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        if layout == "NHWC":
+            x_data = np.transpose(x_data, axes=[0, 3, 1, 2])
+        ref_res = topi.testing.space_to_depth_python(x_data, block_size)
+        if layout == "NHWC":
+            x_data = np.transpose(x_data, axes=[0, 2, 3, 1])
+            ref_res = np.transpose(ref_res, axes=[0, 2, 3, 1])
+
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.nn.space_to_depth(x, block_size, layout)
+        assert "block_size=" in z.astext()
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-4)
+    for layout in ["NHWC", "NCHW"]:
+        verify_space_to_depth((1, 4, 4, 4), 2, layout)
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
+    test_crop_and_resize()
     test_multibox_prior()
     test_multibox_transform_loc()
     test_get_valid_counts()
@@ -586,3 +691,5 @@ if __name__ == "__main__":
     test_yolo_reorg()
     test_non_max_suppression()
     test_deformable_conv2d()
+    test_depth_to_space()
+    test_space_to_depth()

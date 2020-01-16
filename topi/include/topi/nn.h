@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief NN op constructions
  * \file topi/nn.h
  */
@@ -40,9 +39,9 @@ using namespace tvm;
 namespace detail {
 
 template <typename T>
-tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
+tvm::PrimExpr Map(const tvm::Array<tvm::PrimExpr>& exprs, T op) {
   CHECK_GE(exprs.size(), 1);
-  tvm::Expr res = exprs[0];
+  tvm::PrimExpr res = exprs[0];
   for (size_t i = 1; i < exprs.size(); ++i) {
     res = op(res, exprs[i]);
   }
@@ -94,8 +93,8 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     t->shape,
     [&](const tvm::Array<tvm::Var>& i) {
       auto value = t(i);
-      auto calpha = tvm::make_const(value.type(), alpha);
-      return tvm::ir::Select::make(value > 0, value, value * calpha);
+      auto calpha = tvm::make_const(value.dtype(), alpha);
+      return tvm::ir::SelectNode::make(value > 0, value, value * calpha);
     },
     name,
     tag);
@@ -126,7 +125,7 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
   return tvm::compute(x->shape,
                      [&](const tvm::Array<tvm::Var> &indices) {
                         auto xval = x(indices);
-                        return tvm::ir::Select::make(
+                        return tvm::ir::SelectNode::make(
                             xval > 0,
                             xval,
                             xval * slope(indices[axis]));
@@ -173,9 +172,9 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
  *
  */
 inline tvm::Tensor pad(const tvm::Tensor& t,
-                       const tvm::Array<tvm::Expr>& pad_before,
-                       tvm::Array<tvm::Expr> pad_after = tvm::Array<tvm::Expr>(),
-                       Expr pad_value = Expr(),
+                       const tvm::Array<tvm::PrimExpr>& pad_before,
+                       tvm::Array<tvm::PrimExpr> pad_after = tvm::Array<tvm::PrimExpr>(),
+                       PrimExpr pad_value = PrimExpr(),
                        std::string name = "T_pad",
                        std::string tag = kElementWise,
                        std::string pad_mode = "constant") {
@@ -186,14 +185,14 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
   }
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
-  tvm::Array<tvm::Expr> output_shape;
-  tvm::Array<tvm::Expr> pad_before_int32;
-  tvm::Array<tvm::Expr> pad_after_int32;
+  tvm::Array<tvm::PrimExpr> output_shape;
+  tvm::Array<tvm::PrimExpr> pad_before_int32;
+  tvm::Array<tvm::PrimExpr> pad_after_int32;
   for (const auto &ele : pad_before) {
-    pad_before_int32.push_back(tvm::cast(tvm::Int(32), ele));
+    pad_before_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
   }
   for (const auto &ele : pad_after) {
-    pad_after_int32.push_back(tvm::cast(tvm::Int(32), ele));
+    pad_after_int32.push_back(tvm::cast(tvm::DataType::Int(32), ele));
   }
   for (size_t i = 0; i < t->shape.size(); ++i) {
     if (i >= pad_before.size()) {
@@ -208,9 +207,9 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
     pad_value = tvm::make_const(t->dtype, 0);
   }
   auto l = [&](tvm::Array<tvm::Var> ovars) {
-    tvm::Array<tvm::Expr> indices;
-    tvm::Array<tvm::Expr> sel;
-    tvm::Array<tvm::Expr> pad_idx;
+    tvm::Array<tvm::PrimExpr> indices;
+    tvm::Array<tvm::PrimExpr> sel;
+    tvm::Array<tvm::PrimExpr> pad_idx;
     for (size_t i = 0; i < t->shape.size(); ++i) {
       if (i >= pad_before_int32.size()) {
         indices.push_back(ovars[i]);
@@ -244,10 +243,10 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
     if (sel.size() != 0) {
       if (pad_mode == "constant") {
         return tvm::if_then_else(
-            detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+            detail::Map(sel, tvm::ir::AndNode::make), t(indices), pad_value);
       } else if (pad_mode == "edge" || pad_mode == "reflect") {
         return tvm::if_then_else(
-            detail::Map(sel, tvm::ir::And::make), t(indices), t(pad_idx));
+            detail::Map(sel, tvm::ir::AndNode::make), t(indices), t(pad_idx));
       }
     }
     return t(indices);
@@ -287,7 +286,7 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
-  tvm::Array<tvm::Expr> output_shape{
+  tvm::Array<tvm::PrimExpr> output_shape{
     I->shape[0],                                            // B
     W->shape[0],                                            // O
     indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
@@ -298,7 +297,7 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
   auto kw = tvm::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
-               : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
+               : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::Var b, tvm::Var o, tvm::Var h, tvm::Var w) {
     return tvm::sum(
         T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw),
@@ -338,7 +337,7 @@ inline tvm::Tensor conv2d_hwcn(const tvm::Tensor& I,
   CHECK_EQ(4, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
-  tvm::Array<tvm::Expr> output_shape{
+  tvm::Array<tvm::PrimExpr> output_shape{
       indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
       indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1,  // W
       I->shape[2],                                             // B
@@ -390,7 +389,7 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
   auto pH = I->shape[2];
   auto pW = I->shape[3];
   auto pCM = W->shape[1];  // channel_multiplier
-  tvm::Array<tvm::Expr> output_shape{
+  tvm::Array<tvm::PrimExpr> output_shape{
       I->shape[0],                                            // B
       W->shape[1],                                            // O
       indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
@@ -401,7 +400,7 @@ inline tvm::Tensor depthwise_conv2d_nchw(const tvm::Tensor& I,
   auto kw = tvm::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
-               : pad(I, {tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
+               : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::Var b, tvm::Var o, tvm::Var h, tvm::Var w) {
     return tvm::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
                     W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
@@ -423,7 +422,7 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
   auto pH = I->shape[1];
   auto pW = I->shape[2];
   auto pCM = W->shape[1];  // channel_multiplier
-  tvm::Array<tvm::Expr> output_shape{
+  tvm::Array<tvm::PrimExpr> output_shape{
       I->shape[0],                                            // B
       indexdiv(I->shape[1] - W->shape[1] + 2 * pad_h, stride_h) + 1,  // H
       indexdiv(I->shape[2] - W->shape[2] + 2 * pad_w, stride_w) + 1,   // W
@@ -434,7 +433,7 @@ inline tvm::Tensor depthwise_conv2d_nhwc(const tvm::Tensor& I,
   auto kw = tvm::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
-               : pad(I, {tvm::Expr(0), pad_h, pad_w, tvm::Expr(0)});
+               : pad(I, {tvm::PrimExpr(0), pad_h, pad_w, tvm::PrimExpr(0)});
   auto l = [&](tvm::Var b, tvm::Var h, tvm::Var w, tvm::Var o) {
     return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
                     W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
@@ -475,7 +474,7 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
   CHECK_EQ(5, W->shape.size());
   auto pH = I->shape[2];
   auto pW = I->shape[3];
-  tvm::Array<tvm::Expr> output_shape{
+  tvm::Array<tvm::PrimExpr> output_shape{
       I->shape[0],                                            // B
       I->shape[1],                                            // G
       W->shape[2],                                            // O
@@ -488,7 +487,7 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
 
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
-               : pad(I, {tvm::Expr(0), tvm::Expr(0), tvm::Expr(0), pad_h, pad_w});
+               : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::Array<tvm::Var> args) {
     tvm::Var b = args[0];
     tvm::Var g = args[1];

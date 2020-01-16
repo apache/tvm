@@ -28,13 +28,14 @@ def test_basic():
     ctx = tvm.cpu()
     if not relay.profiler_vm.enabled():
         return
-    exe = relay.profiler_vm.compile(mod, target, params=params)
+    exe = relay.vm.compile(mod, target, params=params)
     vm = relay.profiler_vm.VirtualMachineProfiler(exe)
     vm.init(ctx)
 
     data = np.random.rand(1, 3, 224, 224).astype('float32')
     res = vm.invoke("main", [data])
     print("\n{}".format(vm.get_stat()))
+    print("\n{}".format(vm.get_stat(False)))
 
 if __name__ == "__main__":
     test_basic()

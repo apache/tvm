@@ -43,19 +43,17 @@ class VirtualMachineDebug : public VirtualMachine {
   PackedFunc GetFunction(const std::string& name,
                          const ObjectPtr<Object>& sptr_to_self) final;
 
-  void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
-                    Index output_size, const std::vector<ObjectRef>& args) final;
-
-  void LoadExecutable(const Executable* exec);
+  void LoadExecutable(const Executable* exec) final;
 
   ~VirtualMachineDebug() {}
 
  private:
-  void Init(const std::vector<TVMContext>& ctxs);
+  void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
+                    Index output_size, const std::vector<ObjectRef>& args) final;
 
-  std::unordered_map<Index, std::string> packed_index_map;
-  std::unordered_map<Index, std::vector<double>> op_durations;
-  std::unordered_map<Index, int> op_invokes;
+  std::unordered_map<Index, std::string> packed_index_map_;
+  std::unordered_map<Index, std::vector<double>> op_durations_;
+  std::unordered_map<Index, int> op_invokes_;
 };
 
 }  // namespace vm

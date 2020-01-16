@@ -18,14 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/relay/attrs/reduce.h
  * \brief Auxiliary attributes for reduce operators.
  */
 #ifndef TVM_RELAY_ATTRS_REDUCE_H_
 #define TVM_RELAY_ATTRS_REDUCE_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <string>
 
 namespace tvm {

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file sim_tlpp.cc
  * \brief simulate core level pipe line parallism logic.
  */

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file Use external nnpack library call.
  */
 #include <tvm/runtime/device_api.h>

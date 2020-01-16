@@ -27,7 +27,6 @@
 
 #include <string>
 
-#include "base.h"
 #include "expr.h"
 #include "tensor.h"
 #include "tvm/node/container.h"
@@ -98,7 +97,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
    * \note Expr is used instead Type, because Type cannot be hold by Map.
    *  constant Expr of given type is used.
    */
-  Map<Var, Expr> handle_data_type;
+  Map<Var, PrimExpr> handle_data_type;
   /*! \brief The type of the function */
   LoweredFuncType func_type{kMixedFunc};
   /*! \brief Whether this function is packed function */
@@ -131,7 +130,7 @@ class LoweredFuncNode : public ir::FunctionBaseNode {
   }
 
   static constexpr const char* _type_key = "LoweredFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(LoweredFuncNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoweredFuncNode, Object);
 };
 
 // Implementations of inline functions
@@ -143,7 +142,7 @@ inline const LoweredFuncNode* LoweredFunc::operator->() const {
 
 namespace std {
 template <>
-struct hash<::tvm::LoweredFunc> : public tvm::NodeHash {
+struct hash<::tvm::LoweredFunc> : public tvm::ObjectHash {
 };
 }
 

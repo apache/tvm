@@ -46,7 +46,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   git clone --recursive https://github.com/apache/incubator-tvm
+#   git clone --recursive https://github.com/apache/incubator-tvm tvm
 #   cd tvm
 #   docker build -t tvm.demo_android -f docker/Dockerfile.demo_android ./docker
 #   docker run --pid=host -h tvm -v $PWD:/workspace \
@@ -78,7 +78,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   echo 'export PYTHONPATH=/workspace/python:/workspacem/topi/python:/workspace/nnvm/python/:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
+#   echo 'export PYTHONPATH=/workspace/python:/workspacem/topi/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
 #   source ~/.bashrc
 
 #################################################################

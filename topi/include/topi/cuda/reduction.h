@@ -125,7 +125,7 @@ Schedule ScheduleReduce(const Target& target,
     }
   }
 
-  stage_real.set_store_predicate(static_cast<Expr>(thread_x) == 0);
+  stage_real.set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
   return sch;
 }
 

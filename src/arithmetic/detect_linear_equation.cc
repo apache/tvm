@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file detect_linear_equation.cc
  * \brief Utility to detect patterns in the expression.
  */
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
 
@@ -35,34 +33,34 @@ using namespace ir;
 
 // Linear equation, the components can be undefined.
 struct LinearEqEntry {
-  Expr base;
-  Expr coeff;
+  PrimExpr base;
+  PrimExpr coeff;
 };
 
 struct IntervalEntry {
-  Expr min_value;
-  Expr max_value;
+  PrimExpr min_value;
+  PrimExpr max_value;
 };
 
 class LinearEqDetector
-    : public ExprFunctor<LinearEqEntry(const Expr&, const Expr &)> {
+    : public ExprFunctor<LinearEqEntry(const PrimExpr&, const PrimExpr &)> {
  public:
   explicit LinearEqDetector(Var var)
       : var_(var) {}
 
-  bool Detect(const Expr& e, LinearEqEntry* ret) {
+  bool Detect(const PrimExpr& e, LinearEqEntry* ret) {
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = make_zero(var_.type());
+      ret->base = make_zero(var_.dtype());
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = make_zero(var_.type());
+      ret->coeff = make_zero(var_.dtype());
     }
     return true;
   }
 
-  LinearEqEntry VisitExpr_(const Add* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const AddNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -72,7 +70,7 @@ class LinearEqDetector
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const Sub* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const SubNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -82,7 +80,7 @@ class LinearEqDetector
     return ret;
   }
 
-  LinearEqEntry VisitExpr_(const Mul* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const MulNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
     LinearEqEntry b = VisitExpr(op->b, op->b);
@@ -98,16 +96,16 @@ class LinearEqDetector
     ret.coeff = MulCombine(a.base, b.coeff);
     return ret;
   }
-  LinearEqEntry VisitExpr_(const Variable* op, const Expr& e) final {
+  LinearEqEntry VisitExpr_(const VarNode* op, const PrimExpr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
-      ret.coeff = make_const(op->type, 1);
+      ret.coeff = make_const(op->dtype, 1);
     } else {
       ret.base = e;
     }
     return ret;
   }
-  LinearEqEntry VisitExprDefault_(const Node* op, const Expr& e) final {
+  LinearEqEntry VisitExprDefault_(const Object* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     if (ExprUseVar(e, var_)) {
       fail_ = true;
@@ -123,43 +121,44 @@ class LinearEqDetector
   Var var_;
   bool fail_{false};
   // Combine by add
-  Expr AddCombine(Expr a, Expr b) {
+  PrimExpr AddCombine(PrimExpr a, PrimExpr b) {
     if (!a.defined()) return b;
     if (!b.defined()) return a;
     return a + b;
   }
-  Expr SubCombine(Expr a, Expr b) {
+  PrimExpr SubCombine(PrimExpr a, PrimExpr b) {
     // Check b first in case they are both undefined
     if (!b.defined()) return a;
     if (!a.defined()) return -b;
     return a - b;
   }
-  Expr MulCombine(Expr a, Expr b) {
+  PrimExpr MulCombine(PrimExpr a, PrimExpr b) {
     if (!a.defined()) return a;
     if (!b.defined()) return b;
     return a * b;
   }
 };
 
-Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
-  Expr base = e;
-  Array<Expr> coeff;
+Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
+                                          const Array<Var>& vars) {
+  PrimExpr base = e;
+  Array<PrimExpr> coeff;
 
   for (Var v : vars) {
     LinearEqEntry ret;
     if (!LinearEqDetector(v).Detect(base, &ret)) {
-      return Array<Expr>();
+      return Array<PrimExpr>();
     }
     coeff.push_back(ret.coeff);
     base = std::move(ret.base);
   }
 
-  std::unordered_set<const Variable*> vset;
+  std::unordered_set<const VarNode*> vset;
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
     if (ExprUseVar(coeff[i - 2], vset)) {
-      return Array<Expr>();
+      return Array<PrimExpr>();
     }
   }
   coeff.push_back(base);
@@ -168,12 +167,12 @@ Array<Expr> DetectLinearEquation(const Expr& e, const Array<Var>& vars) {
 
 // Detect clip condition as min max value
 bool DetectClipBound(
-    const Expr& cond,
-    std::unordered_map<const Variable*, IntervalEntry>* bmap) {
+    const PrimExpr& cond,
+    std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
   Var var;
-  auto fvisit = [&bmap, &flag, &var](const NodeRef& n) {
-    if (const Variable* v = n.as<Variable>()) {
+  auto fvisit = [&bmap, &flag, &var](const ObjectRef& n) {
+    if (const VarNode* v = n.as<VarNode>()) {
       if (bmap->count(v)) {
         if (flag == 0) {
           var = Downcast<Var>(n);
@@ -189,18 +188,18 @@ bool DetectClipBound(
   PostOrderVisit(cond, fvisit);
   if (flag != 1) return false;
   // canonical form: exp >= 0
-  Expr canonical;
-  if (const LT* op = cond.as<LT>()) {
-    if (!op->a.type().is_int()) return false;
-    canonical = op->b - op->a - make_const(op->a.type(), 1);
-  } else if (const LE* op = cond.as<LE>()) {
-    if (!op->a.type().is_int()) return false;
+  PrimExpr canonical;
+  if (const LTNode* op = cond.as<LTNode>()) {
+    if (!op->a.dtype().is_int()) return false;
+    canonical = op->b - op->a - make_const(op->a.dtype(), 1);
+  } else if (const LENode* op = cond.as<LENode>()) {
+    if (!op->a.dtype().is_int()) return false;
     canonical = op->b - op->a;
-  } else if (const GT* op = cond.as<GT>()) {
-    if (!op->a.type().is_int()) return false;
-    canonical = op->a - op->b - make_const(op->a.type(), 1);
-  } else if (const GE* op = cond.as<GE>()) {
-    if (!op->a.type().is_int()) return false;
+  } else if (const GTNode* op = cond.as<GTNode>()) {
+    if (!op->a.dtype().is_int()) return false;
+    canonical = op->a - op->b - make_const(op->a.dtype(), 1);
+  } else if (const GENode* op = cond.as<GENode>()) {
+    if (!op->a.dtype().is_int()) return false;
     canonical = op->a - op->b;
   } else {
     return false;
@@ -212,7 +211,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
     if (p.min_value.defined()) {
-      p.min_value = ir::Max::make(p.min_value, -ret.base);
+      p.min_value = ir::MaxNode::make(p.min_value, -ret.base);
     } else {
       p.min_value = -ret.base;
     }
@@ -221,7 +220,7 @@ bool DetectClipBound(
   if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
     if (p.max_value.defined()) {
-      p.max_value = ir::Min::make(p.max_value, ret.base);
+      p.max_value = ir::MinNode::make(p.max_value, ret.base);
     } else {
       p.max_value = ret.base;
     }
@@ -232,7 +231,7 @@ bool DetectClipBound(
 
 
 template<typename OP>
-void SplitCommExpr(const Expr& e, std::vector<Expr>* ret) {
+void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
   if (const OP* op = e.as<OP>()) {
     SplitCommExpr<OP>(op->a, ret);
     SplitCommExpr<OP>(op->b, ret);
@@ -243,17 +242,17 @@ void SplitCommExpr(const Expr& e, std::vector<Expr>* ret) {
 
 // Detect the lower and upper bound from the expression.
 // e must be connected by and.
-Array<Expr> DetectClipBound(const Expr& e, const Array<Var>& vars) {
-  std::vector<Expr> splits;
-  SplitCommExpr<ir::And>(e, &splits);
-  std::unordered_map<const Variable*, IntervalEntry> rmap;
+Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
+  std::vector<PrimExpr> splits;
+  SplitCommExpr<ir::AndNode>(e, &splits);
+  std::unordered_map<const VarNode*, IntervalEntry> rmap;
   for (Var v : vars) {
     rmap[v.get()] = IntervalEntry();
   }
-  for (Expr cond : splits) {
-    if (!DetectClipBound(cond, &rmap)) return Array<Expr>();
+  for (PrimExpr cond : splits) {
+    if (!DetectClipBound(cond, &rmap)) return Array<PrimExpr>();
   }
-  Array<Expr> ret;
+  Array<PrimExpr> ret;
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {

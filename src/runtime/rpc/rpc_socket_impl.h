@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file rpc_socket_impl.h
  * \brief Socket based RPC implementation.
  */

@@ -17,12 +17,11 @@
  * under the License.
  */
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/src/pass/lower_custom_datatypes.cc
  * \brief Pass for lowering custom datatypes
  */
 
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/packed_func_ext.h>
 #include "../codegen/datatype/registry.h"
@@ -38,18 +37,18 @@ namespace ir {
  * datatype) for lowering this type of expression, and uses it to lower the
  * expression.
  */
-class CustomDatatypesLowerer : public IRMutator {
+class CustomDatatypesLowerer : public StmtExprMutator {
  public:
   explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
-  inline Expr Mutate_(const Cast* op, const Expr& e) final {
-    auto type_code = op->type.code();
-    auto src_type_code = op->value.type().code();
+  inline PrimExpr VisitExpr_(const CastNode* op) final {
+    auto type_code = op->dtype.code();
+    auto src_type_code = op->value.dtype().code();
     // If either datatype is a registered custom datatype, we must lower.
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code) ||
                        datatype::Registry::Global()->GetTypeRegistered(src_type_code);
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Cast>();
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<CastNode>();
     if (toBeLowered) {
       auto lower = datatype::GetCastLowerFunc(target_, type_code, src_type_code);
       CHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
@@ -60,8 +59,9 @@ class CustomDatatypesLowerer : public IRMutator {
     return expr;
   }
 
-  inline Expr Mutate_(const FloatImm* imm, const Expr& e) final {
-    auto type_code = imm->type.code();
+  inline PrimExpr VisitExpr_(const FloatImmNode* imm) final {
+    auto type_code = imm->dtype.code();
+    auto e = GetRef<PrimExpr>(imm);
     if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       CHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
@@ -71,37 +71,37 @@ class CustomDatatypesLowerer : public IRMutator {
     return e;
   }
 
-  inline Stmt Mutate_(const Allocate* allocate, const Stmt& s) final {
-    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->type.code());
-    Stmt stmt = IRMutator::Mutate_(allocate, s);
-    allocate = stmt.as<Allocate>();
+  inline Stmt VisitStmt_(const AllocateNode* allocate) final {
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
+    Stmt stmt = StmtExprMutator::VisitStmt_(allocate);
+    allocate = stmt.as<AllocateNode>();
 
     if (toBeLowered) {
-      auto new_allocate_type = UInt(allocate->type.bits(), allocate->type.lanes());
-      return Allocate::make(allocate->buffer_var, new_allocate_type, allocate->extents,
+      auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
+      return AllocateNode::make(allocate->buffer_var, new_allocate_type, allocate->extents,
                             allocate->condition, allocate->body, allocate->new_expr,
                             allocate->free_function);
     }
     return stmt;
   }
 
-  inline Expr Mutate_(const Load* load, const Expr& e) final {
-    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->type.code());
-    Expr expr = IRMutator::Mutate_(load, e);
-    load = expr.as<Load>();
+  inline PrimExpr VisitExpr_(const LoadNode* load) final {
+    bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(load->dtype.code());
+    PrimExpr expr = StmtExprMutator::VisitExpr_(load);
+    load = expr.as<LoadNode>();
     if (toBeLowered) {
-      auto new_load_type = UInt(load->type.bits());
-      return Load::make(new_load_type, load->buffer_var, load->index, load->predicate);
+      auto new_load_type = DataType::UInt(load->dtype.bits());
+      return LoadNode::make(new_load_type, load->buffer_var, load->index, load->predicate);
     }
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP)                                                        \
-  inline Expr Mutate_(const OP* op, const Expr& e) final {                         \
-    auto type_code = op->type.code();                                              \
+#define DEFINE_MUTATE__(OP, NodeName)                                              \
+  inline PrimExpr VisitExpr_(const NodeName* op) final {                                     \
+    auto type_code = op->dtype.code();                                             \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
-    Expr expr = IRMutator::Mutate_(op, e);                                         \
-    op = expr.as<OP>();                                                            \
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);                                   \
+    op = expr.as<NodeName>();                                                            \
     if (toBeLowered) {                                                             \
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \
       CHECK(lower) << #OP " lowering function for target " << target_ << " type "  \
@@ -111,19 +111,19 @@ class CustomDatatypesLowerer : public IRMutator {
     return expr;                                                                   \
   }
 
-  DEFINE_MUTATE__(Add)
-  DEFINE_MUTATE__(Sub)
-  DEFINE_MUTATE__(Mul)
-  DEFINE_MUTATE__(Div)
-  DEFINE_MUTATE__(Mod)
-  DEFINE_MUTATE__(Min)
-  DEFINE_MUTATE__(Max)
-  DEFINE_MUTATE__(EQ)
-  DEFINE_MUTATE__(NE)
-  DEFINE_MUTATE__(LT)
-  DEFINE_MUTATE__(LE)
-  DEFINE_MUTATE__(GT)
-  DEFINE_MUTATE__(GE)
+  DEFINE_MUTATE__(Add, AddNode);
+  DEFINE_MUTATE__(Sub, SubNode);
+  DEFINE_MUTATE__(Mul, MulNode);
+  DEFINE_MUTATE__(Div, DivNode);
+  DEFINE_MUTATE__(Mod, ModNode);
+  DEFINE_MUTATE__(Min, MinNode);
+  DEFINE_MUTATE__(Max, MaxNode);
+  DEFINE_MUTATE__(EQ, EQNode);
+  DEFINE_MUTATE__(NE, NENode);
+  DEFINE_MUTATE__(LT, LTNode);
+  DEFINE_MUTATE__(LE, LENode);
+  DEFINE_MUTATE__(GT, GTNode);
+  DEFINE_MUTATE__(GE, GENode);
   // Later changes may need to add more mutate functions as we support workloads with more ops.
 
  private:
@@ -131,8 +131,8 @@ class CustomDatatypesLowerer : public IRMutator {
 };
 
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
-  n->body = CustomDatatypesLowerer(target).Mutate(n->body);
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
+  n->body = CustomDatatypesLowerer(target)(n->body);
   return LoweredFunc(n);
 }
 

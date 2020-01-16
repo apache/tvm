@@ -43,7 +43,7 @@ void CodeGenCPU::Init(const std::string& module_name,
   func_handle_map_.clear();
   export_system_symbols_.clear();
   // TVM runtime types
-  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, TVMShapeIndexType().bits());
+  t_tvm_shape_index_ = llvm::Type::getIntNTy(*ctx, DataType::ShapeIndex().bits());
   t_tvm_context_ = llvm::StructType::create({t_int_, t_int_});
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
   t_tvm_func_handle_ = t_void_p_;
@@ -252,7 +252,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
   return CodeGenLLVM::Finish();
 }
 llvm::Value* CodeGenCPU::CreateStructRefPtr(
-    Type t, llvm::Value* buf, llvm::Value* index, int kind) {
+    DataType t, llvm::Value* buf, llvm::Value* index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
@@ -319,7 +319,7 @@ llvm::Value* CodeGenCPU::CreateStructRefPtr(
   }
 }
 
-llvm::Value* CodeGenCPU::CreateCallExtern(const Call* op) {
+llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   std::vector<llvm::Value*> arg_values(op->args.size());
   for (size_t i = 0; i < op->args.size(); ++i) {
     arg_values[i] = MakeValue(op->args[i]);
@@ -329,7 +329,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const Call* op) {
     arg_types.push_back(v->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(
-      LLVMType(op->type), arg_types, false);
+      LLVMType(op->dtype), arg_types, false);
   // Check if it is available in global function table as injected function.
   auto it = gv_func_map_.find(op->name);
   if (it != gv_func_map_.end()) {
@@ -417,7 +417,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 
-void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
+void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // There are two reasons why we create another function for compute_scope
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
@@ -436,19 +436,19 @@ void CodeGenCPU::CreateComputeScope(const AttrStmt* op) {
   llvm::Function* fcompute =
       llvm::Function::Create(ftype,
                              llvm::Function::PrivateLinkage,
-                             op->value.as<StringImm>()->value,
+                             op->value.as<StringImmNode>()->value,
                              module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(
       builder_->CreateCall(fcompute, arg_values));
   // setup compute fuinction.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   size_t idx = 0;
   for (auto it = fcompute->arg_begin();
        it != fcompute->arg_end(); ++it, ++idx) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     new_vmap[var.get()] = v;
-    if (var.type().is_handle() && !alias_var_set_.count(var.get())) {
+    if (var.dtype().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
@@ -497,7 +497,7 @@ llvm::Value* CodeGenCPU::PackClosureData(const Array<Var>& vfields, uint64_t* nu
 
 void CodeGenCPU::UnpackClosureData(llvm::Value* cdata,
                                    const Array<Var>& vfields,
-                                   std::unordered_map<const Variable*, llvm::Value*>* vmap) {
+                                   std::unordered_map<const VarNode*, llvm::Value*>* vmap) {
   for (size_t i = 0; i < vfields.size(); ++i) {
     (*vmap)[vfields[i].get()] =
         builder_->CreateLoad(builder_->CreateInBoundsGEP(
@@ -528,12 +528,12 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   llvm::Value* penv = &(*it++);
   cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
   // setup new variable map, swap it with current var context.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   // setup parallel env
   ParallelEnv par_env;
-  par_env.task_id = Var("task_id", Int(32));
-  par_env.num_task = Var("num_task", Int(32));
+  par_env.task_id = Var("task_id", DataType::Int(32));
+  par_env.num_task = Var("num_task", DataType::Int(32));
   new_vmap[par_env.task_id.get()] = task_id;
   new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
       builder_->CreateInBoundsGEP(
@@ -594,7 +594,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   auto it = f->arg_begin();
   cdata = builder_->CreatePointerCast(&(*it++), cdata->getType());
   // setup new variable map, swap it with current var context.
-  std::unordered_map<const Variable*, llvm::Value*> new_vmap;
+  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
   CHECK(parallel_env_.penv == nullptr);
   std::swap(function_, f);
@@ -669,11 +669,11 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 }
 
 llvm::BasicBlock *
-CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
-                           llvm::Value **ret_tcode, const Type &r_type,
+CodeGenCPU::MakeCallPacked(const Array<PrimExpr> &args, llvm::Value **rvalue,
+                           llvm::Value **ret_tcode, const DataType &r_type,
                            const int64_t begin, const int64_t end) {
   using llvm::BasicBlock;
-  std::string func_name = args[0].as<StringImm>()->value;
+  std::string func_name = args[0].as<StringImmNode>()->value;
   llvm::Value *handle = GetPackedFuncHandle(func_name);
   // call the function
   int64_t nargs = end - begin;
@@ -684,15 +684,15 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
       builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(begin));
   llvm::Value *arg_tcode =
-      CreateBufferPtr(Int(32), stack_tcode, ConstInt32(begin));
+      CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(begin));
   llvm::Value *ret_value = builder_->CreateInBoundsGEP(
       builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
       ConstInt32(end));
-  *ret_tcode = CreateBufferPtr(Int(32), stack_tcode, ConstInt32(end));
+  *ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
   BasicBlock *end_block = CheckCallSuccess(builder_->CreateCall(
       RuntimeTVMFuncCall(), {handle, arg_value, arg_tcode, ConstInt32(nargs),
                              ret_value, *ret_tcode}));
-  Type r_api_type = ir::APIType(r_type);
+  DataType r_api_type = ir::APIType(r_type);
   *rvalue = builder_->CreateAlignedLoad(
       builder_->CreatePointerCast(ret_value,
                                   LLVMType(r_api_type)->getPointerTo()),
@@ -701,24 +701,24 @@ CodeGenCPU::MakeCallPacked(const Array<Expr> &args, llvm::Value **rvalue,
   return end_block;
 }
 
-llvm::Value *CodeGenCPU::CreateCallPacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallPacked(const CallNode *op) {
   CHECK_EQ(op->args.size(), 5U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
-  MakeCallPacked(op->args, &rvalue, &ret_tcode, op->type,
-                 op->args[3].as<IntImm>()->value,
-                 op->args[4].as<IntImm>()->value);
+  MakeCallPacked(op->args, &rvalue, &ret_tcode, op->dtype,
+                 op->args[3].as<IntImmNode>()->value,
+                 op->args[4].as<IntImmNode>()->value);
   return rvalue;
 }
 
-llvm::Value *CodeGenCPU::CreateCallTracePacked(const Call *op) {
+llvm::Value *CodeGenCPU::CreateCallTracePacked(const CallNode *op) {
   using llvm::BasicBlock;
   CHECK_EQ(op->args.size(), 6U);
   llvm::Value *rvalue = nullptr;
   llvm::Value *ret_tcode = nullptr;
   BasicBlock *end_block = MakeCallPacked(
-      op->args, &rvalue, &ret_tcode, op->type, op->args[3].as<IntImm>()->value,
-      op->args[4].as<IntImm>()->value);
+      op->args, &rvalue, &ret_tcode, op->dtype, op->args[3].as<IntImmNode>()->value,
+      op->args[4].as<IntImmNode>()->value);
   // Get traced value.
   llvm::Value *traced_value = MakeValue(op->args[5]);
   // The update_block handles case when we need to update the return value.
@@ -786,7 +786,7 @@ void CodeGenCPU::AddStartupFunction() {
   }
 }
 
-llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
+llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic(intrinsic::tvm_call_packed_lowered)) {
     return CreateCallPacked(op);
   } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed_lowered)) {
@@ -798,9 +798,9 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     return ConstInt32(-1);
   } else if (op->is_intrinsic(intrinsic::tvm_struct_get)) {
     CHECK_EQ(op->args.size(), 3U);
-    int kind = op->args[2].as<IntImm>()->value;
+    int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* ref = this->CreateStructRefPtr(
-        op->type, MakeValue(op->args[0]),
+        op->dtype, MakeValue(op->args[0]),
         MakeValue(op->args[1]), kind);
     if (kind == intrinsic::kArrAddr) {
       return builder_->CreatePointerCast(ref, t_void_p_);
@@ -809,10 +809,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     }
   } else if (op->is_intrinsic(intrinsic::tvm_struct_set)) {
     CHECK_EQ(op->args.size(), 4U);
-    int kind = op->args[2].as<IntImm>()->value;
+    int kind = op->args[2].as<IntImmNode>()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     llvm::Value* ref = this->CreateStructRefPtr(
-        op->args[3].type(), MakeValue(op->args[0]),
+        op->args[3].dtype(), MakeValue(op->args[0]),
         MakeValue(op->args[1]), kind);
     CHECK(kind != intrinsic::kArrAddr);
     if (value->getType()->isPointerTy()) {
@@ -823,7 +823,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
     return ConstInt32(0);
   } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     CHECK_EQ(op->args.size(), 2U);
-    const std::string& type = op->args[0].as<StringImm>()->value;
+    const std::string& type = op->args[0].as<StringImmNode>()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
         const int64_t* pval = as_const_int(op->args[1]);
         CHECK(pval) << "require stack alloca to contain constant value";
@@ -846,13 +846,13 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
+void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   using llvm::BasicBlock;
   llvm::Value* cond = MakeValue(op->condition);
   std::ostringstream os;
   os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImm>()) {
-    os << ", " << op->message.as<StringImm>()->value;
+  if (op->message.as<StringImmNode>()) {
+    os << ", " << op->message.as<StringImmNode>()->value;
   }
   llvm::Value* msg = GetConstString(os.str());
   BasicBlock* fail_block = BasicBlock::Create(
@@ -869,9 +869,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmt* op) {
   CodeGenLLVM::VisitStmt_(op);
 }
 
-void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
+void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == ir::attr::coproc_uop_scope) {
-    this->CreateStaticInit(op->value.as<StringImm>()->value, op->body);
+    this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
   } else  if (op->attr_key == ir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (attr::IsPragmaKey(op->attr_key)) {
@@ -893,7 +893,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
           RuntimeTVMParallelBarrier(),
           {MakeValue(parallel_env_.task_id),  parallel_env_.penv});
     } else if (op->attr_key == ir::attr::pragma_import_llvm) {
-      const StringImm* value = op->value.as<StringImm>();
+      const StringImmNode* value = op->value.as<StringImmNode>();
       CHECK(value != nullptr);
       this->HandleImport(value->value);
       this->VisitStmt(op->body);
@@ -906,7 +906,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
   }
 }
 
-void CodeGenCPU::VisitStmt_(const For* op) {
+void CodeGenCPU::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   if (op->for_type == ForType::Serial ||
       op->for_type == ForType::Unrolled) {
@@ -914,7 +914,7 @@ void CodeGenCPU::VisitStmt_(const For* op) {
   } else if (op->for_type == ForType::Parallel) {
     if (parallel_env_.penv == nullptr) {
       CreateParallelLaunch(
-          For::make(
+          ForNode::make(
               op->loop_var, op->min, op->extent,
               op->for_type, op->device_api, op->body), 0);
     } else {
@@ -922,9 +922,9 @@ void CodeGenCPU::VisitStmt_(const For* op) {
       CHECK(parallel_env_.task_id.defined());
       CHECK(parallel_env_.num_task.defined());
       CHECK(parallel_env_.penv != nullptr);
-      Type t = op->extent.type();
-      Expr num_task = cast(t, parallel_env_.num_task);
-      Expr task_id = cast(t, parallel_env_.task_id);
+      DataType t = op->extent.dtype();
+      PrimExpr num_task = cast(t, parallel_env_.num_task);
+      PrimExpr task_id = cast(t, parallel_env_.task_id);
       CHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
@@ -935,9 +935,9 @@ void CodeGenCPU::VisitStmt_(const For* op) {
                         op->loop_var,
                         op->body);
       } else {
-        Expr step = (op->extent + num_task - make_const(t, 1)) / num_task;
-        Expr begin = Min::make(task_id * step, op->extent);
-        Expr end = Min::make((task_id + make_const(t, 1)) * step, op->extent);
+        PrimExpr step = (op->extent + num_task - make_const(t, 1)) / num_task;
+        PrimExpr begin = MinNode::make(task_id * step, op->extent);
+        PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
                         ConstInt32(1),

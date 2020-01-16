@@ -18,15 +18,16 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 import topi
+from topi.util import get_const_tuple
 from .op import register_compute, register_schedule, register_pattern, register_shape_func
 from .op import schedule_injective, OpPattern
 from ...hybrid import script
+from ...api import convert
 
 schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective
 
 register_schedule("log", schedule_broadcast)
-register_schedule("log1p", schedule_broadcast)
 register_schedule("cos", schedule_broadcast)
 register_schedule("sin", schedule_broadcast)
 register_schedule("atan", schedule_broadcast)
@@ -121,7 +122,21 @@ def _cast_shape_function(x):
 def cast_shape_func(attrs, inputs, out_ndims):
     return [_cast_shape_function(*inputs)]
 
-# shape func
+@script
+def _full_shape_func(shape):
+    out_ndim = len(shape)
+    out = output_tensor((out_ndim,), "int64")
+    for i in const_range(out_ndim):
+        out[i] = int64(shape[i])
+    return out
+
+def full_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape func for zeros, zeros_like, ones, ones_like.
+    """
+    shape = get_const_tuple(attrs.shape)
+    return [_full_shape_func(convert(shape))]
+
 @script
 def _broadcast_shape_func(x, y, ndim):
     out = output_tensor((ndim,), "int64")
@@ -163,6 +178,12 @@ def elemwise_shape_func(attrs, inputs, _):
     return [topi.math.identity(inputs[0])]
 
 register_shape_func("cast", False, cast_shape_func)
+register_shape_func("zeros", False, full_shape_func)
+register_shape_func("zeros_like", False, elemwise_shape_func)
+register_shape_func("ones", False, full_shape_func)
+register_shape_func("ones_like", False, elemwise_shape_func)
+register_shape_func("full", False, full_shape_func)
+register_shape_func("full_like", False, elemwise_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)
@@ -179,6 +200,9 @@ register_shape_func("less", False, broadcast_shape_func)
 register_shape_func("less_equal", False, broadcast_shape_func)
 register_shape_func("greater", False, broadcast_shape_func)
 register_shape_func("greater_equal", False, broadcast_shape_func)
+register_shape_func("maximum", False, broadcast_shape_func)
+register_shape_func("minimum", False, broadcast_shape_func)
 
 register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
+register_shape_func("exp", False, elemwise_shape_func)

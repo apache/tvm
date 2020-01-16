@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""gather_nd in python"""
+"""strided_slice/set in python"""
+
 
 def strided_slice_python(data, begin, end, strides):
     """Python version of strided slice operator.
@@ -46,3 +47,40 @@ def strided_slice_python(data, begin, end, strides):
             end[i] if i < len(end) else None,
             strides[i] if i < len(strides) else None))
     return data[tuple(slices)]
+
+
+def strided_set_python(data, v, begin, end, strides):
+    """Python version of strided slice operator.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Input data
+
+    v : numpy.ndarray
+        Value data
+
+    begin : list
+        Begining of the slices.
+
+    end : list
+        End of the slices.
+
+    strides : list
+        The stride of each slice.
+
+    Returns
+    -------
+    result : numpy.ndarray
+        The updated result.
+    """
+    strides = [] if strides is None else strides
+    slices = []
+    res = data.copy()
+    for i in range(len(data.shape)):
+        slices.append(slice(
+            begin[i] if i < len(begin) else None,
+            end[i] if i < len(end) else None,
+            strides[i] if i < len(strides) else None))
+    res[tuple(slices)] = v
+    return res

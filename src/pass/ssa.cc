@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,15 +18,13 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  SSA related checks and pass.
  *
  *  SSA requires each varaible to be only defined once.
  * \file ssa.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include <unordered_map>
@@ -35,173 +33,178 @@
 namespace tvm {
 namespace ir {
 namespace {
-class IRVerifySSA final : public IRVisitor {
+class IRVerifySSA final : public StmtExprVisitor {
  public:
   bool is_ssa{true};
 
-  void Visit(const NodeRef& n) final {
+  void VisitExpr(const PrimExpr& n) final {
     if (!is_ssa) return;
-    IRVisitor::Visit(n);
+    StmtExprVisitor::VisitExpr(n);
   }
-  void Visit_(const Let* op) final {
+  void VisitStmt(const Stmt& n) final {
+    if (!is_ssa) return;
+    StmtExprVisitor::VisitStmt(n);
+  }
+  void VisitExpr_(const LetNode* op) final {
     MarkDef(op->var.get());
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
-  void Visit_(const LetStmt* op) final {
+  void VisitStmt_(const LetStmtNode* op) final {
     MarkDef(op->var.get());
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
-  void Visit_(const For* op) final {
+  void VisitStmt_(const ForNode* op) final {
     MarkDef(op->loop_var.get());
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
-  void Visit_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     MarkDef(op->buffer_var.get());
-    IRVisitor::Visit_(op);
+    StmtExprVisitor::VisitStmt_(op);
   }
 
  private:
-  void MarkDef(const Variable* v) {
+  void MarkDef(const VarNode* v) {
     if (defined_.count(v) != 0) {
       is_ssa = false; return;
     } else {
       defined_[v] = 1;
     }
   }
-  std::unordered_map<const Variable*, int> defined_;
+  std::unordered_map<const VarNode*, int> defined_;
 };
 
-class IRConvertSSA final : public IRMutator {
+
+class IRConvertSSA final : public StmtExprMutator {
  public:
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     if (scope_.count(op)) {
       return scope_[op].back();
     } else {
-      return e;
+      return GetRef<PrimExpr>(op);
     }
   }
-  Expr Mutate_(const Let* op, const Expr& e) final {
-    const VarExpr& v = op->var;
+  PrimExpr VisitExpr_(const LetNode* op) final {
+    const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = IRMutator::Mutate(op->value);
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      PrimExpr value = this->VisitExpr(op->value);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
-      Expr body = IRMutator::Mutate(op->body);
+      PrimExpr body = this->VisitExpr(op->body);
       scope_[v.get()].pop_back();
-      return Let::make(new_var, value, body);
+      return LetNode::make(new_var, value, body);
     } else {
       defined_.insert(v.get());
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Load>();
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<LoadNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return Load::make(
-          op->type, scope_[op->buffer_var.get()].back(),
+      return LoadNode::make(
+          op->dtype, scope_[op->buffer_var.get()].back(),
           op->index, op->predicate);
     } else {
       return expr;
     }
   }
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
-    Stmt stmt = IRMutator::Mutate_(op, s);
-    op = stmt.as<Store>();
+  Stmt VisitStmt_(const StoreNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<StoreNode>();
     if (scope_.count(op->buffer_var.get())) {
-      return Store::make(
+      return StoreNode::make(
           scope_[op->buffer_var.get()].back(), op->value,
           op->index, op->predicate);
     } else {
       return stmt;
     }
   }
-  Stmt Mutate_(const LetStmt* op, const Stmt& s) final {
-    const VarExpr& v = op->var;
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    const Var& v = op->var;
     if (defined_.count(v.get())) {
-      Expr value = IRMutator::Mutate(op->value);
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      PrimExpr value = this->VisitExpr(op->value);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
-      Stmt body = IRMutator::Mutate(op->body);
+      Stmt body = this->VisitStmt(op->body);
       scope_[v.get()].pop_back();
-      return LetStmt::make(new_var, value, body);
+      return LetStmtNode::make(new_var, value, body);
     } else {
       defined_.insert(v.get());
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const For* op, const Stmt& s) final {
-    const VarExpr& v = op->loop_var;
+  Stmt VisitStmt_(const ForNode* op) final {
+    const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
-      op = stmt.as<For>();
-      return For::make(
+      op = stmt.as<ForNode>();
+      return ForNode::make(
           new_var, op->min, op->extent, op->for_type, op->device_api, op->body);
     } else {
       defined_.insert(v.get());
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
-    const VarExpr& v = op->buffer_var;
+  Stmt VisitStmt_(const AllocateNode* op) final {
+    const Var& v = op->buffer_var;
     if (defined_.count(v.get())) {
-      VarExpr new_var = Variable::make(v.type(), v->name_hint);
+      Var new_var = VarNode::make(v.dtype(), v->name_hint);
       scope_[v.get()].push_back(new_var);
-      Stmt stmt = IRMutator::Mutate_(op, s);
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
       scope_[v.get()].pop_back();
-      op = stmt.as<Allocate>();
-      return Allocate::make(
-          new_var, op->type, op->extents, op->condition,
+      op = stmt.as<AllocateNode>();
+      return AllocateNode::make(
+          new_var, op->dtype, op->extents, op->condition,
           op->body, op->new_expr, op->free_function);
     } else {
       defined_.insert(v.get());
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
-    if (const Variable* v = op->node.as<Variable>()) {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    if (const VarNode* v = op->node.as<VarNode>()) {
       if (op->attr_key == attr::storage_scope) {
-        const Allocate* alloc = op->body.as<Allocate>();
+        const AllocateNode* alloc = op->body.as<AllocateNode>();
         if (alloc && op->node.same_as(alloc->buffer_var)) {
-          Stmt new_alloc = Mutate(op->body);
-          if (new_alloc.same_as(op->body)) return s;
-          alloc = new_alloc.as<Allocate>();
+          Stmt new_alloc = this->VisitStmt(op->body);
+          if (new_alloc.same_as(op->body)) return GetRef<Stmt>(op);
+          alloc = new_alloc.as<AllocateNode>();
           CHECK(alloc);
-          return AttrStmt::make(
+          return AttrStmtNode::make(
               alloc->buffer_var, op->attr_key, op->value, new_alloc);
         }
       }
-      Stmt stmt = IRMutator::Mutate_(op, s);
-      op = stmt.as<AttrStmt>();
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<AttrStmtNode>();
       if (scope_.count(v) && scope_[v].size() != 0) {
-        return AttrStmt::make(
+        return AttrStmtNode::make(
             scope_[v].back(), op->attr_key, op->value, op->body);
       } else {
         return stmt;
       }
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
  private:
-  std::unordered_map<const Variable*, std::vector<VarExpr> > scope_;
-  std::unordered_set<const Variable*> defined_;
+  std::unordered_map<const VarNode*, std::vector<Var> > scope_;
+  std::unordered_set<const VarNode*> defined_;
 };
 
 }  // namespace
 
 bool VerifySSA(const Stmt& ir) {
-  IRVerifySSA v;
-  v.Visit(ir);
-  return v.is_ssa;
+  IRVerifySSA visitor;
+  visitor(ir);
+  return visitor.is_ssa;
 }
 
 Stmt ConvertSSA(Stmt stmt) {
-  return IRConvertSSA().Mutate(stmt);
+  return IRConvertSSA()(std::move(stmt));
 }
 
 }  // namespace ir

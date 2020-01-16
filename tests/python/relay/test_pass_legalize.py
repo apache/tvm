@@ -20,8 +20,8 @@ import tvm
 
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.op import register_legalize
 from tvm.relay import transform, analysis
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 
 def run_opt_pass(expr, passes):
@@ -46,7 +46,6 @@ def test_legalize():
         y = relay.Function([x, weight], y)
         return y
 
-    @register_legalize("nn.conv2d", level=100)
     def legalize_conv2d(attrs, inputs, types):
         data, weight = inputs
         weight = relay.multiply(weight, relay.const(2.0, "float32"))
@@ -63,9 +62,10 @@ def test_legalize():
         y = relay.Function([x, weight], y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, transform.Legalize())
-    b = run_opt_pass(expected(), transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMLegalize", legalize_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.Legalize())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -79,16 +79,15 @@ def test_legalize_none():
 
     called = [False]
 
-    @register_legalize("nn.global_max_pool2d", level=101)
     def legalize_conv2d(attrs, inputs, types):
         called[0] = True
         return None
 
-    a = before()
-    a = run_opt_pass(a, transform.Legalize())
+    with TempOpAttr("nn.global_max_pool2d", "FTVMLegalize", legalize_conv2d):
+        a = before()
+        a = run_opt_pass(a, transform.Legalize())
+        b = run_opt_pass(before(), transform.InferType())
 
-    b = before()
-    b = run_opt_pass(b, transform.InferType())
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
@@ -105,14 +104,12 @@ def test_legalize_multiple_ops():
         y = relay.Function([x, weight], y)
         return y
 
-    @register_legalize("nn.conv2d", level=102)
     def legalize_conv2d(attrs, inputs, types):
         data, weight = inputs
         weight = relay.multiply(weight, relay.const(2.0, "float32"))
         return relay.nn.conv2d(data, weight, **attrs)
 
-    @register_legalize("nn.relu", level=103)
-    def legalize_conv2d(attrs, inputs, types):
+    def legalize_relu(attrs, inputs, types):
         data = inputs[0]
         add = relay.add(tvm.relay.const(0, "float32"), data)
         return relay.nn.relu(add)
@@ -130,9 +127,11 @@ def test_legalize_multiple_ops():
         y = relay.Function([x, weight], y)
         return y
 
-    a = before()
-    a = run_opt_pass(a, transform.Legalize())
-    b = run_opt_pass(expected(), transform.InferType())
+    with TempOpAttr("nn.conv2d", "FTVMLegalize", legalize_conv2d):
+        with TempOpAttr("nn.relu", "FTVMLegalize", legalize_relu):
+            a = before()
+            a = run_opt_pass(a, transform.Legalize())
+            b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
@@ -147,7 +146,6 @@ def test_legalize_multi_input():
         func = relay.Function([x, y, z], func)
         return func
 
-    @register_legalize("concatenate", level=104)
     def legalize_concatenate(attrs, inputs, types):
         # Check that the correct multi-input case is handled.
         assert len(inputs) == 1
@@ -165,9 +163,11 @@ def test_legalize_multi_input():
         func = relay.Function([x, y, z], func)
         return func
 
-    a = before()
-    a = run_opt_pass(a, transform.Legalize())
-    b = run_opt_pass(expected(), transform.InferType())
+
+    with TempOpAttr("concatenate", "FTVMLegalize", legalize_concatenate):
+        a = before()
+        a = run_opt_pass(a, transform.Legalize())
+        b = run_opt_pass(expected(), transform.InferType())
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 

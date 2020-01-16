@@ -61,7 +61,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(ptr);
     dev_space->session->FreeInSection(
-      SectionKind::kHeap, DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+      SectionKind::kHeap, DevPtr(reinterpret_cast<std::uintptr_t>(dev_space->data)));
     delete dev_space;
   }
 
@@ -89,12 +89,12 @@ class MicroDeviceAPI final : public DeviceAPI {
       ObjectPtr<MicroSession>& session = from_space->session;
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
-      DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
-      DevBaseOffset to_dev_offset = GetDevLoc(to_space, to_offset);
+      DevPtr from_dev_addr = GetDevLoc(from_space, from_offset);
+      DevPtr to_dev_addr = GetDevLoc(to_space, to_offset);
 
       std::vector<uint8_t> buffer(size);
-      lld->Read(from_dev_offset, static_cast<void*>(buffer.data()), size);
-      lld->Write(to_dev_offset, static_cast<void*>(buffer.data()), size);
+      lld->Read(from_dev_addr, static_cast<void*>(buffer.data()), size);
+      lld->Write(to_dev_addr, static_cast<void*>(buffer.data()), size);
     } else if (type_from_to == std::make_tuple(kDLMicroDev, kDLCPU)) {
       // Reading from the device.
 
@@ -102,9 +102,9 @@ class MicroDeviceAPI final : public DeviceAPI {
       ObjectPtr<MicroSession>& session = from_space->session;
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
-      DevBaseOffset from_dev_offset = GetDevLoc(from_space, from_offset);
+      DevPtr from_dev_addr = GetDevLoc(from_space, from_offset);
       void* to_host_ptr = GetHostLoc(to, to_offset);
-      lld->Read(from_dev_offset, to_host_ptr, size);
+      lld->Read(from_dev_addr, to_host_ptr, size);
     } else if (type_from_to == std::make_tuple(kDLCPU, kDLMicroDev)) {
       // Writing to the device.
 
@@ -113,8 +113,8 @@ class MicroDeviceAPI final : public DeviceAPI {
       const std::shared_ptr<LowLevelDevice>& lld = session->low_level_device();
 
       void* from_host_ptr = GetHostLoc(from, from_offset);
-      DevBaseOffset to_dev_offset = GetDevLoc(to_space, to_offset);
-      lld->Write(to_dev_offset, from_host_ptr, size);
+      DevPtr to_dev_addr = GetDevLoc(to_space, to_offset);
+      lld->Write(to_dev_addr, from_host_ptr, size);
     } else {
       LOG(FATAL) << "Expect copy from/to micro device or between micro device\n";
     }
@@ -138,7 +138,7 @@ class MicroDeviceAPI final : public DeviceAPI {
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(data);
     ObjectPtr<MicroSession>& session = dev_space->session;
     session->FreeInSection(SectionKind::kWorkspace,
-                           DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+                           DevPtr(reinterpret_cast<std::uintptr_t>(dev_space->data)));
     delete dev_space;
   }
 
@@ -152,10 +152,8 @@ class MicroDeviceAPI final : public DeviceAPI {
   }
 
  private:
-  DevBaseOffset GetDevLoc(MicroDevSpace* dev_space, size_t offset) {
-    DevBaseOffset dev_offset =
-        DevBaseOffset(reinterpret_cast<std::uintptr_t>(dev_space->data) + offset);
-    return dev_offset;
+  DevPtr GetDevLoc(MicroDevSpace* dev_space, size_t offset) {
+    return DevPtr(reinterpret_cast<std::uintptr_t>(dev_space->data) + offset);
   }
 
   void* GetHostLoc(const void* ptr, size_t offset) {

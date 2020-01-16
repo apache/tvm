@@ -43,12 +43,15 @@ def get_numpy(tensor_proto):
 
 
 def dimension_picker(prefix, surfix=''):
+    """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
+        if len(kernel) == 1:
+            return prefix + '1d' + surfix
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        msg = 'Only 2D kernels are supported for operator {}.'
-        op_name = prefix + '2d'
+        msg = 'Only 1D and 2D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -66,21 +69,48 @@ def revert_caffe2_pad(pads):
     return pads
 
 
-def onnx_storage_order2layout(storage_order):
+def get_pad_pair(input1d, kernel1d, stride1d):
+    """infer pad size"""
+    if input1d % stride1d == 0:
+        pad = max(kernel1d - stride1d, 0)
+    else:
+        pad = max(kernel1d - (input1d % stride1d), 0)
+    pad_before = pad // 2
+    pad_after = pad - pad_before
+    return [pad_before, pad_after]
+
+
+def onnx_default_layout(dims):
+    if dims == 1:
+        return 'NCW'
+    if dims == 2:
+        return 'NCHW'
+
+    msg = "Only 1d and 2d layouts are currently supported"
+    raise tvm.error.OpAttributeInvalid(msg.format(op_name))
+
+
+def onnx_storage_order2layout(storage_order, dims=2):
     """converter of onnx storage order parameter to tvm storage order format"""
     if storage_order not in (0, 1):
         raise tvm.error.OpAttributeInvalid('Mode of storage_order must be either 0 or 1')
 
-    return 'NCHW' if storage_order == 0 else 'NHWC'
+    if dims == 1:
+        return 'NCW' if storage_order == 0 else 'NWC'
+    if dims == 2:
+        return 'NCHW' if storage_order == 0 else 'NHWC'
+
+    msg = "Only 1d and 2d layouts are currently supported"
+    raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2:
+        if len(attrs['kernel_shape']) == 2 or len(attrs['kernel_shape']) == 1:
             return True
         return False
 
-    return _dim_check, "Only 2d kernel supported."
+    return _dim_check, "Only 1d and 2d kernel supported."
 
 
 class OnnxOpConverter(object):
@@ -114,6 +144,19 @@ class OnnxOpConverter(object):
                 version, cls.__name__))
 
 
+class Unary(OnnxOpConverter):
+    """ A helper class for unary op converters.
+    """
+    name = ''
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        assert len(inputs) == 1, "Unary math op {} takes 1 input, {} given".format(
+            cls.name, len(inputs))
+        op_name = cls.name
+        return get_relay_op(op_name)(*inputs)
+
+
 class Elemwise(OnnxOpConverter):
     """ A helper class for elemwise op converters.
     """
@@ -121,8 +164,8 @@ class Elemwise(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(
-            len(inputs))
+        assert len(inputs) == 2, "Math op {} take 2 inputs, {} given".format(
+            cls.name, len(inputs))
         op_name = cls.name
         conv_ops = ["conv2d", "conv2d_transpose"]
         if attr.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
@@ -139,26 +182,48 @@ class Pool(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
+        input_shape = infer_shape(inputs[0])
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                pad_tuple = []
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    pad = get_pad_pair(axis_shape, kernel, stride)
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                attr['pads'] = pad_tuple
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = 0
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator {} is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad'], cls.name))
+            attr.pop("auto_pad")
+
+        if 'storage_order' in attr:
+            attr['layout'] = onnx_storage_order2layout(attr['storage_order'],
+                                                       dims=(len(input_shape) - 2))
+        else:
+            attr['layout'] = onnx_default_layout(dims=(len(input_shape) - 2))
+
         return AttrCvt(
             op_name=dimension_picker(cls.name),
             transforms={
                 'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad)
+                'pads': ('padding', 0)
             },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            # TODO(zhreshold): make sure ceil_mode in onnx, and layout?
-            extras={'ceil_mode': False},
+            ignores=['dilations'],
             custom_check=dimension_constraint())(inputs, attr, params)
 
 
-class Absolute(OnnxOpConverter):
+class Absolute(Unary):
     """ Operator converter for Absolute.
     """
-
-    @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        return _op.nn.relu(inputs[0]) + _op.nn.relu(_op.negative(inputs[0]))
+    name = 'abs'
 
 
 class Add(Elemwise):
@@ -202,14 +267,42 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        out = AttrCvt(op_name=dimension_picker('conv'),
-                      transforms={
-                          'kernel_shape': 'kernel_size',
-                          'dilations': ('dilation', (0, 0)),
-                          'pads': ('padding', (0, 0), revert_caffe2_pad),
-                          'group': ('groups', 1)},
-                      ignores=['auto_pad'],
-                      custom_check=dimension_constraint())(inputs[:2], attr, params)
+        # Use shape of input to determine convolution type.
+        input_shape = infer_shape(inputs[0])
+
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                pad_tuple = []
+                for axis in range(len(input_shape) - 2):
+                    axis_shape = input_shape[2 + axis]
+                    stride = attr['strides'][axis]
+                    kernel = attr['kernel_shape'][axis]
+                    dilation = attr['dilations'][axis]
+                    dilated_kernel = (kernel - 1) * dilation + 1
+                    pad = get_pad_pair(axis_shape, dilated_kernel, stride)
+                    pad_tuple.append(pad)
+                pad_tuple = tuple([val for pair in zip(*pad_tuple) for val in pair])
+                attr['pads'] = pad_tuple
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = tuple([0 for i in range(len(input_shape) - 2)])
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
+            attr.pop('auto_pad')
+
+        out = AttrCvt(
+            op_name=dimension_picker('conv'),
+            transforms={
+                'kernel_shape': 'kernel_size',
+                'dilations': ('dilation', 1),
+                'pads': ('padding', 0),
+                'group': ('groups', 1)
+            },
+            custom_check=dimension_constraint())(inputs[:2], attr, params)
+
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -226,6 +319,29 @@ class ConvTranspose(OnnxOpConverter):
         attr['channels'] = channels
         groups = attr.pop('group')
         attr['groups'] = groups
+        # infer pads for auto_pad
+        if 'auto_pad' in attr:
+            attr['auto_pad'] = attr['auto_pad'].decode('utf-8')
+            if attr['auto_pad'] in ('SAME_UPPER', 'SAME_LOWER'):
+                input_shape = infer_shape(inputs[0])
+                in_h, in_w = input_shape[2], input_shape[3]
+                stride_h, stride_w = attr['strides']
+                kernel_h, kernel_w = attr['kernel_shape']
+                dilation_h, dilation_w = attr['dilations']
+                dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+                dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+                pad_v = get_pad_pair(in_h, dilated_kernel_h, stride_h)
+                pad_h = get_pad_pair(in_w, dilated_kernel_w, stride_w)
+                attr['pads'] = (pad_v[0], pad_h[0], pad_v[1], pad_h[1])
+            elif attr['auto_pad'] == 'VALID':
+                attr['pads'] = (0, 0)
+            elif attr['auto_pad'] == 'NOTSET':
+                pass
+            else:
+                msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
+                raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
+            attr.pop('auto_pad')
+
         out = AttrCvt(
             op_name=dimension_picker('conv', '_transpose'),
             transforms={
@@ -320,34 +436,6 @@ class MaxPool(Pool):
     """
     name = 'max_pool'
 
-    @classmethod
-    def _impl_v8(cls, inputs, attr, params):
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
-            },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            # TODO(higumachan): make sure ceil_mode in onnx, and layout?
-            extras={'ceil_mode': False},
-            custom_check=dimension_constraint())(inputs, attr, params)
-
-    @classmethod
-    def _impl_v10(cls, inputs, attr, params):
-        return AttrCvt(
-            op_name=dimension_picker(cls.name),
-            transforms={
-                'kernel_shape': 'pool_size',
-                'pads': ('padding', (0, 0), revert_caffe2_pad),
-                'storage_order': ('layout', 'NCHW', onnx_storage_order2layout),
-                'ceil_mode': 'ceil_mode'
-            },
-            # very weird attributes here in onnx, force check
-            ignores=['dilations', 'auto_pad'],
-            custom_check=dimension_constraint())(inputs, attr, params)
 
 class Mul(Elemwise):
     """ Operator converter for Multiply.
@@ -463,7 +551,8 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
-            shape = tuple(params[inputs[1].name_hint].asnumpy())
+            # pop shape out of parameters since it wont be needed later.
+            shape = tuple(params.pop(inputs[1].name_hint).asnumpy())
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
@@ -482,34 +571,7 @@ class DepthToSpace(OnnxOpConverter):
 
         block_size = int(attr['blocksize'])
         mode = attr.get("mode", "DCR")
-
-        # handle NCHW layout
-        indata = infer_value_simulated(inputs[0], params)
-        in_n, in_c, in_h, in_w = indata.shape
-
-        # reshape to proper output
-        new_c = int(in_c / (block_size * block_size))
-        new_h = in_h * block_size
-        new_w = in_w * block_size
-        newshape = (in_n, new_c, new_h, new_w)
-
-        if mode == "DCR":
-            # expand input to larger dimension.
-            expanded = _op.reshape(inputs[0],
-                                   newshape=(in_n, block_size, block_size, new_c, in_h, in_w))
-            # reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 3, 4, 1, 5, 2))
-
-        else:  # CRD mode
-            # expand input to larger dimension.
-            expanded = _op.reshape(inputs[0],
-                                   newshape=(in_n, new_c, block_size, block_size, in_h, in_w))
-            # reorder to expand spatial blocks.
-            transposed = _op.transpose(expanded, axes=(0, 1, 4, 2, 5, 3))
-
-        return AttrCvt(op_name="reshape",
-                       extras={'newshape': newshape},
-                       ignores=['mode', 'blocksize'])([transposed], attr)
+        return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
 class SpaceToDepth(OnnxOpConverter):
@@ -520,26 +582,7 @@ class SpaceToDepth(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-
-        # handle NCHW layout
-        indata = infer_value_simulated(inputs[0], params)
-        in_n, in_c, in_h, in_w = indata.shape
-
-        # reshape to proper output
-        new_c = in_c * (block_size * block_size)
-        new_h = int(in_h / block_size)
-        new_w = int(in_w / block_size)
-        newshape = (in_n, new_c, new_h, new_w)
-
-        # expand input to larger dimension.
-        expanded = _op.reshape(inputs[0],
-                               newshape=(in_n, in_c, new_h, block_size, new_w, block_size))
-        # reorder to expand spatial blocks.
-        transposed = _op.transpose(expanded, axes=(0, 3, 5, 1, 2, 4))
-
-        return AttrCvt(op_name="reshape",
-                       extras={'newshape': newshape},
-                       ignores=['blocksize'])([transposed], attr)
+        return _op.nn.space_to_depth(inputs[0], block_size)
 
 
 class Concat(OnnxOpConverter):
@@ -675,8 +718,8 @@ class Upsample(OnnxOpConverter):
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale_h':scales[-2], 'scale_w':scales[-1], 'method':method,
-                'layout':'NCHW', 'align_corners':True}
+        attr = {'scale_h': scales[-2], 'scale_w': scales[-1], 'method': method,
+                'layout': 'NCHW', 'align_corners': True}
         return AttrCvt('upsampling')(inputs, attr)
 
 
@@ -686,8 +729,7 @@ class Shape(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # TODO(@jroesch): use shape_of once it has been fixed)
-        return _op.shape_of(inputs[0])
+        return _op.shape_of(inputs[0], "int64")
 
 class Cast(OnnxOpConverter):
     """ Operator converter for Cast.
@@ -811,7 +853,7 @@ class Gather(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
-                       extras={'axis':axis})(inputs, {})
+                       extras={'axis': axis})(inputs, {})
 
 
 class Greater(OnnxOpConverter):
@@ -843,7 +885,7 @@ class LRN(OnnxOpConverter):
         beta = attr.get('beta', 0.75)
         bias = attr.get('bias', 1.0)
         nsize = attr.get('size')
-        attr = {'size':nsize, 'axis':axis, 'alpha':alpha, 'beta':beta, 'bias':bias}
+        attr = {'size': nsize, 'axis': axis, 'alpha': alpha, 'beta': beta, 'bias': bias}
         return AttrCvt('lrn')(inputs, attr)
 
 class Maximum(OnnxOpConverter):
@@ -889,7 +931,7 @@ class HardSigmoid(OnnxOpConverter):
         alpha = attr.get('alpha', 0.2)
         beta = attr.get('beta', 0.5)
         transformX = (inputs[0] * _expr.const(alpha)) + _expr.const(beta)
-        attr = {'a_min':0, 'a_max':1}
+        attr = {'a_min': 0, 'a_max': 1}
         return AttrCvt('clip')([transformX], attr)
 
 class Reduce(OnnxOpConverter):
@@ -903,7 +945,7 @@ class Reduce(OnnxOpConverter):
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {'axis':axis, 'keepdims':attr.get('keepdims', True)}
+        attr = {'axis': axis, 'keepdims': attr.get('keepdims', True)}
         return AttrCvt(cls.name)(inputs, attr)
 
 class ReduceMax(Reduce):
@@ -938,7 +980,7 @@ class ArgMax(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         keepdims = attr.get('keepdims', True)
-        attr = {'axis':axis, 'keepdims':keepdims}
+        attr = {'axis': axis, 'keepdims': keepdims}
         return AttrCvt('argmax')(inputs, attr)
 
 class ArgMin(OnnxOpConverter):
@@ -948,7 +990,7 @@ class ArgMin(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         axis = attr.get('axis', 0)
         keepdims = attr.get('keepdims', True)
-        attr = {'axis':axis, 'keepdims':keepdims}
+        attr = {'axis': axis, 'keepdims': keepdims}
         return AttrCvt('argmin')(inputs, attr)
 
 class Softmax(OnnxOpConverter):
@@ -1081,6 +1123,54 @@ class Or(Elemwise):
         return _op.logical_or(inputs[0], inputs[1])
 
 
+class Expand(OnnxOpConverter):
+    """ Operator converter for Expand.
+    """
+    @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        in_shape = np.array(infer_shape(inputs[0])).astype('int32')
+        if get_name(inputs[1]) in params:
+            shape = params[inputs[1].name_hint].asnumpy().astype('int32')
+        else:
+            shape = infer_value_simulated(inputs[1], params).asnumpy().astype('int32')
+
+        # Currently 'op.broadcast_to' expect the rank of the given 'shape'
+        # (the 2nd input) is always higher than that of the given 'input' (the 1st input)
+        # However, ONNX Expand supports multi-directional broadcasting, which allows
+        # above pattern and also some extent of 'shape' can be smaller than the corresponding
+        # extent of 'input'. In this case, the extent of 'shape' must be 1.
+        # https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
+        # In above cases, we cannot directorly apply 'op.broadcast_to' instead of 'expand'
+        # so, here we solved this problem by expanding the given 'shape' itself.
+        def expand_shape(in_shape, shape):
+            """ A function expands the shape when the rank is lower than that of the given
+            intput. Also it replaces the extent of the shape with the corresponding extent
+            of the intput when it is 1.
+            """
+
+            # here we flip the shapes because this can be more simply written
+            # when the innermost dimension is located at the index 0.
+            in_shape = np.flip(in_shape, axis=0)
+            shape = np.flip(shape, axis=0)
+
+            if in_shape.size < shape.size:
+                for i in range(shape.size):
+                    if i < in_shape.size and in_shape[i] > shape[i]:
+                        shape[i] = in_shape[i]
+            else:
+                for i in range(in_shape.size):
+                    if i >= shape.size:
+                        np.append(shape, in_shape[i])
+                    elif shape[i] == 1:
+                        shape[i] = in_shape[i]
+
+            new_shape = np.flip(shape, axis=0)
+            return new_shape
+
+        shape = expand_shape(in_shape, shape)
+        return _op.broadcast_to(inputs[0], shape=tuple(shape))
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1187,6 +1277,7 @@ def _get_convert_map(opset):
         # defs/tensor
         'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
+        'Expand': Expand.get_converter(opset),
         'Concat': Concat.get_converter(opset),
         'Split': Split.get_converter(opset),
         'Slice': Slice.get_converter(opset),
@@ -1205,7 +1296,7 @@ def _get_convert_map(opset):
         'Tile': Tile.get_converter(opset),
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
-        'Or': Or.get_converter(opset)
+        'Or': Or.get_converter(opset),
     }
 
 
@@ -1310,8 +1401,6 @@ class GraphProto(object):
                 self._num_param += 1
                 # We should convert scalar integers to int32, to normalize.
                 array = self._parse_array(t_proto)
-                if len(array.shape) == 0 and array.dtype == 'int64':
-                    array = _nd.array(array.asnumpy().astype('int32'))
                 self._params[node.output[0]] = array
                 self._nodes[node.output[0]] = new_var(
                     node.output[0],

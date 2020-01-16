@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file cuda_module.cc
  */
 #include "cuda_module.h"

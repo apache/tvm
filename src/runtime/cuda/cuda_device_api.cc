@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file cuda_device_api.cc
  * \brief GPU specific API
  */

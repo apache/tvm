@@ -29,7 +29,7 @@ First, clone TVM repo to get the auxiliary scripts
 
 .. code:: bash
 
-    git clone --recursive https://github.com/apache/incubator-tvm
+    git clone --recursive https://github.com/apache/incubator-tvm tvm
 
 
 We can then use the following command to launch a `tvmai/demo-cpu` image.

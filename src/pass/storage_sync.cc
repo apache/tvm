@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file storage_sync.cc
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_mutator.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "ir_util.h"
@@ -40,16 +38,16 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       : sync_scope_(sync_scope) {}
 
     // The syncs inserted before each statement
-  std::unordered_set<const Node*> syncs_inserted_;
+  std::unordered_set<const Object*> syncs_inserted_;
 
  protected:
-  bool Enabled(const Variable* buf,
+  bool Enabled(const VarNode* buf,
                const StorageScope& scope) const final {
     return in_device_env() && scope == sync_scope_;
   }
   // Plan the sync
   std::vector<AccessEntry> Summarize(
-      std::vector<StmtEntry> seq, const For* loop) final {
+      std::vector<StmtEntry> seq, const ForNode* loop) final {
     // Unsynced reads and writes
     std::vector<AccessEntry> reads;
     std::vector<AccessEntry> writes;
@@ -198,79 +196,79 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
-class ThreadSyncInserter : public IRMutator {
+class ThreadSyncInserter : public StmtExprMutator {
  public:
   ThreadSyncInserter(StorageScope sync_scope,
-                     const std::unordered_set<const Node*>& syncs)
+                     const std::unordered_set<const Object*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
 
-  Stmt Mutate(Stmt stmt) final {
+  Stmt VisitStmt(const Stmt& stmt) final {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else {
-        barrier = Evaluate::make(
-                Call::make(Int(32), intrinsic::tvm_storage_sync,
-                           {StringImm::make(sync_scope_.to_string())},
-                           Call::Intrinsic));
+        barrier = EvaluateNode::make(
+                CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
+                           {StringImmNode::make(sync_scope_.to_string())},
+                           CallNode::Intrinsic));
       }
       // Mutate after query, to avoid stmt change.
-      stmt = IRMutator::Mutate(stmt);
-      stmt = Block::make(barrier, stmt);
+      auto ret = StmtExprMutator::VisitStmt(stmt);
+      ret = SeqStmt({barrier, ret});
+      return ret;
     } else {
-      stmt = IRMutator::Mutate(stmt);
+      return StmtExprMutator::VisitStmt(stmt);
     }
-    return stmt;
   }
-  Expr Mutate_(const Load* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const LoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
     }
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
-  Stmt Mutate_(const Store* op, const Stmt& s) final {
+  Stmt VisitStmt_(const StoreNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
         GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].write_count;
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       bool temp = true;
       std::swap(temp, in_thread_env_);
       thread_extents_.push_back(op);
-      Stmt ret = IRMutator::Mutate_(op, s);
+      Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       std::swap(temp, in_thread_env_);
       // first thread scope.
       if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
-        ret = InitGlobalBarrier(ret.as<AttrStmt>());
-        num_blocks_ = Expr();
-        is_lead_ = Expr();
+        ret = InitGlobalBarrier(ret.as<AttrStmtNode>());
+        num_blocks_ = PrimExpr();
+        is_lead_ = PrimExpr();
       }
       return ret;
     } else if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
+      const VarNode* buf = op->node.as<VarNode>();
       storage_scope_[buf] =
-          StorageScope::make(op->value.as<StringImm>()->value);
-      return IRMutator::Mutate_(op, s);
+          StorageScope::make(op->value.as<StringImmNode>()->value);
+      return StmtExprMutator::VisitStmt_(op);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      Expr expr = IRMutator::Mutate_(op, e);
-      op = expr.as<Call>();
+      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+      op = expr.as<CallNode>();
       CHECK_EQ(op->args.size(), 5U);
-      const Variable* buffer_var = op->args[1].as<Variable>();
+      const VarNode* buffer_var = op->args[1].as<VarNode>();
       Var var(GetRef<Var>(buffer_var));
-      const IntImm* flag = op->args[4].as<IntImm>();
+      const IntImmNode* flag = op->args[4].as<IntImmNode>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
         ++rw_stats_[var].read_count;
@@ -281,7 +279,7 @@ class ThreadSyncInserter : public IRMutator {
       }
       return expr;
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
 
@@ -292,7 +290,7 @@ class ThreadSyncInserter : public IRMutator {
     int write_count{0};
   };
   // Get current storage scope.
-  StorageScope GetScope(const Variable* buf) const {
+  StorageScope GetScope(const VarNode* buf) const {
     auto it = storage_scope_.find(buf);
     StorageScope s;
     s.rank = StorageRank::kGlobal;
@@ -300,77 +298,79 @@ class ThreadSyncInserter : public IRMutator {
     return it->second;
   }
   // private functions.
-  Stmt InitGlobalBarrier(const AttrStmt* op) {
+  Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     CHECK(op != nullptr);
-    Array<Expr> pargs = {StringImm::make(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_call_packed, pargs, Call::Intrinsic));
+    Array<PrimExpr> pargs = {StringImmNode::make(runtime::symbol::tvm_prepare_global_barrier)};
+    Stmt prep = EvaluateNode::make(
+        CallNode::make(DataType::Int(32), intrinsic::tvm_call_packed, pargs, CallNode::Intrinsic));
     Stmt body = op->body;
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
       if (e.read_count != 0 && e.write_count != 0) {
-        body = AttrStmt::make(kv.first, attr::volatile_scope, 1, body);
+        body = AttrStmtNode::make(kv.first, attr::volatile_scope, 1, body);
       }
     }
     rw_stats_.clear();
-    Stmt kinit = Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_global_barrier_kinit, {}, Call::Intrinsic));
-    body = Block::make(kinit, body);
-    body = AttrStmt::make(
+    Stmt kinit = EvaluateNode::make(
+        CallNode::make(
+            DataType::Int(32),
+            intrinsic::tvm_global_barrier_kinit, {}, CallNode::Intrinsic));
+    body = SeqStmt({kinit, body});
+    body = AttrStmtNode::make(
         op->node, op->attr_key, op->value, body);
-    return Block::make(prep, body);
+    return SeqStmt({prep, body});
   }
   Stmt MakeGlobalBarrier() {
     CHECK(sync_scope_.rank == StorageRank::kGlobal);
     if (!num_blocks_.defined()) {
       CHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();
-      for (const AttrStmt* attr : thread_extents_) {
+      for (const AttrStmtNode* attr : thread_extents_) {
         IterVar iv = Downcast<IterVar>(attr->node);
         runtime::ThreadScope s = runtime::ThreadScope::make(iv->thread_tag);
         if (s.rank == 0) {
           num_blocks_ = (num_blocks_.defined() ?
                          attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
-          Expr cond = iv->var == make_zero(iv->var.type());
+          PrimExpr cond = iv->var == make_zero(iv->var.dtype());
           is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
         }
       }
     } else {
       CHECK_EQ(num_work_dim_, thread_extents_.size());
     }
-    return Evaluate::make(
-        Call::make(Int(32), intrinsic::tvm_storage_sync,
-                   {StringImm::make(sync_scope_.to_string()),
+    return EvaluateNode::make(
+        CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
+                   {StringImmNode::make(sync_scope_.to_string()),
                     is_lead_, num_blocks_},
-                   Call::Intrinsic));
+                   CallNode::Intrinsic));
   }
   // data structure.
   StorageScope sync_scope_;
-  const std::unordered_set<const Node*>& syncs_;
+  const std::unordered_set<const Object*>& syncs_;
   // The storage scope of each buffer
-  std::unordered_map<const Variable*, StorageScope> storage_scope_;
+  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
   // The read write statistics of storage
-  std::unordered_map<VarExpr, Entry, NodeHash, NodeEqual> rw_stats_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> rw_stats_;
   // The statistics for global barrier
   bool in_thread_env_{false};
   // memorized results
-  std::vector<const AttrStmt*> thread_extents_;
+  std::vector<const AttrStmtNode*> thread_extents_;
   size_t num_work_dim_{0};
-  Expr num_blocks_;
-  Expr is_lead_;
+  PrimExpr num_blocks_;
+  PrimExpr is_lead_;
 };
 
 Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::make(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
-  planner.Visit(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_).Mutate(stmt);
+  planner(stmt);
+  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
 }
 
 LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
   CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = ThreadSync(f->body, storage_scope);
   return LoweredFunc(n);
 }

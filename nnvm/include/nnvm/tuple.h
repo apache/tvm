@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/tuple.h
  * \brief Data structure Tuple and TShape to store dynamic sized shapes.
  */

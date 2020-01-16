@@ -43,108 +43,92 @@ inline const PackedFunc& GetPackedFunc(const std::string& name) {
   return *pf;
 }
 
-/* Value Implementation */
-Closure ClosureNode::make(tvm::Map<Var, Value> env, Function func) {
-  NodePtr<ClosureNode> n = make_node<ClosureNode>();
+/* Object Implementation */
+Closure ClosureNode::make(tvm::Map<Var, ObjectRef> env, Function func) {
+  ObjectPtr<ClosureNode> n = make_object<ClosureNode>();
   n->env = std::move(env);
   n->func = std::move(func);
   return Closure(n);
 }
 
-TVM_REGISTER_API("relay._make.Closure")
+TVM_REGISTER_GLOBAL("relay._make.Closure")
 .set_body_typed(ClosureNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ClosureNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ClosureNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const ClosureNode*>(ref.get());
     p->stream << "ClosureNode(" << node->func << ", " << node->env << ")";
   });
 
 
 // TODO(@jroesch): this doesn't support mutual letrec
-/* Value Implementation */
+/* Object Implementation */
 RecClosure RecClosureNode::make(Closure clos, Var bind) {
-  NodePtr<RecClosureNode> n = make_node<RecClosureNode>();
+  ObjectPtr<RecClosureNode> n = make_object<RecClosureNode>();
   n->clos = std::move(clos);
   n->bind = std::move(bind);
   return RecClosure(n);
 }
 
-TVM_REGISTER_API("relay._make.RecClosure")
+TVM_REGISTER_GLOBAL("relay._make.RecClosure")
 .set_body_typed(RecClosureNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RecClosureNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RecClosureNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const RecClosureNode*>(ref.get());
     p->stream << "RecClosureNode(" << node->clos << ")";
   });
 
-TupleValue TupleValueNode::make(tvm::Array<Value> value) {
-  NodePtr<TupleValueNode> n = make_node<TupleValueNode>();
+TupleValue TupleValueNode::make(tvm::Array<ObjectRef> value) {
+  ObjectPtr<TupleValueNode> n = make_object<TupleValueNode>();
   n->fields = value;
   return TupleValue(n);
 }
 
-TVM_REGISTER_API("relay._make.TupleValue")
+TVM_REGISTER_GLOBAL("relay._make.TupleValue")
 .set_body_typed(TupleValueNode::make);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TupleValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<TupleValueNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const TupleValueNode*>(ref.get());
     p->stream << "TupleValueNode(" << node->fields << ")";
   });
 
-TensorValue TensorValueNode::make(runtime::NDArray data) {
-  NodePtr<TensorValueNode> n = make_node<TensorValueNode>();
-  n->data = std::move(data);
-  return TensorValue(n);
-}
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorValueNode>([](const ObjectRef& ref, IRPrinter* p) {
-    auto* node = static_cast<const TensorValueNode*>(ref.get());
-    auto to_str = GetPackedFunc("relay._tensor_value_repr");
-    std::string data_str = to_str(GetRef<TensorValue>(node));
-    p->stream << "TensorValueNode(" << data_str << ")";
-  });
-
-TVM_REGISTER_API("relay._make.TensorValue")
-.set_body_typed(TensorValueNode::make);
-
-RefValue RefValueNode::make(Value value) {
-  NodePtr<RefValueNode> n = make_node<RefValueNode>();
+RefValue RefValueNode::make(ObjectRef value) {
+  ObjectPtr<RefValueNode> n = make_object<RefValueNode>();
   n->value = value;
   return RefValue(n);
 }
 
-TVM_REGISTER_API("relay._make.RefValue")
+TVM_REGISTER_GLOBAL("relay._make.RefValue")
 .set_body_typed(RefValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(RefValueNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<RefValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<RefValueNode>([](const ObjectRef& ref, NodePrinter* p) {
     auto* node = static_cast<const RefValueNode*>(ref.get());
     p->stream << "RefValueNode(" << node->value << ")";
   });
 
 ConstructorValue ConstructorValueNode::make(int32_t tag,
-                                            tvm::Array<Value> fields,
+                                            tvm::Array<ObjectRef> fields,
                                             Constructor constructor) {
-  NodePtr<ConstructorValueNode> n = make_node<ConstructorValueNode>();
+  ObjectPtr<ConstructorValueNode> n = make_object<ConstructorValueNode>();
   n->tag = tag;
   n->fields = fields;
   n->constructor = constructor;
   return ConstructorValue(n);
 }
 
-TVM_REGISTER_API("relay._make.ConstructorValue")
+TVM_REGISTER_GLOBAL("relay._make.ConstructorValue")
 .set_body_typed(ConstructorValueNode::make);
 
 TVM_REGISTER_NODE_TYPE(ConstructorValueNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstructorValueNode>([](const ObjectRef& ref, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstructorValueNode>([](const ObjectRef& ref, NodePrinter* p) {
   auto* node = static_cast<const ConstructorValueNode*>(ref.get());
   p->stream << "ConstructorValueNode(" << node->tag << ","
             << node->fields << ")";
@@ -153,13 +137,13 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
- * Contains a mapping from relay::Var to relay::Value.
+ * Contains a mapping from relay::Var to relay::ObjectRef.
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
-  tvm::Map<Var, Value> locals;
+  tvm::Map<Var, ObjectRef> locals;
 
-  explicit Frame(tvm::Map<Var, Value> locals) : locals(locals) {}
+  explicit Frame(tvm::Map<Var, ObjectRef> locals) : locals(locals) {}
 };
 
 /*!
@@ -175,7 +159,7 @@ struct Stack {
 
   Frame& current_frame() { return frames.back(); }
 
-  Value Lookup(const Var& local) {
+  ObjectRef Lookup(const Var& local) {
     for (auto frame = frames.rbegin(); frame != frames.rend(); frame++) {
       auto elem = frame->locals.find(local);
       if (elem != frame->locals.end()) {
@@ -185,7 +169,7 @@ struct Stack {
 
     LOG(FATAL) << "could not find variable binding for " << local
                << "address= " << local.operator->();
-    return Value();
+    return ObjectRef();
   }
   /*!
    * A wrapper around Frame to add RAII semantics to pushing and popping
@@ -204,9 +188,9 @@ struct Stack {
 class InterpreterState;
 
 /*! \brief A container capturing the state of the interpreter. */
-class InterpreterStateNode : public Node {
+class InterpreterStateNode : public Object {
  public:
-  using Frame = tvm::Map<Var, Value>;
+  using Frame = tvm::Map<Var, ObjectRef>;
   using Stack = tvm::Array<Frame>;
 
   /*! \brief The current expression under evaluation. */
@@ -223,13 +207,16 @@ class InterpreterStateNode : public Node {
   static InterpreterState make(Expr current_expr, Stack stack);
 
   static constexpr const char* _type_key = "relay.InterpreterState";
-  TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterStateNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(InterpreterState, InterpreterStateNode, NodeRef);
+class InterpreterState : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterState, ObjectRef, InterpreterStateNode);
+};
 
 InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
-  NodePtr<InterpreterStateNode> n = make_node<InterpreterStateNode>();
+  ObjectPtr<InterpreterStateNode> n = make_object<InterpreterStateNode>();
   n->current_expr = std::move(current_expr);
   n->stack = std::move(stack);
   return InterpreterState(n);
@@ -243,13 +230,15 @@ InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
 //
 // Conversion to ANF is recommended before running the interpretation.
 class Interpreter :
-      public ExprFunctor<Value(const Expr& n)>,
-             PatternFunctor<bool(const Pattern& p, const Value& v)> {
+      public ExprFunctor<ObjectRef(const Expr& n)>,
+             PatternFunctor<bool(const Pattern& p, const ObjectRef& v)> {
  public:
-  Interpreter(Module mod,
-              DLContext context,
-              Target target)
-      : mod_(mod), context_(context), target_(target) {
+  Interpreter(IRModule mod, DLContext context, Target target)
+      : mod_(mod),
+        context_(context),
+        target_(target),
+        debug_op_(Op::Get("debug")),
+        shape_of_op_(Op::Get("shape_of")) {
     engine_ = CompileEngine::Global();
   }
 
@@ -259,56 +248,56 @@ class Interpreter :
     return f();
   }
 
-  void extend(const Var& id, Value v) {
+  void extend(const Var& id, ObjectRef v) {
     stack_.current_frame().locals.Set(id, v);
   }
 
-  inline Value Lookup(const Var& local) {
+  ObjectRef Lookup(const Var& local) {
     return stack_.Lookup(local);
   }
 
-  Value Eval(const Expr& expr) {
+  ObjectRef Eval(const Expr& expr) {
     return VisitExpr(expr);
   }
 
-  Value VisitExpr(const Expr& expr) final {
-    auto ret = ExprFunctor<Value(const Expr& n)>::VisitExpr(expr);
+  ObjectRef VisitExpr(const Expr& expr) final {
+    auto ret = ExprFunctor<ObjectRef(const Expr& n)>::VisitExpr(expr);
     return ret;
   }
 
-  Value VisitExpr_(const VarNode* var_node) final {
+  ObjectRef VisitExpr_(const VarNode* var_node) final {
     return Lookup(GetRef<Var>(var_node));
   }
 
-  Value VisitExpr_(const GlobalVarNode* op) final {
+  ObjectRef VisitExpr_(const GlobalVarNode* op) final {
     return Eval(mod_->Lookup(GetRef<GlobalVar>(op)));
   }
 
-  Value VisitExpr_(const OpNode* id) override {
+  ObjectRef VisitExpr_(const OpNode* id) override {
     // TODO(@jroesch): Eta-expand and return in this case.
     LOG(FATAL) << "internal error, need to wrap intrinsic into call synthetic call node "
                << "in "
                << "this case, eta expand";
-    return Value();
+    return ObjectRef();
   }
 
-  Value VisitExpr_(const ConstantNode* op) final {
-    return TensorValueNode::make(op->data.CopyTo(context_));
+  ObjectRef VisitExpr_(const ConstantNode* op) final {
+    return op->data.CopyTo(context_);
   }
 
-  Value VisitExpr_(const TupleNode* op) final {
-    std::vector<Value> values;
+  ObjectRef VisitExpr_(const TupleNode* op) final {
+    std::vector<ObjectRef> values;
 
     for (const auto& field : op->fields) {
-      Value field_value = Eval(field);
+      ObjectRef field_value = Eval(field);
       values.push_back(field_value);
     }
 
     return TupleValueNode::make(values);
   }
 
-  inline Value MakeClosure(const Function& func, Var letrec_name = Var()) {
-    tvm::Map<Var, Value> captured_mod;
+  ObjectRef MakeClosure(const Function& func, Var letrec_name = Var()) {
+    tvm::Map<Var, ObjectRef> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
@@ -329,13 +318,13 @@ class Interpreter :
     return std::move(closure);
   }
 
-  Value VisitExpr_(const FunctionNode* func_node) final {
+  ObjectRef VisitExpr_(const FunctionNode* func_node) final {
     auto func = GetRef<Function>(func_node);
     return MakeClosure(func);
   }
 
   Array<Shape> ComputeDynamicShape(const Function& func,
-                                   const Array<Value>& args) {
+                                   const Array<ObjectRef>& args) {
     auto key = CCacheKeyNode::make(func, Target::Create("llvm"));
     auto cfunc = engine_->LowerShapeFunc(key);
     size_t arity = cfunc->inputs.size() + cfunc->outputs.size();
@@ -350,25 +339,24 @@ class Interpreter :
     cpu_ctx.device_type = kDLCPU;
     cpu_ctx.device_id = 0;
 
-    auto fset_input = [&](size_t i, Value val, bool need_shape) {
-        const TensorValueNode* tv = val.as<TensorValueNode>();
-        CHECK(tv != nullptr) << "expect Tensor argument";
+    auto fset_input = [&](size_t i, ObjectRef val, bool need_shape) {
+        auto nd_array = Downcast<NDArray>(val);
         if (need_shape) {
-          int64_t ndim = tv->data.Shape().size();
+          int64_t ndim = nd_array.Shape().size();
           NDArray shape_arr;
           if (ndim == 0) {
-            shape_arr = NDArray::Empty({}, Type2TVMType(Int(64)), cpu_ctx);
+            shape_arr = NDArray::Empty({}, DataType::Int(64), cpu_ctx);
           } else {
-            shape_arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+            shape_arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
             int64_t* data = reinterpret_cast<int64_t*>(shape_arr->data);
             for (auto j = 0; j < ndim; ++j) {
-              data[j] = tv->data.Shape()[j];
+              data[j] = nd_array.Shape()[j];
             }
           }
           inputs[i] = shape_arr;
           setter(i, shape_arr);
         } else {
-          auto arr = tv->data.CopyTo(cpu_ctx);
+          auto arr = nd_array.CopyTo(cpu_ctx);
           inputs[i] = arr;
           setter(i, arr);
         }
@@ -379,7 +367,7 @@ class Interpreter :
       auto arg = args[i];
       auto param = func->params[i];
       int state = cfunc->shape_func_param_states[i]->value;
-      if (arg.as<TensorValueNode>()) {
+      if (arg->IsInstance<runtime::NDArray::ContainerType>()) {
         if (state & kNeedInputData) {
           fset_input(arg_counter++, arg, false);
         }
@@ -409,7 +397,7 @@ class Interpreter :
         const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
         CHECK(rtype != nullptr);
         int64_t ndim = rtype->shape.size();
-        auto arr = NDArray::Empty({ndim}, Type2TVMType(Int(64)), cpu_ctx);
+        auto arr = NDArray::Empty({ndim}, DataType::Int(64), cpu_ctx);
         outputs[i] = arr;
         setter(arg_counter + i, arr);
     };
@@ -452,11 +440,11 @@ class Interpreter :
     return out_shapes;
   }
 
-  Value InvokePrimitiveOp(const Function& func,
-                          const Array<Value>& args) {
-    auto call_node = func->body.as<CallNode>();
+  ObjectRef InvokePrimitiveOp(const Function& func,
+                          const Array<ObjectRef>& args) {
+    const auto* call_node = func->body.as<CallNode>();
 
-    if (call_node && call_node->op == Op::Get("debug")) {
+    if (call_node && call_node->op == debug_op_) {
       auto dattrs = call_node->attrs.as<DebugAttrs>();
       auto interp_state = this->get_state(call_node->args[0]);
 
@@ -473,7 +461,7 @@ class Interpreter :
     // Handle tuple input/output by flattening them.
     size_t arg_len = 0;
     for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i].as<TensorValueNode>()) {
+      if (args[i]->IsInstance<NDArray::ContainerType>()) {
         ++arg_len;
       } else {
         const auto* tvalue = args[i].as<TupleValueNode>();
@@ -492,11 +480,10 @@ class Interpreter :
     std::vector<int> codes(arg_len);
     TVMArgsSetter setter(values.data(), codes.data());
 
-    auto fset_input = [&](size_t i, Value val) {
-      const TensorValueNode* tv = val.as<TensorValueNode>();
-      CHECK(tv != nullptr) << "expect Tensor argument";
-      setter(i, tv->data);
-      DLContext arg_ctx = tv->data->ctx;
+    auto fset_input = [&](size_t i, ObjectRef val) {
+      const auto nd_array = Downcast<NDArray>(val);
+      setter(i, nd_array);
+      DLContext arg_ctx = nd_array->ctx;
       CHECK(arg_ctx.device_type ==  context_.device_type &&
             arg_ctx.device_id == context_.device_id)
         << "Interpreter expect context to be "
@@ -504,8 +491,8 @@ class Interpreter :
     };
 
     int arg_counter = 0;
-    for (Value arg : args) {
-      if (arg.as<TensorValueNode>()) {
+    for (ObjectRef arg : args) {
+      if (arg->IsInstance<NDArray::ContainerType>()) {
         fset_input(arg_counter++,  arg);
       } else {
         const TupleValueNode* tuple = arg.as<TupleValueNode>();
@@ -530,17 +517,16 @@ class Interpreter :
         CHECK(ivalue) << "expected concrete dimensions";
         shape.push_back(ivalue[0]);
       }
-      DLDataType dtype = Type2TVMType(rtype->dtype);
-      auto out_tensor = TensorValueNode::make(
-          NDArray::Empty(shape, dtype, context_));
-      setter(num_inputs + i, out_tensor->data);
-      return out_tensor;
+      DLDataType dtype = rtype->dtype;
+      NDArray nd_array = NDArray::Empty(shape, dtype, context_);
+      setter(num_inputs + i, nd_array);
+      return nd_array;
     };
 
     Array<Shape> out_shapes;
     auto ret_type = func->body->checked_type();
     bool is_dyn = IsDynamic(func->checked_type());
-    if (call_node->op == Op::Get("shape_of")) {
+    if (call_node->op == shape_of_op_) {
       // The output shape of shape_of must be static since Relay doesn't support
       // dynamic rank tensors.
       is_dyn = false;
@@ -555,7 +541,7 @@ class Interpreter :
     TVMRetValue rv;
     if (const TupleTypeNode* rtype = func->body->checked_type().as<TupleTypeNode>()) {
       CHECK(!is_dyn || out_shapes.size() == rtype->fields.size());
-      Array<Value> fields;
+      Array<ObjectRef> fields;
       for (size_t i = 0; i < rtype->fields.size(); ++i) {
         if (is_dyn) {
           auto sh = out_shapes[i];
@@ -568,7 +554,7 @@ class Interpreter :
       packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
       return TupleValueNode::make(fields);
     } else {
-      Value out_tensor;
+      ObjectRef out_tensor;
       if (is_dyn) {
         CHECK_EQ(out_shapes.size(), 1);
         auto sh = out_shapes[0];
@@ -583,14 +569,16 @@ class Interpreter :
   }
 
   // Invoke the closure
-  Value Invoke(const Closure& closure, const tvm::Array<Value>& args, const Var& bind = Var()) {
+  ObjectRef Invoke(const Closure& closure,
+                   const tvm::Array<ObjectRef>& args,
+                   const Var& bind = Var()) {
     // Get a reference to the function inside the closure.
     if (closure->func->IsPrimitive()) {
       return InvokePrimitiveOp(closure->func, args);
     }
     auto func = closure->func;
     // Allocate a frame with the parameters and free variables.
-    tvm::Map<Var, Value> locals;
+    tvm::Map<Var, ObjectRef> locals;
 
     CHECK_EQ(func->params.size(), args.size());
 
@@ -609,11 +597,11 @@ class Interpreter :
       locals.Set(bind, RecClosureNode::make(closure, bind));
     }
 
-    return WithFrame<Value>(Frame(locals), [&]() { return Eval(func->body); });
+    return WithFrame<ObjectRef>(Frame(locals), [&]() { return Eval(func->body); });
   }
 
-  Value VisitExpr_(const CallNode* call) final {
-    tvm::Array<Value> args;
+  ObjectRef VisitExpr_(const CallNode* call) final {
+    tvm::Array<ObjectRef> args;
     for (auto arg : call->args) {
       args.push_back(Eval(arg));
     }
@@ -631,7 +619,7 @@ class Interpreter :
       return ConstructorValueNode::make(con->tag, args, GetRef<Constructor>(con));
     }
     // Now we just evaluate and expect to find a closure.
-    Value fn_val = Eval(call->op);
+    ObjectRef fn_val = Eval(call->op);
     if (const ClosureNode* closure_node = fn_val.as<ClosureNode>()) {
       auto closure = GetRef<Closure>(closure_node);
       return this->Invoke(closure, args);
@@ -640,11 +628,11 @@ class Interpreter :
     } else {
       LOG(FATAL) << "internal error: type error, expected function value in the call "
                  << "position";
-      return Value();
+      return ObjectRef();
     }
   }
 
-  Value VisitExpr_(const LetNode* let) final {
+  ObjectRef VisitExpr_(const LetNode* let) final {
     if (auto func = let->value.as<FunctionNode>()) {
       auto clo = MakeClosure(GetRef<Function>(func), let->var);
       this->extend(let->var, clo);
@@ -656,8 +644,8 @@ class Interpreter :
     return Eval(let->body);
   }
 
-  Value VisitExpr_(const TupleGetItemNode* op) final {
-    Value val = Eval(op->tuple);
+  ObjectRef VisitExpr_(const TupleGetItemNode* op) final {
+    ObjectRef val = Eval(op->tuple);
     auto product_node = val.as<TupleValueNode>();
     CHECK(product_node)
       << "interal error: when evaluating TupleGetItem expected a tuple value";
@@ -666,14 +654,15 @@ class Interpreter :
     return product_node->fields[op->index];
   }
 
-  Value VisitExpr_(const IfNode* op) final {
-    Value v = Eval(op->cond);
-    if (const TensorValueNode* bv = v.as<TensorValueNode>()) {
+  ObjectRef VisitExpr_(const IfNode* op) final {
+    ObjectRef v = Eval(op->cond);
+    if (v->IsInstance<NDArray::ContainerType>()) {
+      auto nd_array = Downcast<NDArray>(v);
       DLContext cpu_ctx;
       cpu_ctx.device_type = kDLCPU;
       cpu_ctx.device_id = 0;
-      NDArray cpu_array = bv->data.CopyTo(cpu_ctx);
-      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
+      NDArray cpu_array = nd_array.CopyTo(cpu_ctx);
+      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       // TODO(@jroesch, @MK): Refactor code into helper from DCE.
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return Eval(op->true_branch);
@@ -682,47 +671,47 @@ class Interpreter :
       }
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return Value();
+      return ObjectRef();
     }
   }
 
-  Value VisitExpr_(const RefWriteNode* op) final {
-    Value r = Eval(op->ref);
+  ObjectRef VisitExpr_(const RefWriteNode* op) final {
+    ObjectRef r = Eval(op->ref);
     if (const RefValueNode* rv = r.as<RefValueNode>()) {
       rv->value = Eval(op->value);
       return TupleValueNode::make({});
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return Value();
+      return ObjectRef();
     }
   }
 
-  Value VisitExpr_(const RefCreateNode* op) final {
+  ObjectRef VisitExpr_(const RefCreateNode* op) final {
     return RefValueNode::make(Eval(op->value));
   }
 
-  Value VisitExpr_(const RefReadNode* op) final {
-    Value r = Eval(op->ref);
+  ObjectRef VisitExpr_(const RefReadNode* op) final {
+    ObjectRef r = Eval(op->ref);
     if (const RefValueNode* rv = r.as<RefValueNode>()) {
       return rv->value;
     } else {
       LOG(FATAL) << "type error, type system should have caught this";
-      return Value();
+      return ObjectRef();
     }
   }
 
-  Value VisitExpr_(const MatchNode* op) final {
-    Value v = Eval(op->data);
+  ObjectRef VisitExpr_(const MatchNode* op) final {
+    ObjectRef v = Eval(op->data);
     for (const Clause& c : op->clauses) {
       if (VisitPattern(c->lhs, v)) {
         return VisitExpr(c->rhs);
       }
     }
     LOG(FATAL) << "did not find any match";
-    return Value();
+    return ObjectRef();
   }
 
-  bool VisitPattern_(const PatternConstructorNode* op, const Value& v) final {
+  bool VisitPattern_(const PatternConstructorNode* op, const ObjectRef& v) final {
     const ConstructorValueNode* cvn = v.as<ConstructorValueNode>();
     CHECK(cvn) << "need to be a constructor for match";
     CHECK_NE(op->constructor->tag, -1);
@@ -739,7 +728,7 @@ class Interpreter :
     return false;
   }
 
-  bool VisitPattern_(const PatternTupleNode* op, const Value& v) final {
+  bool VisitPattern_(const PatternTupleNode* op, const ObjectRef& v) final {
     const TupleValueNode* tvn = v.as<TupleValueNode>();
     CHECK(tvn) << "need to be a tuple for match";
     CHECK_EQ(op->patterns.size(), tvn->fields.size());
@@ -751,11 +740,11 @@ class Interpreter :
     return true;
   }
 
-  bool VisitPattern_(const PatternWildcardNode* op, const Value& v) final {
+  bool VisitPattern_(const PatternWildcardNode* op, const ObjectRef& v) final {
     return true;
   }
 
-  bool VisitPattern_(const PatternVarNode* op, const Value& v) final {
+  bool VisitPattern_(const PatternVarNode* op, const ObjectRef& v) final {
     extend(op->var, v);
     return true;
   }
@@ -772,22 +761,25 @@ class Interpreter :
 
  private:
   // Module
-  Module mod_;
+  IRModule mod_;
   // For simplicity we only run the interpreter on a single context.
   // Context to run the interpreter on.
   DLContext context_;
   // Target parameter being used by the interpreter.
   Target target_;
-  // Value stack.
+  // Object stack.
   Stack stack_;
   // Backend compile engine.
   CompileEngine engine_;
+  // Cache ops that need to be frequently used later to reduce lookup overhead.
+  const Op& debug_op_;
+  const Op& shape_of_op_;
 };
 
 
-TypedPackedFunc<Value(Expr)>
+TypedPackedFunc<ObjectRef(Expr)>
 CreateInterpreter(
-    Module mod,
+    IRModule mod,
     DLContext context,
     Target target) {
   if (mod.defined()) {
@@ -806,15 +798,14 @@ CreateInterpreter(
     CHECK(f.is_subset_of(FeatureSet::All() - fGraph));
     return intrp->Eval(expr);
   };
-  return TypedPackedFunc<Value(Expr)>(packed);
+  return TypedPackedFunc<ObjectRef(Expr)>(packed);
 }
 
-TVM_REGISTER_API("relay.backend.CreateInterpreter")
+TVM_REGISTER_GLOBAL("relay.backend.CreateInterpreter")
 .set_body_typed(CreateInterpreter);
 
 TVM_REGISTER_NODE_TYPE(ClosureNode);
 TVM_REGISTER_NODE_TYPE(TupleValueNode);
-TVM_REGISTER_NODE_TYPE(TensorValueNode);
 
 }  // namespace relay
 }  // namespace tvm

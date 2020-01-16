@@ -20,7 +20,7 @@ import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
-from ..node_generic import convert_to_node, NodeGeneric
+from ..object_generic import convert_to_object, ObjectGeneric
 from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
 
 
@@ -149,8 +149,8 @@ cdef inline int make_arg(object arg,
         value[0].v_str = tstr
         tcode[0] = kStr
         temp_args.append(tstr)
-    elif isinstance(arg, (list, tuple, dict, NodeGeneric)):
-        arg = convert_to_node(arg)
+    elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
+        arg = convert_to_object(arg)
         value[0].v_handle = (<ObjectBase>arg).chandle
         tcode[0] = kObjectHandle
         temp_args.append(arg)
@@ -308,7 +308,6 @@ cdef class FunctionBase:
 _CLASS_FUNCTION = None
 _CLASS_MODULE = None
 _CLASS_OBJECT = None
-_CLASS_NODE = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
@@ -322,7 +321,3 @@ def _set_class_function(func_class):
 def _set_class_object(obj_class):
     global _CLASS_OBJECT
     _CLASS_OBJECT = obj_class
-
-def _set_class_node(node_class):
-    global _CLASS_NODE
-    _CLASS_NODE = node_class

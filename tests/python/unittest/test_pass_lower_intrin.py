@@ -19,7 +19,7 @@ import numpy as np
 
 def lower_intrin(stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.expr.Expr)
+    lower_expr = isinstance(stmt, tvm.expr.PrimExpr)
     stmt = tvm.stmt.Evaluate(stmt) if lower_expr else stmt
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt  = tvm.ir_pass._LowerIntrinStmt(stmt, "llvm")

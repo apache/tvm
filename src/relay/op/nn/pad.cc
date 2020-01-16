@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file pad.cc
  * \brief Implementation of operator pad
  */
@@ -53,7 +52,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
     // split.
 
     // 1) Create a map from axis to param_width using old layout.
-    std::map<std::string, tvm::Array<tvm::Expr>> axis_pad_width;
+    std::map<std::string, tvm::Array<tvm::PrimExpr>> axis_pad_width;
     int index_counter = 0;
     CHECK_EQ(new_in_layouts.size(), 1);
     CHECK_EQ(old_in_layouts.size(), 1);
@@ -64,7 +63,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
     }
 
     // 2) Create new pad width by walking over the new layout and using the map.
-    tvm::Array<tvm::Array<tvm::Expr>> new_pad_width;
+    tvm::Array<tvm::Array<tvm::PrimExpr>> new_pad_width;
     for (auto iter_var : new_in_layouts[0]->axes) {
       const auto& new_layout_axis = LayoutAxis::Get(iter_var);
       auto axis_name = new_layout_axis.name();
@@ -81,7 +80,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
 
         // If any pad_width element is not zero, do not change the layout.
         for (auto width : axis_pad_width.at(dual_axis_name)) {
-          if (auto* width_imm = width.as<IntImm>()) {
+          if (auto* width_imm = width.as<IntImmNode>()) {
             if (width_imm->value != 0) {
               is_layout_modified = false;
             }
@@ -148,8 +147,8 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    if (!data->shape[i].as<ir::Any>()) {
-      auto padding = make_const(data->shape[i].type(), *width1 + *width2);
+    if (!data->shape[i].as<ir::AnyNode>()) {
+      auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
     } else {
       oshape.push_back(data->shape[i]);
@@ -193,7 +192,7 @@ Expr MakePad(Expr data,
              Array<Array<IndexExpr> > pad_width,
              double pad_value,
              std::string pad_mode) {
-  auto attrs = make_node<PadAttrs>();
+  auto attrs = make_object<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
@@ -201,7 +200,7 @@ Expr MakePad(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.pad")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.pad")
 .set_body_typed(MakePad);
 
 RELAY_REGISTER_OP("nn.pad")
@@ -257,7 +256,7 @@ bool MirrorPadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    auto padding = make_const(data->shape[i].type(), *width1 + *width2);
+    auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
     oshape.push_back(data->shape[i] + padding);
   }
 
@@ -268,14 +267,14 @@ bool MirrorPadRel(const Array<Type>& types,
 
 // Handler to create a call to the padding op used by front-end FFI
 Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mode) {
-  auto attrs = make_node<MirrorPadAttrs>();
+  auto attrs = make_object<MirrorPadAttrs>();
   attrs->mode = mode;
   attrs->pad_width = std::move(pad_width);
   static const Op& op = Op::Get("nn.mirror_pad");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.mirror_pad")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.mirror_pad")
 .set_body_typed(MakeMirrorPad);
 
 RELAY_REGISTER_OP("nn.mirror_pad")

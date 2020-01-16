@@ -3,25 +3,19 @@
 .github
 
 # Binary or data files
-.*\.css
 .*\.ipynb
-.*\.html
 .*\.pyc
 .*\.so
 .*\.json
 .*\.txt
 .*\.svg
 .*\.lst
-.*\.xcodeproj
-.*\.lproj
-.*\.plist
 .*\.lds
 .*\.in
 .*\.diff
 .*\.edl
 .*\.md5
 .*\.csv
-.*\.mk
 .*\.log
 .*\.interp
 .*\.tokens

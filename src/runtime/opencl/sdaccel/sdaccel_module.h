@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sdaccel_module.h
  * \brief Execution handling of OPENCL kernels for SDAccel FPGAs
  */

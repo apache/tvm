@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_opencl.cc
  */
 #include <tvm/packed_func_ext.h>
@@ -40,7 +39,7 @@ CodeGenOpenCL::CodeGenOpenCL() {
 void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
   CodeGenC::InitFuncState(f);
   for (Var arg : f->args) {
-    if (arg.type().is_handle()) {
+    if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -90,17 +89,17 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
     os << "get_group_id(" << ts.dim_index << ")";
   }
   var_idmap_[iv->var.get()] =
-      CastFromTo(os.str(), UInt(64), iv->var.type());
+      CastFromTo(os.str(), DataType::UInt(64), iv->var.dtype());
 }
 
-void CodeGenOpenCL::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     CHECK_EQ(lanes, 1)
         << "do not yet support vector types";
     os << "void*"; return;
   }
-  if (t == Bool()) {
+  if (t == DataType::Bool()) {
     os << "bool"; return;
   }
   bool fail = false;
@@ -145,8 +144,8 @@ void CodeGenOpenCL::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to OpenCL type";
 }
 
-void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, Type t,
-                                 Expr base, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
+                                 PrimExpr base, std::ostream& os) {  // NOLINT(*)
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
     auto it = alloc_storage_scope_.find(buffer);
@@ -161,7 +160,7 @@ void CodeGenOpenCL::PrintVecAddr(const Variable* buffer, Type t,
   PrintExpr(base, os);
 }
 std::string CodeGenOpenCL::GetVecLoad(
-    Type t, const Variable* buffer, Expr base) {
+    DataType t, const VarNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -169,8 +168,8 @@ std::string CodeGenOpenCL::GetVecLoad(
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
-                                  Type t, Expr base,
+void CodeGenOpenCL::PrintVecStore(const VarNode* buffer,
+                                  DataType t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
@@ -178,8 +177,8 @@ void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
   stream << ");\n";
 }
 
-void CodeGenOpenCL::PrintStorageSync(const Call* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -200,7 +199,7 @@ void CodeGenOpenCL::PrintStorageScope(
   }
 }
 
-std::string CodeGenOpenCL::CastFromTo(std::string value, Type from, Type target) {
+std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType target) {
   if (from == target) return value;
   std::ostringstream os;
   if (target.lanes() == 1) {
@@ -216,10 +215,10 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, Type from, Type target)
   return os.str();
 }
 
-void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
-  PrintType(op->type, os);
+  PrintType(op->dtype, os);
   os << ")(";
   for (int i = 0; i < op->lanes; ++i) {
     if (i != 0) os << ", ";
@@ -228,27 +227,27 @@ void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const CallNode *op, std::ostream& os) {  // NOLINT(*)
   /* Return type of ternary expression is not always same as its sub-expressions,
    * add a cast */
   if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     os << "(";
-    PrintType(op->args[2].type(), os);
+    PrintType(op->args[2].dtype(), os);
     os << ")";
   }
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   /* Return type of ternary expression is not always same as its sub-expressions,
    * add a cast */
   os << "(";
-  PrintType(op->true_value.type(), os);
+  PrintType(op->true_value.dtype(), os);
   os << ")";
   CodeGenC::VisitExpr_(op, os);
 }
 
-void CodeGenOpenCL::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
       os << "-";
@@ -276,7 +275,7 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
 }
 
-TVM_REGISTER_API("codegen.build_opencl")
+TVM_REGISTER_GLOBAL("codegen.build_opencl")
 .set_body_typed(BuildOpenCL);
 }  // namespace codegen
 }  // namespace tvm

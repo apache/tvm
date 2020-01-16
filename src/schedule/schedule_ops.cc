@@ -18,13 +18,11 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file schedule_ops.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/operation.h>
 #include <tvm/schedule_pass.h>
 #include <utility>
@@ -45,34 +43,34 @@ Stmt MakePipeline(const Stage& s,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
   if (producer.defined()) {
-    producer = ProducerConsumer::make(s->op, true, producer);
+    producer = ProducerConsumerNode::make(s->op, true, producer);
   }
   if (s->double_buffer) {
-    producer = AttrStmt::make(
+    producer = AttrStmtNode::make(
         s->op, ir::attr::double_buffer_scope, 1, producer);
   }
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
-    consumer = ProducerConsumer::make(s->op, false, consumer);
-    pipeline = Block::make(producer, consumer);
+    consumer = ProducerConsumerNode::make(s->op, false, consumer);
+    pipeline = SeqStmt({producer, consumer});
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
-  pipeline = AttrStmt::make(
+  pipeline = AttrStmtNode::make(
       s->op, ir::attr::realize_scope,
-      StringImm::make(s->scope),
+      StringImmNode::make(s->scope),
       pipeline);
 
   if (s->is_opengl) {
-    pipeline = AttrStmt::make(
-        s->op, ir::attr::opengl_stage_scope, StringImm::make(""), pipeline);
+    pipeline = AttrStmtNode::make(
+        s->op, ir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
   }
   return pipeline;
 }
 
 // inject the operator's realization on the stmt.
-class InjectAttach : public IRMutator {
+class InjectAttach : public StmtMutator {
  public:
   InjectAttach(const Stage& stage,
                const Stage& attach_spec,
@@ -81,10 +79,10 @@ class InjectAttach : public IRMutator {
       : stage_(stage), attach_spec_(attach_spec), dom_map_(dom_map),
         debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
-  Stmt Mutate(Stmt stmt) final {
-    CHECK(stmt.defined());
-    stmt =  IRMutator::Mutate(stmt);
-    const AttrStmt* op = stmt.as<AttrStmt>();
+  Stmt VisitStmt(const Stmt& input_stmt) final {
+    CHECK(input_stmt.defined());
+    auto stmt = StmtMutator::VisitStmt(input_stmt);
+    const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
         op->attr_key == attr::loop_scope) {
       if (attach_spec_->attach_type == kScope &&
@@ -93,7 +91,7 @@ class InjectAttach : public IRMutator {
             << "Find IterVar" << attach_spec_->attach_ivar
             << " in multiple places in the IR";
         found_attach = true;
-        stmt = AttrStmt::make(
+        stmt = AttrStmtNode::make(
             op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
@@ -116,7 +114,7 @@ class InjectAttach : public IRMutator {
 };
 
 // inject the operator's realization on the stmt.
-class InjectScanStep : public IRMutator {
+class InjectScanStep : public StmtMutator {
  public:
   InjectScanStep(const Stage& stage,
                  const Operation& scan_op,
@@ -126,17 +124,17 @@ class InjectScanStep : public IRMutator {
       : stage_(stage), scan_op_(scan_op),
         dom_map_(dom_map), is_init_(is_init), debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
 
-  Stmt Mutate(Stmt stmt) final {
-    CHECK(stmt.defined());
-    stmt =  IRMutator::Mutate(stmt);
+  Stmt VisitStmt(const Stmt& input_stmt) final {
+    CHECK(input_stmt.defined());
+    auto stmt = StmtMutator::VisitStmt(input_stmt);
     // update
-    const AttrStmt* op = stmt.as<AttrStmt>();
+    const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
         ((op->attr_key == attr::scan_update_scope && !is_init_) ||
          (op->attr_key == attr::scan_init_scope && is_init_))) {
       if (op->node.same_as(scan_op_)) {
         found_attach = true;
-        stmt = AttrStmt::make(
+        stmt = AttrStmtNode::make(
             op->node, op->attr_key, op->value,
             MakePipeline(stage_, dom_map_, op->body, debug_keep_trivial_loop_));
       }
@@ -162,49 +160,49 @@ class InjectScanStep : public IRMutator {
 
 // Postprocessing of schedule op
 // Replace the init and update's expression by scan's buffer.
-class SchedulePostProc : public IRMutator {
+class SchedulePostProc : public StmtExprMutator {
  public:
-  Stmt Mutate_(const ProducerConsumer* op, const Stmt& s) final {
+  Stmt VisitStmt_(const ProducerConsumerNode* op) final {
     auto it = replace_op_.find(op->func.get());
     if (it != replace_op_.end()) {
-      Stmt body = this->Mutate(op->body);
+      Stmt body = this->VisitStmt(op->body);
       if (it->second.defined()) {
-        return ProducerConsumer::make(
+        return ProducerConsumerNode::make(
             it->second, op->is_producer, body);
       } else {
         return body;
       }
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Stmt Mutate_(const LetStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const LetStmtNode* op) final {
     if (!HasSideEffect(op->value)) {
-      var_value_[op->var.get()] = Mutate(op->value);
-      return this->Mutate(op->body);
+      var_value_[op->var.get()] = this->VisitExpr(op->value);
+      return this->VisitStmt(op->body);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::loop_scope ||
         op->attr_key == attr::scan_init_scope) {
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
       CHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
-      return this->Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::thread_extent) {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
         CHECK(is_zero(ir::Simplify(it->second - op->value)));
-        return this->Mutate(op->body);
+        return this->VisitStmt(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
-        Stmt ret = IRMutator::Mutate_(op, s);
+        Stmt ret = StmtExprMutator::VisitStmt_(op);
         thread_extent_scope_.erase(op->node.get());
         return ret;
       }
@@ -213,24 +211,24 @@ class SchedulePostProc : public IRMutator {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          Stmt ret = AttrStmt::make(
+          Stmt ret = AttrStmtNode::make(
               it->second, op->attr_key, op->value, op->body);
-          return this->Mutate(ret);
+          return this->VisitStmt(ret);
         } else {
-          return this->Mutate(op->body);
+          return this->VisitStmt(op->body);
         }
       }
     } else if (op->attr_key == ir::attr::buffer_bind_scope) {
-      Array<NodeRef> tuple = Downcast<Array<NodeRef> >(op->node);
+      Array<ObjectRef> tuple = Downcast<Array<ObjectRef> >(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmt::make(
-              Array<NodeRef>{tuple[0], it->second.output(tensor->value_index)},
-              op->attr_key, op->value, Mutate(op->body));
+          return AttrStmtNode::make(
+              Array<ObjectRef>{tuple[0], it->second.output(tensor->value_index)},
+              op->attr_key, op->value, this->VisitStmt(op->body));
         } else {
-          return this->Mutate(op->body);
+          return this->VisitStmt(op->body);
         }
       }
     } else if (op->attr_key == ir::attr::buffer_dim_align) {
@@ -238,68 +236,68 @@ class SchedulePostProc : public IRMutator {
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
-          return AttrStmt::make(
+          return AttrStmtNode::make(
               it->second.output(tensor->value_index),
-              op->attr_key, op->value, Mutate(op->body));
+              op->attr_key, op->value, this->VisitStmt(op->body));
         } else {
-          return this->Mutate(op->body);
+          return this->VisitStmt(op->body);
         }
       }
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
-  Stmt Mutate_(const Realize* op, const Stmt& s) final {
+  Stmt VisitStmt_(const RealizeNode* op) final {
     TensorKey key{op->func, op->value_index};
     auto it = replace_realize_.find(key);
     if (it != replace_realize_.end()) {
       if (it->second.defined()) {
-        Stmt ret = Realize::make(
+        Stmt ret = RealizeNode::make(
             it->second->op, it->second->value_index,
-            op->type, op->bounds, op->condition, op->body);
-        return this->Mutate(ret);
+            op->dtype, op->bounds, op->condition, op->body);
+        return this->VisitStmt(ret);
       } else {
-        return this->Mutate(op->body);
+        return this->VisitStmt(op->body);
       }
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt Mutate_(const Provide* op, const Stmt& s) final {
+  Stmt VisitStmt_(const ProvideNode* op) final {
     TensorKey key{op->func, op->value_index};
     auto it = replace_buffer_.find(key);
     if (it != replace_buffer_.end()) {
       const Tensor& dst = it->second;
-      Stmt ret = Provide::make(
+      Stmt ret = ProvideNode::make(
           dst->op, dst->value_index, op->value, op->args);
-      return this->Mutate(ret);
+      return this->VisitStmt(ret);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Expr Mutate_(const Call* op, const Expr& e) final {
-    if (op->call_type == Call::Halide) {
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    if (op->call_type == CallNode::Halide) {
       TensorKey key{op->func, op->value_index};
       auto it = replace_buffer_.find(key);
       if (it != replace_buffer_.end()) {
         const Tensor& dst = it->second;
-        Expr ret = Call::make(
-            op->type, dst->op->name, op->args,
+        PrimExpr ret = CallNode::make(
+            op->dtype, dst->op->name, op->args,
             op->call_type, dst->op, dst->value_index);
-        return this->Mutate(ret);
+        return this->VisitExpr(ret);
       }
     }
-    return IRMutator::Mutate_(op, e);
+    return StmtExprMutator::VisitExpr_(op);
   }
 
-  Expr Mutate_(const Variable* op, const Expr& e) final {
+  PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_value_.find(op);
     if (it != var_value_.end()) {
       return it->second;
     } else {
-      return e;
+      return GetRef<PrimExpr>(op);
     }
   }
 
@@ -345,15 +343,15 @@ class SchedulePostProc : public IRMutator {
     replace_op_[src->op.get()] = repl_op;
   }
   // The thread extent scope.
-  std::unordered_map<const Node*, Expr> thread_extent_scope_;
+  std::unordered_map<const Object*, PrimExpr> thread_extent_scope_;
   // The scan value
-  std::unordered_map<const Variable*, Expr> var_value_;
+  std::unordered_map<const VarNode*, PrimExpr> var_value_;
   // buffer replacement
   std::unordered_map<TensorKey, Tensor> replace_buffer_;
   // buffere realization to be replaced
   std::unordered_map<TensorKey, Tensor> replace_realize_;
   // replace producer consumer.
-  std::unordered_map<const Node*, Operation> replace_op_;
+  std::unordered_map<const Object*, Operation> replace_op_;
 };
 
 Stmt ScheduleOps(
@@ -393,14 +391,14 @@ Stmt ScheduleOps(
     if (scan_init.count(s->op)) {
       CHECK(body.defined());
       InjectScanStep mu(s, scan_init.at(s->op), dom_map, true, debug_keep_trivial_loop);
-      body = mu.Mutate(body);
+      body = mu(std::move(body));
       CHECK(mu.found_attach)
           << "did not find attachment point for scan.init";
     } else if (attach_spec->attach_type == kScanUpdate) {
       // Handle scan update
       CHECK(body.defined());
       InjectScanStep mu(s, attach_spec->attach_stage->op, dom_map, false, debug_keep_trivial_loop);
-      body = mu.Mutate(body);
+      body = mu(std::move(body));
       CHECK(mu.found_attach)
           << "did not find attachment point for scan.update";
     } else if (attach_spec->attach_type == kInlinedAlready) {
@@ -412,7 +410,7 @@ Stmt ScheduleOps(
       CHECK_EQ(attach_spec->attach_type, kScope);
       CHECK(body.defined());
       InjectAttach mutator(s, attach_spec, dom_map, debug_keep_trivial_loop);
-      body = mutator.Mutate(body);
+      body = mutator(std::move(body));
       CHECK(mutator.found_attach)
           << "did not find attachment point for " << s << " in "
           << attach_spec->attach_stage->op  << " x " << attach_spec->attach_ivar
@@ -422,7 +420,7 @@ Stmt ScheduleOps(
   }
   SchedulePostProc post_proc;
   post_proc.Init(sch);
-  return post_proc.Mutate(body);
+  return post_proc(std::move(body));
 }
 
 }  // namespace schedule

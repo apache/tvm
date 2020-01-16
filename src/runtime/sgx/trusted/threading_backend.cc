@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file sgx/threading_backend.cc
  * \brief SGX threading backend
  */

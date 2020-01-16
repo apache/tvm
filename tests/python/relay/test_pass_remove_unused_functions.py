@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.prelude import Prelude
+
 
 def test_remove_all_prelude_functions():
     mod = relay.Module()
@@ -27,6 +29,7 @@ def test_remove_all_prelude_functions():
     mod = relay.transform.RemoveUnusedFunctions()(mod)
     l = set([x[0].name_hint for x in mod.functions.items()])
     assert l == set(['main'])
+
 
 def test_remove_all_prelude_functions_but_referenced_functions():
     mod = relay.Module()
@@ -41,6 +44,7 @@ def test_remove_all_prelude_functions_but_referenced_functions():
     l = set([x[0].name_hint for x in mod.functions.items()])
     assert l == set(['id_func', 'main'])
 
+
 def test_keep_only_referenced_prelude_functions():
     mod = relay.Module()
     p = Prelude(mod)
@@ -52,6 +56,7 @@ def test_keep_only_referenced_prelude_functions():
     mod = relay.transform.RemoveUnusedFunctions()(mod)
     l = set([x[0].name_hint for x in mod.functions.items()])
     assert l == set(['tl', 'hd', 'main'])
+
 
 def test_multiple_entry_functions():
     mod = relay.Module()
@@ -70,6 +75,42 @@ def test_multiple_entry_functions():
     mod = relay.transform.RemoveUnusedFunctions(['main1', 'main2'])(mod)
     l = set([x[0].name_hint for x in mod.functions.items()])
     assert l == set(['tl', 'hd', 'main2', 'id_func', 'main1'])
+
+
+def test_globalvar_as_call_arg():
+    mod = relay.Module()
+    p = Prelude(mod)
+    tensor_array = p.get_var('tensor_array', 'int32')
+    tensor1 = p.get_var('tensor1', 'int32')
+    write = p.get_var('tensor_array_write', 'int32')
+    stack = p.get_var('tensor_array_stack', 'int32')
+    v = relay.var('v')
+    init_tensor_array = tensor_array(relay.const(3))
+    tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
+    tensor_array2 = stack(tensor_array1)
+    mod["main"] = relay.Function([v], tensor_array2)
+    mod = relay.transform.RemoveUnusedFunctions()(mod)
+    l = set([x[0].name_hint for x in mod.functions.items()])
+    assert 'tensor_array_int32' in l
+
+
+def test_call_globalvar_without_args():
+    def get_mod():
+        mod = relay.Module({})
+        fn1 = relay.Function([], relay.const(1))
+        fn2 = relay.Function([], relay.const(2))
+        g1 = relay.GlobalVar('g1')
+        g2 = relay.GlobalVar('g2')
+        mod[g1] = fn1
+        mod[g2] = fn2
+        p = relay.var('p', 'bool')
+        mod['main'] = relay.Function([p], relay.Call(relay.If(p, g1, g2), []))
+        return mod
+    mod = get_mod()
+    ref_mod = get_mod()
+    mod = relay.transform.RemoveUnusedFunctions()(mod)
+    assert relay.alpha_equal(mod, ref_mod)
+
 
 if __name__ == '__main__':
     pytest.main()

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_server_env.cc
  * \brief Server environment of the RPC.
  */

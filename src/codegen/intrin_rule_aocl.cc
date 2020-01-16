@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file intrin_rule_aocl.cc
  * \brief AOCL intrinsic rules.
  */

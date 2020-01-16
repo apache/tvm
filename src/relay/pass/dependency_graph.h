@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors.
  * \file tvm/relay/pass/dependency_graph.h
  * \brief create a dependency graph.
  */
@@ -29,13 +28,13 @@
 #include <unordered_map>
 #include <vector>
 #include "let_list.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
 
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 /* DependencyGraph track input and output of an Expr.
  * Additionally, dummy scope is created to model scope.
@@ -55,7 +54,7 @@ class DependencyGraph {
   };
 
   /*! \brief Maps a Relay Expr to its node in the dependency graph. */
-  std::unordered_map<Expr, Node*, NodeHash, NodeEqual> expr_node;
+  std::unordered_map<Expr, Node*, ObjectHash, ObjectEqual> expr_node;
 
   /*! \brief The dependency graph in post DFS order. */
   std::vector<Node*> post_dfs_order;
@@ -65,7 +64,7 @@ class DependencyGraph {
    * \param arena The arena used for data allocation.
    * \param body The body of the expression to create a graph.
    */
-  static DependencyGraph Create(common::Arena* arena, const Expr& body);
+  static DependencyGraph Create(support::Arena* arena, const Expr& body);
 
  private:
   class Creator;

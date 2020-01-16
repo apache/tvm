@@ -31,7 +31,7 @@ import re
 # current version
 # We use the version of the incoming release for code
 # that is under development
-__version__ = "0.6.dev"
+__version__ = "0.6.0"
 
 # Implementations
 def update(file_name, pattern, repl):

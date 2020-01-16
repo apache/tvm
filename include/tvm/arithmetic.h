@@ -24,6 +24,8 @@
 #ifndef TVM_ARITHMETIC_H_
 #define TVM_ARITHMETIC_H_
 
+#include <tvm/support/with.h>
+
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -55,7 +57,7 @@ class Analyzer;
  *
  *  set = [min_value, max_value]
  */
-class ConstIntBoundNode : public Node {
+class ConstIntBoundNode : public Object {
  public:
   int64_t min_value;
   int64_t max_value;
@@ -74,14 +76,14 @@ class ConstIntBoundNode : public Node {
   static const constexpr int64_t kNegInf = -kPosInf;
 
   static constexpr const char* _type_key = "arith.ConstIntBound";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstIntBoundNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstIntBoundNode, Object);
 };
 
 /*!
  * \brief reference class to ConstIntBoundNode
  * \sa ConstIntBoundNode
  */
-class ConstIntBound : public NodeRef {
+class ConstIntBound : public ObjectRef {
  public:
   /*!
    * \brief constructor by fields.
@@ -92,7 +94,7 @@ class ConstIntBound : public NodeRef {
 
   static const constexpr int64_t kPosInf = ConstIntBoundNode::kPosInf;
   static const constexpr int64_t kNegInf = ConstIntBoundNode::kNegInf;
-  TVM_DEFINE_NODE_REF_METHODS(ConstIntBound, NodeRef, ConstIntBoundNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ConstIntBound, ObjectRef, ConstIntBoundNode);
 };
 
 /*!
@@ -105,7 +107,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ConstIntBound operator()(const Expr& expr);
+  ConstIntBound operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update constant int bound information of var.
@@ -136,7 +138,7 @@ class ConstIntBoundAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
@@ -155,7 +157,7 @@ class ConstIntBoundAnalyzer {
  *  This is useful to decide if the index is dividable by certain value.
  *  For example, if index = 0 + 4 x, then we know it can be divided by 4.
  */
-class ModularSetNode : public Node {
+class ModularSetNode : public Object {
  public:
   /*! \brief linear co-efficient */
   int64_t coeff;
@@ -168,18 +170,18 @@ class ModularSetNode : public Node {
   }
 
   static constexpr const char* _type_key = "arith.ModularSet";
-  TVM_DECLARE_NODE_TYPE_INFO(ModularSetNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ModularSetNode, Object);
 };
 
 /*!
  * \brief reference of ModularSetNode
  * \sa ModularSetNode
  */
-class ModularSet : public NodeRef {
+class ModularSet : public ObjectRef {
  public:
   TVM_DLL ModularSet(int64_t coeff, int64_t base);
 
-  TVM_DEFINE_NODE_REF_METHODS(ModularSet, NodeRef, ModularSetNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ModularSet, ObjectRef, ModularSetNode);
 };
 
 /*!
@@ -192,7 +194,7 @@ class ModularSetAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ModularSet operator()(const Expr& expr);
+  ModularSet operator()(const PrimExpr& expr);
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -215,7 +217,7 @@ class ModularSetAnalyzer {
    *
    * \return an exit function that must be called to cleanup the constraint can be nullptr.
    */
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
   struct Entry;
   class Impl;
   /*! \brief Internal impl */
@@ -232,7 +234,7 @@ class RewriteSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  Expr operator()(const Expr& expr);
+  PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -242,10 +244,10 @@ class RewriteSimplifier {
    * \param override Whether do we allow override of existing information.
    */
   void Update(const Var& var,
-              const Expr& new_expr,
+              const PrimExpr& new_expr,
               bool override = false);
 
-  std::function<void()> EnterConstraint(const Expr& constraint);
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
  private:
   friend class Analyzer;
@@ -268,7 +270,7 @@ class CanonicalSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  Expr operator()(const Expr& expr);
+  PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -278,7 +280,7 @@ class CanonicalSimplifier {
    * \param override Whether do we allow override of existing information.
    */
   void Update(const Var& var,
-              const Expr& new_expr,
+              const PrimExpr& new_expr,
               bool override = false);
 
  private:
@@ -316,7 +318,7 @@ class ConstraintContext {
    * \param analyzer The analyzer.
    * \param constraint The constraint to be applied.
    */
-  ConstraintContext(Analyzer* analyzer, Expr constraint)
+  ConstraintContext(Analyzer* analyzer, PrimExpr constraint)
       : analyzer_(analyzer), constraint_(constraint) {}
   // enter the scope.
   void EnterWithScope();
@@ -325,7 +327,7 @@ class ConstraintContext {
   /*! \brief The analyzer */
   Analyzer* analyzer_;
   /*! \brief The constraint */
-  Expr constraint_;
+  PrimExpr constraint_;
   /*! \brief function to be called in recovery */
   std::function<void()> exit_;
 };
@@ -349,20 +351,20 @@ enum SignType {
 /*!
  * \brief Base class of all IntSet containers.
  */
-struct IntSetNode : public Node {
+struct IntSetNode : public Object {
   static constexpr const char* _type_key = "IntSet";
-  TVM_DECLARE_BASE_NODE_INFO(IntSetNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
 };
 
 /*!
  * \brief Integer set class, represent a set of integers in one dimension.
  */
-class IntSet : public NodeRef {
+class IntSet : public ObjectRef {
  public:
   /*! \brief constructor */
   IntSet() {}
   // constructor from not container.
-  explicit IntSet(ObjectPtr<Object> n) : NodeRef(n) {}
+  explicit IntSet(ObjectPtr<Object> n) : ObjectRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -375,9 +377,9 @@ class IntSet : public NodeRef {
    */
   Range cover_range(Range max_range) const;
   /*! \return Lower bound of the set */
-  Expr min() const;
+  PrimExpr min() const;
   /*! \return upper bound of the set */
-  Expr max() const;
+  PrimExpr max() const;
   /*! \return Whether the set represent nothing  */
   bool is_nothing() const;
   /*! \return Whether the set represent everything  */
@@ -398,7 +400,7 @@ class IntSet : public NodeRef {
    * \brief The single point value, call only if is_single_point is true
    * \return The point value.
    */
-  Expr point_value() const;
+  PrimExpr point_value() const;
   /*!
    * \brief Try to match IntSet with range r.
    *
@@ -415,13 +417,13 @@ class IntSet : public NodeRef {
    * \param point The point in the set.
    * \return construct a single point set
    */
-  static IntSet single_point(Expr point);
+  static IntSet single_point(PrimExpr point);
   /*!
    * \brief construct a integer set from vector expression.
    * \param vec The vector expression, can also be single point.
    * \return The result set containing the indices in the vector.
    */
-  static IntSet vector(Expr vec);
+  static IntSet vector(PrimExpr vec);
   /*!
    * \brief Construct a set representing a range.
    * \param r The range
@@ -434,7 +436,7 @@ class IntSet : public NodeRef {
    * \param max The maximum value of the interval.
    * \return constructed set.
    */
-  static IntSet interval(Expr min, Expr max);
+  static IntSet interval(PrimExpr min, PrimExpr max);
 };
 
 /*!
@@ -450,7 +452,7 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  IntSet operator()(const Expr& expr, const Map<Var, IntSet>& dom_map);
+  IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
 
  private:
   friend class Analyzer;
@@ -499,7 +501,7 @@ class Analyzer {
    * \param var The variable.
    * \param expr The expression we bind to.
    */
-  void Bind(const VarExpr& var, const Expr& expr);
+  void Bind(const Var& var, const PrimExpr& expr);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -509,7 +511,7 @@ class Analyzer {
    * \param var The variable.
    * \param range The range we bind to.
    */
-  void Bind(const VarExpr& var, const Range& range);
+  void Bind(const Var& var, const Range& range);
   /*!
    * \brief Whether can we prove expr >= val.
 
@@ -522,7 +524,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  bool CanProveGreaterEqual(const Expr& expr, int64_t lower_bound);
+  bool CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound);
   /*!
    * \brief Whether can we prove condition.
    *
@@ -531,7 +533,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  bool CanProve(const Expr& cond);
+  bool CanProve(const PrimExpr& cond);
   /*!
    * \brief Simplify expr.
    *
@@ -540,7 +542,7 @@ class Analyzer {
    *
    * \note Analyzer will call into sub-analyzers to get the result.
    */
-  Expr Simplify(const Expr& expr);
+  PrimExpr Simplify(const PrimExpr& expr);
 };
 
 //-----------------------------------------------
@@ -554,7 +556,7 @@ class Analyzer {
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Expr e,
+IntSet EvalSet(PrimExpr e,
                const Map<IterVar, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
@@ -563,8 +565,8 @@ IntSet EvalSet(Expr e,
  * \param dom_map The domain of each variable.
  * \return An integer set that can cover all the possible values of e.
  */
-IntSet EvalSet(Expr e,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+IntSet EvalSet(PrimExpr e,
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -586,7 +588,7 @@ IntSet EvalSet(Range r,
  * \return An integer set that can cover all the possible values.
  */
 IntSet EvalSet(IntSet s,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 /*!
  * \brief Same as EvalSet, but takes unordered_map
  *
@@ -595,10 +597,10 @@ IntSet EvalSet(IntSet s,
  * \return An integer set that can cover all the possible values of e.
  */
 IntSet EvalSet(Range r,
-               const std::unordered_map<const Variable*, IntSet>& dom_map);
+               const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*! \brief Map from Expr to IntSet */
-using ExprIntSetMap = std::unordered_map<Expr, IntSet, NodeHash, NodeEqual>;
+using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectHash, ObjectEqual>;
 /*!
  * \brief Find the integer set of every sub-expression, given the
  *  domain of each iteration variables.
@@ -608,8 +610,8 @@ using ExprIntSetMap = std::unordered_map<Expr, IntSet, NodeHash, NodeEqual>;
  * \return the map from the expression to its possible value.
  */
 ExprIntSetMap EvalSetForEachSubExpr(
-    Expr e,
-    const std::unordered_map<const Variable*, IntSet>& dom_map);
+    PrimExpr e,
+    const std::unordered_map<const VarNode*, IntSet>& dom_map);
 
 /*!
  * \brief Create an union set of all sets
@@ -640,7 +642,7 @@ IntSet Intersect(const Array<IntSet>& sets);
  *        The deduce bound must implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(Expr v, Expr cond,
+IntSet DeduceBound(PrimExpr v, PrimExpr cond,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map);
 /*!
@@ -653,9 +655,9 @@ IntSet DeduceBound(Expr v, Expr cond,
  *        The deduce bound mush implies e for all value in relax_map
  * \return An integer set that always satisfies the condition.
  */
-IntSet DeduceBound(Expr v, Expr cond,
-                   const std::unordered_map<const Variable*, IntSet>& hint_map,
-                   const std::unordered_map<const Variable*, IntSet>& relax_map);
+IntSet DeduceBound(PrimExpr v, PrimExpr cond,
+                   const std::unordered_map<const VarNode*, IntSet>& hint_map,
+                   const std::unordered_map<const VarNode*, IntSet>& relax_map);
 
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.
@@ -676,7 +678,7 @@ Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool 
  * \param vars List of variables to be used in detection.
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-Array<Expr> DetectLinearEquation(const Expr& e,
+Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
                                  const Array<Var>& vars);
 
 /*!
@@ -687,7 +689,7 @@ Array<Expr> DetectLinearEquation(const Expr& e,
  * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
  *          return empty if the e does not match the pattern.
  */
-Array<Expr> DetectClipBound(const Expr& e,
+Array<PrimExpr> DetectClipBound(const PrimExpr& e,
                             const Array<Var>& vars);
 
 // implementation

@@ -24,8 +24,7 @@ import numpy as np
 import tvm
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
-import nnvm.compiler
-import nnvm.testing
+from tvm import relay
 
 from util import get_network, print_progress
 
@@ -39,10 +38,9 @@ def evaluate_network(network, target, target_host, repeat):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
     print_progress("%-20s building..." % network)
-    with nnvm.compiler.build_config(opt_level=3):
-        graph, lib, params = nnvm.compiler.build(
-            net, target=target, target_host=target_host,
-            shape={'data': input_shape}, params=params, dtype=dtype)
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(
+            net, target=target, target_host=target_host, params=params)
 
     tmp = tempdir()
     if 'android' in str(target):
@@ -76,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--network", type=str, choices=
                         ['resnet-18', 'resnet-34', 'resnet-50',
                          'vgg-16', 'vgg-19', 'densenet-121', 'inception_v3',
-                         'mobilenet', 'mobilenet_v2', 'squeezenet_v1.0', 'squeezenet_v1.1'],
+                         'mobilenet', 'squeezenet_v1.0', 'squeezenet_v1.1'],
                         help='The name of neural network')
     parser.add_argument("--model", type=str, choices=
                         ['rk3399', 'mate10', 'mate10pro', 'p20', 'p20pro',

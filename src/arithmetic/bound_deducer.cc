@@ -18,15 +18,16 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 
 #include <unordered_set>
 #include <unordered_map>
@@ -39,17 +40,17 @@ using namespace ir;
 
 // a visitor to find the path to the target variable
 // from a expression.
-class VariablePathFinder: public IRVisitor {
+class VariablePathFinder: public ExprVisitor {
  public:
-  explicit VariablePathFinder(Expr target) : target_(target) {}
+  explicit VariablePathFinder(PrimExpr target) : target_(target) {}
 
-  void Visit(const NodeRef& node) final {
+  void VisitExpr(const PrimExpr& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
     if (!found_) path_.push_back(node.get());
     if (node.same_as(target_)) found_ = true;
-    IRVisitor::Visit(node);
+    ExprVisitor::VisitExpr(node);
     if (!found_) path_.pop_back();
   }
 
@@ -57,65 +58,65 @@ class VariablePathFinder: public IRVisitor {
 
  private:
   bool found_{false};
-  Expr target_;
+  PrimExpr target_;
   std::unordered_set<const Object*> visited_;
 };
 
 // get the path to the variable,
 // return empty vector to represent failure
-std::vector<const Object*> GetPath(Expr target, Expr expr) {
+std::vector<const Object*> GetPath(PrimExpr target, PrimExpr expr) {
   VariablePathFinder v(target);
-  v.Visit(expr);
+  v(expr);
   return v.path_;
 }
 
 enum CompareOp {kGreater, kLess, kEqual};
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer: public IRVisitor {
+class BoundDeducer: public ExprVisitor {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
-  BoundDeducer(Expr target, Expr expr,
-               const std::unordered_map<const Variable*, IntSet>& hint_map,
-               const std::unordered_map<const Variable*, IntSet>& relax_map)
+  BoundDeducer(PrimExpr target, PrimExpr expr,
+               const std::unordered_map<const VarNode*, IntSet>& hint_map,
+               const std::unordered_map<const VarNode*, IntSet>& relax_map)
   : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
 
   void Deduce();
 
-  void Visit(const NodeRef& e) final {
+  void VisitExpr(const PrimExpr& e) final {
     if (!success_) return;
     if (e.get() == path_[iter_++]) {
-      IRVisitor::Visit(e);
+      ExprVisitor::VisitExpr(e);
     } else {
       success_ = false;
       return;
     }
   }
 
-  void Visit_(const LT* op) final {
+  void VisitExpr_(const LTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const LE* op) final {
+  void VisitExpr_(const LENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const GT* op) final {
+  void VisitExpr_(const GTNode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const GE* op) final {
+  void VisitExpr_(const GENode* op) final {
     LOG(FATAL) << "unable to deduce due to multiple comparison operator";
   }
 
-  void Visit_(const Add* op) final {
+  void VisitExpr_(const AddNode* op) final {
     bool left = op->a.get() == path_[iter_];
     result_ -= left ? op->b : op->a;
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
-  void Visit_(const Sub* op) final {
+  void VisitExpr_(const SubNode* op) final {
     bool left = op->a.get() == path_[iter_];
     if (left) {
       result_ += op->b;
@@ -124,16 +125,16 @@ class BoundDeducer: public IRVisitor {
       result_ = - result_;
       comp_op = ReverseOp(comp_op);
     }
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
-  void Visit_(const Mul* op) final {
+  void VisitExpr_(const MulNode* op) final {
     bool left = op->a.get() == path_[iter_];
-    Expr operand = left ? op->b : op->a;
-    Expr target_var = left ? op->a : op->b;
+    PrimExpr operand = left ? op->b : op->a;
+    PrimExpr target_var = left ? op->a : op->b;
 
     SignType sign_operand;
-    if (operand.type().is_uint()) {
+    if (operand.dtype().is_uint()) {
       sign_operand = kPositive;
     } else {
       sign_operand = expr_map_[operand].sign_type();
@@ -172,10 +173,10 @@ class BoundDeducer: public IRVisitor {
         // ( x <= -3/-2 --> x <= 1)
       }
     }
-    Visit(left ? op->a : op->b);
+    this->VisitExpr(left ? op->a : op->b);
   }
 
-  Expr result_;
+  PrimExpr result_;
   CompareOp comp_op{kGreater};
   bool success_{true};
 
@@ -184,10 +185,10 @@ class BoundDeducer: public IRVisitor {
   void Transform();
   void Relax();
   CompareOp ReverseOp(CompareOp comp_op);
-  Expr target_;
-  Expr expr_;
-  const std::unordered_map<const Variable*, IntSet>& hint_map_;
-  const std::unordered_map<const Variable*, IntSet>& relax_map_;
+  PrimExpr target_;
+  PrimExpr expr_;
+  const std::unordered_map<const VarNode*, IntSet>& hint_map_;
+  const std::unordered_map<const VarNode*, IntSet>& relax_map_;
   ExprIntSetMap expr_map_;
   std::vector<const Object*> path_;
   size_t iter_{0};
@@ -195,17 +196,17 @@ class BoundDeducer: public IRVisitor {
   Analyzer analyzer_;
 };
 
-class BoundDeduceInputChecker: public IRVisitor {
+class BoundDeduceInputChecker: public ExprVisitor {
  public:
   bool Check(BoundDeducer* deducer) {
     deducer_ = deducer;
-    Visit(deducer_->expr_);
+    this->VisitExpr(deducer_->expr_);
     return target_count == 1;
   }
 
-  void Visit(const NodeRef& e) final {
+  void VisitExpr(const PrimExpr& e) final {
     if (e.same_as(deducer_->target_)) ++target_count;
-    IRVisitor::Visit(e);
+    ExprVisitor::VisitExpr(e);
   }
 
  private:
@@ -232,7 +233,7 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
 
 void BoundDeducer::Transform() {
   // We will ensure to set expr_ such that it contains target_
-  if (const LT* op = expr_.as<LT>()) {
+  if (const LTNode* op = expr_.as<LTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a < b -> b >= a + 1
       comp_op = kGreater;
@@ -244,7 +245,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b - 1;
     }
-  } else if (const LE* op = expr_.as<LE>()) {
+  } else if (const LENode* op = expr_.as<LENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a <= b -> b >= a
       comp_op = kGreater;
@@ -255,7 +256,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const GT* op = expr_.as<GT>()) {
+  } else if (const GTNode* op = expr_.as<GTNode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a > b -> b <= a - 1
       comp_op = kLess;
@@ -267,7 +268,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b + 1;
     }
-  } else if (const GE* op = expr_.as<GE>()) {
+  } else if (const GENode* op = expr_.as<GENode>()) {
     if (GetPath(target_, op->a).empty()) {
       // a >= b -> b <= a
       comp_op = kLess;
@@ -278,7 +279,7 @@ void BoundDeducer::Transform() {
       expr_ = op->a;
       result_ = op->b;
     }
-  } else if (const EQ* op = expr_.as<EQ>()) {
+  } else if (const EQNode* op = expr_.as<EQNode>()) {
     comp_op = kEqual;
     if (GetPath(target_, op->a).empty()) {
       // if the b == a -> a == b
@@ -306,7 +307,7 @@ void BoundDeducer::Deduce() {
   }
   expr_map_ = EvalSetForEachSubExpr(expr_, hint_map_);
 
-  Visit(expr_);
+  this->VisitExpr(expr_);
 }
 
 void BoundDeducer::Relax() {
@@ -328,13 +329,13 @@ void BoundDeducer::Relax() {
   result_ = (comp_op == kGreater) ? b.max() : b.min();
 }
 
-IntSet DeduceBound(Expr v, Expr e,
-  const std::unordered_map<const Variable*, IntSet>& hint_map,
-  const std::unordered_map<const Variable*, IntSet>& relax_map) {
+IntSet DeduceBound(PrimExpr v, PrimExpr e,
+  const std::unordered_map<const VarNode*, IntSet>& hint_map,
+  const std::unordered_map<const VarNode*, IntSet>& relax_map) {
   BoundDeducer d(v, e, hint_map, relax_map);
   d.Deduce();
   if (!d.success_) return IntSet::nothing();
-  Expr min = neg_inf(), max = pos_inf();
+  PrimExpr min = neg_inf(), max = pos_inf();
   if (d.comp_op == kEqual) {
     min = d.result_;
     max = d.result_;
@@ -348,14 +349,14 @@ IntSet DeduceBound(Expr v, Expr e,
 
 // assuming e >= 0, deduce the bound of variable from it.
 // return empty set to represent deduce failure.
-IntSet DeduceBound(Expr v, Expr e,
+IntSet DeduceBound(PrimExpr v, PrimExpr e,
                    const Map<Var, IntSet>& hint_map,
                    const Map<Var, IntSet>& relax_map) {
-  std::unordered_map<const Variable*, IntSet> hmap;
+  std::unordered_map<const VarNode*, IntSet> hmap;
   for (auto kv : hint_map) {
     hmap[kv.first.get()] = kv.second;
   }
-  std::unordered_map<const Variable*, IntSet> rmap;
+  std::unordered_map<const VarNode*, IntSet> rmap;
   for (auto kv : relax_map) {
     rmap[kv.first.get()] = kv.second;
   }

@@ -93,13 +93,13 @@ inline void CallGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
   double alpha = args.size() > 5 ? args[5] : 1.0;
   double beta = args.size() > 6 ? args[6] : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa),
-     ColumnCount(A, transa), static_cast<float>(alpha),
+     ColumnCount(A, transa), static_cast<typename TGemmOp::TDatatype>(alpha),
      reinterpret_cast<typename TGemmOp::TDatatype *>(
          static_cast<char *>(B->data) + B->byte_offset),
      ColumnStride(B),
      reinterpret_cast<typename TGemmOp::TDatatype *>(
          static_cast<char *>(A->data) + A->byte_offset),
-     ColumnStride(A), static_cast<float>(beta),
+     ColumnStride(A), static_cast<typename TGemmOp::TDatatype>(beta),
      reinterpret_cast<typename TGemmOp::TDatatype *>(
          static_cast<char *>(C->data) + C->byte_offset),
      ColumnStride(C));
@@ -170,9 +170,10 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue *ret, TBatchGemmOp op) {
   DType *C_data = reinterpret_cast<typename TBatchGemmOp::TDatatype *>(
       static_cast<char *>(C->data) + C->byte_offset);
   op(batch_size, transb, transa, ColumnCount3D(B, transb),
-     RowCount3D(A, transa), ColumnCount3D(A, transa), static_cast<float>(alpha),
+     RowCount3D(A, transa), ColumnCount3D(A, transa),
+     static_cast<typename TBatchGemmOp::TDatatype>(alpha),
      B_data, B_size, ColumnStride3D(B), A_data, A_size, ColumnStride3D(A),
-     static_cast<float>(beta), C_data, C_size, ColumnStride3D(C));
+     static_cast<typename TBatchGemmOp::TDatatype>(beta), C_data, C_size, ColumnStride3D(C));
 }
 
 }  // namespace contrib

@@ -22,6 +22,7 @@
  * \brief Source code module, only for viewing
  */
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 #include "codegen_source_base.h"
 #include "../runtime/file_util.h"
 #include "../runtime/meta_data.h"
@@ -185,5 +186,8 @@ runtime::Module DeviceSourceModuleCreate(
 
 TVM_REGISTER_GLOBAL("module.source_module_create")
 .set_body_typed(SourceModuleCreate);
+
+TVM_REGISTER_GLOBAL("module.csource_module_create")
+.set_body_typed(CSourceModuleCreate);
 }  // namespace codegen
 }  // namespace tvm

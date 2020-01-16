@@ -21,7 +21,8 @@
  * \file src/runtime/vm/object.cc
  * \brief VM related objects.
  */
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/runtime/memory.h>
@@ -33,23 +34,6 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-Tensor::Tensor(NDArray data) {
-  auto ptr = make_object<TensorObj>();
-  ptr->data = std::move(data);
-  data_ = std::move(ptr);
-}
-
-ADT::ADT(size_t tag, std::vector<ObjectRef> fields) {
-  auto ptr = make_object<ADTObj>();
-  ptr->tag = tag;
-  ptr->fields = std::move(fields);
-  data_ = std::move(ptr);
-}
-
-ADT ADT::Tuple(std::vector<ObjectRef> fields) {
-  return ADT(0, fields);
-}
-
 Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
   auto ptr = make_object<ClosureObj>();
   ptr->func_index = func_index;
@@ -58,28 +42,18 @@ Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
 }
 
 
-TVM_REGISTER_GLOBAL("_vmobj.GetTensorData")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto* cell = obj.as<TensorObj>();
-  CHECK(cell != nullptr);
-  *rv = cell->data;
-});
-
 TVM_REGISTER_GLOBAL("_vmobj.GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  *rv = static_cast<int64_t>(cell->tag);
+  const auto& adt = Downcast<ADT>(obj);
+  *rv = static_cast<int64_t>(adt.tag());
 });
 
 TVM_REGISTER_GLOBAL("_vmobj.GetADTNumberOfFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  *rv = static_cast<int64_t>(cell->fields.size());
+  const auto& adt = Downcast<ADT>(obj);
+  *rv = static_cast<int64_t>(adt.size());
 });
 
 
@@ -87,15 +61,9 @@ TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
-  const auto* cell = obj.as<ADTObj>();
-  CHECK(cell != nullptr);
-  CHECK_LT(idx, cell->fields.size());
-  *rv = cell->fields[idx];
-});
-
-TVM_REGISTER_GLOBAL("_vmobj.Tensor")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-*rv = Tensor(args[0].operator NDArray());
+  const auto& adt = Downcast<ADT>(obj);
+  CHECK_LT(idx, adt.size());
+  *rv = adt[idx];
 });
 
 TVM_REGISTER_GLOBAL("_vmobj.Tuple")
@@ -118,7 +86,6 @@ TVM_REGISTER_GLOBAL("_vmobj.ADT")
   *rv = ADT(tag, fields);
 });
 
-TVM_REGISTER_OBJECT_TYPE(TensorObj);
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 }  // namespace vm

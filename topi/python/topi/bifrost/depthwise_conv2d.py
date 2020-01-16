@@ -104,7 +104,7 @@ def schedule_depthwise_conv2d_nchw(outs):
             s[conv].compute_at(s[output], ji)
 
     def traverse(op):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:

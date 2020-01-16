@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file device_api.cc
  * \brief TVM device API for VTA
  */

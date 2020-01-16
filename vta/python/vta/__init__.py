@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""VTA Package is a TVM backend extension to support VTA hardwares
+"""VTA Package is a TVM backend extension to support VTA hardware.
 
-Besides the compiler toolchain.
-It also include utility functions to
-configure the hardware Environment and  access remote through RPC
+Besides the compiler toolchain, it also includes utility functions to
+configure the hardware environment and access remote device through RPC.
 """
 from __future__ import absolute_import as _abs
 
@@ -31,9 +30,8 @@ from .rpc_client import reconfig_runtime, program_fpga
 
 __version__ = "0.1.0"
 
-# do not import nnvm/topi when running vta.exec.rpc_server
+# do not import topi when running vta.exec.rpc_server
 # to maintain minimum dependency on the board
 if sys.argv[0] not in ("-c", "-m"):
     from . import top
     from .build_module import build_config, lower, build
-    from . import graph

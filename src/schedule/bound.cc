@@ -18,11 +18,9 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file bound.cc
  * \brief The bound inference logic.
  */
-#include <tvm/ir_visitor.h>
 #include <tvm/schedule_pass.h>
 #include <tvm/operation.h>
 #include <tvm/ir_pass.h>
@@ -48,7 +46,7 @@ struct GraphContext {
   /*! \brief The bind map */
   std::unordered_map<IterVar, IterVar> bind_map;
   /*! \brief map from op to stage */
-  std::unordered_map<const Node*, Stage> op2stage_;
+  std::unordered_map<const Object*, Stage> op2stage_;
 };
 
 bool NeedRelax(const IterVar& iv,
@@ -139,7 +137,7 @@ void InferRootBound(const Stage& stage,
   Array<IterVar> stage_attach = ctx.attach_path.at(stage->op);
   // The parent set.
   for (const Operation& op : consumers) {
-    std::unordered_map<const Variable*, IntSet> relax_set;
+    std::unordered_map<const VarNode*, IntSet> relax_set;
     std::unordered_map<IterVar, IntSet> up_state;
     bool found_attach = false;
     CHECK(ctx.op2stage_.count(op.get()));
@@ -190,7 +188,7 @@ void InferRootBound(const Stage& stage,
     // Get the domain of the consumer
     PassUpDomain(op_stage, *rmap, &up_state);
     // Relax if needed.
-    std::unordered_map<const Variable*, IntSet> dom_map;
+    std::unordered_map<const VarNode*, IntSet> dom_map;
     arith::Analyzer analyzer;
     for (auto iv : op->root_iter_vars()) {
       Range r;

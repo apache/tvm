@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Reorg op constructions
  * \file vision/reorg.h
  */
@@ -75,7 +74,7 @@ inline Tensor reorg(const Tensor &data,
   int out_h = h_in / stride;
   int out_w = w_in / stride;
 
-  Array<Expr> out_shape = {batch, out_c, out_h, out_w};
+  Array<PrimExpr> out_shape = {batch, out_c, out_h, out_w};
   return reshape(out, out_shape);
 }
 }  // namespace vision

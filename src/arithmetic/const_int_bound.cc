@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file tvm/arithmetic/const_int_bound.cc
  */
 #include <tvm/arithmetic.h>
@@ -36,7 +35,7 @@ TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
 ConstIntBound::ConstIntBound(
     int64_t min_value, int64_t max_value) {
-  auto node = make_node<ConstIntBoundNode>();
+  auto node = make_object<ConstIntBoundNode>();
   node->min_value = min_value;
   node->max_value = max_value;
   data_ = std::move(node);
@@ -52,8 +51,8 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, IRPrinter* p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const ConstIntBoundNode*>(node.get());
     p->stream << "ConstIntBound[";
     PrintBoundValue(p->stream, op->min_value);
@@ -77,17 +76,17 @@ struct ConstIntBoundAnalyzer::Entry {
 };
 
 class ConstIntBoundAnalyzer::Impl :
-      public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
+      public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
  public:
   /*! \brief additional bound info about expr \in bound */
   struct BoundInfo {
     /*! \brief The expr */
-    Expr expr;
+    PrimExpr expr;
     /*! \brief The additional bound */
     Entry bound;
 
     BoundInfo() {}
-    BoundInfo(Expr expr, Entry bound)
+    BoundInfo(PrimExpr expr, Entry bound)
         : expr(expr), bound(bound) {
     }
   };
@@ -124,12 +123,12 @@ class ConstIntBoundAnalyzer::Impl :
   }
 
   // Override visitor behaviors
-  Entry VisitExprDefault_(const Node* op) final {
+  Entry VisitExprDefault_(const Object* op) final {
     return Everything(
-        static_cast<const ExprNode*>(op)->type);
+        static_cast<const PrimExprNode*>(op)->dtype);
   }
 
-  Entry VisitExpr(const Expr& expr) final {
+  Entry VisitExpr(const PrimExpr& expr) final {
     Entry res = ExprFunctor::VisitExpr(expr);
     // a linear search over additional info
     // assume we won't have a lot of conditions
@@ -141,25 +140,17 @@ class ConstIntBoundAnalyzer::Impl :
     return res;
   }
 
-  Entry VisitExpr_(const Cast* op) final {
+  Entry VisitExpr_(const CastNode* op) final {
     Entry a = VisitExpr(op->value);
-    Entry b = Everything(op->type);
+    Entry b = Everything(op->dtype);
     return Intersect(a, b);
   }
 
-  Entry VisitExpr_(const IntImm* op) final {
+  Entry VisitExpr_(const IntImmNode* op) final {
     return MakeBound(op->value, op->value);
   }
 
-  Entry VisitExpr_(const UIntImm* op) final {
-    if (op->value <= static_cast<uint64_t>(kPosInf)) {
-      return MakeBound(op->value, op->value);
-    } else {
-      return Everything(op->type);
-    }
-  }
-
-  Entry VisitExpr_(const Add* op) final {
+  Entry VisitExpr_(const AddNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -168,7 +159,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Sub* op) final {
+  Entry VisitExpr_(const SubNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -177,13 +168,13 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Mul* op) final {
+  Entry VisitExpr_(const MulNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     return BinaryOpBoundry(a, b, InfAwareMul);
   }
 
-  Entry VisitExpr_(const Div* op) final {
+  Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "divide by zero";
@@ -193,7 +184,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareDiv);
   }
 
-  Entry VisitExpr_(const Mod* op) final {
+  Entry VisitExpr_(const ModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -212,11 +203,11 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
-  Entry VisitExpr_(const FloorDiv* op) final {
+  Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     CHECK(!b.is_const(0)) << "floordiv by zero";
@@ -226,7 +217,7 @@ class ConstIntBoundAnalyzer::Impl :
     return BinaryOpBoundry(a, b, InfAwareFloorDiv);
   }
 
-  Entry VisitExpr_(const FloorMod* op) final {
+  Entry VisitExpr_(const FloorModNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     if (b.min_value > 0) {
@@ -243,11 +234,11 @@ class ConstIntBoundAnalyzer::Impl :
       CHECK(!b.is_const(0)) << "floormod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
-  Entry VisitExpr_(const Min* op) final {
+  Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -256,7 +247,7 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Max* op) final {
+  Entry VisitExpr_(const MaxNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);
     Entry ret;
@@ -265,41 +256,41 @@ class ConstIntBoundAnalyzer::Impl :
     return ret;
   }
 
-  Entry VisitExpr_(const Select* op) final {
+  Entry VisitExpr_(const SelectNode* op) final {
     Entry a = VisitExpr(op->true_value);
     Entry b = VisitExpr(op->false_value);
     return Union(a, b);
   }
 
-  Entry VisitExpr_(const Call* op) final {
+  Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> and & which can be
     // used for index calculation.
-    if (op->is_intrinsic(Call::shift_right)) {
+    if (op->is_intrinsic(CallNode::shift_right)) {
       return VisitRightShift(op);
-    } else if (op->is_intrinsic(Call::bitwise_and)) {
+    } else if (op->is_intrinsic(CallNode::bitwise_and)) {
       return VisitBitwiseAnd(op);
     } else {
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
-  Entry VisitExpr_(const Variable* op) final {
+  Entry VisitExpr_(const VarNode* op) final {
     Var v = GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
       return it->second;
     } else {
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
-  Entry VisitRightShift(const Call* op) {
+  Entry VisitRightShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     return BinaryOpBoundry(a, b, InfAwareRightShift);
   }
 
-  Entry VisitBitwiseAnd(const Call* op) {
+  Entry VisitBitwiseAnd(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);
     // handle positive index case.
@@ -312,11 +303,11 @@ class ConstIntBoundAnalyzer::Impl :
       if (a.min_value >= 0) {
         return MakeBound(0, a.max_value);
       }
-      return Everything(op->type);
+      return Everything(op->dtype);
     }
   }
 
-  std::function<void()> EnterConstraint(const Expr& constraint) {
+  std::function<void()> EnterConstraint(const PrimExpr& constraint) {
     std::vector<BoundInfo> info = DetectBoundInfo(constraint);
     if (info.size() == 0) return nullptr;
     size_t old_size = additional_info_.size();
@@ -331,7 +322,7 @@ class ConstIntBoundAnalyzer::Impl :
 
  private:
   // internal variable map
-  std::unordered_map<Var, Entry, ExprHash, ExprEqual> var_map_;
+  std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // constants: the limit value means umlimited
@@ -376,7 +367,7 @@ class ConstIntBoundAnalyzer::Impl :
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
-    if (WillOverflow<Add>(x, y, kNegInf, kPosInf)) {
+    if (WillOverflow<AddNode>(x, y, kNegInf, kPosInf)) {
       if (x > 0) return kPosInf;
       return kNegInf;
     }
@@ -389,7 +380,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \return the result.
    */
   static int64_t InfAwareMul(int64_t x, int64_t y) {
-    if (!WillOverflow<Mul>(x, y, kNegInf, kPosInf)) return x * y;
+    if (!WillOverflow<MulNode>(x, y, kNegInf, kPosInf)) return x * y;
     if ((x > 0 && y > 0) || (x < 0 && y < 0)) return kPosInf;
     return kNegInf;
   }
@@ -467,7 +458,7 @@ class ConstIntBoundAnalyzer::Impl :
    * \param dtype The data type.
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Everything(Type dtype) {
+  static Entry Everything(DataType dtype) {
     if (!dtype.is_int() && !dtype.is_uint()) {
       return MakeBound(kNegInf, kPosInf);
     }
@@ -495,9 +486,9 @@ class ConstIntBoundAnalyzer::Impl :
    * \param cond The constraint condition.
    * \return List of detected bounds.
    */
-  static std::vector<BoundInfo> DetectBoundInfo(const Expr& cond) {
-    PVar<Expr> x, y;
-    PVar<Integer> c;
+  static std::vector<BoundInfo> DetectBoundInfo(const PrimExpr& cond) {
+    PVar<PrimExpr> x, y;
+    PVar<IntImm> c;
     // NOTE: canonical form always use <= or <
     if ((c <= x).Match(cond)) {
       return {BoundInfo(x.Eval(), MakeBound(c.Eval()->value, kPosInf))};
@@ -521,7 +512,7 @@ class ConstIntBoundAnalyzer::Impl :
   }
 };
 
-ConstIntBound ConstIntBoundAnalyzer::operator()(const Expr& expr) {
+ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
   Entry ret = impl_->VisitExpr(expr);
   return ConstIntBound(ret.min_value, ret.max_value);
 }
@@ -536,7 +527,7 @@ void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range) {
   impl_->Bind(var, range);
 }
 
-std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const Expr& constraint) {
+std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
 }
 

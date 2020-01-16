@@ -29,8 +29,8 @@ def test_operator_type_and_tags():
     B1 = B[0]
     B2 = B[0,0]
 
-    assert isinstance(k + n, tvm.expr.Expr)
-    assert isinstance(n + n, tvm.expr.Expr)
+    assert isinstance(k + n, tvm.expr.PrimExpr)
+    assert isinstance(n + n, tvm.expr.PrimExpr)
     assert isinstance(k + A, tvm.tensor.Tensor)
     assert isinstance(A + k, tvm.tensor.Tensor)
     assert isinstance(n + A, tvm.tensor.Tensor)
@@ -53,11 +53,11 @@ def test_operator_type_and_tags():
     assert (B + A).op.tag == topi.tag.BROADCAST
     assert (B + B).op.tag == topi.tag.BROADCAST
 
-    assert isinstance(k + B2, tvm.expr.Expr)
-    assert isinstance(B2 + k, tvm.expr.Expr)
-    assert isinstance(n + B2, tvm.expr.Expr)
-    assert isinstance(B2 + n, tvm.expr.Expr)
-    assert isinstance(B2 + B2, tvm.expr.Expr)
+    assert isinstance(k + B2, tvm.expr.PrimExpr)
+    assert isinstance(B2 + k, tvm.expr.PrimExpr)
+    assert isinstance(n + B2, tvm.expr.PrimExpr)
+    assert isinstance(B2 + n, tvm.expr.PrimExpr)
+    assert isinstance(B2 + B2, tvm.expr.PrimExpr)
     assert isinstance(B2 + A, tvm.tensor.Tensor)
     assert isinstance(A + B2, tvm.tensor.Tensor)
     assert isinstance(B2 + B, tvm.tensor.Tensor)

@@ -61,7 +61,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.6.dev"
+#define TVM_VERSION "0.6.0"
 
 
 // TVM Runtime is DLPack compatible.
@@ -136,7 +136,7 @@ typedef DLDataType TVMType;
 typedef DLContext TVMContext;
 
 /*!
- * \brief The tensor array stucture to TVM API.
+ * \brief The tensor array structure to TVM API.
  */
 typedef DLTensor TVMArray;
 
@@ -233,14 +233,6 @@ TVM_DLL int TVMModGetFunction(TVMModuleHandle mod,
                               const char* func_name,
                               int query_imports,
                               TVMFunctionHandle *out);
-
-/*!
- * \brief Free front-end extension type resource.
- * \param handle The extension handle.
- * \param type_code The type of of the extension type.
- * \return 0 when success, -1 when failure happens
- */
-TVM_DLL int TVMExtTypeFree(void* handle, int type_code);
 
 /*!
  * \brief Free the Module

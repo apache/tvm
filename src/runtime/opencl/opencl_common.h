@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opencl_common.h
  * \brief OpenCL common header
  */

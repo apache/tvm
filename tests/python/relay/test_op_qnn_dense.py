@@ -19,6 +19,15 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
+from tvm.relay.testing.temp_op_attr import TempOpAttr
+
+
+# We use llvm target for testing functionality. `llvm` points to an older Intel
+# generation machine, that legalizes to a simple lowering. Therefore, the
+# legalization is overwritten such that it can be skipped and we use the
+# QNNCanonicalizeOps lowering for the testing.
+def legalize_qnn_dense(attrs, inputs, types):
+    return None
 
 
 def make_requantize_params(input_scale, output_scale, output_zero_point, out_dtype):
@@ -170,10 +179,10 @@ def qnn_dense_driver(test_configuration):
     mod = relay.qnn.op.dense(
         quantized_data,
         quantized_kernel,
-        test_configuration['input_zero_point'],
-        test_configuration['kernel_zero_point'],
-        test_configuration['input_scale'],
-        test_configuration['kernel_scale'],
+        relay.const(test_configuration['input_zero_point'], 'int32'),
+        relay.const(test_configuration['kernel_zero_point'], 'int32'),
+        relay.const(test_configuration['input_scale'], 'float32'),
+        relay.const(test_configuration['kernel_scale'], 'float32'),
         test_configuration['units'])
     if test_configuration[bias_name] is not None:
         bias = relay.var(bias_name,
@@ -184,10 +193,10 @@ def qnn_dense_driver(test_configuration):
         requantize_config = test_configuration['requantize']
         mod = relay.qnn.op.requantize(
             mod,
-            input_scale=requantize_config['input_scale'],
-            input_zero_point=0,
-            output_scale=requantize_config['output_scale'],
-            output_zero_point=requantize_config['output_zero_point'],
+            input_scale=relay.const(requantize_config['input_scale'], 'float32'),
+            input_zero_point=relay.const(0, 'int32'),
+            output_scale=relay.const(requantize_config['output_scale'], 'float32'),
+            output_zero_point=relay.const(requantize_config['output_zero_point'], 'int32'),
             out_dtype=requantize_config['out_dtype'])
         expected_out_dtype = requantize_config['out_dtype']
 
@@ -209,21 +218,27 @@ def qnn_dense_driver(test_configuration):
 
 
 def test_qnn_dense_without_bias():
-    int32_output_without_bias_params = \
-        make_int_configuration(use_bias=False)
-    qnn_dense_driver(int32_output_without_bias_params)
+    with TempOpAttr("qnn.dense", "FTVMQnnLegalize", legalize_qnn_dense):
+
+        int32_output_without_bias_params = \
+            make_int_configuration(use_bias=False)
+        qnn_dense_driver(int32_output_without_bias_params)
 
 
 def test_qnn_dense_with_bias():
-    int32_output_with_bias_params = \
-        make_int_configuration(use_bias=True)
-    qnn_dense_driver(int32_output_with_bias_params)
+    with TempOpAttr("qnn.dense", "FTVMQnnLegalize", legalize_qnn_dense):
+
+        int32_output_with_bias_params = \
+            make_int_configuration(use_bias=True)
+        qnn_dense_driver(int32_output_with_bias_params)
 
 
 def test_qnn_dense_with_requantized_output():
-    int8_requantized_output_with_bias_params = \
-        make_int_configuration(use_bias=True, requantize_output=True)
-    qnn_dense_driver(int8_requantized_output_with_bias_params)
+    with TempOpAttr("qnn.dense", "FTVMQnnLegalize", legalize_qnn_dense):
+
+        int8_requantized_output_with_bias_params = \
+            make_int_configuration(use_bias=True, requantize_output=True)
+        qnn_dense_driver(int8_requantized_output_with_bias_params)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ def test_basic():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body.first))
+    assert('if' not in str(stmt.body.body.body[0]))
 
 def test_const_loop():
     n = 21
@@ -79,7 +79,7 @@ def test_const_loop():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body.first))
+    assert('if' not in str(stmt.body.body.body[0]))
 
 def test_multi_loop():
     ib = tvm.ir_builder.create()
@@ -95,7 +95,7 @@ def test_multi_loop():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert(not any(collect_visit(stmt.body.first, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+    assert(not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_multi_if():
     ib = tvm.ir_builder.create()
@@ -115,7 +115,7 @@ def test_multi_if():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.first))
+    assert('if' not in str(stmt.body[0]))
 
 def test_thread_axis():
     m = tvm.var('m')
@@ -134,7 +134,7 @@ def test_thread_axis():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body.first))
+    assert('if' not in str(stmt.body.body.body[0]))
 
 def test_vectorize():
     n = tvm.var('n')
@@ -169,7 +169,7 @@ def test_condition():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
+    assert(not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.expr.Select))))
 
 def test_condition_EQ():
     ib = tvm.ir_builder.create()
@@ -181,7 +181,7 @@ def test_condition_EQ():
     stmt = ib.get()
     stmt = tvm.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert(not any(collect_visit(stmt.first, lambda x: isinstance(x, tvm.expr.Select))))
+    assert(not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.expr.Select))))
 
 def test_thread_axis2():
     n = tvm.convert(4096)
@@ -197,7 +197,7 @@ def test_thread_axis2():
     s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     stmt = lower(s, [A, B])
-    for_body = stmt.body.body.body.body.body.first
+    for_body = stmt.body.body.body.body.body[0]
     assert('threadIdx' not in str(for_body.extent))
 
 def test_everything_during_deduction():

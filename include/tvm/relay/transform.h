@@ -19,317 +19,31 @@
 
 /*!
  * \file tvm/relay/transform.h
- *
- * This file implements a pass manager. The pass manager manages a sequence
- * of Relay-to-Relay transformation passes over a particlar unit of AST. The
- * design is largely inspired from LLVM's pass manager and modern deep learning
- * frameworks that perform tensor->tensor transformations.
- *
- * The responsibilities of a traditional compiler pass manager usually involves:
- *  - Organizing the execution order of optimization passes though not
- * necessarily in the optimal sequence.
- *  - Collecting required analysis information and keep them up-to-date.
- *  - Reducing the effort required to implement new passes for compiler
- * developers, etc.
- *
- * Similar to LLVM's pass manager, we designed the Relay pass manager to work
- * different granularity, i.e. module level, function level, and even sequential
- * passe that contains a host of passes.
- *
- * However, we also extend the functionality of the traditional pass manager
- * with the consideration of requirements/convention from deep learning
- * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relay pass
- * manager performs the Relay.Module -> Relay.Module transformation. All
- * different types of passes, including the sequential-level pass object, are
- * essentially pass objects. This design, therefore, effectively provides users
- * a consistent and convenient interface, i.e. Pass, to play with. It offers a
- * means to ease the development and testing of Relay passes. For example, with
- * the pass manager, external users will be able to have custom passes correctly
- * scheduled without having to modify a single handcrafted pass order.
- *
- * In the future we need to describe constraints between passes. For example,
- * we may want to preserve dependencies between different passes and validate
- * them on the completion of a certain pass.
- *
- * We also need to store side information and import the error reporting system.
+ * \brief Relay specific transformation passes.
  */
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
-#include <tvm/base.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/transform.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/op.h>
+
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace tvm {
 namespace relay {
 namespace transform {
 
-/*
- * \brief The context of pass.
- */
-class PassContext;
-
-/*!
- * \brief PassContextNode contains the information that a pass can rely on,
- * such as analysis results.
- */
-class PassContextNode : public RelayNode {
- public:
-  /*!
-   * \brief The error reporter used to notify users why an optimization fails.
-   */
-  ErrorReporter err_reporter;
-
-  /*! \brief The default optimization level. */
-  int opt_level{2};
-
-  /*! \brief CPU is the default fallback device for heterogeneous execution. */
-  int fallback_device{static_cast<int>(kDLCPU)};
-
-  /*! \brief The list of required passes. */
-  tvm::Array<tvm::Expr> required_pass;
-  /*! \brief The list of disabled passes. */
-  tvm::Array<tvm::Expr> disabled_pass;
-
-  PassContextNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("fallback_device", &fallback_device);
-    v->Visit("required_pass", &required_pass);
-    v->Visit("disabled_pass", &disabled_pass);
-  }
-
-  static constexpr const char* _type_key = "relay.PassContext";
-  TVM_DECLARE_NODE_TYPE_INFO(PassContextNode, RelayNode);
-};
-
-/*!
- * \brief PassContext that is used to configure the pass behavior.
- *
- * \code
- *
- *  auto new_ctx = PassContext::Create();
- *  ctx->opt_level = 2;
- *  ctx->fallback_device = kDLCPU;
- *  With<PassContext> scope(ctx);
- *  // pass context in effect.
- *
- * \endcode
- */
-class PassContext : public NodeRef {
- public:
-  PassContext() {}
-  explicit PassContext(NodePtr<::tvm::Node> n) : NodeRef(n) {}
-  /*!
-   * \brief const accessor.
-   * \return const access pointer.
-   */
-  const PassContextNode* operator->() const {
-    CHECK(get() != nullptr);
-    return static_cast<const PassContextNode*>(get());
-  }
-  /*!
-   * \brief mutable accessor.
-   * \return mutable access pointer.
-   */
-  PassContextNode* operator->() {
-    CHECK(get() != nullptr);
-    return static_cast<PassContextNode*>(get_mutable());
-  }
-  /*!
-   * \brief Construct a PassContext containing the default configurations.
-   * \return The new PassContext.
-   */
-  TVM_DLL static PassContext Create();
-  /*!
-   * \brief Get the default pass context in the current scope.
-   * \return The pass context.
-   */
-  TVM_DLL static PassContext Current();
-
-  // accessor.
-  using ContainerType = PassContextNode;
-  class Internal;
-
- private:
-  // The entry of a pass context scope.
-  TVM_DLL void EnterWithScope();
-  // The exit of a pass context scope.
-  TVM_DLL void ExitWithScope();
-
-  // Classes to get the Python `with` like syntax.
-  friend class Internal;
-  friend class tvm::With<PassContext>;
-};
-
-/*
- * \brief The meta data of a pass.
- *
- * PassInfo can be extended conveniently in the future if more meta information
- * is needed.
- */
-class PassInfo;
-
-/*!
- * \brief PassInfoNode contains meta data that will be used to help optimization
- * and analysis.
- */
-class PassInfoNode : public RelayNode {
- public:
-  /*! \brief The minimal optimization level that this pass will be enabled. */
-  int opt_level;
-
-  /*! \brief The name of an optimization/analysis pass. */
-  std::string name;
-
-  /*! \brief The passes that are required to perform the current pass. */
-  tvm::Array<tvm::Expr> required;
-
-  PassInfoNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("name", &name);
-    v->Visit("required", &required);
-  }
-
-  TVM_DLL static PassInfo make(int opt_level,
-                               std::string name,
-                               tvm::Array<tvm::Expr> required);
-
-  static constexpr const char* _type_key = "relay.PassInfo";
-  TVM_DECLARE_NODE_TYPE_INFO(PassInfoNode, RelayNode);
-};
-
-TVM_DEFINE_NODE_REF(PassInfo, PassInfoNode)
-
-class Pass;
-
-/*!
- * \brief PassNode is the base type of differnt types of optimization passes.
- * It is designed as a pure class and implemented by different pass subclasses
- * at different granularity of Relay nodes.
- */
-class PassNode : public RelayNode {
- public:
-  virtual ~PassNode() {}
-  /*!
-   * \brief Get the pass information/meta data. */
-  virtual PassInfo Info() const = 0;
-
-  /*!
-   * \brief Transform mod using the default PassContext in the current scope.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The transformed module.
-   */
-  Module operator()(const Module& mod) const {
-    return this->operator()(mod, PassContext::Current());
-  }
-
-  /*!
-   * \brief Transform mod using a functor under a given pass context.
-   *
-   * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The pass context that can provide information for the optimization.
-   *
-   * \return The transformed module.
-   */
-  virtual Module operator()(const Module& mod,
-                            const PassContext& pass_ctx) const = 0;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  static constexpr const char* _type_key = "relay.Pass";
-  TVM_DECLARE_BASE_NODE_INFO(PassNode, RelayNode);
-};
-
-class Pass : public NodeRef {
- public:
-  /*!
-   * \brief Transform mod using the default PassContext in the current scope.
-   *
-   * \param mod The module that an optimization pass runs on.
-   *
-   * \return The transformed module.
-   */
-  Module operator()(const Module& mod) const {
-    const PassNode* node = operator->();
-    CHECK(node != nullptr);
-    return node->operator()(mod);
-  }
-  /*!
-   * \brief Transform mod using a functor under a given pass context.
-   *
-   * \param mod The module that an optimization pass runs on.
-   * \param pass_ctx The pass context that can provide information for the optimization.
-   *
-   * \return The transformed module.
-   */
-  Module operator()(const Module& mod,
-                    const PassContext& pass_ctx) const {
-    const PassNode* node = operator->();
-    CHECK(node != nullptr);
-    return node->operator()(mod, pass_ctx);
-  }
-
-  TVM_DEFINE_NODE_REF_METHODS(Pass, NodeRef, PassNode);
-};
-
-class SequentialNode;
-
-class Sequential : public Pass {
- public:
-  /*!
-   * \brief The constructor of `Sequential`.
-   *
-   * \param passes The passes to apply.
-   * \param pass_info The pass metadata.
-   */
-  TVM_DLL Sequential(tvm::Array<Pass> passes, PassInfo pass_info);
-
-  /*!
-   * \brief The constructor of `Sequential`.
-   *
-   * \param passes The passes to apply.
-   * \param name The name of a sequential pass. It's defaulted to "sequential".
-   *        This allows users to only provide a list of passes and execute them
-   *        under a given context.
-   */
-  TVM_DLL Sequential(tvm::Array<Pass> passes, std::string name = "sequential");
-
-  Sequential() = default;
-  explicit Sequential(tvm::NodePtr<::tvm::Node> n) : Pass(n) {}
-
-  const SequentialNode* operator->() const;
-  using ContainerType = Sequential;
-};
-
-/*
- * \brief Create a module pass.
- *
- * \param pass_func The packed function that contains the optimization.
- * \param opt_level The optimization level of the module pass.
- * \param name The name of the module pass.
- * \param required The list of the passes that the module pass is dependent on.
- *
- * \return The created module pass.
- */
-Pass CreateModulePass(
-    const runtime::TypedPackedFunc<Module(Module, PassContext)>& pass_func,
-    int opt_level,
-    const std::string& name,
-    const tvm::Array<tvm::Expr>& required);
+using Pass = tvm::transform::Pass;
+using PassNode = tvm::transform::PassNode;
+using PassInfo = tvm::transform::PassInfo;
+using PassInfoNode = tvm::transform::PassInfoNode;
+using PassContext = tvm::transform::PassContext;
+using PassContextNode = tvm::transform::PassContextNode;
+using Sequential = tvm::transform::Sequential;
 
 /*
  * \brief Create a function pass.
@@ -342,10 +56,10 @@ Pass CreateModulePass(
  * \return The created function pass.
  */
 TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
-                                Function(Function, Module, PassContext)>& pass_func,
+                                Function(Function, IRModule, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
-                                const tvm::Array<tvm::Expr>& required);
+                                const tvm::Array<tvm::PrimExpr>& required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -533,6 +247,26 @@ TVM_DLL Pass CanonicalizeOps();
 TVM_DLL Pass AlterOpLayout();
 
 /*!
+ * \brief Given a dest layout, this pass transforms the expr such that most of the ops input data
+ * layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms, one
+ * at the start and one at the end.
+ *
+ * This pass is not a part of relay.build and is expected to be called between framework-relay
+ * parser and relay.build call. This is very helpful for hardware backends that support/prefer only
+ * type of data layout.
+ *
+ * RFC - https://discuss.tvm.ai/t/layout-conversion-pass/4009
+ *
+ * This pass uses most of the AlterOpLayout and InferCorrectLayout infrastructure. We can define new
+ * layouts for conv2d ops for now. Most of the other operators try to adapt to their input layout
+ * using the InferCorrectLayout infrastructure.
+ *
+ * \param desired_layout The desired layout.
+ * \return The pass.
+ */
+TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+
+/*!
  * \brief Legalizes an expr with another expression.
  * \param legalize_map_attr_name The Op's attr name which corresponds to the legalize rule function.
  * One can collect and isolate similar type of legalize transformations using this param. For
@@ -576,6 +310,14 @@ TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
  */
 TVM_DLL Pass PrintIR(bool show_meta_data = true);
 
+/*!
+ * \brief Partition a Relay program into regions that can be executed on
+ * different backends.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass PartitionGraph();
+
 }  // namespace transform
 
 /*!
@@ -601,7 +343,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  * \note this function mutates mod and is not thread-safe.
  */
 TVM_DLL Function InferType(const Function& f,
-                           const Module& mod,
+                           const IRModule& mod,
                            const GlobalVar& var);
 
 /*!
@@ -618,7 +360,7 @@ TVM_DLL Function InferType(const Function& f,
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             const std::string& rewrite_map_attr_name,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
@@ -635,7 +377,7 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr,
  */
 TVM_DLL Expr ForwardRewrite(const Expr& expr,
                             const FForwardRewrite& rewrite_func,
-                            std::function<NodeRef(const Call&)> fcontext = nullptr,
+                            std::function<ObjectRef(const Call&)> fcontext = nullptr,
                             std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
 
 /*!
@@ -666,7 +408,7 @@ TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
  *
  * \return the converted Function.
  */
-TVM_DLL Function ToCPS(const Function& f, const Module& mod);
+TVM_DLL Function ToCPS(const Function& f, const IRModule& mod);
 
 /*!
  * \brief Remove the continuation argument of a CPS function.

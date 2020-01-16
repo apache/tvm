@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file Use external rocblas library call.
  */
 #include <tvm/runtime/registry.h>
