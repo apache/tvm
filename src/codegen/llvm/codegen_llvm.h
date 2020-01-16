@@ -25,10 +25,10 @@
 #define TVM_CODEGEN_LLVM_CODEGEN_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
-#include <tvm/arithmetic.h>
 #include <memory>
 #include <utility>
 #include <vector>

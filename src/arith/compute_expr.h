@@ -21,8 +21,8 @@
  * \file compute_expr.h
  * \brief Utility to invoke certan compute operations.
  */
-#ifndef TVM_ARITHMETIC_COMPUTE_EXPR_H_
-#define TVM_ARITHMETIC_COMPUTE_EXPR_H_
+#ifndef TVM_ARITH_COMPUTE_EXPR_H_
+#define TVM_ARITH_COMPUTE_EXPR_H_
 
 #include <tvm/ir.h>
 #include <limits>
@@ -126,4 +126,4 @@ inline PrimExpr ComputeReduce(const Array<PrimExpr>& values, PrimExpr empty_valu
 
 }  // namespace arith
 }  // namespace tvm
-#endif   // TVM_ARITHMETIC_COMPUTE_EXPR_H_
+#endif   // TVM_ARITH_COMPUTE_EXPR_H_

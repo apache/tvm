@@ -28,7 +28,7 @@
 #include <tvm/expr.h>
 #include <tvm/schedule.h>
 #include <tvm/operation.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

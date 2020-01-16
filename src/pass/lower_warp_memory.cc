@@ -25,12 +25,15 @@
  */
 // Thanks to Andrew Adams and Vinod Grover for
 // explaining the concept of warp shuffle.
+#include <tvm/arith/pattern.h>
+#include <tvm/arith/analyzer.h>
+
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

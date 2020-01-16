@@ -22,7 +22,7 @@
  */
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/operation.h>
@@ -35,8 +35,8 @@
 #include <unordered_map>
 #include "ir_util.h"
 #include "arg_binder.h"
-#include "../arithmetic/compute_expr.h"
-#include "../arithmetic/ir_visitor_with_analyzer.h"
+#include "../arith/compute_expr.h"
+#include "../arith/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

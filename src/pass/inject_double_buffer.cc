@@ -25,7 +25,7 @@
 #include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {

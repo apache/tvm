@@ -25,7 +25,7 @@
 #define TVM_BUILD_MODULE_H_
 
 #include <tvm/target/target.h>
-
+#include <tvm/support/with.h>
 #include <string>
 #include <vector>
 #include <utility>

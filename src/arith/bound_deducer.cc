@@ -24,14 +24,14 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
 
 #include <unordered_set>
 #include <unordered_map>
-#include "int_set.h"
+#include "interval_set.h"
 
 namespace tvm {
 namespace arith {
