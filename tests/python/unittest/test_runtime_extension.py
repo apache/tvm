@@ -19,7 +19,7 @@ import numpy as np
 
 @tvm.register_extension
 class MyTensorView(object):
-    _tvm_tcode = tvm.TypeCode.ARRAY_HANDLE
+    _tvm_tcode = tvm.TypeCode.DLTENSOR_HANDLE
     def __init__(self, arr):
         self.arr = arr
 

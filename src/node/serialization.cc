@@ -39,11 +39,11 @@
 namespace tvm {
 
 inline std::string Type2String(const DataType& t) {
-  return runtime::TVMType2String(t);
+  return runtime::DLDataType2String(t);
 }
 
 inline DataType String2Type(std::string s) {
-  return DataType(runtime::String2TVMType(s));
+  return DataType(runtime::String2DLDataType(s));
 }
 
 // indexer to index all the nodes

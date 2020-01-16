@@ -97,7 +97,7 @@ runtime::TVMRetValue ReflectionVTable::GetAttr(
     success = true;
   } else if (!self->IsInstance<DictAttrsNode>()) {
     VisitAttrs(self, &getter);
-    success = getter.found_ref_object || ret.type_code() != kNull;
+    success = getter.found_ref_object || ret.type_code() != kTVMNullptr;
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
@@ -258,13 +258,13 @@ void InitNodeByPackedArgs(Object* n, const TVMArgs& args) {
 
 // Expose to FFI APIs.
 void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kObjectHandle);
+  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
   *ret = ReflectionVTable::Global()->GetAttr(self, args[1]);
 }
 
 void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
-  CHECK_EQ(args[0].type_code(), kObjectHandle);
+  CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
   Object* self = static_cast<Object*>(args[0].value().v_handle);
 
   auto names = std::make_shared<std::vector<std::string> >(

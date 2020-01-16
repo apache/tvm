@@ -932,7 +932,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    PrintKV(key, PrintString(runtime::TVMType2String(*value)));
+    PrintKV(key, PrintString(runtime::DLDataType2String(*value)));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";

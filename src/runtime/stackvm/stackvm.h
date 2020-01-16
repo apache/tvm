@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -358,9 +358,9 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetLoad(TVMType t) {
+  static OpCode GetLoad(DLDataType t) {
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) return ARRAY_LOAD_HANDLE;
+    if (t.code == kTVMOpaqueHandle) return ARRAY_LOAD_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_LOAD_INT32;
@@ -383,9 +383,9 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetStore(TVMType t) {
+  static OpCode GetStore(DLDataType t) {
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) return ARRAY_STORE_HANDLE;
+    if (t.code == kTVMOpaqueHandle) return ARRAY_STORE_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_STORE_INT32;

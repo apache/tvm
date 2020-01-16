@@ -46,7 +46,7 @@ namespace runtime {
 namespace vm {
 
 
-inline Storage make_storage(size_t size, size_t alignment, TVMType dtype_hint, TVMContext ctx) {
+inline Storage make_storage(size_t size, size_t alignment, DLDataType dtype_hint, TVMContext ctx) {
   // We could put cache in here, from ctx to storage allocator.
   auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
   auto alloc = MemoryManager::Global()->GetAllocator(ctx);
@@ -336,7 +336,7 @@ Instruction Instruction::AllocTensorReg(
 
 Instruction Instruction::AllocStorage(RegName size,
                                       Index alignment,
-                                      TVMType dtype_hint,
+                                      DLDataType dtype_hint,
                                       Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
@@ -587,7 +587,7 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
         instr.dst << " $" <<
         instr.alloc_storage.allocation_size << " $" <<
         instr.alloc_storage.alignment << " " <<
-        TVMType2String(instr.alloc_storage.dtype_hint);
+        DLDataType2String(instr.alloc_storage.dtype_hint);
       break;
     }
     default:
@@ -1019,7 +1019,7 @@ void VirtualMachine::RunLoop() {
         DLOG(INFO) <<
           "AllocStorage: allocation_size=" << size <<
           "alignment=" << alignment <<
-          "dtype_hint=" << TVMType2String(instr.alloc_storage.dtype_hint);
+          "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);
 
         auto storage = make_storage(size, alignment, instr.alloc_storage.dtype_hint, ctxs_[0]);
         WriteRegister(instr.dst, storage);

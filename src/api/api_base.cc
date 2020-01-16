@@ -32,7 +32,7 @@
 namespace tvm {
 TVM_REGISTER_GLOBAL("_format_str")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    CHECK(args[0].type_code() == kObjectHandle);
+    CHECK(args[0].type_code() == kTVMObjectHandle);
     std::ostringstream os;
     os << args[0].operator ObjectRef();
     *ret = os.str();
@@ -40,7 +40,7 @@ TVM_REGISTER_GLOBAL("_format_str")
 
 TVM_REGISTER_GLOBAL("_raw_ptr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    CHECK(args[0].type_code() == kObjectHandle);
+    CHECK(args[0].type_code() == kTVMObjectHandle);
     *ret = reinterpret_cast<int64_t>(args[0].value().v_handle);
   });
 

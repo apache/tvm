@@ -52,7 +52,7 @@ void ConvolutionForward(
   // Set Ctx
   entry_ptr->conv_entry.ctx = x->ctx;
   // Set Data Type
-  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
   cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
   // Dims includes N and C
   int full_dims = dims + 2;
@@ -194,8 +194,8 @@ void OutputShape(
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Data Type
-  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
-  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(data_dtype));
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
+  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(data_dtype));
   // Set Format
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // Dims includes N and C
@@ -276,8 +276,8 @@ void FindAlgo(
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
 
   // Set Data Type
-  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(conv_dtype));
-  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2TVMType(data_dtype));
+  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
+  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(data_dtype));
   // Set Format
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // Dims includes N and C

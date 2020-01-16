@@ -36,7 +36,7 @@ namespace runtime {
  * \param bits The number of bits to be matched.
  * \param lanes The number of lanes in the type.
  */
-inline bool TypeMatch(TVMType t, int code, int bits, int lanes = 1) {
+inline bool TypeMatch(DLDataType t, int code, int bits, int lanes = 1) {
   return t.code == code && t.bits == bits && t.lanes == lanes;
 }
 /*!
@@ -44,7 +44,7 @@ inline bool TypeMatch(TVMType t, int code, int bits, int lanes = 1) {
  * \param lhs The left operand.
  * \param rhs The right operand.
  */
-inline bool TypeEqual(TVMType lhs, TVMType rhs) {
+inline bool TypeEqual(DLDataType lhs, DLDataType rhs) {
   return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
 }
 }  // namespace runtime

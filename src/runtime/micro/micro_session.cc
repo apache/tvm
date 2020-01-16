@@ -333,9 +333,9 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 
   for (int i = 0; i < num_args; i++) {
     switch (type_codes[i]) {
-      case kNDArrayContainer:
-      case kArrayHandle: {
-        TVMArray* base_arr_handle = args[i];
+      case kTVMNDArrayHandle:
+      case kTVMDLTensorHandle: {
+        DLTensor* base_arr_handle = args[i];
         // All uTVM arrays store a `MicroDevSpace` struct in their `data` field,
         // which wraps the actual data and stores a reference to the session, in
         // order to prevent premature session destruction.
@@ -371,7 +371,7 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 }
 
 template <typename T>
-DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr) {
+DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr) {
   auto tvm_arr_slot = encoder->Alloc<T>();
   auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
@@ -396,7 +396,7 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMAr
       strides_dev_addr.value(),
       TargetVal { .val64 = arr.byte_offset });
   CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
-    << "attempt to write TVMArray with non-micro device type";
+    << "attempt to write DLTensor with non-micro device type";
   // Update the device type to CPU, because from the microcontroller's
   // perspective, it is.
   dev_arr.ctx.device_type = DLDeviceType::kDLCPU;

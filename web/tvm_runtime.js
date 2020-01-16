@@ -95,16 +95,16 @@ var tvm_runtime = tvm_runtime || {};
     var kInt = 0;
     var kUInt = 1;
     var kFloat = 2;
-    var kHandle = 3;
+    var kTVMOpaqueHandle = 3;
     var kNull = 4;
-    var kTVMType = 5;
+    var kTVMDataType = 5;
     var kTVMContext = 6;
-    var kArrayHandle = 7;
-    var kObjectHandle = 8;
-    var kModuleHandle = 9;
-    var kFuncHandle = 10;
-    var kStr = 11;
-    var kBytes = 12;
+    var kTVMDLTensorHandle = 7;
+    var kTVMObjectHandle = 8;
+    var kTVMModuleHandle = 9;
+    var kTVMPackedFuncHandle = 10;
+    var kTVMStr = 11;
+    var kTVMBytes = 12;
     //-----------------------------------------
     // TVM CWrap library
     // ----------------------------------------
@@ -427,7 +427,7 @@ var tvm_runtime = tvm_runtime || {};
           code = kUInt;
         } else if (pattern.substring(0, 6) == "handle") {
           pattern = pattern.substring(5, pattern.length);
-          code = kHandle;
+          code = kTVMOpaqueHandle;
           bits = 64;
         } else {
           throw throwError("Unknown dtype " + dtype);
@@ -453,11 +453,11 @@ var tvm_runtime = tvm_runtime || {};
       case kInt:
       case kUInt: return Module.getValue(vptr, "i64");
       case kFloat: return Module.getValue(vptr, "double");
-      case kFuncHandle: return makeTVMFunction(Module.getValue(vptr, "*"));
-      case kModuleHandle: return new TVMModule(Module.getValue(vptr, "*"));
+      case kTVMPackedFuncHandle: return makeTVMFunction(Module.getValue(vptr, "*"));
+      case kTVMModuleHandle: return new TVMModule(Module.getValue(vptr, "*"));
       case kNull: return null;
-      case kStr: return CStringToJS(Module.getValue(vptr, "*"));
-      case kBytes: return CBytesToJS(Module.getValue(vptr, "*"));
+      case kTVMStr: return CStringToJS(Module.getValue(vptr, "*"));
+      case kTVMBytes: return CBytesToJS(Module.getValue(vptr, "*"));
       default: throwError("Unsupported return type code=" + tcode);
       }
     }
@@ -497,9 +497,9 @@ var tvm_runtime = tvm_runtime || {};
       for (var i = 0; i < nargs; ++i) {
         var vptr = arg_value + i * SIZEOF_TVMVALUE;
         var tcode = Module.getValue(arg_tcode + i * SIZEOF_INT, "i32");
-        if (tcode == kObjectHandle ||
-            tcode == kFuncHandle ||
-            tcode == kModuleHandle) {
+        if (tcode == kTVMObjectHandle ||
+            tcode == kTVMPackedFuncHandle ||
+            tcode == kTVMModuleHandle) {
           TVM_CALL(TVMCbArgToReturn(vptr, tcode));
         }
         args.push(TVMRetValueToJS(vptr, tcode));
@@ -630,7 +630,7 @@ var tvm_runtime = tvm_runtime || {};
         var sdata = new CBuffer(value.length + 1);
         Module.HEAPU8.set(StringToUint8Array(value), sdata.data);
         this.temp.push(sdata);
-        Module.setValue(this.tcode + index * SIZEOF_INT, kStr, "i32");
+        Module.setValue(this.tcode + index * SIZEOF_INT, kTVMStr, "i32");
         Module.setValue(this.value + index * SIZEOF_TVMVALUE, sdata.data, "*");
       },
       setBytes : function(index, value) {
@@ -642,7 +642,7 @@ var tvm_runtime = tvm_runtime || {};
         Module.setValue(sheader.data + SIZEOF_POINTER, value.length, "i32");
         this.temp.push(sdata);
         this.temp.push(sheader);
-        Module.setValue(this.tcode + index * SIZEOF_INT, kBytes, "i32");
+        Module.setValue(this.tcode + index * SIZEOF_INT, kTVMBytes, "i32");
         Module.setValue(this.value + index * SIZEOF_TVMVALUE, sheader.data, "*");
       },
       setArguments : function(args) {
@@ -650,7 +650,7 @@ var tvm_runtime = tvm_runtime || {};
           var v = args[i];
           var tp = typeof v;
           if (v instanceof NDArray) {
-            this.setHandle(i, v.handle, kArrayHandle);
+            this.setHandle(i, v.handle, kTVMDLTensorHandle);
           } else if (v instanceof TVMConstant) {
             var code = getTVMType(v.dtype).code;
             if (code == kInt || code == kUInt) {
@@ -658,13 +658,13 @@ var tvm_runtime = tvm_runtime || {};
             } else if (code == kFloat) {
               this.setDouble(i, v.value);
             } else {
-              CHECK(code == kHandle);
-              this.setHandle(i, v.value, kHandle);
+              CHECK(code == kTVMOpaqueHandle);
+              this.setHandle(i, v.value, kTVMOpaqueHandle);
             }
           } else if (tp == "number") {
             this.setDouble(i, v);
           } else if (tp == "function" && v.hasOwnProperty("_tvm_function")) {
-            this.setString(i, v._tvm_function.handle, kFuncHandle);
+            this.setString(i, v._tvm_function.handle, kTVMPackedFuncHandle);
           } else if (v === null) {
             this.setHandle(i, 0, kNull);
           } else if (tp == "string") {
@@ -674,9 +674,9 @@ var tvm_runtime = tvm_runtime || {};
           } else if (v instanceof Function) {
             v = convertFunc(v);
             this.temp.push(v);
-            this.setHandle(i, v._tvm_function.handle, kFuncHandle);
+            this.setHandle(i, v._tvm_function.handle, kTVMPackedFuncHandle);
           } else if (v instanceof TVMModule) {
-            this.setHandle(i, v.handle, kModuleHandle);
+            this.setHandle(i, v.handle, kTVMModuleHandle);
           } else {
             throwError("Unsupported argument type " + tp);
           }
