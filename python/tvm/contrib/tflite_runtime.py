@@ -18,7 +18,7 @@
 from .._ffi.function import get_global_func
 from ..rpc import base as rpc_base
 
-def create(tflite_model_bytes, ctx, target_edgetpu=False):
+def create(tflite_model_bytes, ctx, runtime_target='cpu'):
     """Create a runtime executor module given a tflite model and context.
     Parameters
     ----------
@@ -27,25 +27,25 @@ def create(tflite_model_bytes, ctx, target_edgetpu=False):
     ctx : TVMContext
         The context to deploy the module. It can be local or remote when there
         is only one TVMContext.
-    target_edgetpu: bool
-        Targets execution on the edge TPU via tflite when running on the Coral board.
-        Set to False by default.
+    runtime_target: str
+        Execution target of TFLite runtime: either `cpu` or `edge_tpu`.
     Returns
     -------
     tflite_runtime : TFLiteModule
         Runtime tflite module that can be used to execute the tflite model.
     """
     device_type = ctx.device_type
-    if device_type >= rpc_base.RPC_SESS_MASK:
-        if target_edgetpu:
-            fcreate = ctx._rpc_sess.get_function("tvm.edgetpu_runtime.create")
-        else:
-            fcreate = ctx._rpc_sess.get_function("tvm.tflite_runtime.create")
-        return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
-    if target_edgetpu:
-        fcreate = get_global_func("tvm.edgetpu_runtime.create")
+
+    if runtime_target == 'edge_tpu':
+        runtime_func = "tvm.edgetpu_runtime.create"
     else:
-        fcreate = get_global_func("tvm.tflite_runtime.create")
+        runtime_func = "tvm.tflite_runtime.create"
+
+    if device_type >= rpc_base.RPC_SESS_MASK:
+        fcreate = ctx._rpc_sess.get_function(runtime_func)
+    else:
+        fcreate = get_global_func(runtime_func)
+
     return TFLiteModule(fcreate(bytearray(tflite_model_bytes), ctx))
 
 
