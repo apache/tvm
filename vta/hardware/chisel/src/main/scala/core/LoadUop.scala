@@ -180,13 +180,10 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
         }
       }
   }.otherwise {
-    when(sizeIsEven) {
-      // TODO (liangfu): write the other word
-      wmask := "b_01".U.asTypeOf(wmask)
-    }.elsewhen(io.vme_rd.cmd.fire()) {
+    when(io.vme_rd.cmd.fire()) {
       wmask := "b_10".U.asTypeOf(wmask)
     }.elsewhen(io.vme_rd.data.fire()) {
-      when((xcnt === xlen - 1.U) && (xrem === 0.U)) {
+      when(sizeIsEven && (xcnt === xlen - 1.U) && (xrem === 0.U)) {
         wmask := "b_01".U.asTypeOf(wmask)
       }.otherwise {
         wmask := "b_11".U.asTypeOf(wmask)
