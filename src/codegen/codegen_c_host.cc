@@ -200,7 +200,7 @@ void CodeGenCHost::VisitExpr_(const CallNode *op, std::ostream& os) { // NOLINT(
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     CHECK(num != nullptr);
-    static_assert(alignof(TVMValue) % alignof(TVMArray) == 0, "invariant");
+    static_assert(alignof(TVMValue) % alignof(DLTensor) == 0, "invariant");
     size_t unit = sizeof(TVMValue);
     size_t size = 0;
     if (type == "shape") {
@@ -210,7 +210,7 @@ void CodeGenCHost::VisitExpr_(const CallNode *op, std::ostream& os) { // NOLINT(
     } else if (type == "arg_tcode") {
       size = (num->value * sizeof(int) + unit - 1) / unit;
     } else if (type == "array") {
-      size = (num->value * sizeof(TVMArray) + unit - 1) / unit;
+      size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
     } else {
       LOG(FATAL) << "Unknown stack alloca type " << type;
     }

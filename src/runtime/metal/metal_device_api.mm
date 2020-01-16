@@ -62,7 +62,7 @@ void MetalWorkspace::GetAttr(
     case kMultiProcessorCount: return;
     case kMaxThreadDimensions: return;
     case kExist: break;
-    case kGcnArch: return; 
+    case kGcnArch: return;
   }
 }
 
@@ -145,7 +145,7 @@ void MetalWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void* MetalWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
+    TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
   // GPU memory only
@@ -176,7 +176,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
                                     size_t size,
                                     TVMContext ctx_from,
                                     TVMContext ctx_to,
-                                    TVMType type_hint,
+                                    DLDataType type_hint,
                                     TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
@@ -261,7 +261,7 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
 
 void* MetalWorkspace::AllocWorkspace(TVMContext ctx,
                                      size_t size,
-                                     TVMType type_hint) {
+                                     DLDataType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 

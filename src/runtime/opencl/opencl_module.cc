@@ -131,9 +131,9 @@ PackedFunc OpenCLModuleNode::GetFunction(
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
   for (size_t i = 0; i < info.arg_types.size(); ++i) {
-    TVMType t = info.arg_types[i];
+    DLDataType t = info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) {
+    if (t.code == kTVMOpaqueHandle) {
       // specially store pointer type size in OpenCL driver
       arg_size[i] = sizeof(void*);
     } else {
