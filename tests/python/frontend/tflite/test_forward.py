@@ -864,6 +864,14 @@ def _test_greater(data):
     """ One iteration of greater """
     return _test_elemwise(math_ops.greater, data)
 
+#######################################################################
+# Squared_difference
+# ------------------
+
+def _test_squared_difference(data):
+    """ One iteration of squared difference """
+    return _test_elemwise(math_ops.squared_difference, data)
+
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
@@ -906,6 +914,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
     _test_forward_elemwise(_test_greater)
+    _test_forward_elemwise(_test_squared_difference)
 
 #######################################################################
 # Zeros like
