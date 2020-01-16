@@ -169,8 +169,8 @@ class ADTObj : public Object, public InplaceArrayBase<ADTObj, ObjectRef> {
   uint32_t size;
   // The fields of the structure follows directly in memory.
 
-  static constexpr const uint32_t _type_index = TypeIndex::kADT;
-  static constexpr const char* _type_key = "ADT";
+  static constexpr const uint32_t _type_index = TypeIndex::kVMADT;
+  static constexpr const char* _type_key = "vm.ADT";
   TVM_DECLARE_FINAL_OBJECT_INFO(ADTObj, Object);
 
  private:

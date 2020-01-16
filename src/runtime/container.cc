@@ -19,7 +19,7 @@
 
 /*!
  * \file src/runtime/container.cc
- * \brief Implementation of common POD containers.
+ * \brief Implementations of common plain old data (POD) containers.
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>

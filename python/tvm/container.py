@@ -118,7 +118,7 @@ class LoweredFunc(Object):
     DeviceFunc = 2
 
 
-@register_object
+@register_object("vm.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.
 

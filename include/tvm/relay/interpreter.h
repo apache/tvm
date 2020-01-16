@@ -25,7 +25,7 @@
  * Given a Relay module, and a Relay expression it produces a value.
  *
  * The interpreter's values are a naive representation of the values that
- * can be produced by a Relay program and are exposed via tvm's object
+ * can be produced by a Relay program and are exposed via TVM's object
  * protocol to Python for introspection and debugging.
  *
  * The interpreter's intent is to serve as a reference semantics for the Relay IR,

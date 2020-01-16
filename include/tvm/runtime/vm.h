@@ -53,8 +53,8 @@ class ClosureObj : public Object {
   /*! \brief The free variables of the closure. */
   std::vector<ObjectRef> free_vars;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kClosure;
-  static constexpr const char* _type_key = "Closure";
+  static constexpr const uint32_t _type_index = TypeIndex::kVMClosure;
+  static constexpr const char* _type_key = "vm.Closure";
   TVM_DECLARE_FINAL_OBJECT_INFO(ClosureObj, Object);
 };
 
