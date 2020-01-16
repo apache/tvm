@@ -25,7 +25,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
