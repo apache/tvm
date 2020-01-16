@@ -47,7 +47,7 @@ func (parray Array) nativeCPtr() (retVal uintptr) {
 }
 
 func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error) {
-    ret := C.TVMArrayCopyFromBytes((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyFromBytes((*C.DLTensor)(unsafe.Pointer(parray.nativeCPtr())),
                                    data,
                                    C.ulong(datalen))
     if ret != 0 {
@@ -65,7 +65,7 @@ func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error)
 func (parray Array) CopyFrom(val interface{}) (err error) {
     var data unsafe.Pointer
     var datalen int
-    dtype := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
+    dtype := ((*C.DLTensor)(unsafe.Pointer(parray))).dtype
 
     switch val.(type) {
         case []int8:
@@ -126,7 +126,7 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
 }
 
 func (parray Array) nativeCopyTo (data unsafe.Pointer, datalen int) (err error){
-    ret := C.TVMArrayCopyToBytes((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyToBytes((*C.DLTensor)(unsafe.Pointer(parray.nativeCPtr())),
                                   unsafe.Pointer(data),
                                   C.ulong(datalen))
 
@@ -149,7 +149,7 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
     for ii := range shape {
         size *= shape[ii]
     }
-    dtype := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
+    dtype := ((*C.DLTensor)(unsafe.Pointer(parray))).dtype
 
     switch parray.GetDType() {
         case "int8":
@@ -221,13 +221,13 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
 
 // GetNdim returns the number of dimentions in Array
 func (parray Array) GetNdim() (retVal int32) {
-    retVal = int32(((*C.TVMArray)(unsafe.Pointer(parray))).ndim)
+    retVal = int32(((*C.DLTensor)(unsafe.Pointer(parray))).ndim)
     return
 }
 
 // GetShape returns the number of dimentions in Array
 func (parray Array) GetShape() (retVal []int64) {
-    shapePtr := (*C.int64_t)(((*C.TVMArray)(unsafe.Pointer(parray))).shape)
+    shapePtr := (*C.int64_t)(((*C.DLTensor)(unsafe.Pointer(parray))).shape)
     ndim := parray.GetNdim()
 
     shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapePtr))[:ndim:ndim]
@@ -238,14 +238,14 @@ func (parray Array) GetShape() (retVal []int64) {
 
 // GetDType returns the number of dimentions in Array
 func (parray Array) GetDType() (retVal string) {
-    ret := ((*C.TVMArray)(unsafe.Pointer(parray))).dtype
+    ret := ((*C.DLTensor)(unsafe.Pointer(parray))).dtype
     retVal, _ = dtypeFromTVMType(*(*pTVMType)(unsafe.Pointer(&ret)))
     return
 }
 
 // GetCtx returns the number of dimentions in Array
 func (parray Array) GetCtx() (retVal Context) {
-    ret := ((*C.TVMArray)(unsafe.Pointer(parray))).ctx
+    ret := ((*C.DLTensor)(unsafe.Pointer(parray))).ctx
     retVal = *(*Context)(unsafe.Pointer(&ret))
     return
 }
@@ -342,6 +342,6 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
 //
 // `ret` indicates the status of this api execution.
 func nativeTVMArrayFree(parray Array) (retVal int32) {
-    retVal = (int32)(C.TVMArrayFree((*C.TVMArray)(unsafe.Pointer(parray.nativeCPtr()))))
+    retVal = (int32)(C.TVMArrayFree((*C.DLTensor)(unsafe.Pointer(parray.nativeCPtr()))))
     return
 }

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -121,7 +121,7 @@ void OpenGLWorkspace::GetAttr(
 }
 
 void* OpenGLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
+    TVMContext ctx, size_t nbytes, size_t alignment, DLDataType type_hint) {
   return reinterpret_cast<void*>(new Texture(CreateTexture(type_hint, nbytes)));
 }
 
@@ -136,7 +136,7 @@ void OpenGLWorkspace::CopyDataFromTo(const void* from,
                                      size_t size,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
-                                     TVMType type_hint,
+                                     DLDataType type_hint,
                                      TVMStreamHandle stream) {
   CHECK(stream == nullptr);
 
@@ -312,7 +312,7 @@ GLuint OpenGLWorkspace::CreateShader(GLenum shader_kind,
   return shader;
 }
 
-static TextureFormat GetTextureFormat(TVMType type) {
+static TextureFormat GetTextureFormat(DLDataType type) {
   CHECK_EQ(type.lanes, 1) << "Not supporting multi-lane types.";
 
   switch (type.code) {
@@ -355,7 +355,7 @@ static TextureFormat GetTextureFormat(TVMType type) {
   return {GL_R32F, GL_RED, GL_FLOAT};
 }
 
-Texture OpenGLWorkspace::CreateTexture(TVMType type, size_t nbytes) {
+Texture OpenGLWorkspace::CreateTexture(DLDataType type, size_t nbytes) {
   // Create a texture.
   GLuint texture;
   OPENGL_CALL(gl->GenTextures(1, &texture));
@@ -555,7 +555,7 @@ void OpenGLWorkspace::SetCurrentProgram(const Program& program) {
 
 void OpenGLWorkspace::SetUniform(const Program& program,
                                  const std::string& name,
-                                 TVMType type,
+                                 DLDataType type,
                                  void* value) {
   GLint location = gl->GetUniformLocation(program.program(), name.c_str());
   switch (type.code) {

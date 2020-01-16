@@ -86,62 +86,44 @@ typedef enum {
 } TVMDeviceExtType;
 
 /*!
- * \brief The type code in TVMType
- * \note TVMType is used in two places.
+ * \brief The type code in used in the TVM FFI.
  */
 typedef enum {
   // The type code of other types are compatible with DLPack.
   // The next few fields are extension types
   // that is used by TVM API calls.
-  kHandle = 3U,
-  kNull = 4U,
-  kTVMType = 5U,
+  kTVMOpaqueHandle = 3U,
+  kTVMNullptr = 4U,
+  kTVMDataType = 5U,
   kTVMContext = 6U,
-  kArrayHandle = 7U,
-  kObjectHandle = 8U,
-  kModuleHandle = 9U,
-  kFuncHandle = 10U,
-  kStr = 11U,
-  kBytes = 12U,
-  kNDArrayContainer = 13U,
+  kTVMDLTensorHandle = 7U,
+  kTVMObjectHandle = 8U,
+  kTVMModuleHandle = 9U,
+  kTVMPackedFuncHandle = 10U,
+  kTVMStr = 11U,
+  kTVMBytes = 12U,
+  kTVMNDArrayHandle = 13U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
   // Open an issue at the repo if you need a section of code.
-  kExtBegin = 15U,
-  kNNVMFirst = 16U,
-  kNNVMLast = 20U,
+  kTVMExtBegin = 15U,
+  kTVMNNVMFirst = 16U,
+  kTVMNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
-  kExtReserveEnd = 64U,
-  kExtEnd = 128U,
+  kTVMExtReserveEnd = 64U,
+  kTVMExtEnd = 128U,
   // The rest of the space is used for custom, user-supplied datatypes
-  kCustomBegin = 129U,
+  kTVMCustomBegin = 129U,
 } TVMTypeCode;
-
-/*!
- * \brief The data type used in TVM Runtime.
- *
- *  Examples
- *   - float: type_code = 2, bits = 32, lanes=1
- *   - float4(vectorized 4 float): type_code = 2, bits = 32, lanes=4
- *   - int8: type_code = 0, bits = 8, lanes=1
- *
- * \note Arguments TVM API function always takes bits=64 and lanes=1
- */
-typedef DLDataType TVMType;
 
 /*!
  * \brief The Device information, abstract away common device types.
  */
 typedef DLContext TVMContext;
 
-/*!
- * \brief The tensor array structure to TVM API.
- */
-typedef DLTensor TVMArray;
-
 /*! \brief the array handle */
-typedef TVMArray* TVMArrayHandle;
+typedef DLTensor* TVMArrayHandle;
 
 /*!
  * \brief Union type of values
@@ -152,13 +134,13 @@ typedef union {
   double v_float64;
   void* v_handle;
   const char* v_str;
-  TVMType v_type;
+  DLDataType v_type;
   TVMContext v_ctx;
 } TVMValue;
 
 /*!
  * \brief Byte array type used to pass in byte array
- *  When kBytes is used as data type.
+ *  When kTVMBytes is used as data type.
  */
 typedef struct {
   const char* data;

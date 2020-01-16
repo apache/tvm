@@ -117,7 +117,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
   void SetDevice(TVMContext ctx) final { VulkanThreadEntry::ThreadLocal()->ctx = ctx; }
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       DLDataType type_hint) final {
     const auto& vctx = context(ctx.device_id);
     VkBufferCreateInfo info;
     info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -194,7 +197,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
-                      TVMContext ctx_from, TVMContext ctx_to, TVMType type_hint,
+                      TVMContext ctx_from, TVMContext ctx_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     CHECK(stream == nullptr);
     TVMContext ctx = ctx_from;
@@ -327,7 +330,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
     return;
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
     return VulkanThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
 
@@ -772,8 +775,8 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     {
       auto fit = fmap_.find(func_name);
       CHECK(fit != fmap_.end());
-      for (TVMType arg_type : fit->second.arg_types) {
-        if (arg_type.code == kHandle) {
+      for (DLDataType arg_type : fit->second.arg_types) {
+        if (arg_type.code == kTVMOpaqueHandle) {
           {
             VkDescriptorSetLayoutBinding bd;
             bd.binding = num_buffer;

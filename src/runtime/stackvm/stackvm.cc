@@ -395,7 +395,7 @@ void StackVM::Run(State* s) const {
         using namespace ir;
         int index = code[pc + 1].v_int;
         int kind = code[pc + 2].v_int;
-        TVMArray* arr = static_cast<TVMArray*>(stack[sp].v_handle);
+        DLTensor* arr = static_cast<DLTensor*>(stack[sp].v_handle);
         switch (kind) {
           case intrinsic::kArrData: {
             stack[sp].v_handle = arr[index].data; break;
@@ -447,7 +447,7 @@ void StackVM::Run(State* s) const {
         using namespace ir;
         int index = code[pc + 1].v_int;
         int kind = code[pc + 2].v_int;
-        TVMArray* arr = static_cast<TVMArray*>(stack[sp - 1].v_handle);
+        DLTensor* arr = static_cast<DLTensor*>(stack[sp - 1].v_handle);
         switch (kind) {
           case intrinsic::kArrData: {
             arr[index].data = stack[sp].v_handle; break;

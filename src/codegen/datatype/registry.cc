@@ -25,19 +25,23 @@
 namespace tvm {
 namespace datatype {
 
-TVM_REGISTER_GLOBAL("_datatype_register").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("_datatype_register")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   datatype::Registry::Global()->Register(args[0], static_cast<uint8_t>(args[1].operator int()));
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_code").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("_datatype_get_type_code")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = datatype::Registry::Global()->GetTypeCode(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_name").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("_datatype_get_type_name")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Registry::Global()->GetTypeName(args[0].operator int());
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_registered").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("_datatype_get_type_registered")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
 });
 
@@ -47,7 +51,8 @@ Registry* Registry::Global() {
 }
 
 void Registry::Register(const std::string& type_name, uint8_t type_code) {
-  CHECK(type_code >= kCustomBegin) << "Please choose a type code >= kCustomBegin for custom types";
+  CHECK(type_code >= kTVMCustomBegin)
+      << "Please choose a type code >= kTVMCustomBegin for custom types";
   code_to_name_[type_code] = type_name;
   name_to_code_[type_name] = type_code;
 }

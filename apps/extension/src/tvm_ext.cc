@@ -156,7 +156,7 @@ TVM_REGISTER_GLOBAL("tvm_ext.nd_create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   int additional_info = args[0];
   *rv = NDSubClass(additional_info);
-  CHECK_EQ(rv->type_code(), kNDArrayContainer);
+  CHECK_EQ(rv->type_code(), kTVMNDArrayHandle);
 
 });
 

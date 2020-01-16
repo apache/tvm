@@ -178,7 +178,7 @@ class RPCSession {
                     size_t to_offset,
                     size_t nbytes,
                     TVMContext ctx_to,
-                    TVMType type_hint);
+                    DLDataType type_hint);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
@@ -195,7 +195,7 @@ class RPCSession {
                       size_t to_offset,
                       size_t nbytes,
                       TVMContext ctx_from,
-                      TVMType type_hint);
+                      DLDataType type_hint);
   /*!
    * \brief Get a remote timer function on ctx.
    *  This function consumes fhandle, caller should not call Free on fhandle.

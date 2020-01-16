@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -187,8 +187,8 @@ TVM_REGISTER_GLOBAL("__sgx_println__")
     case kDLInt: msg << static_cast<int64_t>(args[i]); break;
     case kDLUInt: msg << static_cast<uint64_t>(args[i]); break;
     case kDLFloat: msg << static_cast<double>(args[i]); break;
-    case kStr:
-    case kBytes: {
+    case kTVMStr:
+    case kTVMBytes: {
       std::string val = args[i];
       msg << val;
     }

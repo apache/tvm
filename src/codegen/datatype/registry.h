@@ -60,7 +60,7 @@ class Registry {
    * same code. Generally, this should be straightforward, as the user will be manually registering
    * all of their custom types.
    * \param type_name The name of the type, e.g. "bfloat"
-   * \param type_code The type code, which should be greater than TVMTypeCode::kExtEnd
+   * \param type_code The type code, which should be greater than TVMTypeCode::kTVMExtEnd
    */
   void Register(const std::string& type_name, uint8_t type_code);
 
