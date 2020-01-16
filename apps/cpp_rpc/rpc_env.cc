@@ -36,7 +36,7 @@
 #include <cstring>
 
 #include "rpc_env.h"
-#include "../../src/common/util.h"
+#include "../../src/support/util.h"
 #include "../../src/runtime/file_util.h"
 
 namespace tvm {

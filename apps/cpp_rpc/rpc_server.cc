@@ -39,7 +39,7 @@
 #include "rpc_tracker_client.h"
 #include "../../src/runtime/rpc/rpc_session.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
-#include "../../src/common/socket.h"
+#include "../../src/support/socket.h"
 
 namespace tvm {
 namespace runtime {
