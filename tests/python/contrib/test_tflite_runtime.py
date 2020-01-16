@@ -36,16 +36,14 @@ def skipped_test_tflite_runtime():
         return tflite_model
 
 
-    def check_verify():
+    def check_local():
         tflite_fname = "model.tflite"
         tflite_model = create_tflite_model()
         temp = util.tempdir()
         tflite_model_path = temp.relpath(tflite_fname)
-        print(tflite_model_path)
         open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
-        print('interpreter')
         interpreter = tflite.Interpreter(model_path=tflite_model_path)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
@@ -57,11 +55,9 @@ def skipped_test_tflite_runtime():
         interpreter.invoke()
         tflite_output = interpreter.get_tensor(output_details[0]['index'])
         
-        print('tvm tflite runtime')
         # inference via tvm tflite runtime
         with open(tflite_model_path, 'rb') as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0))
-            runtime.allocate_tensors()
             runtime.set_input(0, tvm.nd.array(tflite_input))
             runtime.invoke()
             out = runtime.get_output(0)
@@ -95,14 +91,12 @@ def skipped_test_tflite_runtime():
 
         with open(tflite_model_path, 'rb') as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), remote.cpu(0))
-            runtime.allocate_tensors()
             runtime.set_input(0, tvm.nd.array(tflite_input, remote.cpu(0)))
             runtime.invoke()
             out = runtime.get_output(0)
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
-
-    check_verify()
+    check_local()
     check_remote()
 
 if __name__ == "__main__":
