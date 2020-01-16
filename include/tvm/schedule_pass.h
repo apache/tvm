@@ -31,7 +31,7 @@
 #include "schedule.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 /*!
  * \brief Infer the bound of all iteration variables relates to the schedule.
@@ -71,6 +71,6 @@ void AutoInlineElemWise(Schedule sch);
  */
 TVM_DLL void AutoInlineInjective(Schedule sch);
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_PASS_H_

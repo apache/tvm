@@ -32,6 +32,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Construct a buffer to pass to an external function

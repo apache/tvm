@@ -39,7 +39,7 @@ class PrefetchInjector : public StmtMutator {
     Stmt ret = StmtMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
-      Tensor ts = Downcast<Tensor>(op->node);
+      top::Tensor ts = Downcast<top::Tensor>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);
       Domain domain = DomainTouched(op->body, ts, true, false);
       Region region;

@@ -34,7 +34,7 @@
 #include <vector>
 
 namespace tvm {
-namespace schedule {
+namespace top {
 /*!
  * \brief Downward inference of domain of each IterVar.
  *  Caller set the range of the root, then the function
@@ -128,6 +128,6 @@ MakeBoundCheck(
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter);
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_MESSAGE_PASSING_H_

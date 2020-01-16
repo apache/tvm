@@ -31,6 +31,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace cuda {
 
@@ -50,9 +51,9 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   auto s = create_schedule(out_ops);
 
   auto softmax = outs[0];
-  tvm::Tensor max_elem;
-  tvm::Tensor expsum;
-  tvm::Tensor exp;
+  tvm::top::Tensor max_elem;
+  tvm::top::Tensor expsum;
+  tvm::top::Tensor exp;
   bool has_exp = false;
 
   auto tag = softmax->op.as<ComputeOpNode>()->tag;

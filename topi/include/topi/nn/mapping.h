@@ -32,6 +32,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Scale and shift with NCHW order
@@ -49,7 +50,7 @@ inline Tensor scale_shift_nchw(const Tensor& x,
                                const Tensor& shift,
                                std::string name = "ScaleShift",
                                std::string tag = kBroadcast) {
-  return tvm::compute(
+  return tvm::top::compute(
     x->shape,
     [&](Var b, Var c, Var h, Var w) {
       return x(b, c, h, w) * scale(c) + shift(w);
@@ -72,7 +73,7 @@ inline Tensor scale_shift_nhwc(const Tensor& x,
                                const Tensor& shift,
                                std::string name = "ScaleShift",
                                std::string tag = kBroadcast) {
-  return tvm::compute(
+  return tvm::top::compute(
     x->shape,
     [&](Var b, Var h, Var w, Var c) {
       return x(b, h, w, c) * scale(c) + shift(w);

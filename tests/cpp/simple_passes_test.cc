@@ -28,7 +28,7 @@ TEST(SimplePasses, HasSideEffect) {
   Array<PrimExpr> shape;
   shape.push_back(n);
 
-  auto A = placeholder(shape, DataType::Float(32), "A");
+  auto A = top::placeholder(shape, DataType::Float(32), "A");
 
   CHECK(!tvm::ir::HasSideEffect(A[0]));
 }

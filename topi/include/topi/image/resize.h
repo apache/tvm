@@ -39,6 +39,7 @@
 namespace topi {
 namespace image {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Sample a point in a tensor using bilinear interpolation.

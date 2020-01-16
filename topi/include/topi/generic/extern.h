@@ -32,6 +32,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace generic {
 /*!
@@ -49,7 +50,7 @@ inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
   }
   auto s = create_schedule(out_ops);
 
-  tvm::schedule::AutoInlineInjective(s);
+  tvm::top::AutoInlineInjective(s);
   for (auto out : outs) {
     if (out->op->IsInstance<ExternOpNode>()) {
       continue;

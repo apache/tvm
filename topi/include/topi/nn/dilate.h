@@ -33,6 +33,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Create a new expression of the logical and of all
@@ -79,7 +80,7 @@ inline Tensor dilate(const Tensor& x,
       (x->shape[i] - 1) * cast(DataType::Int(32), strides[i] + 1)));
   }
 
-  return tvm::compute(
+  return tvm::top::compute(
     out_shape,
     [&](const Array<Var>& indices) {
       Array<PrimExpr> not_zero;

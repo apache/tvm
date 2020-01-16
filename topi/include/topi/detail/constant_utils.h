@@ -33,6 +33,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Test whether the given Expr is a constant integer

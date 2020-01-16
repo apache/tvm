@@ -24,6 +24,7 @@
 #include <tvm/operation.h>
 
 namespace tvm {
+namespace top {
 
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -102,4 +103,5 @@ Stmt PlaceholderOpNode::BuildProvide(
     bool debug_keep_trivial_loop) const {
   return Stmt();
 }
+}  // namespace top
 }  // namespace tvm

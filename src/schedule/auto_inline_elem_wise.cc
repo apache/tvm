@@ -25,7 +25,7 @@
 #include <tvm/ir_functor_ext.h>
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 using namespace ir;
 
@@ -111,5 +111,5 @@ void AutoInlineInjective(Schedule sch) {
   }
 }
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

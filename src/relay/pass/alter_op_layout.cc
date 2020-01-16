@@ -78,10 +78,10 @@ class AlterTransformMemorizer : public TransformMemorizer {
     Expr new_e;
     bool modified = false;
     if (falter_layout.count(op)) {
-      tvm::Array<tvm::Tensor> tinfos;
+      tvm::Array<tvm::top::Tensor> tinfos;
       for (auto expr : ref_call->args) {
         auto ttype = expr->type_as<TensorTypeNode>();
-        tinfos.push_back(tvm::placeholder(ttype->shape, ttype->dtype));
+        tinfos.push_back(tvm::top::placeholder(ttype->shape, ttype->dtype));
       }
       Expr altered_value = falter_layout[op](ref_call->attrs, new_args, tinfos);
       if (altered_value.defined()) {

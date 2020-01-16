@@ -38,6 +38,7 @@
 namespace tvm {
 namespace contrib {
 
+using namespace top;
 using namespace ir;
 /*!
  * \brief A base class to generate Hybrid Script.

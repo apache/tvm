@@ -33,6 +33,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace rocm {
 
@@ -41,7 +42,7 @@ namespace rocm {
  *
  * \param sch The schedule to update.
  * \param out The tensor representing the injective op.
- * 
+ *
  * \return The updated schedule.
  */
 inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {

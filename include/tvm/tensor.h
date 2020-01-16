@@ -36,6 +36,7 @@
 #include "expr_operator.h"
 
 namespace tvm {
+namespace top {
 
 // Internal node container of Tensor
 class TensorNode;
@@ -246,16 +247,17 @@ DEFINE_OVERLOAD_SLICE_BINARY_OP(<<);
 DEFINE_OVERLOAD_SLICE_BINARY_OP(>);  // NOLINT(*)
 DEFINE_OVERLOAD_SLICE_BINARY_OP(<);  // NOLINT(*)
 
+}  // namespace top
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::Operation> : public ::tvm::ObjectHash {
+struct hash<::tvm::top::Operation> : public ::tvm::ObjectHash {
 };
 
 template <>
-struct hash<::tvm::Tensor> {
-  std::size_t operator()(const ::tvm::Tensor& k) const {
+struct hash<::tvm::top::Tensor> {
+  std::size_t operator()(const ::tvm::top::Tensor& k) const {
     ::tvm::ObjectHash hasher;
     if (k.defined() && k->op.defined()) {
       return hasher(k->op);

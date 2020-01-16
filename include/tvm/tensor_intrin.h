@@ -29,6 +29,7 @@
 #include "buffer.h"
 
 namespace tvm {
+namespace top {
 
 // Internal node container of tensor intrinsics.
 class TensorIntrinNode;
@@ -173,5 +174,6 @@ inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
   return static_cast<const TensorIntrinCallNode*>(get());
 }
 
+}  // namespace top
 }  // namespace tvm
 #endif  // TVM_TENSOR_INTRIN_H_

@@ -37,7 +37,7 @@
 #include "buffer.h"
 
 namespace tvm {
-
+namespace top {
 using arith::IntSet;
 
 /*!
@@ -655,5 +655,6 @@ inline Tensor compute(Array<PrimExpr> shape,
 inline const OperationNode* Operation::operator->() const {
   return static_cast<const OperationNode*>(get());
 }
+}  // namspace top
 }  // namespace tvm
 #endif  // TVM_OPERATION_H_

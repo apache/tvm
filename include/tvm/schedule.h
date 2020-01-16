@@ -32,7 +32,7 @@
 #include "tensor_intrin.h"
 
 namespace tvm {
-
+namespace top {
 // Node container for Stage
 class StageNode;
 // Node container for Schedule
@@ -764,5 +764,6 @@ inline const IterVarRelationNode* IterVarRelation::operator->() const {
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
   return static_cast<const IterVarAttrNode*>(get());
 }
+}  // namespace top
 }  // namespace tvm
 #endif  // TVM_SCHEDULE_H_

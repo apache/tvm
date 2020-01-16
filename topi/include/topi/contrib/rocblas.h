@@ -30,6 +30,7 @@
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace tvm::top;
 /*!
 * \brief Create an op that multiplies lhs and rhs with rocBLAS
 *

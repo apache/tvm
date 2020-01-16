@@ -33,7 +33,7 @@
 #include "../pass/ir_util.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 using namespace ir;
 
@@ -423,5 +423,5 @@ Stmt ScheduleOps(
   return post_proc(std::move(body));
 }
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

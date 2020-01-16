@@ -26,7 +26,7 @@
 #include <memory>
 
 namespace tvm {
-
+namespace top {
 // Tensor
 PrimExpr Tensor::operator()(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
@@ -132,4 +132,5 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
 
+}  // namespace top
 }  // namespace tvm

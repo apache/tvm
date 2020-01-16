@@ -31,6 +31,7 @@
 #include <unordered_map>
 
 namespace tvm {
+namespace top {
 // loop nest structure for general compute
 // This the loop nest structured used in compute.
 // Does not include the loop body.
@@ -106,6 +107,7 @@ Stmt TransformUpdate(const Stage& stage,
                      const ComputeLoopNest& n,
                      Stmt body,
                      Stmt update);
+}  // namespace top
 }  // namespace tvm
 
 #endif  // TVM_OP_COMPUTE_OP_H_

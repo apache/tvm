@@ -32,6 +32,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Flatten the indices to 1D

@@ -116,8 +116,8 @@ inline TVMPODValue_::operator tvm::PrimExpr() const {
   if (ptr->IsInstance<IterVarNode>()) {
     return IterVar(ObjectPtr<Object>(ptr))->var;
   }
-  if (ptr->IsInstance<TensorNode>()) {
-    return Tensor(ObjectPtr<Object>(ptr))();
+  if (ptr->IsInstance<top::TensorNode>()) {
+    return top::Tensor(ObjectPtr<Object>(ptr))();
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()

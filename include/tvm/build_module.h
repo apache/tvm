@@ -172,10 +172,10 @@ class BuildConfig : public ::tvm::ObjectRef {
 * \param config The build configuration.
 * \return The lowered function.
 */
-TVM_DLL Array<LoweredFunc> lower(Schedule sch,
-                                 const Array<Tensor>& args,
+TVM_DLL Array<LoweredFunc> lower(top::Schedule sch,
+                                 const Array<top::Tensor>& args,
                                  const std::string& name,
-                                 const std::unordered_map<Tensor, Buffer>& binds,
+                                 const std::unordered_map<top::Tensor, Buffer>& binds,
                                  const BuildConfig& config);
 /*!
 * \brief Split host/device function and running necessary pass before build

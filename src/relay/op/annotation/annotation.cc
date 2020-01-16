@@ -78,8 +78,8 @@ TVM_ADD_FILELINE)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -104,8 +104,8 @@ TVM_ADD_FILELINE)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -122,8 +122,8 @@ Mark the start of bitpacking.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -139,8 +139,8 @@ Mark the end of bitpacking.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -162,9 +162,9 @@ Mark a checkpoint for checkpointing memory optimization.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
-                         Array<Tensor> outputs;
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                         Array<top::Tensor> outputs;
                          for (size_t i = 0; i < inputs.size(); ++i) {
                            outputs.push_back(topi::identity(inputs[i]));
                          }
@@ -183,8 +183,8 @@ Beginning of a region that is handled by a given compiler.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -208,8 +208,8 @@ End of a region that is handled by a given compiler.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
-                       [](const Attrs& attrs, const Array<Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<Tensor> {
+                       [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+                          const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 

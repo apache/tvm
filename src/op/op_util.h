@@ -34,7 +34,7 @@
 #include "../schedule/message_passing.h"
 
 namespace tvm {
-namespace op {
+namespace top {
 
 using ir::MergeNest;
 
@@ -102,6 +102,6 @@ IterVarType ForTypeToIterVarType(ir::ForType for_type);
  */
 ir::ForType IterVarTypeToForType(IterVarType iter_type);
 
-}  // namespace op
+}  // namespace top
 }  // namespace tvm
 #endif  // TVM_OP_OP_UTIL_H_

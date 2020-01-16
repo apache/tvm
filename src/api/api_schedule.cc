@@ -31,7 +31,7 @@
 #include "../schedule/graph.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise")
 .set_body_typed(AutoInlineElemWise);
@@ -60,5 +60,5 @@ REGISTER_SCHEDULE_PASS(CreateAttachPath);
 REGISTER_SCHEDULE_PASS(ScanGetBody);
 REGISTER_SCHEDULE_PASS(ScanFixPointAnalysis);
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

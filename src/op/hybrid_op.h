@@ -35,7 +35,7 @@
 
 
 namespace tvm {
-namespace op {
+namespace top {
 
 /*!
  * \brief Find all the iteration variables in the given statement body.
@@ -90,7 +90,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                     const std::unordered_map<IterVar, Range> &dom_map,
                     const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt);
 
-}  // namespace op
+}  // namespace top
 }  // namespace tvm
 
 #endif  // TVM_OP_HYBRID_OP_H_

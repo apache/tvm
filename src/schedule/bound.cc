@@ -31,7 +31,7 @@
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -259,5 +259,5 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

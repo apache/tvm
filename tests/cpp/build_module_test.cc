@@ -30,6 +30,7 @@
 
 TEST(BuildModule, Basic) {
   using namespace tvm;
+  using namespace tvm::top;
   auto n = var("n");
   Array<PrimExpr> shape;
   shape.push_back(n);
@@ -75,6 +76,7 @@ TEST(BuildModule, Heterogeneous) {
    */
 
   using namespace tvm;
+  using namespace tvm::top;
   const runtime::PackedFunc* pf = runtime::Registry::Get("module._Enabled");
   bool enabled = (*pf)("cuda");
   if (!enabled) {

@@ -32,7 +32,7 @@
 #include <vector>
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 /*!
  * \brief data structure of Operation->Tensors it reads
@@ -125,7 +125,7 @@ Array<Operation> ScanGetBody(const Operation& scan_op);
  */
 Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan);
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm
 
 #endif  // TVM_SCHEDULE_GRAPH_H_

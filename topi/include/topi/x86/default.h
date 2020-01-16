@@ -31,6 +31,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace x86 {
 /*!
@@ -54,7 +55,7 @@ inline Schedule MakeDefaultSchedule(const Target &target,
   auto axis = s[x]->op.as<ComputeOpNode>()->axis;
 
   if (auto_inline) {
-    tvm::schedule::AutoInlineInjective(s);
+    tvm::top::AutoInlineInjective(s);
     if (axis.size() > 0) {
       detail::Fuse(s[x], axis);
     }

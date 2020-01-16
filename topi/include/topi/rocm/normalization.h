@@ -30,6 +30,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 namespace rocm {
 /*!
 * \brief Create a rocm schedule for LRN

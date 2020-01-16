@@ -33,6 +33,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace rocm {
 
