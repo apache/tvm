@@ -33,7 +33,12 @@ namespace ir {
 
 TVM_REGISTER_GLOBAL("_Var")
 .set_body_typed([](std::string s, DataType t) {
-    return VarNode::make(t, s);
+    return Var(s, t);
+  });
+
+TVM_REGISTER_GLOBAL("_SizeVar")
+.set_body_typed([](std::string s, DataType t) {
+    return SizeVar(s, t);
   });
 
 TVM_REGISTER_GLOBAL("make.abs")
@@ -130,9 +135,6 @@ TVM_REGISTER_GLOBAL("make.CommReducer")
 REGISTER_MAKE(Reduce);
 REGISTER_MAKE(AttrStmt);
 
-REGISTER_MAKE(IntImm);
-REGISTER_MAKE(UIntImm);
-REGISTER_MAKE(FloatImm);
 REGISTER_MAKE(StringImm);
 
 REGISTER_MAKE(Add);

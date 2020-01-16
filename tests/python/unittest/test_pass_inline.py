@@ -17,7 +17,7 @@
 import tvm
 
 def test_inline():
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(T[10] + 11 * T[100])
@@ -36,7 +36,7 @@ def test_inline():
         pass
 
 def test_inline2():
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(tvm.exp(T[10]) + 11 * T[100])

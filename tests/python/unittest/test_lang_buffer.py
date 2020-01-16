@@ -19,9 +19,9 @@ from tvm.schedule import Buffer
 import numpy as np
 
 def test_buffer():
-    m = tvm.var('m')
-    n = tvm.var('n')
-    l = tvm.var('l')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
+    l = tvm.size_var('l')
     Ab = tvm.decl_buffer((m, n), tvm.float32)
     Bb = tvm.decl_buffer((n, l), tvm.float32)
 
@@ -31,8 +31,8 @@ def test_buffer():
 
 
 def test_buffer_access_ptr():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((m, n), tvm.float32, strides=[n + 1 , 1])
     aptr = Ab.access_ptr("rw")
     assert tvm.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m)
@@ -43,14 +43,14 @@ def test_buffer_access_ptr():
 
 
 def test_buffer_access_ptr_offset():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((m, n), tvm.float32)
     aptr = Ab.access_ptr("rw", offset=100)
     offset = tvm.ir_pass.Simplify(aptr.args[2])
     assert tvm.ir_pass.Equal(offset, 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
-    v = tvm.var('int32')
+    v = tvm.size_var('int32')
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
     offset = tvm.ir_pass.Simplify(aptr.args[2])
     assert tvm.ir_pass.Equal(offset, 200 + v)
@@ -62,8 +62,8 @@ def test_buffer_access_ptr_offset():
 
 
 def test_buffer_access_ptr_extent():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((m, n), tvm.float32)
     aptr = Ab.access_ptr("rw")
     assert tvm.ir_pass.Equal(aptr.args[3], m * n)
@@ -75,8 +75,8 @@ def test_buffer_access_ptr_extent():
 
 
 def test_buffer_vload():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((m, n), tvm.float32, elem_offset=100)
     load = Ab.vload([2, 3])
     offset = tvm.ir_pass.Simplify(load.index)
@@ -84,11 +84,11 @@ def test_buffer_vload():
 
 
 def test_buffer_index_merge_mult_mod():
-    m = tvm.var('m')
-    n = tvm.var('n')
-    s = tvm.var('s')
-    k0 = tvm.var('k0')
-    k1 = tvm.var('k1')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
+    s = tvm.size_var('s')
+    k0 = tvm.size_var('k0')
+    k1 = tvm.size_var('k1')
     A = tvm.decl_buffer((m, n), tvm.float32)
     A_stride = tvm.decl_buffer((m, n), tvm.float32, strides=(s, 1))
     def assert_simplified_equal(index_simplified, index_direct):
@@ -123,9 +123,9 @@ def test_buffer_index_merge_mult_mod():
 
 
 def test_buffer_broadcast():
-    m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
-    n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
-    o0, o1, o2 = tvm.var("o0"), tvm.var("o1"), tvm.var("o2")
+    m0, m1, m2 = tvm.size_var("m0"), tvm.size_var("m1"), tvm.size_var("m2")
+    n0, n1, n2 = tvm.size_var("n0"), tvm.size_var("n1"), tvm.size_var("n2")
+    o0, o1, o2 = tvm.size_var("o0"), tvm.size_var("o1"), tvm.size_var("o2")
 
     A = tvm.placeholder((m0, m1, m2), name='A')
     B = tvm.placeholder((n0, n1, n2), name='B')
@@ -151,9 +151,9 @@ def test_buffer_broadcast():
 
 
 def test_buffer_broadcast_expr():
-    n0, m0, x = tvm.var('n0'), tvm.var('m0'), tvm.var('x')
-    n1, m1 = tvm.var('n1'), tvm.var('m1')
-    o0, o1 = tvm.var('o0'), tvm.var('o1')
+    n0, m0, x = tvm.size_var('n0'), tvm.size_var('m0'), tvm.size_var('x')
+    n1, m1 = tvm.size_var('n1'), tvm.size_var('m1')
+    o0, o1 = tvm.size_var('o0'), tvm.size_var('o1')
 
     A = tvm.placeholder((m0, n0), name='A')
     B = tvm.placeholder((m1, n1), name='B')

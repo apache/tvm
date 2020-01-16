@@ -52,7 +52,7 @@ def lower(sch, args):
     return stmt
 
 def test_basic():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((n, ), name='B')
 
@@ -65,6 +65,7 @@ def test_basic():
     stmt = tvm.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert('if' not in str(stmt.body.body.body[0]))
+    assert('if' in str(stmt.body.body.body[1]))
 
 def test_const_loop():
     n = 21
@@ -83,8 +84,8 @@ def test_const_loop():
 
 def test_multi_loop():
     ib = tvm.ir_builder.create()
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     with ib.for_range(0, 4, "i") as i:
         with ib.for_range(0, n, "j") as j:
             with ib.for_range(0, m, "k") as k:
@@ -99,8 +100,8 @@ def test_multi_loop():
 
 def test_multi_if():
     ib = tvm.ir_builder.create()
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     with ib.for_range(0, 4, 'i') as i:
         with ib.for_range(0, n, 'j') as j:
             with ib.for_range(0, m, 'k') as k:
@@ -118,8 +119,8 @@ def test_multi_if():
     assert('if' not in str(stmt.body[0]))
 
 def test_thread_axis():
-    m = tvm.var('m')
-    l = tvm.var('l')
+    m = tvm.size_var('m')
+    l = tvm.size_var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.compute((m, l), lambda i, j: A[i, j] + 3, name='B')
     s = tvm.create_schedule(B.op)
@@ -137,11 +138,11 @@ def test_thread_axis():
     assert('if' not in str(stmt.body.body.body[0]))
 
 def test_vectorize():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
-    bias = tvm.var("bias", dtype="float32")
-    scale = tvm.var("scale", dtype="float32")
+    bias = tvm.size_var("bias", dtype="float32")
+    scale = tvm.size_var("scale", dtype="float32")
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name='C')
     # schedule
     s = tvm.create_schedule(C.op)
@@ -160,8 +161,8 @@ def test_vectorize():
 
 def test_condition():
     ib = tvm.ir_builder.create()
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     with ib.for_range(0, tvm.truncdiv(n+3,4), 'i') as i:
       with ib.for_range(0, 4, 'j') as j:
         ib.emit(tvm.make.Evaluate(
@@ -173,8 +174,8 @@ def test_condition():
 
 def test_condition_EQ():
     ib = tvm.ir_builder.create()
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     with ib.for_range(0, 10, 'i') as i:
             ib.emit(tvm.make.Evaluate(
                 tvm.make.Select(ib.likely(tvm.expr.EQ(i, 5)), m, n)))
@@ -185,7 +186,7 @@ def test_condition_EQ():
 
 def test_thread_axis2():
     n = tvm.convert(4096)
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
@@ -201,8 +202,8 @@ def test_thread_axis2():
     assert('threadIdx' not in str(for_body.extent))
 
 def test_everything_during_deduction():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     ib = tvm.ir_builder.create()
     with ib.for_range(0, n, 'i') as i:
         with ib.for_range(0, 32, 'j') as j:
@@ -252,7 +253,7 @@ def test_multi_likely():
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
 def test_oneD_pool():
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     ib = tvm.ir_builder.create()
     #data = tvm.placeholder((16,), name = 'data')
     data = ib.pointer("float32", name="A")

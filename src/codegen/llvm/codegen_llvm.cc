@@ -662,15 +662,13 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(
-        op->args[0].as<UIntImmNode>()->value);
-    const uint64_t *num_signature = as_const_uint(op->args[1]);
-    CHECK(num_signature) << "The second argument should be a uint represents number of arguments, "
-                         << "but " << op->args[1] << " got!\n";
+        Downcast<IntImm>(op->args[0])->value);
+    int64_t num_signature  = Downcast<IntImm>(op->args[1])->value;
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> sig_type;
     for (size_t i = 2; i < op->args.size(); ++i) {
       arg_value.push_back(MakeValue(op->args[i]));
-      if (i - 2 < *num_signature) {
+      if (i - 2 < static_cast<size_t>(num_signature)) {
         sig_type.push_back(arg_value.back()->getType());
       }
     }
@@ -722,6 +720,12 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    return llvm::ConstantInt::get(LLVMType(op->dtype), val);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
     CHECK_EQ(op->args[0].dtype().lanes(), 1)
         << "if_then_else can only take scalar condition";
@@ -802,10 +806,6 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CastNode* op) {
 }
 llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
   return llvm::ConstantInt::getSigned(LLVMType(op->dtype), op->value);
-}
-
-llvm::Value* CodeGenLLVM::VisitExpr_(const UIntImmNode* op) {
-  return llvm::ConstantInt::get(LLVMType(op->dtype), op->value);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {

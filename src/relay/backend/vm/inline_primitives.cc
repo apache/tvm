@@ -24,7 +24,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,15 +21,15 @@
  * \file ring_buffer.h
  * \brief this file aims to provide a wrapper of sockets
  */
-#ifndef TVM_COMMON_RING_BUFFER_H_
-#define TVM_COMMON_RING_BUFFER_H_
+#ifndef TVM_SUPPORT_RING_BUFFER_H_
+#define TVM_SUPPORT_RING_BUFFER_H_
 
 #include <vector>
 #include <cstring>
 #include <algorithm>
 
 namespace tvm {
-namespace common {
+namespace support {
 /*!
  * \brief Ring buffer class for data buffering in IO.
  *  Enables easy usage for sync and async mode.
@@ -173,6 +173,6 @@ class RingBuffer {
   // The internald ata ring.
   std::vector<char> ring_;
 };
-}  // namespace common
+}  // namespace support
 }  // namespace tvm
-#endif  // TVM_COMMON_RING_BUFFER_H_
+#endif  // TVM_SUPPORT_RING_BUFFER_H_

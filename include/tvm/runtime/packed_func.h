@@ -374,14 +374,14 @@ inline const char* TypeCode2Str(int type_code);
  * \param s The string to be converted.
  * \return The corresponding tvm type.
  */
-inline TVMType String2TVMType(std::string s);
+inline DLDataType String2DLDataType(std::string s);
 
 /*!
  * \brief convert a TVM type to string.
  * \param t The type to be converted.
  * \return The corresponding tvm type in string.
  */
-inline std::string TVMType2String(TVMType t);
+inline std::string DLDataType2String(DLDataType t);
 
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T)                           \
@@ -440,17 +440,17 @@ class TVMPODValue_ {
     return value_.v_int64 != 0;
   }
   operator void*() const {
-    if (type_code_ == kNull) return nullptr;
-    if (type_code_ == kArrayHandle) return value_.v_handle;
-    TVM_CHECK_TYPE_CODE(type_code_, kHandle);
+    if (type_code_ == kTVMNullptr) return nullptr;
+    if (type_code_ == kTVMDLTensorHandle) return value_.v_handle;
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMOpaqueHandle);
     return value_.v_handle;
   }
   operator DLTensor*() const {
-    if (type_code_ == kArrayHandle ||
-        type_code_ == kNDArrayContainer) {
+    if (type_code_ == kTVMDLTensorHandle ||
+        type_code_ == kTVMNDArrayHandle) {
       return static_cast<DLTensor*>(value_.v_handle);
     } else {
-      if (type_code_ == kNull) return nullptr;
+      if (type_code_ == kTVMNullptr) return nullptr;
       LOG(FATAL) << "Expect "
                  << "DLTensor* or NDArray but get "
                  << TypeCode2Str(type_code_);
@@ -458,16 +458,16 @@ class TVMPODValue_ {
     }
   }
   operator NDArray() const {
-    if (type_code_ == kNull) return NDArray(ObjectPtr<Object>(nullptr));
-    TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
+    if (type_code_ == kTVMNullptr) return NDArray(ObjectPtr<Object>(nullptr));
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle);
     return NDArray(NDArray::FFIDataFromHandle(
         static_cast<TVMArrayHandle>(value_.v_handle)));
   }
   operator Module() const {
-    if (type_code_ == kNull) {
+    if (type_code_ == kTVMNullptr) {
       return Module(ObjectPtr<Object>(nullptr));
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kModuleHandle);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     return Module(
         ObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   }
@@ -501,7 +501,7 @@ class TVMPODValue_ {
  protected:
   friend class TVMArgsSetter;
   friend class TVMRetValue;
-  TVMPODValue_() : type_code_(kNull) {}
+  TVMPODValue_() : type_code_(kTVMNullptr) {}
   TVMPODValue_(TVMValue value, int type_code)
       : value_(value), type_code_(type_code) {}
 
@@ -547,35 +547,35 @@ class TVMArgValue : public TVMPODValue_ {
 
   // conversion operator.
   operator std::string() const {
-    if (type_code_ == kTVMType) {
-      return TVMType2String(operator TVMType());
-    } else if (type_code_ == kBytes) {
+    if (type_code_ == kTVMDataType) {
+      return DLDataType2String(operator DLDataType());
+    } else if (type_code_ == kTVMBytes) {
       TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
       return std::string(arr->data, arr->size);
     } else {
-      TVM_CHECK_TYPE_CODE(type_code_, kStr);
+      TVM_CHECK_TYPE_CODE(type_code_, kTVMStr);
       return std::string(value_.v_str);
     }
   }
-  operator TVMType() const {
-    if (type_code_ == kStr) {
-      return String2TVMType(operator std::string());
+  operator DLDataType() const {
+    if (type_code_ == kTVMStr) {
+      return String2DLDataType(operator std::string());
     }
     // None type
-    if (type_code_ == kNull) {
-      TVMType t;
-      t.code = kHandle; t.bits = 0; t.lanes = 0;
+    if (type_code_ == kTVMNullptr) {
+      DLDataType t;
+      t.code = kTVMOpaqueHandle; t.bits = 0; t.lanes = 0;
       return t;
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMType);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMDataType);
     return value_.v_type;
   }
   operator DataType() const {
     return DataType(operator DLDataType());
   }
   operator PackedFunc() const {
-    if (type_code_ == kNull) return PackedFunc();
-    TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
+    if (type_code_ == kTVMNullptr) return PackedFunc();
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
     return *ptr<PackedFunc>();
   }
   template<typename FType>
@@ -610,7 +610,7 @@ class TVMRetValue : public TVMPODValue_ {
   TVMRetValue(TVMRetValue&& other)
       : TVMPODValue_(other.value_, other.type_code_) {
     other.value_.v_handle = nullptr;
-    other.type_code_ = kNull;
+    other.type_code_ = kTVMNullptr;
   }
   /*! \brief destructor */
   ~TVMRetValue() {
@@ -637,27 +637,27 @@ class TVMRetValue : public TVMPODValue_ {
   }
   // conversion operators
   operator std::string() const {
-    if (type_code_ == kTVMType) {
-      return TVMType2String(operator TVMType());
-    } else if (type_code_ == kBytes) {
+    if (type_code_ == kTVMDataType) {
+      return DLDataType2String(operator DLDataType());
+    } else if (type_code_ == kTVMBytes) {
       return *ptr<std::string>();
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kStr);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMStr);
     return *ptr<std::string>();
   }
-  operator TVMType() const {
-    if (type_code_ == kStr) {
-      return String2TVMType(operator std::string());
+  operator DLDataType() const {
+    if (type_code_ == kTVMStr) {
+      return String2DLDataType(operator std::string());
     }
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMType);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMDataType);
     return value_.v_type;
   }
   operator DataType() const {
     return DataType(operator DLDataType());
   }
   operator PackedFunc() const {
-    if (type_code_ == kNull) return PackedFunc();
-    TVM_CHECK_TYPE_CODE(type_code_, kFuncHandle);
+    if (type_code_ == kTVMNullptr) return PackedFunc();
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
     return *ptr<PackedFunc>();
   }
   template<typename FType>
@@ -669,7 +669,7 @@ class TVMRetValue : public TVMPODValue_ {
     this->Clear();
     value_ = other.value_;
     type_code_ = other.type_code_;
-    other.type_code_ = kNull;
+    other.type_code_ = kTVMNullptr;
     return *this;
   }
   TVMRetValue& operator=(double value) {
@@ -678,12 +678,12 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(std::nullptr_t value) {
-    this->SwitchToPOD(kNull);
+    this->SwitchToPOD(kTVMNullptr);
     value_.v_handle = value;
     return *this;
   }
   TVMRetValue& operator=(void* value) {
-    this->SwitchToPOD(kHandle);
+    this->SwitchToPOD(kTVMOpaqueHandle);
     value_.v_handle = value;
     return *this;
   }
@@ -702,8 +702,8 @@ class TVMRetValue : public TVMPODValue_ {
     value_.v_ctx = value;
     return *this;
   }
-  TVMRetValue& operator=(TVMType t) {
-    this->SwitchToPOD(kTVMType);
+  TVMRetValue& operator=(DLDataType t) {
+    this->SwitchToPOD(kTVMDataType);
     value_.v_type = t;
     return *this;
   }
@@ -716,30 +716,30 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(std::string value) {
-    this->SwitchToClass(kStr, value);
+    this->SwitchToClass(kTVMStr, value);
     return *this;
   }
   TVMRetValue& operator=(TVMByteArray value) {
-    this->SwitchToClass(kBytes, std::string(value.data, value.size));
+    this->SwitchToClass(kTVMBytes, std::string(value.data, value.size));
     return *this;
   }
   TVMRetValue& operator=(NDArray other) {
     if (other.data_ != nullptr) {
       this->Clear();
-      type_code_ = kNDArrayContainer;
+      type_code_ = kTVMNDArrayHandle;
       value_.v_handle = NDArray::FFIGetHandle(other);
       ObjectRef::FFIClearAfterMove(&other);
     } else {
-      SwitchToPOD(kNull);
+      SwitchToPOD(kTVMNullptr);
     }
     return *this;
   }
   TVMRetValue& operator=(Module m) {
-    SwitchToObject(kModuleHandle, std::move(m.data_));
+    SwitchToObject(kTVMModuleHandle, std::move(m.data_));
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
-    this->SwitchToClass(kFuncHandle, f);
+    this->SwitchToClass(kTVMPackedFuncHandle, f);
     return *this;
   }
   template<typename FType>
@@ -766,10 +766,10 @@ class TVMRetValue : public TVMPODValue_ {
   void MoveToCHost(TVMValue* ret_value,
                    int* ret_type_code) {
     // cannot move str; need specially handle.
-    CHECK(type_code_ != kStr && type_code_ != kBytes);
+    CHECK(type_code_ != kTVMStr && type_code_ != kTVMBytes);
     *ret_value = value_;
     *ret_type_code = type_code_;
-    type_code_ = kNull;
+    type_code_ = kTVMNullptr;
   }
   /*!
    * \brief Construct a new TVMRetValue by
@@ -781,8 +781,8 @@ class TVMRetValue : public TVMPODValue_ {
   static TVMRetValue MoveFromCHost(TVMValue value,
                                    int type_code) {
     // Can move POD and everything under the object system.
-    CHECK(type_code <= kFuncHandle ||
-          type_code == kNDArrayContainer);
+    CHECK(type_code <= kTVMPackedFuncHandle ||
+          type_code == kTVMNDArrayHandle);
     TVMRetValue ret;
     ret.value_ = value;
     ret.type_code_ = type_code;
@@ -790,10 +790,10 @@ class TVMRetValue : public TVMPODValue_ {
   }
   /*! \return The value field, if the data is POD */
   const TVMValue& value() const {
-    CHECK(type_code_ != kObjectHandle &&
-          type_code_ != kFuncHandle &&
-          type_code_ != kModuleHandle &&
-          type_code_ != kStr) << "TVMRetValue.value can only be used for POD data";
+    CHECK(type_code_ != kTVMObjectHandle &&
+          type_code_ != kTVMPackedFuncHandle &&
+          type_code_ != kTVMModuleHandle &&
+          type_code_ != kTVMStr) << "TVMRetValue.value can only be used for POD data";
     return value_;
   }
   // ObjectRef handling
@@ -810,30 +810,30 @@ class TVMRetValue : public TVMPODValue_ {
   template<typename T>
   void Assign(const T& other) {
     switch (other.type_code()) {
-      case kStr: {
-        SwitchToClass<std::string>(kStr, other);
+      case kTVMStr: {
+        SwitchToClass<std::string>(kTVMStr, other);
         break;
       }
-      case kBytes: {
-        SwitchToClass<std::string>(kBytes, other);
+      case kTVMBytes: {
+        SwitchToClass<std::string>(kTVMBytes, other);
         break;
       }
-      case kFuncHandle: {
-        SwitchToClass<PackedFunc>(kFuncHandle, other);
+      case kTVMPackedFuncHandle: {
+        SwitchToClass<PackedFunc>(kTVMPackedFuncHandle, other);
         break;
       }
-      case kModuleHandle: {
+      case kTVMModuleHandle: {
         *this = other.operator Module();
         break;
       }
-      case kNDArrayContainer: {
+      case kTVMNDArrayHandle: {
         *this = other.operator NDArray();
         break;
       }
-      case kObjectHandle: {
+      case kTVMObjectHandle: {
         // Avoid operator ObjectRef as we already know it is not NDArray/Module
         SwitchToObject(
-            kObjectHandle, GetObjectPtr<Object>(
+            kTVMObjectHandle, GetObjectPtr<Object>(
                 static_cast<Object*>(other.value_.v_handle)));
         break;
       }
@@ -869,28 +869,28 @@ class TVMRetValue : public TVMPODValue_ {
       value_.v_handle = other.data_;
       other.data_ = nullptr;
     } else {
-      SwitchToPOD(kNull);
+      SwitchToPOD(kTVMNullptr);
     }
   }
   void Clear() {
-    if (type_code_ == kNull) return;
+    if (type_code_ == kTVMNullptr) return;
     switch (type_code_) {
-      case kStr: delete ptr<std::string>(); break;
-      case kFuncHandle: delete ptr<PackedFunc>(); break;
-      case kNDArrayContainer: {
+      case kTVMStr: delete ptr<std::string>(); break;
+      case kTVMPackedFuncHandle: delete ptr<PackedFunc>(); break;
+      case kTVMNDArrayHandle: {
         NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
         break;
       }
-      case kModuleHandle: {
+      case kTVMModuleHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
-      case kObjectHandle: {
+      case kTVMObjectHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
     }
-    type_code_ = kNull;
+    type_code_ = kTVMNullptr;
   }
 };
 
@@ -998,33 +998,33 @@ inline const char* TypeCode2Str(int type_code) {
     case kDLInt: return "int";
     case kDLUInt: return "uint";
     case kDLFloat: return "float";
-    case kStr: return "str";
-    case kBytes: return "bytes";
-    case kHandle: return "handle";
-    case kNull: return "NULL";
-    case kArrayHandle: return "ArrayHandle";
-    case kTVMType: return "TVMType";
+    case kTVMStr: return "str";
+    case kTVMBytes: return "bytes";
+    case kTVMOpaqueHandle: return "handle";
+    case kTVMNullptr: return "NULL";
+    case kTVMDLTensorHandle: return "ArrayHandle";
+    case kTVMDataType: return "DLDataType";
     case kTVMContext: return "TVMContext";
-    case kFuncHandle: return "FunctionHandle";
-    case kModuleHandle: return "ModuleHandle";
-    case kNDArrayContainer: return "NDArrayContainer";
-    case kObjectHandle: return "Object";
+    case kTVMPackedFuncHandle: return "FunctionHandle";
+    case kTVMModuleHandle: return "ModuleHandle";
+    case kTVMNDArrayHandle: return "NDArrayContainer";
+    case kTVMObjectHandle: return "Object";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
 }
 
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
-inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
+inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  if (t.code < kCustomBegin) {
+  if (t.code < kTVMCustomBegin) {
     os << TypeCode2Str(t.code);
   } else {
     os << "custom[" << GetCustomTypeName(t.code) << "]";
   }
-  if (t.code == kHandle) return os;
+  if (t.code == kTVMOpaqueHandle) return os;
   os << static_cast<int>(t.bits);
   if (t.lanes != 1) {
     os << 'x' << static_cast<int>(t.lanes);
@@ -1038,7 +1038,7 @@ inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NO
 
 #endif
 
-inline std::string TVMType2String(TVMType t) {
+inline std::string DLDataType2String(DLDataType t) {
   if (t.bits == 0) return "";
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::ostringstream os;
@@ -1048,12 +1048,12 @@ inline std::string TVMType2String(TVMType t) {
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     return "bool";
   }
-  if (t.code < kCustomBegin) {
+  if (t.code < kTVMCustomBegin) {
     repr += TypeCode2Str(t.code);
   } else {
     repr += "custom[" + GetCustomTypeName(t.code) + "]";
   }
-  if (t.code == kHandle) return repr;
+  if (t.code == kTVMOpaqueHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
   if (t.lanes != 1) {
     repr += "x" + std::to_string(static_cast<int>(t.lanes));
@@ -1062,11 +1062,11 @@ inline std::string TVMType2String(TVMType t) {
 #endif
 }
 
-inline TVMType String2TVMType(std::string s) {
-  TVMType t;
+inline DLDataType String2DLDataType(std::string s) {
+  DLDataType t;
   // handle None type
   if (s.length() == 0) {
-    t.bits = 0; t.lanes = 0; t.code = kHandle;
+    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle;
     return t;
   }
   t.bits = 32; t.lanes = 1;
@@ -1078,7 +1078,7 @@ inline TVMType String2TVMType(std::string s) {
   } else if (s.substr(0, 5) == "float") {
     t.code = kDLFloat; scan = s.c_str() + 5;
   } else if (s.substr(0, 6) == "handle") {
-    t.code = kHandle;
+    t.code = kTVMOpaqueHandle;
     t.bits = 64;  // handle uses 64 bit by default.
     scan = s.c_str() + 6;
   } else if (s == "bool") {
@@ -1209,7 +1209,7 @@ class TVMArgsSetter {
   }
   void operator()(size_t i, std::nullptr_t value) const {
     values_[i].v_handle = value;
-    type_codes_[i] = kNull;
+    type_codes_[i] = kTVMNullptr;
   }
   void operator()(size_t i, const TVMArgValue& value) const {
     values_[i] = value.value_;
@@ -1217,50 +1217,50 @@ class TVMArgsSetter {
   }
   void operator()(size_t i, void* value) const {
     values_[i].v_handle = value;
-    type_codes_[i] = kHandle;
+    type_codes_[i] = kTVMOpaqueHandle;
   }
   void operator()(size_t i, DLTensor* value) const {
     values_[i].v_handle = value;
-    type_codes_[i] = kArrayHandle;
+    type_codes_[i] = kTVMDLTensorHandle;
   }
   void operator()(size_t i, TVMContext value) const {
     values_[i].v_ctx = value;
     type_codes_[i] = kTVMContext;
   }
-  void operator()(size_t i, TVMType value) const {
+  void operator()(size_t i, DLDataType value) const {
     values_[i].v_type = value;
-    type_codes_[i] = kTVMType;
+    type_codes_[i] = kTVMDataType;
   }
   void operator()(size_t i, DataType dtype) const {
     operator()(i, dtype.operator DLDataType());
   }
   void operator()(size_t i, const char* value) const {
     values_[i].v_str = value;
-    type_codes_[i] = kStr;
+    type_codes_[i] = kTVMStr;
   }
   // setters for container types
   void operator()(size_t i, const std::string& value) const {
     values_[i].v_str = value.c_str();
-    type_codes_[i] = kStr;
+    type_codes_[i] = kTVMStr;
   }
   void operator()(size_t i, const TVMByteArray& value) const {
     values_[i].v_handle = const_cast<TVMByteArray*>(&value);
-    type_codes_[i] = kBytes;
+    type_codes_[i] = kTVMBytes;
   }
   void operator()(size_t i, const PackedFunc& value) const {
     values_[i].v_handle = const_cast<PackedFunc*>(&value);
-    type_codes_[i] = kFuncHandle;
+    type_codes_[i] = kTVMPackedFuncHandle;
   }
   template<typename FType>
   void operator()(size_t i, const TypedPackedFunc<FType>& value) const {
     operator()(i, value.packed());
   }
   void operator()(size_t i, const TVMRetValue& value) const {
-    if (value.type_code() == kStr) {
+    if (value.type_code() == kTVMStr) {
       values_[i].v_str = value.ptr<std::string>()->c_str();
-      type_codes_[i] = kStr;
+      type_codes_[i] = kTVMStr;
     } else {
-      CHECK_NE(value.type_code(), kBytes) << "not handled.";
+      CHECK_NE(value.type_code(), kTVMBytes) << "not handled.";
       values_[i] = value.value_;
       type_codes_[i] = value.type_code();
     }
@@ -1397,7 +1397,7 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 
 // ObjectRef related conversion handling
 // Object can have three possible type codes:
-//      kNDArrayContainer, kModuleHandle, kObjectHandle
+//      kTVMNDArrayHandle, kTVMModuleHandle, kTVMObjectHandle
 //
 // We use type traits to eliminate un-necessary checks.
 template<typename TObjectRef, typename>
@@ -1408,18 +1408,18 @@ inline void TVMArgsSetter::operator()(size_t i, const TObjectRef& value) const {
         (std::is_base_of<TObjectRef, NDArray>::value &&
          ptr->IsInstance<NDArray::ContainerType>())) {
       values_[i].v_handle = NDArray::FFIGetHandle(value);
-      type_codes_[i] = kNDArrayContainer;
+      type_codes_[i] = kTVMNDArrayHandle;
     } else if (std::is_base_of<Module, TObjectRef>::value ||
                (std::is_base_of<TObjectRef, Module>::value &&
                 ptr->IsInstance<Module::ContainerType>())) {
       values_[i].v_handle = ptr;
-      type_codes_[i] = kModuleHandle;
+      type_codes_[i] = kTVMModuleHandle;
     } else {
       values_[i].v_handle = ptr;
-      type_codes_[i] = kObjectHandle;
+      type_codes_[i] = kTVMObjectHandle;
     }
   } else {
-    type_codes_[i] = kNull;
+    type_codes_[i] = kTVMNullptr;
   }
 }
 
@@ -1428,18 +1428,18 @@ inline bool TVMPODValue_::IsObjectRef() const {
   using ContainerType = typename TObjectRef::ContainerType;
   // NOTE: the following code can be optimized by constant folding.
   if (std::is_base_of<NDArray, TObjectRef>::value) {
-    return type_code_ == kNDArrayContainer &&
+    return type_code_ == kTVMNDArrayHandle &&
         TVMArrayHandleToObjectHandle(
             static_cast<TVMArrayHandle>(value_.v_handle))->IsInstance<ContainerType>();
   }
   if (std::is_base_of<Module, TObjectRef>::value) {
-    return type_code_ == kModuleHandle &&
+    return type_code_ == kTVMModuleHandle &&
         static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
   }
   return
-      (std::is_base_of<TObjectRef, NDArray>::value && type_code_ == kNDArrayContainer) ||
-      (std::is_base_of<TObjectRef, Module>::value && type_code_ == kModuleHandle) ||
-      (type_code_ == kObjectHandle &&
+      (std::is_base_of<TObjectRef, NDArray>::value && type_code_ == kTVMNDArrayHandle) ||
+      (std::is_base_of<TObjectRef, Module>::value && type_code_ == kTVMModuleHandle) ||
+      (type_code_ == kTVMObjectHandle &&
        ObjectTypeChecker<TObjectRef>::Check(static_cast<Object*>(value_.v_handle)));
 }
 
@@ -1449,11 +1449,11 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
       std::is_base_of<ObjectRef, TObjectRef>::value,
       "Conversion only works for ObjectRef");
   using ContainerType = typename TObjectRef::ContainerType;
-  if (type_code_ == kNull) return TObjectRef(ObjectPtr<Object>(nullptr));
+  if (type_code_ == kTVMNullptr) return TObjectRef(ObjectPtr<Object>(nullptr));
   // NOTE: the following code can be optimized by constant folding.
   if (std::is_base_of<NDArray, TObjectRef>::value) {
     // Casting to a sub-class of NDArray
-    TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMNDArrayHandle);
     ObjectPtr<Object> data = NDArray::FFIDataFromHandle(
         static_cast<TVMArrayHandle>(value_.v_handle));
     CHECK(data->IsInstance<ContainerType>())
@@ -1462,13 +1462,13 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   }
   if (std::is_base_of<Module, TObjectRef>::value) {
     // Casting to a sub-class of Module
-    TVM_CHECK_TYPE_CODE(type_code_, kModuleHandle);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
     ObjectPtr<Object> data = GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle));
     CHECK(data->IsInstance<ContainerType>())
         << "Expect " << ContainerType::_type_key << " but get " << data->GetTypeKey();
     return TObjectRef(data);
   }
-  if (type_code_ == kObjectHandle) {
+  if (type_code_ == kTVMObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
     CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
@@ -1476,17 +1476,17 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
         << " but get " << ptr->GetTypeKey();
     return TObjectRef(GetObjectPtr<Object>(ptr));
   } else if (std::is_base_of<TObjectRef, NDArray>::value &&
-             type_code_ == kNDArrayContainer) {
+             type_code_ == kTVMNDArrayHandle) {
     // Casting to a base class that NDArray can sub-class
     ObjectPtr<Object> data = NDArray::FFIDataFromHandle(
         static_cast<TVMArrayHandle>(value_.v_handle));
     return TObjectRef(data);
   } else if (std::is_base_of<TObjectRef, Module>::value &&
-             type_code_ == kModuleHandle) {
+             type_code_ == kTVMModuleHandle) {
     // Casting to a base class that Module can sub-class
     return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
   } else {
-    TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+    TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
     return TObjectRef(ObjectPtr<Object>(nullptr));
   }
 }
@@ -1505,9 +1505,9 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
          ptr->IsInstance<Module::ContainerType>())) {
       return operator=(Module(std::move(other.data_)));
     }
-    SwitchToObject(kObjectHandle, std::move(other.data_));
+    SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   } else {
-    SwitchToPOD(kNull);
+    SwitchToPOD(kTVMNullptr);
   }
   return *this;
 }

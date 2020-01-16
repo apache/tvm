@@ -27,8 +27,8 @@
  *  - array of attributes
  *  - map of attributes
  */
-#ifndef TVM_LANG_ATTR_FUNCTOR_H_
-#define TVM_LANG_ATTR_FUNCTOR_H_
+#ifndef TVM_IR_ATTR_FUNCTOR_H_
+#define TVM_IR_ATTR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
 #include <utility>
@@ -77,11 +77,13 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::UIntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
   virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const SizeVarNode* op, Args... args) {
+    return VisitAttr_(static_cast<const VarNode*>(op), std::forward<Args>(args)...);
+  }
   virtual R VisitAttr_(const ir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::SubNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::MulNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -113,10 +115,10 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(StrMapNode);
     ATTR_FUNCTOR_DISPATCH(ArrayNode);
     ATTR_FUNCTOR_DISPATCH(IntImmNode);
-    ATTR_FUNCTOR_DISPATCH(UIntImmNode);
     ATTR_FUNCTOR_DISPATCH(FloatImmNode);
     ATTR_FUNCTOR_DISPATCH(StringImmNode);
     ATTR_FUNCTOR_DISPATCH(VarNode);
+    ATTR_FUNCTOR_DISPATCH(SizeVarNode);
     ATTR_FUNCTOR_DISPATCH(AddNode);
     ATTR_FUNCTOR_DISPATCH(SubNode);
     ATTR_FUNCTOR_DISPATCH(MulNode);
@@ -157,7 +159,6 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::IntImmNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::UIntImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::FloatImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::StringImmNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ir::AddNode* lhs, const ObjectRef& other) final;
@@ -198,7 +199,6 @@ class AttrsHashHandler :
  protected:
   size_t VisitAttrDefault_(const Object* lhs) final;
   size_t VisitAttr_(const ir::IntImmNode* lhs) final;
-  size_t VisitAttr_(const ir::UIntImmNode* lhs) final;
   size_t VisitAttr_(const ir::FloatImmNode* lhs) final;
   size_t VisitAttr_(const ir::StringImmNode* lhs) final;
   size_t VisitAttr_(const ArrayNode* lhs) final;
@@ -234,4 +234,4 @@ class AttrsHashHandler :
   }
 };
 }  // namespace tvm
-#endif  // TVM_LANG_ATTR_FUNCTOR_H_
+#endif  // TVM_IR_ATTR_FUNCTOR_H_

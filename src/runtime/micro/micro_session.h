@@ -231,13 +231,13 @@ class MicroSession : public ModuleNode {
   std::tuple<DevPtr, DevPtr> EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
 
   /*!
-   * \brief appends a `TVMArray` to the host-side buffer of `encoder`
+   * \brief appends a `DLTensor` to the host-side buffer of `encoder`
    * \param encoder encoder being used to append `arr`
-   * \param arr TVMArray to be appended
-   * \return device address of the allocated `TVMArray`
+   * \param arr DLTensor to be appended
+   * \return device address of the allocated `DLTensor`
    */
   template <typename T>
-  DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArray& arr);
+  DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr);
 
   /*!
    * \brief checks and logs if there was an error during the device's most recent execution

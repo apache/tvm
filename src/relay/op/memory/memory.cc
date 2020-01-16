@@ -65,7 +65,7 @@ bool AllocStorageRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   auto mod = reporter->GetModule();
   CHECK(mod.defined());
   auto storage_name = mod->GetGlobalTypeVar("Storage");
-  auto storage = TypeCallNode::make(storage_name, {});
+  auto storage = TypeCall(storage_name, {});
   reporter->Assign(types[2], storage);
   return true;
 }
@@ -136,7 +136,7 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto mod = reporter->GetModule();
   CHECK(mod.defined());
   auto storage_name = mod->GetGlobalTypeVar("Storage");
-  auto storage = relay::TypeCallNode::make(storage_name, {});
+  auto storage = relay::TypeCall(storage_name, {});
   reporter->Assign(types[0], storage);
   // Second argument should be shape tensor.
   auto tt = types[1].as<TensorTypeNode>();
@@ -196,15 +196,15 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
       << "internal invariant violated: invoke_tvm_op outputs must be a tuple";
   Type ex_output;
   if (func_type->ret_type.as<TensorTypeNode>()) {
-    ex_output = TupleTypeNode::make({func_type->ret_type});
+    ex_output = TupleType({func_type->ret_type});
   } else {
     CHECK(func_type->ret_type.as<TupleTypeNode>()) << "should be tuple type";
     ex_output = func_type->ret_type;
   }
-  auto ex_input = TupleTypeNode::make(func_type->arg_types);
+  auto ex_input = TupleType(func_type->arg_types);
   reporter->Assign(ex_input, GetRef<Type>(input_type));
   reporter->Assign(ex_output, GetRef<Type>(output_type));
-  reporter->Assign(types[3], TupleTypeNode::make({}));
+  reporter->Assign(types[3], TupleType::Empty());
   return true;
 }
 
@@ -236,7 +236,7 @@ bool KillRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
              const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2u);
   // TODO(@jroesch): should only support tensors.
-  reporter->Assign(types[1], TupleTypeNode::make({}));
+  reporter->Assign(types[1], TupleType::Empty());
   return true;
 }
 
@@ -297,7 +297,7 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto func_type = types[0].as<FuncTypeNode>();
   CHECK(func_type != nullptr);
 
-  auto tuple = TupleTypeNode::make(func_type->arg_types);
+  auto tuple = TupleType(func_type->arg_types);
   auto in_types = FlattenType(tuple);
   auto out_types = FlattenType(func_type->ret_type);
 
@@ -318,12 +318,12 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     shape_func_outs.push_back(TensorTypeNode::make(rank_shape, DataType::Int(64)));
   }
 
-  auto input_type = TupleTypeNode::make(shape_func_ins);
-  auto output_type = TupleTypeNode::make(shape_func_outs);
+  auto input_type = TupleType(shape_func_ins);
+  auto output_type = TupleType(shape_func_outs);
 
   reporter->Assign(types[1], input_type);
   reporter->Assign(types[2], output_type);
-  reporter->Assign(types[3], TupleTypeNode::make({}));
+  reporter->Assign(types[3], TupleType::Empty());
 
   return true;
 }

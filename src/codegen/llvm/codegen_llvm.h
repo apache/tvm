@@ -106,7 +106,6 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const VarNode* op) override;
   llvm::Value* VisitExpr_(const CastNode* op) override;
   llvm::Value* VisitExpr_(const IntImmNode* op) override;
-  llvm::Value* VisitExpr_(const UIntImmNode* op) override;
   llvm::Value* VisitExpr_(const FloatImmNode* op) override;
   llvm::Value* VisitExpr_(const StringImmNode* op) override;
   llvm::Value* VisitExpr_(const AddNode* op) override;

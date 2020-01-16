@@ -20,7 +20,7 @@
 /*!
  * \file attrs.cc
  */
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
@@ -43,7 +43,7 @@ void DictAttrsNode::InitByPackedArgs(
     runtime::TVMArgValue val = args[i + 1];
     if (val.IsObjectRef<ObjectRef>()) {
       dict.Set(key, val.operator ObjectRef());
-    } else if (val.type_code() == kStr) {
+    } else if (val.type_code() == kTVMStr) {
       dict.Set(key, PrimExpr(val.operator std::string()));
     } else {
       dict.Set(key, val.operator PrimExpr());
@@ -97,13 +97,6 @@ bool AttrsEqualHandler::VisitAttr_(const IntImmNode* lhs, const ObjectRef& other
   return false;
 }
 
-bool AttrsEqualHandler::VisitAttr_(const UIntImmNode* lhs, const ObjectRef& other) {
-  if (const auto* rhs = other.as<UIntImmNode>()) {
-    return lhs->value == rhs->value;
-  }
-  return false;
-}
-
 bool AttrsEqualHandler::VisitAttr_(const FloatImmNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<FloatImmNode>()) {
     return lhs->value == rhs->value;
@@ -121,7 +114,7 @@ bool AttrsEqualHandler::VisitAttr_(const StringImmNode* lhs, const ObjectRef& ot
 bool AttrsEqualHandler::VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<ArrayNode>()) {
     if (rhs->data.size() != lhs->data.size()) return false;
-    for (size_t  i = 0; i < lhs->data.size(); ++i) {
+    for (size_t i = 0; i < lhs->data.size(); ++i) {
       if (!Equal(lhs->data[i], rhs->data[i])) return false;
     }
   }
@@ -222,10 +215,6 @@ size_t AttrsHashHandler::VisitAttrDefault_(const Object* value) {
 
 size_t AttrsHashHandler::VisitAttr_(const IntImmNode* op) {
   return std::hash<int64_t>()(op->value);
-}
-
-size_t AttrsHashHandler::VisitAttr_(const UIntImmNode* op) {
-  return std::hash<uint64_t>()(op->value);
 }
 
 size_t AttrsHashHandler::VisitAttr_(const FloatImmNode* op) {

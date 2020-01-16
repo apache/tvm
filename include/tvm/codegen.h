@@ -25,7 +25,6 @@
 #define TVM_CODEGEN_H_
 
 #include <string>
-#include "base.h"
 #include "expr.h"
 #include "lowered_func.h"
 #include "runtime/packed_func.h"

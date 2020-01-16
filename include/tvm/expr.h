@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <unordered_map>
 #include <iostream>
-#include "base.h"
 #include "node/node.h"
 #include "node/container.h"
 #include "node/functor.h"
@@ -66,13 +65,15 @@ class Var;
  */
 class VarNode : public PrimExprNode {
  public:
+  /*! \brief constructor */
+  VarNode() {}
+  VarNode(DataType dtype, std::string name_hint);
+
   /*!
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
   std::string name_hint;
-
-  static Var make(DataType dtype, std::string name_hint);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -80,13 +81,17 @@ class VarNode : public PrimExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, PrimExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TVM */
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
   TVM_DLL explicit Var(std::string name_hint = "v",
                        DataType t = DataType::Int(32));
   /*!
@@ -115,55 +120,84 @@ class Var : public PrimExpr {
   using ContainerType = VarNode;
 };
 
-class Integer;
-/*! \brief ExprNode: constant integer. */
-class IntImmNode : public PrimExprNode {
+class SizeVar;
+/*!
+ * \brief A variable node represent a tensor index size,
+ * whose value must be non-negative.
+ */
+class SizeVarNode : public VarNode {
  public:
-  /*! \brief the Internal value. */
-  int64_t value;
+  /*! \brief constructor */
+  SizeVarNode() {}
+  /*! \brief constructor
+   * \param dtype data type
+   * \param name_hint variable name
+   */
+  SizeVarNode(DataType dtype, std::string name_hint);
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
+  static constexpr const char* _type_key = "SizeVar";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
+};
+
+/*! \brief a named variable represents a tensor index size */
+class SizeVar : public Var {
+ public:
+  explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
+  TVM_DLL explicit SizeVar(std::string name_hint = "s",
+                            DataType t = DataType::Int(32));
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const SizeVarNode* operator->() const {
+    return get();
   }
-
-  TVM_DLL static Integer make(DataType t, int64_t value);
-
-  static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const SizeVarNode* get() const {
+    return static_cast<const SizeVarNode*>(data_.get());
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = SizeVarNode;
 };
 
 /*!
- * \brief Container of constant integer (IntImm).
+ * \brief Container of constant int that adds more constructors.
  *
  * This is used to store and automate type check
  * attributes that must be constant integer.
+ *
+ * \sa IntImm
  */
-class Integer : public PrimExpr {
+class Integer : public IntImm {
  public:
-  Integer() : PrimExpr() {}
+  Integer() {}
   /*!
    * \brief constructor from node.
    */
-  explicit Integer(ObjectPtr<Object> node) : PrimExpr(node) {}
+  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
   /*!
    * \brief Construct integer from int value.
    */
-  Integer(int value) : PrimExpr(value) {}  // NOLINT(*)
+  Integer(int value) : IntImm(DataType::Int(32), value) {}  // NOLINT(*)
+  /*!
+   * \brief Construct integer from int imm.
+   * \param other The other value.
+   */
+  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
   /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
    */
-  Integer& operator=(const Integer& other) {
-    data_ = other.data_;
+  Integer& operator=(const IntImm& other) {
+    data_ = ObjectRef::GetDataPtr<Object>(other);
     return *this;
-  }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the content of the integer.
-   */
-  const IntImmNode* operator->() const {
-    return static_cast<const IntImmNode*>(get());
   }
   /*!
    * \brief convert to int64_t
@@ -173,8 +207,6 @@ class Integer : public PrimExpr {
         << " Trying to reference a null Integer";
     return (*this)->value;
   }
-  /*! \brief type indicate the container type */
-  using ContainerType = IntImmNode;
 };
 
 /*! \brief range over one dimension */

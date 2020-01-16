@@ -73,10 +73,10 @@ Type WithGradientType(const Type& t) {
   // TODO(M.K.): stricter checking
   auto ty = t.as<FuncTypeNode>();
   CHECK(ty) << "input should be a function";
-  return FuncTypeNode::make(ty->arg_types,
-                            TupleTypeNode::make({
+  return FuncType(ty->arg_types,
+                            TupleType({
                               ty->ret_type,
-                              TupleTypeNode::make(ty->arg_types)}), {}, {});
+                              TupleType(ty->arg_types)}), {}, {});
 }
 
 //! \brief if the expression is a GlobalVar, transform to it's expression.
@@ -219,7 +219,7 @@ Type GradRetType(const Function& f) {
     vt.push_back(p->type_annotation);
   }
 
-  return TupleTypeNode::make({f->ret_type, TupleTypeNode::make(vt)});
+  return TupleType({f->ret_type, TupleType(vt)});
 }
 
 Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
@@ -265,7 +265,7 @@ TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient")
 struct ReverseADType : TypeMutator {
   Type VisitType_(const TensorTypeNode* ttn) final {
     Type t = GetRef<Type>(ttn);
-    return TupleTypeNode::make({t, RefTypeNode::make(t)});
+    return TupleType({t, RefTypeNode::make(t)});
   }
 };
 
@@ -299,7 +299,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
       types.push_back(field->checked_type_);
     }
     auto ret = TupleNode::make(fields);
-    ret->checked_type_ = TupleTypeNode::make(types);
+    ret->checked_type_ = TupleType(types);
     return std::move(ret);
   } else {
     LOG(FATAL) << "unsupported input/output type: " << tt;
@@ -385,7 +385,7 @@ void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
 }
 
 Expr BPEmpty() {
-  Expr unitF = FunctionNode::make({}, TupleNode::make({}), TupleTypeNode::make({}), {});
+  Expr unitF = FunctionNode::make({}, TupleNode::make({}), TupleType::Empty(), {});
   return RefCreateNode::make(unitF);
 }
 
@@ -426,7 +426,7 @@ struct ReverseAD : ExprMutator {
           ll->Push(CallNode::make(RefReadNode::make(dup_bp), {}));
           return CallNode::make(bpv, {});
         }),
-        TupleTypeNode::make({}),
+        TupleType::Empty(),
         {});
       ll->Push(RefWriteNode::make(bp, nbp));
       return ret;
@@ -468,7 +468,7 @@ struct ReverseAD : ExprMutator {
             }
             return CallNode::make(bpv, {});
           }),
-          TupleTypeNode::make({}),
+          TupleType::Empty(),
           {});
         ll->Push(RefWriteNode::make(bp, nbp));
         return ret;

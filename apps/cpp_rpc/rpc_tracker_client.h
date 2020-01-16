@@ -132,7 +132,7 @@ class TrackerClient {
    * \param ping_period Select wait time.
    * \param matchkey Random match key output.
   */
-  void WaitConnectionAndUpdateKey(common::TCPSocket listen_sock,
+  void WaitConnectionAndUpdateKey(support::TCPSocket listen_sock,
                                   int port,
                                   int ping_period,
                                   std::string *matchkey) {
@@ -140,7 +140,7 @@ class TrackerClient {
     int unmatch_timeout = 4;
     while (true) {
       if (!tracker_sock_.IsClosed()) {
-        common::PollHelper poller;
+        support::PollHelper poller;
         poller.WatchRead(listen_sock.sockfd);
         poller.Poll(ping_period * 1000);
         if (!poller.CheckRead(listen_sock.sockfd)) {
@@ -189,11 +189,11 @@ class TrackerClient {
    * \param retry_period Number of seconds before we retry again.
    * \return TCPSocket The socket information if connect is success.
    */
-  common::TCPSocket ConnectWithRetry(int timeout = 60, int retry_period = 5) {
+  support::TCPSocket ConnectWithRetry(int timeout = 60, int retry_period = 5) {
     auto tbegin = std::chrono::system_clock::now();
     while (true) {
-      common::SockAddr addr(tracker_addr_);
-      common::TCPSocket sock;
+      support::SockAddr addr(tracker_addr_);
+      support::TCPSocket sock;
       sock.Create();
       LOG(INFO) << "Tracker connecting to " << addr.AsString();
       if (sock.Connect(addr)) {
@@ -235,7 +235,7 @@ class TrackerClient {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
-  common::TCPSocket tracker_sock_;
+  support::TCPSocket tracker_sock_;
   std::set <std::string> old_keyset_;
   std::mt19937 gen_;
   std::uniform_real_distribution<float> dis_;

@@ -20,7 +20,7 @@
 /*!
  * \file expr.cc
  */
-#include <tvm/base.h>
+
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/expr_operator.h>
@@ -30,37 +30,32 @@
 namespace tvm {
 
 PrimExpr::PrimExpr(int32_t value)
-    : PrimExpr(IntImmNode::make(DataType::Int(32), value)) {}
+    : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
 PrimExpr::PrimExpr(float value)
-    : PrimExpr(ir::FloatImmNode::make(DataType::Float(32), value)) {}
+    : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
 PrimExpr::PrimExpr(std::string str)
     : PrimExpr(ir::StringImmNode::make(str)) {}
 
 Var::Var(std::string name_hint, DataType t)
-    : Var(VarNode::make(t, name_hint)) {}
+    : Var(make_object<VarNode>(t, name_hint)) {}
 
-Var VarNode::make(DataType t, std::string name_hint) {
-  ObjectPtr<VarNode> node = make_object<VarNode>();
-  node->dtype = t;
-  node->name_hint = std::move(name_hint);
-  return Var(node);
+VarNode::VarNode(DataType t, std::string name_hint) {
+  this->dtype = t;
+  this->name_hint = std::move(name_hint);
 }
+
+SizeVar::SizeVar(std::string name_hint, DataType t)
+    : SizeVar(make_object<SizeVarNode>(t, name_hint)) {}
+
+SizeVarNode::SizeVarNode(DataType t, std::string name_hint)
+    : VarNode(t, std::move(name_hint)) {}
 
 Range::Range(PrimExpr begin, PrimExpr end)
     : Range(make_object<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
-}
-
-Integer IntImmNode::make(DataType t, int64_t value) {
-  CHECK(t.is_int() && t.is_scalar())
-      << "ValueError: IntImm can only take scalar.";
-  ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
-  node->dtype = t;
-  node->value = value;
-  return Integer(node);
 }
 
 Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
