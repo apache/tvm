@@ -111,6 +111,7 @@ class OperatorConverter(object):
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'PRELU': self.convert_prelu,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
+            'SQUARED_DIFFERENCE': self.convert_squared_difference,
         }
 
     def check_unsupported_ops(self):
@@ -734,6 +735,17 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized greater operator is not supported yet.')
         return self._convert_elemwise(_op.greater, op)
+
+    def convert_squared_difference(self, op):
+        # Check if the input tensor is quantized, call QNN op
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized squared difference operator is not supported yet.')
+        difference = self._convert_elemwise(_op.subtract, op)
+        # _convert_elemwise has guaranteed only have one output tensor
+        exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
+        out = _op.power(difference, relay.const(2, exp_type))
+        return out
 
     def convert_zeros_like(self, op):
         """Convert TFLite ZEROS LIKE"""
