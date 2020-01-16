@@ -38,6 +38,7 @@ namespace ir {
 using IntImmNode = tvm::IntImmNode;
 using FloatImmNode = tvm::FloatImmNode;
 using VarNode = tvm::VarNode;
+using SizeVarNode = tvm::SizeVarNode;
 
 /*! \brief String constants, only used in asserts. */
 class StringImmNode : public PrimExprNode {
@@ -679,7 +680,7 @@ class AnyNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return VarNode::make(DataType::Int(32), "any_dim");
+    return Var("any_dim", DataType::Int(32));
   }
 
   TVM_DLL static PrimExpr make();

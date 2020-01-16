@@ -26,8 +26,8 @@ by = tvm.thread_axis("blockIdx.y")
 @unittest.skipIf(not tvm.rocm(0).exist or not tvm.module.enabled("rocm"), "skip because rocm is not enabled..")
 def test_rocm_cross_thread_reduction():
     # based on the reduction tutorial
-    n = tvm.var("n")
-    m = tvm.var("m")
+    n = tvm.size_var("n")
+    m = tvm.size_var("m")
     A = tvm.placeholder((n, m), name='A')
     k = tvm.reduce_axis((0, m), "k")
     B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")

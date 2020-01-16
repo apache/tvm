@@ -284,6 +284,16 @@ class ConstIntBoundAnalyzer::Impl :
     }
   }
 
+  Entry VisitExpr_(const SizeVarNode* op) final {
+    SizeVar v = GetRef<SizeVar>(op);
+    auto it = var_map_.find(v);
+    if (it != var_map_.end()) {
+      return it->second;
+    } else {
+      return MakeBound(0, kPosInf);
+    }
+  }
+
   Entry VisitRightShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0]);
     Entry b = VisitExpr(op->args[1]);

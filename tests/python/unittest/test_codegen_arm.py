@@ -47,7 +47,7 @@ def test_vmlal_s16():
     target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(N):
-        K = tvm.var("K")
+        K = tvm.size_var("K")
         A = tvm.placeholder((K, N), dtype="int8", name='A')
         B = tvm.placeholder((K, N), dtype="int8", name='B')
         k = tvm.reduce_axis((0, K))
@@ -67,7 +67,7 @@ def test_vmlal_s16():
     check_correct_assembly(64)
 
     def check_broadcast_correct_assembly(N):
-        K = tvm.var("K")
+        K = tvm.size_var("K")
         A = tvm.placeholder((K, N), dtype="int8", name='A')
         B = tvm.placeholder((K,), dtype="int8", name='B')
         k = tvm.reduce_axis((0, K))
