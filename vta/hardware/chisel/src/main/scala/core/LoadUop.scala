@@ -132,7 +132,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
     when((dec.dram_offset % 2.U) === 0.U) {
       raddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))
     }.otherwise {
-      raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) + uopBytes.U
+      raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) - uopBytes.U
     }
   }.elsewhen(state === sReadData && xcnt === xlen && xrem =/= 0.U) {
     raddr := raddr + xmax_bytes
