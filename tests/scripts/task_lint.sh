@@ -50,6 +50,8 @@ echo "Check codestyle of python code..."
 make pylint
 echo "Check codestyle of jni code..."
 make jnilint
+echo "Check codestyle of scala code..."
+make scalalint
 
 echo "Check documentations of c++ code..."
 make doc 2>/tmp/$$.log.txt
