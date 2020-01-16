@@ -309,7 +309,7 @@ def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
             tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
 
 def test_batch_matmul():
-    b, m, n, k = tvm.var("b"), tvm.var("m"), tvm.var("n"), tvm.var("k")
+    b, m, n, k = tvm.size_var("b"), tvm.size_var("m"), tvm.size_var("n"), tvm.size_var("k")
     x = relay.var("x", relay.TensorType((b, m, k), "float32"))
     y = relay.var("y", relay.TensorType((b, n, k), "float32"))
     z = relay.nn.batch_matmul(x, y)

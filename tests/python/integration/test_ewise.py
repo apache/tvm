@@ -57,7 +57,7 @@ def test_exp():
 def test_fmod():
     # graph
     def run(dtype):
-        n = tvm.var('n')
+        n = tvm.size_var('n')
         A = tvm.placeholder((n,), name='A', dtype=dtype)
         B = tvm.placeholder((n,), name='B', dtype=dtype)
         C = tvm.compute(A.shape, lambda *i: tvm.fmod(A(*i), B(*i)), name='C')
@@ -140,7 +140,7 @@ def test_multiple_cache_write():
 
 def test_log_pow_llvm():
     # graph
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda *i: tvm.power(tvm.log(A(*i)), 2.0), name='B')
     s = tvm.create_schedule(B.op)
@@ -207,7 +207,7 @@ def test_popcount():
 def test_add():
     def run(dtype):
         # graph
-        n = tvm.var('n')
+        n = tvm.size_var('n')
         A = tvm.placeholder((n,), name='A', dtype=dtype)
         B = tvm.placeholder((n,), name='B', dtype=dtype)
         bias = tvm.var("bias", dtype=dtype)

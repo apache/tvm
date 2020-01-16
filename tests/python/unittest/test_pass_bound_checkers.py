@@ -46,7 +46,7 @@ def lower(sch, args):
 
 @pytest.mark.xfail
 def test_out_of_bounds_llvm(index_a, index_b):
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = tvm.placeholder ((n,), name='A')
     B = tvm.placeholder ((n,), name='B')
     C = tvm.compute(A.shape, lambda i: A[i + index_a] + B[i + index_b], name='C')
@@ -63,7 +63,7 @@ def test_out_of_bounds_llvm(index_a, index_b):
     fadd (a, b, c)
 
 def test_in_bounds_llvm():
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = tvm.placeholder ((n,), name='A')
     B = tvm.placeholder ((n,), name='B')
     C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
@@ -128,7 +128,7 @@ def test_in_bounds_vectorize_llvm():
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
 def test_in_bounds_loop_partition_basic_llvm():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((n, ), name='B')
 
@@ -147,7 +147,7 @@ def test_in_bounds_loop_partition_basic_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((n, ), name='B')
 
@@ -331,9 +331,9 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
     f(data_input, kernel_input, conv_out)
 
 def test_in_bounds_tensors_with_same_shapes1D_llvm():
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((k, ), name='B')
 
@@ -351,9 +351,9 @@ def test_in_bounds_tensors_with_same_shapes1D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, ), name='A')
     B = tvm.placeholder((k, ), name='B')
 
@@ -370,9 +370,9 @@ def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape
     f(a, b, t)
 
 def test_in_bounds_tensors_with_same_shapes2D_llvm():
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, n), name='A')
     B = tvm.placeholder((k, k), name='B')
 
@@ -390,9 +390,9 @@ def test_in_bounds_tensors_with_same_shapes2D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, n), name='A')
     B = tvm.placeholder((k, k), name='B')
 
@@ -409,9 +409,9 @@ def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape
     f(a, b, t)
 
 def test_in_bounds_tensors_with_same_shapes3D_llvm():
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, n, n), name='A')
     B = tvm.placeholder((k, k, k), name='B')
 
@@ -429,9 +429,9 @@ def test_in_bounds_tensors_with_same_shapes3D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.var('n')
-    k = tvm.var('k')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    k = tvm.size_var('k')
+    m = tvm.size_var('m')
     A = tvm.placeholder((n, n, n), name='A')
     B = tvm.placeholder((k, k, k), name='B')
 

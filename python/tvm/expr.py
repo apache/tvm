@@ -279,6 +279,25 @@ class Var(PrimExpr):
 
 
 @register_object
+class SizeVar(Var):
+    """Symbolic variable to represent a tensor index size
+       which is greater or equal to zero
+
+    Parameters
+    ----------
+    name : str
+        The name
+
+    dtype : int
+        The data type
+    """
+    # pylint: disable=super-init-not-called
+    def __init__(self, name, dtype):
+        self.__init_handle_by_constructor__(
+            _api_internal._SizeVar, name, dtype)
+
+
+@register_object
 class Reduce(PrimExpr):
     """Reduce node.
 

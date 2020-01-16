@@ -32,7 +32,7 @@ def test_stack_vm_basic():
         print(shape0)
         assert shape0 == a.shape[0]
 
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), tvm.float32)
     stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
@@ -47,9 +47,9 @@ def tvm_stack_vm_print(*x):
 
 def test_stack_vm_loop():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
+    i = tvm.size_var('i')
 
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
@@ -69,7 +69,7 @@ def test_stack_vm_loop():
 
 def test_stack_vm_cond():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
 
     ib = tvm.ir_builder.create()
@@ -93,9 +93,9 @@ def test_stack_vm_cond():
 
 def test_vm_parallel():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
+    i = tvm.size_var('i')
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n, "i", for_type="parallel") as i:

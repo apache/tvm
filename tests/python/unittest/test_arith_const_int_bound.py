@@ -275,6 +275,14 @@ def test_mix_index_bound():
     assert bd.max_value == (23 // 7) * 7 + 6
 
 
+def test_size_var_bound():
+    analyzer = tvm.arith.Analyzer()
+    x = tvm.size_var("x")
+    bd = analyzer.const_int_bound(x)
+    assert bd.min_value == 0
+    assert bd.max_value == bd.POS_INF
+
+
 if __name__ == "__main__":
     test_dtype_bound()
     test_cast_bound()
@@ -288,3 +296,4 @@ if __name__ == "__main__":
     test_select_bound()
     test_shift_and_bound()
     test_mix_index_bound()
+    test_size_var_bound()

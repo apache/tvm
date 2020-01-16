@@ -171,7 +171,7 @@ def test_squeeze():
 
 
 def test_transpose_infer_type():
-    n, t, d = tvm.var("n"), tvm.var("t"), 100
+    n, t, d = tvm.size_var("n"), tvm.size_var("t"), 100
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.transpose(x, axes=(1, 0, 2))
     assert "axes=" in y.astext()
@@ -279,7 +279,7 @@ def test_reshape_like_infer_type():
     assert zz.checked_type == relay.TensorType((1, 6), "float32")
 
     # symbolic shape
-    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    n, c, h, w = tvm.size_var("n"), 2, 3, tvm.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.var("y", relay.TensorType((1, 8, 8), "float32"))
     z = relay.reshape_like(x, y)
@@ -452,7 +452,7 @@ def test_full_like_infer_type():
     assert yy.checked_type == relay.TensorType((1, 2, 3), "float32")
 
     # symbolic shape
-    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    n, c, h, w = tvm.size_var("n"), 2, 3, tvm.size_var("w")
     base = relay.var("base", relay.TensorType((n, c, h, w), "float32"))
     fill = relay.var("fill", relay.TensorType((), "float32"))
     y = relay.full_like(base, fill)
@@ -480,7 +480,7 @@ def test_full_like():
 
 
 def test_infer_type_leaky_relu():
-    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c , h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.leaky_relu(x, alpha=0.1)
     "alpha=0.1" in y.astext()
@@ -544,7 +544,7 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
 
 
 def test_infer_type_prelu():
-    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c , h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
     verify_infer_type_prelu((n, c, h, w), (c,), 1, (n, c, h, w))
     verify_infer_type_prelu((n, h, w, c), (c,), 3, (n, h, w, c))
     verify_infer_type_prelu((n, c, h, w), None, 1, (n, c, h, w))

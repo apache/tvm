@@ -98,8 +98,8 @@ def outer_product(n, m, a, b):
 #Test global function
 #Test bridge between frontend and backend
 def test_outer_product():
-    n = tvm.var('n')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    m = tvm.size_var('m')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
 
@@ -167,7 +167,7 @@ def test_fanout():
             b[i] = sigma
         return b
 
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     a = tvm.placeholder((n, ), 'float32', name='a')
     try:
         b = fanout(n, a)

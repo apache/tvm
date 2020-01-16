@@ -87,7 +87,7 @@ def test_combination():
 
 def verify_tensor_scalar_bop(shape, typ="add"):
     """Verify non-constant Tensor and scalar binary operations."""
-    sh = [tvm.var('n%d' % i) for i in range(0, len(shape))]
+    sh = [tvm.size_var('n%d' % i) for i in range(0, len(shape))]
     k = tvm.var('k')
     A = tvm.placeholder(sh, name='A')
     if typ == "add":

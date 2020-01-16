@@ -21,7 +21,7 @@ import os
 def test_unroll_loop():
     ib = tvm.ir_builder.create()
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
@@ -54,7 +54,7 @@ def test_unroll_loop():
 def test_unroll_fake_loop():
     ib = tvm.ir_builder.create()
     dtype = 'int32'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
@@ -68,7 +68,7 @@ def test_unroll_fake_loop():
     assert isinstance(ret[0], tvm.stmt.Store)
 
 def test_unroll_single_count_loops():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute((n,), lambda *i: A(*i), name='B')
     s = tvm.create_schedule(B.op)

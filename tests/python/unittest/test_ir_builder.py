@@ -19,7 +19,7 @@ import numpy as np
 
 def test_for():
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
@@ -39,7 +39,7 @@ def test_for():
 
 def test_if():
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = ib.pointer("float32", name="A")
     tmod = tvm.truncmod
     with ib.for_range(0, n, name="i") as i:
@@ -60,7 +60,7 @@ def test_if():
 def test_prefetch():
     A = tvm.placeholder((10, 20), name="A")
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
@@ -105,7 +105,7 @@ def test_cpu():
     check_target("llvm")
 
 def test_gpu():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     dtype = "float32"
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
