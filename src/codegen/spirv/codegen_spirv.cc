@@ -25,7 +25,7 @@
 #include <tvm/ir_pass.h>
 #include <string>
 #include "codegen_spirv.h"
-#include "../../arithmetic/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {

@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file tvm/arithmetic/const_int_bound.cc
+ * \file tvm/arith/const_int_bound.cc
  */
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir_functor_ext.h>
 #include <algorithm>
 #include "int_operator.h"

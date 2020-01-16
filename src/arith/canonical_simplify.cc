@@ -21,7 +21,7 @@
  * \file canonical_simplify.cc
  * \brief Canonical form based simplification.
  */
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 #include "const_fold.h"
 #include "pattern_match.h"

@@ -22,13 +22,13 @@
  * \file tensor_compute_op.cc
  */
 #include <tvm/operation.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
 #include "./compute_op.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 using namespace ir;

@@ -31,7 +31,7 @@
 #include "codegen_cpu.h"
 #include "../build_common.h"
 #include "../../pass/ir_util.h"
-#include "../../arithmetic/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {

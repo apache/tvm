@@ -21,11 +21,12 @@
  * \brief Replace certain copy with copy intrinsics.
  * \file copy_intrin_rewrite.cc
  */
+#include <tvm/arith/pattern.h>
 #include <tvm/ir.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
-#include "../arithmetic/pattern_match.h"
+#include "../arith/pattern_match.h"
 
 namespace tvm {
 namespace ir {

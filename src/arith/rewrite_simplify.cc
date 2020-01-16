@@ -22,7 +22,7 @@
  * \brief Rewrite-rule based simplification.
  */
 // Acknowledgement: Most rewrite-rules are from Halide.
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 #include <algorithm>
 #include "const_fold.h"

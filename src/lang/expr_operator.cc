@@ -25,7 +25,7 @@
 #include <tvm/expr_operator.h>
 #include <cmath>
 // Centralized header for constant folders.
-#include "../arithmetic/const_fold.h"
+#include "../arith/const_fold.h"
 
 namespace tvm {
 

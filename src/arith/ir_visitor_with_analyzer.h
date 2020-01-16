@@ -22,10 +22,10 @@
  * \brief IR visitor class with an analyzer context.
  */
 
-#ifndef TVM_ARITHMETIC_IR_VISITOR_WITH_ANALYZER_H_
-#define TVM_ARITHMETIC_IR_VISITOR_WITH_ANALYZER_H_
+#ifndef TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
+#define TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
 
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 
@@ -73,4 +73,4 @@ class IRVisitorWithAnalyzer final : public StmtExprVisitor {
 
 }  // namespace ir
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_IR_VISITOR_WITH_ANALYZER_H_
+#endif  // TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
