@@ -86,7 +86,7 @@ class BoundDeducer: public ExprVisitor {
 
   void VisitExpr(const PrimExpr& e) final {
     if (!success_) return;
-    if (e.get() == path_[iter_++]) {
+    if (iter_ < path_.size() && e.get() == path_[iter_++]) {
       ExprVisitor::VisitExpr(e);
     } else {
       success_ = false;
@@ -297,6 +297,7 @@ void BoundDeducer::Transform() {
 void BoundDeducer::Deduce() {
   Init();
   if (!success_) return;
+
   Relax();
   if (!success_) return;
   // get the path

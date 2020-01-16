@@ -20,9 +20,9 @@ import numpy as np
 
 def test_static_callback():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
+    i = tvm.size_var('i')
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     cp = tvm.thread_axis((0, 1), "cop")
@@ -41,9 +41,9 @@ def test_static_callback():
 
 def test_static_init():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.var('i')
+    i = tvm.size_var('i')
     ib = tvm.ir_builder.create()
     handle = tvm.call_intrin("handle", "tvm_static_handle")
     ib.emit(
