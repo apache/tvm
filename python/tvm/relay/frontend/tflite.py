@@ -742,7 +742,8 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized squared difference operator is not supported yet.')
         difference = self._convert_elemwise(_op.subtract, op)
-        out = _op.power(difference, relay.const(2, 'float32'))
+        exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
+        out = _op.power(difference, relay.const(2, exp_type))
         return out
 
     def convert_zeros_like(self, op):
