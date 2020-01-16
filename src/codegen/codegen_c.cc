@@ -24,7 +24,7 @@
 #include <cctype>
 #include "codegen_c.h"
 #include "../pass/ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {

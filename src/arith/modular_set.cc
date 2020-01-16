@@ -21,7 +21,7 @@
  * \file modular_set.cc
  * \brief Modular set analysis
  */
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_functor_ext.h>
 #include <limits>

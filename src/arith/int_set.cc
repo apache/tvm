@@ -21,6 +21,7 @@
  * \file int_set.cc
  * \brief The integer set functions
  */
+#include <tvm/arith/int_set.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/runtime/registry.h>
@@ -29,7 +30,7 @@
 #include <utility>
 #include <algorithm>
 #include <unordered_map>
-#include "int_set.h"
+#include "interval_set.h"
 #include "pattern_match.h"
 
 namespace tvm {

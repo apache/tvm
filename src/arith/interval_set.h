@@ -21,10 +21,10 @@
  * \file int_set.h
  * \brief Internal data structure for integer set.
  */
-#ifndef TVM_ARITHMETIC_INT_SET_H_
-#define TVM_ARITHMETIC_INT_SET_H_
+#ifndef TVM_ARITH_INTERVAL_SET_H_
+#define TVM_ARITH_INTERVAL_SET_H_
 
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 #include <limits>
 #include "const_fold.h"
@@ -141,4 +141,4 @@ TVM_DLL IntervalSet Intersect(Analyzer *analzyer, IntervalSet a, IntervalSet b);
 }  // namespace arith
 }  // namespace tvm
 
-#endif  // TVM_ARITHMETIC_INT_SET_H_
+#endif  // TVM_ARITH_INTERVAL_SET_H_

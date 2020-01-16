@@ -129,7 +129,7 @@ file(GLOB COMPILER_SRCS
     src/ir/*.cc
     src/target/*.cc
     src/api/*.cc
-    src/arithmetic/*.cc
+    src/arith/*.cc
     src/autotvm/*.cc
     src/codegen/*.cc
     src/lang/*.cc

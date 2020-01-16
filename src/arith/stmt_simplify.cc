@@ -23,9 +23,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include "ir_mutator_with_analyzer.h"
 
 namespace tvm {

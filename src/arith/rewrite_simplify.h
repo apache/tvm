@@ -21,10 +21,10 @@
  * \file rewrite_simplify.h
  * \brief Rewrite-rule based simplification.
  */
-#ifndef TVM_ARITHMETIC_REWRITE_SIMPLIFY_H_
-#define TVM_ARITHMETIC_REWRITE_SIMPLIFY_H_
+#ifndef TVM_ARITH_REWRITE_SIMPLIFY_H_
+#define TVM_ARITH_REWRITE_SIMPLIFY_H_
 
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/expr_operator.h>
 #include <unordered_map>
 #include <vector>
@@ -141,4 +141,4 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITHMETIC_REWRITE_SIMPLIFY_H_
+#endif  // TVM_ARITH_REWRITE_SIMPLIFY_H_

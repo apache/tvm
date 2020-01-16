@@ -24,11 +24,11 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {
