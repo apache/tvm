@@ -29,7 +29,7 @@
 
 #include "topi/reduction.h"
 #include "topi/tags.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {

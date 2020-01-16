@@ -21,7 +21,7 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <unordered_set>

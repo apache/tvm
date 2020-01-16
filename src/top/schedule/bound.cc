@@ -21,14 +21,14 @@
  * \file bound.cc
  * \brief The bound inference logic.
  */
-#include <tvm/schedule_pass.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule_pass.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_pass.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "graph.h"
 #include "message_passing.h"
-#include "../runtime/thread_storage_scope.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace top {

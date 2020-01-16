@@ -23,7 +23,7 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <utility>
 #include <unordered_set>
 #include <unordered_map>

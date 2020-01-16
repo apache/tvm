@@ -24,11 +24,11 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace top {

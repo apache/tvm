@@ -20,8 +20,8 @@
 /*!
  * \file auto_inline_elem_wise.cc
  */
-#include <tvm/schedule_pass.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule_pass.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_functor_ext.h>
 
 namespace tvm {

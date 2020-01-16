@@ -28,7 +28,7 @@
 #include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
 #include <map>
 #include <string>
 #include <unordered_map>

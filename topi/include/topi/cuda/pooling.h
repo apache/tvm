@@ -27,7 +27,7 @@
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
 #include "topi/detail/array_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {

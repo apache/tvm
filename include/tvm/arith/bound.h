@@ -77,7 +77,10 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_provides If provides (write) are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain DomainTouched(Stmt body, const top::Tensor &tensor, bool consider_calls, bool consider_provides);
+Domain DomainTouched(Stmt body,
+                     const top::Tensor &tensor,
+                     bool consider_calls,
+                     bool consider_provides);
 
 }  // namespace arith
 }  // namespace tvm

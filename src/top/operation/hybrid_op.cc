@@ -21,7 +21,7 @@
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>

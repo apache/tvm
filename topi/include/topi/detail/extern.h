@@ -24,7 +24,7 @@
 #ifndef TOPI_DETAIL_EXTERN_H_
 #define TOPI_DETAIL_EXTERN_H_
 
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <vector>
 #include <string>
 

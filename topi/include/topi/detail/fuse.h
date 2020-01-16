@@ -24,7 +24,7 @@
 #ifndef TOPI_DETAIL_FUSE_H_
 #define TOPI_DETAIL_FUSE_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 
 namespace topi {
 namespace detail {

@@ -24,7 +24,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/tensor.h>
+#include <tvm/top/tensor.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
@@ -114,7 +114,10 @@ class FuncTouchedDomain final : public StmtExprVisitor {
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
-Domain DomainTouched(Stmt stmt, const top::Tensor &tensor, bool consider_calls, bool consider_provides) {
+Domain DomainTouched(Stmt stmt,
+                     const top::Tensor &tensor,
+                     bool consider_calls,
+                     bool consider_provides) {
   return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
 

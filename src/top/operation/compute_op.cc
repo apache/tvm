@@ -21,7 +21,7 @@
  * \brief Compute Op.
  * \file compute_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
@@ -32,8 +32,8 @@
 #include "compute_op.h"
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arith/compute_expr.h"
-#include "../arith/interval_set.h"
+#include "../../arith/compute_expr.h"
+#include "../../arith/interval_set.h"
 
 namespace tvm {
 namespace top {

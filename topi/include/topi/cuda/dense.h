@@ -24,7 +24,7 @@
 #ifndef TOPI_CUDA_DENSE_H_
 #define TOPI_CUDA_DENSE_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 #include "topi/tags.h"
 #include "topi/detail/array_utils.h"

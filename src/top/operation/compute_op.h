@@ -21,12 +21,12 @@
  * \brief Helper utilities to implement compute_op.
  * \file compute_op.h
  */
-#ifndef TVM_OP_COMPUTE_OP_H_
-#define TVM_OP_COMPUTE_OP_H_
+#ifndef TVM_TOP_OPERATION_COMPUTE_OP_H_
+#define TVM_TOP_OPERATION_COMPUTE_OP_H_
 
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <vector>
 #include <unordered_map>
 
@@ -110,4 +110,4 @@ Stmt TransformUpdate(const Stage& stage,
 }  // namespace top
 }  // namespace tvm
 
-#endif  // TVM_OP_COMPUTE_OP_H_
+#endif  // TVM_TOP_OPERATION_COMPUTE_OP_H_

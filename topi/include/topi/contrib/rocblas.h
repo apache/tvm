@@ -24,7 +24,7 @@
 #ifndef TOPI_CONTRIB_ROCBLAS_H_
 #define TOPI_CONTRIB_ROCBLAS_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "topi/detail/extern.h"
 
 namespace topi {

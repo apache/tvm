@@ -124,19 +124,23 @@ assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
-file(GLOB COMPILER_SRCS
+file(GLOB_RECURSE COMPILER_SRCS
     src/node/*.cc
     src/ir/*.cc
     src/target/*.cc
-    src/api/*.cc
     src/arith/*.cc
+    src/top/*.cc
+    src/api/*.cc
     src/autotvm/*.cc
-    src/codegen/*.cc
     src/lang/*.cc
     src/pass/*.cc
-    src/op/*.cc
-    src/schedule/*.cc
     )
+
+file(GLOB CODEGEN_SRCS
+    src/codegen/*.cc
+    )
+
+list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
 file(GLOB_RECURSE RELAY_OP_SRCS
     src/relay/op/*.cc

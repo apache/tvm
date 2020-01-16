@@ -22,7 +22,7 @@
  * \file api_test.cc
  */
 #include <tvm/expr.h>
-#include <tvm/tensor.h>
+#include <tvm/top/tensor.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/env_func.h>

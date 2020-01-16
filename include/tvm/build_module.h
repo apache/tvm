@@ -26,6 +26,8 @@
 
 #include <tvm/target/target.h>
 #include <tvm/support/with.h>
+#include <tvm/top/schedule_pass.h>
+
 #include <string>
 #include <vector>
 #include <utility>
@@ -33,7 +35,7 @@
 #include <unordered_set>
 
 #include "runtime/packed_func.h"
-#include "schedule_pass.h"
+
 #include "lowered_func.h"
 
 namespace tvm {

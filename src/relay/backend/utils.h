@@ -30,7 +30,7 @@
 #include <tvm/build_module.h>
 #include <tvm/codegen.h>
 #include <tvm/ir_pass.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 
 #include <typeinfo>
 #include <string>

@@ -27,13 +27,14 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
+#include <tvm/top/schedule.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <string>
 #include "expr.h"
 #include "buffer.h"
-#include "schedule.h"
 #include "lowered_func.h"
 
 namespace tvm {

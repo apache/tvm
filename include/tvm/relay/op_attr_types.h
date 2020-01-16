@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/tensor.h>
-#include <tvm/schedule.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>

@@ -22,12 +22,12 @@
  * \brief Common utilities to do message passing
  *  on the schedule hyper graph.
  */
-#ifndef TVM_SCHEDULE_MESSAGE_PASSING_H_
-#define TVM_SCHEDULE_MESSAGE_PASSING_H_
+#ifndef TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
+#define TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
 
 #include <tvm/expr.h>
-#include <tvm/schedule.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -130,4 +130,4 @@ MakeBoundCheck(
 
 }  // namespace top
 }  // namespace tvm
-#endif  // TVM_SCHEDULE_MESSAGE_PASSING_H_
+#endif  // TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_

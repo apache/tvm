@@ -35,7 +35,7 @@
 #include "topi/transform.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 

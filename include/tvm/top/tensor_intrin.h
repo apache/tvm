@@ -18,15 +18,17 @@
  */
 
 /*!
- * \file tvm/tensor_intrin.h
+ * \file tvm/top/tensor_intrin.h
  * \brief Tensor intrinsic operations.
  */
-#ifndef TVM_TENSOR_INTRIN_H_
-#define TVM_TENSOR_INTRIN_H_
+#ifndef TVM_TOP_TENSOR_INTRIN_H_
+#define TVM_TOP_TENSOR_INTRIN_H_
+
+#include <tvm/top/tensor.h>
+#include <tvm/buffer.h>
 
 #include <string>
-#include "tensor.h"
-#include "buffer.h"
+
 
 namespace tvm {
 namespace top {
@@ -176,4 +178,4 @@ inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
 
 }  // namespace top
 }  // namespace tvm
-#endif  // TVM_TENSOR_INTRIN_H_
+#endif  // TVM_TOP_TENSOR_INTRIN_H_

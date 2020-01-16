@@ -24,7 +24,7 @@
 #ifndef TOPI_ROCM_NORMALIZATION_H_
 #define TOPI_ROCM_NORMALIZATION_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 #include "topi/tags.h"
 

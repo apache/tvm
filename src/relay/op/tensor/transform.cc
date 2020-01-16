@@ -2563,7 +2563,8 @@ Array<top::Tensor> SequenceMaskCompute(const Attrs& attrs,
                                   const Target& target) {
   const auto* param = attrs.as<SequenceMaskAttrs>();
   CHECK(param != nullptr);
-  return Array<top::Tensor>{ topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
+  return Array<top::Tensor>{
+    topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
 }
 
 Expr MakeSequenceMask(Expr data,

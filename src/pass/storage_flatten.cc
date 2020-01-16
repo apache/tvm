@@ -25,7 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>

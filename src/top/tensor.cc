@@ -20,9 +20,9 @@
 /*!
  * \file tensor.cc
  */
-#include <tvm/tensor.h>
-#include <tvm/operation.h>
-#include <tvm/tensor_intrin.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/operation.h>
+#include <tvm/top/tensor_intrin.h>
 #include <memory>
 
 namespace tvm {

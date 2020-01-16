@@ -27,7 +27,7 @@
 #include <string>
 
 #include "topi/tags.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 
 namespace topi {
 namespace nn {

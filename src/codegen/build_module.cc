@@ -23,7 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/build_module.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
 #include <tvm/runtime/registry.h>

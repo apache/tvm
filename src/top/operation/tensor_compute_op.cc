@@ -21,14 +21,14 @@
  * \brief Tensor Compute Op.
  * \file tensor_compute_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
 #include "./compute_op.h"
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace top {

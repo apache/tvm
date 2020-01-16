@@ -20,14 +20,14 @@
 /*!
  * \file schedule_dataflow_rewrite.cc
  */
-#include <tvm/schedule.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "message_passing.h"
-#include "../pass/ir_util.h"
-#include "../arith/compute_expr.h"
+#include "../../pass/ir_util.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace top {

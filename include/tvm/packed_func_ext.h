@@ -25,13 +25,14 @@
 #ifndef TVM_PACKED_FUNC_EXT_H_
 #define TVM_PACKED_FUNC_EXT_H_
 
+#include <tvm/top/tensor.h>
+
 #include <string>
 #include <memory>
 #include <limits>
 #include <type_traits>
 
 #include "expr.h"
-#include "tensor.h"
 #include "runtime/packed_func.h"
 
 namespace tvm {

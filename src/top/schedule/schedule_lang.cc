@@ -20,8 +20,8 @@
 /*!
  * \file schedule_lang.cc
  */
-#include <tvm/schedule.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule.h>
+#include <tvm/top/operation.h>
 #include <unordered_set>
 #include "graph.h"
 

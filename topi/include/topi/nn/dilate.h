@@ -26,7 +26,7 @@
 
 #include <string>
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/ir_pass.h"
 #include "topi/tags.h"
 

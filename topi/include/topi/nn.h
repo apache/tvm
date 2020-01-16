@@ -31,7 +31,7 @@
 #include "topi/detail/constant_utils.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {

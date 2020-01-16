@@ -22,13 +22,13 @@
  * \file api_schedule.cc
  */
 #include <tvm/expr.h>
-#include <tvm/tensor.h>
-#include <tvm/schedule.h>
-#include <tvm/schedule_pass.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
+#include <tvm/top/schedule_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
-#include "../schedule/graph.h"
+#include "../top/schedule/graph.h"
 
 namespace tvm {
 namespace top {

@@ -23,10 +23,10 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/tensor.h>
-#include <tvm/operation.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/operation.h>
 #include <tvm/buffer.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
