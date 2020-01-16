@@ -55,7 +55,7 @@ To solve these problems, we introduced *ConvertLayout* pass that sets up the inf
 	}
 
 	# After ConvertLayout - For data, there is a transform at the start and at the end.
-	# For weights, there are transforms to adapt to NCHW layout. These will be removed with FoldConstant pass.
+	# For weights, there are transforms to adapt to NCHW layout. These will be removed by FoldConstant pass.
 	fn (%x: Tensor[(1, 56, 56, 64), float32], %weight1: Tensor[(3, 3, 64, 32), float32], %weight2: Tensor[(3, 3, 32, 32), float32]) {
 	  %0 = layout_transform(%x, src_layout="NHWC", dst_layout="NCHW") /* ty=Tensor[(1, 64, 56, 56), float32] */;
 	  %1 = layout_transform(%weight1, src_layout="HWIO", dst_layout="OIHW") /* ty=Tensor[(32, 64, 3, 3), float32] */;
@@ -83,11 +83,11 @@ Let us now look at two relevant Relay operator properties. Each relay operator h
 
 - Run FTVMConvertLayout property - This allows the developers to transform the original Relay expr into a new Relay expr with new layouts, allowing user-defined layout alteration. There is a python callback for developer's ease. This is used only for heavily-layout sensitive operators.
 - Run FTVMInferCorretLayout property - We can view this as layout inference. It looks at the original input layout and the new input layouts, which are either coming from previous operator or from the FTVMConvertLayout modified expr (if it was used). This can be used by lightly-layout sensitive operators to adapt its attributes to new data layouts. Layout inference happens for each operator.
-- Automatic insertion of layout transforms - The previos step - layout inference - sets the new layout for the input exprs. If these layouts are different from the original layouts, then this component automatically inserts a layout transform. Therefore, a developer does not need to do anything for this component.
+- Automatic insertion of layout transforms - The previous step - layout inference - sets the new layout for the input exprs. If these layouts are different from the original layouts, then this component automatically inserts a layout transform. Therefore, a developer does not need to do anything for this component.
 
 These steps happen for each operator in sequence, where ConvertLayout pass keeps on passing the new layouts to the next operator properties, finally resulting in modifying the whole graph operator-by-operator. Now, let's look at a couple of examples of how to define the two properties.
 
-**FTVMConvertLayout - Python callback for layout alteration** - This is used for *heavily-layout sensitive* operators. For example, one can return a new convolution operator with new data and kernel layout. The other 2 components will infer layout and insert layout transforms if needed. One example for convolution operator is follows where we converting to NCHW layout.
+**FTVMConvertLayout - Python callback for layout alteration** - This is used for *heavily-layout sensitive* operators. For example, one can return a new convolution operator with new data and kernel layout. The other 2 components will infer layout and insert layout transforms if needed. One example for convolution operator is as follows where we are converting to NCHW layout.
 
 .. code-block:: python
 
