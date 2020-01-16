@@ -99,13 +99,11 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
     tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
   tflite::ops::builtin::BuiltinOpResolver resolver;
   // Build interpreter
-  if (tflite::InterpreterBuilder(*model, resolver)(&interpreter_) != kTfLiteOk) {
-    std::cerr << "Failed to build interpreter." << std::endl;
-  }
+  TfLiteStatus status = tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
+  CHECK_TFLITE_STATUS(status) << "Failed to build interpreter.";
   // Allocate tensors
-  if (interpreter_->AllocateTensors() != kTfLiteOk) {
-    std::cerr << "Failed to allocate tensors." << std::endl;
-  }
+  status = interpreter_->AllocateTensors();
+  CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
   ctx_ = ctx;
 }

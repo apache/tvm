@@ -45,17 +45,15 @@ void EdgeTPURuntime::Init(const std::string& tflite_model_bytes,
   edgetpu_context_ = edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
   // Add custom edgetpu ops to resolver
   resolver.AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
-  // Ensure that the build went successfully
-  if (tflite::InterpreterBuilder(*model, resolver)(&interpreter_) != kTfLiteOk) {
-    std::cerr << "Failed to build interpreter." << std::endl;
-  }
+  // Build interpreter
+  TfLiteStatus status = tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
+  CHECK_TFLITE_STATUS(status) << "Failed to build interpreter.";
   // Bind EdgeTPU context with interpreter.
   interpreter_->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context_.get());
   interpreter_->SetNumThreads(1);
   // Allocate tensors
-  if (interpreter_->AllocateTensors() != kTfLiteOk) {
-    std::cerr << "Failed to allocate tensors." << std::endl;
-  }
+  status = interpreter_->AllocateTensors();
+  CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
   ctx_ = ctx;
 }
