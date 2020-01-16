@@ -21,7 +21,7 @@
  * \brief Compute Op.
  * \file compute_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
@@ -32,11 +32,11 @@
 #include "compute_op.h"
 #include "op_util.h"
 #include "../schedule/message_passing.h"
-#include "../arith/compute_expr.h"
-#include "../arith/interval_set.h"
+#include "../../arith/compute_expr.h"
+#include "../../arith/interval_set.h"
 
 namespace tvm {
-
+namespace top {
 using namespace ir;
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -184,7 +184,7 @@ Operation ComputeOpNode::ReplaceInputs(
   if (this->body[0]->IsInstance<ir::ReduceNode>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
-    PrimExpr new_reduce = op::ReplaceTensor(this->body[0], rmap);
+    PrimExpr new_reduce = top::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
       const ir::ReduceNode* r = new_reduce.as<ir::ReduceNode>();
       for (size_t k = 0; k < this->body.size(); ++k) {
@@ -198,7 +198,7 @@ Operation ComputeOpNode::ReplaceInputs(
     }
   } else {
     arr = UpdateArray(this->body, [&rmap] (const PrimExpr& e) {
-        return op::ReplaceTensor(e, rmap);
+        return top::ReplaceTensor(e, rmap);
       });
   }
   if (!arr.same_as(this->body)) {
@@ -363,8 +363,8 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
   // grab the nest structure
   ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
   // Normal loop structure
-  n.init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-  n.main_nest.emplace_back(op::MakeIfNest(n.main_predicates));
+  n.init_nest.emplace_back(MakeIfNest(n.init_predicates));
+  n.main_nest.emplace_back(MakeIfNest(n.main_predicates));
   if (self->reduce_axis.size() != 0) {
     // make reduction.
     Stmt init, provide;
@@ -374,7 +374,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     }
     MakeReduction(self, source, &init, &provide);
     init = MergeNest(n.init_nest, init);
-    init = op::Substitute(init, n.init_vmap);
+    init = Substitute(init, n.init_vmap);
     // common nest
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
@@ -388,7 +388,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     }
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
-    return op::Substitute(provide, n.main_vmap);
+    return Substitute(provide, n.main_vmap);
   } else {
     std::vector<Stmt> provides;
     for (size_t i = 0; i < self->body.size(); ++i) {
@@ -398,7 +398,7 @@ Stmt MakeComputeStmt(const ComputeOpNode* self,
     provide = MergeNest(n.main_nest, provide);
     // run substitution in the on the full nest, because  loop condition
     // could depend on outer loops.
-    return op::Substitute(provide, n.main_vmap);
+    return Substitute(provide, n.main_vmap);
   }
 }
 
@@ -472,10 +472,10 @@ ComputeLoopNest ComputeLoopNest::make(
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
-  ret.main_nest = op::MakeLoopNest(
+  ret.main_nest = MakeLoopNest(
       stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
       debug_keep_trivial_loop);
-  ret.main_predicates = schedule::MakeBoundCheck(
+  ret.main_predicates = MakeBoundCheck(
       stage, dom_map, ret.main_vmap, false,
       std::unordered_set<IterVar>());
   for (auto& e : ret.main_predicates) {
@@ -495,7 +495,7 @@ ComputeLoopNest ComputeLoopNest::make(
       update_state[self->axis[i]] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
-    schedule::PassDownBitMaskOr(stage, &update_state);
+    top::PassDownBitMaskOr(stage, &update_state);
     auto leaf_iter_vars = stage->leaf_iter_vars;
     // first first loop that is related to reduction.
     size_t begin_loop = leaf_iter_vars.size();
@@ -514,10 +514,10 @@ ComputeLoopNest ComputeLoopNest::make(
       int flag = kv.second;
       if (flag == 2) skip_iter.insert(kv.first);
     }
-    ret.init_nest = op::MakeLoopNest(
+    ret.init_nest = MakeLoopNest(
         stage, dom_map, begin_loop, true,
         skip_iter, &(ret.init_vmap), debug_keep_trivial_loop);
-    ret.init_predicates = schedule::MakeBoundCheck(
+    ret.init_predicates = MakeBoundCheck(
         stage, dom_map, ret.init_vmap, true, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
@@ -637,4 +637,6 @@ Stmt TransformUpdate(const Stage& stage,
   return IfThenElseNode::make(arith::ComputeReduce<ir::OrNode>(conds, const_true(1)),
                           update, body);
 }
+
+}  // namespace top
 }  // namespace tvm

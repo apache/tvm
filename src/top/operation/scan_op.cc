@@ -21,14 +21,14 @@
  * \brief Scan Operator.
  * \file scan_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include "op_util.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
-
+namespace top {
 using namespace ir;
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -215,7 +215,6 @@ void ScanOpNode::GatherBound(
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
-  using namespace schedule;
   CHECK(!out_dom_map->count(this->scan_axis));
   std::vector<Tensor> output(this->num_outputs());
   for (size_t i = 0; i < output.size(); ++i) {
@@ -297,12 +296,13 @@ Stmt ScanOpNode::BuildProvide(
   }
   std::unordered_map<IterVar, PrimExpr> vmap;
   std::unordered_set<IterVar> empty;
-  auto nest = op::MakeLoopNest(
+  auto nest = MakeLoopNest(
       stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);
   nest[begin_scan].push_back(init);
   nest.push_back(
-      op::MakeIfNest(
-          schedule::MakeBoundCheck(stage, dom_map, vmap, false, empty)));
+      MakeIfNest(
+          MakeBoundCheck(stage, dom_map, vmap, false, empty)));
   return MergeNest(nest, provide);
 }
+}  // namespace top
 }  // namespace tvm

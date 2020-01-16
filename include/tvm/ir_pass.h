@@ -27,13 +27,14 @@
 #ifndef TVM_IR_PASS_H_
 #define TVM_IR_PASS_H_
 
+#include <tvm/top/schedule.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <string>
 #include "expr.h"
 #include "buffer.h"
-#include "schedule.h"
 #include "lowered_func.h"
 
 namespace tvm {
@@ -203,7 +204,7 @@ Stmt Inline(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
-                    Map<Tensor, Buffer> extern_buffer,
+                    Map<top::Tensor, Buffer> extern_buffer,
                     int cache_line_size,
                     bool create_bound_attribute = false);
 
@@ -217,8 +218,8 @@ Stmt StorageFlatten(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt RewriteForTensorCore(Stmt stmt,
-                          Schedule schedule,
-                          Map<Tensor, Buffer> extern_buffer);
+                          top::Schedule schedule,
+                          Map<top::Tensor, Buffer> extern_buffer);
 
 /*!
  * \brief Verify if there is any argument bound to compact buffer.

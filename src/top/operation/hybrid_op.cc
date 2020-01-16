@@ -21,7 +21,7 @@
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
@@ -34,6 +34,7 @@
 #include "hybrid_op.h"
 
 namespace tvm {
+namespace top {
 using namespace ir;
 // HybridOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -76,7 +77,7 @@ Operation HybridOpNode::make(std::string name,
   n->attrs = std::move(attrs);
   n->inputs = std::move(inputs);
   n->outputs = std::move(outputs);
-  n->axis = op::GatherLoopVars(body);
+  n->axis = top::GatherLoopVars(body);
   n->body = std::move(body);
   Operation res = Operation(n);
   return res;
@@ -109,7 +110,7 @@ Operation HybridOpNode::ReplaceInputs(
     const std::unordered_map<Tensor, Tensor> &rmap) const {
   CHECK_EQ(self.operator->(), this);
   auto n = make_object<HybridOpNode>(*this);
-  n->body = op::ReplaceTensor(this->body, rmap);
+  n->body = top::ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
     if (rmap.count(t)) {
@@ -209,18 +210,15 @@ Stmt HybridOpNode::BuildProvide(
    * This is a major difference that HybridOpNode is NOT the same as
    * ExternOpNode.
    * */
-  ret = op::ReplaceTensor(ret, rmap);
-  ret = op::ReplaceProvideTensor(ret, rmap);
+  ret = top::ReplaceTensor(ret, rmap);
+  ret = top::ReplaceProvideTensor(ret, rmap);
 
-  ret = op::ApplySchedule(stage, dom_map, ret);
+  ret = top::ApplySchedule(stage, dom_map, ret);
   return ret;
 }
 
-namespace op {
-
-
 Stmt ApplyLoopShapes(const Stage &stage,
-                 const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+                     const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
   class LoopSpliter : public StmtExprMutator {
     PrimExpr factor;
     const VarNode *parent;
@@ -508,5 +506,5 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   Stmt ret = repl(stmt);
   return repl.found ? ret : stmt;
 }
-}  // namespace op
+}  // namespace top
 }  // namespace tvm

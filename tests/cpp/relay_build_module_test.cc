@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/build_module.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>

@@ -21,21 +21,22 @@
  * \brief Helper utilities to implement hybrid_op.
  * \file hybrid_op.h
  */
-#ifndef TVM_OP_HYBRID_OP_H_
-#define TVM_OP_HYBRID_OP_H_
+#ifndef TVM_TOP_OPERATION_HYBRID_OP_H_
+#define TVM_TOP_OPERATION_HYBRID_OP_H_
 
 #include <tvm/expr.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
-#include "../schedule/message_passing.h"
 
+#include "../schedule/message_passing.h"
+#include "../../pass/ir_util.h"
+#include "../../pass/arg_binder.h"
 
 namespace tvm {
-namespace op {
+namespace top {
 
 /*!
  * \brief Find all the iteration variables in the given statement body.
@@ -90,7 +91,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
                     const std::unordered_map<IterVar, Range> &dom_map,
                     const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt);
 
-}  // namespace op
+}  // namespace top
 }  // namespace tvm
 
-#endif  // TVM_OP_HYBRID_OP_H_
+#endif  // TVM_TOP_OPERATION_HYBRID_OP_H_

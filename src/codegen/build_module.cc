@@ -23,7 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/build_module.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
 #include <tvm/runtime/registry.h>
@@ -87,10 +87,10 @@ Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape,
     data_alignment, offset_factor, buffer_type);
 }
 
-void GetBinds(const Array<Tensor>& args,
+void GetBinds(const Array<top::Tensor>& args,
               bool compact,
-              const std::unordered_map<Tensor, Buffer>& binds,
-              Map<Tensor, Buffer>* out_binds,
+              const std::unordered_map<top::Tensor, Buffer>& binds,
+              Map<top::Tensor, Buffer>* out_binds,
               Array<ObjectRef>* out_arg_list,
               const BuildConfig& config) {
   *out_binds = binds;
@@ -117,21 +117,21 @@ void GetBinds(const Array<Tensor>& args,
 * \param config The build configuration.
 * \return The built Stmt.
 */
-Stmt BuildStmt(Schedule sch,
-               const Array<Tensor>& args,
-               const std::unordered_map<Tensor, Buffer>& binds,
+Stmt BuildStmt(top::Schedule sch,
+               const Array<top::Tensor>& args,
+               const std::unordered_map<top::Tensor, Buffer>& binds,
                bool loop_partition,
                Array<ObjectRef> *out_arg_list,
                const BuildConfig& config) {
   sch = sch.normalize();
 
   // Phase 0
-  auto bounds = schedule::InferBound(sch);
-  auto stmt = schedule::ScheduleOps(sch, bounds, false);
+  auto bounds = top::InferBound(sch);
+  auto stmt = top::ScheduleOps(sch, bounds, false);
   stmt = ir::InjectPrefetch(stmt);
 
   bool compact = ir::VerifyCompactBuffer(stmt);
-  Map<Tensor, Buffer> out_binds;
+  Map<top::Tensor, Buffer> out_binds;
   GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
 
   // Phase 1
@@ -165,10 +165,10 @@ Stmt BuildStmt(Schedule sch,
   return stmt;
 }
 
-Array<LoweredFunc> lower(Schedule sch,
-                         const Array<Tensor>& args,
+Array<LoweredFunc> lower(top::Schedule sch,
+                         const Array<top::Tensor>& args,
                          const std::string& name,
-                         const std::unordered_map<Tensor, Buffer>& binds,
+                         const std::unordered_map<top::Tensor, Buffer>& binds,
                          const BuildConfig& config) {
   Array<ObjectRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);

@@ -18,25 +18,28 @@
  */
 
 /*!
- * \file tvm/operation.h
+ * \file tvm/top/operation.h
  * \brief Operation node can generate one or multiple Tensors
  */
-#ifndef TVM_OPERATION_H_
-#define TVM_OPERATION_H_
+#ifndef TVM_TOP_OPERATION_H_
+#define TVM_TOP_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
+
+#include <tvm/expr.h>
+#include <tvm/expr_operator.h>
+#include <tvm/buffer.h>
 
 #include <string>
 #include <vector>
 #include <unordered_map>
 
-#include "expr.h"
-#include "expr_operator.h"
-#include "tensor.h"
-#include "schedule.h"
-#include "buffer.h"
+
 
 namespace tvm {
+namespace top {
 
 using arith::IntSet;
 
@@ -655,5 +658,6 @@ inline Tensor compute(Array<PrimExpr> shape,
 inline const OperationNode* Operation::operator->() const {
   return static_cast<const OperationNode*>(get());
 }
+}  // namespace top
 }  // namespace tvm
-#endif  // TVM_OPERATION_H_
+#endif  // TVM_TOP_OPERATION_H_

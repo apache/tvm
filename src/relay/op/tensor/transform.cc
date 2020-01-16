@@ -65,8 +65,8 @@ bool CastRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> CastCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> CastCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const CastAttrs *param = attrs.as<CastAttrs>();
@@ -125,8 +125,8 @@ bool CastLikeRel(const Array<Type>& types,
 }
 
 
-Array<Tensor> CastLikeCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> CastLikeCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::cast(inputs[0], inputs[1]->dtype) };
@@ -156,7 +156,7 @@ RELAY_REGISTER_OP("cast_like")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 
-Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+Array<top::Tensor> ReinterpretCompute(const Attrs& attrs, const Array<top::Tensor>& inputs,
                                  const Type& out_type, const Target& target) {
   const CastAttrs* param = attrs.as<CastAttrs>();
   CHECK(param != nullptr);
@@ -230,8 +230,8 @@ bool ExpandDimsRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ExpandDimsCompute(const Attrs& attrs,
-                                const Array<Tensor>& inputs,
+Array<top::Tensor> ExpandDimsCompute(const Attrs& attrs,
+                                const Array<top::Tensor>& inputs,
                                 const Type& out_type,
                                 const Target& target) {
   const ExpandDimsAttrs *param = attrs.as<ExpandDimsAttrs>();
@@ -269,8 +269,8 @@ RELAY_REGISTER_OP("expand_dims")
 // relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
-Array<Tensor> ConcatenateCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> ConcatenateCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
@@ -412,8 +412,8 @@ bool StackRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> StackCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> StackCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   const StackAttrs *param = attrs.as<StackAttrs>();
@@ -504,13 +504,13 @@ bool TransposeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> TransposeCompute(const Attrs& attrs,
-                               const Array<Tensor>& inputs,
+Array<top::Tensor> TransposeCompute(const Attrs& attrs,
+                               const Array<top::Tensor>& inputs,
                                const Type& out_type,
                                const Target& target) {
   const auto* param = attrs.as<TransposeAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::transpose(inputs[0], param->axes) };
+  return Array<top::Tensor>{ topi::transpose(inputs[0], param->axes) };
 }
 
 Expr MakeTranspose(Expr data,
@@ -687,8 +687,8 @@ bool ReshapeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ReshapeCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> ReshapeCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -922,16 +922,16 @@ bool TakeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> TakeCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> TakeCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const auto* param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->mode) };
+    return Array<top::Tensor>{ topi::take(inputs[0], inputs[1], param->mode) };
   } else {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis, param->mode) };
+    return Array<top::Tensor>{ topi::take(inputs[0], inputs[1], param->axis, param->mode) };
   }
 }
 
@@ -1009,8 +1009,8 @@ bool FullRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> FullCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> FullCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -1117,8 +1117,8 @@ bool FullLikeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> FullLikeCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> FullLikeCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::full_like(inputs[0], inputs[1]()) };
@@ -1217,26 +1217,26 @@ bool ArangeRel(const Array<Type>& types,
   }
 }
 
-inline Tensor DynamicArange(const tvm::Tensor& start,
-                            const tvm::Tensor& stop,
-                            const tvm::Tensor& step,
-                            tvm::DataType dtype,
-                            std::string name = "tensor",
-                            std::string tag = topi::kInjective) {
+inline top::Tensor DynamicArange(const top::Tensor& start,
+                                 const top::Tensor& stop,
+                                 const top::Tensor& step,
+                                 tvm::DataType dtype,
+                                 std::string name = "tensor",
+                                 std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::Var("num_elem");
-  return tvm::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
+  return top::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
     return tvm::cast(dtype, start[0] + step[0] * indices[0]);
   }, name, tag);
 }
 
-Array<Tensor> ArangeCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+Array<top::Tensor> ArangeCompute(const Attrs& attrs,
+                                 const Array<top::Tensor>& inputs,
+                                 const Type& out_type,
+                                 const Target& target) {
   const ArangeAttrs* param = attrs.as<ArangeAttrs>();
-  Tensor start = inputs[0];
-  Tensor stop =  inputs[1];
-  Tensor step = inputs[2];
+  top::Tensor start = inputs[0];
+  top::Tensor stop =  inputs[1];
+  top::Tensor step = inputs[2];
   Array<tvm::PrimExpr> empty = {0};
   return { DynamicArange(start, stop, step, param->dtype) };
 }
@@ -1324,8 +1324,8 @@ bool RepeatRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> RepeatCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> RepeatCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   const RepeatAttrs *param = attrs.as<RepeatAttrs>();
@@ -1435,8 +1435,8 @@ bool TileRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> TileCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> TileCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const TileAttrs *param = attrs.as<TileAttrs>();
@@ -1496,8 +1496,8 @@ bool ReverseRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ReverseCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> ReverseCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const ReverseAttrs *param = attrs.as<ReverseAttrs>();
@@ -1570,8 +1570,8 @@ Expr MakeWhere(const Expr& condition, const Expr& x, const Expr& y) {
   return CallNode::make(op, {condition, x, y});
 }
 
-Array<Tensor> WhereCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> WhereCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   return { topi::where(inputs[0], inputs[1], inputs[2]) };
@@ -1687,8 +1687,8 @@ bool SqueezeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> SqueezeCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> SqueezeCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const SqueezeAttrs *param = attrs.as<SqueezeAttrs>();
@@ -1728,8 +1728,8 @@ Expr MakeCollapseSumLike(Expr data,
   return CallNode::make(op, {data, collapse_type}, Attrs(), {});
 }
 
-Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+Array<top::Tensor> CollapseSumLikeCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -1773,8 +1773,8 @@ Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Array<Tensor> BroadCastToCompute(const Attrs& attrs,
-                                 const Array<Tensor>& inputs,
+Array<top::Tensor> BroadCastToCompute(const Attrs& attrs,
+                                 const Array<top::Tensor>& inputs,
                                  const Type& out_type,
                                  const Target& target) {
   auto ioattrs = attrs.as<InitOpAttrs>();
@@ -1811,8 +1811,8 @@ Expr MakeBroadCastToLike(Expr data,
   return CallNode::make(op, {data, broadcast_type}, Attrs(), {});
 }
 
-Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+Array<top::Tensor> BroadCastToLikeCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -2018,13 +2018,13 @@ Expr MakeStridedSlice(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Array<Tensor> StridedSliceCompute(const Attrs& attrs,
-                                  const Array<Tensor>& inputs,
+Array<top::Tensor> StridedSliceCompute(const Attrs& attrs,
+                                  const Array<top::Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
   const StridedSliceAttrs *param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::strided_slice(inputs[0], param->begin, param->end, param->strides)
   };
 }
@@ -2175,8 +2175,8 @@ bool SplitRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> SplitCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> SplitCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   const auto param = attrs.as<SplitAttrs>();
@@ -2184,11 +2184,11 @@ Array<Tensor> SplitCompute(const Attrs& attrs,
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     int64_t num_sections = sections->value;
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::split_sections(inputs[0], num_sections, param->axis) };
   } else {
     auto indices = Downcast<Array<Integer> >(param->indices_or_sections);
-    return Array<Tensor>{ topi::split(inputs[0], indices, param->axis) };
+    return Array<top::Tensor>{ topi::split(inputs[0], indices, param->axis) };
   }
 }
 
@@ -2304,8 +2304,8 @@ Expr MakeSliceLike(Expr data,
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
 }
 
-Array<Tensor> SliceLikeCompute(const Attrs& attrs,
-                               const Array<Tensor>& inputs,
+Array<top::Tensor> SliceLikeCompute(const Attrs& attrs,
+                               const Array<top::Tensor>& inputs,
                                const Type& out_type,
                                const Target& target) {
   const auto* param = attrs.as<SliceLikeAttrs>();
@@ -2342,7 +2342,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
         << topi::GetConstInt(src_shape[axis]);
     }
   }
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::strided_slice(inputs[0],
                         GetIntArray(begin_idx),
                         GetIntArray(end_idx),
@@ -2370,13 +2370,13 @@ RELAY_REGISTER_OP("slice_like")
 // relay.layout_transform
 TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
 
-Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+Array<top::Tensor> LayoutTransformCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* param = attrs.as<LayoutTransformAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::layout_transform(inputs[0], param->src_layout, param->dst_layout)
   };
 }
@@ -2503,8 +2503,8 @@ bool GatherNDRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> GatherNDCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> GatherNDCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::gather_nd(inputs[0], inputs[1]) };
@@ -2557,13 +2557,14 @@ bool SequenceMaskRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> SequenceMaskCompute(const Attrs& attrs,
-                                  const Array<Tensor>& inputs,
+Array<top::Tensor> SequenceMaskCompute(const Attrs& attrs,
+                                  const Array<top::Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
   const auto* param = attrs.as<SequenceMaskAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
+  return Array<top::Tensor>{
+    topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
 }
 
 Expr MakeSequenceMask(Expr data,
@@ -2669,13 +2670,13 @@ bool OneHotRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> OneHotCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> OneHotCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   const auto* param = attrs.as<OneHotAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor> {
+  return Array<top::Tensor> {
     topi::one_hot(inputs[0],
                   inputs[1](),
                   inputs[2](),

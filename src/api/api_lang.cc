@@ -23,10 +23,10 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/tensor.h>
-#include <tvm/operation.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/operation.h>
 #include <tvm/buffer.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
@@ -274,6 +274,7 @@ TVM_REGISTER_GLOBAL("_BijectiveLayoutForwardShape")
 TVM_REGISTER_GLOBAL("_BijectiveLayoutBackwardShape")
 .set_body_method(&BijectiveLayout::BackwardShape);
 
+namespace top {
 TVM_REGISTER_GLOBAL("_Tensor")
 .set_body_typed(TensorNode::make);
 
@@ -441,6 +442,7 @@ TVM_REGISTER_GLOBAL("_ScheduleCacheWrite")
 
 TVM_REGISTER_GLOBAL("_ScheduleRFactor")
 .set_body_method(&Schedule::rfactor);
+}  // namespace top
 
 TVM_REGISTER_GLOBAL("_CommReducerCombine")
 .set_body_method<ir::CommReducer>(&ir::CommReducerNode::operator());

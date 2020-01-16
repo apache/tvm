@@ -25,13 +25,14 @@
 #ifndef TVM_PACKED_FUNC_EXT_H_
 #define TVM_PACKED_FUNC_EXT_H_
 
+#include <tvm/top/tensor.h>
+
 #include <string>
 #include <memory>
 #include <limits>
 #include <type_traits>
 
 #include "expr.h"
-#include "tensor.h"
 #include "runtime/packed_func.h"
 
 namespace tvm {
@@ -116,8 +117,8 @@ inline TVMPODValue_::operator tvm::PrimExpr() const {
   if (ptr->IsInstance<IterVarNode>()) {
     return IterVar(ObjectPtr<Object>(ptr))->var;
   }
-  if (ptr->IsInstance<TensorNode>()) {
-    return Tensor(ObjectPtr<Object>(ptr))();
+  if (ptr->IsInstance<top::TensorNode>()) {
+    return top::Tensor(ObjectPtr<Object>(ptr))();
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()

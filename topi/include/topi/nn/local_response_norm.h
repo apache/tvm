@@ -27,11 +27,12 @@
 #include <string>
 
 #include "topi/tags.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Local response normalization inference operator
@@ -67,21 +68,21 @@ inline Tensor lrn(const Tensor& data,
   auto rxs = tvm::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::top::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l + rxs, j, k) *
                                            pad_data(i, l + rxs, j, k),
                                            {rxs});
                            });
   } else if (axis == 3) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::top::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l, j, k + rxs) *
                                            pad_data(i, l, j, k + rxs),
                                            {rxs});
                            });
   }
-  auto sqrt_sum_up = tvm::compute(
+  auto sqrt_sum_up = tvm::top::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
         return tvm::pow(bias +

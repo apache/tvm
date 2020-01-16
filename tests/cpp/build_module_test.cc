@@ -20,7 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <topi/cuda/injective.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/build_module.h>
@@ -30,6 +30,7 @@
 
 TEST(BuildModule, Basic) {
   using namespace tvm;
+  using namespace tvm::top;
   auto n = var("n");
   Array<PrimExpr> shape;
   shape.push_back(n);
@@ -75,6 +76,7 @@ TEST(BuildModule, Heterogeneous) {
    */
 
   using namespace tvm;
+  using namespace tvm::top;
   const runtime::PackedFunc* pf = runtime::Registry::Get("module._Enabled");
   bool enabled = (*pf)("cuda");
   if (!enabled) {

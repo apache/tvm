@@ -34,6 +34,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 using namespace topi::image;
 
 /*!

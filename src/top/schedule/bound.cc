@@ -21,17 +21,17 @@
  * \file bound.cc
  * \brief The bound inference logic.
  */
-#include <tvm/schedule_pass.h>
-#include <tvm/operation.h>
+#include <tvm/top/schedule_pass.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_pass.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "graph.h"
 #include "message_passing.h"
-#include "../runtime/thread_storage_scope.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -259,5 +259,5 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

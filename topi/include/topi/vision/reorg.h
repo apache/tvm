@@ -31,12 +31,13 @@
 #include "topi/reduction.h"
 #include "topi/tags.h"
 #include "topi/transform.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace vision {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Reorg operation
@@ -60,7 +61,7 @@ inline Tensor reorg(const Tensor &data,
   int w_in = GetConstInt(input_shape[3]);
   int out_c = c_in / (stride * stride);
 
-  auto out = tvm::compute(input_shape,
+  auto out = tvm::top::compute(input_shape,
                           [&](Var b, Var k, Var j, Var i) {
                           return data(b * stride * stride,
                                       indexmod(k, out_c) * stride * stride,

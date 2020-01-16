@@ -18,21 +18,24 @@
  */
 
 /*!
- * \file tvm/schedule.h
+ * \file tvm/top/schedule.h
  * \brief Define a schedule.
  */
 // Acknowledgement: Many schedule primitives originate from Halide and Loopy.
-#ifndef TVM_SCHEDULE_H_
-#define TVM_SCHEDULE_H_
+#ifndef TVM_TOP_SCHEDULE_H_
+#define TVM_TOP_SCHEDULE_H_
+
+#include <tvm/expr.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/tensor_intrin.h>
+
 
 #include <string>
 #include <unordered_map>
-#include "expr.h"
-#include "tensor.h"
-#include "tensor_intrin.h"
+
 
 namespace tvm {
-
+namespace top {
 // Node container for Stage
 class StageNode;
 // Node container for Schedule
@@ -764,5 +767,6 @@ inline const IterVarRelationNode* IterVarRelation::operator->() const {
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
   return static_cast<const IterVarAttrNode*>(get());
 }
+}  // namespace top
 }  // namespace tvm
-#endif  // TVM_SCHEDULE_H_
+#endif  // TVM_TOP_SCHEDULE_H_

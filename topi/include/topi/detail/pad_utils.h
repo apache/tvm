@@ -32,6 +32,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Get padding size for each side given padding height and width

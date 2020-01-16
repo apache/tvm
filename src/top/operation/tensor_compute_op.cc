@@ -21,16 +21,17 @@
  * \brief Tensor Compute Op.
  * \file tensor_compute_op.cc
  */
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
 #include "./compute_op.h"
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
+namespace top {
 using namespace ir;
 // TensorComputeOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -81,12 +82,12 @@ Operation TensorComputeOpNode::ReplaceInputs(
   CHECK_EQ(self.operator->(), this);
   auto n = make_object<TensorComputeOpNode>(*this);
   auto intrin = make_object<TensorIntrinNode>(*(this->intrin.operator->()));
-  intrin->body = op::ReplaceTensor(this->intrin->body, rmap);
+  intrin->body = ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {
-    intrin->reduce_init = op::ReplaceTensor(this->intrin->reduce_init, rmap);
+    intrin->reduce_init = ReplaceTensor(this->intrin->reduce_init, rmap);
   }
   if (intrin->reduce_update.defined()) {
-    intrin->reduce_update = op::ReplaceTensor(this->intrin->reduce_update, rmap);
+    intrin->reduce_update = ReplaceTensor(this->intrin->reduce_update, rmap);
   }
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
@@ -208,7 +209,7 @@ Stmt TensorComputeOpNode::BuildProvide(
   if (this->reduce_axis.size() == 0) {
     std::vector<std::vector<Stmt> > nest(
         n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
-    nest.emplace_back(op::MakeIfNest(n.main_predicates));
+    nest.emplace_back(MakeIfNest(n.main_predicates));
     CHECK_EQ(n.init_predicates.size(), 0U);
     CHECK(this->intrin->body.defined())
         << "Normal store op for intrin " << this << " is not defined";
@@ -216,7 +217,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     body = MergeNest(input_bind_nest, body);
     body = ir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
-    body = op::Substitute(body, n.main_vmap);
+    body = top::Substitute(body, n.main_vmap);
     Stmt ret =  MergeNest(nest, body);
     return ret;
   } else {
@@ -229,22 +230,22 @@ Stmt TensorComputeOpNode::BuildProvide(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
-    update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
+    update_nest.emplace_back(MakeIfNest(n.main_predicates));
 
     if (this->intrin->reduce_init.defined()) {
       // init nest
       std::vector<std::vector<Stmt> > init_nest(
           n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
-      init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+      init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, this->intrin->reduce_init);
-      init = op::Substitute(init, n.init_vmap);
+      init = top::Substitute(init, n.init_vmap);
       init = MergeNest(init_nest, init);
       // The update
       Stmt update = MergeNest(output_bind_nest, this->intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
       update = ir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = op::Substitute(update, n.main_vmap);
+      update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
@@ -258,11 +259,11 @@ Stmt TensorComputeOpNode::BuildProvide(
       update = MergeNest(input_bind_nest, update);
       update = ir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = op::Substitute(update, n.main_vmap);
+      update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, update);
     }
   }
 }
-
+}  // namespace top
 }  // namespace tvm

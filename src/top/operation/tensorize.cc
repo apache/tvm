@@ -32,9 +32,9 @@
 #include "../schedule/message_passing.h"
 
 namespace tvm {
+namespace top {
 
 using namespace ir;
-using namespace op;
 
 // Detect the region of input and output to be tensrized.
 // out_dom: the domain of root iter vars in output op
@@ -82,7 +82,7 @@ size_t InferTensorizeRegion(
   }
   CHECK(found_point);
   // Get domain of the tensorized scope.
-  schedule::PassUpDomain(stage, dom_map, &up_state);
+  top::PassUpDomain(stage, dom_map, &up_state);
   // Get domains if inputs
   std::unordered_map<Tensor, TensorDom> in_dom;
   std::unordered_map<const VarNode*, IntSet> temp_dmap;
@@ -445,15 +445,15 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     // Do no need to split reduction
     std::vector<std::vector<Stmt> > nest(
         n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
-    nest.emplace_back(op::MakeIfNest(n.main_predicates));
+    nest.emplace_back(MakeIfNest(n.main_predicates));
     CHECK_EQ(n.init_predicates.size(), 0U);
     CHECK(intrin->body.defined())
         << "Normal store op for intrin " << intrin << " is not defined";
     Stmt body = MergeNest(output_bind_nest, intrin->body);
     body = MergeNest(input_bind_nest, body);
-    body = Substitute(body, vmap);
+    body = ir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
-    body = Substitute(body, n.main_vmap);
+    body = top::Substitute(body, n.main_vmap);
     return MergeNest(nest, body);
   } else {
     // Need to split reduction
@@ -465,22 +465,22 @@ Stmt MakeTensorize(const ComputeOpNode* self,
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
-    update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
+    update_nest.emplace_back(MakeIfNest(n.main_predicates));
 
     if (intrin->reduce_init.defined()) {
       // init nest
       std::vector<std::vector<Stmt> > init_nest(
           n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
-      init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
+      init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-      init = Substitute(init, n.init_vmap);
+      init = top::Substitute(init, n.init_vmap);
       init = MergeNest(init_nest, init);
       // The update
       Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
-      update = Substitute(update, vmap);
+      update = ir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = Substitute(update, n.main_vmap);
+      update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
@@ -492,9 +492,9 @@ Stmt MakeTensorize(const ComputeOpNode* self,
                                     intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);
       update = MergeNest(input_bind_nest, update);
-      update = Substitute(update, vmap);
+      update = ir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = Substitute(update, n.main_vmap);
+      update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, update);
     }
@@ -533,4 +533,5 @@ TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody")
                               intrin,
                               &vrange);
   });
+}  // namespace top
 }  // namespace tvm
