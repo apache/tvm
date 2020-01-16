@@ -601,13 +601,15 @@ def test_vgg13_bn():
 def test_vgg19_bn():
     verify_model('vgg19_bn')
 """
+
+"""
 def test_mobilenet_v2():
     verify_model('mobilenet_v2')
 
 def test_densenet121():
     verify_model('densenet121')
 
-"""
+
 def test_densenet161():
     verify_model('densenet161')
 
@@ -616,7 +618,7 @@ def test_densenet169():
 
 def test_densenet201():
     verify_model('densenet201')
-"""
+
 def test_inception_v3():
     verify_model('inception_v3')
 
@@ -634,6 +636,7 @@ def test_mnasnet0_5():
 
 def test_mnasnet1_0():
     verify_model('mnasnet1_0')
+"""
 
 if __name__ == '__main__':
 
