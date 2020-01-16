@@ -81,7 +81,8 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val xmax = (1 << mp.lenBits).U
   val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
 
-  val offsetIsEven = (dec.sram_offset % 2.U) === 0.U
+  val dram_even = (dec.dram_offset % 2.U) === 0.U
+  val sram_even = (dec.sram_offset % 2.U) === 0.U
   val sizeIsEven = (dec.xsize % 2.U) === 0.U
 
   val sIdle :: sReadCmd :: sReadData :: Nil = Enum(3)
@@ -129,7 +130,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   // read-from-dram
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
   when(state === sIdle) {
-    when((dec.dram_offset % 2.U) === 0.U) {
+    when(dram_even) {
       raddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))
     }.otherwise {
       raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) - uopBytes.U
@@ -161,7 +162,7 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mem = SyncReadMem(uopDepth, chiselTypeOf(wdata))
   val wmask = Reg(Vec(numUop, Bool()))
 
-  when(offsetIsEven) {
+  when(sram_even) {
     when(sizeIsEven) {
       wmask := "b_11".U.asTypeOf(wmask)
     }.elsewhen(io.vme_rd.cmd.fire()) {
@@ -179,10 +180,13 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
         }
       }
   }.otherwise {
-    when(io.vme_rd.cmd.fire()) {
+    when(sizeIsEven) {
+      // TODO (liangfu): write the other word
+      wmask := "b_01".U.asTypeOf(wmask)
+    }.elsewhen(io.vme_rd.cmd.fire()) {
       wmask := "b_10".U.asTypeOf(wmask)
     }.elsewhen(io.vme_rd.data.fire()) {
-      when(sizeIsEven && (xcnt === xlen - 1.U) && (xrem === 0.U)) {
+      when((xcnt === xlen - 1.U) && (xrem === 0.U)) {
         wmask := "b_01".U.asTypeOf(wmask)
       }.otherwise {
         wmask := "b_11".U.asTypeOf(wmask)
@@ -191,6 +195,12 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   }
 
   wdata := io.vme_rd.data.bits.asTypeOf(wdata)
+  when(dram_even === false.B && sram_even) {
+    wdata(0) := io.vme_rd.data.bits.asTypeOf(wdata)(1)
+  }.elsewhen(sram_even === false.B && dram_even) {
+    wdata(1) := io.vme_rd.data.bits.asTypeOf(wdata)(0)
+  }
+
   when(io.vme_rd.data.fire()) {
     mem.write(waddr, wdata, wmask)
   }
