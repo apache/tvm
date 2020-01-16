@@ -25,11 +25,13 @@
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
 
+#include <string>
+#include <memory>
+
 #include "../tflite/tflite_runtime.h"
 
 namespace tvm {
 namespace runtime {
-
 
 /*!
  * \brief EdgeTPU runtime.
