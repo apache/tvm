@@ -21,7 +21,7 @@
  * \file storage_access.cc
  */
 #include <tvm/ir_pass.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <string>
 #include <utility>
 #include "ir_util.h"

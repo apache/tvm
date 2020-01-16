@@ -30,7 +30,7 @@
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"

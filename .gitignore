@@ -65,7 +65,7 @@ docs/_build/
 docs/gen_modules
 
 # PyBuilder
-target/
+/target/
 
 # IPython Notebook
 .ipynb_checkpoints

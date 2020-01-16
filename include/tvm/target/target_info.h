@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file tvm/target_info.h
+ * \file tvm/target/target_info.h
  * \brief Various information about target.
  */
-#ifndef TVM_TARGET_INFO_H_
-#define TVM_TARGET_INFO_H_
+#ifndef TVM_TARGET_TARGET_INFO_H_
+#define TVM_TARGET_TARGET_INFO_H_
 
+#include <tvm/ir/expr.h>
 #include <string>
-#include "expr.h"
 
 namespace tvm {
 
@@ -33,7 +33,8 @@ namespace tvm {
  * \brief Memory information of special memory region.
  *  Use MemoryInfo as its container type
  */
-struct MemoryInfoNode : public Object {
+class MemoryInfoNode : public Object {
+ public:
   /*! \brief The addressable unit */
   int unit_bits;
   /*! \brief Maximum number of bits supported in the memory */
@@ -71,4 +72,4 @@ class MemoryInfo : public ObjectRef {
 TVM_DLL MemoryInfo GetMemoryInfo(const std::string& scope);
 
 }  // namespace tvm
-#endif  // TVM_TARGET_INFO_H_
+#endif  // TVM_TARGET_TARGET_INFO_H_
