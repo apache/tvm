@@ -28,8 +28,6 @@ from .ty import Type
 from .module import Module
 from .feature import Feature
 
-import json
-
 
 def post_order_visit(expr, fvisit):
     """Recursively visit the ir in post DFS order node,
@@ -479,7 +477,7 @@ def _export_as_relayviz(expr):
             })
         else:
             raise RuntimeError(
-                    'Unknown node type. node_idx: {}, node: {}'.format(node_idx, type(node)))
+                'Unknown node type. node_idx: {}, node: {}'.format(node_idx, type(node)))
 
     obj = {}
     obj['format'] = 'relayviz'
@@ -499,7 +497,8 @@ def _export_as_graphviz(relayviz_obj):
                          node['name'], tuple(node['shape']), node['dtype']
                      ))
         elif node['node_kind'] == 'Call':
-            dot.node(str(node_id), 'Call(op={})'.format(relayviz_obj['nodes'][ node['op'] ]['name']))
+            dot.node(str(node_id),
+                     'Call(op={})'.format(relayviz_obj['nodes'][node['op']]['name']))
             for arg in node['args']:
                 dot.edge(str(arg), str(node_id))
         elif node['node_kind'] == 'Function':
@@ -512,7 +511,7 @@ def _export_as_graphviz(relayviz_obj):
             pass
         else:
             raise RuntimeError(
-                    'Node type {} not supported by GraphViz visualizer.'.format(node['node_kind']))
+                'Node type {} not supported by GraphViz visualizer.'.format(node['node_kind']))
     return dot
 
 
@@ -524,3 +523,5 @@ def visualize(expr, output_format='graphviz'):
     relayviz_obj = _export_as_relayviz(expr)
     if output_format == 'graphviz':
         return _export_as_graphviz(relayviz_obj)
+    else:
+        return None
