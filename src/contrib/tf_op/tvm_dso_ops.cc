@@ -19,8 +19,6 @@
 
 #include "tensorflow/core/framework/op.h"
 
-using namespace tensorflow;
-
 #define REGISTER_TFTVM_OP(n) REGISTER_OP("TvmDsoOp" #n) \
     .Output("output: output_dtype") \
     .Attr("lib_path: string") \
