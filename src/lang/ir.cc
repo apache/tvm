@@ -592,6 +592,10 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     // stream << op->name << "." << op->type;
     p->stream << op->name_hint;
   })
+.set_dispatch<SizeVarNode>([](const ObjectRef& node, NodePrinter* p) {
+    auto* op = static_cast<const SizeVarNode*>(node.get());
+    p->stream << "{" << op->name_hint << "|" << op->name_hint << ">=0}";
+  })
 .set_dispatch<AddNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const AddNode*>(node.get());
     p->stream << '(';
@@ -1143,6 +1147,7 @@ TVM_REGISTER_NODE_TYPE(IntImmNode);
 TVM_REGISTER_NODE_TYPE(StringImmNode);
 TVM_REGISTER_NODE_TYPE(CastNode);
 TVM_REGISTER_NODE_TYPE(VarNode);
+TVM_REGISTER_NODE_TYPE(SizeVarNode);
 TVM_REGISTER_NODE_TYPE(AddNode);
 TVM_REGISTER_NODE_TYPE(SubNode);
 TVM_REGISTER_NODE_TYPE(MulNode);

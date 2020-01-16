@@ -67,7 +67,7 @@ def test_add_pipeline():
         # Specifically allow offset to test codepath when offset is available
         Ab = tvm.decl_buffer(
             A.shape, A.dtype,
-            elem_offset=tvm.var('Aoffset'),
+            elem_offset=tvm.size_var('Aoffset'),
             offset_factor=8,
             name='A')
         binds = {A : Ab}

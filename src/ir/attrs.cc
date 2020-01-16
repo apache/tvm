@@ -114,7 +114,7 @@ bool AttrsEqualHandler::VisitAttr_(const StringImmNode* lhs, const ObjectRef& ot
 bool AttrsEqualHandler::VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<ArrayNode>()) {
     if (rhs->data.size() != lhs->data.size()) return false;
-    for (size_t  i = 0; i < lhs->data.size(); ++i) {
+    for (size_t i = 0; i < lhs->data.size(); ++i) {
       if (!Equal(lhs->data[i], rhs->data[i])) return false;
     }
   }

@@ -1108,7 +1108,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it2 = matrix_abc_.find(simplify_name(call->name));
     CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
-    buffer_node->data = VarNode::make(DataType::Handle(), call->name);
+    buffer_node->data = Var(call->name, DataType::Handle());
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;

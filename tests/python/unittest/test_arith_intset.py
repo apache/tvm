@@ -60,6 +60,7 @@ def test_add_sub():
 def test_mul_div():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
+
     tdiv = tvm.truncdiv
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(x * y, {x : tvm.arith.IntervalSet(0, 10)}, (0, 10 * y))

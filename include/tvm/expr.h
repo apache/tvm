@@ -65,13 +65,15 @@ class Var;
  */
 class VarNode : public PrimExprNode {
  public:
+  /*! \brief constructor */
+  VarNode() {}
+  VarNode(DataType dtype, std::string name_hint);
+
   /*!
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
   std::string name_hint;
-
-  static Var make(DataType dtype, std::string name_hint);
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -79,13 +81,17 @@ class VarNode : public PrimExprNode {
   }
 
   static constexpr const char* _type_key = "Variable";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, PrimExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
 /*! \brief a named variable in TVM */
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
   TVM_DLL explicit Var(std::string name_hint = "v",
                        DataType t = DataType::Int(32));
   /*!
@@ -112,6 +118,53 @@ class Var : public PrimExpr {
   }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
+};
+
+class SizeVar;
+/*!
+ * \brief A variable node represent a tensor index size,
+ * whose value must be non-negative.
+ */
+class SizeVarNode : public VarNode {
+ public:
+  /*! \brief constructor */
+  SizeVarNode() {}
+  /*! \brief constructor
+   * \param dtype data type
+   * \param name_hint variable name
+   */
+  SizeVarNode(DataType dtype, std::string name_hint);
+
+  static constexpr const char* _type_key = "SizeVar";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
+};
+
+/*! \brief a named variable represents a tensor index size */
+class SizeVar : public Var {
+ public:
+  explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
+  /*! \brief constructor
+   * \param name_hint variable name
+   * \param t data type
+   */
+  TVM_DLL explicit SizeVar(std::string name_hint = "s",
+                            DataType t = DataType::Int(32));
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const SizeVarNode* operator->() const {
+    return get();
+  }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the corresponding Variable.
+   */
+  const SizeVarNode* get() const {
+    return static_cast<const SizeVarNode*>(data_.get());
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = SizeVarNode;
 };
 
 /*!

@@ -17,8 +17,8 @@
 import tvm
 
 def test_flatten2():
-    m = tvm.var('m')
-    l = tvm.var('l')
+    m = tvm.size_var('m')
+    l = tvm.size_var('l')
     A = tvm.placeholder((m, l), name='A')
     A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
     A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
@@ -38,8 +38,8 @@ def test_flatten2():
 def test_flatten_prefetch():
     A = tvm.placeholder((25, 100, 4), name = 'A')
     _A= tvm.decl_buffer(A.shape, A.dtype, name = 'A');
-    i = tvm.var('i')
-    j = tvm.var('j')
+    i = tvm.size_var('i')
+    j = tvm.size_var('j')
     region = [tvm.make.range_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
     stmt = tvm.make.Prefetch(A.op, 0, A.dtype, region)
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)

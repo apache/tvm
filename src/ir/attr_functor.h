@@ -81,6 +81,9 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttr_(const ir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
   virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const SizeVarNode* op, Args... args) {
+    return VisitAttr_(static_cast<const VarNode*>(op), std::forward<Args>(args)...);
+  }
   virtual R VisitAttr_(const ir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::SubNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::MulNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -115,6 +118,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(FloatImmNode);
     ATTR_FUNCTOR_DISPATCH(StringImmNode);
     ATTR_FUNCTOR_DISPATCH(VarNode);
+    ATTR_FUNCTOR_DISPATCH(SizeVarNode);
     ATTR_FUNCTOR_DISPATCH(AddNode);
     ATTR_FUNCTOR_DISPATCH(SubNode);
     ATTR_FUNCTOR_DISPATCH(MulNode);
