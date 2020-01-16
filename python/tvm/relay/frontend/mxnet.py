@@ -19,8 +19,8 @@
 from __future__ import absolute_import as _abs
 
 import json
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
 from topi.util import get_const_tuple
 from .. import analysis
