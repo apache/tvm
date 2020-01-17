@@ -27,13 +27,14 @@
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
 #include "topi/detail/array_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 #include "topi/cuda/pooling.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace rocm {
 

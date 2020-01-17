@@ -36,7 +36,7 @@ class NaiveAllocator final : public Allocator {
  public:
   explicit NaiveAllocator(TVMContext ctx) : Allocator(), used_memory_(0), ctx_(ctx) {}
 
-  Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) override {
+  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
     Buffer buf;
     buf.ctx = ctx_;
     buf.size = nbytes;

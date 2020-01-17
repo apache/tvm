@@ -19,7 +19,7 @@ import tvm
 
 @pytest.mark.xfail
 def test_loop_dependent_allocate():
-    N = tvm.var("N")
+    N = tvm.size_var("N")
     A = tvm.placeholder((2*N,), "float32", "A")
     C = tvm.compute((N, ), lambda i: A[2*i] + A[i+1], name='C')
     s = tvm.create_schedule(C.op)

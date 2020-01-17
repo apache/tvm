@@ -166,8 +166,8 @@ bool Pool2DRel(const Array<Type>& types,
 }
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<Tensor> Pool2DCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> Pool2DCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   static const Layout kNCHW("NCHW");
@@ -203,11 +203,11 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool(inputs[0], pool_size, strides, padding,
                      mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool(inputs[0], pool_size, strides, padding,
                      mode, ceil_mode, layout.name())};
   }
@@ -333,8 +333,8 @@ bool GlobalPool2DRel(const Array<Type>& types,
 
 
 template<topi::nn::PoolType mode>
-Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
-                                  const Array<Tensor>& inputs,
+Array<top::Tensor> GlobalPool2DCompute(const Attrs& attrs,
+                                  const Array<top::Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
   static const Layout kNCHW("NCHW");
@@ -351,7 +351,7 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
     << "Pool2D only support 4-D input (e.g., NCHW)"
     << " or 5-D input (last dimension is a split of channel)";
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::nn::global_pool(inputs[0], mode, layout.name()) };
 }
 
@@ -467,8 +467,8 @@ bool AdaptivePool2DRel(const Array<Type>& types,
 }
 
 template<topi::nn::PoolType mode>
-Array<Tensor> AdaptivePool2DCompute(const Attrs& attrs,
-                                    const Array<Tensor>& inputs,
+Array<top::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
+                                    const Array<top::Tensor>& inputs,
                                     const Type& out_type,
                                     const Target& target) {
   static const Layout kNCHW("NCHW");
@@ -500,7 +500,7 @@ Array<Tensor> AdaptivePool2DCompute(const Attrs& attrs,
     output_height = output_size[0];
     output_width = output_size[1];
   }
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::nn::adaptive_pool(inputs[0], Array<IndexExpr>{ output_height, output_width },
                             mode, layout.name()) };
 }
@@ -596,7 +596,7 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+Array<top::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<top::Tensor>& inputs,
                                 const Type& out_type, const Target& target) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
@@ -633,10 +633,10 @@ Array<Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<Tensor>& inputs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+    return Array<top::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
         mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+    return Array<top::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
         mode, ceil_mode, layout.name())};
   }
 }
@@ -798,8 +798,8 @@ bool Pool1DRel(const Array<Type>& types,
 
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<Tensor> Pool1DCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> Pool1DCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   static const Layout kNCW("NCW");
@@ -825,11 +825,11 @@ Array<Tensor> Pool1DCompute(const Attrs& attrs,
 
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool1DAttrs*>(param)->count_include_pad;
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool1d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool1d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name())};
   }
@@ -993,8 +993,8 @@ bool Pool3DRel(const Array<Type>& types,
 
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<Tensor> Pool3DCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> Pool3DCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   static const Layout kNCDHW("NCDHW");
@@ -1033,11 +1033,11 @@ Array<Tensor> Pool3DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool3DAttrs*>(param)->count_include_pad;
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool3d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::nn::pool3d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name())};
   }

@@ -19,10 +19,12 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 
 TEST(Tensor, Basic) {
   using namespace tvm;
+  using namespace tvm::top;
+
   Var m("m"), n("n"), l("l");
 
   Tensor A = placeholder({m, l}, DataType::Float(32), "A");
@@ -37,15 +39,17 @@ TEST(Tensor, Basic) {
 
 TEST(Tensor, Reduce) {
   using namespace tvm;
+  using namespace tvm::top;
+
   Var m("m"), n("n"), l("l");
-  Tensor A = placeholder({m, l}, DataType::Float(32), "A");
-  Tensor B = placeholder({n, l}, DataType::Float(32), "B");
+  top::Tensor A = top::placeholder({m, l}, DataType::Float(32), "A");
+  top::Tensor B = top::placeholder({n, l}, DataType::Float(32), "B");
   IterVar rv = reduce_axis(Range{0, l}, "k");
 
-  auto C = compute({m, n}, [&](Var i, Var j) {
+  auto C = top::compute({m, n}, [&](Var i, Var j) {
       return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv});
       }, "C");
-  LOG(INFO) << C->op.as<ComputeOpNode>()->body;
+  LOG(INFO) << C->op.as<top::ComputeOpNode>()->body;
 }
 
 int main(int argc, char ** argv) {

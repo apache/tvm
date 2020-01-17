@@ -22,21 +22,21 @@
  */
 // Flattens storage from multi-dimensional array to 1D
 // buffer access as in Halide pipeline.
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"
 #include "arg_binder.h"
-#include "../arithmetic/compute_expr.h"
-#include "../arithmetic/ir_visitor_with_analyzer.h"
+#include "../arith/compute_expr.h"
+#include "../arith/ir_visitor_with_analyzer.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -49,7 +49,7 @@ using intrinsic::tvm_address_of;
 
 class StorageFlattener : public StmtExprMutator {
  public:
-  explicit StorageFlattener(Map<Tensor, Buffer> extern_buffer,
+  explicit StorageFlattener(Map<top::Tensor, Buffer> extern_buffer,
                             int cache_line_size, bool create_bound_attributes,
                             IRVisitorWithAnalyzer* bounded_analyzer)
       : bounded_analyzer_(bounded_analyzer),
@@ -82,8 +82,8 @@ class StorageFlattener : public StmtExprMutator {
       storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::double_buffer_scope &&
-               op->node->IsInstance<OperationNode>()) {
-      Operation func = Downcast<Operation>(op->node);
+               op->node->IsInstance<top::OperationNode>()) {
+      auto func = Downcast<top::Operation>(op->node);
       Stmt body = this->VisitStmt(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
         TensorKey key{func, i};
@@ -104,7 +104,7 @@ class StorageFlattener : public StmtExprMutator {
     } else if (op->attr_key == attr::buffer_bind_scope) {
       return HandleBufferBindScope(op);
     } else if (op->attr_key == attr::buffer_dim_align) {
-      Tensor tensor = Downcast<Tensor>(op->node);
+      auto tensor = Downcast<top::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       TensorKey key{tensor->op, tensor->value_index};
@@ -406,7 +406,7 @@ class StorageFlattener : public StmtExprMutator {
     Array<ObjectRef> arr = Downcast<Array<ObjectRef> > (op->node);
     CHECK_EQ(arr.size(), 2U);
     const BufferNode* buffer = arr[0].as<BufferNode>();
-    const TensorNode* tensor = arr[1].as<TensorNode>();
+    const top::TensorNode* tensor = arr[1].as<top::TensorNode>();
     const CallNode* tuple = op->value.as<CallNode>();
     CHECK(buffer && tensor);
     CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
@@ -529,7 +529,7 @@ class StorageFlattener : public StmtExprMutator {
   bool create_bound_attributes_{false};
 };
 
-Stmt StorageFlatten(Stmt stmt, Map<Tensor, Buffer> extern_buffer,
+Stmt StorageFlatten(Stmt stmt, Map<top::Tensor, Buffer> extern_buffer,
                     int cache_line_size, bool create_bound_attributes) {
   IRVisitorWithAnalyzer bounded_analyzer;
   bounded_analyzer(stmt);

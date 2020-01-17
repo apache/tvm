@@ -29,13 +29,14 @@
 
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Flattens the input tensor into a 2-D tensor by collapsing higher dimensions.
@@ -64,7 +65,7 @@ inline Tensor flatten(const Tensor& x,
   }
   std::reverse(extra_shape.begin(), extra_shape.end());
 
-  return tvm::compute(
+  return tvm::top::compute(
     oshape, [&](Var i, Var j) {
       PrimExpr idx = j;
       std::vector<PrimExpr> index;

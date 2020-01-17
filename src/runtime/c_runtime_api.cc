@@ -151,7 +151,7 @@ DeviceAPI* DeviceAPI::Get(TVMContext ctx, bool allow_missing) {
 
 void* DeviceAPI::AllocWorkspace(TVMContext ctx,
                                 size_t size,
-                                TVMType type_hint) {
+                                DLDataType type_hint) {
   return AllocDataSpace(ctx, size, kTempAllocaAlignment, type_hint);
 }
 
@@ -431,7 +431,7 @@ void* TVMBackendAllocWorkspace(int device_type,
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
 
-  TVMType type_hint;
+  DLDataType type_hint;
   type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
   type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
   type_hint.lanes = 1;
@@ -479,22 +479,22 @@ int TVMFuncCall(TVMFunctionHandle func,
   (*static_cast<const PackedFunc*>(func)).CallPacked(
       TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
-  if (rv.type_code() == kStr ||
-      rv.type_code() == kTVMType ||
-      rv.type_code() == kBytes) {
+  if (rv.type_code() == kTVMStr ||
+      rv.type_code() == kTVMDataType ||
+      rv.type_code() == kTVMBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    if (rv.type_code() != kTVMType) {
+    if (rv.type_code() != kTVMDataType) {
       e->ret_str = *rv.ptr<std::string>();
     } else {
       e->ret_str = rv.operator std::string();
     }
-    if (rv.type_code() == kBytes) {
+    if (rv.type_code() == kTVMBytes) {
       e->ret_bytes.data = e->ret_str.c_str();
       e->ret_bytes.size = e->ret_str.length();
-      *ret_type_code = kBytes;
+      *ret_type_code = kTVMBytes;
       ret_val->v_handle = &(e->ret_bytes);
     } else {
-      *ret_type_code = kStr;
+      *ret_type_code = kTVMStr;
       ret_val->v_str = e->ret_str.c_str();
     }
   } else {

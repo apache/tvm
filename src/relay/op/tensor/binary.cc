@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -32,9 +32,9 @@ namespace relay {
 
 #define RELAY_BINARY_COMPUTE(FTOPI)                        \
   [] (const Attrs& attrs,                                  \
-      const Array<Tensor>& inputs,                         \
+      const Array<top::Tensor>& inputs,                         \
       const Type& out_type,                                \
-      const Target& target) -> Array<Tensor> {             \
+      const Target& target) -> Array<top::Tensor> {             \
     CHECK_EQ(inputs.size(), 2U);                           \
     return {FTOPI(inputs[0], inputs[1])};                  \
   }                                                        \

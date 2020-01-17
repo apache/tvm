@@ -35,12 +35,13 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "topi/detail/tensor_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 #include "tvm/data_layout.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 using namespace topi::detail;
 
 /*!
@@ -1041,8 +1042,8 @@ inline Tensor gather_nd(const Tensor& data,
  *
  * \return A Tensor whose op member is the matmul operation
  */
-inline tvm::Tensor matmul(const tvm::Tensor& A,
-                           const tvm::Tensor& B,
+inline tvm::top::Tensor matmul(const tvm::top::Tensor& A,
+                           const tvm::top::Tensor& B,
                            bool trans_a = false,
                            bool trans_b = false,
                            std::string name = "T_matmul",
@@ -1054,7 +1055,7 @@ inline tvm::Tensor matmul(const tvm::Tensor& A,
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]),
                     {k});
   };
-  return tvm::compute(output_shape, l, name, tag);
+  return tvm::top::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -1069,7 +1070,7 @@ inline tvm::Tensor matmul(const tvm::Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::Tensor& B,
+                        const tvm::top::Tensor& B,
                         int axes = 2,
                         std::string name = "T_tensordot",
                         std::string tag = kMatMul) {
@@ -1124,7 +1125,7 @@ inline Tensor tensordot(const Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::Tensor& B,
+                        const tvm::top::Tensor& B,
                         Array<PrimExpr> A_axes,
                         Array<PrimExpr> B_axes,
                         std::string name = "T_tensordot",

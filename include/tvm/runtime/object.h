@@ -29,7 +29,6 @@
 #include <string>
 #include <utility>
 
-
 /*!
  * \brief Whether or not use atomic reference counter.
  *  If the reference counter is not atomic,
@@ -715,7 +714,6 @@ struct ObjectEqual {
   const ObjectName* operator->() const {                                \
     return static_cast<const ObjectName*>(data_.get());                 \
   }                                                                     \
-  operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
 /*
@@ -734,7 +732,6 @@ struct ObjectEqual {
   ObjectName* operator->() const {                                      \
     return static_cast<ObjectName*>(data_.get());                       \
   }                                                                     \
-  operator bool() const { return data_ != nullptr; }                    \
   using ContainerType = ObjectName;
 
 /*!

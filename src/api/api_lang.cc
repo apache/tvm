@@ -23,10 +23,10 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/tensor.h>
-#include <tvm/operation.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/operation.h>
 #include <tvm/buffer.h>
-#include <tvm/schedule.h>
+#include <tvm/top/schedule.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
@@ -64,7 +64,7 @@ TVM_REGISTER_GLOBAL("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     std::vector<ObjectRef> data;
     for (int i = 0; i < args.size(); ++i) {
-      if (args[i].type_code() != kNull) {
+      if (args[i].type_code() != kTVMNullptr) {
         data.push_back(args[i].operator ObjectRef());
       } else {
         data.push_back(ObjectRef(nullptr));
@@ -78,7 +78,7 @@ TVM_REGISTER_GLOBAL("_Array")
 TVM_REGISTER_GLOBAL("_ArrayGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     int64_t i = args[1];
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
     CHECK(ptr->IsInstance<ArrayNode>());
     auto* n = static_cast<const ArrayNode*>(ptr);
@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("_ArrayGetItem")
 
 TVM_REGISTER_GLOBAL("_ArraySize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
     CHECK(ptr->IsInstance<ArrayNode>());
     *ret = static_cast<int64_t>(
@@ -99,11 +99,11 @@ TVM_REGISTER_GLOBAL("_ArraySize")
 TVM_REGISTER_GLOBAL("_Map")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     CHECK_EQ(args.size() % 2, 0);
-    if (args.size() != 0 && args[0].type_code() == kStr) {
+    if (args.size() != 0 && args[0].type_code() == kTVMStr) {
       // StrMap
       StrMapNode::ContainerType data;
       for (int i = 0; i < args.num_args; i += 2) {
-        CHECK(args[i].type_code() == kStr)
+        CHECK(args[i].type_code() == kTVMStr)
             << "key of str map need to be str";
         CHECK(args[i + 1].IsObjectRef<ObjectRef>())
             << "value of the map to be NodeRef";
@@ -132,7 +132,7 @@ TVM_REGISTER_GLOBAL("_Map")
 
 TVM_REGISTER_GLOBAL("_MapSize")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
     if (ptr->IsInstance<MapNode>()) {
       auto* n = static_cast<const MapNode*>(ptr);
@@ -146,11 +146,11 @@ TVM_REGISTER_GLOBAL("_MapSize")
 
 TVM_REGISTER_GLOBAL("_MapGetItem")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
 
     if (ptr->IsInstance<MapNode>()) {
-      CHECK(args[1].type_code() == kObjectHandle);
+      CHECK(args[1].type_code() == kTVMObjectHandle);
       auto* n = static_cast<const MapNode*>(ptr);
       auto it = n->data.find(args[1].operator ObjectRef());
       CHECK(it != n->data.end())
@@ -168,12 +168,12 @@ TVM_REGISTER_GLOBAL("_MapGetItem")
 
 TVM_REGISTER_GLOBAL("_MapCount")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
 
     if (ptr->IsInstance<MapNode>()) {
       auto* n = static_cast<const MapNode*>(ptr);
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
       *ret = static_cast<int64_t>(
           n->data.count(args[1].operator ObjectRef()));
     } else {
@@ -186,7 +186,7 @@ TVM_REGISTER_GLOBAL("_MapCount")
 
 TVM_REGISTER_GLOBAL("_MapItems")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    CHECK_EQ(args[0].type_code(), kObjectHandle);
+    CHECK_EQ(args[0].type_code(), kTVMObjectHandle);
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
 
     if (ptr->IsInstance<MapNode>()) {
@@ -274,6 +274,7 @@ TVM_REGISTER_GLOBAL("_BijectiveLayoutForwardShape")
 TVM_REGISTER_GLOBAL("_BijectiveLayoutBackwardShape")
 .set_body_method(&BijectiveLayout::BackwardShape);
 
+namespace top {
 TVM_REGISTER_GLOBAL("_Tensor")
 .set_body_typed(TensorNode::make);
 
@@ -441,6 +442,7 @@ TVM_REGISTER_GLOBAL("_ScheduleCacheWrite")
 
 TVM_REGISTER_GLOBAL("_ScheduleRFactor")
 .set_body_method(&Schedule::rfactor);
+}  // namespace top
 
 TVM_REGISTER_GLOBAL("_CommReducerCombine")
 .set_body_method<ir::CommReducer>(&ir::CommReducerNode::operator());

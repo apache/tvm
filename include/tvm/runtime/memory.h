@@ -23,10 +23,10 @@
 #ifndef TVM_RUNTIME_MEMORY_H_
 #define TVM_RUNTIME_MEMORY_H_
 
+#include <tvm/runtime/object.h>
 #include <cstdlib>
 #include <utility>
 #include <type_traits>
-#include "object.h"
 
 namespace tvm {
 namespace runtime {

@@ -49,15 +49,7 @@ class BaseExprNode : public Object {
  */
 class BaseExpr : public ObjectRef {
  public:
-  /*! \brief Cosntructor */
-  BaseExpr() {}
-  /*!
-   * \brief Cosntructor from object ptr.
-   * \param ptr The object pointer.
-   */
-  explicit BaseExpr(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  /*! \brief The container type. */
-  using ContainerType = BaseExprNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(BaseExpr, ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -100,13 +92,6 @@ class PrimExprNode : public BaseExprNode {
  */
 class PrimExpr : public BaseExpr {
  public:
-    /*! \brief Cosntructor */
-  PrimExpr() {}
-  /*!
-   * \brief Cosntructor from object ptr.
-   * \param ptr The object pointer.
-   */
-  explicit PrimExpr(ObjectPtr<Object> ptr) : BaseExpr(ptr) {}
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
@@ -127,8 +112,8 @@ class PrimExpr : public BaseExpr {
   DataType dtype() const {
     return static_cast<const PrimExprNode*>(get())->dtype;
   }
-  /*! \brief The container type. */
-  using ContainerType = PrimExprNode;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 };
 
 /*!
@@ -157,28 +142,48 @@ class IntImmNode : public PrimExprNode {
 class IntImm : public PrimExpr {
  public:
   /*!
-   * \brief Constructor
-   */
-  IntImm() {}
-  /*!
-   * \brief constructor from node.
-   */
-  explicit IntImm(ObjectPtr<Object> node) : PrimExpr(node) {}
-  /*!
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
    */
   TVM_DLL IntImm(DataType dtype, int64_t value);
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the content of the integer.
-   */
-  const IntImmNode* operator->() const {
-    return static_cast<const IntImmNode*>(get());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+};
+
+/*!
+ * \brief Constant floating point literals in the program.
+ * \sa FloatImm
+ */
+class FloatImmNode : public PrimExprNode {
+ public:
+  /*! \brief The constant value content. */
+  double value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
   }
-  /*! \brief type indicate the container type */
-  using ContainerType = IntImmNode;
+
+  static constexpr const char* _type_key = "FloatImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference class to FloatImmNode.
+ *
+ * \sa FloatImmNode
+ */
+class FloatImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param dtype The data type of the value.
+   * \param value The internal value.
+   */
+  TVM_DLL FloatImm(DataType dtype, double value);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
 };
 
 /*!

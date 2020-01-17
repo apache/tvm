@@ -27,9 +27,9 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include "let_list.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 #include "pass_util.h"
 #include "dependency_graph.h"
 
@@ -275,7 +275,7 @@ Expr ToANormalFormAux(const Expr& e) {
    *
    * So we calculate all the dependency between nodes.
    */
-  common::Arena arena;
+  support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
   /* In order to model new subscopes created by lambda, if else and pattern matching,
    * we also assign scope to edge as well.

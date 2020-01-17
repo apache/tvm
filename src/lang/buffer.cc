@@ -26,7 +26,7 @@
 #include <tvm/ir_pass.h>
 #include <iterator>
 #include <stack>
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 

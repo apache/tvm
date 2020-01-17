@@ -37,6 +37,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*! \brief Pooling type */
 enum PoolType : int {
@@ -124,7 +125,7 @@ inline Tensor pool_impl(const Tensor& x,
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
-    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+    return tvm::top::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       indices.Set(height_axis, output[height_axis] * stride_height + dheight);
@@ -136,7 +137,7 @@ inline Tensor pool_impl(const Tensor& x,
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 
     // TVM compute for summing the pooling window.
-    auto pool_sum = tvm::compute(out_shape,
+    auto pool_sum = tvm::top::compute(out_shape,
     [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
@@ -146,7 +147,7 @@ inline Tensor pool_impl(const Tensor& x,
     }, "tensor", "pool_sum");
 
     // TVM compute for dividing the reduced window sum by kernel size.
-    return tvm::compute(out_shape,
+    return tvm::top::compute(out_shape,
     [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
@@ -244,7 +245,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
 
     auto mp_argmax =
-        tvm::compute(out_shape,
+        tvm::top::compute(out_shape,
                      [&](const Array<Var>& inds) {
                        Array<PrimExpr> window_inds{inds.begin(), inds.end()};
                        window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
@@ -256,7 +257,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
 
     auto mp_inds = mp_argmax[0];
 
-    return tvm::compute(
+    return tvm::top::compute(
         x->shape,
         [&](const Array<Var>& inds) {
           Array<PrimExpr> pad_inds {inds.begin(), inds.end()};
@@ -287,7 +288,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
   } else if (pool_type == kAvgPool) {
     auto windowh = tvm::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
     auto windoww = tvm::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
-    return tvm::compute(
+    return tvm::top::compute(
         x->shape,
         [&](const Array<Var>& inds) {
           PrimExpr pad_h_idx = inds[height_axis] + pad_top;
@@ -512,7 +513,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
   out_shape.Set(width_axis, out_width);
 
   if (pool_type == kMaxPool) {
-    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+    return tvm::top::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
@@ -526,7 +527,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
     }, "tensor", "adaptive_pool_max");
   } else if (pool_type == kAvgPool) {
-    auto pool_sum = tvm::compute(out_shape, [&](const Array<Var>& output) {
+    auto pool_sum = tvm::top::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
@@ -542,7 +543,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       return tvm::sum(x(indices), { dheight, dwidth });
     }, "tensor", "adaptive_pool_sum");
 
-    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+    return tvm::top::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
       auto i_start_h = start_index(output[height_axis], out_height, height);
@@ -696,7 +697,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
-    return tvm::compute(out_shape, [&](const Array<Var>& output) {
+    return tvm::top::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
 
@@ -712,7 +713,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 
     // TVM compute for summing the pooling window.
-    auto pool_sum = tvm::compute(out_shape,
+    auto pool_sum = tvm::top::compute(out_shape,
     [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);
@@ -725,7 +726,7 @@ inline Tensor pool_impl_nd(const Tensor& x,
     }, "tensor", "pool_sum");
 
     // TVM compute for dividing the reduced window sum by kernel size.
-    return tvm::compute(out_shape,
+    return tvm::top::compute(out_shape,
     [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
       for (const Var& var : output) indices.push_back(var);

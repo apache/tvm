@@ -22,16 +22,16 @@
  * \file api_schedule.cc
  */
 #include <tvm/expr.h>
-#include <tvm/tensor.h>
-#include <tvm/schedule.h>
-#include <tvm/schedule_pass.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
+#include <tvm/top/schedule_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 
-#include "../schedule/graph.h"
+#include "../top/schedule/graph.h"
 
 namespace tvm {
-namespace schedule {
+namespace top {
 
 TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise")
 .set_body_typed(AutoInlineElemWise);
@@ -60,5 +60,5 @@ REGISTER_SCHEDULE_PASS(CreateAttachPath);
 REGISTER_SCHEDULE_PASS(ScanGetBody);
 REGISTER_SCHEDULE_PASS(ScanFixPointAnalysis);
 
-}  // namespace schedule
+}  // namespace top
 }  // namespace tvm

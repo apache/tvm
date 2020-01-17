@@ -26,7 +26,7 @@
 
 #include <string>
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/ir_pass.h"
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
@@ -34,6 +34,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Binarization and bit-packing along a certain axis.
@@ -46,7 +47,7 @@ using namespace tvm;
 *
 * \return Output tensor with dtype uint32
 */
-inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
+inline tvm::top::Tensor binarize_pack(const tvm::top::Tensor& data,
                                  int axis,
                                  std::string name = "PackedInput",
                                  std::string tag = "binarize_pack") {
@@ -62,7 +63,7 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
                      ishape[i]);
   }
 
-  return tvm::compute(
+  return tvm::top::compute(
     oshape,
     [&](const Array<Var>& indices) {
       Array<PrimExpr> start_idx;
@@ -98,8 +99,8 @@ inline tvm::Tensor binarize_pack(const tvm::Tensor& data,
 *
 * \return Tensor with shape [batch, out_dim], dtype is float32
 */
-inline tvm::Tensor binary_dense(const tvm::Tensor& data,
-                                const tvm::Tensor& weight) {
+inline tvm::top::Tensor binary_dense(const tvm::top::Tensor& data,
+                                const tvm::top::Tensor& weight) {
   CHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
   CHECK_EQ(data->dtype, DataType::UInt(32)) << "binary_dense requires uint32 data";
@@ -110,13 +111,13 @@ inline tvm::Tensor binary_dense(const tvm::Tensor& data,
   auto out_dim = weight->shape[0];
 
   auto k = tvm::reduce_axis(Range(0, in_dim), "k");
-  auto matmul = tvm::compute(
+  auto matmul = tvm::top::compute(
     { batch, out_dim },
     [&](Var i, Var j) {
       return tvm::sum(popcount(data(i, k) ^ weight(j, k)), { k });
     }, "tensor", "binary_dense");
 
-  return tvm::compute(
+  return tvm::top::compute(
     { batch, out_dim },
     [&](Var i, Var j) {
       return 32 * in_dim - 2.0f * matmul(i, j);

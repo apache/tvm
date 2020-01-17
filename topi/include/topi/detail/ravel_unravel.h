@@ -26,12 +26,13 @@
 
 #include <vector>
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Flatten the indices to 1D
