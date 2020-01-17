@@ -115,8 +115,8 @@ def _make_tvm_args(args, temp_args):
             type_codes[i] = TypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
-            type_codes[i] = (TypeCode.NDARRAY_CONTAINER
-                             if not arg.is_view else TypeCode.ARRAY_HANDLE)
+            type_codes[i] = (TypeCode.NDARRAY_HANDLE
+                             if not arg.is_view else TypeCode.DLTENSOR_HANDLE)
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
@@ -154,14 +154,14 @@ def _make_tvm_args(args, temp_args):
             type_codes[i] = TypeCode.MODULE_HANDLE
         elif isinstance(arg, FunctionBase):
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.FUNC_HANDLE
+            type_codes[i] = TypeCode.PACKED_FUNC_HANDLE
         elif isinstance(arg, ctypes.c_void_p):
             values[i].v_handle = arg
             type_codes[i] = TypeCode.HANDLE
         elif callable(arg):
             arg = convert_to_tvm_func(arg)
             values[i].v_handle = arg.handle
-            type_codes[i] = TypeCode.FUNC_HANDLE
+            type_codes[i] = TypeCode.PACKED_FUNC_HANDLE
             temp_args.append(arg)
         else:
             raise TypeError("Don't know how to handle type %s" % type(arg))
@@ -244,15 +244,15 @@ def _handle_return_func(x):
 
 # setup return handle for function type
 _object.__init_by_constructor__ = __init_handle_by_constructor__
-RETURN_SWITCH[TypeCode.FUNC_HANDLE] = _handle_return_func
+RETURN_SWITCH[TypeCode.PACKED_FUNC_HANDLE] = _handle_return_func
 RETURN_SWITCH[TypeCode.MODULE_HANDLE] = _return_module
-RETURN_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
-C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
-    _handle_return_func, TypeCode.FUNC_HANDLE)
+RETURN_SWITCH[TypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
+C_TO_PY_ARG_SWITCH[TypeCode.PACKED_FUNC_HANDLE] = _wrap_arg_func(
+    _handle_return_func, TypeCode.PACKED_FUNC_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
-C_TO_PY_ARG_SWITCH[TypeCode.ARRAY_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
-C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False, True)
+C_TO_PY_ARG_SWITCH[TypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle, True, False)
+C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None

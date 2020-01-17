@@ -41,13 +41,13 @@ cdef int tvm_callback(TVMValue* args,
     for i in range(num_args):
         value = args[i]
         tcode = type_codes[i]
-        if (tcode == kObjectHandle or
-            tcode == kFuncHandle or
-            tcode == kModuleHandle or
-            tcode > kExtBegin):
+        if (tcode == kTVMObjectHandle or
+            tcode == kTVMPackedFuncHandle or
+            tcode == kTVMModuleHandle or
+            tcode > kTVMExtBegin):
             CALL(TVMCbArgToReturn(&value, tcode))
 
-        if tcode != kArrayHandle:
+        if tcode != kTVMDLTensorHandle:
             pyargs.append(make_ret(value, tcode))
         else:
             pyargs.append(c_make_array(value.v_handle, True, False))
@@ -99,11 +99,11 @@ cdef inline int make_arg(object arg,
     cdef unsigned long long ptr
     if isinstance(arg, ObjectBase):
         value[0].v_handle = (<ObjectBase>arg).chandle
-        tcode[0] = kObjectHandle
+        tcode[0] = kTVMObjectHandle
     elif isinstance(arg, NDArrayBase):
         value[0].v_handle = (<NDArrayBase>arg).chandle
-        tcode[0] = (kNDArrayContainer if
-                    not (<NDArrayBase>arg).c_is_view else kArrayHandle)
+        tcode[0] = (kTVMNDArrayHandle if
+                    not (<NDArrayBase>arg).c_is_view else kTVMDLTensorHandle)
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
@@ -117,18 +117,18 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, str):
         tstr = c_str(arg)
         value[0].v_str = tstr
-        tcode[0] = kStr
+        tcode[0] = kTVMStr
         temp_args.append(tstr)
     elif arg is None:
         value[0].v_handle = NULL
-        tcode[0] = kNull
+        tcode[0] = kTVMNullptr
     elif isinstance(arg, Number):
         value[0].v_float64 = arg
         tcode[0] = kFloat
     elif isinstance(arg, TVMType):
         tstr = c_str(str(arg))
         value[0].v_str = tstr
-        tcode[0] = kStr
+        tcode[0] = kTVMStr
         temp_args.append(tstr)
     elif isinstance(arg, TVMContext):
         value[0].v_ctx = (<DLContext*>(
@@ -142,31 +142,31 @@ cdef inline int make_arg(object arg,
         arr.size = len(arg)
         value[0].v_handle = <void*>(
             <unsigned long long>ctypes.addressof(arr))
-        tcode[0] = kBytes
+        tcode[0] = kTVMBytes
         temp_args.append(arr)
     elif isinstance(arg, string_types):
         tstr = c_str(arg)
         value[0].v_str = tstr
-        tcode[0] = kStr
+        tcode[0] = kTVMStr
         temp_args.append(tstr)
     elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
         arg = convert_to_object(arg)
         value[0].v_handle = (<ObjectBase>arg).chandle
-        tcode[0] = kObjectHandle
+        tcode[0] = kTVMObjectHandle
         temp_args.append(arg)
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
-        tcode[0] = kModuleHandle
+        tcode[0] = kTVMModuleHandle
     elif isinstance(arg, FunctionBase):
         value[0].v_handle = (<FunctionBase>arg).chandle
-        tcode[0] = kFuncHandle
+        tcode[0] = kTVMPackedFuncHandle
     elif isinstance(arg, ctypes.c_void_p):
         value[0].v_handle = c_handle(arg)
-        tcode[0] = kHandle
+        tcode[0] = kTVMOpaqueHandle
     elif callable(arg):
         arg = convert_to_tvm_func(arg)
         value[0].v_handle = (<FunctionBase>arg).chandle
-        tcode[0] = kFuncHandle
+        tcode[0] = kTVMPackedFuncHandle
         temp_args.append(arg)
     else:
         raise TypeError("Don't know how to handle type %s" % type(arg))
@@ -184,27 +184,27 @@ cdef inline bytearray make_ret_bytes(void* chandle):
 
 cdef inline object make_ret(TVMValue value, int tcode):
     """convert result to return value."""
-    if tcode == kObjectHandle:
+    if tcode == kTVMObjectHandle:
         return make_ret_object(value.v_handle)
-    elif tcode == kNull:
+    elif tcode == kTVMNullptr:
         return None
     elif tcode == kInt:
         return value.v_int64
     elif tcode == kFloat:
         return value.v_float64
-    elif tcode == kNDArrayContainer:
+    elif tcode == kTVMNDArrayHandle:
         return c_make_array(value.v_handle, False, True)
-    elif tcode == kStr:
+    elif tcode == kTVMStr:
         return py_str(value.v_str)
-    elif tcode == kBytes:
+    elif tcode == kTVMBytes:
         return make_ret_bytes(value.v_handle)
-    elif tcode == kHandle:
+    elif tcode == kTVMOpaqueHandle:
         return ctypes_handle(value.v_handle)
     elif tcode == kTVMContext:
         return TVMContext(value.v_ctx.device_type, value.v_ctx.device_id)
-    elif tcode == kModuleHandle:
+    elif tcode == kTVMModuleHandle:
         return _CLASS_MODULE(ctypes_handle(value.v_handle))
-    elif tcode == kFuncHandle:
+    elif tcode == kTVMPackedFuncHandle:
         fobj = _CLASS_FUNCTION(None, False)
         (<FunctionBase>fobj).chandle = value.v_handle
         return fobj

@@ -25,14 +25,14 @@
 #ifndef TVM_PACKED_FUNC_EXT_H_
 #define TVM_PACKED_FUNC_EXT_H_
 
+#include <tvm/top/tensor.h>
+
 #include <string>
 #include <memory>
 #include <limits>
 #include <type_traits>
 
-#include "base.h"
 #include "expr.h"
-#include "tensor.h"
 #include "runtime/packed_func.h"
 
 namespace tvm {
@@ -101,7 +101,7 @@ struct ObjectTypeChecker<Map<K, V> > {
 
 // extensions for tvm arg value
 inline TVMPODValue_::operator tvm::PrimExpr() const {
-  if (type_code_ == kNull) return PrimExpr();
+  if (type_code_ == kTVMNullptr) return PrimExpr();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
     CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
@@ -111,14 +111,14 @@ inline TVMPODValue_::operator tvm::PrimExpr() const {
     return PrimExpr(static_cast<float>(value_.v_float64));
   }
 
-  TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
 
   if (ptr->IsInstance<IterVarNode>()) {
     return IterVar(ObjectPtr<Object>(ptr))->var;
   }
-  if (ptr->IsInstance<TensorNode>()) {
-    return Tensor(ObjectPtr<Object>(ptr))();
+  if (ptr->IsInstance<top::TensorNode>()) {
+    return top::Tensor(ObjectPtr<Object>(ptr))();
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
@@ -127,13 +127,13 @@ inline TVMPODValue_::operator tvm::PrimExpr() const {
 }
 
 inline TVMPODValue_::operator tvm::Integer() const {
-  if (type_code_ == kNull) return Integer();
+  if (type_code_ == kTVMNullptr) return Integer();
   if (type_code_ == kDLInt) {
     CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
     CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return Integer(static_cast<int>(value_.v_int64));
   }
-  TVM_CHECK_TYPE_CODE(type_code_, kObjectHandle);
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
   Object* ptr = static_cast<Object*>(value_.v_handle);
   CHECK(ObjectTypeChecker<Integer>::Check(ptr))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()

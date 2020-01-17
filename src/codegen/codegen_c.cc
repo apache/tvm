@@ -24,7 +24,7 @@
 #include <cctype>
 #include "codegen_c.h"
 #include "../pass/ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -216,7 +216,7 @@ std::string CodeGenC::GetStructRef(
     DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
     std::ostringstream os;
-    os << "(((TVMArray*)";
+    os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
     if (kind == intrinsic::kArrAddr) {

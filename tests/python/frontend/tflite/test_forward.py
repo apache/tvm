@@ -787,6 +787,24 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
             out = with_fused_activation_function(out, fused_activation_function)
             compare_tflite_with_tvm(data[0], ['in_0:0'], in_data, [out])
 
+    # Test with constant and tensor
+    with tf.Graph().as_default():
+        in_data = [array_ops.placeholder(shape=data[1].shape, dtype='float32', name='in_1')]
+
+        if quantized:
+            inq_const = tf.quantization.fake_quant_with_min_max_args(data[0], min=-100, max=100, name="const_tensor")
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-100, max=100, name="inq_1")]
+            # the 1st tensor is treated as constant and directly added as part of the operation
+            out = math_op(ops.convert_to_tensor(inq_const, dtype='float32', name='inq_const'), inq_data)
+            out = with_fused_activation_function(out, fused_activation_function)
+            out_min, out_max = _test_elemwise_qnn_out_range(qnn_op)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=out_min, max=out_max, name="out")
+            compare_tflite_with_tvm(data[1], ['inq_1:0'], inq_data, [out], quantized=True)
+        else:
+            out = math_op(ops.convert_to_tensor(data[0], dtype=data[0].dtype), in_data[0])
+            out = with_fused_activation_function(out, fused_activation_function)
+            compare_tflite_with_tvm(data[1], ['in_1:0'], in_data, [out])
+
 #######################################################################
 # Add
 # ---
@@ -846,6 +864,14 @@ def _test_greater(data):
     """ One iteration of greater """
     return _test_elemwise(math_ops.greater, data)
 
+#######################################################################
+# Squared_difference
+# ------------------
+
+def _test_squared_difference(data):
+    """ One iteration of squared difference """
+    return _test_elemwise(math_ops.squared_difference, data)
+
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
@@ -888,6 +914,7 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_maximum)
     _test_forward_elemwise(_test_minimum)
     _test_forward_elemwise(_test_greater)
+    _test_forward_elemwise(_test_squared_difference)
 
 #######################################################################
 # Zeros like

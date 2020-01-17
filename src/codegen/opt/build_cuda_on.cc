@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #endif
 #include <cuda_runtime.h>
-#include <tvm/base.h>
+
 #include <nvrtc.h>
 #include <cstdlib>
 

@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/tensor.h>
-#include <tvm/schedule.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
@@ -99,10 +99,10 @@ using TShapeDataDependant = bool;
  * \return The output compute description of the operator.
  */
 using FTVMCompute = runtime::TypedPackedFunc<
-  Array<Tensor>(const Attrs& attrs,
-                const Array<Tensor>& inputs,
-                const Type& out_type,
-                const Target& target)>;
+  Array<top::Tensor>(const Attrs& attrs,
+                     const Array<top::Tensor>& inputs,
+                     const Type& out_type,
+                     const Target& target)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -114,9 +114,9 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \return schedule The computation schedule.
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
-  Schedule(const Attrs& attrs,
-           const Array<Tensor>& outs,
-           const Target& target)>;
+  top::Schedule(const Attrs& attrs,
+                const Array<top::Tensor>& outs,
+                const Target& target)>;
 
 /*!
  * \brief Alternate the layout of operators or replace the
@@ -131,7 +131,7 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<Tensor>& tinfos)>;
+       const Array<top::Tensor>& tinfos)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -147,7 +147,7 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
 using FTVMConvertOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<Tensor>& tinfos,
+       const Array<top::Tensor>& tinfos,
        const std::string& desired_layout)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
@@ -206,9 +206,9 @@ enum AnyCodegenStrategy {
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
-  Array<Tensor>(const Attrs& attrs,
-                const Array<Tensor>& inputs,
-                const Array<IndexExpr>& out_ndims)>;
+  Array<top::Tensor>(const Attrs& attrs,
+                     const Array<top::Tensor>& inputs,
+                     const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

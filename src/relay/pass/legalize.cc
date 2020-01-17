@@ -23,7 +23,7 @@
  * shape, dtype or layout to another op or a sequence of ops.
  */
 
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -24,14 +24,14 @@
 #include <tvm/runtime/registry.h>
 #include <memory>
 #include "rpc_session.h"
-#include "../../common/socket.h"
+#include "../../support/socket.h"
 
 namespace tvm {
 namespace runtime {
 
 class SockChannel final : public RPCChannel {
  public:
-  explicit SockChannel(common::TCPSocket sock)
+  explicit SockChannel(support::TCPSocket sock)
       : sock_(sock) {}
   ~SockChannel() {
     if (!sock_.BadSocket()) {
@@ -41,26 +41,26 @@ class SockChannel final : public RPCChannel {
   size_t Send(const void* data, size_t size) final {
     ssize_t n = sock_.Send(data, size);
     if (n == -1) {
-      common::Socket::Error("SockChannel::Send");
+      support::Socket::Error("SockChannel::Send");
     }
     return static_cast<size_t>(n);
   }
   size_t Recv(void* data, size_t size) final {
     ssize_t n = sock_.Recv(data, size);
     if (n == -1) {
-      common::Socket::Error("SockChannel::Recv");
+      support::Socket::Error("SockChannel::Recv");
     }
     return static_cast<size_t>(n);
   }
 
  private:
-  common::TCPSocket sock_;
+  support::TCPSocket sock_;
 };
 
 std::shared_ptr<RPCSession>
 RPCConnect(std::string url, int port, std::string key) {
-  common::TCPSocket sock;
-  common::SockAddr addr(url.c_str(), port);
+  support::TCPSocket sock;
+  support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
   CHECK(sock.Connect(addr))
       << "Connect to " << addr.AsString() << " failed";
@@ -101,8 +101,8 @@ Module RPCClientConnect(std::string url, int port, std::string key) {
 }
 
 void RPCServerLoop(int sockfd) {
-  common::TCPSocket sock(
-      static_cast<common::TCPSocket::SockType>(sockfd));
+  support::TCPSocket sock(
+      static_cast<support::TCPSocket::SockType>(sockfd));
   RPCSession::Create(
       std::unique_ptr<SockChannel>(new SockChannel(sock)),
       "SockServerLoop", "")->ServerLoop();

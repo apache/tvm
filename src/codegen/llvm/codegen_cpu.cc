@@ -731,7 +731,7 @@ llvm::Value *CodeGenCPU::CreateCallTracePacked(const CallNode *op) {
   llvm::Value *ret_tcode_value = builder_->CreateAlignedLoad(ret_tcode, 8);
   // Check the ret_type_code and create cmp instruction.
   llvm::Value *cmp = builder_->CreateICmpNE(
-      ret_tcode_value, llvm::ConstantInt::get(t_int_, kNull));
+      ret_tcode_value, llvm::ConstantInt::get(t_int_, kTVMNullptr));
   builder_->CreateCondBr(cmp, update_block, continue_block);
   builder_->SetInsertPoint(update_block);
   builder_->CreateBr(continue_block);

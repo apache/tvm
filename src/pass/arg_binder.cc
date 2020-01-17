@@ -26,7 +26,7 @@
 #include <tvm/runtime/device_api.h>
 #include "ir_util.h"
 #include "arg_binder.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {

@@ -187,7 +187,7 @@ class RPCModuleNode final : public ModuleNode {
 
 void* RPCWrappedFunc::UnwrapRemote(int rpc_sess_table_index,
                                    const TVMArgValue& arg) {
-  if (arg.type_code() == kModuleHandle) {
+  if (arg.type_code() == kTVMModuleHandle) {
     Module mod = arg;
     std::string tkey = mod->type_key();
     CHECK_EQ(tkey, "rpc")
@@ -211,15 +211,15 @@ void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
   int tcode = args.type_codes[0];
 
   if (handle == nullptr) return;
-  if (tcode == kFuncHandle) {
+  if (tcode == kTVMPackedFuncHandle) {
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
         return wf->operator()(args, rv);
       });
-  } else if (tcode == kModuleHandle) {
+  } else if (tcode == kTVMModuleHandle) {
     auto n = make_object<RPCModuleNode>(handle, sess);
     *rv = Module(n);
-  } else if (tcode == kArrayHandle || tcode == kNDArrayContainer) {
+  } else if (tcode == kTVMDLTensorHandle || tcode == kTVMNDArrayHandle) {
     CHECK_EQ(args.size(), 2);
     DLTensor* tensor = args[0];
     void* nd_handle = args[1];

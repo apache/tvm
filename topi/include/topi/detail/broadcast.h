@@ -29,7 +29,7 @@
 #include <string>
 
 #include "tvm/ir_pass.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 #include "topi/detail/constant_utils.h"
 
@@ -100,7 +100,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
 
 inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     const tvm::Array<tvm::Var>& ovars,
-    const tvm::Tensor& T,
+    const tvm::top::Tensor& T,
     const std::deque<tvm::Var>& my_vars,
     const std::deque<tvm::Var>& all_vars) {
   tvm::Array<tvm::PrimExpr> ivars;
@@ -127,9 +127,9 @@ inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
 }
 
 template <typename FBinaryExpr>
-inline tvm::Tensor WithBroadcast(FBinaryExpr op,
-                                 const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
+inline tvm::top::Tensor WithBroadcast(FBinaryExpr op,
+                                 const tvm::top::Tensor& A,
+                                 const tvm::top::Tensor& B,
                                  const std::string& name = "tensor",
                                  const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
@@ -137,7 +137,7 @@ inline tvm::Tensor WithBroadcast(FBinaryExpr op,
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
               B(InputIndexFromBroadcast(ovars, B, bh.vars2, bh.all_vars)));
   };
-  return tvm::compute(
+  return tvm::top::compute(
       tvm::Array<tvm::PrimExpr>(bh.common_shape.begin(), bh.common_shape.end()),
       l,
       name,

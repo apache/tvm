@@ -352,7 +352,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
 }
 
-// Converts a string to TVM DLDataTypeCode. @see `String2TVMType` in packed_func.h
+// Converts a string to TVM DLDataTypeCode. @see `String2DLDataType` in packed_func.h
 named!(
   tvm_str_to_type<CompleteStr, DataType>,
   do_parse!(

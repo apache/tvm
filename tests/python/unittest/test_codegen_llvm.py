@@ -79,7 +79,7 @@ def test_llvm_import():
 
 def test_llvm_lookup_intrin():
     ib = tvm.ir_builder.create()
-    m = tvm.var("m")
+    m = tvm.size_var("m")
     A = ib.pointer("uint8x8", name="A")
     x = tvm.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.const(1, 'uint32'), A)
     ib.emit(x)
@@ -131,7 +131,7 @@ def test_llvm_add_pipeline():
         # Specifically allow offset to test codepath when offset is available
         Ab = tvm.decl_buffer(
             A.shape, A.dtype,
-            elem_offset=tvm.var('Aoffset'),
+            elem_offset=tvm.size_var('Aoffset'),
             offset_factor=8,
             name='A')
         binds = {A : Ab}

@@ -120,7 +120,7 @@ PackedFunc OpenGLModuleNode::GetFunction(
 
   std::vector<size_t> arg_size(func_info.arg_types.size());
   for (size_t i = 0; i < func_info.arg_types.size(); ++i) {
-    TVMType t = func_info.arg_types[i];
+    DLDataType t = func_info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
     uint32_t bits = t.bits;
     CHECK_EQ(bits % 8, 0U);
@@ -222,14 +222,14 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
         break;
       }
       case OpenGLArgKind::kInputTexture: {
-        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        CHECK_EQ(type.code, kTVMOpaqueHandle) << "Type is not handle?";
         auto texture = *static_cast<gl::Texture**>(void_args[i]);
         m_->workspace().SetInputTexture(program, name, texture_unit, texture);
         ++texture_unit;
         break;
       }
       case OpenGLArgKind::kOutputTexture: {
-        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        CHECK_EQ(type.code, kTVMOpaqueHandle) << "Type is not handle?";
         CHECK(output == nullptr) << "Can only have one output texture.";
         output = *static_cast<gl::Texture**>(void_args[i]);
         break;
@@ -241,7 +241,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
   std::unique_ptr<GLint> thread_extent(new GLint(wl.block_dim(0)));
   m_->workspace().SetUniform(program, shader.thread_extent_var,
-                             TVMType{kDLInt, 32, 1},
+                             DLDataType{kDLInt, 32, 1},
                              static_cast<void*>(thread_extent.get()));
 
   m_->workspace().Render(output);

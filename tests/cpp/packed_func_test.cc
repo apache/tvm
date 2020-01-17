@@ -30,16 +30,16 @@ TEST(PackedFunc, Basic) {
   using namespace tvm::runtime;
   int x = 0;
   void* handle = &x;
-  TVMArray a;
+  DLTensor a;
 
   Var v = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 3);
       CHECK(args.values[0].v_float64 == 1.0);
       CHECK(args.type_codes[0] == kDLFloat);
       CHECK(args.values[1].v_handle == &a);
-      CHECK(args.type_codes[1] == kArrayHandle);
+      CHECK(args.type_codes[1] == kTVMDLTensorHandle);
       CHECK(args.values[2].v_handle == &x);
-      CHECK(args.type_codes[2] == kHandle);
+      CHECK(args.type_codes[2] == kTVMOpaqueHandle);
       *rv = Var("a");
     })(1.0, &a, handle);
   CHECK(v->name_hint == "a");
@@ -51,7 +51,7 @@ TEST(PackedFunc, Node) {
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 1);
-      CHECK(args.type_codes[0] == kObjectHandle);
+      CHECK(args.type_codes[0] == kTVMObjectHandle);
       Var b = args[0];
       CHECK(x.same_as(b));
       *rv = b;
@@ -63,7 +63,7 @@ TEST(PackedFunc, NDArray) {
   using namespace tvm;
   using namespace tvm::runtime;
   auto x = NDArray::Empty(
-      {}, String2TVMType("float32"),
+      {}, String2DLDataType("float32"),
       TVMContext{kDLCPU, 0});
   reinterpret_cast<float*>(x->data)[0] = 10.0f;
   CHECK(x.use_count() == 1);
@@ -203,25 +203,25 @@ TEST(PackedFunc, ObjectConversion) {
   using namespace tvm::runtime;
   TVMRetValue rv;
   auto x = NDArray::Empty(
-      {}, String2TVMType("float32"),
+      {}, String2DLDataType("float32"),
       TVMContext{kDLCPU, 0});
   // assign null
   rv = ObjectRef();
-  CHECK_EQ(rv.type_code(), kNull);
+  CHECK_EQ(rv.type_code(), kTVMNullptr);
 
   // Can assign NDArray to ret type
   rv = x;
-  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  CHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
   // Even if we assign base type it still shows as NDArray
   rv = ObjectRef(x);
-  CHECK_EQ(rv.type_code(), kNDArrayContainer);
+  CHECK_EQ(rv.type_code(), kTVMNDArrayHandle);
   // Check convert back
   CHECK(rv.operator NDArray().same_as(x));
   CHECK(rv.operator ObjectRef().same_as(x));
   CHECK(!rv.IsObjectRef<PrimExpr>());
 
   auto pf1 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args[0].type_code(), kNDArrayContainer);
+      CHECK_EQ(args[0].type_code(), kTVMNDArrayHandle);
       CHECK(args[0].operator NDArray().same_as(x));
       CHECK(args[0].operator ObjectRef().same_as(x));
       CHECK(args[1].operator ObjectRef().get() == nullptr);
@@ -238,17 +238,17 @@ TEST(PackedFunc, ObjectConversion) {
   CHECK(pf != nullptr);
   Module m = (*pf)("", "xyz");
   rv = m;
-  CHECK_EQ(rv.type_code(), kModuleHandle);
+  CHECK_EQ(rv.type_code(), kTVMModuleHandle);
   // Even if we assign base type it still shows as NDArray
   rv = ObjectRef(m);
-  CHECK_EQ(rv.type_code(), kModuleHandle);
+  CHECK_EQ(rv.type_code(), kTVMModuleHandle);
   // Check convert back
   CHECK(rv.operator Module().same_as(m));
   CHECK(rv.operator ObjectRef().same_as(m));
   CHECK(!rv.IsObjectRef<NDArray>());
 
   auto pf2 = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args[0].type_code(), kModuleHandle);
+      CHECK_EQ(args[0].type_code(), kTVMModuleHandle);
       CHECK(args[0].operator Module().same_as(m));
       CHECK(args[0].operator ObjectRef().same_as(m));
       CHECK(args[1].operator ObjectRef().get() == nullptr);

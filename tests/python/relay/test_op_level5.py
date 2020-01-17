@@ -31,7 +31,7 @@ def run_infer_type(expr):
     return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_resize_infer_type():
-    n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     th, tw = tvm.var("th"), tvm.var("tw")
     z = relay.image.resize(x, (th, tw))
@@ -187,7 +187,7 @@ def test_multibox_prior():
     x = relay.var("x", relay.TensorType(dshape, "float32"))
     verify_multibox_prior(x, dshape, ref_res, sizes, ratios, steps, offsets,
                           check_size=True)
-    y = relay.var("y", relay.TensorType((tvm.var("n"), 3, 56, 56), "float32"))
+    y = relay.var("y", relay.TensorType((tvm.size_var("n"), 3, 56, 56), "float32"))
     verify_multibox_prior(x, dshape, ref_res, sizes, ratios, steps, offsets,
                           check_size=True, check_type_only=True)
 
@@ -195,7 +195,7 @@ def test_multibox_prior():
     ref_res = get_ref_result(dshape, clip=False)
     x = relay.var("x", relay.TensorType(dshape, "float32"))
     verify_multibox_prior(x, dshape, ref_res, clip=False)
-    y = relay.var("y", relay.TensorType((tvm.var("n"), 24, 32, 32), "float32"))
+    y = relay.var("y", relay.TensorType((tvm.size_var("n"), 24, 32, 32), "float32"))
     verify_multibox_prior(x, dshape, ref_res, clip=False, check_type_only=True)
 
 
@@ -287,7 +287,7 @@ def test_non_max_suppression():
     np_indices_result = np.array([[3, 0, -1, -1, -1]])
     num_anchors = 5
 
-    dshape = (tvm.var("n"), num_anchors, 6)
+    dshape = (tvm.size_var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, np_indices_result,
                force_suppress=True, top_k=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
@@ -298,7 +298,7 @@ def test_non_max_suppression():
                            [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
     np_indices_result = np.array([[3, 0, 1, -1, -1]])
-    dshape = (tvm.var("n"), num_anchors, 6)
+    dshape = (tvm.size_var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result,
                np_indices_result, check_type_only=True)
     dshape = (1, num_anchors, 6)
@@ -361,7 +361,7 @@ def test_multibox_transform_loc():
     def test_threshold():
         num_anchors = 5
         num_classes = 5
-        n = tvm.var("n")
+        n = tvm.size_var("n")
         cls_prob = relay.var(
             "cls_prob",
             relay.ty.TensorType((n, num_anchors, num_classes), "float32"))
@@ -527,7 +527,7 @@ def test_yolo_reorg_infer_shape():
         assert "stride=" in z.astext()
         assert zz.checked_type == relay.ty.TensorType(out_shape, "float32")
 
-    n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
     idxd = tvm.indexdiv
     verify_yolo_reorg((n, c, 20, 20), 10, (n, c*10*10, 2, 2))
     verify_yolo_reorg((n, c, h, w), 2, (n, c*2*2, idxd(h, 2), idxd(w, 2)))

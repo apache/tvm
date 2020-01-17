@@ -21,12 +21,12 @@
  * \file storage_access.cc
  */
 #include <tvm/ir_pass.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <string>
 #include <utility>
 #include "ir_util.h"
 #include "storage_access.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {

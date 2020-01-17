@@ -26,11 +26,12 @@
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace x86 {
 /*!
@@ -54,7 +55,7 @@ inline Schedule MakeDefaultSchedule(const Target &target,
   auto axis = s[x]->op.as<ComputeOpNode>()->axis;
 
   if (auto_inline) {
-    tvm::schedule::AutoInlineInjective(s);
+    tvm::top::AutoInlineInjective(s);
     if (axis.size() > 0) {
       detail::Fuse(s[x], axis);
     }

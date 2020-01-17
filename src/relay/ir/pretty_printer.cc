@@ -38,7 +38,7 @@
 #include "doc.h"
 #include "type_functor.h"
 #include "../pass/dependency_graph.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -887,7 +887,7 @@ class PrettyPrinter :
   /*! \brief whether the printer is currently in an ADT definition */
   bool in_adt_def_;
   /*! \brief arena for dependency graph */
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief dependency graph of the expr */
   DependencyGraph dg_;
   class AttrPrinter;
@@ -932,7 +932,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    PrintKV(key, PrintString(runtime::TVMType2String(*value)));
+    PrintKV(key, PrintString(runtime::DLDataType2String(*value)));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";

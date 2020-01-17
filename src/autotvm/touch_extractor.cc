@@ -255,10 +255,10 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
     feature_row.push_back(Array<PrimExpr>{std::string("_itervar_"), var});
 
     Array<PrimExpr> attr{std::string("_attr_"),
-                     FloatImmNode::make(DataType::Float(32), trans(fea.length)),
+                     FloatImm(DataType::Float(32), trans(fea.length)),
                      IntImm(DataType::Int(32), fea.nest_level),
-                     FloatImmNode::make(DataType::Float(32), trans(fea.topdown_product)),
-                     FloatImmNode::make(DataType::Float(32), trans(fea.bottomup_product)),
+                     FloatImm(DataType::Float(32), trans(fea.topdown_product)),
+                     FloatImm(DataType::Float(32), trans(fea.bottomup_product)),
     };
     // one hot annotation
     for (int i = 0; i < kNum; i++) {
@@ -268,9 +268,9 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
 
     // arithmetic
     feature_row.push_back(Array<PrimExpr>{std::string("_arith_"),
-            FloatImmNode::make(DataType::Float(32), trans(fea.add_ct)),
-            FloatImmNode::make(DataType::Float(32), trans(fea.mul_ct)),
-            FloatImmNode::make(DataType::Float(32), trans(fea.div_ct)),
+            FloatImm(DataType::Float(32), trans(fea.add_ct)),
+            FloatImm(DataType::Float(32), trans(fea.mul_ct)),
+            FloatImm(DataType::Float(32), trans(fea.div_ct)),
     });
 
     // touch map
@@ -283,12 +283,12 @@ void GetItervarFeature(Stmt stmt, bool take_log, Array<Array<Array<PrimExpr> > >
       TouchPattern &v = fea.touch_feature[k];
       feature_row.push_back(
           Array<PrimExpr>{k,
-                FloatImmNode::make(DataType::Float(32), trans(v.stride)),
-                FloatImmNode::make(DataType::Float(32), trans(v.mod)),
-                FloatImmNode::make(DataType::Float(32), trans(v.count)),
-                FloatImmNode::make(DataType::Float(32), trans(v.reuse)),
-                FloatImmNode::make(DataType::Float(32), trans(v.thread_count)),
-                FloatImmNode::make(DataType::Float(32), trans(v.thread_reuse)),
+                FloatImm(DataType::Float(32), trans(v.stride)),
+                FloatImm(DataType::Float(32), trans(v.mod)),
+                FloatImm(DataType::Float(32), trans(v.count)),
+                FloatImm(DataType::Float(32), trans(v.reuse)),
+                FloatImm(DataType::Float(32), trans(v.thread_count)),
+                FloatImm(DataType::Float(32), trans(v.thread_reuse)),
                 });
     }
 

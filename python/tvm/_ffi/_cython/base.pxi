@@ -26,18 +26,18 @@ cdef enum TVMTypeCode:
     kInt = 0
     kUInt = 1
     kFloat = 2
-    kHandle = 3
-    kNull = 4
-    kTVMType = 5
+    kTVMOpaqueHandle = 3
+    kTVMNullptr = 4
+    kTVMDataType = 5
     kTVMContext = 6
-    kArrayHandle = 7
-    kObjectHandle = 8
-    kModuleHandle = 9
-    kFuncHandle = 10
-    kStr = 11
-    kBytes = 12
-    kNDArrayContainer = 13
-    kExtBegin = 15
+    kTVMDLTensorHandle = 7
+    kTVMObjectHandle = 8
+    kTVMModuleHandle = 9
+    kTVMPackedFuncHandle = 10
+    kTVMStr = 11
+    kTVMBytes = 12
+    kTVMNDArrayHandle = 13
+    kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:

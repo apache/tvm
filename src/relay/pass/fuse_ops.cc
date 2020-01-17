@@ -30,7 +30,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 #include "./pattern_util.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 
 namespace tvm {
@@ -74,8 +74,8 @@ namespace relay {
   - CommitFuse: mark all the nodes between source and post-dominator as the same group.
   - We use an Union-Find data structure to manage the groups.
 */
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 constexpr uint32_t kMaxFusedOps = 256;
 
@@ -139,7 +139,7 @@ class IndexedForwardGraph {
    * \param arena The arena used for data allocation.
    * \param body The body of the expression to create a graph.
    */
-  static IndexedForwardGraph Create(common::Arena* arena, const Expr& body);
+  static IndexedForwardGraph Create(support::Arena* arena, const Expr& body);
 
  private:
   class Creator;
@@ -148,7 +148,7 @@ class IndexedForwardGraph {
 // Creator of post dominator tree of the dataflow
 class IndexedForwardGraph::Creator : private ExprVisitor {
  public:
-  explicit Creator(common::Arena* arena)
+  explicit Creator(support::Arena* arena)
       : arena_(arena) {}
 
   IndexedForwardGraph Prepare(const Expr& body) {
@@ -159,7 +159,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
  private:
   /*! \brief allocator of all the internal node object */
-  common::Arena* arena_;
+  support::Arena* arena_;
   // The output.
   IndexedForwardGraph graph_;
   // attribute equal comparator
@@ -363,7 +363,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 };
 
 IndexedForwardGraph IndexedForwardGraph::Create(
-    common::Arena* arena, const Expr& body) {
+    support::Arena* arena, const Expr& body) {
   return Creator(arena).Prepare(body);
 }
 
@@ -396,7 +396,7 @@ class DominatorTree {
    * \note This algorithm makes use of the fact that graph is DAG,
    *       and runs a single pass algorithm via LCA (Least Common Ancestor)
    */
-  static DominatorTree PostDom(common::Arena* arena,
+  static DominatorTree PostDom(support::Arena* arena,
                                const IndexedForwardGraph& graph);
 
  private:
@@ -475,7 +475,7 @@ class DominatorTree {
    * \param gnode An IndexedForwardGraph Node.
    * \return The DominatorTree Node.
    */
-  Node* GetNode(common::Arena* arena, IndexedForwardGraph::Node* gnode) {
+  Node* GetNode(support::Arena* arena, IndexedForwardGraph::Node* gnode) {
     Node* tnode = arena->make<Node>();
     tnode->gnode = gnode;
     if (gnode->extern_ref) {
@@ -495,7 +495,7 @@ class DominatorTree {
 };
 
 
-DominatorTree DominatorTree::PostDom(common::Arena* arena,
+DominatorTree DominatorTree::PostDom(support::Arena* arena,
                                      const IndexedForwardGraph& graph) {
   DominatorTree tree;
   tree.nodes.resize(graph.post_dfs_order.size(), nullptr);
@@ -512,7 +512,7 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
  */
 class GraphPartitioner {
  public:
-  explicit GraphPartitioner(common::Arena* arena, int opt_level)
+  explicit GraphPartitioner(support::Arena* arena, int opt_level)
       : arena_(arena), opt_level_(opt_level) {}
   /*!
    * \brief Group as a union find data structure.
@@ -562,7 +562,7 @@ class GraphPartitioner {
 
  private:
   /*! \brief The internal arena for temporary space. */
-  common::Arena* arena_;
+  support::Arena* arena_;
   /*! \brief optimization level for fuse operation. */
   int opt_level_;
   /*! \brief The internal groups. */
@@ -845,7 +845,7 @@ class FuseMutator : private ExprMutator {
     }
   };
   /*! \brief Internal arena. */
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief The group assignment map. */
   std::unordered_map<const Object*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */

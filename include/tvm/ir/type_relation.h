@@ -27,7 +27,7 @@
 #include <tvm/ir/type.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 
 namespace tvm {
 

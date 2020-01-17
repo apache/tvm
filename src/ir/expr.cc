@@ -45,6 +45,22 @@ TVM_REGISTER_GLOBAL("make.IntImm")
   return IntImm(dtype, value);
 });
 
+
+FloatImm::FloatImm(DataType dtype, double value) {
+  CHECK_EQ(dtype.lanes(), 1)
+      << "ValueError: FloatImm can only take scalar.";
+  ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
+  node->dtype = dtype;
+  node->value = value;
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("make.FloatImm")
+.set_body_typed([](DataType dtype, double value) {
+  return FloatImm(dtype, value);
+});
+
+
 GlobalVar::GlobalVar(std::string name_hint) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);

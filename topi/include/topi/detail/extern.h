@@ -24,7 +24,7 @@
 #ifndef TOPI_DETAIL_EXTERN_H_
 #define TOPI_DETAIL_EXTERN_H_
 
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <vector>
 #include <string>
 
@@ -32,6 +32,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Construct a buffer to pass to an external function

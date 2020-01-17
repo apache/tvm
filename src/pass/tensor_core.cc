@@ -23,22 +23,23 @@
 // IR Passes for TensorCore CodeGen
 #include <tvm/ir.h>
 #include <tvm/expr.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/buffer.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <tvm/build_module.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace ir {
 
+using namespace top;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -417,7 +418,7 @@ class BufferAnalyser : public StmtExprVisitor {
       storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
-      Tensor tensor = Downcast<Tensor>(op->node);
+      top::Tensor tensor = Downcast<top::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
@@ -831,7 +832,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (op->attr_key == attr::realize_scope) {
-      auto node = op->node.as<OperationNode>();
+      auto node = op->node.as<top::OperationNode>();
       if (node != nullptr) {
         if (!frag_reg_.count(node->name)) {
           return stmt;
@@ -1108,7 +1109,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     auto it2 = matrix_abc_.find(simplify_name(call->name));
     CHECK(it2 != matrix_abc_.end())
           << "Cannot find matrix info for " << call->name;
-    buffer_node->data = VarNode::make(DataType::Handle(), call->name);
+    buffer_node->data = Var(call->name, DataType::Handle());
     buffer_node->name = call->name;
     buffer_node->scope = "wmma." + it2->second;
     buffer_node->dtype = datatype;
@@ -1119,9 +1120,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    ObjectPtr<TensorNode> tensor_node = make_object<TensorNode>();
+    ObjectPtr<top::TensorNode> tensor_node = make_object<top::TensorNode>();
     tensor_node->value_index = key.value_index;
-    tensor_node->op = Downcast<Operation>(key.f);
+    tensor_node->op = Downcast<top::Operation>(key.f);
     tensor_node->shape = shape;
     tensor_node->dtype = datatype;
     Tensor tensor(tensor_node);
