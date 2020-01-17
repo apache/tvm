@@ -655,6 +655,65 @@ class Map<std::string, V, T1, T2> : public ObjectRef {
     return iterator(static_cast<const StrMapNode*>(data_.get())->data.find(key));
   }
 };
+}  // namespace tvm
 
+namespace tvm {
+namespace runtime {
+// Additional overloads for PackedFunc checking.
+template<typename T>
+struct ObjectTypeChecker<Array<T> > {
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<ArrayNode>()) return false;
+    const ArrayNode* n = static_cast<const ArrayNode*>(ptr);
+    for (const auto& p : n->data) {
+      if (!ObjectTypeChecker<T>::Check(p.get())) {
+        return false;
+      }
+    }
+    return true;
+  }
+  static std::string TypeName() {
+    return "List[" + ObjectTypeChecker<T>::TypeName() + "]";
+  }
+};
+
+template<typename V>
+struct ObjectTypeChecker<Map<std::string, V> > {
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<StrMapNode>()) return false;
+    const StrMapNode* n = static_cast<const StrMapNode*>(ptr);
+    for (const auto& kv : n->data) {
+      if (!ObjectTypeChecker<V>::Check(kv.second.get())) return false;
+    }
+    return true;
+  }
+  static std::string TypeName() {
+    return "Map[str, " +
+        ObjectTypeChecker<V>::TypeName()+ ']';
+  }
+};
+
+template<typename K, typename V>
+struct ObjectTypeChecker<Map<K, V> > {
+  static bool Check(const Object* ptr) {
+    if (ptr == nullptr) return true;
+    if (!ptr->IsInstance<MapNode>()) return false;
+    const MapNode* n = static_cast<const MapNode*>(ptr);
+    for (const auto& kv : n->data) {
+      if (!ObjectTypeChecker<K>::Check(kv.first.get())) return false;
+      if (!ObjectTypeChecker<V>::Check(kv.second.get())) return false;
+    }
+    return true;
+  }
+  static std::string TypeName() {
+    return "Map[" +
+        ObjectTypeChecker<K>::TypeName() +
+        ", " +
+        ObjectTypeChecker<V>::TypeName()+ ']';
+  }
+};
+}  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_NODE_CONTAINER_H_

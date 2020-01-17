@@ -23,7 +23,6 @@
  */
 #include <tvm/arith/pattern.h>
 #include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include "../arith/pattern_match.h"

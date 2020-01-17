@@ -23,8 +23,6 @@
  */
 #include <tvm/ir/type.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 namespace tvm {
 
 PrimType::PrimType(runtime::DataType dtype) {

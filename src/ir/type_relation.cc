@@ -24,8 +24,6 @@
 #include <tvm/ir/type.h>
 #include <tvm/ir/type_relation.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 namespace tvm {
 
 TypeCall::TypeCall(Type func, tvm::Array<Type> args) {

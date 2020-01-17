@@ -23,7 +23,6 @@
 
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
-#include <tvm/packed_func_ext.h>
 #include "../codegen/datatype/registry.h"
 
 namespace tvm {

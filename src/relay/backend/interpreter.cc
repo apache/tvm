@@ -21,7 +21,6 @@
  * \file src/tvm/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
-#include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>

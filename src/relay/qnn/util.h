@@ -26,6 +26,7 @@
 #define TVM_RELAY_QNN_UTIL_H_
 
 #include <tvm/expr.h>
+#include <tvm/expr_operator.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <limits>

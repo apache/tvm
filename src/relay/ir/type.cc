@@ -22,6 +22,7 @@
  * \brief The type system AST nodes of Relay.
  */
 #include <tvm/relay/type.h>
+#include <tvm/expr_operator.h>
 
 namespace tvm {
 namespace relay {

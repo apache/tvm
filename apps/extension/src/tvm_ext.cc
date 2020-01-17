@@ -26,8 +26,8 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/expr_operator.h>
 
 using namespace tvm;
 using namespace tvm::runtime;

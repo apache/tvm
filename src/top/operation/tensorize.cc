@@ -25,7 +25,6 @@
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include "op_util.h"
 #include "compute_op.h"

@@ -27,7 +27,6 @@
 
 #include <tvm/ir.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include <tvm/codegen.h>
 #include <string>

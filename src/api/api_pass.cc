@@ -27,8 +27,6 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 namespace tvm {
 namespace ir {

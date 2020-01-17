@@ -21,7 +21,6 @@
  * \file intrin_rule_spirv.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 #include <GLSL.std.450.h>
 

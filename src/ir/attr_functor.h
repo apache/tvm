@@ -31,6 +31,7 @@
 #define TVM_IR_ATTR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/ir.h>
 #include <utility>
 
 namespace tvm {

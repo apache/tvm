@@ -25,7 +25,6 @@
 #define TVM_CODEGEN_CODEGEN_OPENGL_H_
 
 #include <tvm/codegen.h>
-#include <tvm/packed_func_ext.h>
 #include <string>
 #include <unordered_set>
 #include <unordered_map>

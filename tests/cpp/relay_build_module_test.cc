@@ -28,8 +28,6 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 TVM_REGISTER_GLOBAL("test.sch")
 .set_body([](tvm::TVMArgs args, tvm::TVMRetValue *rv) {

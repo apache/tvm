@@ -21,7 +21,6 @@
  * \file codegen_stackvm.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <limits>
 #include <utility>
 #include "codegen_stackvm.h"

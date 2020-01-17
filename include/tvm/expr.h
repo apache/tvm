@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <iostream>
+#include <limits>
 #include "node/node.h"
 #include "node/container.h"
 #include "node/functor.h"
@@ -458,6 +459,26 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   }
   return ret;
 }
+}  // namespace tvm
+
+namespace tvm {
+namespace runtime {
+// Additional implementattion overloads for PackedFunc.
+inline TVMPODValue_::operator tvm::Integer() const {
+  if (type_code_ == kTVMNullptr) return Integer();
+  if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
+    return Integer(static_cast<int>(value_.v_int64));
+  }
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+  CHECK(ObjectTypeChecker<Integer>::Check(ptr))
+      << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
+      << " but get " << ptr->GetTypeKey();
+  return Integer(ObjectPtr<Object>(ptr));
+}
+}  // namespace runtime
 }  // namespace tvm
 
 namespace std {

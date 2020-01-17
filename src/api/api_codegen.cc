@@ -26,8 +26,6 @@
 #include <tvm/codegen.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 namespace tvm {
 namespace codegen {
