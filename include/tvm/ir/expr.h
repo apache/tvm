@@ -30,6 +30,7 @@
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
 #include <string>
+#include <limits>
 
 namespace tvm {
 
@@ -114,6 +115,11 @@ class PrimExpr : public BaseExpr {
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+
+ private:
+  // Internal function for conversion.
+  friend class runtime::TVMPODValue_;
+  TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
 };
 
 /*!
@@ -321,5 +327,26 @@ inline const TTypeNode* RelayExprNode::type_as() const {
   return node;
 }
 
+}  // namespace tvm
+
+namespace tvm {
+namespace runtime {
+// Additional implementattion overloads for PackedFunc.
+inline TVMPODValue_::operator tvm::PrimExpr() const {
+  if (type_code_ == kTVMNullptr) return PrimExpr();
+  if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
+    return PrimExpr(static_cast<int>(value_.v_int64));
+  }
+  if (type_code_ == kDLFloat) {
+    return PrimExpr(static_cast<float>(value_.v_float64));
+  }
+
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+  return PrimExpr::FromObject_(ObjectPtr<Object>(ptr));
+}
+}  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

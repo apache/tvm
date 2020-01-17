@@ -23,8 +23,29 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
+// NOTE: reverse dependency on top/tir.
+// These dependencies do not happen at the interface-level,
+// and are only used in minimum cases where they are clearly marked.
+//
+// Rationale: convert from IterVar and top::Tensor
+#include <tvm/top/tensor.h>
+#include <tvm/expr.h>
 
 namespace tvm {
+
+PrimExpr PrimExpr::FromObject_(ObjectPtr<Object> ptr) {
+  using runtime::ObjectTypeChecker;
+  if (ptr->IsInstance<IterVarNode>()) {
+    return IterVar(ptr)->var;
+  }
+  if (ptr->IsInstance<top::TensorNode>()) {
+    return top::Tensor(ptr)();
+  }
+  CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr.get()))
+      << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
+      << " but get " << ptr->GetTypeKey();
+  return PrimExpr(ptr);
+}
 
 IntImm::IntImm(DataType dtype, int64_t value) {
   CHECK(dtype.is_scalar())

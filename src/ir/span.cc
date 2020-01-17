@@ -22,7 +22,6 @@
  */
 #include <tvm/ir/span.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 namespace tvm {
 

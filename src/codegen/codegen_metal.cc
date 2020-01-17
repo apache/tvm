@@ -20,7 +20,6 @@
 /*!
  * \file codegen_metal.cc
  */
-#include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
 #include <algorithm>

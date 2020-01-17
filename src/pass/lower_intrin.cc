@@ -24,7 +24,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include <tvm/expr_operator.h>
 #include <unordered_set>

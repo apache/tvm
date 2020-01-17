@@ -20,7 +20,7 @@
 /*!
  * \file codegen_c_host.cc
  */
-#include <tvm/packed_func_ext.h>
+#include <tvm/codegen.h>
 #include <vector>
 #include <string>
 #include "codegen_c_host.h"
