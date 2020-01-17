@@ -30,7 +30,6 @@
 #include <vector>
 #include <utility>
 #include "expr.h"
-#include "runtime/util.h"
 
 namespace tvm {
 namespace ir {
@@ -1677,6 +1676,25 @@ constexpr const char* tvm_fill_fragment = "tvm_fill_fragment";
  */
 constexpr const char* tvm_store_matrix_sync = "tvm_store_matrix_sync";
 
+/*! \brief The kind of structure field info used in intrinsic */
+enum TVMStructFieldKind : int {
+  // array head address
+  kArrAddr,
+  kArrData,
+  kArrShape,
+  kArrStrides,
+  kArrNDim,
+  kArrTypeCode,
+  kArrTypeBits,
+  kArrTypeLanes,
+  kArrByteOffset,
+  kArrDeviceId,
+  kArrDeviceType,
+  kArrKindBound_,
+  // TVMValue field
+  kTVMValueContent,
+  kTVMValueKindBound_
+};
 }   // namespace intrinsic
 
 /*!
