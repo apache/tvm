@@ -60,7 +60,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Kernel scale can be a vector of length output_channels or a scalar.
   size_t axis = param->kernel_layout.find('O');
   CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-  AssignType(types[4], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
