@@ -24,7 +24,7 @@
 #pragma once
 
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
+#include <tvm/runtime/data_type.h>
 #include <algorithm>
 
 namespace tvm {

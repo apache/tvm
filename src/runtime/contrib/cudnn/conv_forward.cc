@@ -21,7 +21,7 @@
  * \file Use external cudnn utils function
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include "cudnn_utils.h"
 

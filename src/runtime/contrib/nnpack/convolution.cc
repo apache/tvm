@@ -22,7 +22,7 @@
  */
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
+#include <tvm/runtime/data_type.h>
 #include <dmlc/logging.h>
 #include <nnpack.h>
 #include "nnpack_utils.h"

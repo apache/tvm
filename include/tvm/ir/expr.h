@@ -49,15 +49,7 @@ class BaseExprNode : public Object {
  */
 class BaseExpr : public ObjectRef {
  public:
-  /*! \brief Cosntructor */
-  BaseExpr() {}
-  /*!
-   * \brief Cosntructor from object ptr.
-   * \param ptr The object pointer.
-   */
-  explicit BaseExpr(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  /*! \brief The container type. */
-  using ContainerType = BaseExprNode;
+  TVM_DEFINE_OBJECT_REF_METHODS(BaseExpr, ObjectRef, BaseExprNode);
 };
 
 /*!
@@ -100,13 +92,6 @@ class PrimExprNode : public BaseExprNode {
  */
 class PrimExpr : public BaseExpr {
  public:
-    /*! \brief Cosntructor */
-  PrimExpr() {}
-  /*!
-   * \brief Cosntructor from object ptr.
-   * \param ptr The object pointer.
-   */
-  explicit PrimExpr(ObjectPtr<Object> ptr) : BaseExpr(ptr) {}
   /*!
    * \brief construct from integer.
    * \param value The value to be constructed.
@@ -127,8 +112,8 @@ class PrimExpr : public BaseExpr {
   DataType dtype() const {
     return static_cast<const PrimExprNode*>(get())->dtype;
   }
-  /*! \brief The container type. */
-  using ContainerType = PrimExprNode;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 };
 
 /*!
@@ -157,28 +142,13 @@ class IntImmNode : public PrimExprNode {
 class IntImm : public PrimExpr {
  public:
   /*!
-   * \brief Constructor
-   */
-  IntImm() {}
-  /*!
-   * \brief constructor from node.
-   */
-  explicit IntImm(ObjectPtr<Object> node) : PrimExpr(node) {}
-  /*!
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
    */
   TVM_DLL IntImm(DataType dtype, int64_t value);
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the content of the integer.
-   */
-  const IntImmNode* operator->() const {
-    return static_cast<const IntImmNode*>(get());
-  }
-  /*! \brief type indicate the container type */
-  using ContainerType = IntImmNode;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
 };
 
 /*!
@@ -207,28 +177,13 @@ class FloatImmNode : public PrimExprNode {
 class FloatImm : public PrimExpr {
  public:
   /*!
-   * \brief Constructor
-   */
-  FloatImm() {}
-  /*!
-   * \brief constructor from node.
-   */
-  explicit FloatImm(ObjectPtr<Object> node) : PrimExpr(node) {}
-  /*!
    * \brief Constructor.
    * \param dtype The data type of the value.
    * \param value The internal value.
    */
   TVM_DLL FloatImm(DataType dtype, double value);
-  /*!
-   * \brief Get pointer to the container.
-   * \return The pointer.
-   */
-  const FloatImmNode* operator->() const {
-    return static_cast<const FloatImmNode*>(get());
-  }
-  /*! \brief type indicate the container type */
-  using ContainerType = FloatImmNode;
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
 };
 
 /*!
