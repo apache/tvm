@@ -599,12 +599,13 @@ class CompileEngineImpl : public CompileEngineNode {
     CCacheValue value = LowerInternal(key);
     if (value->packed_func != nullptr) return value->packed_func;
     // build the function.
+    tvm::runtime::Module m;
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-      tvm::runtime::Module m = (*f)(value->cached_func->funcs, key->target);
-      value->packed_func = m.GetFunction(value->cached_func->func_name);
+      m = (*f)(value->cached_func->funcs, key->target);
     } else {
-      LOG(FATAL) << "relay.backend.build is not registered";
+      m = build(value->cached_func->funcs, key->target, Target(nullptr), BuildConfig::Current());
     }
+    value->packed_func = m.GetFunction(value->cached_func->func_name);
     return value->packed_func;
   }
 
