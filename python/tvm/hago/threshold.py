@@ -297,10 +297,12 @@ def threshold_estimate(graph, topology, bits, dataset=None):
         # return thresholds
 
 
-def threshold_rectify(graph, bits, thresholds):
-    return thresholds
-    edge2idx, num_edges  = build_edge_index(graph)
-    node2idx, num_nodes  = build_node_index(graph)
+def threshold_rectify(graph, topology, bits, thresholds):
+    print('bits')
+    print(bits)
+    edge2bit = complete_dict(bits, topology.edge2cond)
+    edge2idx = build_edge_index(graph)
+    node2idx = build_node_index(graph)
     node2edges = build_node2edges(graph)
     # print('num_nodes: {}'.format(num_nodes))
     # print('num_node2edge: {}'.format(len(node2edges)))
@@ -310,18 +312,19 @@ def threshold_rectify(graph, bits, thresholds):
     #     if node not in node2edges:
     #         print('{} not existed.'.format(node_str(node)))
 
-    assert len(bits) == num_edges
-    assert len(thresholds) == num_nodes
+    assert len(thresholds) == len(node2idx)
 
     def fvisit_rectify(node):
         if isinstance(node, relay.Call):
+            if not topology.node2cond[node]:
+                return
             frectify = node.op.get_attr('FHagoRectify')
             if frectify is not None:
                 output_edges = node2edges[node]
-                print(node.op.name)
-                print(len(output_edges))
-                input_bits = [bits[edge2idx[(src, node)]] for src in node.args]
-                output_bits = [bits[edge2idx[edge]] for edge in output_edges]
+                # print(node.op.name)
+                # print(len(output_edges))
+                input_bits = [edge2bit[(src, node)] for src in node.args]
+                output_bits = [edge2bit[edge] for edge in output_edges]
                 input_tholds = [thresholds[node2idx[src]] for src in node.args]
                 output_tholds = [thresholds[node2idx[node]]] * len(output_edges)
 
@@ -331,5 +334,5 @@ def threshold_rectify(graph, bits, thresholds):
                     thresholds[node2idx[src]] = tholds[i].value
                 # TODO(ziheng) rectify output thresholds
     relay.analysis.post_order_visit(graph, fvisit_rectify)
-    print_scale_info(graph, bits, thresholds)
+    # print_scale_info(graph, bits, thresholds)
     return thresholds

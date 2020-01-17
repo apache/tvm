@@ -26,6 +26,7 @@
  *   for compression and acceleration.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/dtype.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/op_attr_types.h>
@@ -45,7 +46,7 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
                           int num_inputs,
                           const Attrs& attrs,
                           const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 6);
+  CHECK_EQ(types.size(), 2);
   const auto param = attrs.as<SimulatedQuantizeAttrs>();
   CHECK(param != nullptr);
 
@@ -53,39 +54,34 @@ bool SimulatedQuantizeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
 
-  reporter->Assign(types[1], TensorTypeNode::make({}, Float(32)));     // out_scale
-  reporter->Assign(types[2], TensorTypeNode::make({}, Float(32)));     // in_scale
-  reporter->Assign(types[3], TensorTypeNode::make({}, Float(32)));     // clip_min
-  reporter->Assign(types[4], TensorTypeNode::make({}, Float(32)));     // clip_max
-  reporter->Assign(types[5], types[0]);                                // output
+  reporter->Assign(types[0], types[1]);                                // output
   return true;
 }
 
 
-RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
+RELAY_REGISTER_OP("hago.simulated_quantize")
 .describe(R"code(simulated quantize op)code" TVM_ADD_FILELINE)
-.set_num_inputs(5)
+.set_num_inputs(1)
 .add_argument("data", "Tensor", "The input data.")
-.add_argument("out_scale", "Tensor", "The domain scale of input. It should be a scalar")
-.add_argument("in_scale", "Tensor", "The domain scale of output. It should be a scalar")
-.add_argument("clip_min", "Tensor", "lower bound. It should be a scalar")
-.add_argument("clip_max", "Tensor", "upper bound. It should be a scalar")
 .set_attrs_type_key("hago.SimulatedQuantizeAttrs")
 .set_support_level(11)
 .add_type_rel("SimulatedQuantize", SimulatedQuantizeRel);
 
 TVM_REGISTER_API("hago._quantize.simulated_quantize")
-.set_body_typed<Expr(Expr, Expr, Expr, Expr, Expr, DataType, DataType, bool, std::string)>(
-  [](Expr data, Expr out_scale, Expr in_scale, Expr clip_min, Expr clip_max,
-     DataType out_dtype, DataType in_dtype, bool sign, std::string rounding) {
+.set_body_typed<Expr(Expr, double, double, int64_t, int64_t, DataType, DataType, bool, std::string)>(
+  [](Expr data, double in_scale, double out_scale, int64_t clip_min, int64_t clip_max,
+     DataType in_dtype, DataType out_dtype, bool sign, std::string rounding) {
     auto attrs = make_node<SimulatedQuantizeAttrs>();
-    attrs->out_dtype = out_dtype;
+    attrs->in_scale = in_scale;
+    attrs->out_scale = out_scale;
+    attrs->clip_min = clip_min;
+    attrs->clip_max = clip_max;
     attrs->in_dtype = in_dtype;
+    attrs->out_dtype = out_dtype;
     attrs->sign = sign;
     attrs->rounding = rounding;
-    static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
-    return CallNode::make(op, {data, out_scale, in_scale, clip_min, clip_max},
-        Attrs(attrs), {});
+    static const Op& op = Op::Get("hago.simulated_quantize");
+    return CallNode::make(op, {data}, Attrs(attrs), {});
   });
 
 
@@ -147,6 +143,17 @@ TVM_REGISTER_API("hago._quantize._EnterQConfigScope")
 
 TVM_REGISTER_API("hago._quantize._ExitQConfigScope")
 .set_body_typed(QConfig::ExitQConfigScope);
+
+OpDesc OpDescNode::make(Array<Type> in_types,
+                        Array<Type> out_types) {
+  NodePtr<OpDescNode> n = make_node<OpDescNode>();
+  n->in_types = std::move(in_types);
+  n->out_types = std::move(out_types);
+  return OpDesc(n);
+}
+
+TVM_REGISTER_API("hago._make.OpDesc")
+.set_body_typed(OpDescNode::make);
 
 }  // namespace hago
 }  // namespace tvm

@@ -35,16 +35,28 @@ namespace hago {
 
 /*! \brief Attribute for simulated quantize operator */
 struct SimulatedQuantizeAttrs : public tvm::AttrsNode<SimulatedQuantizeAttrs> {
-  DataType out_dtype;
+  double in_scale;
+  double out_scale;
+  int64_t clip_min;
+  int64_t clip_max;
   DataType in_dtype;
+  DataType out_dtype;
   bool sign;
   std::string rounding;
 
   TVM_DECLARE_ATTRS(SimulatedQuantizeAttrs, "hago.SimulatedQuantizeAttrs") {
-    TVM_ATTR_FIELD(out_dtype)
-      .describe("out data type");
+    TVM_ATTR_FIELD(in_scale)
+      .describe("in scale");
+    TVM_ATTR_FIELD(out_scale)
+      .describe("out scale");
+    TVM_ATTR_FIELD(clip_min)
+      .describe("clip min");
+    TVM_ATTR_FIELD(clip_max)
+      .describe("clip max");
     TVM_ATTR_FIELD(in_dtype)
       .describe("in data type");
+    TVM_ATTR_FIELD(out_dtype)
+      .describe("out data type");
     TVM_ATTR_FIELD(sign).set_default(true)
         .describe("whether to use signed data type.");
     TVM_ATTR_FIELD(rounding).set_default("round")
@@ -138,6 +150,40 @@ struct QConfigContext {
   }
 };
 
+class OpDesc;
+/*!
+* \brief Container for build configuration options
+*/
+class OpDescNode : public Node {
+ public:
+  Array<relay::Type> in_types;
+  Array<relay::Type> out_types;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("in_types", &in_types);
+    v->Visit("out_types", &out_types);
+  }
+
+  TVM_DLL static OpDesc make(Array<relay::Type> in_types,
+                             Array<relay::Type> out_types);
+
+  static constexpr const char* _type_key = "hago.OpDesc";
+  TVM_DECLARE_NODE_TYPE_INFO(OpDescNode, Node);
+};
+
+class OpDesc : public NodeRef {
+ public:
+  OpDesc() {}
+  explicit OpDesc(NodePtr<Node> n) : NodeRef(n) {}
+
+  const OpDescNode* operator->() const {
+    return static_cast<const OpDescNode*>(node_.get());
+  }
+  OpDescNode* operator->() {
+    return static_cast<OpDescNode*>(node_.get());
+  }
+  using ContainerType = OpDescNode;
+};
 }  // namespace hago
 }  // namespace tvm
 #endif  // TVM_HAGO_QUANTIZE_H_

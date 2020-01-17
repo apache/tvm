@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 
 from . import _op_attrs
+from .base import qconfig, current_qconfig, eval_acc, compare
 from .hardware import create_accelerator_description
 from .search import search_quantize_strategy
-from .quantize import qconfig, current_qconfig, quantize, prerequisite_optimize
+from .quantize import prerequisite_optimize, create_quantizer

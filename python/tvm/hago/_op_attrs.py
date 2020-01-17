@@ -18,23 +18,49 @@
 """Internal module for quantization."""
 from __future__ import absolute_import
 
-import tvm
-import topi
+from .._ffi.runtime_ctypes import TVMType
 from ..relay.op import op as _reg
-from .. import relay
 
+import tvm
+from tvm import relay
+import topi
 import math
 import functools
 import numpy as np
+import logging
 
-@tvm.register_func("tvm.contrib.debug")
-def debug_func(x, y):
-    print('counter: {}'.format(debug_func.cnt))
-    print('maximum value: ')
-    print(np.max(np.abs(x.asnumpy())))
+RUNTIME_DEBUG = False
+
+@tvm.register_func("tvm.contrib.print")
+def print_func(x, y, msg):
+    if RUNTIME_DEBUG:
+        print(msg)
     x.copyto(y)
-    debug_func.cnt += 1
-debug_func.cnt = 0
+
+def my_print(data, msg):
+    if not RUNTIME_DEBUG:
+        return data
+    ret = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
+        "tvm.contrib.print", ins[0], outs[0], msg))
+    return ret
+
+@tvm.register_func("tvm.contrib.inspect")
+def inspect_func(x, y, msg):
+    if RUNTIME_DEBUG:
+        print('------------------------------')
+        print(msg)
+        np_x = x.asnumpy()
+        print('max value: {}'.format(np.max(np.abs(np_x))))
+        print('mean: {}'.format(np.mean(np_x)))
+        print('var: {}'.format(np.var(np_x)))
+    x.copyto(y)
+
+def inspect(data, msg):
+    if not RUNTIME_DEBUG:
+        return data
+    ret = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
+        "tvm.contrib.inspect", ins[0], outs[0], msg))
+    return ret
 
 
 def isclose(old, new, rtol, atol):
@@ -62,96 +88,110 @@ def check_overflow(data, in_dtype, output):
         data.copyto(output)
         return 
 
-    if not allclose(arr, data.asnumpy(), rtol=1e-03, atol=1e-08):
-        print('overflow happens')
-        is_close = isclose(arr, data.asnumpy(), rtol=1e-03, atol=1e-08)
+    if not allclose(arr, data.asnumpy(), rtol=1e-03, atol=1.0):
+        logging.warning('overflow happens')
+        is_close = isclose(arr, data.asnumpy(), rtol=1e-03, atol=1.0)
         indexes = np.where(np.logical_not(is_close))
-        print(arr[indexes])
-        print(data.asnumpy()[indexes])
-        raise ValueError
+        print('cast to: {}'.format(in_dtype))
+        print('thresholds: {}'.format(np.max(np.abs(data.asnumpy()))))
+        print('original:\n{}'.format(data.asnumpy()[indexes]))
+        print('after overflow:\n{}'.format(arr[indexes]))
+        print('')
     tvm.nd.array(arr.astype('float32')).copyto(output)
 
 
-@_reg.register_compute("relay.op.annotation.simulated_quantize")
+@_reg.register_compute("hago.simulated_quantize")
 def simulated_quantize_compute(attrs, inputs, out_type, target):
     """Compiler for simulated_quantize."""
-    assert len(inputs) == 5
+    assert len(inputs) == 1
     assert attrs.sign
     assert attrs.rounding == "round"
 
-    data, out_scale, in_scale, clip_min, clip_max = inputs
-    if attrs.in_dtype == 'float32' and attrs.out_dtype == 'float32':
+    data = inputs[0]
+    in_scale = float(attrs.in_scale)
+    out_scale = float(attrs.out_scale)
+    clip_min = attrs.clip_min
+    clip_max = attrs.clip_max
+
+    # simulate overflow truncate error
+    if attrs.in_dtype != 'float32':
+        # data = topi.divide(data, in_scale)
+        # data = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
+        #     "tvm.contrib.check_overflow", ins[0], str(attrs.in_dtype), outs[0]))
+        # data = topi.multiply(data, in_scale)
+
+        data = topi.divide(data, in_scale)
+        data = topi.cast(topi.cast(data, 'int64'), attrs.in_dtype)
+        data = topi.multiply(data, in_scale)
+    data = my_print(data, '*******************************************')
+    data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
+
+    # dequantize, directly return real value
+    if attrs.out_dtype == 'float32':
         return [topi.identity(data)]
 
-    # simulate overflow
-    data = topi.divide(data, in_scale)
-    data = tvm.extern(data.shape, [data], lambda ins, outs: tvm.call_packed(
-        "tvm.contrib.check_overflow", ins[0], str(attrs.in_dtype), outs[0]))
-    data = topi.multiply(data, in_scale)
-
-    # if 'float' not in attrs.in_dtype:
-    #     data = topi.divide(data, in_scale)
-    #     data = topi.cast(topi.cast(data, 'int64'), attrs.in_dtype)
-    #     data = topi.multiply(data, in_scale)
-
     # simulate rounding error
+    # data = inspect(data, 'original data')
     scaled_data = topi.divide(data, out_scale)
-    clipped_data = topi.maximum(topi.minimum(scaled_data, clip_max), clip_min)
-    round_data = topi.round(clipped_data)
-
-    # recover data
+    # scaled_data = inspect(scaled_data, 'scaled data')
+    scaled_data = topi.round(scaled_data)
+    clipped_data = topi.clip(scaled_data, float(clip_min), float(clip_max))
+    # clipped_data = inspect(clipped_data, 'clipped data')
+    round_data = topi.cast(topi.cast(clipped_data, attrs.out_dtype), 'float32')
+    # round_data = inspect(round_data, 'round data')
     ret = topi.multiply(round_data, out_scale)
+
+    ret = inspect(ret, 'return data')
+    ret = my_print(ret, '*******************************************')
     return [ret]
 
 
-def quantize(data, out_scale, in_scale, clip_min, clip_max, out_dtype, in_dtype):
-    casted = False
-    if out_dtype.bits > in_dtype.bits:
-        casted = True
-        data = topi.cast(data, out_dtype)
-    data = data * (in_scale / out_scale)
-    data = topi.maximum(topi.minimum(data, clip_max), clip_min)
-    if idtype != odtype and not casted:
-        data = topi.cast(odata, out_dtype)
-    return data
 
-
-@_reg.register_schedule("relay.op.annotation.simulated_quantize")
+@_reg.register_schedule("hago.simulated_quantize")
 def simulated_quantize_schedule(attrs, outputs, target):
     s = tvm.create_schedule([x.op for x in outputs])
     return s
 
-_reg.register_pattern("relay.op.annotation.simulated_quantize",
+_reg.register_pattern("hago.simulated_quantize",
                       _reg.OpPattern.OPAQUE)
 
 
-# dom_scale = scale / valid_range
-# qdata * dom_scale = fdata
+# constraint function registered for ops
+# used for inferring output data type
+# out_dtype.bits >= out_bit
 
-def adjust_scale(data, from_scale, to_scale):
-    if from_scale == to_scale:
-        return data
+def register_infer_bit(op_name, finfer_bit=None, level=10):
+    return _reg.register(op_name, "FHagoInferBit", finfer_bit, level)
 
-    factor = from_scale / to_scale
-    shift_factor = math.log2(factor)
-    assert shift_factor > 0
-    if isinstance(shift_factor, int):
-        out = topi.left_shift(data, shift_factor)
-    elif isinstance(factor, int):
-        out = topi.mulitply(data, factor)
-    else:
-        dtype = data.dtype
-        out = topi.cast(data, "float32")
-        out = topi.mulitply(data, factor)
-        out = topi.cast(out, dtype)
-    return out
+def max_bit(attrs, in_bits):
+    in_bits = [bit.value for bit in in_bits]
+    return [max(in_bits)]
 
+register_infer_bit("nn.relu", max_bit)
+register_infer_bit("nn.max_pool2d", max_bit)
 
-def extract_scalar(tensor):
-    assert isinstance(tensor, relay.Constant)
-    arr = tensor.value
-    assert arr.size == 1
-    return arr[0]
+def carry_one_bit(attrs, in_bits):
+    # max(in_bits[0] - 1, in_bits[1] - 1) + 1 <= (out_bit - 1)
+    assert len(in_bits) == 2
+    in_bits = [bit.value for bit in in_bits]
+    return [max(in_bits) + 1] 
+
+register_infer_bit("add", carry_one_bit)
+
+@register_infer_bit("nn.conv2d")
+def infer_bit_for_conv2d(attrs, in_bits):
+    # (in_bits[0] - 1) + (in_bits[1] - 1) + 1 <= (out_bit - 1)
+    assert len(in_bits) == 2
+    kernel_size = [k.value for k in attrs["kernel_size"]]
+    size = functools.reduce(lambda x, y: x*y, kernel_size, 1.0) 
+    extra_bit = np.ceil(np.math.log(size, 2))
+    print('kernel_size: {}'.format(kernel_size))
+    print('extra bit for conv2d: {}'.format(extra_bit))
+    assert extra_bit >= 0
+    in_bits = [bit.value for bit in in_bits]
+    out_bit = in_bits[0] + in_bits[1] + int(extra_bit)
+    print('out bit: {}'.format(out_bit))
+    return [out_bit]
 
 
 # infer scale function registered for ops
@@ -214,26 +254,38 @@ def threshold_rectify_for_add(input_bits, output_bits, input_thresholds, output_
     return new_tholds
 
 
+# realize registration for ops
+
+def register_realize(op_name, frealize=None, level=10):
+    return _reg.register(op_name, "FHagoRealize", frealize, level)
+
+def forward_op(ref_call, args):
+    """forward the operator of ref_call with provided arguments"""
+    return relay.Call(
+        ref_call.op, args, ref_call.attrs, ref_call.type_args)
 
 
-# @_reg.register_compute("relay.op.quantize.quantized_add")
-# def quantized_add_compute(attrs, inputs, out_type, target):
-#     """Compiler for simulated_quantize."""
-# 
-#     assert len(inputs) == 5
-# 
-#     lhs, rhs, dom_lscale, dom_rscale, dom_oscale = inputs
-#     dom_lscale = extract_scalar(dom_lscale)
-#     dom_rscale = extract_scalar(dom_rscale)
-#     dom_oscale = extract_scalar(dom_oscale)
-# 
-#     lhs = adjust_scale(lhs, dom_lscale, dom_oscale)
-#     rhs = adjust_scale(rhs, dom_rscale, dom_oscale)
-#     out = lhs + rhs
-#     return out
-# 
-# 
-# _reg.register_schedule("relay.op.quantize.quantized_add",
-#                        _reg.schedule_injective)
-# _reg.register_pattern("relay.op.quantize.quantized_add",
-#                       _reg.OpPattern.ELEMWISE)
+def to_scalar(constant):
+    assert isinstance(constant, relay.Constant)
+    scalar = constant.data.asnumpy()
+    assert scalar.size == 1
+    return scalar.item()
+
+# TODO(ziheng) change to op_desc in the future
+@register_realize("add")
+def realize_addition(node, in_types, out_types):
+    lhs, rhs = node.args
+    dtype = out_types[0].value
+    if in_types[0] != dtype:
+        lhs = relay.cast(lhs, dtype)
+    if in_types[1] != dtype:
+        rhs = relay.cast(rhs, dtype)
+    return forward_op(node, [lhs, rhs])
+
+
+@register_realize("nn.conv2d")
+def realize_conv2d(node, in_types, out_types):
+    attrs_dict = {key: getattr(node.attrs, key) for key in dir(node.attrs)}
+    attrs_dict['out_dtype'] = out_types[0].value
+    attrs = tvm.make.node("relay.attrs.Conv2DAttrs", **attrs_dict)
+    return relay.Call(node.op, node.args, attrs, node.type_args)

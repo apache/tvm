@@ -24,15 +24,10 @@ from ..relay.base import NodeBase, register_relay_node
 
 import tvm
 from tvm._ffi.runtime_ctypes import TVMType
+import numpy as np
 from collections import defaultdict, OrderedDict
 
 DType = TVMType
-
-def _forward_op(ref_call, args):
-    """forward the operator of ref_call with provided arguments"""
-    return relay.Call(
-        ref_call.op, args, ref_call.attrs, ref_call.type_args)
-
 
 @register_relay_node("hago.QConfig")
 class QConfig(NodeBase):
@@ -376,3 +371,43 @@ def print_scale_info(graph, bits, thresholds):
                 scale = thold / (2 ** (bit - 1) - 1)
                 print('{} <- {}: {}'.format(node_str(node), node_str(src), scale))
     relay.analysis.post_order_visit(graph, fvisit_print)
+
+
+def eval_acc(func, dataset):
+    with relay.transform.build_config(opt_level=2):
+        graph, lib, params = relay.build_module.build(func, target="llvm")
+    outputs = []
+    runtime = tvm.contrib.graph_runtime.create(graph, lib, tvm.cpu())
+    runtime.set_input(**params)
+
+    num_outputs = runtime.get_num_outputs()
+    assert num_outputs == 1
+    outputs = []
+
+    num_correct = 0
+    num_samples = 0
+    for batch_id, batch in enumerate(dataset):
+        runtime.set_input(0, batch['data'])
+        runtime.run()
+        output = runtime.get_output(0).asnumpy()
+        predict = np.argmax(output, axis=1)
+        label = batch['label']
+        num_correct += np.sum(predict == label)
+        num_samples += output.shape[0]
+        outputs.append(output)
+    # flatten outputs
+    outputs = np.concatenate(outputs).reshape(-1)
+    acc = num_correct / num_samples
+    return outputs, acc
+
+def inspect(np_x):
+    pass
+
+def compare(np_x, np_y):
+    # compare two array in terms of statistic property
+    print('max value : {:.4f}, {:.4f}'.format(np.max(np.abs(np_x)), np.max(np.abs(np_y))))
+    print('mean      : {:.4f}, {:.4f}'.format(np.mean(np_x), np.mean(np_y)))
+    print('var       : {:.4f}, {:.4f}'.format(np.var(np_x), np.var(np_y)))
+    abs_err = np.abs(np_x - np_y)
+    idx = np.unravel_index(np.argmax(abs_err, axis=None), abs_err.shape)
+    print('maximum absolute error: {:.4f}, compare {:.4f} with {:.4f}'.format(np.max(abs_err), np_x[idx], np_y[idx]))

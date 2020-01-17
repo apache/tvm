@@ -21,7 +21,7 @@ from collections import defaultdict
 #   - TensorIntrinsic
 # - VTA, GPU:TensorCore, Quantization, LayoutTransform
 
-class OpConstraints(object):
+class OpDesc(object):
     def __init__(self,
                  idtypes=None,
                  odtypes=None):
@@ -60,24 +60,24 @@ class OpConstraints(object):
         pass
 
     def __str__(self):
-        return 'OpConstraints[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
+        return 'OpDesc[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
 
     def __repr__(self):
-        return 'OpConstraints[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
+        return 'OpDesc[idtypes={}, odtypes={}]'.format(self.idtypes, self.odtypes)
 
 
-class HardwareDescription(object):
+class Hardware(object):
     def __init__(self):
-        self._op_constraints = defaultdict(list)
+        self._op_descs = defaultdict(list)
 
     def __getitem__(self, op_name):
         if isinstance(op_name, relay.Op):
             op_name = op_name.name
-        return self._op_constraints[op_name]
+        return self._op_descs[op_name]
 
     @property
     def ops(self):
-        return self._op_constraints.keys()
+        return self._op_descs.keys()
 
 
 
@@ -122,24 +122,23 @@ def support_float_computation(constraints):
 
 
 def create_accelerator_description():
-    desc = HardwareDescription()
-    desc['add'].append(OpConstraints(idtypes=['int8', 'int8'], odtypes=['int16']))
-    desc['add'].append(OpConstraints(idtypes=['int8', 'int8'], odtypes=['int32']))
-    desc['add'].append(OpConstraints(idtypes=['int16', 'int16'], odtypes=['int32']))
-    desc['add'].append(OpConstraints(idtypes=['float32', 'float32'], odtypes=['float32']))
+    desc = Hardware()
+    # desc['add'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int16']))
+    # desc['add'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int32']))
+    # desc['add'].append(OpDesc(idtypes=['int16', 'int16'], odtypes=['int32']))
+    desc['add'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
+    desc['add'].append(OpDesc(idtypes=['float32', 'float32'], odtypes=['float32']))
     # TODO(ziheng) enable int32 addition will lead to overflow easily
     #  - add output_bit constraint to restrict the using for output bit-width
-    # desc['add'].append(OpConstraints(idtypes=['int32', 'int32'], odtypes=['int32']))
-
     # TODO(ziheng) enable int16 conv2d will lead to overflow easily
     #  - add input_bit constraint to restrict the using for output bit-width
-    # desc['nn.conv2d'].append(OpConstraints(idtypes=['int8', 'int8'], odtypes=['int16']))
-    desc['nn.conv2d'].append(OpConstraints(idtypes=['int8', 'int8'], odtypes=['int32']))
-    # desc['nn.conv2d'].append(OpConstraints(idtypes=['int16', 'int16'], odtypes=['int32']))
+    # desc['nn.conv2d'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int16']))
+    desc['nn.conv2d'].append(OpDesc(idtypes=['int8', 'int8'], odtypes=['int32']))
+    # desc['nn.conv2d'].append(OpDesc(idtypes=['int16', 'int16'], odtypes=['int32']))
 
-    desc['nn.relu'].append(OpConstraints(idtypes=['int32', 'int32'], odtypes=['int32']))
-    desc['nn.max_pool2d'].append(OpConstraints(idtypes=['int32', 'int32'], odtypes=['int32']))
-    desc['nn.batch_flatten'].append(OpConstraints(idtypes=['float32'], odtypes=['float32']))
-    desc['nn.dense'].append(OpConstraints(idtypes=['float32', 'float32'], odtypes=['float32']))
-    desc['nn.global_avg_pool2d'].append(OpConstraints(idtypes=['float32'], odtypes=['float32']))
+    desc['nn.relu'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
+    desc['nn.max_pool2d'].append(OpDesc(idtypes=['int32', 'int32'], odtypes=['int32']))
+    desc['nn.batch_flatten'].append(OpDesc(idtypes=['float32'], odtypes=['float32']))
+    desc['nn.dense'].append(OpDesc(idtypes=['float32', 'float32'], odtypes=['float32']))
+    desc['nn.global_avg_pool2d'].append(OpDesc(idtypes=['float32'], odtypes=['float32']))
     return desc
