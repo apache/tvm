@@ -22,7 +22,6 @@
  */
 
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <cmath>
 #include <vector>
 #include <string>

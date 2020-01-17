@@ -20,7 +20,6 @@
  * \file ir_functor.cc
  */
 #include <tvm/ir_functor_ext.h>
-#include <tvm/packed_func_ext.h>
 
 namespace tvm {
 namespace ir {

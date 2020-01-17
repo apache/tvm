@@ -25,7 +25,6 @@
 #define TVM_CODEGEN_CODEGEN_OPENCL_H_
 
 #include <tvm/codegen.h>
-#include <tvm/packed_func_ext.h>
 #include <string>
 #include "codegen_c.h"
 

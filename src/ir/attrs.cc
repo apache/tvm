@@ -22,8 +22,6 @@
  */
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 #include "attr_functor.h"
 
 namespace tvm {
