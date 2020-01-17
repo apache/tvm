@@ -44,31 +44,39 @@ namespace vm {
  */
 class ClosureObj : public Object {
  public:
-  /*!
-   * \brief The index into the function list. The function could be any
-   * function object that is compatible to a certain runtime, i.e. VM or
-   * interpreter.
-   */
-  size_t func_index;
-  /*! \brief The free variables of the closure. */
-  std::vector<ObjectRef> free_vars;
-
-  static constexpr const uint32_t _type_index = TypeIndex::kVMClosure;
-  static constexpr const char* _type_key = "vm.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClosureObj, Object);
+  static constexpr const uint32_t _type_index = TypeIndex::kClosure;
+  static constexpr const char* _type_key = "Closure";
+  TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
 };
 
 /*! \brief reference to closure. */
 class Closure : public ObjectRef {
  public:
-  Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
-    auto ptr = make_object<ClosureObj>();
-    ptr->func_index = func_index;
-    ptr->free_vars = std::move(free_vars);
-    data_ = std::move(ptr);
-  }
-
   TVM_DEFINE_OBJECT_REF_METHODS(Closure, ObjectRef, ClosureObj);
+};
+
+/*!
+ * \brief An object representing a vm closure.
+ */
+class VMClosureObj : public ClosureObj {
+ public:
+  /*!
+   * \brief The index into the function list. The function could be any
+   * function object that is compatible to the VM runtime.
+   */
+  size_t func_index;
+  /*! \brief The free variables of the closure. */
+  std::vector<ObjectRef> free_vars;
+
+  static constexpr const char* _type_key = "vm.Closure";
+  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
+};
+
+/*! \brief reference to closure. */
+class VMClosure : public Closure {
+ public:
+  VMClosure(size_t func_index, std::vector<ObjectRef> free_vars);
+  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, Closure, VMClosureObj);
 };
 
 /*! \brief Magic number for NDArray list file  */

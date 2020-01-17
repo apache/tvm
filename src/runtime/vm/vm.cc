@@ -45,6 +45,12 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
+VMClosure::VMClosure(size_t func_index, std::vector<ObjectRef> free_vars) {
+  auto ptr = make_object<VMClosureObj>();
+  ptr->func_index = func_index;
+  ptr->free_vars = std::move(free_vars);
+  data_ = std::move(ptr);
+}
 
 inline Storage make_storage(size_t size, size_t alignment, DLDataType dtype_hint, TVMContext ctx) {
   // We could put cache in here, from ctx to storage allocator.
@@ -906,7 +912,7 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::InvokeClosure: {
         auto object = ReadRegister(instr.closure);
-        const auto* closure = object.as<ClosureObj>();
+        const auto* closure = object.as<VMClosureObj>();
 
         std::vector<ObjectRef> args;
         for (auto free_var : closure->free_vars) {
@@ -1008,7 +1014,7 @@ void VirtualMachine::RunLoop() {
         for (Index i = 0; i < instr.num_freevar; i++) {
           free_vars.push_back(ReadRegister(instr.free_vars[i]));
         }
-        WriteRegister(instr.dst, Closure(instr.func_index, free_vars));
+        WriteRegister(instr.dst, VMClosure(instr.func_index, free_vars));
         pc_++;
         goto main_loop;
       }

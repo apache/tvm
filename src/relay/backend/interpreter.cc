@@ -37,7 +37,20 @@ namespace tvm {
 namespace relay {
 
 using namespace runtime;
-using namespace runtime::vm;
+
+InterpreterClosure::InterpreterClosure(tvm::Map<Var, ObjectRef> env,
+                                       Function func) {
+  ObjectPtr<InterpreterClosureObj> n = make_object<InterpreterClosureObj>();
+  n->env = std::move(env);
+  n->func = std::move(func);
+  data_ = std::move(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<InterpreterClosureObj >([](const ObjectRef& ref, NodePrinter* p) {
+  auto* node = static_cast<const InterpreterClosureObj*>(ref.get());
+  p->stream << "InterpreterClosureNode(" << node->func << ", " << node->env << ")";
+});
 
 inline const PackedFunc& GetPackedFunc(const std::string& name) {
   const PackedFunc* pf = tvm::runtime::Registry::Get(name);
@@ -47,11 +60,11 @@ inline const PackedFunc& GetPackedFunc(const std::string& name) {
 
 // TODO(@jroesch): this doesn't support mutual letrec
 /* Object Implementation */
-RecClosure RecClosureObj::make(Closure clos, Var bind) {
+RecClosure::RecClosure(InterpreterClosure clos, Var bind) {
   ObjectPtr<RecClosureObj> n = make_object<RecClosureObj>();
   n->clos = std::move(clos);
   n->bind = std::move(bind);
-  return RecClosure(n);
+  data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
@@ -60,14 +73,16 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "RecClosureObj(" << node->clos << ")";
   });
 
-RefValue RefValueObj::make(ObjectRef value) {
+RefValue::RefValue(ObjectRef value) {
   ObjectPtr<RefValueObj> n = make_object<RefValueObj>();
   n->value = value;
-  return RefValue(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relay._make.RefValue")
-.set_body_typed(RefValueObj::make);
+.set_body_typed([](ObjectRef value){
+  return RefValue(value);
+});
 
 TVM_REGISTER_NODE_TYPE(RefValueObj);
 
@@ -77,18 +92,21 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->stream << "RefValueObj(" << node->value << ")";
   });
 
-ConstructorValue ConstructorValueObj::make(int32_t tag,
-                                            tvm::Array<ObjectRef> fields,
-                                            Constructor constructor) {
+ConstructorValue::ConstructorValue(int32_t tag,
+                                   tvm::Array<ObjectRef> fields,
+                                   Constructor constructor) {
   ObjectPtr<ConstructorValueObj> n = make_object<ConstructorValueObj>();
   n->tag = tag;
   n->fields = fields;
   n->constructor = constructor;
-  return ConstructorValue(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("relay._make.ConstructorValue")
-.set_body_typed(ConstructorValueObj::make);
+.set_body_typed([](int32_t tag, tvm::Array<ObjectRef> fields,
+                   Constructor constructor) {
+  return ConstructorValue(tag, fields, constructor);
+});
 
 TVM_REGISTER_NODE_TYPE(ConstructorValueObj);
 
@@ -153,7 +171,7 @@ struct Stack {
 class InterpreterState;
 
 /*! \brief A container capturing the state of the interpreter. */
-class InterpreterStateNode : public Object {
+class InterpreterStateObj : public Object {
  public:
   using Frame = tvm::Map<Var, ObjectRef>;
   using Stack = tvm::Array<Frame>;
@@ -172,16 +190,16 @@ class InterpreterStateNode : public Object {
   static InterpreterState make(Expr current_expr, Stack stack);
 
   static constexpr const char* _type_key = "relay.InterpreterState";
-  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterStateNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(InterpreterStateObj, Object);
 };
 
 class InterpreterState : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterState, ObjectRef, InterpreterStateNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(InterpreterState, ObjectRef, InterpreterStateObj);
 };
 
-InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
-  ObjectPtr<InterpreterStateNode> n = make_object<InterpreterStateNode>();
+InterpreterState InterpreterStateObj::make(Expr current_expr, Stack stack) {
+  ObjectPtr<InterpreterStateObj> n = make_object<InterpreterStateObj>();
   n->current_expr = std::move(current_expr);
   n->stack = std::move(stack);
   return InterpreterState(n);
@@ -262,13 +280,8 @@ class Interpreter :
   }
 
   ObjectRef MakeClosure(const Function& func, Var letrec_name = Var()) {
-    if (func_index_map_.count(func) == 0) {
-      func_index_map_[func] = func_index_++;
-      eval_funcs_.push_back(func);
-    }
-    std::vector<ObjectRef> free_var_values;
+    tvm::Map<Var, ObjectRef> captured_mod;
     Array<Var> free_vars = FreeVars(func);
-    std::vector<Var> captured_vars;
 
     for (const auto& var : free_vars) {
       // Evaluate the free var (which could be a function call) if it hasn't
@@ -277,16 +290,13 @@ class Interpreter :
         continue;
       }
 
-      ObjectRef value = Eval(var);
-      free_var_values.push_back(value);
-      captured_vars.push_back(var);
+      captured_mod.Set(var, Eval(var));
     }
 
     // We must use mutation here to build a self referential closure.
-    Closure closure(func_index_map_[func], free_var_values);
-    closure_captured_vars_[closure] = captured_vars;
+    InterpreterClosure closure(captured_mod, func);
     if (letrec_name.defined()) {
-      return RecClosureObj::make(closure, letrec_name);
+      return RecClosure(closure, letrec_name);
     }
     return std::move(closure);
   }
@@ -540,23 +550,18 @@ class Interpreter :
   }
 
   // Invoke the closure
-  ObjectRef Invoke(const Closure& closure,
+  ObjectRef Invoke(const InterpreterClosure& closure,
                    const tvm::Array<ObjectRef>& args,
                    const Var& bind = Var()) {
-    CHECK_GT(eval_funcs_.size(), closure->func_index);
-    CHECK_GT(func_index_map_.count(eval_funcs_[closure->func_index]), 0U);
-    auto func = eval_funcs_[closure->func_index];
     // Get a reference to the function inside the closure.
-    if (func->IsPrimitive()) {
-      return InvokePrimitiveOp(func, args);
+    if (closure->func->IsPrimitive()) {
+      return InvokePrimitiveOp(closure->func, args);
     }
+    auto func = closure->func;
     // Allocate a frame with the parameters and free variables.
     tvm::Map<Var, ObjectRef> locals;
 
     CHECK_EQ(func->params.size(), args.size());
-    CHECK_GT(closure_captured_vars_.count(closure), 0U);
-    const auto& captured_vars = closure_captured_vars_[closure];
-    CHECK_EQ(captured_vars.size(), closure->free_vars.size());
 
     for (size_t i = 0; i < func->params.size(); i++) {
       CHECK_EQ(locals.count(func->params[i]), 0);
@@ -564,14 +569,13 @@ class Interpreter :
     }
 
     // Add the var to value mappings from the Closure's environment.
-    for (size_t i = 0; i < closure->free_vars.size(); i++) {
-      Var var = captured_vars[i];
-      CHECK_EQ(locals.count(var), 0);
-      locals.Set(var, closure->free_vars[i]);
+    for (auto it = closure->env.begin(); it != closure->env.end(); ++it) {
+      CHECK_EQ(locals.count((*it).first), 0);
+      locals.Set((*it).first, (*it).second);
     }
 
     if (bind.defined()) {
-      locals.Set(bind, RecClosureObj::make(closure, bind));
+      locals.Set(bind, RecClosure(closure, bind));
     }
 
     return WithFrame<ObjectRef>(Frame(locals), [&]() { return Eval(func->body); });
@@ -593,12 +597,12 @@ class Interpreter :
                     "fusing and lowering";
     }
     if (auto con = call->op.as<ConstructorNode>()) {
-      return ConstructorValueObj::make(con->tag, args, GetRef<Constructor>(con));
+      return ConstructorValue(con->tag, args, GetRef<Constructor>(con));
     }
     // Now we just evaluate and expect to find a closure.
     ObjectRef fn_val = Eval(call->op);
-    if (const ClosureObj* closure_node = fn_val.as<ClosureObj>()) {
-      auto closure = GetRef<Closure>(closure_node);
+    if (const InterpreterClosureObj* closure_node = fn_val.as<InterpreterClosureObj>()) {
+      auto closure = GetRef<InterpreterClosure>(closure_node);
       return this->Invoke(closure, args);
     } else if (const RecClosureObj* closure_node = fn_val.as<RecClosureObj>()) {
       return this->Invoke(closure_node->clos, args, closure_node->bind);
@@ -665,7 +669,7 @@ class Interpreter :
   }
 
   ObjectRef VisitExpr_(const RefCreateNode* op) final {
-    return RefValueObj::make(Eval(op->value));
+    return RefValue(Eval(op->value));
   }
 
   ObjectRef VisitExpr_(const RefReadNode* op) final {
@@ -727,12 +731,12 @@ class Interpreter :
   }
 
   InterpreterState get_state(Expr e = Expr()) const {
-    InterpreterStateNode::Stack stack;
+    InterpreterStateObj::Stack stack;
     for (auto fr : this->stack_.frames) {
-      InterpreterStateNode::Frame frame = fr.locals;
+      InterpreterStateObj::Frame frame = fr.locals;
       stack.push_back(frame);
     }
-    auto state = InterpreterStateNode::make(e, stack);
+    auto state = InterpreterStateObj::make(e, stack);
     return state;
   }
 
@@ -751,14 +755,6 @@ class Interpreter :
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
   const Op& shape_of_op_;
-  // The free vars captured by the last closure.
-  std::unordered_map<Closure, std::vector<Var>, ObjectHash, ObjectEqual> closure_captured_vars_;
-  // The index of the Relay function being evaluated.
-  int func_index_{0};
-  // The Relay function to index map.
-  std::unordered_map<Function, int, ObjectHash, ObjectEqual> func_index_map_;
-  // The saved functions.
-  std::vector<Function> eval_funcs_;
 };
 
 
