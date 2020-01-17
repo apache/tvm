@@ -21,6 +21,7 @@
  * \file intrin_rule_default.cc
  * \brief Default intrinsic rules.
  */
+#include <tvm/expr_operator.h>
 #include "intrin_rule.h"
 
 namespace tvm {

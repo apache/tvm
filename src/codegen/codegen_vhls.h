@@ -25,7 +25,7 @@
 #define TVM_CODEGEN_CODEGEN_VHLS_H_
 
 #include <tvm/codegen.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/ir.h>
 #include <string>
 #include "codegen_c.h"
 

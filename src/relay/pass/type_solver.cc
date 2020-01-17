@@ -21,6 +21,7 @@
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
+#include <tvm/expr_operator.h>
 #include <string>
 #include <memory>
 #include <tuple>

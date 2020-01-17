@@ -26,8 +26,6 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/packed_func_ext.h>
-
 
 namespace tvm {
 // Attrs used to python API

@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-#include "registry.h"
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
+#include "registry.h"
 
 namespace tvm {
 namespace datatype {
+
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
 
 TVM_REGISTER_GLOBAL("_datatype_register")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

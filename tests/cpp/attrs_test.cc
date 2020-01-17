@@ -21,7 +21,6 @@
 #include <gtest/gtest.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/expr_operator.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 
 namespace tvm {

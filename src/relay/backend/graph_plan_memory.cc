@@ -22,6 +22,7 @@
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
+#include <tvm/expr_operator.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>

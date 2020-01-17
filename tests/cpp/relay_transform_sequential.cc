@@ -20,7 +20,6 @@
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
 #include <tvm/build_module.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>

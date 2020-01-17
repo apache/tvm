@@ -26,7 +26,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/ir/expr.h>
 #include <tvm/build_module.h>
 
 #include <topi/broadcast.h>
