@@ -856,7 +856,7 @@ def test_per_channel_kernel_scale():
                 dtype=data_dtype)
         kernel = relay.var("kernel", shape=kernel_shape,
                 dtype=kernel_dtype)
-        kernel_scales = [2, 2]
+        kernel_scales = [2, 2, 2]
         kernel_scales = relay.const(np.array(kernel_scales).astype('float32'))
         func = relay.qnn.op.conv2d(
                 data, kernel,
