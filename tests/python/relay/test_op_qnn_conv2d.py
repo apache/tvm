@@ -768,8 +768,8 @@ def test_depthwise_depth_multiplier():
                                        channels=4)
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
-        
-        
+
+
         # Depthwise multiplier = 2
         data_shape = (10, 4, 16, 16)
         data_dtype = 'uint8'
@@ -794,7 +794,7 @@ def test_depthwise_depth_multiplier():
                                        channels=8)
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
-        
+
         # uint8 input, NHWC and HWOI
         # Depthwise multiplier = 1
         data_shape = (2, 16, 16, 4)
@@ -820,7 +820,7 @@ def test_depthwise_depth_multiplier():
                                        channels=4)
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
-        
+
         # Depthwise multiplier = 2
         data_shape = (2, 16, 16, 4)
         data_dtype = 'uint8'
@@ -846,6 +846,35 @@ def test_depthwise_depth_multiplier():
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
 
+def test_per_channel_kernel_scale():
+    with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
+        data_shape = (2, 1, 2, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 1, 2, 2)
+        kernel_dtype = 'uint8'
+        data = relay.var("data", shape=data_shape,
+                dtype=data_dtype)
+        kernel = relay.var("kernel", shape=kernel_shape,
+                dtype=kernel_dtype)
+        kernel_scales = [2, 2, 2]
+        kernel_scales = relay.const(np.array(kernel_scales).astype('float32'))
+        func = relay.qnn.op.conv2d(
+                data, kernel,
+                input_zero_point=relay.const(0, 'int32'),
+                kernel_zero_point=relay.const(0, 'int32'),
+                input_scale=relay.const(2.0, 'float32'),
+                kernel_scale=kernel_scales,
+                kernel_size=(2, 2),
+                padding=(0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_dtype="int32")
+
+        mod = relay.Function(relay.analysis.free_vars(func), func)
+        mod = relay.Module.from_expr(mod)
+
 if __name__ == "__main__":
     test_no_zero_point()
     test_input_zero_point()
@@ -861,3 +890,4 @@ if __name__ == "__main__":
     test_tflite_output_multiplier_greater_than_one()
     test_tflite_anistropic_strides()
     test_depthwise_depth_multiplier()
+    test_per_channel_kernel_scale()
