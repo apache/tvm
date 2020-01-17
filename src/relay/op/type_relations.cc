@@ -31,14 +31,6 @@
 namespace tvm {
 namespace relay {
 
-TensorType ToTensorType(const Type& t) {
-  if (const auto* tt_node = t.as<TensorTypeNode>()) {
-    return GetRef<TensorType>(tt_node);
-  } else {
-    return TensorType(nullptr);
-  }
-}
-
 bool IdentityRel(const Array<Type>& types,
                  int num_inputs,
                  const Attrs& attrs,
@@ -115,11 +107,11 @@ bool BroadcastRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
-  if (auto t0 = ToTensorType(types[0])) {
-    if (auto t1 = ToTensorType(types[1])) {
+  if (auto* t0 = types[0].as<TensorTypeNode>()) {
+    if (auto* t1 = types[1].as<TensorTypeNode>()) {
       CHECK_EQ(t0->dtype, t1->dtype);
       reporter->Assign(types[2],
-        ConcreteBroadcast(t0, t1, t0->dtype));
+        ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1), t0->dtype));
       return true;
     }
   }
@@ -133,10 +125,11 @@ bool BroadcastCompRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   // DLOG(INFO) << "In1:" << types[0] << ",In2:" << types[1]
   //                 << ",Out:" << types[2] << std::endl;
-  if (auto t0 = ToTensorType(types[0])) {
-    if (auto t1 = ToTensorType(types[1])) {
+  if (auto* t0 = types[0].as<TensorTypeNode>()) {
+    if (auto* t1 = types[1].as<TensorTypeNode>()) {
       CHECK_EQ(t0->dtype, t1->dtype);
-      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::DataType::Bool()));
+      reporter->Assign(types[2],
+        ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1), DataType::Bool()));
       return true;
     }
   }

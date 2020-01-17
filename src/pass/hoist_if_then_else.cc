@@ -189,7 +189,7 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
 
   then_for = IRTransform(for_stmt, nullptr, replace_then_case,
                          {PrimExpr("IfThenElse")});
-  if (if_stmt.as<IfThenElseNode>()->else_case) {
+  if (if_stmt.as<IfThenElseNode>()->else_case.defined()) {
     else_for = IRTransform(for_stmt, nullptr, replace_else_case,
                            {PrimExpr("IfThenElse")});
   }
@@ -221,7 +221,7 @@ void IfThenElseHoist::SelectCandidates(const Stmt& stmt) {
         for2if_map_[for_stmt.get()].push_back(head);
         const IfThenElseNode* if_node = head.as<IfThenElseNode>();
         tracker.push(if_node->then_case);
-        if (if_node->else_case) {
+        if (if_node->else_case.defined()) {
           tracker.push(if_node->else_case);
         }
 

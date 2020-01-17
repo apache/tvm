@@ -749,7 +749,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic r = VisitExpr(op->ref, ll);
     if (r->pstatic.defined()) {
       PStatic ret = store_.Lookup(r->pstatic.as<SRefNode>());
-      if (ret) {
+      if (ret.defined()) {
         return ret;
       }
     }
