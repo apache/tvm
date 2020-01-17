@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
 
-from ._ffi.base import string_types
+from ._ffi.base import string_types, TVMError
 from ._ffi.object import register_object, Object
 from ._ffi.object import convert_to_object as _convert_to_object
 from ._ffi.object_generic import _scalar_type_inference
@@ -35,6 +35,7 @@ from . import tensor as _tensor
 from . import schedule as _schedule
 from . import container as _container
 from . import tag as _tag
+from . import json_compact
 
 int8 = "int8"
 int32 = "int32"
@@ -154,7 +155,12 @@ def load_json(json_str):
     node : Object
         The loaded tvm node.
     """
-    return _api_internal._load_json(json_str)
+
+    try:
+        return _api_internal._load_json(json_str)
+    except TVMError:
+        json_str = json_compact.upgrade_json(json_str)
+        return _api_internal._load_json(json_str)
 
 
 def save_json(node):
