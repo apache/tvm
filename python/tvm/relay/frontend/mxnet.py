@@ -44,7 +44,6 @@ from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
                                 quantize_conv_weights_channel_mkldnn_from_var, \
                                 quantize_conv_bias_mkldnn_from_var, \
                                 get_conv_mkldnn_requantized_scale_outDtype, \
-                                get_dtype_from_min_max, \
                                 dequantize_mxnet_min_max, \
                                 get_mkldnn_int8_scale, \
                                 get_mkldnn_uint8_scale, \
@@ -197,7 +196,7 @@ def _mx_conv2d(inputs, attrs):
     data_layout = attrs.get_str("layout", "NCHW")
     if len(kernel_size) != 2:
         raise tvm.error.OpAttributeInvalid(
-            'Non 1D or 2D kernels are not supported for operator Convolution')
+            'Only 2D kernels are supported for operator Convolution')
 
     new_attrs = _get_mx_conv2d_attrs(attrs)
     channel_axis = _get_channel_axis(data_layout, "conv2d")
@@ -1098,7 +1097,7 @@ def _mx_cond(inputs, attrs, subgraphs):
     return ret
 
 
-def _qnn_mx_contrib_quantize(inputs, attrs):
+def _qnn_quantize(inputs, attrs):
     out_dtype = 'int8'
     out_type = attrs.get_str('out_type')
     if out_type == 'auto':
@@ -1148,7 +1147,7 @@ def _get_subgraph_op(subgraphs, op_name):
     raise ValueError("Op {} was not found in the subgraph".format(op_name))
 
 
-def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
+def _qnn_conv(inputs, attrs, subgraphs, params):
     def _check_for_attr_not_supported(_attrs, _attr_name):
         if _attrs.get_bool(_attr_name, False):
             raise ValueError('{} with qnn convolution is not yet supported.'.format(_attr_name))
@@ -1280,8 +1279,8 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
         # Get input scale and zero point
         # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are for
         # the second tensor. So, the data min max indexes are last 3 and 4
-        data_min_idx = -1
-        data_max_idx = -2
+        data_min_idx = -2
+        data_max_idx = -1
         data = inputs[0]
         data_scale, data_zero_point = \
             _get_data_scale_and_zp(data, inputs, data_min_idx, data_max_idx)
@@ -1330,7 +1329,7 @@ def _qnn_mx_mkldnn_conv(inputs, attrs, subgraphs, params):
         return res, min_output_range, max_output_range
 
 
-def _qnn_mx_quantized_flatten(inputs, attrs):
+def _qnn_flatten(inputs, attrs):
     #pylint: disable=unused-argument
     data = inputs[0]
     output_min = inputs[1]
@@ -1339,17 +1338,18 @@ def _qnn_mx_quantized_flatten(inputs, attrs):
     return output, output_min, output_max
 
 
-def _qnn_mx_dequantize(inputs, attrs):
+def _qnn_dequantize(inputs, attrs):
     #pylint: disable=unused-argument
     data = inputs[0]
     input_min = inputs[1]
     input_max = inputs[2]
-    in_dtype = get_dtype_from_min_max(input_min, input_max)
+    in_dtype = _infer_type(data).checked_type.dtype
+    # in_dtype = get_dtype_from_min_max(input_min, input_max)
     result = dequantize_mxnet_min_max(data, input_min, input_max, in_dtype)
     return result
 
 
-def _qnn_mx_quantized_act(inputs, attrs):
+def _qnn_activation(inputs, attrs):
     act_type = attrs.get_str("act_type")
     assert len(inputs) == 3
     assert act_type == "relu", "Currently only relu is supported"
@@ -1360,14 +1360,14 @@ def _qnn_mx_quantized_act(inputs, attrs):
     return res, range_min, range_max
 
 
-def _qnn_mx_quantized_pooling(inputs, attrs):
+def _qnn_pooling(inputs, attrs):
     input_min = inputs[1]
     input_max = inputs[2]
     res = _mx_pooling(inputs, attrs)
     return res, input_min, input_max
 
 
-def _qnn_mx_mkldnn_fully_connected(inputs, attrs, subgraphs, params):
+def _qnn_fully_connected(inputs, attrs, subgraphs, params):
 
     def _get_input_scale_zp(_data, _inputs, _has_bias):
         data_min_idx, data_max_idx = (3, 4) if _has_bias else (2, 3)
@@ -1643,16 +1643,18 @@ _convert_map = {
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
-    "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
+    # "contrib_fifo_buffer": _mx_contrib_fifo_buffer,
+    "ring_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops
-    "_contrib_quantize_v2": _qnn_mx_contrib_quantize,
-    "_contrib_quantized_fifo_buffer": _qnn_contrib_quantized_fifo_buffer,
-    "_sg_mkldnn_conv": _qnn_mx_mkldnn_conv,
-    "_contrib_quantized_flatten": _qnn_mx_quantized_flatten,
-    "_contrib_dequantize": _qnn_mx_dequantize,
-    "_contrib_quantized_act": _qnn_mx_quantized_act,
-    "_contrib_quantized_pooling": _qnn_mx_quantized_pooling,
-    "_sg_mkldnn_fully_connected": _qnn_mx_mkldnn_fully_connected,
+    "_contrib_quantize_v2": _qnn_quantize,
+    # "_contrib_quantized_fifo_buffer": _qnn_contrib_quantized_fifo_buffer,
+    "_contrib_quantized_ring_buffer": _qnn_contrib_quantized_fifo_buffer,
+    "_sg_mkldnn_conv": _qnn_conv,
+    "_contrib_quantized_flatten": _qnn_flatten,
+    "_contrib_dequantize": _qnn_dequantize,
+    "_contrib_quantized_act": _qnn_activation,
+    "_contrib_quantized_pooling": _qnn_pooling,
+    "_sg_mkldnn_fully_connected": _qnn_fully_connected,
 }
 
 # set identity list

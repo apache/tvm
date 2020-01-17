@@ -23,6 +23,8 @@ import numpy as np
 from tvm import relay
 from tvm.relay.qnn.op.qnn import quantize, dequantize
 
+# The below values are taken from -
+# https://github.com/apache/incubator-mxnet/blob/master/src/operator/quantization/quantization_utils.h#L38-L39
 zero_centered_uint8_quantized_range = np.float32(255.5)
 zero_centered_int8_quantized_range = np.float32(127.5)
 
@@ -150,9 +152,9 @@ def _quantize_mkldnn_min_max_int8(data,
     ----------
     data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
-    imin_range : float
+    data_min : float
         The minimum to use data elements.
-    imax_range : float
+    data_max : float
         The maximum to use for data elements.
 
     Returns
@@ -216,37 +218,6 @@ def get_mkldnn_uint8_scale(range_min,
     return np.float32(scale)
 
 
-def quantize_conv_weights_mkldnn_from_var(weights_var,
-                                          min_range,
-                                          max_range):
-    r"""Helper method to quantize the convolution kernel in prequantized model
-    in MXNet with MKLDNN. The kernel is always quantized to int8 output datatype.
-    The inputs are the raw weights which are floating point numbers. The min and
-    max ranges are used from the weight itself. The name supplied is used to create
-    a tvm.relay.var with the given name.
-
-    Parameters
-    ----------
-    weights_var : tvm.relay.var
-                The float32 representation of the weights.
-    min_range : float32
-              A number representing the minimum of the weights.
-    max_range : float32
-              A number representing the maximum of the weights.
-
-    Returns
-    -------
-    result : tvm.relay.expr
-           The quantized representation of the weights.
-    """
-
-    return quantize_mxnet_min_max(weights_var,
-                                  min_range,
-                                  max_range,
-                                  # mkldnn uses only int8 for weights
-                                  out_dtype='int8')
-
-
 def quantize_conv_weights_channel_mkldnn_from_var(weights_var,
                                                   min_vector_range,
                                                   max_vector_range):
@@ -296,7 +267,6 @@ def get_mkldnn_requantize_scale_outDtype(min_output_range,
     return requantize_scale
 
 
-# TODO: add support for uint8 type
 def get_conv_mkldnn_requantized_scale_outDtype(min_output_range, max_output_range):
     out_dtype = 'uint8' if min_output_range >= 0.0 else 'int8'
     requantize_scale = get_mkldnn_requantize_scale_outDtype(min_output_range,
@@ -315,43 +285,6 @@ def quantize_conv_bias_mkldnn_from_var(bias_var,
                               out_dtype='int32')
 
     return quantized_bias
-
-
-def quantize_conv_bias_mkldnn(bias,
-                              bias_scale,
-                              bias_name):
-    shape = bias.shape
-    bias_data = relay.var(bias_name, shape=shape, dtype='float32')
-    return quantize_conv_bias_mkldnn_from_var(bias_data, bias_scale)
-
-
-def quantize_conv_weights_mkldnn(weights,
-                                 weights_name):
-    r"""Helper method to quantize the convolution kernel in prequantized model
-    in MXNet with MKLDNN. The kernel is always quantized to int8 output datatype.
-    The inputs are the raw weights which are floating point numbers. The min and
-    max ranges are used from the weight itself. The name supplied is used to create
-    a tvm.relay.var with the given name.
-
-    Parameters
-    ----------
-    weights : float32 tensor
-                The float32 representation of the weights.
-    weights_name : string
-              Will create a tvm.relay.var by this name.
-
-    Returns
-    -------
-    result : tvm.relay.expr
-           The quantized representation of the weights.
-    """
-    shape = weights.shape
-    input_data = relay.var(weights_name, shape=shape, dtype='float32')
-    min_range = np.amin(weights)
-    max_range = np.amax(weights)
-    return quantize_conv_weights_mkldnn_from_var(input_data,
-                                                 min_range,
-                                                 max_range)
 
 
 def quantize_mxnet_min_max(data,
@@ -537,8 +470,3 @@ def dequantize_mxnet_min_max(data,
     else:
         raise ValueError(
             "Expected out_dtype to be int8 or uint8 but was  %s" % in_dtype)
-
-
-def get_dtype_from_min_max(range_min, range_max):
-    assert range_min is not None and range_max is not None
-    return 'uint8' if range_min >= 0.0 else 'int8'
