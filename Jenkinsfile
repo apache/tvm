@@ -217,7 +217,8 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
         }
       }
@@ -269,7 +270,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
         }
       }
     }
