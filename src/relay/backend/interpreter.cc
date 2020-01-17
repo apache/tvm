@@ -418,13 +418,14 @@ class Interpreter :
       << "Shape function output sizes mismatch";
 
     PackedFunc shape_func;
+    Module m;
     TVMRetValue rv;
     if (const auto* f = runtime::Registry::Get("relay.backend.build")) {
-      tvm::runtime::Module m = (*f)(cfunc->funcs, cfunc->target);
-      shape_func = m.GetFunction(cfunc->func_name);
+      m = (*f)(cfunc->funcs, cfunc->target);
     } else {
-      LOG(FATAL) << "relay.backend.build is not registered";
+      m = build(cfunc->funcs, cfunc->target, Target(nullptr), BuildConfig::Current());
     }
+    shape_func = m.GetFunction(cfunc->func_name);
     shape_func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
 
     // Get output shapes
