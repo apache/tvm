@@ -63,6 +63,8 @@ def select_constraint(graph, hardware, topology, bits):
         raise ValueError("No feasible constraint")
         return None
 
+    print('\nselect constraints')
+    node2idx = build_node_index(graph)
     edge2bit = complete_dict(bits, topology.edge2cond)
     constraints = []
 
@@ -71,10 +73,12 @@ def select_constraint(graph, hardware, topology, bits):
             if not topology.node2cond[node]:
                 return
             # prepare in_bits
+            print('---------')
+            print(node_str(node, node2idx))
             in_bits = [edge2bit[(src, node)] for src in node.args]
-            print('in bits: {}'.format(in_bits))
+            print('  in bits: {}'.format(in_bits))
             cstr = select(node, in_bits, hardware)
-            print('select {0}'.format(cstr))
+            print('  {0}'.format(cstr))
             assert len(cstr.odtypes) == 1 
             constraints.append(cstr)
     relay.analysis.post_order_visit(graph, fvisit)
@@ -179,7 +183,7 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
             assert isinstance(node.body, relay.Call) 
             node = node.body
             print('---------')
-            print("{} -> OUT".format(node_str(node)))
+            print("{} -> OUT".format(node_str(node, node2idx)))
             in_scale = infer_scale_for_node(node)
             in_dtype = prov_dtypes[node2idx[node]]
             out_dtype = 'float32'
@@ -272,12 +276,13 @@ class Simulator(tvm.relay.ExprMutator):
 def _realize(simulated_graph, node2cstr):
     def transform_scale(data, in_scale, out_scale, dtype):
         """calculate `data * in_scale / out_scale`"""
-        if in_scale == out_scale:
+        if math.isclose(in_scale, out_scale):
             return data
     
         factor = in_scale / out_scale
         shift_factor = math.log2(factor)
-        print('shift_factor: {}'.format(round(shift_factor)))
+        print('shift_factor: {}'.format(shift_factor))
+        print('rounded shift_factor: {}'.format(round(shift_factor)))
         if math.isclose(shift_factor, round(shift_factor), rel_tol=1e-5):
             print('use shift')
             if shift_factor > 0:
@@ -285,7 +290,7 @@ def _realize(simulated_graph, node2cstr):
             else:
                 # TODO(ziheng) statistic bias
                 # add bias for rounding
-                shift_factor = - shift_factor
+                shift_factor = - round(shift_factor)
                 out = data + relay.const(2**(shift_factor - 1), dtype)
                 out = relay.right_shift(out, relay.const(shift_factor, dtype))
         elif math.isclose(factor, round(factor)):
@@ -302,7 +307,7 @@ def _realize(simulated_graph, node2cstr):
     
     def realize_simulated_quantize(node):
         data = node.args[0]
-        print('realize {}'.format(node_str(data)))
+        print('realize sq({})'.format(node_str(data)))
         attrs = node.attrs
         in_scale = float(attrs.in_scale)
         out_scale = float(attrs.out_scale)
@@ -363,9 +368,9 @@ def _realize(simulated_graph, node2cstr):
                 new_node = frealize(new_node, in_dtypes, out_dtypes)
             return new_node
     
-    print('selected op description')
-    for key in node2cstr:
-        print('{}: {}'.format(node_str(key), node2cstr[key]))
+    # print('selected op description')
+    # for key in node2cstr:
+    #     print('{}: {}'.format(node_str(key), node2cstr[key]))
 
     quantized_graph = Realizer().realize(simulated_graph)
     return quantized_graph

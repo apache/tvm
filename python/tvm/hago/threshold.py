@@ -27,10 +27,9 @@ except ImportError:
 import tvm
 
 from .base import *
-from . import _quantize
 from . import quantize as qtz
+from . import analysis
 from .. import relay
-from ..contrib import graph_runtime
 
 
 def _smooth_distribution(p, eps=0.0001):
@@ -135,168 +134,6 @@ def _find_scale_by_kl(arr,
     return opt_th
 
 
-class Stats(object):
-    def __init__(self, raw_data):
-        """
-        raw_data: intermediate data * number_of_batches
-        """
-        self.raw_data = raw_data
-
-    def __len__(self):
-        return len(self.raw_data)
-
-    def data(self, idx):
-        return self.raw_data[idx] 
-
-    def range(self, idx, power2=False):
-        arr = np.concatenate(self.raw_data[idx]).reshape(-1)
-        arange = np.amax(np.abs(arr))
-        if power2:
-            # round to the nearest power of two
-            return 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
-        return arange
-
-    def mean(self, idx):
-        pass
-
-    def variance(self, idx):
-        pass
-
-
-def collect_stats(mod, dataset):
-    """Given an annotated graph, create a profile graph to collect profile data from the
-    calibration dataset. This pass collects simulated_quantize op input into a tuple.
-    Simulated_quantize ops are rewritten to identity mode. The tuple is the output of the profile
-    graph.
-
-    Parameters
-    ----------
-    graph: Function
-        The simulation graph after annotation.
-
-    Returns
-    -------
-    ret: Function
-        The profile graph which outputs a tuple of profile data.
-    """
-    logging.info("collecting statistics for calibration...")
-    if isinstance(mod, tvm.relay.Module):
-        func = mod['main']
-    else:
-        func = mod
-    func = _quantize.CreateStatsCollector(func)
-    with relay.transform.build_config(opt_level=2):
-        graph, lib, params = relay.build_module.build(func, target="llvm")
-    outputs = []
-    runtime = graph_runtime.create(graph, lib, tvm.cpu())
-    runtime.set_input(**params)
-
-    num_outputs = runtime.get_num_outputs()
-    outputs = [[] for i in range(num_outputs)]
-
-    for batch_id, batch in enumerate(dataset):
-        runtime.set_input('data', tvm.nd.array(batch['data']))
-        runtime.run()
-        for i in range(num_outputs):
-            output = runtime.get_output(i).asnumpy()
-            outputs[i].append(output)
-    return Stats(outputs)
-    # for i in range(num_outputs):
-    #     outputs[i] = np.concatenate(outputs[i]).reshape(-1)
-    # return outputs
-
-
-def _kl_scale(stats):
-    assert scipy is not None, "scipy need to be installed for \
-    utilizing kl calibration during quantization"
-    with mp.Pool() as pool:
-        logging.info("finding threshold with kl for calibration...")
-        scales = list(pool.map(_find_scale_by_kl, stats))
-
-    def func(sq_call):
-        scale = scales[func.scale_idx]
-        func.scale_idx += 1
-        return scale
-    func.scale_idx = 0
-
-    return func
-
-
-# weight scale functions
-def _power2_scale(sq_call):
-    """calculate weight scale with nearest mode-2 scale"""
-    var = sq_call.args[0]
-    assert isinstance(var, relay.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
-    return 2**np.math.ceil(np.math.log(val, 2)) if val > 0 else 1.0
-
-def _max_scale(sq_call):
-    """calculate weight scale with maximum absolute value"""
-    var = sq_call.args[0]
-    assert isinstance(var, relay.Constant)
-    val = np.amax(np.abs(var.data.asnumpy()))
-    return val
-
-
-# input scale functions
-def _global_scale(sq_call):
-    cfg = qtz.current_qconfig()
-    return cfg.global_scale
-
-
-def threshold_estimate(graph, topology, bits, dataset=None):
-    print('calculating threshold...')
-    cfg = qtz.current_qconfig()
-    # check bit setting
-    # exprs = []
-    # def fvisit_test(e):
-    #     if isinstance(e, (relay.Var)):
-    #         exprs.append(e)
-    #     if isinstance(e, relay.Constant):
-    #         exprs.append('constant')
-    #     if isinstance(e, relay.Call):
-    #         exprs.append(e.op.name)
-    # _analysis.post_order_visit(graph, fvisit_test)
-
-    stats = collect_stats(graph, dataset)
-    # print("range: {0}".format(max_range))
-    if cfg.threshold_estimate_strategy == 'global_scale':
-        thresholds = [cfg.global_scale for _ in exprs]
-        return thresholds
-    elif cfg.threshold_estimate_strategy == 'max_range':
-        max_ranges = [stats.range(i) for i in range(len(stats))]
-        return max_ranges
-    elif cfg.threshold_estimate_strategy == 'power2_range':
-        max_ranges = [stats.range(i) for i in range(len(stats))]
-        power2_ranges = [stats.range(i, power2=True) for i in range(len(stats))]
-        return power2_ranges
-        ret = []
-        assert len(topology.node2cond) == len(power2_ranges)
-        for key, arange in zip(topology.node2cond, power2_ranges):
-            if topology.node2cond[key]:
-                ret.append(arange)
-        return  ret
-    elif cfg.threshold_estimate_strategy == 'kl':
-        assert scipy is not None, "scipy need to be installed for \
-        utilizing kl calibration during quantization"
-        logging.info("finding threshold with kl for calibration...")
-        # t0 = time.time()
-        arrs = [np.concatenate(stats.data(i), axis=None) for i in range(len(stats))]
-
-        print('threshold: ')
-        thresholds = []
-        for i in range(len(arrs)):
-            threshold = _find_scale_by_kl(arrs[i])
-            thresholds.append(threshold)
-        return thresholds
-
-        # with mp.Pool(32) as pool:
-        #     thresholds = list(pool.map(_calibrate._find_scale_by_kl, arrs))
-        # t1 = time.time()
-        # print('time: {0}'.format(t1 - t0))
-        # return thresholds
-
-
 def threshold_rectify(graph, topology, bits, thresholds):
     print('bits')
     print(bits)
@@ -335,4 +172,23 @@ def threshold_rectify(graph, topology, bits, thresholds):
                 # TODO(ziheng) rectify output thresholds
     relay.analysis.post_order_visit(graph, fvisit_rectify)
     # print_scale_info(graph, bits, thresholds)
+    return thresholds
+
+
+def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
+    print('calculating threshold...')
+    cfg = qtz.current_qconfig()
+    stats = analysis.collect_stats(graph, dataset)
+
+    if cfg.threshold_estimate_strategy == 'global_scale':
+        thresholds = [cfg.global_scale for _ in exprs]
+    elif cfg.threshold_estimate_strategy == 'max_range':
+        thresholds = [stats.range(i) for i in range(len(stats))]
+    elif cfg.threshold_estimate_strategy == 'power2_range':
+        thresholds = [stats.range(i, power2=True) for i in range(len(stats))]
+    else:
+        raise ValueError
+
+    if rectify:
+        thresholds = threshold_rectify(graph, topology, bits, thresholds)
     return thresholds

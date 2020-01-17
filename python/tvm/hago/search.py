@@ -22,7 +22,7 @@ from .base import *
 from . import _quantize
 from . import quantize as qtz
 from .. import relay
-from .threshold import threshold_estimate, threshold_rectify
+from .threshold import threshold_estimate
 from .hardware import *
 from .topology import analyze_topology
 
@@ -30,16 +30,9 @@ import tvm
 import random
 import math
 import itertools
-import time
-import logging
-import sys
 import numpy as np
-import multiprocessing as mp
+import pickle
 from collections import namedtuple
-try:
-    import scipy
-except ImportError:
-    scipy = None
 
 # TODOs:
 # - experiments
@@ -461,7 +454,7 @@ def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, data
     if cfg.search_strategy == 'random_search':
         best_bits, best_acc = random_search(eval_func, bit_choices, args)
     elif cfg.search_strategy == 'default_setting':
-        best_bits = [choices[0] for choices in bit_choices]
+        # best_bits = [choices[0] for choices in bit_choices]
         best_bits = [7, 8, 31, 31, 31, 31, 8, 7, 31, 31, 31, 7, 8, 31, 31, 31, 32, 31, 7, 7, 31, 31, 31, 8, 7, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
         best_acc = eval_func(best_bits, *args)
         return best_bits, best_acc
@@ -491,20 +484,7 @@ def search_quantize_strategy(mod, hardware, dataset=None):
         print_edge_dict(graph, edge2bit)
         # coarse-grained threshold estimate
         thresholds = threshold_estimate(graph, topology, bits, dataset)
-        # node2thold = complete_dict(thresholds, topology.node2cond)
-        # print('thresholds')
-        # print_node_dict(graph, node2thold)
-        # raise ValueError
-        # print('\nafter threshold estimate')
-        # for thold in thresholds:
-        #     print(type(thold))
 
-        # TODO(ziheng)
-        thresholds = threshold_rectify(graph, topology, bits, thresholds)
-        # print('\nafter threshold rectify')
-        # for thold in thresholds:
-        #     print(type(thold))
-        # print('thresholds: {0}'.format(thresholds))
         strategy = (topology, bits, thresholds)
         simulated_graph = qtz.create_quantizer(graph, hardware, strategy).simulate()
         # print('simulated_graph')
@@ -517,5 +497,8 @@ def search_quantize_strategy(mod, hardware, dataset=None):
     print('finished search')
     print('best_acc: {0}'.format(best_acc))
     best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
-    best_thresholds = threshold_rectify(graph, topology, best_bits, best_thresholds)
-    return (topology, best_bits, best_thresholds), best_acc
+    best_strategy = (topology, best_bits, best_thresholds)
+    with open('strategy.pkl', 'wb') as fout:
+        pickle.dump(best_strategy, fout)
+        print('save best strategy as strategy.pkl')
+    return best_strategy, best_acc

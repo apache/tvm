@@ -6,6 +6,7 @@ from .hardware import *
 from tvm import relay
 from collections import OrderedDict
 
+# make topology reference unknown
 
 class Topology(object):
     def __init__(self):
@@ -25,7 +26,7 @@ class Topology(object):
                 return
 
             if isinstance(node, relay.Call):
-                print(node.op.name)
+                # print(node.op.name)
                 if not integer_constraints(hardware[node.op]):
                     # current op does not support integer computation 
                     set_cond(node, False)

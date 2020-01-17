@@ -399,15 +399,3 @@ def eval_acc(func, dataset):
     outputs = np.concatenate(outputs).reshape(-1)
     acc = num_correct / num_samples
     return outputs, acc
-
-def inspect(np_x):
-    pass
-
-def compare(np_x, np_y):
-    # compare two array in terms of statistic property
-    print('max value : {:.4f}, {:.4f}'.format(np.max(np.abs(np_x)), np.max(np.abs(np_y))))
-    print('mean      : {:.4f}, {:.4f}'.format(np.mean(np_x), np.mean(np_y)))
-    print('var       : {:.4f}, {:.4f}'.format(np.var(np_x), np.var(np_y)))
-    abs_err = np.abs(np_x - np_y)
-    idx = np.unravel_index(np.argmax(abs_err, axis=None), abs_err.shape)
-    print('maximum absolute error: {:.4f}, compare {:.4f} with {:.4f}'.format(np.max(abs_err), np_x[idx], np_y[idx]))
