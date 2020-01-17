@@ -26,7 +26,6 @@
 #include <tvm/top/schedule.h>
 #include <tvm/top/schedule_pass.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include "../top/schedule/graph.h"
 

@@ -22,7 +22,6 @@
 #include <topi/cuda/injective.h>
 #include <tvm/top/operation.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/build_module.h>
 
 #include <string>

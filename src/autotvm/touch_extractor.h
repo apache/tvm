@@ -28,7 +28,6 @@
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include <stack>
 #include <vector>

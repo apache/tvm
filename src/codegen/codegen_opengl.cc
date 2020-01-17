@@ -23,7 +23,6 @@
  * We are targeting OpenGL 3.3. The reason of not targeting a recent version
  * of OpenGL is to have better compatibility of WebGL 2.
  */
-#include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
 #include <utility>

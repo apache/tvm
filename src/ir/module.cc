@@ -23,12 +23,11 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/module.h>
-// NOTE on dependencies on relay analysis.
-// We calls into relay's analysis module to verify correctness
-// when a relay function is presented.
-// These dependency does not happen at the interface-level.
-// And is only used to enhance developer experiences when relay
-// functions are presented.
+// NOTE: reverse dependency on relay.
+// These dependencies do not happen at the interface-level,
+// and are only used in minimum cases where they are clearly marked.
+//
+// Rationale: We calls into relay's analysis module to verify correctness.
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 

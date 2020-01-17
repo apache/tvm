@@ -24,11 +24,11 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/error.h>
-// NOTE on dependencies on relay AsText.
-// We calls into relay's printing module for better rendering.
-// These dependency does not happen at the interface-level.
-// And is only used to enhance developer experiences when relay
-// functions are presented.
+// NOTE: reverse dependency on relay.
+// These dependencies do not happen at the interface-level,
+// and are only used in minimum cases where they are clearly marked.
+//
+// Rationale: use relay's printer for astext.
 #include <tvm/relay/expr.h>
 
 #include <string>

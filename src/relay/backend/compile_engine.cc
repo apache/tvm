@@ -24,7 +24,6 @@
 #include "compile_engine.h"
 
 #include <tvm/top/schedule.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/top/operation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>

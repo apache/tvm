@@ -28,9 +28,7 @@
 #include <tvm/ir/type_relation.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/ir/env_func.h>
-
 #include <tvm/ir.h>
 #include <string>
 

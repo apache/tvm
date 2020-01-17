@@ -29,7 +29,6 @@
 #include <tvm/expr.h>
 #include <tvm/ir.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 #include <tvm/top/tensor.h>
 
