@@ -110,6 +110,15 @@ def _get_shape(node):
     """
     return _to_shape(node.checked_type.shape)
 
+def _operator_idx_inc(expr, count_meta, operator_current_idx):
+    """Increase operator index
+    """
+    if isinstance(expr, relay.expr.Constant):
+        operator_current_idx = operator_current_idx + 1 if count_meta else operator_current_idx
+    else:
+        operator_current_idx = operator_current_idx + 1
+    return operator_current_idx
+
 class ExprPack(ExprMutator):
     """Visitor to perform graph packing on an AST.
     """
@@ -246,7 +255,7 @@ class ExprPack(ExprMutator):
 
 class BT(Exception):
     pass
-def get_subgraph(expr, start_name, stop_name, start_name_idx=-1, stop_name_idx=-1):
+def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta):
     """ We assume stop_name only appears once for simplicity.
         This constraint will be lifted in the future.
         bitpack_start and bitpack_end are both inclusive.
@@ -274,7 +283,9 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx=-1, stop_name_idx=-
                     elif value.op.name == stop_name:
                         if operator_current_idx == stop_name_idx or stop_name_idx == -1:
                             raise BT()
-                    operator_current_idx = operator_current_idx + 1
+
+            operator_current_idx = _operator_idx_inc(value, count_meta, operator_current_idx)
+
             try:
                 return relay.expr.Let(anf.var, value, _recursion(anf.body, start_found, stop_found,
                                                                  operator_current_idx))
@@ -298,8 +309,9 @@ def graph_pack(expr,
                weight_bits,
                start_name="nn.max_pool2d",
                stop_name="nn.global_avg_pool2d",
-               start_name_idx=0,
-               stop_name_idx=0):
+               start_name_idx=-1,
+               stop_name_idx=-1,
+               count_meta=False):
     """Pack the graph into batch&channel packed format.
 
     Parameters
@@ -330,6 +342,9 @@ def graph_pack(expr,
         When stop_name_idx not equal -1, stop packing only when node name equal stop_name
         and node index equal stop_name_idx.
 
+    count_meta:boolean, optional
+        start_name_idx and stop_name_idx count meta or not.
+
     Returns
     -------
     expr : Expr
@@ -337,7 +352,7 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     assert ((start_name != stop_name) or (start_name_idx < stop_name_idx))
-    expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx)
+    expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
         bfactor, cfactor,
