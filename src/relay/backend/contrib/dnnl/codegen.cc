@@ -51,6 +51,14 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     out_.push_back({node->name_hint(), 0});
   }
 
+  void VisitExpr_(const ConstantNode* node) final {
+    LOG(INFO) << "Visiting constant node";
+    auto name = "dnnl_input" + std::to_string(ext_func_args_.size());
+    ext_func_args_.push_back(name);
+    out_.clear();
+    out_.push_back({name, 0});
+  }
+
   void VisitExpr_(const CallNode* call) final {
     struct Output {
       std::string decl, buf;
@@ -58,7 +66,7 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
       std::string out;
     };
 
-    auto generate_body = [&](const CallNode* root_call, const std::string& func_name,
+    auto generate_body = [=](const CallNode* root_call, const std::string& func_name,
                              const std::vector<std::string>& args,
                              const std::vector<std::string>& fused_func_args) {
       // Make function call with input buffers when visiting arguments
@@ -110,7 +118,6 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
 
     Output ret;
     if (auto conv_call = DetectFusedConv2DBiasReLU(call)) {
-      LOG(INFO) << "found fused op, num_args = " << call->args.size();
       ret = generate_body(conv_call, "dnnl_fused_conv2d_bias_relu",
                           FusedConv2dBiasReLU(conv_call), ext_fused_func_args_);
     } else if (IsOp(call, "nn.conv2d")) {
@@ -136,20 +143,24 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   }
 
   std::string JIT(void) {
-    ext_func_args_.insert(ext_func_args_.end(),
-                          ext_fused_func_args_.begin(),
+    ext_func_args_.insert(ext_func_args_.end(), ext_fused_func_args_.begin(),
                           ext_fused_func_args_.end());
     return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
   }
 
  private:
   const CallNode* DetectFusedConv2DBiasReLU(const CallNode* call) {
-    auto arg = call->args[0];
-    // if (auto next_call = arg.as<CallNode>()) {
-    //   if (IsOp(next_call, "nn.conv2d")) {
-    //   }
-    // }
-    return nullptr;
+    if (!IsOp(call, "nn.relu")) return nullptr;
+    auto relu_arg = call->args[0];
+    // TODO: a better way to get CallNode* from Expr?
+    const CallNode* add_call = Downcast<Call>(relu_arg).operator->();
+    if (!add_call || !IsOp(add_call, "add")) return nullptr;
+    auto add_arg = add_call->args[0];
+    const CallNode* conv_call = Downcast<Call>(add_arg).operator->();
+    if (!conv_call || !IsOp(conv_call, "nn.conv2d")) return nullptr;
+    ext_fused_func_args_.push_back("dnnl_input_bias");
+    LOG(INFO) << "fused op found";
+    return conv_call;
   }
 
   std::vector<std::string> Conv2d(const CallNode* call) {
