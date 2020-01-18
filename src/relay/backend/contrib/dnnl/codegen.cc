@@ -51,15 +51,16 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     out_.push_back({node->name_hint(), 0});
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) final {
-    // Do nothing
-  }
-
   void VisitExpr_(const CallNode* call) final {
-    // Get the arguments for various DNNL kernels.
-    auto generate_body = [&](const CallNode* root_call,
-			     const std::vector<std::string>& args,
-			     const std::vector<std::string>& fused_func_args) {
+    struct Output {
+      std::string decl, buf;
+      int out_size = 1;
+      std::string out;
+    };
+
+    auto generate_body = [&](const CallNode* root_call, const std::string& func_name,
+                             const std::vector<std::string>& args,
+                             const std::vector<std::string>& fused_func_args) {
       // Make function call with input buffers when visiting arguments
       bool first = true;
       std::ostringstream arg_stream;
@@ -74,6 +75,7 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
           arg_stream << out.first;
         }
       }
+
       for (auto arg_name : fused_func_args) {
         arg_stream << ", " << arg_name;
       }
@@ -83,88 +85,70 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
       CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
           << "Only support single output tensor with float type";
 
-      auto out = "buf_" + std::to_string(buf_idx_++);
       auto out_shape = GetShape(root_call->checked_type());
-      auto out_size = std::accumulate(out_shape.begin(), out_shape.end(),
-				      1, std::multiplies<int>());
+
+      Output ret;
+      ret.out = "buf_" + std::to_string(buf_idx_++);
+      ret.out_size = std::accumulate(out_shape.begin(), out_shape.end(), 1, std::multiplies<int>());
+
       this->PrintIndents();
 
       std::ostringstream buf_stream;
-      buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
+      buf_stream << "float* " << ret.out << " = (float*)std::malloc(4 * " << ret.out_size << ");";
+      ret.buf = buf_stream.str();
 
-      arg_stream << ", " << out;
-
+      arg_stream << ", " << ret.out;
       // Attach attribute arguments
       for (size_t i = 0; i < args.size(); ++i) {
         arg_stream << ", " << args[i];
       }
       arg_stream << ");";
-      return std::make_tuple(arg_stream.str(), buf_stream.str(), out, out_size);
+      ret.decl = func_name + arg_stream.str();
+
+      return ret;
     };
 
-    std::string decl, buf;
-    int out_size = 1;
-    std::string out;
-    std::vector<std::string> args;
+    Output ret;
     if (auto conv_call = DetectFusedConv2DBiasReLU(call)) {
       LOG(INFO) << "found fused op, num_args = " << call->args.size();
-      auto ret = generate_body(conv_call, FusedConv2dBiasReLU(conv_call),
-			       ext_fused_func_args_);
-      decl = "dnnl_fused_conv2d_bias_relu" + std::get<0>(ret);
-      buf = std::get<1>(ret);
-      out = std::get<2>(ret);
-      out_size = std::get<3>(ret);
+      ret = generate_body(conv_call, "dnnl_fused_conv2d_bias_relu",
+                          FusedConv2dBiasReLU(conv_call), ext_fused_func_args_);
     } else if (IsOp(call, "nn.conv2d")) {
-      LOG(INFO) << "found conv";
-      decl = "dnnl_conv2d";
-      args = Conv2d(call);
+      ret = generate_body(call, "dnnl_conv2d", Conv2d(call), {});
     } else if (IsOp(call, "nn.dense")) {
-      decl = "dnnl_dense";
-      args = Dense(call);
+      ret = generate_body(call, "dnnl_dense", Dense(call), {});
     } else if (IsOp(call, "nn.relu")) {
-      LOG(INFO) << "found relu";
-      decl = "dnnl_relu";
-      args = Relu(call);
+      ret = generate_body(call, "dnnl_relu", Relu(call), {});
     } else if (IsOp(call, "nn.batch_norm")) {
-      decl = "dnnl_bn";
-      args = BatchNorm(call);
+      ret = generate_body(call, "dnnl_bn", BatchNorm(call), {});
     } else if (IsOp(call, "add")) {
-      decl = "dnnl_add";
-      args = Add(call);
+      ret = generate_body(call, "dnnl_add", Add(call), {});
     } else {
       LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
     }
 
-    if (out == "") {
-      auto ret = generate_body(call, args, {});
-      decl += std::get<0>(ret);
-      buf = std::get<1>(ret);
-      out = std::get<2>(ret);
-      out_size = std::get<3>(ret);
-    }
-
-    buf_decl_.push_back(buf);
-    ext_func_body.push_back(decl);
+    buf_decl_.push_back(ret.buf);
+    ext_func_body.push_back(ret.decl);
 
     // Update output buffer
     out_.clear();
-    out_.push_back({out, out_size});
+    out_.push_back({ret.out, ret.out_size});
   }
 
   std::string JIT(void) {
     ext_func_args_.insert(ext_func_args_.end(),
-			  ext_fused_func_args_.begin(),
-			  ext_fused_func_args_.end());
+                          ext_fused_func_args_.begin(),
+                          ext_fused_func_args_.end());
     return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
   }
 
  private:
   const CallNode* DetectFusedConv2DBiasReLU(const CallNode* call) {
     auto arg = call->args[0];
-    if (auto next_call = arg.as<CallNode>()) {
-      if (IsOp(next_call, "nn.conv2d")) {
-      }
-    }
+    // if (auto next_call = arg.as<CallNode>()) {
+    //   if (IsOp(next_call, "nn.conv2d")) {
+    //   }
+    // }
     return nullptr;
   }
 
