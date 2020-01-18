@@ -18,12 +18,11 @@
 import tvm
 import numpy as np
 import unittest
-from tvm.contrib.nvcc import have_fp16, have_int8
+from tvm.contrib.nvcc import parse_compute_version, have_int8
 from tvm.contrib import nvcc
 
 tx = tvm.thread_axis("threadIdx.x")
 bx = tvm.thread_axis("blockIdx.x")
-
 
 def test_cuda_vectorize_add():
     num_thread = 8
@@ -31,8 +30,11 @@ def test_cuda_vectorize_add():
         if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
-        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
-            print("skip because gpu does not support fp16")
+        if dtype == "float16":
+            major, minor = parse_compute_version(tvm.gpu(0).compute_version)
+            # fp16 starts from 5.3
+            if major < 6 or (major == 5 and minor < 3):
+                print("skip because gpu does not support fp16")
             return
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
@@ -52,13 +54,13 @@ def test_cuda_vectorize_add():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
     check_cuda("float32", 64, 2)
-    check_cuda("int8", 64, 4)
-    # check_cuda("float16", 64, 2)
-
-    # TODO(tvm-team) fix fp16 codegen here
-    # or hit an error if it is less frequently used.
-    # check_cuda("float16", 64, 2)
-
+    check_cuda("float32", 64, 3)
+    check_cuda("float32", 64, 4)
+    check_cuda("int8",    64, 4)
+    check_cuda("float16", 64, 2)
+    check_cuda("float16", 64, 4)
+    check_cuda("float16", 64, 6)
+    check_cuda("float16", 64, 8)
 
 def test_cuda_multiply_add():
     num_thread = 8
