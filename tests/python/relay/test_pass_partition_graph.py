@@ -574,10 +574,10 @@ def test_partition_conv_bias_relu():
 
 
 if __name__ == "__main__":
-    # test_multi_node_compiler()
-    # test_extern_ccompiler_single_op()
-    # test_extern_ccompiler_default_ops()
-    # test_extern_ccompiler()
-    # test_extern_dnnl()
-    # test_extern_dnnl_mobilenet()
+    test_multi_node_compiler()
+    test_extern_ccompiler_single_op()
+    test_extern_ccompiler_default_ops()
+    test_extern_ccompiler()
+    test_extern_dnnl()
+    test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()
