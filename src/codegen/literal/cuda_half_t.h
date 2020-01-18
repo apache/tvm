@@ -285,4 +285,14 @@ TVM_XINLINE half __float2half_rn(const float a) {
 }
 )";
 
+static constexpr const char* _cuda_half_util = R"(
+// Pack two half values.
+static inline __device__ __host__ unsigned
+__pack_half2(const half x, const half y) {
+  unsigned v0 = *((unsigned short *)&x);
+  unsigned v1 = *((unsigned short *)&y);
+  return (v0 << 16) | v1;
+}
+)";
+
 #endif  // TVM_CODEGEN_LITERAL_CUDA_HALF_T_H_
