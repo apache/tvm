@@ -29,6 +29,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/container.h>
 #include "pattern_util.h"
 
 namespace tvm {
@@ -187,10 +188,11 @@ class ConstantFolder : public ExprMutator {
           << "invalid dimension after constant eval";
       }
       return ConstantNode::make(nd_array);
-    } else if (const auto* val = value.as<TupleValueNode>()) {
+    } else if (const auto* val = value.as<runtime::ADTObj>()) {
+      runtime::ADT adt = GetRef<runtime::ADT>(val);
       Array<Expr> fields;
-      for (ObjectRef field : val->fields) {
-        fields.push_back(ObjectToExpr(field));
+      for (size_t i = 0; i < adt.size(); ++i) {
+        fields.push_back(ObjectToExpr(adt[i]));
       }
       return TupleNode::make(fields);
     } else {

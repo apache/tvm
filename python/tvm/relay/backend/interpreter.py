@@ -20,6 +20,7 @@ from __future__ import absolute_import
 
 import numpy as np
 
+from tvm import container
 from . import _backend
 from .. import _make, analysis, transform
 from .. import module
@@ -27,40 +28,6 @@ from ... import nd
 from ..base import Object, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
 from ..scope_builder import ScopeBuilder
-
-@register_relay_node
-class TupleValue(Object):
-    """A tuple value produced by the interpreter."""
-    def __init__(self, *fields):
-        self.__init_handle_by_constructor__(
-            _make.TupleValue, fields)
-
-    def __getitem__(self, field_no):
-        return self.fields[field_no]
-
-    def __len__(self):
-        return len(self.fields)
-
-    def __str__(self):
-        body = ','.join(str(f) for f in self.fields)
-        return '({0})'.format(body)
-
-    def __repr__(self):
-        body = ','.join(repr(f) for f in self.fields)
-        return '({0})'.format(body)
-
-    def __iter__(self):
-        return iter(self.fields)
-
-
-@register_relay_node
-class Closure(Object):
-    """A closure produced by the interpreter."""
-
-
-@register_relay_node
-class RecClosure(Object):
-    """A recursive closure produced by the interpreter."""
 
 
 @register_relay_node
@@ -80,8 +47,8 @@ class RefValue(Object):
 def _arg_to_ast(mod, arg):
     if isinstance(arg, nd.NDArray):
         return Constant(arg.copyto(nd.cpu(0)))
-    elif isinstance(arg, TupleValue):
-        return Tuple([_arg_to_ast(mod, field) for field in arg.fields])
+    elif isinstance(arg, container.ADT):
+        return Tuple([_arg_to_ast(mod, field) for field in arg])
     elif isinstance(arg, tuple):
         return Tuple([_arg_to_ast(mod, field) for field in arg])
     elif isinstance(arg, RefValue):

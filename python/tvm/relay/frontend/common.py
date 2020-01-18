@@ -17,9 +17,9 @@
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
+import numpy as np
 
 import tvm
-import numpy as np
 from topi.util import get_const_tuple
 from .. import expr as _expr
 from .. import module as _module

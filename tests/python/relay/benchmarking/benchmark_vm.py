@@ -19,10 +19,9 @@ import numpy as np
 
 import tvm
 from tvm.contrib import graph_runtime
-from tvm import relay
+from tvm import relay, container
 from tvm.relay import testing
 from tvm.relay import vm
-from tvm.relay import vmobj as _obj
 
 
 def benchmark_execution(mod,
@@ -69,7 +68,7 @@ def benchmark_execution(mod,
             ftimer = rly_vm.mod.time_evaluator("invoke", ctx, number=number,
                                                repeat=repeat)
             # Measure in millisecond.
-            prof_res = np.array(ftimer("main", _obj.Tensor(data)).results) * 1000
+            prof_res = np.array(ftimer("main", data).results) * 1000
             print("Mean vm inference time (std dev): %.2f ms (%.2f ms)" %
                   (np.mean(prof_res), np.std(prof_res)))
             

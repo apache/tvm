@@ -18,38 +18,28 @@
  */
 
 /*!
- * \file src/runtime/vm/object.cc
- * \brief VM related objects.
+ * \file src/runtime/container.cc
+ * \brief Implementations of common plain old data (POD) containers.
  */
-#include <tvm/support/logging.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include "../runtime_base.h"
 
 namespace tvm {
 namespace runtime {
-namespace vm {
 
-Closure::Closure(size_t func_index, std::vector<ObjectRef> free_vars) {
-  auto ptr = make_object<ClosureObj>();
-  ptr->func_index = func_index;
-  ptr->free_vars = std::move(free_vars);
-  data_ = std::move(ptr);
-}
+using namespace vm;
 
-
-TVM_REGISTER_GLOBAL("_vmobj.GetADTTag")
+TVM_REGISTER_GLOBAL("container._GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
   *rv = static_cast<int64_t>(adt.tag());
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.GetADTNumberOfFields")
+TVM_REGISTER_GLOBAL("container._GetADTSize")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
@@ -57,7 +47,7 @@ TVM_REGISTER_GLOBAL("_vmobj.GetADTNumberOfFields")
 });
 
 
-TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
+TVM_REGISTER_GLOBAL("container._GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
@@ -66,7 +56,7 @@ TVM_REGISTER_GLOBAL("_vmobj.GetADTFields")
   *rv = adt[idx];
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.Tuple")
+TVM_REGISTER_GLOBAL("container._Tuple")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> fields;
   for (auto i = 0; i < args.size(); ++i) {
@@ -75,7 +65,7 @@ TVM_REGISTER_GLOBAL("_vmobj.Tuple")
   *rv = ADT::Tuple(fields);
 });
 
-TVM_REGISTER_GLOBAL("_vmobj.ADT")
+TVM_REGISTER_GLOBAL("container._ADT")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   int itag = args[0];
   size_t tag = static_cast<size_t>(itag);
@@ -88,15 +78,6 @@ TVM_REGISTER_GLOBAL("_vmobj.ADT")
 
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
-}  // namespace vm
+
 }  // namespace runtime
 }  // namespace tvm
-
-using namespace tvm::runtime;
-
-int TVMGetObjectTag(TVMObjectHandle handle, int* tag) {
-  API_BEGIN();
-  int res = static_cast<int>(static_cast<Object*>(handle)->type_index());
-  *tag = res;
-  API_END();
-}
