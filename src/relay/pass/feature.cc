@@ -25,7 +25,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include "pass_util.h"
 
 namespace tvm {
@@ -89,7 +89,7 @@ FeatureSet DetectFeature(const Expr& expr) {
   return fd.fs;
 }
 
-FeatureSet DetectFeature(const Module& mod) {
+FeatureSet DetectFeature(const IRModule& mod) {
   FeatureSet fs = FeatureSet::No();
   if (mod.defined()) {
     for (const auto& f : mod->functions) {
@@ -99,7 +99,7 @@ FeatureSet DetectFeature(const Module& mod) {
   return fs;
 }
 
-Array<Integer> PyDetectFeature(const Expr& expr, const Module& mod) {
+Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
   FeatureSet fs = DetectFeature(expr) + DetectFeature(mod);
   return static_cast<Array<Integer>>(fs);
 }

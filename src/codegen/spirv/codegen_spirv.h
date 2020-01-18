@@ -24,6 +24,7 @@
 #ifndef TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
 #define TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/lowered_func.h>
@@ -65,7 +66,6 @@ class CodeGenSPIRV:
   spirv::Value VisitExpr_(const VarNode* op) override;
   spirv::Value VisitExpr_(const CastNode* op) override;
   spirv::Value VisitExpr_(const IntImmNode* op) override;
-  spirv::Value VisitExpr_(const UIntImmNode* op) override;
   spirv::Value VisitExpr_(const FloatImmNode* op) override;
   spirv::Value VisitExpr_(const StringImmNode* op) override;
   spirv::Value VisitExpr_(const AddNode* op) override;

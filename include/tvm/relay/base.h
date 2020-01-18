@@ -106,9 +106,6 @@ class Id : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
 
-
-struct Module;
-
 }  // namespace relay
 }  // namespace tvm
 

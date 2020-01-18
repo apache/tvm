@@ -931,7 +931,7 @@ def _shape():
     def _impl(inputs, attr, params):
         is_symbolic_shape = False
         for axis in attr['_input_shapes'][inputs[0]]:
-            if not isinstance(axis, (int, tvm.expr.IntImm, tvm.expr.UIntImm)):
+            if not isinstance(axis, (int, tvm.expr.IntImm)):
                 is_symbolic_shape = True
                 break
 
@@ -2391,7 +2391,7 @@ class GraphProto(object):
             if np_array.dtype == np.dtype(object):
                 # Object types are generally tensorflow DT_STRING (DecodeJpeg op).
                 # Just leave it as placeholder.
-                if shape:
+                if shape and name in shape:
                     var_shape = shape[name]
                 else:
                     var_shape = tensor_util.TensorShapeProtoToList(value.tensor.tensor_shape)

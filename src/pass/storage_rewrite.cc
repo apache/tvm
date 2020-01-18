@@ -22,15 +22,16 @@
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_functor_ext.h>
-#include <tvm/target_info.h>
+#include <tvm/target/target_info.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

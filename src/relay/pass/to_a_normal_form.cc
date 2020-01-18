@@ -27,9 +27,9 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include "let_list.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 #include "pass_util.h"
 #include "dependency_graph.h"
 
@@ -275,7 +275,7 @@ Expr ToANormalFormAux(const Expr& e) {
    *
    * So we calculate all the dependency between nodes.
    */
-  common::Arena arena;
+  support::Arena arena;
   DependencyGraph dg = DependencyGraph::Create(&arena, e);
   /* In order to model new subscopes created by lambda, if else and pattern matching,
    * we also assign scope to edge as well.
@@ -291,7 +291,7 @@ Expr ToANormalFormAux(const Expr& e) {
   return Fill::ToANormalForm(e, dg, &node_scope);
 }
 
-Module ToANormalForm(const Module& m) {
+IRModule ToANormalForm(const IRModule& m) {
   DLOG(INFO) << "ToANF:" << std::endl << m;
 
   tvm::Map<GlobalVar, Function> updates;
@@ -321,9 +321,9 @@ Module ToANormalForm(const Module& m) {
 namespace transform {
 
 Pass ToANormalForm() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
-    return ToANormalForm(m);
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
+    return relay::ToANormalForm(m);
   };
   return CreateModulePass(pass_func, 1, "ToANormalForm", {});
 }

@@ -24,14 +24,16 @@
 #ifndef TVM_OPERATION_H_
 #define TVM_OPERATION_H_
 
+#include <tvm/arith/analyzer.h>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
+
 #include "expr.h"
 #include "expr_operator.h"
 #include "tensor.h"
 #include "schedule.h"
-#include "arithmetic.h"
 #include "buffer.h"
 
 namespace tvm {

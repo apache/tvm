@@ -25,10 +25,10 @@
 #define TVM_CODEGEN_LLVM_CODEGEN_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/codegen.h>
-#include <tvm/arithmetic.h>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -106,7 +106,6 @@ class CodeGenLLVM :
   llvm::Value* VisitExpr_(const VarNode* op) override;
   llvm::Value* VisitExpr_(const CastNode* op) override;
   llvm::Value* VisitExpr_(const IntImmNode* op) override;
-  llvm::Value* VisitExpr_(const UIntImmNode* op) override;
   llvm::Value* VisitExpr_(const FloatImmNode* op) override;
   llvm::Value* VisitExpr_(const StringImmNode* op) override;
   llvm::Value* VisitExpr_(const AddNode* op) override;

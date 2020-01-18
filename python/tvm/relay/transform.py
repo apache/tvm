@@ -663,6 +663,18 @@ def PrintIR(show_meta_data=True):
     return _transform.PrintIR(show_meta_data)
 
 
+def PartitionGraph():
+    """Partition a Relay program into regions that can be executed on different
+    backends.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that partitions the Relay program.
+    """
+    return _transform.PartitionGraph()
+
+
 def gradient(expr, mod=None, mode='higher_order'):
     """
     Transform the input function,

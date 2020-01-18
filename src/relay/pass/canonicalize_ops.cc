@@ -69,8 +69,8 @@ Expr CanonicalizeOps(const Expr& e) {
 namespace transform {
 
 Pass CanonicalizeOps() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(CanonicalizeOps(f));
   };
   return CreateFunctionPass(pass_func, 3, "CanonicalizeOps",

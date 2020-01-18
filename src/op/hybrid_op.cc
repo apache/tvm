@@ -22,7 +22,7 @@
  * \file hybrid_op.cc
  */
 #include <tvm/operation.h>
-#include <tvm/arithmetic.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>

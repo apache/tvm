@@ -69,8 +69,8 @@ LoweredFunc MakeAPI(Stmt body,
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
     Array<PrimExpr> call_args{v_packed_args,
-                          IntImmNode::make(DataType::Int(32), i),
-                          IntImmNode::make(DataType::Int(32), intrinsic::kTVMValueContent)};
+                          IntImm(DataType::Int(32), i),
+                          IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
     PrimExpr res = CallNode::make(
@@ -117,17 +117,17 @@ LoweredFunc MakeAPI(Stmt body,
       seq_init.emplace_back(LetStmtNode::make(
           tcode, LoadNode::make(
               DataType::Int(32), v_packed_arg_type_ids,
-              IntImmNode::make(DataType::Int(32), i), const_true(1)),
+              IntImm(DataType::Int(32), i), const_true(1)),
           nop));
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kHandle ||
-                             tcode == kNDArrayContainer ||
-                             tcode == kArrayHandle ||
-                             tcode == kNull, msg.str(), nop));
+            AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
+                             tcode == kTVMNDArrayHandle ||
+                             tcode == kTVMDLTensorHandle ||
+                             tcode == kTVMNullptr, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name << ": Expect arg[" << i << "] to be int";

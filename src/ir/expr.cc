@@ -26,6 +26,41 @@
 
 namespace tvm {
 
+IntImm::IntImm(DataType dtype, int64_t value) {
+  CHECK(dtype.is_scalar())
+      << "ValueError: IntImm can only take scalar.";
+  CHECK(dtype.is_int() || dtype.is_uint())
+      << "ValueError: IntImm can only take scalar.";
+  if (dtype.is_uint()) {
+    CHECK_GE(value, 0U);
+  }
+  ObjectPtr<IntImmNode> node = make_object<IntImmNode>();
+  node->dtype = dtype;
+  node->value = value;
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("make.IntImm")
+.set_body_typed([](DataType dtype, int64_t value) {
+  return IntImm(dtype, value);
+});
+
+
+FloatImm::FloatImm(DataType dtype, double value) {
+  CHECK_EQ(dtype.lanes(), 1)
+      << "ValueError: FloatImm can only take scalar.";
+  ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
+  node->dtype = dtype;
+  node->value = value;
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("make.FloatImm")
+.set_body_typed([](DataType dtype, double value) {
+  return FloatImm(dtype, value);
+});
+
+
 GlobalVar::GlobalVar(std::string name_hint) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);

@@ -92,9 +92,9 @@ def get_const_int(expr):
     """
     if isinstance(expr, Integral):
         return expr
-    if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+    if not isinstance(expr, tvm.expr.IntImm):
         expr = tvm.ir_pass.Simplify(expr)
-    if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+    if not isinstance(expr, tvm.expr.IntImm):
         raise ValueError("Expect value to be constant int")
     return int(expr.value)
 
@@ -136,9 +136,9 @@ def equal_const_int(expr, value):
     """
     if isinstance(expr, Integral):
         return expr == value
-    if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+    if not isinstance(expr, tvm.expr.IntImm):
         expr = tvm.ir_pass.Simplify(expr)
-    if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+    if not isinstance(expr, tvm.expr.IntImm):
         return False
     return expr.value == value
 
@@ -160,9 +160,9 @@ def get_const_tuple(in_tuple):
     for elem in in_tuple:
         if isinstance(elem, tvm.expr.Var):
             ret.append(elem)
-        elif not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm, int)):
+        elif not isinstance(elem, (tvm.expr.IntImm, int)):
             elem = tvm.ir_pass.Simplify(elem)
-            if not isinstance(elem, (tvm.expr.IntImm, tvm.expr.UIntImm)):
+            if not isinstance(elem, tvm.expr.IntImm):
                 ret.append(elem)
         else:
             ret.append(get_const_int(elem))

@@ -45,7 +45,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     server_addr_ = server_addr;
     port_ = port;
 
-    socket_.Connect(tvm::common::SockAddr(server_addr_.c_str(), port_));
+    socket_.Connect(tvm::support::SockAddr(server_addr_.c_str(), port_));
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
   }

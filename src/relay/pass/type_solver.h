@@ -27,19 +27,19 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <vector>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 
 namespace tvm {
 namespace relay {
 
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
 
 /*!
  * \brief Interface of type solver used in type inference.
@@ -62,7 +62,7 @@ using common::LinkedList;
  */
 class TypeSolver {
  public:
-  TypeSolver(const GlobalVar& current_func, const Module& _mod, ErrorReporter* err_reporter);
+  TypeSolver(const GlobalVar& current_func, const IRModule& _mod, ErrorReporter* err_reporter);
   ~TypeSolver();
   /*!
    * \brief Add a type constraint to the solver.
@@ -171,7 +171,7 @@ class TypeSolver {
   /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*! \brief The global representing the current function. */
@@ -179,7 +179,7 @@ class TypeSolver {
   /*! \brief Error reporting. */
   ErrorReporter* err_reporter_;
   /*! \brief The module. */
-  Module module_;
+  IRModule module_;
 
   /*!
    * \brief GetTypeNode that is corresponds to t.

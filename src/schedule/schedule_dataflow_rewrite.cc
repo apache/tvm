@@ -27,7 +27,7 @@
 #include <unordered_set>
 #include "message_passing.h"
 #include "../pass/ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 

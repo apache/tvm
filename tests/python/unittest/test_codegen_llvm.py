@@ -79,13 +79,32 @@ def test_llvm_import():
 
 def test_llvm_lookup_intrin():
     ib = tvm.ir_builder.create()
-    m = tvm.var("m")
+    m = tvm.size_var("m")
     A = ib.pointer("uint8x8", name="A")
     x = tvm.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.const(1, 'uint32'), A)
     ib.emit(x)
     body = ib.get()
     func = tvm.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
     fcode = tvm.build(func, None, "llvm")
+
+
+def test_llvm_large_uintimm():
+    value =  (1 << 63) + 123
+    other = tvm.const(3, "uint64")
+    A = tvm.compute((), lambda : tvm.const(value, "uint64") + other, name='A')
+    s = tvm.create_schedule(A.op)
+
+    def check_llvm():
+        if not tvm.module.enabled("llvm"):
+            return
+        f = tvm.build(s, [A], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.empty((), dtype=A.dtype, ctx=ctx)
+        f(a)
+        assert a.asnumpy() == value + 3
+
+    check_llvm()
 
 
 def test_llvm_add_pipeline():
@@ -112,7 +131,7 @@ def test_llvm_add_pipeline():
         # Specifically allow offset to test codepath when offset is available
         Ab = tvm.decl_buffer(
             A.shape, A.dtype,
-            elem_offset=tvm.var('Aoffset'),
+            elem_offset=tvm.size_var('Aoffset'),
             offset_factor=8,
             name='A')
         binds = {A : Ab}
@@ -645,6 +664,7 @@ def test_llvm_shuffle():
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 if __name__ == "__main__":
+    test_llvm_large_uintimm()
     test_llvm_import()
     test_alignment()
     test_rank_zero()

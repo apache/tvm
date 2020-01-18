@@ -33,12 +33,12 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
 #include "type_functor.h"
 #include "../pass/dependency_graph.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -242,8 +242,8 @@ class PrettyPrinter :
       return PrintType(Downcast<Type>(node), meta);
     } else if (node.as<PatternNode>()) {
       return PrintPattern(Downcast<Pattern>(node), meta);
-    } else if (node.as<ModuleNode>()) {
-      return PrintMod(Downcast<Module>(node));
+    } else if (node.as<IRModuleNode>()) {
+      return PrintMod(Downcast<IRModule>(node));
     } else {
       Doc doc;
       return doc << node;
@@ -525,7 +525,7 @@ class PrettyPrinter :
     }
   }
 
-  Doc PrintMod(const Module& mod) {
+  Doc PrintMod(const IRModule& mod) {
     Doc doc;
     int counter = 0;
     // type definitions
@@ -857,10 +857,6 @@ class PrettyPrinter :
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::UIntImmNode* op) final {
-    return PrintConstScalar(op->dtype, &(op->value));
-  }
-
   Doc VisitAttr_(const ir::FloatImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
@@ -891,7 +887,7 @@ class PrettyPrinter :
   /*! \brief whether the printer is currently in an ADT definition */
   bool in_adt_def_;
   /*! \brief arena for dependency graph */
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief dependency graph of the expr */
   DependencyGraph dg_;
   class AttrPrinter;
@@ -936,7 +932,7 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    PrintKV(key, PrintString(runtime::TVMType2String(*value)));
+    PrintKV(key, PrintString(runtime::DLDataType2String(*value)));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";

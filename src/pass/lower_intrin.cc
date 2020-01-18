@@ -29,8 +29,8 @@
 #include <tvm/expr_operator.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arithmetic/pattern_match.h"
-#include "../arithmetic/ir_mutator_with_analyzer.h"
+#include "../arith/pattern_match.h"
+#include "../arith/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace ir {
@@ -173,7 +173,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const MaxNode* op) final {
     using namespace arith;
     PVar<PrimExpr> x, y;
-    PVar<Integer> c;
+    PVar<IntImm> c;
     auto e = GetRef<PrimExpr>(op);
     if (max(floordiv(x, y), c).Match(e) &&
         c.Eval()->value >= 0 &&

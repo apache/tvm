@@ -21,8 +21,8 @@ import numpy as np
 def test_reduce_prims():
     def test_prim(reducer, np_reducer):
         # graph
-        n = tvm.var('n')
-        m = tvm.var('m')
+        n = tvm.size_var('n')
+        m = tvm.size_var('m')
         A = tvm.placeholder((n, m), name='A')
         R = tvm.compute((n, ), lambda i: tvm.expr.Select((i > 1), 1, 0), name='R')
         k = tvm.reduce_axis((0, m))
@@ -242,8 +242,8 @@ def test_argmax():
     argmax = tvm.comm_reducer(fcombine,
                               fidentity,
                               name='argmax')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     idx = tvm.placeholder((m, n), name='idx', dtype='int32')
     val = tvm.placeholder((m, n), name='val', dtype='float32')
     k = tvm.reduce_axis((0, n), 'k')

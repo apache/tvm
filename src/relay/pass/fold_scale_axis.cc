@@ -949,8 +949,8 @@ Expr BackwardFoldScaleAxis(const Expr& data) {
 namespace transform {
 
 Pass ForwardFoldScaleAxis() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
@@ -962,8 +962,8 @@ TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
 .set_body_typed(ForwardFoldScaleAxis);
 
 Pass BackwardFoldScaleAxis() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };

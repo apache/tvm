@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -182,8 +182,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
   CHECK_LT(axis, input->ndim) << "Axis out of boundary for "
                                  "input ndim " << input->ndim;
 
-  auto data_dtype = TVMType2String(input->dtype);
-  auto out_dtype = TVMType2String(output->dtype);
+  auto data_dtype = DLDataType2String(input->dtype);
+  auto out_dtype = DLDataType2String(output->dtype);
 
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {
@@ -333,8 +333,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk")
   }
   CHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
 
-  auto data_dtype = TVMType2String(input->dtype);
-  auto out_dtype = (indices_out == nullptr) ? "int64" : TVMType2String(indices_out->dtype);
+  auto data_dtype = DLDataType2String(input->dtype);
+  auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataType2String(indices_out->dtype);
 
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {

@@ -24,7 +24,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
-        assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm))
+        assert isinstance(val, (tvm.expr.IntImm,))
         return val.value
 
     ctx = tvm.context(target, 0)
@@ -98,8 +98,8 @@ def outer_product(n, m, a, b):
 #Test global function
 #Test bridge between frontend and backend
 def test_outer_product():
-    n = tvm.var('n')
-    m = tvm.var('m')
+    n = tvm.size_var('n')
+    m = tvm.size_var('m')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
 
@@ -167,7 +167,7 @@ def test_fanout():
             b[i] = sigma
         return b
 
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     a = tvm.placeholder((n, ), 'float32', name='a')
     try:
         b = fanout(n, a)

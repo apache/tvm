@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 #include <utility>
-#include "base.h"
 #include "expr.h"
 #include "runtime/util.h"
 
@@ -37,41 +36,9 @@ namespace tvm {
 namespace ir {
 
 using IntImmNode = tvm::IntImmNode;
+using FloatImmNode = tvm::FloatImmNode;
 using VarNode = tvm::VarNode;
-
-/*! \brief constant unsigned integer. */
-class UIntImmNode : public PrimExprNode {
- public:
-  /*! \brief The constant value content. */
-  uint64_t value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static PrimExpr make(DataType t, uint64_t value);
-
-  static constexpr const char* _type_key = "UIntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(UIntImmNode, PrimExprNode);
-};
-
-/*! \brief Floating point constants. */
-class FloatImmNode : public PrimExprNode {
- public:
-  /*! \brief The constant value content. */
-  double value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  TVM_DLL static PrimExpr make(DataType t, double value);
-
-  static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
-};
+using SizeVarNode = tvm::SizeVarNode;
 
 /*! \brief String constants, only used in asserts. */
 class StringImmNode : public PrimExprNode {
@@ -713,7 +680,7 @@ class AnyNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {}
   /*! \brief Convert to var. */
   Var ToVar() const {
-    return VarNode::make(DataType::Int(32), "any_dim");
+    return Var("any_dim", DataType::Int(32));
   }
 
   TVM_DLL static PrimExpr make();
@@ -1422,6 +1389,16 @@ inline bool IsPragmaKey(const std::string& attr_key) {
 
 /*! \brief namespace of TVM Intrinsic functions */
 namespace intrinsic {
+/*!
+ * \brief See pesudo code
+ *
+ *  Construct a big uint that may not be representable by int64
+ *
+ *  Expr tvm_large_uint_imm(uint32_t v0, uin32_t v1) {
+ *    return (v1 << 32) | v0;
+ *  }
+ */
+constexpr const char* tvm_large_uint_imm = "tvm_large_uint_imm";
 /*!
  * \brief See pesudo code
  *

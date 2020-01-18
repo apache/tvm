@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_ATTRS_DEVICE_COPY_H_
 #define TVM_RELAY_ATTRS_DEVICE_COPY_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <string>
 
 namespace tvm {

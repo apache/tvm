@@ -43,8 +43,7 @@ using namespace tvm;
  */
 inline bool IsConstInt(PrimExpr expr) {
   return
-    expr->IsInstance<tvm::ir::IntImmNode>() ||
-    expr->IsInstance<tvm::ir::UIntImmNode>();
+    expr->IsInstance<tvm::ir::IntImmNode>();
 }
 
 /*!
@@ -56,11 +55,8 @@ inline bool IsConstInt(PrimExpr expr) {
  * \return The integer value.
  */
 inline int64_t GetConstInt(PrimExpr expr) {
-  if (expr->IsInstance<tvm::ir::IntImmNode>()) {
-    return expr.as<tvm::ir::IntImmNode>()->value;
-  }
-  if (expr->IsInstance<tvm::ir::UIntImmNode>()) {
-    return expr.as<tvm::ir::UIntImmNode>()->value;
+  if (expr->IsInstance<tvm::IntImmNode>()) {
+    return expr.as<tvm::IntImmNode>()->value;
   }
   LOG(ERROR) << "expr must be a constant integer";
   return -1;

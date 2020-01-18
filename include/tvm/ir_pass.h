@@ -71,7 +71,7 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \return Canonicalized expression.
  */
 TVM_DLL PrimExpr CanonicalSimplify(PrimExpr expr,
-                              Map<Var, Range> vrange = Map<Var, Range>());
+                                   Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs

@@ -40,7 +40,7 @@ namespace {
 #include <vector>
 #include <string>
 
-#include "../../src/common/util.h"
+#include "../../src/support/util.h"
 #include "../../src/runtime/file_util.h"
 #include "rpc_env.h"
 
@@ -154,18 +154,18 @@ void LinuxShared(const std::string output,
                  const std::vector<std::string> &files,
                  std::string options = "", 
                  std::string cc = "g++") {
-  std::string cmd = cc;
-  cmd += " -shared -fPIC ";
-  cmd += " -o " + output;
-  for (const auto& file : files) {
-    cmd += " " + file;
-  }
-  cmd += " " + options;
-  std::string err_msg;
-  const auto executed_status = common::Execute(cmd, &err_msg);
-  if (executed_status) {
-    LOG(FATAL) << err_msg;
-  }
+    std::string cmd = cc;
+    cmd += " -shared -fPIC ";
+    cmd += " -o " + output;
+    for (auto f = files.begin(); f != files.end(); ++f) {
+     cmd += " " + *f;
+    }
+    cmd += " " + options;
+    std::string err_msg;
+    auto executed_status = support::Execute(cmd, &err_msg);
+    if (executed_status) {
+      LOG(FATAL) << err_msg;
+    }
 }
 #endif
 
@@ -189,7 +189,7 @@ void WindowsShared(const std::string& output,
   }
   cmd += " " + options;
   std::string err_msg;
-  const auto executed_status = common::Execute(cmd, &err_msg);
+  const auto executed_status = support::Execute(cmd, &err_msg);
   if (executed_status) {
     LOG(FATAL) << err_msg;
   }
@@ -223,23 +223,23 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
  */
 Module Load(std::string *fileIn, const std::string& fmt) {
   const std::string& file = *fileIn;
-  if (common::EndsWith(file, ".so") || common::EndsWith(file, ".dll")) {
+  if (support::EndsWith(file, ".so") || support::EndsWith(file, ".dll")) {
     return Module::LoadFromFile(file, fmt);
   }
 
   std::string file_name = file + ".so";
-  if (common::EndsWith(file, ".o")) {
+  if (support::EndsWith(file, ".o")) {
     std::vector<std::string> files;
     files.push_back(file);
     CreateShared(file_name, files);
-  } else if (common::EndsWith(file, ".tar")) {
+  } else if (support::EndsWith(file, ".tar")) {
     const std::string tmp_dir = "./rpc/tmp/";
     mkdir(tmp_dir.c_str(), 0777);
 
     const std::string cmd = untar_cmd + tmp_dir + " -zxf " + file;
 
     std::string err_msg;
-    const int executed_status = common::Execute(cmd, &err_msg);
+    const int executed_status = support::Execute(cmd, &err_msg);
     if (executed_status) {
       LOG(FATAL) << err_msg;
     }

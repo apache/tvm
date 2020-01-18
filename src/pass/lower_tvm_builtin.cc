@@ -26,7 +26,7 @@
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {
@@ -129,8 +129,8 @@ class BuiltinLower : public StmtExprMutator {
                        {cast(DataType::Int(32), device_type_),
                         cast(DataType::Int(32), device_id_),
                         cast(DataType::UInt(64), total_bytes),
-                        IntImmNode::make(DataType::Int(32), op->dtype.code()),
-                        IntImmNode::make(DataType::Int(32), op->dtype.bits())},
+                        IntImm(DataType::Int(32), op->dtype.code()),
+                        IntImm(DataType::Int(32), op->dtype.bits())},
                        CallNode::Extern),
         body);
 
@@ -260,9 +260,9 @@ class BuiltinLower : public StmtExprMutator {
           intrinsic::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
       if (api_type.is_handle() && arg.as<StringImmNode>()) {
-        arg_tcode = kStr;
+        arg_tcode = kTVMStr;
       }
-      if (IsArrayHandle(arg)) arg_tcode = kArrayHandle;
+      if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
       prep_seq_.emplace_back(
           StoreNode::make(stack_tcode_,
                       ConstInt32(arg_tcode),

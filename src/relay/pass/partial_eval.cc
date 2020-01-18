@@ -569,7 +569,7 @@ FInterpreter CPUInterpreter() {
   // in case we are already in a build context.
   With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
-  return CreateInterpreter(Module(nullptr), CPUContext(), target);
+  return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }
 
 using FuncId = int;
@@ -623,7 +623,7 @@ Function AsFunc(const Expr& e) {
 class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>,
                          public PatternFunctor<MatchStatus(const Pattern&, const PStatic&)> {
  public:
-  PartialEvaluator(const Module& mod) : mod_(mod) { }
+  PartialEvaluator(const IRModule& mod) : mod_(mod) { }
 
   PStatic VisitExpr(const Expr& e, LetList* ll) final {
     PStatic ret = ExprFunctor<PStatic(const Expr&, LetList*)>::VisitExpr(e, ll);
@@ -954,7 +954,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0),
                                            transform::InferType()};
-    auto mod = ModuleNode::FromExpr(expr);
+    auto mod = IRModule::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
     auto entry_func = Downcast<Function>(mod->Lookup("main"));
@@ -1184,7 +1184,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
  private:
   Environment env_;
-  Module mod_;
+  IRModule mod_;
   std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
@@ -1255,7 +1255,7 @@ Expr PostProcess(const Expr& e) {
 
 }  // namespace partial_eval
 
-Module PartialEval(const Module& m) {
+IRModule PartialEval(const IRModule& m) {
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {
@@ -1270,9 +1270,9 @@ Module PartialEval(const Module& m) {
 namespace transform {
 
 Pass PartialEval() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
-    return PartialEval(m);
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
+    return relay::PartialEval(m);
   };
   return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }

@@ -88,7 +88,7 @@ class TVM_DLL DeviceAPI {
   virtual void* AllocDataSpace(TVMContext ctx,
                                size_t nbytes,
                                size_t alignment,
-                               TVMType type_hint) = 0;
+                               DLDataType type_hint) = 0;
   /*!
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.
@@ -115,7 +115,7 @@ class TVM_DLL DeviceAPI {
                               size_t num_bytes,
                               TVMContext ctx_from,
                               TVMContext ctx_to,
-                              TVMType type_hint,
+                              DLDataType type_hint,
                               TVMStreamHandle stream) = 0;
     /*!
    * \brief Create a new stream of execution.
@@ -177,7 +177,7 @@ class TVM_DLL DeviceAPI {
    */
   virtual void* AllocWorkspace(TVMContext ctx,
                                        size_t nbytes,
-                                       TVMType type_hint = {});
+                                       DLDataType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *

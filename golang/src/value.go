@@ -33,38 +33,38 @@ import (
     "unsafe"
 )
 
-// KHandle is golang type code for TVM enum kHandle.
-var KHandle                 = int32(C.kHandle)
-// KNull is golang type code for TVM kNull.
-var KNull                   = int32(C.kNull)
-// KTVMType is golang type code for TVM kTVMType.
-var KTVMType                = int32(C.kTVMType)
+// KHandle is golang type code for TVM enum kTVMOpaqueHandle.
+var KHandle                 = int32(C.kTVMOpaqueHandle)
+// KNull is golang type code for TVM kTVMNullptr.
+var KNull                   = int32(C.kTVMNullptr)
+// KTVMType is golang type code for TVM kTVMDataType.
+var KTVMType                = int32(C.kTVMDataType)
 // KTVMContext is golang type code for TVM kTVMContext.
 var KTVMContext             = int32(C.kTVMContext)
-// KArrayHandle is golang type code for TVM kArrayHandle.
-var KArrayHandle            = int32(C.kArrayHandle)
-// KObjectHandle is golang type code for TVM kObjectHandle.
-var KObjectHandle             = int32(C.kObjectHandle)
-// KModuleHandle is gonag type code for TVM kModuleHandle.
-var KModuleHandle           = int32(C.kModuleHandle)
-// KFuncHandle is gonalg type code for TVM kFuncHandle.
-var KFuncHandle             = int32(C.kFuncHandle)
-// KStr is golang type code for TVM kStr.
-var KStr                    = int32(C.kStr)
-// KBytes is golang type code for TVM kBytes.
-var KBytes                  = int32(C.kBytes)
-// KNDArrayContainer is golang typecode for kNDArrayContainer.
-var KNDArrayContainer       = int32(C.kNDArrayContainer)
-// KExtBegin is golang enum corresponding to TVM kExtBegin.
-var KExtBegin               = int32(C.kExtBegin)
+// KArrayHandle is golang type code for TVM kTVMDLTensorHandle.
+var KArrayHandle            = int32(C.kTVMDLTensorHandle)
+// KObjectHandle is golang type code for TVM kTVMObjectHandle.
+var KObjectHandle             = int32(C.kTVMObjectHandle)
+// KModuleHandle is gonag type code for TVM kTVMModuleHandle.
+var KModuleHandle           = int32(C.kTVMModuleHandle)
+// KFuncHandle is gonalg type code for TVM kTVMPackedFuncHandle.
+var KFuncHandle             = int32(C.kTVMPackedFuncHandle)
+// KStr is golang type code for TVM kTVMStr.
+var KStr                    = int32(C.kTVMStr)
+// KBytes is golang type code for TVM kTVMBytes.
+var KBytes                  = int32(C.kTVMBytes)
+// KNDArrayContainer is golang typecode for kTVMNDArrayHandle.
+var KNDArrayContainer       = int32(C.kTVMNDArrayHandle)
+// KExtBegin is golang enum corresponding to TVM kTVMExtBegin.
+var KExtBegin               = int32(C.kTVMExtBegin)
 // KNNVMFirst is golang enum corresponding to TVM kNNVMFirst.
-var KNNVMFirst              = int32(C.kNNVMFirst)
+var KNNVMFirst              = int32(C.kTVMNNVMFirst)
 // KNNVMLast is golang enum corresponding to TVM kNNVMLast.
-var KNNVMLast               = int32(C.kNNVMLast)
+var KNNVMLast               = int32(C.kTVMNNVMLast)
 // KExtReserveEnd is golang enum corresponding to TVM kExtReserveEnd.
-var KExtReserveEnd          = int32(C.kExtReserveEnd)
+var KExtReserveEnd          = int32(C.kTVMExtReserveEnd)
 // KExtEnd is golang enum corresponding to TVM kExtEnd.
-var KExtEnd                 = int32(C.kExtEnd)
+var KExtEnd                 = int32(C.kTVMExtEnd)
 // KDLInt is golang type code for TVM kDLInt.
 var KDLInt                  = int32(C.kDLInt)
 // KDLUInt is golang type code for TVM kDLUInt.

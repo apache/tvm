@@ -155,9 +155,9 @@ def get_const_int(exp):
     """
     if isinstance(exp, int):
         return exp
-    if not isinstance(exp, (expr.IntImm, expr.UIntImm)):
+    if not isinstance(exp, (expr.IntImm,)):
         exp = ir_pass.Simplify(exp)
-    if not isinstance(exp, (expr.IntImm, expr.UIntImm)):
+    if not isinstance(exp, (expr.IntImm,)):
         raise ValueError("Expect value to be constant int")
     return exp.value
 
@@ -179,9 +179,9 @@ def get_const_tuple(in_tuple):
     for elem in in_tuple:
         if isinstance(elem, expr.Var):
             ret.append(elem)
-        elif not isinstance(elem, (expr.IntImm, expr.UIntImm, int)):
+        elif not isinstance(elem, (expr.IntImm, int)):
             elem = ir_pass.Simplify(elem)
-            if not isinstance(elem, (expr.IntImm, expr.UIntImm)):
+            if not isinstance(elem, (expr.IntImm)):
                 ret.append(elem)
         else:
             ret.append(get_const_int(elem))

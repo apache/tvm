@@ -19,7 +19,7 @@ import numpy
 
 def test_makeapi():
     """Not yet working, mock design"""
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')

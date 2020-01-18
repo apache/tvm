@@ -167,8 +167,8 @@ jobject newObject(JNIEnv *env, const char *clsname) {
   return object;
 }
 
-void fromJavaDType(JNIEnv *env, jobject jdtype, TVMType *dtype) {
-  jclass tvmTypeClass = env->FindClass("org/apache/tvm/TVMType");
+void fromJavaDType(JNIEnv *env, jobject jdtype, DLDataType *dtype) {
+  jclass tvmTypeClass = env->FindClass("org/apache/tvm/DLDataType");
   dtype->code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
   dtype->bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
   dtype->lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
@@ -191,21 +191,21 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
       return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
     case kDLFloat:
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
-    case kHandle:
+    case kTVMOpaqueHandle:
       return newTVMValueHandle(env, reinterpret_cast<jlong>(value.v_handle));
-    case kModuleHandle:
+    case kTVMModuleHandle:
       return newModule(env, reinterpret_cast<jlong>(value.v_handle));
-    case kFuncHandle:
+    case kTVMPackedFuncHandle:
       return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
-    case kArrayHandle:
+    case kTVMDLTensorHandle:
       return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), true);
-    case kNDArrayContainer:
+    case kTVMNDArrayHandle:
       return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), false);
-    case kStr:
+    case kTVMStr:
       return newTVMValueString(env, value.v_str);
-    case kBytes:
+    case kTVMBytes:
       return newTVMValueBytes(env, reinterpret_cast<TVMByteArray *>(value.v_handle));
-    case kNull:
+    case kTVMNullptr:
       return newObject(env, "org/apache/tvm/TVMValueNull");
     default:
       LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;

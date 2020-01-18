@@ -29,7 +29,7 @@ def run_infer_type(expr):
 
 def test_binary_op():
     def check_binary_op(opfunc, ref):
-        n = tvm.var("n")
+        n = tvm.size_var("n")
         t1 = relay.TensorType((5, n, 5))
         t2 = relay.TensorType((n, 1))
         x = relay.var("x", t1)

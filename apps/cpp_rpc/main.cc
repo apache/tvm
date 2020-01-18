@@ -33,8 +33,8 @@
 #include <vector>
 #include <sstream>
 
-#include "../../src/common/util.h"
-#include "../../src/common/socket.h"
+#include "../../src/support/util.h"
+#include "../../src/support/socket.h"
 #include "rpc_server.h"
 
 #if defined(_WIN32)
@@ -43,7 +43,7 @@
 
 using namespace std;
 using namespace tvm::runtime;
-using namespace tvm::common;
+using namespace tvm::support;
 
 static const string kUsage = \
 "Command line usage\n" \

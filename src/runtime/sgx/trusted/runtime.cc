@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -54,10 +54,10 @@ void tvm_ecall_packed_func(int func_id,
   f->CallPacked(TVMArgs(arg_values, type_codes, num_args), &rv);
 
   int ret_type_code = rv.type_code();
-  if (ret_type_code == kNull) return;
+  if (ret_type_code == kTVMNullptr) return;
 
   TVMValue ret_value;
-  if (ret_type_code == kBytes || ret_type_code == kStr) {
+  if (ret_type_code == kTVMBytes || ret_type_code == kTVMStr) {
     // allocate a buffer in untrusted, copy the values in
     std::string bytes = rv;
 
@@ -73,7 +73,7 @@ void tvm_ecall_packed_func(int func_id,
     arr->size = bytes.size();
 
     ret_value = TVMValue{.v_handle = arr};
-    ret_type_code = kBytes;
+    ret_type_code = kTVMBytes;
   } else {
     rv.MoveToCHost(&ret_value, &ret_type_code);
   }

@@ -134,8 +134,9 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 file(GLOB COMPILER_SRCS
     src/node/*.cc
     src/ir/*.cc
+    src/target/*.cc
     src/api/*.cc
-    src/arithmetic/*.cc
+    src/arith/*.cc
     src/autotvm/*.cc
     src/codegen/*.cc
     src/lang/*.cc

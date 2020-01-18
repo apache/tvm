@@ -29,7 +29,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include "type_functor.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 namespace tvm {
 namespace relay {
 
@@ -60,8 +60,8 @@ class AlphaEqualHandler:
       if (!rhs->IsInstance<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
-    if (const auto lhsm = lhs.as<ModuleNode>()) {
-      auto rhsm = rhs.as<ModuleNode>();
+    if (const auto lhsm = lhs.as<IRModuleNode>()) {
+      auto rhsm = rhs.as<IRModuleNode>();
       if (!rhsm) return false;
       if (lhsm->functions.size() != rhsm->functions.size()) return false;
       for (const auto& p : lhsm->functions) {
