@@ -152,13 +152,13 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   const CallNode* DetectFusedConv2DBiasReLU(const CallNode* call) {
     if (!IsOp(call, "nn.relu")) return nullptr;
     auto relu_arg = call->args[0];
-    // TODO: a better way to get CallNode* from Expr?
-    const CallNode* add_call = Downcast<Call>(relu_arg).operator->();
+    const CallNode* add_call = relu_arg.as<CallNode>();
     if (!add_call || !IsOp(add_call, "add")) return nullptr;
     auto add_arg = add_call->args[0];
-    const CallNode* conv_call = Downcast<Call>(add_arg).operator->();
+    const CallNode* conv_call = add_arg.as<CallNode>();
     if (!conv_call || !IsOp(conv_call, "nn.conv2d")) return nullptr;
-    ext_fused_func_args_.push_back("dnnl_input_bias");
+    auto bias_name = "dnnl_fused_input" + std::to_string(ext_fused_func_args_.size());
+    ext_fused_func_args_.push_back(bias_name);
     LOG(INFO) << "fused op found";
     return conv_call;
   }
