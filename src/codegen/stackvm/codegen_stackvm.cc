@@ -21,6 +21,7 @@
  * \file codegen_stackvm.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/op.h>
 #include <limits>
 #include <utility>
 #include "codegen_stackvm.h"
@@ -29,7 +30,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 
 // map struct field kind to runtime variants
 // We keep two separate enums to ensure runtime/compiler isolation.

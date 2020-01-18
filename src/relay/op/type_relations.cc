@@ -24,7 +24,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <numeric>
 #include "./type_relations.h"
 
@@ -44,19 +44,19 @@ bool IdentityRel(const Array<Type>& types,
 bool EqualCheck(const IndexExpr& lhs,
                 const IndexExpr& rhs) {
   IndexExpr diff = lhs - rhs;
-  if (const int64_t* pdiff = as_const_int(diff)) {
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
   // symbolic
-  diff = tvm::ir::CanonicalSimplify(diff);
-  if (const int64_t* pdiff = as_const_int(diff)) {
+  diff = tvm::tir::CanonicalSimplify(diff);
+  if (const int64_t* pdiff = tir::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
   return false;
 }
 
 bool EqualConstInt(const IndexExpr& lhs, int64_t value) {
-  if (const int64_t* pvalue = as_const_int(lhs)) {
+  if (const int64_t* pvalue = tir::as_const_int(lhs)) {
     return pvalue[0] == value;
   }
   return false;

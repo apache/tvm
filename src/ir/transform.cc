@@ -28,7 +28,7 @@
 #include <tvm/ir/transform.h>
 
 // TODO(tqchen): Update to use String container after it is merged.
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 
 #include <stack>
 #include <unordered_set>
@@ -268,7 +268,7 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
 inline bool PassArrayContains(const Array<tvm::PrimExpr>& pass_array,
                               const std::string& pass_name) {
   for (auto x : pass_array) {
-    auto* str_name = x.as<ir::StringImmNode>();
+    auto* str_name = x.as<tir::StringImmNode>();
     CHECK(str_name) << "pass name must be str";
     if (str_name->value == pass_name) return true;
   }
@@ -310,7 +310,7 @@ IRModule SequentialNode::operator()(const IRModule& module,
     if (!PassEnabled(pass_info))  continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
-      const auto* name = it.as<tvm::ir::StringImmNode>();
+      const auto* name = it.as<tvm::tir::StringImmNode>();
       CHECK(name);
       mod = GetPass(name->value)(mod, pass_ctx);
     }
@@ -349,7 +349,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
   p->stream << "opt_level: " << node->opt_level;
   p->stream << "required passes: [" << "\n";
   for (const auto& it : node->required) {
-    const auto* str = it.as<tvm::ir::StringImmNode>();
+    const auto* str = it.as<tvm::tir::StringImmNode>();
     p->stream << str->value << ", ";
   }
   p->stream << "]\n";

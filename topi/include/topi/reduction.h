@@ -36,7 +36,7 @@
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/top/operation.h"
-#include "tvm/expr_operator.h"
+#include "tvm/tir/op.h"
 
 
 namespace topi {
@@ -92,7 +92,7 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
     reduce_axes.push_back(
-      tvm::reduce_axis(Range(0, data->shape[i]), name));
+      tvm::top::reduce_axis(Range(0, data->shape[i]), name));
   }
   return reduce_axes;
 }
@@ -295,13 +295,13 @@ inline FCommReduce MakeCommReducer(FCombine fcombine,
 
     auto result = fcombine(lhs, rhs);
     auto id_elem = fidentity(dtypes);
-    auto cond = condition != nullptr ? *condition : tvm::const_true();
+    auto cond = condition != nullptr ? *condition : tir::const_true();
 
-    auto combiner = tvm::ir::CommReducerNode::make(lhs, rhs, result, id_elem);
+    auto combiner = tvm::tir::CommReducerNode::make(lhs, rhs, result, id_elem);
     Array<PrimExpr> outputs;
     for (size_t i = 0; i < exprs.size(); ++i) {
       outputs.push_back(
-        tvm::ir::ReduceNode::make(combiner, exprs, axis, cond, static_cast<int>(i)));
+        tvm::tir::ReduceNode::make(combiner, exprs, axis, cond, static_cast<int>(i)));
     }
     return outputs;
   };
@@ -474,13 +474,13 @@ inline Tensor argmin(const Tensor& data,
                      bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::ir::SelectNode::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
+    result.push_back(tvm::tir::SelectNode::make(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::SelectNode::make(lhs[1] <= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
     Array<PrimExpr> result;
-    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(tvm::tir::make_const(types[0], -1));  // idx
     result.push_back(tvm::max_value(types[1]));  // val
     return result;
   };
@@ -491,13 +491,13 @@ inline Tensor argmin(const Tensor& data,
 inline FCommReduce MakeArgmaxReducer() {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<PrimExpr> result;
-    result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::ir::SelectNode::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
+    result.push_back(tvm::tir::SelectNode::make(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::tir::SelectNode::make(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
     return result;
   };
   auto fidentity = [](std::vector<DataType> types) {
     Array<PrimExpr> result;
-    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(tvm::tir::make_const(types[0], -1));  // idx
     result.push_back(tvm::min_value(types[1]));  // val
     return result;
   };

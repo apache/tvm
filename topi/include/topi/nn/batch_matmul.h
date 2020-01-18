@@ -52,7 +52,7 @@ inline tvm::top::Tensor batch_matmul(const tvm::top::Tensor& x,
   auto K = x->shape[2];
   auto N = y->shape[1];
 
-  auto k = tvm::reduce_axis(Range(0, K), "k");
+  auto k = tvm::top::reduce_axis(Range(0, K), "k");
   auto result = tvm::top::compute(
       { batch, M, N },
       [&](Var b, Var i, Var j) {

@@ -21,13 +21,13 @@
  * \brief Logics related to cross thread reduction, used by ComputeOpNode.
  * \file cross_thread_reduction.cc
  */
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include "compute_op.h"
 #include "op_util.h"
 
 namespace tvm {
 namespace top {
-using namespace ir;
+using namespace tir;
 
 Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
@@ -87,7 +87,7 @@ Stmt MakeCrossThreadReduction(
 
   Stmt reduce_body = EvaluateNode::make(CallNode::make(
       DataType::Handle(),
-      ir::intrinsic::tvm_thread_allreduce,
+      tir::intrinsic::tvm_thread_allreduce,
       freduce_args, CallNode::Intrinsic));
   reduce_body = AttrStmtNode::make(
       reduces[0]->combiner,

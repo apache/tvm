@@ -22,7 +22,7 @@
  * \brief Property def of bitserial operators.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/attrs/bitserial.h>
 #include <tvm/relay/op.h>
 

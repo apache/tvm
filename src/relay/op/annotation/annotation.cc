@@ -23,7 +23,7 @@
  * \brief Registration of annotation operators.
  */
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>

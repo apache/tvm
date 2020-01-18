@@ -21,17 +21,17 @@
  * \file stmt_simplify.cc
  * \brief Statement simplifier based on analyzer
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <tvm/arith/analyzer.h>
 #include "ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
@@ -59,7 +59,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const LetStmtNode* op) {
     PrimExpr value = this->VisitExpr(op->value);
-    if (!ir::HasSideEffect(value)) {
+    if (!tir::HasSideEffect(value)) {
       // it is fine to discard the let binding
       // because the call to simplify will always inline the var.
       analyzer_->Bind(op->var, value);
@@ -93,7 +93,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
 }  // namespace arith
 
-namespace ir {
+namespace tir {
 
 Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
   arith::Analyzer analyzer;
@@ -123,5 +123,5 @@ PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange) {
 Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
   return CanonicalSimplify(std::move(stmt), vrange);
 }
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

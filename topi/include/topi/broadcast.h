@@ -55,7 +55,7 @@ inline tvm::top::Tensor broadcast_to(const tvm::top::Tensor& t,
   for (size_t i = 0; i < output_shape.size(); ++i) {
     CHECK(topi::detail::EqualCheck(output_shape[i], bh.common_shape[i]));
   }
-  auto l = [&](tvm::Array<tvm::Var> ovars) {
+  auto l = [&](tvm::Array<tvm::tir::Var> ovars) {
     return t(detail::InputIndexFromBroadcast(ovars, t, bh.vars2, bh.all_vars));
   };
   return tvm::top::compute(
@@ -82,7 +82,7 @@ inline tvm::top::Tensor broadcast_to(const tvm::top::Tensor& t,
                           std::string name = "T_" #Name,              \
                           std::string tag = kElementWise) {           \
     auto l = [](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };   \
-    return tvm::top::compute(A->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
+    return tvm::top::compute(A->shape, [&](const ::tvm::Array<::tvm::tir::Var>& i) { \
         return l(A(i), B);                                            \
       }, name, tag);                                                  \
   }                                                                   \
@@ -91,7 +91,7 @@ inline tvm::top::Tensor broadcast_to(const tvm::top::Tensor& t,
                                std::string name = "T_" #Name,         \
                                std::string tag = kElementWise) {      \
     auto l = [&](tvm::PrimExpr a, tvm::PrimExpr b) { ComputeRule; };  \
-    return tvm::top::compute(B->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
+    return tvm::top::compute(B->shape, [&](const ::tvm::Array<::tvm::tir::Var>& i) { \
         return l(A, B(i));                                            \
       }, name, tag);                                                  \
   }

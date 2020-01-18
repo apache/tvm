@@ -25,7 +25,7 @@
 #define TVM_CODEGEN_SPIRV_IR_BUILDER_H_
 
 #include <tvm/runtime/packed_func.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 
 #include <algorithm>
 #include <utility>

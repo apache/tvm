@@ -139,7 +139,7 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
   ObjectRef skip_opt = FunctionGetAttr(func, attr::kSkipOptimization);
-  const ir::IntImmNode* pval = skip_opt.as<ir::IntImmNode>();
+  const tir::IntImmNode* pval = skip_opt.as<tir::IntImmNode>();
   return (pval && pval->value != 0) || (!func->UseDefaultCompiler());
 }
 

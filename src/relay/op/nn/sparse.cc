@@ -22,7 +22,7 @@
  * \brief Property def of nn.sparse_dense operator.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>

@@ -21,7 +21,7 @@
  * \file src/tvm/relay/ir/alpha_equal.cc
  * \brief Alpha equality check by deep comparing two nodes.
  */
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
@@ -196,7 +196,7 @@ class AlphaEqualHandler:
     }
   }
   using AttrsEqualHandler::VisitAttr_;
-  bool VisitAttr_(const tvm::VarNode* lhs, const ObjectRef& other) final {
+  bool VisitAttr_(const tvm::tir::VarNode* lhs, const ObjectRef& other) final {
     return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 

@@ -25,8 +25,8 @@
 #ifndef TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 #define TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/runtime/registry.h>
 
 #include <stack>

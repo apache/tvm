@@ -25,7 +25,7 @@
 #ifndef TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
-#include <tvm/lowered_func.h>
+#include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -55,7 +55,7 @@ struct CachedFuncNode : public Object {
   /* \brief The outputs to the function */
   tvm::Array<top::Tensor> outputs;
   /*! \brief The lowered functions to support the function. */
-  tvm::Array<tvm::LoweredFunc> funcs;
+  tvm::Array<tir::LoweredFunc> funcs;
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 

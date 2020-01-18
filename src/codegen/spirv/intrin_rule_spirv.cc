@@ -21,7 +21,7 @@
  * \file intrin_rule_spirv.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <GLSL.std.450.h>
 
 namespace tvm {
@@ -34,7 +34,7 @@ using namespace runtime;
 template<unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
-  const ir::CallNode* call = e.as<ir::CallNode>();
+  const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
@@ -43,8 +43,8 @@ inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::CallNode::make(
-      call->dtype, "spirv_glsl450", cargs, ir::CallNode::PureIntrinsic);
+  *rv = tir::CallNode::make(
+      call->dtype, "spirv_glsl450", cargs, tir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")

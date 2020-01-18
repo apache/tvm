@@ -24,7 +24,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/build_module.h>
 #include <tvm/top/operation.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/codegen.h>
 #include <tvm/runtime/registry.h>
 
@@ -37,6 +37,7 @@ namespace tvm {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using runtime::PackedFunc;
+using tir::LoweredFunc;
 
 TVM_REGISTER_NODE_TYPE(GenericFuncNode);
 
@@ -58,39 +59,39 @@ Target DefaultTargetHost(Target target) {
   }
 }
 
-Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape,
-                                 DataType dtype,
-                                 std::string name,
-                                 int data_alignment,
-                                 int offset_factor,
-                                 bool compact) {
-  auto data = Var(name, DataType::Handle());
+tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape,
+                                      DataType dtype,
+                                      std::string name,
+                                      int data_alignment,
+                                      int offset_factor,
+                                      bool compact) {
+  auto data = tir::Var(name, DataType::Handle());
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
-      if (it.as<VarNode>()) {
+      if (it.as<tir::VarNode>()) {
         has_any = true;
         break;
       }
     }
   }
-  BufferType buffer_type = has_any ? kAutoBroadcast : kDefault;
+  tir::BufferType buffer_type = has_any ? tir::kAutoBroadcast : tir::kDefault;
 
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
+    elem_offset = tir::Var(name + "_elem_offset", shape[0].dtype());
   } else {
     elem_offset = PrimExpr();
   }
 
-  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
+  return tir::BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
     data_alignment, offset_factor, buffer_type);
 }
 
 void GetBinds(const Array<top::Tensor>& args,
               bool compact,
-              const std::unordered_map<top::Tensor, Buffer>& binds,
-              Map<top::Tensor, Buffer>* out_binds,
+              const std::unordered_map<top::Tensor, tir::Buffer>& binds,
+              Map<top::Tensor, tir::Buffer>* out_binds,
               Array<ObjectRef>* out_arg_list,
               const BuildConfig& config) {
   *out_binds = binds;
@@ -117,50 +118,50 @@ void GetBinds(const Array<top::Tensor>& args,
 * \param config The build configuration.
 * \return The built Stmt.
 */
-Stmt BuildStmt(top::Schedule sch,
-               const Array<top::Tensor>& args,
-               const std::unordered_map<top::Tensor, Buffer>& binds,
-               bool loop_partition,
-               Array<ObjectRef> *out_arg_list,
-               const BuildConfig& config) {
+tir::Stmt BuildStmt(top::Schedule sch,
+                    const Array<top::Tensor>& args,
+                    const std::unordered_map<top::Tensor, tir::Buffer>& binds,
+                    bool loop_partition,
+                    Array<ObjectRef> *out_arg_list,
+                    const BuildConfig& config) {
   sch = sch.normalize();
 
   // Phase 0
   auto bounds = top::InferBound(sch);
   auto stmt = top::ScheduleOps(sch, bounds, false);
-  stmt = ir::InjectPrefetch(stmt);
+  stmt = tir::InjectPrefetch(stmt);
 
-  bool compact = ir::VerifyCompactBuffer(stmt);
-  Map<top::Tensor, Buffer> out_binds;
+  bool compact = tir::VerifyCompactBuffer(stmt);
+  Map<top::Tensor, tir::Buffer> out_binds;
   GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
 
   // Phase 1
-  stmt = ir::StorageFlatten(stmt, out_binds, 64,
+  stmt = tir::StorageFlatten(stmt, out_binds, 64,
                             config->instrument_bound_checkers);
-  stmt = ir::CanonicalSimplify(stmt);
+  stmt = tir::CanonicalSimplify(stmt);
   if (loop_partition) {
-    stmt = ir::LoopPartition(stmt, config->partition_const_loop);
+    stmt = tir::LoopPartition(stmt, config->partition_const_loop);
   }
   if (config->disable_vectorize) {
-    stmt = ir::SkipVectorize(stmt);
+    stmt = tir::SkipVectorize(stmt);
   } else {
-    stmt = ir::VectorizeLoop(stmt);
+    stmt = tir::VectorizeLoop(stmt);
   }
-  stmt = ir::InjectVirtualThread(stmt);
-  stmt = ir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
-  stmt = ir::StorageRewrite(stmt);
-  stmt = ir::UnrollLoop(stmt, config->auto_unroll_max_step, config->auto_unroll_max_depth,
+  stmt = tir::InjectVirtualThread(stmt);
+  stmt = tir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
+  stmt = tir::StorageRewrite(stmt);
+  stmt = tir::UnrollLoop(stmt, config->auto_unroll_max_step, config->auto_unroll_max_depth,
     config->auto_unroll_max_extent, config->unroll_explicit);
 
   // Phase 2
-  stmt = ir::Simplify(stmt);
-  stmt = ir::RemoveNoOp(stmt);
+  stmt = tir::Simplify(stmt);
+  stmt = tir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
-    stmt = ir::RewriteUnsafeSelect(stmt);
+    stmt = tir::RewriteUnsafeSelect(stmt);
 
   if (config->instrument_bound_checkers)
-    stmt = ir::InstrumentBoundCheckers(stmt);
+    stmt = tir::InstrumentBoundCheckers(stmt);
 
   return stmt;
 }
@@ -168,11 +169,11 @@ Stmt BuildStmt(top::Schedule sch,
 Array<LoweredFunc> lower(top::Schedule sch,
                          const Array<top::Tensor>& args,
                          const std::string& name,
-                         const std::unordered_map<top::Tensor, Buffer>& binds,
+                         const std::unordered_map<top::Tensor, tir::Buffer>& binds,
                          const BuildConfig& config) {
   Array<ObjectRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
-  return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
+  return Array<LoweredFunc>({ tir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 
 Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
@@ -190,27 +191,27 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   Array<LoweredFunc> fdevice;
 
   for (const auto& x : funcs) {
-    CHECK(ir::VerifyMemory(x, target->device_type))
+    CHECK(tir::VerifyMemory(x, target->device_type))
         << "Direct host side access to device memory is detected in "
         << x->func_name() << ". Did you forget to bind?";
 
-    if (x->func_type == kMixedFunc) {
+    if (x->func_type == tir::kMixedFunc) {
       auto func = x;
       if (config->detect_global_barrier) {
-        func = ir::ThreadSync(func, "global");
+        func = tir::ThreadSync(func, "global");
       }
 
-      func = ir::ThreadSync(func, "shared");
-      func = ir::ThreadSync(func, "warp");
-      func = ir::LowerThreadAllreduce(func, target->thread_warp_size);
-      auto fsplits = ir::SplitHostDevice(func);
+      func = tir::ThreadSync(func, "shared");
+      func = tir::ThreadSync(func, "warp");
+      func = tir::LowerThreadAllreduce(func, target->thread_warp_size);
+      auto fsplits = tir::SplitHostDevice(func);
       fhost.push_back(fsplits[0]);
       for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
         fdevice.push_back(*f);
       }
-    } else if (x->func_type == kHostFunc) {
+    } else if (x->func_type == tir::kHostFunc) {
       fhost.push_back(x);
-    } else if (x->func_type == kDeviceFunc) {
+    } else if (x->func_type == tir::kDeviceFunc) {
       fdevice.push_back(x);
     } else {
       LOG(FATAL) << "unknown function type " << x->func_type;
@@ -220,7 +221,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fdevice.size(); i++) {
     auto warp_size = target->thread_warp_size;
     auto func = fdevice[i];
-    func = ir::LowerWarpMemory(fdevice[i], warp_size);
+    func = tir::LowerWarpMemory(fdevice[i], warp_size);
     fdevice.Set(i, func);
   }
 
@@ -234,7 +235,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
 
   for (size_t i = 0; i < fdevice.size(); ++i) {
     auto func = fdevice[i];
-    func = ir::LowerIntrin(func, target->target_name);
+    func = tir::LowerIntrin(func, target->target_name);
     fdevice.Set(i, func);
   }
 
@@ -247,17 +248,17 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
 
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
-    func = ir::BindDeviceType(func, target->device_type);
-    func = ir::LowerDeviceStorageAccessInfo(func);
-    func = ir::LowerTVMBuiltin(func);
+    func = tir::BindDeviceType(func, target->device_type);
+    func = tir::LowerDeviceStorageAccessInfo(func);
+    func = tir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
 
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
-    func = ir::LowerIntrin(func, target_host->target_name);
-    func = ir::LowerDeviceStorageAccessInfo(func);
-    func = ir::CombineContextCall(func);
+    func = tir::LowerIntrin(func, target_host->target_name);
+    func = tir::LowerDeviceStorageAccessInfo(func);
+    func = tir::CombineContextCall(func);
     fhost.Set(i, func);
   }
   return {fhost, fdevice};
@@ -580,7 +581,7 @@ TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
 
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
-    tags_vector.push_back(tag.as<tvm::ir::StringImmNode>()->value);
+    tags_vector.push_back(tag.as<tvm::tir::StringImmNode>()->value);
   }
 
   generic_func

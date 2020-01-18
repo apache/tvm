@@ -27,9 +27,10 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 
 using namespace tvm;
+using namespace tvm::tir;
 using namespace tvm::runtime;
 
 namespace tvm_ext {

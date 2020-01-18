@@ -25,7 +25,7 @@
 #define TVM_RELAY_BACKEND_PARAM_DICT_H_
 
 #include <tvm/node/node.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 

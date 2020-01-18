@@ -21,8 +21,8 @@
  * \file codegen_spirv.cc
  * \brief Generate SPIRV block
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include <string>
 #include "codegen_spirv.h"
 #include "../../arith/compute_expr.h"
@@ -406,7 +406,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = ir::Simplify(
+          PrimExpr vec_index = tir::Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
@@ -484,7 +484,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = ir::Simplify(
+          PrimExpr vec_index = tir::Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
@@ -615,12 +615,12 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
         analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
       }
     }
-  } else if (op->attr_key == ir::attr::storage_scope) {
+  } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].scope =
         runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
-  } else if (op->attr_key == ir::attr::volatile_scope) {
+  } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].is_volatile = true;

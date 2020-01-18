@@ -24,8 +24,8 @@
 #ifndef TVM_TOP_OPERATION_COMPUTE_OP_H_
 #define TVM_TOP_OPERATION_COMPUTE_OP_H_
 
-#include <tvm/ir.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/operation.h>
 #include <vector>
 #include <unordered_map>

@@ -58,7 +58,7 @@ inline tvm::top::Tensor dense(const tvm::top::Tensor& data,
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  auto k = tvm::reduce_axis(Range(0, in_dim), "k");
+  auto k = tvm::top::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::top::compute(
     { batch, out_dim },
     [&](Var i, Var j) {

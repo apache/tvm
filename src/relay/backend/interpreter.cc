@@ -494,7 +494,7 @@ class Interpreter :
       // Allocate output tensor.
       std::vector<int64_t> shape;
       for (auto dim : rtype->shape) {
-        const auto* ivalue = as_const_int(dim);
+        const auto* ivalue = tir::as_const_int(dim);
         CHECK(ivalue) << "expected concrete dimensions";
         shape.push_back(ivalue[0]);
       }

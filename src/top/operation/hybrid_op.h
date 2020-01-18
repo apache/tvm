@@ -24,7 +24,7 @@
 #ifndef TVM_TOP_OPERATION_HYBRID_OP_H_
 #define TVM_TOP_OPERATION_HYBRID_OP_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/schedule.h>
 
 #include <unordered_map>
@@ -32,8 +32,8 @@
 #include <vector>
 
 #include "../schedule/message_passing.h"
-#include "../../pass/ir_util.h"
-#include "../../pass/arg_binder.h"
+#include "../../tir/pass/ir_util.h"
+#include "../../tir/pass/arg_binder.h"
 
 namespace tvm {
 namespace top {

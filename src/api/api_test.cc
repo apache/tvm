@@ -21,7 +21,7 @@
  *  Code mainly used for test purposes.
  * \file api_test.cc
  */
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/tensor.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>

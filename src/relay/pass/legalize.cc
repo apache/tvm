@@ -102,7 +102,7 @@ Pass Legalize(const std::string& legalize_map_attr_name) {
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::legalize::Legalize(f, legalize_map_attr_name));
       };
-  return CreateFunctionPass(pass_func, 1, "Legalize", {ir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "Legalize", {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.Legalize").set_body_typed(Legalize);

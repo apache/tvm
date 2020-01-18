@@ -19,18 +19,18 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/top/operation.h>
 
 TEST(SimplePasses, HasSideEffect) {
   using namespace tvm;
-  auto n = var("n");
+  auto n = top::var("n");
   Array<PrimExpr> shape;
   shape.push_back(n);
 
   auto A = top::placeholder(shape, DataType::Float(32), "A");
 
-  CHECK(!tvm::ir::HasSideEffect(A[0]));
+  CHECK(!tvm::tir::HasSideEffect(A[0]));
 }
 
 

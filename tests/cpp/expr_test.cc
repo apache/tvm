@@ -23,6 +23,7 @@
 
 TEST(Expr, Basic) {
   using namespace tvm;
+  using namespace tvm::tir;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
   ObjectRef tmp = z;
@@ -36,9 +37,10 @@ TEST(Expr, Basic) {
 
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
+  using namespace tvm::tir;
   Var x("x");
   PrimExpr z = max(x + 1 + 2, 100);
-  const ir::MaxNode* op = z.as<ir::MaxNode>();
+  const tir::MaxNode* op = z.as<tir::MaxNode>();
   CHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 

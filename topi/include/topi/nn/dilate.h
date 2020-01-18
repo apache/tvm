@@ -27,7 +27,7 @@
 #include <string>
 
 #include "tvm/top/operation.h"
-#include "tvm/ir_pass.h"
+#include "tvm/tir/ir_pass.h"
 #include "topi/tags.h"
 
 namespace topi {
@@ -76,7 +76,7 @@ inline Tensor dilate(const Tensor& x,
 
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < n; ++i) {
-    out_shape.push_back(tvm::ir::Simplify(
+    out_shape.push_back(tvm::tir::Simplify(
       (x->shape[i] - 1) * cast(DataType::Int(32), strides[i] + 1)));
   }
 
