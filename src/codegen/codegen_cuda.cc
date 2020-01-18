@@ -73,6 +73,7 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#else\n";
     decl_stream << _cuda_half_t_def;
     decl_stream << "#endif\n\n";
+    decl_stream << _cuda_half_util;
   }
 
   if (enable_int8_) {
@@ -122,8 +123,17 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
         if (lanes == 1) {
           os << "half";
         } else if (lanes <= 8) {
+          // Emit CUDA code to access fp16 vector elements.
+          //
+          // half4 is stored as uint2
+          //
+          // h4.x is emitted as *(half2*)(&(u2.x)).x
+          // h4.y is emitted as *(half2*)(&(u2.x)).y
+          // h4.z is emitted as *(half2*)(&(u2.y)).x
+          // h4.w is emitted as *(half2*)(&(u2.y)).y
+          //
           CHECK_EQ(lanes % 2, 0) << "only support even lane for half type";
-          os << "float" << lanes / 2;
+          os << "uint" << lanes / 2;
         } else {
           fail = true;
         }
@@ -243,9 +253,12 @@ void CodeGenCUDA::PrintVecBinaryOp(
 void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, DataType t, int i, std::ostream& os) {  // NOLINT(*)
   static const char access[] = {'x', 'y', 'z', 'w'};
-  CHECK(i >= 0 && i < 4);
+  CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if (t.is_int() && t.bits() == 8) {
     os << "(0x000000ff & (" << vec << " >> " << i * 8 << "))";
+  } else if (t.is_float16()) {
+    os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->"
+       << access[i % 2];
   } else {
     os << vec << "." << access[i];
   }
@@ -255,10 +268,17 @@ void CodeGenCUDA::PrintVecElemStore(
     const std::string& vec, DataType t, int i, const std::string& value) {
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
-  CHECK(i >= 0 && i < 4);
+  CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if (t.is_int() && t.bits() == 8) {
-    stream << vec << "=" << vec << " & ~(0x000000ff << " << i * 8 << ") | ("
-        << value << " << " << i * 8 << ");\n";
+    stream << vec << "=";
+    // Do not read the first undef lane.
+    if (i != 0) {
+      stream << vec << " & ~(0x000000ff << " << i * 8 << ") |";
+    }
+    stream << "(" << value << " << " << i * 8 << ");\n";
+  } else if (t.is_float16()) {
+    stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->"
+           << access[i % 2] << " = " << value << ";\n";
   } else {
     stream << vec << "." << access[i] << " = " << value << ";\n";
   }
@@ -459,6 +479,19 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // N
     int64_t v = *p & 0xFF;
     v = (v << 24) | (v << 16) | (v << 8) | v;
     os << "(int)" << v;
+    return;
+  }
+
+  if (op->dtype.is_float16()) {
+    std::string v = PrintExpr(op->value);
+    os << "make_";
+    PrintType(op->dtype, os);
+    os << '(';
+    for (int i = 0; i < op->lanes / 2; ++i) {
+      if (i != 0) os << ", ";
+      os << "__pack_half2(" << v << ", " << v <<  ")";
+    }
+    os << ')';
     return;
   }
 
