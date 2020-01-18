@@ -154,8 +154,12 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower,
                                             args=(mod, target, param))
+            # Stack would overflow on some platforms (Windows) on some models
+            old_stack_size = threading.stack_size(1024 * 1024 * 3)
             build_thread.start()
             build_thread.join()
+            # Restore stacksize to original
+            threading.stack_size(old_stack_size)
 
         logger.disabled = old_state
 
