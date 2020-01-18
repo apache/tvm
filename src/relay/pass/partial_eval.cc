@@ -935,11 +935,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (v->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(v);
       return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
-    } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
+    } else if (const runtime::ADTObj* op = v.as<runtime::ADTObj>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const ObjectRef& field : op->fields) {
-        PStatic ps = Reify(field, ll);
+      auto adt = GetRef<runtime::ADT>(op);
+      for (size_t i = 0; i < adt.size(); ++i) {
+        PStatic ps = Reify(adt[i], ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
       }

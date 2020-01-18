@@ -62,15 +62,10 @@ tf_dtypes = {
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vmobj.ADT):
+    elif isinstance(o, tvm.container.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
-        return result
-    elif isinstance(o, tvm.relay.backend.interpreter.TupleValue):
-        result = []
-        for f in o.fields:
-            result.append(vmobj_to_list(f))
         return result
     elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
         if o.constructor.name_hint == 'Cons':

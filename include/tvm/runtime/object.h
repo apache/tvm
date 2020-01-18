@@ -50,10 +50,9 @@ namespace runtime {
 enum TypeIndex  {
   /*! \brief Root object type. */
   kRoot = 0,
-  kVMTensor = 1,
-  kVMClosure = 2,
-  kVMADT = 3,
-  kRuntimeModule = 4,
+  kClosure = 1,
+  kVMADT = 2,
+  kRuntimeModule = 3,
   kStaticIndexEnd,
   /*! \brief Type index is allocated during runtime. */
   kDynamic = kStaticIndexEnd

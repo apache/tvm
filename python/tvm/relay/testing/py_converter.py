@@ -32,18 +32,20 @@ OUTPUT_VAR_NAME = '_py_out'
 #     import numpy
 #     import tvm
 #     from tvm import relay
+#     from tvm import import container as _container
 #     from tvm import nd
-#     from tvm.relay.backend.interpreter import RefValue, TupleValue, ConstructorValue
+#     from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 PROLOGUE = [
     ast.Import([alias('numpy', None)]),
     ast.Import([alias('tvm', None)]),
     ast.ImportFrom('tvm', [alias('relay', None)], 0),
     ast.ImportFrom('tvm', [alias('nd', None)], 0),
+    ast.ImportFrom('tvm', [alias('container', '_container')],
+                   0),
     ast.ImportFrom('tvm.relay.backend.interpreter',
                    [alias('RefValue', None),
-                    alias('TupleValue', None),
                     alias('ConstructorValue', None)],
-                   0)
+                   0),
 ]
 
 class PythonConverter(ExprFunctor):
@@ -253,7 +255,7 @@ class PythonConverter(ExprFunctor):
             for i in range(len(arg_type.fields)):
                 ret += convert_input(
                     ast.Subscript(
-                        ast.Attribute(py_input, 'fields', Load()),
+                        py_input,
                         ast.Index(Num(i)), Load()),
                     arg_type.fields[i])
             return ret
@@ -282,7 +284,8 @@ class PythonConverter(ExprFunctor):
                 assignments += inner_assignments
                 extra_args += inner_args
                 fields.append(inner_output)
-            return (assignments, extra_args, self.create_call('TupleValue', fields))
+            fields = [ast.List(fields, Load())]
+            return (assignments, extra_args, self.create_call('_container.tuple_object', fields))
 
         # create a function to wrap the call of the lowered op and return
         # a call to that function
@@ -444,7 +447,8 @@ class PythonConverter(ExprFunctor):
 
     def visit_tuple(self, tup: Expr):
         fields, ret_defs = self.convert_fields(tup.fields)
-        return (self.create_call('TupleValue', fields), ret_defs)
+        fields = [ast.List(fields, Load())]
+        return (self.create_call('_container.tuple_object', fields), ret_defs)
 
 
     def visit_tuple_getitem(self, tgi: Expr):
@@ -534,7 +538,7 @@ class PythonConverter(ExprFunctor):
             thunk_name, [],
             ref_defs + val_defs + [
                 Assign([ast.Attribute(ref, 'value', Store())], val),
-                Return(self.create_call('TupleValue', []))
+                Return(self.create_call('_container.tuple_object', []))
             ])
         return (self.create_call(thunk_name, []), [thunk])
 
