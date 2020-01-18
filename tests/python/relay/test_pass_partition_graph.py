@@ -555,27 +555,29 @@ def test_partition_conv_bias_relu():
         assert(len(get_partitions(mod)) == 27)
 
     test_partition()
-    test_partition_mobilenet()
+    # test_partition_mobilenet()
 
     # TODO: Enable executor check once the runtime signature issue is resolved
-    # net = get_net()
-    # mod, params = get_partitoned_mod(net)
+    net = get_net()
+    mod, params = tvm.relay.testing.create_workload(net)
+    mod = pre_optimize(mod, params)
+    mod = get_partitoned_mod(mod)
 
-    # ref_mod, params = tvm.relay.testing.create_workload(net)
-    # ishape = (1, 3, 224, 224)
-    # i_data = np.random.randn(*ishape).astype(np.float32)
-    # ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
-    # ref_res = ref_ex.evaluate()(i_data, **params)
+    ref_mod, params = tvm.relay.testing.create_workload(net)
+    ishape = (1, 3, 224, 224)
+    i_data = np.random.randn(*ishape).astype(np.float32)
+    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
+    ref_res = ref_ex.evaluate()(i_data, **params)
 
-    # check_result(mod, {"data": i_data},
-    #              ishape, ref_res.asnumpy(), tol=1e-5, params=params)
+    check_result(mod, {"data": i_data},
+                 ishape, ref_res.asnumpy(), tol=1e-5, params=params)
 
 
 if __name__ == "__main__":
-    test_multi_node_compiler()
-    test_extern_ccompiler_single_op()
-    test_extern_ccompiler_default_ops()
-    test_extern_ccompiler()
-    test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    # test_multi_node_compiler()
+    # test_extern_ccompiler_single_op()
+    # test_extern_ccompiler_default_ops()
+    # test_extern_ccompiler()
+    # test_extern_dnnl()
+    # test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()

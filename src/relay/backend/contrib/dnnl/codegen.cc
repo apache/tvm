@@ -346,9 +346,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
   DNNLModuleCodegen dnnl;
-  LOG(INFO) << "Invoking DNNLCompiler";
   auto ret = dnnl.CreateCSourceModule(ref);
-  LOG(INFO) << "Done invoking DNNLCompiler";
   return ret;
 }
 
