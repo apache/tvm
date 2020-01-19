@@ -968,6 +968,8 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::Codegen() {
+  using tir::LoweredFunc;
+
   if (!context_.module.defined()) {
     LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
     return;

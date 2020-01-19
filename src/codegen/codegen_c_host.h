@@ -25,7 +25,7 @@
 #define TVM_CODEGEN_CODEGEN_C_HOST_H_
 
 #include <tvm/codegen.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <string>
 #include "codegen_c.h"
 

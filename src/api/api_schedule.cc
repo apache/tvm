@@ -21,7 +21,7 @@
  *  Implementation of API functions related to schedule pass.
  * \file api_schedule.cc
  */
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/tensor.h>
 #include <tvm/top/schedule.h>
 #include <tvm/top/schedule_pass.h>

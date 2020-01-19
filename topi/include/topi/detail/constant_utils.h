@@ -24,11 +24,11 @@
 #ifndef TOPI_DETAIL_CONSTANT_UTILS_H_
 #define TOPI_DETAIL_CONSTANT_UTILS_H_
 
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+
 #include <string>
 #include <vector>
-
-#include "tvm/expr.h"
-#include "tvm/ir_pass.h"
 
 namespace topi {
 namespace detail {
@@ -44,7 +44,7 @@ using namespace tvm::top;
  */
 inline bool IsConstInt(PrimExpr expr) {
   return
-    expr->IsInstance<tvm::ir::IntImmNode>();
+    expr->IsInstance<tvm::tir::IntImmNode>();
 }
 
 /*!
@@ -106,7 +106,7 @@ inline std::vector<int64_t> GetConstInt64Values(
 
 /*!
  * \brief Check weather the two expressions are equal or not, if not simplify the expressions and check again
- * \note This is stronger equality check than tvm::ir::Equal
+ * \note This is stronger equality check than tvm::tir::Equal
  *
  * \param lhs First expreesion
  * \param rhs Second expreesion
@@ -114,10 +114,10 @@ inline std::vector<int64_t> GetConstInt64Values(
  * \return result True if both expressions are equal, else false
  */
 inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
-  bool result = tvm::ir::Equal(lhs, rhs);
+  bool result = tvm::tir::Equal(lhs, rhs);
   if (!result) {
     PrimExpr zero(0);
-    result = tvm::ir::Equal(tvm::ir::CanonicalSimplify(lhs-rhs), zero);
+    result = tvm::tir::Equal(tvm::tir::CanonicalSimplify(lhs-rhs), zero);
   }
   return result;
 }

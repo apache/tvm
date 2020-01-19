@@ -30,7 +30,7 @@
 #include "topi/reduction.h"
 #include "topi/tags.h"
 #include "tvm/top/operation.h"
-#include "tvm/expr_operator.h"
+#include "tvm/tir/op.h"
 
 namespace topi {
 namespace nn {
@@ -58,8 +58,8 @@ inline Tensor softmax(const Tensor &x,
   }
   CHECK_LT(axis, ndim) << "axis parameter should be less than input dim";
 
-  auto k1 = tvm::reduce_axis(Range(0, input_shape[axis]), "k1");
-  auto k2 = tvm::reduce_axis(Range(0, input_shape[axis]), "k2");
+  auto k1 = tvm::top::reduce_axis(Range(0, input_shape[axis]), "k1");
+  auto k2 = tvm::top::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
   tvm::Map<std::string, ObjectRef> attrs;
@@ -139,11 +139,11 @@ inline Tensor log_softmax(const Tensor& x,
   PrimExpr m = x->shape[0];
   PrimExpr n = x->shape[1];
 
-  auto k = tvm::reduce_axis(Range(0, n), "k");
+  auto k = tvm::top::reduce_axis(Range(0, n), "k");
   auto max_elem = tvm::top::compute(
     { m }, [&](Var i) {
       return tvm::max(x(i, k), Array<IterVar>{ k }); });
-  k = tvm::reduce_axis(Range(0, n), "k");
+  k = tvm::top::reduce_axis(Range(0, n), "k");
 
   auto expsum = tvm::top::compute(
     { m }, [&](Var i) {

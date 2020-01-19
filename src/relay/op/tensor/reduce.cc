@@ -209,7 +209,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     return in_shape;
   }
 
-  auto max_shape = make_const(DataType::Int(64), 1);
+  auto max_shape = tir::make_const(DataType::Int(64), 1);
   bool is_dynamic_input = false;
   for (int64_t axis : r_axes) {
     if (in_shape[axis].as<IntImmNode>()) {
@@ -221,7 +221,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   }
 
   if (is_dynamic_input) {
-    CHECK(reporter->Assert(max_shape < make_const(
+    CHECK(reporter->Assert(max_shape < tir::make_const(
         DataType::Int(64), std::numeric_limits<int32_t>::max())))
       << "The maximum possible index of reduced shape cannot be more than int32 max.";
   }
@@ -537,7 +537,7 @@ Array<top::Tensor> MeanCompute(const Attrs& attrs,
                           const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
-  IndexExpr count = make_const(inputs[0]->dtype, 1);
+  IndexExpr count = tir::make_const(inputs[0]->dtype, 1);
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
   auto axes = param->axis;
@@ -602,7 +602,7 @@ Array<top::Tensor> VarianceCompute(const Attrs& attrs,
                               const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
-  IndexExpr count = make_const(inputs[0]->dtype, 1);
+  IndexExpr count = tir::make_const(inputs[0]->dtype, 1);
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
   auto axes = param->axis;

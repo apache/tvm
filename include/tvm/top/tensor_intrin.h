@@ -25,7 +25,7 @@
 #define TVM_TOP_TENSOR_INTRIN_H_
 
 #include <tvm/top/tensor.h>
-#include <tvm/buffer.h>
+#include <tvm/tir/buffer.h>
 
 #include <string>
 

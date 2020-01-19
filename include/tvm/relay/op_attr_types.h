@@ -29,10 +29,15 @@
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <tvm/tir/data_layout.h>
 #include <string>
 
 namespace tvm {
 namespace relay {
+
+using tir::Layout;
+using tir::LayoutAxis;
+using tir::BijectiveLayoutNode;
 
 /*! \brief operator pattern used in graph fusion */
 enum OpPatternKind {

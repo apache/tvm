@@ -30,9 +30,6 @@
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
 #include "../build_common.h"
-#include "../../pass/ir_util.h"
-#include "../../arith/compute_expr.h"
-
 namespace tvm {
 namespace codegen {
 
@@ -1179,17 +1176,17 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
         analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
       }
     }
-  } else if (op->attr_key == ir::attr::storage_scope) {
+  } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].scope =
         runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
-  } else if (op->attr_key == ir::attr::storage_alignment) {
+  } else if (op->attr_key == tir::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_info_[v].alignment =
         static_cast<int>(op->value.as<IntImmNode>()->value);
-  } else if (op->attr_key == ir::attr::volatile_scope) {
+  } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     volatile_buf_.insert(v);

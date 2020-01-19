@@ -24,12 +24,12 @@ There can be internal header files within each module that sit in src.
 - support: Internal support utilities.
 - runtime: Minimum runtime related codes.
 - node: base infra for IR/AST nodes that is dialect independent.
+- ir: Common IR infrastructure.
+- tir: Tensor-level IR.
 - arith: Arithmetic expression and set simplification.
 - top: tensor operation DSL for compute and schedule.
-- relay: Implementation of Relay. The second generation of NNVM, a new IR for deep learning frameworks.
-- pass: The optimization pass on the IR structure.
+- relay: Relay IR, high-level optimization.
 - codegen: The code generator.
 - autotvm: The auto-tuning module.
 - contrib: Contrib extension libraries.
 - api: API function registration.
-- lang: The definition of DSL related data structure.

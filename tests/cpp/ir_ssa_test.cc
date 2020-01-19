@@ -19,27 +19,27 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 
 
 TEST(IRSSA, Convert) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x"), y;
   PrimExpr let = LetNode::make(x, 1, x + 1);
 
   auto z = EvaluateNode::make(let + let);
-  CHECK(!ir::VerifySSA(z));
-  auto z_ssa = ir::ConvertSSA(z);
-  CHECK(ir::VerifySSA(z_ssa));
+  CHECK(!tir::VerifySSA(z));
+  auto z_ssa = tir::ConvertSSA(z);
+  CHECK(tir::VerifySSA(z_ssa));
 }
 
 TEST(IRSSA, Basic) {
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   using namespace tvm;
   Var x("x"), y;
   auto z = EvaluateNode::make(x + y);
-  CHECK(ir::VerifySSA(z));
+  CHECK(tir::VerifySSA(z));
 }
 
 int main(int argc, char ** argv) {

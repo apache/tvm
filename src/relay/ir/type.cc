@@ -22,7 +22,7 @@
  * \brief The type system AST nodes of Relay.
  */
 #include <tvm/relay/type.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace relay {
@@ -43,7 +43,7 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
 
 IndexExpr TensorTypeNode::Size() const {
   if (shape.size() == 0) {
-    return make_const(DataType::Int(64), 1);
+    return tir::make_const(DataType::Int(64), 1);
   }
 
   IndexExpr size = shape[0];

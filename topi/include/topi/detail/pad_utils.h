@@ -26,8 +26,8 @@
 
 #include <vector>
 
-#include "tvm/expr.h"
-#include "tvm/expr_operator.h"
+#include "tvm/tir/expr.h"
+#include "tvm/tir/op.h"
 
 namespace topi {
 namespace detail {

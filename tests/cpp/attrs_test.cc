@@ -20,8 +20,8 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/expr_operator.h>
-#include <tvm/ir.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/expr.h>
 
 namespace tvm {
 namespace test {
@@ -42,7 +42,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
         .describe("name of the field");
     TVM_ATTR_FIELD(expr)
         .describe("expression field")
-        .set_default(make_const(DataType::Int(32), 1));
+        .set_default(tir::make_const(DataType::Int(32), 1));
     TVM_ATTR_FIELD(learning_rate)
         .describe("learning_rate")
         .set_default(0.1);
@@ -80,7 +80,7 @@ TEST(Attrs, Basic) {
   n->InitBySeq("name", "xxx", "expr", 128);
   CHECK_EQ(n->name, "xxx");
   CHECK_EQ(n->axis, 10);
-  CHECK_EQ(n->expr.as<tvm::ir::IntImmNode>()->value, 128);
+  CHECK_EQ(n->expr.as<tvm::tir::IntImmNode>()->value, 128);
   // Check docstring
   std::ostringstream os;
   n->PrintDocString(os);

@@ -22,11 +22,11 @@
  */
 #include <tvm/top/schedule.h>
 #include <tvm/top/operation.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include "message_passing.h"
-#include "../../pass/ir_util.h"
+#include "../../tir/pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -42,7 +42,7 @@ size_t FindNodeRef(ArrayNode* array_node, const T& v) {
 }
 
 // The replacer of cache.
-class VarReplacer : public ir::StmtExprMutator {
+class VarReplacer : public tir::StmtExprMutator {
  public:
   explicit VarReplacer(
       const std::unordered_map<const VarNode*, PrimExpr>& vsub)
@@ -53,12 +53,12 @@ class VarReplacer : public ir::StmtExprMutator {
     return GetRef<PrimExpr>(op);
   }
 
-  ir::CommReducer MutateCommReducer(ir::CommReducer combiner) {
+  tir::CommReducer MutateCommReducer(tir::CommReducer combiner) {
     // Replace free variables in combiner
-    auto new_identity = ir::UpdateArray(combiner->identity_element, [this] (const PrimExpr& e) {
+    auto new_identity = tir::UpdateArray(combiner->identity_element, [this] (const PrimExpr& e) {
       return this->VisitExpr(e);
       });
-    auto new_result = ir::UpdateArray(combiner->result, [this] (const PrimExpr& e) {
+    auto new_result = tir::UpdateArray(combiner->result, [this] (const PrimExpr& e) {
       return this->VisitExpr(e);
       });
 
@@ -66,19 +66,19 @@ class VarReplacer : public ir::StmtExprMutator {
         combiner->identity_element.same_as(new_result)) {
       return combiner;
     } else {
-      return ir::CommReducerNode::make(
+      return tir::CommReducerNode::make(
         combiner->lhs, combiner->rhs, new_result, new_identity);
     }
   }
 
-  PrimExpr VisitExpr_(const ir::ReduceNode* op) final {
+  PrimExpr VisitExpr_(const tir::ReduceNode* op) final {
     PrimExpr new_e = StmtExprMutator::VisitExpr_(op);
-    const ir::ReduceNode* new_reduce = new_e.as<ir::ReduceNode>();
-    ir::CommReducer new_combiner = MutateCommReducer(op->combiner);
+    const tir::ReduceNode* new_reduce = new_e.as<tir::ReduceNode>();
+    tir::CommReducer new_combiner = MutateCommReducer(op->combiner);
     if (op->combiner.same_as(new_combiner)) {
       return new_e;
     } else {
-      return ir::ReduceNode::make(
+      return tir::ReduceNode::make(
         new_combiner,
         new_reduce->source,
         new_reduce->axis,
@@ -93,16 +93,16 @@ class VarReplacer : public ir::StmtExprMutator {
 
 PrimExpr InjectPredicate(const Array<PrimExpr>& predicates,
                      PrimExpr body) {
-  using ir::ReduceNode;
-  using ir::SelectNode;
+  using tir::ReduceNode;
+  using tir::SelectNode;
   if (predicates.size() == 0) return body;
   const ReduceNode* reduce = body.as<ReduceNode>();
   if (reduce) {
     auto n = make_object<ReduceNode>(*reduce);
-    n->condition = n->condition && arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr());
+    n->condition = n->condition && arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr());
     return PrimExpr(n);
   }
-  return SelectNode::make(arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr()),
+  return SelectNode::make(arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr()),
                       body,
                       make_zero(body.dtype()));
 }
@@ -130,7 +130,7 @@ void ReplaceDataFlow(const Array<Stage>& stages,
   }
 }
 
-inline bool ReduceEqual(const ir::ReduceNode* a, const ir::ReduceNode* b) {
+inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
   return (a->combiner.same_as(b->combiner)) &&
          (a->source.same_as(b->source)) &&
          (a->axis.same_as(b->axis)) &&
@@ -314,18 +314,18 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
 
   PrimExpr body;
   Array<PrimExpr> body_list;
-  const ir::ReduceNode* first_reduce = nullptr;
+  const tir::ReduceNode* first_reduce = nullptr;
   for (auto cbody : compute->body) {
     body = VarReplacer(vsub)(cbody);
     body = InjectPredicate(predicates, body);
     body = VarReplacer(vsub2newvar)(body);
     // Reduce nodes in ONE computeOp must be the same except value_index
     // This is right only if the original body ensures Reduce nodes are the same
-    if (body->IsInstance<ir::ReduceNode>()) {
-      const ir::ReduceNode* reduce_body = body.as<ir::ReduceNode>();
+    if (body->IsInstance<tir::ReduceNode>()) {
+      const tir::ReduceNode* reduce_body = body.as<tir::ReduceNode>();
       if (first_reduce != nullptr) {
         CHECK(ReduceEqual(reduce_body, first_reduce));
-        body = ir::ReduceNode::make(first_reduce->combiner,
+        body = tir::ReduceNode::make(first_reduce->combiner,
                                 first_reduce->source,
                                 first_reduce->axis,
                                 first_reduce->condition,
@@ -573,25 +573,25 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_body[j].size()) {
             new_body[j] = compute->body;
           }
-          if (new_body[j][0]->IsInstance<ir::ReduceNode>()) {
+          if (new_body[j][0]->IsInstance<tir::ReduceNode>()) {
             // specially handle reduction inline for multiplre reductions.
-            const ir::ReduceNode* reduce = new_body[j][0].as<ir::ReduceNode>();
+            const tir::ReduceNode* reduce = new_body[j][0].as<tir::ReduceNode>();
             for (size_t k = 1; k < new_body[j].size(); ++k) {
-              const ir::ReduceNode* reduce_ = new_body[j][k].as<ir::ReduceNode>();
+              const tir::ReduceNode* reduce_ = new_body[j][k].as<tir::ReduceNode>();
               CHECK(reduce_);
               CHECK(ReduceEqual(reduce_, reduce))
                   << "The Reduce inputs of ComputeOp should "
                   << "have the same attribute except value_index";
             }
-            PrimExpr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][0]),
-                                        stage->op, args, body).as<ir::EvaluateNode>()->value;
+            PrimExpr new_value = tir::Inline(tir::EvaluateNode::make(new_body[j][0]),
+                                        stage->op, args, body).as<tir::EvaluateNode>()->value;
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
-              const ir::ReduceNode* r = new_value.as<ir::ReduceNode>();
+              const tir::ReduceNode* r = new_value.as<tir::ReduceNode>();
               CHECK_EQ(new_body[j].size(), r->source.size());
               CHECK(r != nullptr);
               for (size_t k = 0; k < new_body[j].size(); ++k) {
-                auto n = make_object<ir::ReduceNode>(*r);
+                auto n = make_object<tir::ReduceNode>(*r);
                 n->value_index = static_cast<int>(k);
                 n->dtype = r->source[k].dtype();
                 new_body[j].Set(k, PrimExpr(n));
@@ -599,8 +599,8 @@ void InjectInline(ScheduleNode* sch) {
             }
           } else {
             for (size_t k = 0; k < new_body[j].size(); ++k) {
-              PrimExpr new_value = ir::Inline(ir::EvaluateNode::make(new_body[j][k]),
-                                          stage->op, args, body).as<ir::EvaluateNode>()->value;
+              PrimExpr new_value = tir::Inline(tir::EvaluateNode::make(new_body[j][k]),
+                                          stage->op, args, body).as<tir::EvaluateNode>()->value;
               if (!new_value.same_as(new_body[j][k])) {
                 new_body[j].Set(k, new_value);
                 changed[j] = true;
@@ -611,7 +611,7 @@ void InjectInline(ScheduleNode* sch) {
           if (!new_hybrid_body[j].defined()) {
             new_hybrid_body[j] = hybrid->body;
           }
-          Stmt new_stmt = ir::Inline(new_hybrid_body[j], stage->op, args, body);
+          Stmt new_stmt = tir::Inline(new_hybrid_body[j], stage->op, args, body);
           if (!new_stmt.same_as(new_hybrid_body[j])) {
             new_hybrid_body[j] = new_stmt;
             hybrid_changed[j] = true;
@@ -677,7 +677,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
                                 const IterVar& axis,
                                 int factor_axis) {
   (*this)->InvalidateCache();
-  using ir::ReduceNode;
+  using tir::ReduceNode;
   CHECK_EQ(axis->iter_type, kCommReduce)
       << "Can only factor reduction axis";
   Stage reduce_stage = operator[](tensor->op);
@@ -761,7 +761,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const ReduceNode* reduce = compute_op->body[idx].as<ReduceNode>();
   CHECK(reduce) << "Can only rfactor non-inline reductions";
   predicates.push_back(reduce->condition);
-  PrimExpr predicate = likely(arith::ComputeReduce<ir::AndNode>(predicates, PrimExpr()));
+  PrimExpr predicate = likely(arith::ComputeReduce<tir::AndNode>(predicates, PrimExpr()));
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
 
@@ -785,7 +785,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     }
   }
   VarReplacer replacer(vsub);
-  Array<PrimExpr> new_source = ir::UpdateArray(reduce->source,
+  Array<PrimExpr> new_source = tir::UpdateArray(reduce->source,
     [&replacer] (const PrimExpr& e) { return replacer(e); });
 
   PrimExpr new_pred = replacer(predicate);

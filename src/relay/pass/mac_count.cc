@@ -30,7 +30,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/data_layout.h>
+#include <tvm/relay/op_attr_types.h>
 #include "pattern_util.h"
 
 namespace tvm {

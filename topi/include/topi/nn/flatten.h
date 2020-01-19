@@ -30,7 +30,7 @@
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/top/operation.h"
-#include "tvm/expr_operator.h"
+#include "tvm/tir/op.h"
 
 
 namespace topi {

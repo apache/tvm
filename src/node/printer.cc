@@ -49,4 +49,8 @@ NodePrinter::FType& NodePrinter::vtable() {
   static FType inst;
   return inst;
 }
+
+void Dump(const ObjectRef& n) {
+  std::cerr << n << "\n";
+}
 }  // namespace tvm

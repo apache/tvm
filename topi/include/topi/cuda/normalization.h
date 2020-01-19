@@ -47,8 +47,8 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
   }
   Schedule s = create_schedule(out_ops);
   int num_thread = 64;
-  IterVar block_x = tvm::thread_axis(Range(), "blockIdx.x");
-  IterVar thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
+  IterVar block_x = tvm::top::thread_axis(Range(), "blockIdx.x");
+  IterVar thread_x = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.x");
   Tensor lrn = outs[0];
   Tensor sqr_sum_up = lrn->op->InputTensors()[1];
   Tensor sqr_sum = sqr_sum_up->op->InputTensors()[0];
@@ -110,8 +110,8 @@ inline Schedule schedule_l2_normalize(const Target &target, const Array<Tensor>&
   traverse(outs[0]->op);
   int num_thread = 64;
   Tensor l2_normalize = outs[0];
-  IterVar block_x = tvm::thread_axis(Range(), "blockIdx.x");
-  IterVar thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
+  IterVar block_x = tvm::top::thread_axis(Range(), "blockIdx.x");
+  IterVar thread_x = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.x");
   IterVar xto, xti;
   s[l2_normalize].split_by_nparts(l2_normalize->op.as<ComputeOpNode>()->axis[1],
                                  num_thread, &xto, &xti);

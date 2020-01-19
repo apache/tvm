@@ -21,14 +21,14 @@
  *  Implementation of API functions related to IR build
  * \file api_ir.cc
  */
-#include <tvm/expr.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 TVM_REGISTER_GLOBAL("_Var")
 .set_body_typed([](std::string s, DataType t) {
@@ -233,5 +233,5 @@ TVM_REGISTER_GLOBAL("make._OpIfThenElse")
   return if_then_else(cond, true_value, false_value);
 });
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

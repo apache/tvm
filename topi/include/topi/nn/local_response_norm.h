@@ -65,7 +65,7 @@ inline Tensor lrn(const Tensor& data,
   pad_before.Set(axis, static_cast<PrimExpr>(size/2));
   pad_after.Set(axis, static_cast<PrimExpr>(size/2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");
-  auto rxs = tvm::reduce_axis(Range(0, size), "rxs");
+  auto rxs = tvm::top::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
     sqr_sum = tvm::top::compute(input_shape,

@@ -22,7 +22,7 @@
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
@@ -295,7 +295,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     CHECK(ttype != nullptr);
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
-      const int64_t* pval = as_const_int(dim);
+      const int64_t* pval = tir::as_const_int(dim);
       CHECK(pval != nullptr)
           << "Cannot allocate memory symbolic tensor shape "
           << ttype->shape;

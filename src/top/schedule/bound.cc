@@ -23,7 +23,7 @@
  */
 #include <tvm/top/schedule_pass.h>
 #include <tvm/top/operation.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <unordered_map>
 #include <unordered_set>
 #include "graph.h"

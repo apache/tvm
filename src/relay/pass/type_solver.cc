@@ -21,7 +21,7 @@
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <string>
 #include <memory>
 #include <tuple>
@@ -42,7 +42,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   }
 
   bool Assert(const IndexExpr& cond) final {
-    if (const int64_t* pdiff = as_const_int(cond)) {
+    if (const int64_t* pdiff = tir::as_const_int(cond)) {
       return pdiff[0];
     }
     return true;
@@ -51,7 +51,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) final {
     // early warning constant case.
     IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
+    if (const int64_t* pdiff = tir::as_const_int(diff)) {
       return pdiff[0] == 0;
     }
     return true;
@@ -184,7 +184,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Any::make();
     }
 
-    auto left_index0 = ulhs.as<tvm::VarNode>();
+    auto left_index0 = ulhs.as<tvm::tir::VarNode>();
     auto right_index0 = urhs.as<tvm::IntImmNode>();
     if (left_index0 && right_index0) {
       solver_->shape_uf_.Set(ulhs, urhs);
@@ -192,7 +192,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     auto left_index1 = ulhs.as<tvm::IntImmNode>();
-    auto right_index1 = urhs.as<tvm::VarNode>();
+    auto right_index1 = urhs.as<tvm::tir::VarNode>();
     if (left_index1 && right_index1) {
       solver_->shape_uf_.Set(urhs, ulhs);
       return ulhs;

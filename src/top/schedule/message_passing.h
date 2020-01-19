@@ -25,7 +25,7 @@
 #ifndef TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
 #define TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/schedule.h>
 #include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>

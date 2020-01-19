@@ -24,15 +24,15 @@
 #ifndef TVM_CODEGEN_INTRIN_RULE_H_
 #define TVM_CODEGEN_INTRIN_RULE_H_
 
-#include <tvm/ir.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 #include <string>
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
-using namespace ir;
+using namespace tir;
 
 // Add float suffix to the intrinsics
 struct FloatSuffix {

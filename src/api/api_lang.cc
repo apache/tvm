@@ -21,16 +21,16 @@
  *  Implementation of API functions related to Higher DSL build.
  * \file api_lang.cc
  */
-#include <tvm/expr.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/tensor.h>
 #include <tvm/top/operation.h>
-#include <tvm/buffer.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/top/schedule.h>
 #include <tvm/runtime/registry.h>
 
 #include <tvm/build_module.h>
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 
 
 namespace tvm {
@@ -44,9 +44,9 @@ TVM_REGISTER_GLOBAL("_max_value")
 TVM_REGISTER_GLOBAL("_const")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     if (args[0].type_code() == kDLInt) {
-      *ret = make_const(args[1], args[0].operator int64_t());
+      *ret = tir::make_const(args[1], args[0].operator int64_t());
     } else if (args[0].type_code() == kDLFloat) {
-      *ret = make_const(args[1], args[0].operator double());
+      *ret = tir::make_const(args[1], args[0].operator double());
     } else {
       LOG(FATAL) << "only accept int or float";
     }
@@ -56,7 +56,7 @@ TVM_REGISTER_GLOBAL("_LargeUIntImm")
 .set_body_typed(LargeUIntImm);
 
 TVM_REGISTER_GLOBAL("_str")
-.set_body_typed(ir::StringImmNode::make);
+.set_body_typed(tir::StringImmNode::make);
 
 
 TVM_REGISTER_GLOBAL("_Array")
@@ -200,7 +200,7 @@ TVM_REGISTER_GLOBAL("_MapItems")
       auto* n = static_cast<const StrMapNode*>(ptr);
       auto rkvs = make_object<ArrayNode>();
       for (const auto& kv : n->data) {
-        rkvs->data.push_back(ir::StringImmNode::make(kv.first));
+        rkvs->data.push_back(tir::StringImmNode::make(kv.first));
         rkvs->data.push_back(kv.second);
       }
       *ret = Array<ObjectRef>(rkvs);
@@ -215,6 +215,8 @@ TVM_REGISTER_GLOBAL("Range")
       *ret = Range(args[0], args[1]);
     }
   });
+
+namespace tir {
 
 TVM_REGISTER_GLOBAL("_Buffer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -272,6 +274,7 @@ TVM_REGISTER_GLOBAL("_BijectiveLayoutForwardShape")
 
 TVM_REGISTER_GLOBAL("_BijectiveLayoutBackwardShape")
 .set_body_method(&BijectiveLayout::BackwardShape);
+}  // namespace tir
 
 namespace top {
 TVM_REGISTER_GLOBAL("_Tensor")
@@ -444,6 +447,6 @@ TVM_REGISTER_GLOBAL("_ScheduleRFactor")
 }  // namespace top
 
 TVM_REGISTER_GLOBAL("_CommReducerCombine")
-.set_body_method<ir::CommReducer>(&ir::CommReducerNode::operator());
+.set_body_method<tir::CommReducer>(&tir::CommReducerNode::operator());
 
 }  // namespace tvm

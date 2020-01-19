@@ -23,10 +23,10 @@
  */
 #include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/ir_pass.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/op.h>
 #include <unordered_set>
 #include <string>
 #include <utility>
@@ -35,7 +35,7 @@
 
 namespace tvm {
 namespace top {
-using namespace ir;
+using namespace tir;
 // HybridOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<HybridOpNode>([](const ObjectRef& node, NodePrinter* p) {
@@ -92,8 +92,8 @@ Array<Tensor> HybridOpNode::InputTensors() const {
   }
   std::unordered_set<Tensor> visited;
   Array<Tensor> curr_inputs;
-  ir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
-      const ir::CallNode *call = n.as<ir::CallNode>();
+  tir::PostOrderVisit(body, [&curr_inputs, &orig_inputs, &visited](const ObjectRef& n) {
+      const tir::CallNode *call = n.as<tir::CallNode>();
       if (call != nullptr && call->func.defined()) {
         Tensor t = Downcast<Operation>(call->func).output(call->value_index);
         if (orig_inputs.count(t) && !visited.count(t)) {
@@ -169,7 +169,7 @@ Stmt HybridOpNode::BuildRealize(
           Range::make_by_min_extent(
               make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = ir::RealizeNode::make(
+    realize_body = tir::RealizeNode::make(
         t->op, t->value_index, t->dtype,
         bounds, const_true(), realize_body);
   }
@@ -249,7 +249,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
       if (op->loop_var.get() == parent) {
         std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = inner + outer * factor;
-        Stmt ret = ir::Substitute(op->body, rmap);
+        Stmt ret = tir::Substitute(op->body, rmap);
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElseNode::make(cond, ret);
         ret = ForNode::make(inner->var, PrimExpr(0), inner->dom->extent,
@@ -285,13 +285,13 @@ Stmt ApplyLoopShapes(const Stage &stage,
         rmap[op->loop_var.get()] = indexmod(parent, op->extent);
         extent = op->extent;
         fused = true;
-        return ir::Substitute(op->body, rmap);
+        return tir::Substitute(op->body, rmap);
       } else if (op->loop_var.get() == outer) {
         under_outer = true;
         Stmt body = this->VisitStmt(op->body);
         std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
-        body = ir::Substitute(body, rmap);
+        body = tir::Substitute(body, rmap);
         under_outer = false;
         return ForNode::make(parent->var, PrimExpr(0), extent * op->extent,
                          op->for_type, op->device_api, body);
@@ -299,7 +299,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         Stmt body = this->VisitStmt(op->body);
         std::unordered_map<const VarNode *, PrimExpr> rmap;
         rmap[op->loop_var.get()] = indexmod(indexdiv(parent, extent), op->extent);
-        body = ir::Substitute(body, rmap);
+        body = tir::Substitute(body, rmap);
         extent = extent * op->extent;
         return body;
       }
@@ -342,7 +342,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
           }
           std::unordered_map<const VarNode *, PrimExpr> rmap;
           rmap[op->loop_var.get()] = iter_var;
-          Stmt body = ir::Substitute(op->body, rmap);
+          Stmt body = tir::Substitute(op->body, rmap);
           return AttrStmtNode::make(iter_var, "thread_extent", op->extent, body);
         } else {
           return ForNode::make(op->loop_var, op->min, op->extent,
@@ -476,16 +476,16 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
 }
 
 // replacer to replace tensors' usage in Provide
-class ProviderReplacer : public ir::StmtMutator {
+class ProviderReplacer : public tir::StmtMutator {
  public:
   explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor> &vmap)
       : vmap_(vmap) {}
 
-  Stmt VisitStmt_(const ir::ProvideNode* op) final {
+  Stmt VisitStmt_(const tir::ProvideNode* op) final {
     Tensor t = Downcast<Operation>(op->func).output(op->value_index);
     auto it = vmap_.find(t);
     if (it != vmap_.end()) {
-      Stmt ret = ir::ProvideNode::make(
+      Stmt ret = tir::ProvideNode::make(
         it->second->op, it->second->value_index, op->value, op->args);
       found = true;
       return this->VisitStmt(ret);

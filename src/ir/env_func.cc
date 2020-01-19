@@ -22,7 +22,7 @@
  */
 #include <tvm/ir/env_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 
 namespace tvm {
 

@@ -26,7 +26,8 @@
 #include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
 #include <tvm/arith/int_set.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 
 #include <unordered_map>
 
@@ -36,6 +37,11 @@ namespace top {
 class Tensor;
 }
 namespace arith {
+
+using tir::Var;
+using tir::VarNode;
+using tir::Domain;
+using tir::Stmt;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,

@@ -22,8 +22,8 @@
  * \brief Modular set analysis
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/expr_functor.h>
 #include <limits>
 #include <utility>
 #include <unordered_map>
@@ -32,7 +32,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 TVM_REGISTER_NODE_TYPE(ModularSetNode);
 

@@ -21,8 +21,8 @@
  * \file pad.cc
  * \brief Implementation of operator pad
  */
-#include <tvm/data_layout.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/data_layout.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn.h>
@@ -135,8 +135,8 @@ bool PadRel(const Array<Type>& types,
       << "Each pad width element should be a pair but at index " << i
       << " there are " << param->pad_width[i].size() << " elements.";
 
-    auto width1 = as_const_int(param->pad_width[i][0]);
-    auto width2 = as_const_int(param->pad_width[i][1]);
+    auto width1 = tir::as_const_int(param->pad_width[i][0]);
+    auto width2 = tir::as_const_int(param->pad_width[i][1]);
     CHECK(width1 != nullptr);
     CHECK(width2 != nullptr);
 
@@ -147,8 +147,8 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    if (!data->shape[i].as<ir::AnyNode>()) {
-      auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
+    if (!data->shape[i].as<tir::AnyNode>()) {
+      auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
       oshape.push_back(data->shape[i] + padding);
     } else {
       oshape.push_back(data->shape[i]);
@@ -181,7 +181,7 @@ Array<top::Tensor> PadCompute(const Attrs& attrs,
   }
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   return Array<top::Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
-                                  tvm::make_const(out_ttype->dtype, param->pad_value),
+                                  tvm::tir::make_const(out_ttype->dtype, param->pad_value),
                                   "T_pad",
                                   topi::kElementWise,
                                   param->pad_mode) };
@@ -244,8 +244,8 @@ bool MirrorPadRel(const Array<Type>& types,
       << "Each pad width element should be a pair but at index " << i
       << " there are " << param->pad_width[i].size() << " elements.";
 
-    auto width1 = as_const_int(param->pad_width[i][0]);
-    auto width2 = as_const_int(param->pad_width[i][1]);
+    auto width1 = tir::as_const_int(param->pad_width[i][0]);
+    auto width2 = tir::as_const_int(param->pad_width[i][1]);
     CHECK(width1 != nullptr);
     CHECK(width2 != nullptr);
 
@@ -256,7 +256,7 @@ bool MirrorPadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    auto padding = make_const(data->shape[i].dtype(), *width1 + *width2);
+    auto padding = tir::make_const(data->shape[i].dtype(), *width1 + *width2);
     oshape.push_back(data->shape[i] + padding);
   }
 

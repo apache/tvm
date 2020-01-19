@@ -69,7 +69,7 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
   return e.vid;
 }
 
-std::string CodeGenSourceBase::AllocVarID(const VarNode* v) {
+std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
   CHECK(!var_idmap_.count(v))
       << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;
@@ -78,7 +78,7 @@ std::string CodeGenSourceBase::AllocVarID(const VarNode* v) {
   return vid;
 }
 
-std::string CodeGenSourceBase::GetVarID(const VarNode* v) const {
+std::string CodeGenSourceBase::GetVarID(const tir::VarNode* v) const {
   auto it = var_idmap_.find(v);
   CHECK(it != var_idmap_.end())
       << "Find undefined Variable " << v->name_hint;

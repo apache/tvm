@@ -24,9 +24,9 @@
 #ifndef TVM_CODEGEN_STACKVM_CODEGEN_STACKVM_H_
 #define TVM_CODEGEN_STACKVM_CODEGEN_STACKVM_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/lowered_func.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/lowered_func.h>
 #include <tvm/codegen.h>
 #include <string>
 #include <vector>
@@ -37,7 +37,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 using runtime::StackVM;
 
 /*!

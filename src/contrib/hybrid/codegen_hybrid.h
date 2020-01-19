@@ -24,10 +24,10 @@
 #ifndef TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 #define TVM_CONTRIB_HYBRID_CODEGEN_HYBRID_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/codegen.h>
-#include <tvm/lowered_func.h>
+#include <tvm/tir/lowered_func.h>
 #include <tvm/top/schedule.h>
 #include <map>
 #include <string>
@@ -39,7 +39,7 @@ namespace tvm {
 namespace contrib {
 
 using namespace top;
-using namespace ir;
+using namespace tir;
 /*!
  * \brief A base class to generate Hybrid Script.
  *

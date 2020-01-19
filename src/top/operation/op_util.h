@@ -24,19 +24,19 @@
 #ifndef TVM_TOP_OPERATION_OP_UTIL_H_
 #define TVM_TOP_OPERATION_OP_UTIL_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/schedule.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../pass/ir_util.h"
-#include "../../pass/arg_binder.h"
+#include "../../tir/pass/ir_util.h"
+#include "../../tir/pass/arg_binder.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {
 namespace top {
 
-using ir::MergeNest;
+using tir::MergeNest;
 
 /*!
  * \brief Build loop nest for stage.
@@ -94,13 +94,13 @@ Stmt Substitute(Stmt stmt,
  * \brief Converts Halide ForType to its corresponding IterVarType
  * \param for_type The ForType to be converted
  */
-IterVarType ForTypeToIterVarType(ir::ForType for_type);
+IterVarType ForTypeToIterVarType(tir::ForType for_type);
 
 /*!
  * \brief Converts IterVarType to its corresponding Halide ForType
  * \param iter_type The IterVarType to be converted
  */
-ir::ForType IterVarTypeToForType(IterVarType iter_type);
+tir::ForType IterVarTypeToForType(IterVarType iter_type);
 
 }  // namespace top
 }  // namespace tvm

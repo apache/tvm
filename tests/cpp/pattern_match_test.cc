@@ -22,8 +22,9 @@
 
 TEST(Pattern, Basic) {
   using namespace tvm;
+  using namespace tvm::tir;
   using namespace tvm::arith;
-  Var x("x"), y("y"), z("z");
+  tvm::tir::Var x("x"), y("y"), z("z");
   arith::PVar<PrimExpr> px, py, pz;
   arith::PVar<DataType> pt;
   arith::PVar<int> planes;
@@ -38,12 +39,12 @@ TEST(Pattern, Basic) {
   {
     CHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();
-    CHECK(ir::Equal(rr, 1 + y));
-    CHECK(ir::Equal(px.Eval() + py.Eval(), 1 + y));
+    CHECK(tir::Equal(rr, 1 + y));
+    CHECK(tir::Equal(px.Eval() + py.Eval(), 1 + y));
   }
   {
     CHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
-    CHECK(ir::Equal(px.Eval(), x + 1));
+    CHECK(tir::Equal(px.Eval(), x + 1));
   }
   CHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
   CHECK((px + min(py, px)).Match(z + min(y, z)));
@@ -62,8 +63,8 @@ TEST(Pattern, Basic) {
   CHECK((!(px > py || px != py)).Match(!(x > y || x != y)));
   {
     CHECK(select(px >= pz, py, py + pz).Match(
-        ir::SelectNode::make((x + 1) >= 1, y, y + 1)));
-    CHECK(ir::Equal(px.Eval(), x + 1));
+        tir::SelectNode::make((x + 1) >= 1, y, y + 1)));
+    CHECK(tir::Equal(px.Eval(), x + 1));
   }
   // bit intrinsics
   {
@@ -79,17 +80,17 @@ TEST(Pattern, Basic) {
   // select
   {
     CHECK(select(px > pz, py, py + pz).Match(
-      ir::SelectNode::make(x > 1, y, y + 1)));
+      tir::SelectNode::make(x > 1, y, y + 1)));
     CHECK(is_const_int(pz.Eval(), 1));
   }
   CHECK(!select(px > pz, py, py + pz).Match(
-      ir::SelectNode::make(x > 2, y, y + 1)));
+      tir::SelectNode::make(x > 2, y, y + 1)));
   CHECK(!select(px > pz, py, py).Match(
-      ir::SelectNode::make(x > 2, y, y + 1)));
+      tir::SelectNode::make(x > 2, y, y + 1)));
   {
     CHECK(select(px, py, pz).Match(
-        ir::SelectNode::make(x > 2, y, y + 1)));
-    CHECK(ir::Equal(pz.Eval(), y + 1));
+        tir::SelectNode::make(x > 2, y, y + 1)));
+    CHECK(tir::Equal(pz.Eval(), y + 1));
   }
   // if_then_else
   {
@@ -100,38 +101,38 @@ TEST(Pattern, Basic) {
   // cast pattern
   {
     CHECK(!cast(PConst<DataType>(
-        DataType::Int(32)), px).Match(ir::CastNode::make(DataType::Float(64), x)));
-    CHECK(cast(pt, px).Match(ir::CastNode::make(DataType::Float(64), x)));
+        DataType::Int(32)), px).Match(tir::CastNode::make(DataType::Float(64), x)));
+    CHECK(cast(pt, px).Match(tir::CastNode::make(DataType::Float(64), x)));
     CHECK(pt.Eval() == DataType::Float(64));
     auto zz = cast(pt, px).Eval();
     CHECK((cast(pt, px) - cast(pt, py)).Match(
-        ir::CastNode::make(DataType::Float(64), x) - ir::CastNode::make(DataType::Int(64), x)));
-    auto expr = ir::CastNode::make(DataType::Int(32), ir::CastNode::make(DataType::Float(64), x));
+        tir::CastNode::make(DataType::Float(64), x) - tir::CastNode::make(DataType::Int(64), x)));
+    auto expr = tir::CastNode::make(DataType::Int(32), tir::CastNode::make(DataType::Float(64), x));
     CHECK(!(cast(pt, cast(pt, px))).Match(expr));
   }
   // ramp pattern
   {
     CHECK(ramp(px, PConst<PrimExpr>(1), planes).Match(
-        ir::RampNode::make(x, 1, 10)));
+        tir::RampNode::make(x, 1, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(!ramp(px, PConst<PrimExpr>(1), planes).Match(
-        ir::RampNode::make(x, 2, 10)));
+        tir::RampNode::make(x, 2, 10)));
   }
   // broadcast pattern
   {
     CHECK(broadcast(px, planes).Match(
-        ir::BroadcastNode::make(x, 10)));
+        tir::BroadcastNode::make(x, 10)));
     CHECK(planes.Eval() == 10);
     CHECK(broadcast(px * py , planes).Match(
-        ir::BroadcastNode::make(x * 10, 10)));
+        tir::BroadcastNode::make(x * 10, 10)));
   }
 }
 
 TEST(Pattern, IntImm) {
   using namespace tvm;
-  tvm::Var tx, ty;
+  tir::Var tx, ty;
   arith::PVar<IntImm> c;
-  arith::PVar<Var> v;
+  arith::PVar<tir::Var> v;
   {
     // We can match integer and Var, both of which are
     // special case container of Expr

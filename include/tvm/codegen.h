@@ -24,10 +24,11 @@
 #ifndef TVM_CODEGEN_H_
 #define TVM_CODEGEN_H_
 
+#include <tvm/runtime/packed_func.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/lowered_func.h>
 #include <string>
-#include "expr.h"
-#include "lowered_func.h"
-#include "runtime/packed_func.h"
+
 
 namespace tvm {
 /*! \brief namespace for lowlevel IR pass and codegen */
@@ -45,7 +46,7 @@ using runtime::TVMRetValue;
  *
  * \note Calls global API function  "_codegen_build_" + target
  */
-runtime::Module Build(const Array<LoweredFunc>& funcs,
+runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
                       const std::string& target);
 /*!
  * \brief Pack imported device library to a C file.

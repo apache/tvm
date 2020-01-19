@@ -58,7 +58,7 @@ llvm::Value* CodeGenARM::CreateIntrinsic(const CallNode* op) {
 }
 
 PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
-  using namespace ir;
+  using namespace tir;
   const PrimExpr& e = call->args[2];
   ::llvm::Intrinsic::ID ctpop_id = ::llvm::Intrinsic::ctpop;
   ::llvm::Intrinsic::ID vpaddlu_id = ::llvm::Intrinsic::arm_neon_vpaddlu;
@@ -71,7 +71,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
     vcnt_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
     vcnt_args.push_back(IntImm(DataType::UInt(32), 1));
     vcnt_args.push_back(e);
-    return ir::CallNode::make(call->dtype,  "llvm_intrin", vcnt_args, CallNode::PureIntrinsic);
+    return tir::CallNode::make(call->dtype,  "llvm_intrin", vcnt_args, CallNode::PureIntrinsic);
   }
 
   // Popcount lowering rule:
@@ -96,7 +96,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt8_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
   vcnt8_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt8_args.push_back(input8);
-  PrimExpr vcnt8 = ir::CallNode::make(
+  PrimExpr vcnt8 = tir::CallNode::make(
     uint8_type,  "llvm_intrin", vcnt8_args, CallNode::PureIntrinsic);
 
   // Accumulation 8->16bit
@@ -104,7 +104,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt16_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt16_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt16_args.push_back(vcnt8);
-  PrimExpr vcnt16 = ir::CallNode::make(
+  PrimExpr vcnt16 = tir::CallNode::make(
     uint16_type, "llvm_intrin", vcnt16_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 16) {
     return vcnt16;
@@ -115,7 +115,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt32_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt32_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt32_args.push_back(vcnt16);
-  PrimExpr vcnt32 = ir::CallNode::make(
+  PrimExpr vcnt32 = tir::CallNode::make(
     uint32_type,  "llvm_intrin", vcnt32_args, CallNode::PureIntrinsic);
   if (call->dtype.bits() == 32) {
     return vcnt32;
@@ -126,7 +126,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode *call) {
   vcnt64_args.push_back(IntImm(DataType::UInt(32), vpaddlu_id));
   vcnt64_args.push_back(IntImm(DataType::UInt(32), 1));
   vcnt64_args.push_back(vcnt32);
-  return ir::CallNode::make(
+  return tir::CallNode::make(
     call->dtype,  "llvm_intrin", vcnt64_args, CallNode::PureIntrinsic);
 }
 

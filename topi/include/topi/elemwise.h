@@ -24,11 +24,10 @@
 #ifndef TOPI_ELEMWISE_H_
 #define TOPI_ELEMWISE_H_
 
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <topi/tags.h>
 #include <string>
-
-#include "topi/tags.h"
-#include "tvm/ir.h"
-#include "tvm/ir_pass.h"
 #include "broadcast.h"
 
 namespace topi {
@@ -195,8 +194,8 @@ inline Tensor sign(const Tensor& x,
     PrimExpr zero = make_zero(x->dtype);
     PrimExpr one = make_const(x->dtype, 1);
     PrimExpr minus_one = make_const(x->dtype, -1);
-    auto s1 = tvm::ir::SelectNode::make((x(i) < zero), minus_one, zero);
-    auto s2 = tvm::ir::SelectNode::make((x(i) > zero), one, s1);
+    auto s1 = tvm::tir::SelectNode::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::tir::SelectNode::make((x(i) > zero), one, s1);
     return s2;
   }, name, tag);
 }
@@ -265,7 +264,7 @@ inline Tensor cast(const Tensor& x,
       if (expr.dtype().lanes() == type.lanes()) {
         return expr;
       } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
-        return tvm::ir::BroadcastNode::make(expr, type.lanes());
+        return tvm::tir::BroadcastNode::make(expr, type.lanes());
       }
     }
 
@@ -287,8 +286,8 @@ inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "te
                           std::string tag = kElementWise) {
   return compute(x->shape,
                  [&](const Array<Var>& i) {
-                   return tvm::ir::CallNode::make(type, "reinterpret", {x(i)},
-                                              tvm::ir::CallNode::PureIntrinsic);
+                   return tvm::tir::CallNode::make(type, "reinterpret", {x(i)},
+                                              tvm::tir::CallNode::PureIntrinsic);
                  },
                  name, tag);
 }

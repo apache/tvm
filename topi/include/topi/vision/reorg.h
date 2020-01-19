@@ -32,7 +32,7 @@
 #include "topi/tags.h"
 #include "topi/transform.h"
 #include "tvm/top/operation.h"
-#include "tvm/expr_operator.h"
+#include "tvm/tir/op.h"
 
 namespace topi {
 namespace vision {

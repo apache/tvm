@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <string>
 #include <utility>
 
@@ -104,7 +104,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
 
-  if (!dshape_ncw[2].as<ir::AnyNode>()) {
+  if (!dshape_ncw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncw[2] + param->padding[0] + param->padding[1] - dilated_ksize,
                            param->strides[0]) + 1);
   } else {
@@ -161,7 +161,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
+    if (tvm::tir::Equal(param->channels, param->groups) && !tvm::tir::Equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_nchw[1], indexdiv(param->groups, dshape_nchw[1]), param->kernel_size[0],
                  param->kernel_size[1]}};
@@ -207,14 +207,14 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  if (!dshape_nchw[2].as<ir::AnyNode>()) {
+  if (!dshape_nchw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_nchw[2] + pad_h - dilated_ksize_y,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
 
-  if (!dshape_nchw[3].as<ir::AnyNode>()) {
+  if (!dshape_nchw[3].as<tir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_nchw[3] + pad_w - dilated_ksize_x,
                            param->strides[1]) + 1);
   } else {
@@ -270,7 +270,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 3);
     Array<IndexExpr> wshape;
 
-    if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
+    if (tvm::tir::Equal(param->channels, param->groups) && !tvm::tir::Equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_ncdhw[1], indexdiv(param->groups, dshape_ncdhw[1]), param->kernel_size[0],
                  param->kernel_size[1], param->kernel_size[2]}};
@@ -320,21 +320,21 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_d, pad_h, pad_w;
   GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
-  if (!dshape_ncdhw[2].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncdhw[2] + pad_d - dilated_ksize_z,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncdhw[2]);
   }
 
-  if (!dshape_ncdhw[3].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[3].as<tir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_ncdhw[3] + pad_h - dilated_ksize_y,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
 
-  if (!dshape_ncdhw[4].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[4].as<tir::AnyNode>()) {
     oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x,
                            param->strides[2]) + 1);
   } else {

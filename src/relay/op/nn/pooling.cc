@@ -21,7 +21,7 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
@@ -139,7 +139,7 @@ bool Pool2DRel(const Array<Type>& types,
     oshape.push_back(e);
   }
 
-  if (dshape[hidx].as<ir::AnyNode>()) {
+  if (dshape[hidx].as<tir::AnyNode>()) {
     oshape[hidx] = dshape[hidx];
   } else {
     if (param->ceil_mode) {
@@ -149,7 +149,7 @@ bool Pool2DRel(const Array<Type>& types,
       oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
     }
   }
-  if (dshape[widx].as<ir::AnyNode>()) {
+  if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
@@ -780,7 +780,7 @@ bool Pool1DRel(const Array<Type>& types,
     oshape.push_back(e);
   }
 
-  if (dshape[widx].as<ir::AnyNode>()) {
+  if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
@@ -974,7 +974,7 @@ bool Pool3DRel(const Array<Type>& types,
   std::vector<int> idxes = {didx, hidx, widx};
   for (int i = 0; i < 3; i++) {
     int ii = idxes[i];
-    if (dshape[ii].as<ir::AnyNode>()) {
+    if (dshape[ii].as<tir::AnyNode>()) {
       oshape[ii] = dshape[ii];
     } else {
       if (param->ceil_mode) {

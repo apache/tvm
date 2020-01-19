@@ -29,7 +29,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/build_module.h>
 #include <tvm/codegen.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/top/operation.h>
 
 #include <typeinfo>

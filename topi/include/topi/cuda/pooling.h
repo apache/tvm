@@ -68,8 +68,8 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
     auto fused = detail::Fuse(s[out], s[out]->op.as<ComputeOpNode>()->axis);
     IterVar bx, tx;
     s[out].split(fused, num_thread, &bx, &tx);
-    s[out].bind(bx, tvm::thread_axis(Range(), "blockIdx.x"));
-    s[out].bind(tx, tvm::thread_axis(Range(), "threadIdx.x"));
+    s[out].bind(bx, tvm::top::thread_axis(Range(), "blockIdx.x"));
+    s[out].bind(tx, tvm::top::thread_axis(Range(), "threadIdx.x"));
     if (detail::contains(s->outputs, pool->op)) {
       s[OL].compute_at(s[out], tx);
     } else {
@@ -120,10 +120,10 @@ inline Schedule schedule_global_pool(const Target &target, const Array<Tensor>& 
 
   auto _schedule = [&](const Tensor& pool) {
     auto num_thread = 8;
-    auto block_x = tvm::thread_axis(Range(), "blockIdx.x");
-    auto block_y = tvm::thread_axis(Range(), "blockIdx.y");
-    auto thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
-    auto thread_y = tvm::thread_axis(Range(0, num_thread), "threadIdx.y");
+    auto block_x = tvm::top::thread_axis(Range(), "blockIdx.x");
+    auto block_y = tvm::top::thread_axis(Range(), "blockIdx.y");
+    auto thread_x = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.x");
+    auto thread_y = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.y");
     Tensor out;
     Tensor OL;
     if (detail::contains(s->outputs, pool->op)) {
