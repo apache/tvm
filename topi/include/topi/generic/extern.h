@@ -27,7 +27,8 @@
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
 #include "tvm/top/operation.h"
-#include "tvm/build_module.h"
+#include "tvm/top/schedule_pass.h"
+#include "tvm/target/generic_func.h"
 #include "injective.h"
 
 namespace topi {

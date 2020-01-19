@@ -29,7 +29,6 @@ There can be internal header files within each module that sit in src.
 - arith: Arithmetic expression and set simplification.
 - top: tensor operation DSL for compute and schedule.
 - relay: Relay IR, high-level optimization.
-- codegen: The code generator.
 - autotvm: The auto-tuning module.
 - contrib: Contrib extension libraries.
 - api: API function registration.

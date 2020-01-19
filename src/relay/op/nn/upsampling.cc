@@ -25,7 +25,6 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/build_module.h>
 #include <vector>
 #include "../op_common.h"
 

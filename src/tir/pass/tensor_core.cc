@@ -29,7 +29,7 @@
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/target/target_info.h>
-#include <tvm/build_module.h>
+#include <tvm/target/target.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
 #include "ir_util.h"
