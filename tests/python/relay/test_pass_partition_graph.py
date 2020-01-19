@@ -514,14 +514,15 @@ def test_partition_conv_bias_relu():
             relay.transform.FoldScaleAxis(),
         ])
 
-        inputs = {}
-        for name, param in params.items():
-            if isinstance(param, np.ndarray):
-                param = tvm.nd.array(param)
-            inputs[name] = _expr.const(param)
+        if params != {}:
+            inputs = {}
+            for name, param in params.items():
+                if isinstance(param, np.ndarray):
+                    param = tvm.nd.array(param)
+                inputs[name] = _expr.const(param)
 
-        from tvm.relay._build_module import BindParamsByName
-        mod["main"] = BindParamsByName(mod["main"], inputs)
+            from tvm.relay._build_module import BindParamsByName
+            mod["main"] = BindParamsByName(mod["main"], inputs)
 
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = remove_bn_pass(mod)
@@ -530,7 +531,6 @@ def test_partition_conv_bias_relu():
 
     def get_partitoned_mod(mod):
         mod["main"] = ConvBiasAddReLUAnnotator("dnnl").visit(mod["main"])
-        #print(mod["main"])
         mod = transform.PartitionGraph()(mod)
         return mod
 
@@ -561,12 +561,10 @@ def test_partition_conv_bias_relu():
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = pre_optimize(mod, params)
-        # print(mod["main"])
         mod = get_partitoned_mod(mod)
-        print(mod["main"])
-        print(len(get_partitions(mod["main"])))
+        assert(len(get_partitions(mod)) == 27)
 
-    # test_partition()
+    test_partition()
     test_partition_mobilenet()
 
     # TODO: Enable executor check once the runtime signature issue is resolved
@@ -584,10 +582,10 @@ def test_partition_conv_bias_relu():
 
 
 if __name__ == "__main__":
-    # test_multi_node_compiler()
-    # test_extern_ccompiler_single_op()
-    # test_extern_ccompiler_default_ops()
-    # test_extern_ccompiler()
-    # test_extern_dnnl()
-    # test_extern_dnnl_mobilenet()
+    test_multi_node_compiler()
+    test_extern_ccompiler_single_op()
+    test_extern_ccompiler_default_ops()
+    test_extern_ccompiler()
+    test_extern_dnnl()
+    test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()
