@@ -27,7 +27,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/build_module.h>
+#include <tvm/target/generic_func.h>
 
 #include <topi/broadcast.h>
 #include <topi/elemwise.h>

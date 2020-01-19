@@ -25,6 +25,7 @@
 
 #include <tvm/top/schedule.h>
 #include <tvm/top/operation.h>
+#include <tvm/top/schedule_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
@@ -32,6 +33,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/driver/driver.h>
+
 #include <topi/tags.h>
 #include <utility>
 #include <limits>

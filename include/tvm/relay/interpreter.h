@@ -34,12 +34,13 @@
 #ifndef TVM_RELAY_INTERPRETER_H_
 #define TVM_RELAY_INTERPRETER_H_
 
-#include <tvm/build_module.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/vm.h>
+#include <tvm/target/target.h>
+
 
 namespace tvm {
 namespace relay {

@@ -28,7 +28,7 @@
 #include "topi/detail/fuse.h"
 #include "topi/detail/array_utils.h"
 #include "tvm/top/operation.h"
-#include "tvm/build_module.h"
+#include "tvm/target/generic_func.h"
 
 #include "topi/cuda/pooling.h"
 

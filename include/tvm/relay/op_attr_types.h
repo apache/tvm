@@ -26,9 +26,9 @@
 
 #include <tvm/top/tensor.h>
 #include <tvm/top/schedule.h>
-#include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/data_layout.h>
 #include <string>
 
