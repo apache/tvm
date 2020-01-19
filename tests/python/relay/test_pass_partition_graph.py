@@ -179,7 +179,6 @@ class ConvBiasAddReLUAnnotator(ExprMutator):
 
     def annotate_call(self, call):
         new_args = []
-        has_arg = "nn.conv2d"
         for arg in call.args:
             new_arg = super().visit(arg)
             if call.op.name == "nn.conv2d" or isinstance(new_arg, (relay.expr.Var, relay.expr.Constant)):
@@ -571,9 +570,9 @@ def test_partition_conv_bias_relu():
     test_partition()
     test_partition_mobilenet()
 
-    # net = get_net()
-    # mod, params = tvm.relay.testing.create_workload(net)
-    # ref_mod, ref_params = tvm.relay.testing.create_workload(net)
+    net = get_net()
+    mod, params = tvm.relay.testing.create_workload(net)
+    ref_mod, ref_params = tvm.relay.testing.create_workload(net)
     # test_exec(mod, params, ref_mod, ref_params, (1, 16, 224, 224))
 
     mod, params = relay.testing.mobilenet.get_workload()
@@ -582,10 +581,10 @@ def test_partition_conv_bias_relu():
 
 
 if __name__ == "__main__":
-    # test_multi_node_compiler()
-    # test_extern_ccompiler_single_op()
-    # test_extern_ccompiler_default_ops()
-    # test_extern_ccompiler()
-    # test_extern_dnnl()
-    # test_extern_dnnl_mobilenet()
+    test_multi_node_compiler()
+    test_extern_ccompiler_single_op()
+    test_extern_ccompiler_default_ops()
+    test_extern_ccompiler()
+    test_extern_dnnl()
+    test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()
