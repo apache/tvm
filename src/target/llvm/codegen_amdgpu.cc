@@ -28,7 +28,6 @@
 #include <tvm/runtime/registry.h>
 #include "codegen_llvm.h"
 #include "../build_common.h"
-#include "../codegen_source_base.h"
 #include "../../runtime/rocm/rocm_module.h"
 
 namespace tvm {

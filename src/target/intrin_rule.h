@@ -21,8 +21,8 @@
  * \file intrin_rule.h
  * \brief Utility to generate intrinsic rules
  */
-#ifndef TVM_CODEGEN_INTRIN_RULE_H_
-#define TVM_CODEGEN_INTRIN_RULE_H_
+#ifndef TVM_TARGET_INTRIN_RULE_H_
+#define TVM_TARGET_INTRIN_RULE_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr.h>
@@ -72,4 +72,4 @@ inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_INTRIN_RULE_H_
+#endif  // TVM_TARGET_INTRIN_RULE_H_

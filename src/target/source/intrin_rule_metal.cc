@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,61 +18,50 @@
  */
 
 /*!
- * \file intrin_rule_opencl.cc
- * \brief OpenCL intrinsic rules.
+ * \file intrin_rule_metal.cc
+ * \brief Metal intrinsic rules.
  */
-#include "intrin_rule.h"
+#include "../intrin_rule.h"
 
 namespace tvm {
 namespace codegen {
 namespace intrin {
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.floor")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.floor")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.ceil")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.ceil")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.trunc")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.trunc")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fabs")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fabs")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.round")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.round")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.log")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tanh")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.tanh")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.sqrt")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sqrt")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.pow")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.pow")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.popcount")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.popcount")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fmod")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fmod")
 .set_body(DispatchExtern<Direct>);
-
-// There is no warp shuffle instruction in standard OpenCL
-// When shuffle is used, we assume it is intel's shuffle extension
-struct IntelShuffle {
-  std::string operator()(DataType t, std::string name) const {
-    return "intel_sub_group_shuffle";
-  }
-};
-
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tvm_warp_shuffle")
-.set_body(DispatchExtern<IntelShuffle>);
 
 }  // namespace intrin
 }  // namespace codegen

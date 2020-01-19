@@ -21,8 +21,8 @@
  * \file cuda_half_t.h
  * \brief half_t (fp16) definition for cuda codegen.
  */
-#ifndef TVM_CODEGEN_LITERAL_CUDA_HALF_T_H_
-#define TVM_CODEGEN_LITERAL_CUDA_HALF_T_H_
+#ifndef TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
+#define TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
 
 static constexpr const char* _cuda_half_t_def = R"(
 typedef unsigned short uint16_t;
@@ -295,4 +295,4 @@ __pack_half2(const half x, const half y) {
 }
 )";
 
-#endif  // TVM_CODEGEN_LITERAL_CUDA_HALF_T_H_
+#endif  // TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_

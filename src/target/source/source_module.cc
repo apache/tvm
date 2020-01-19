@@ -24,8 +24,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include "codegen_source_base.h"
-#include "../runtime/file_util.h"
-#include "../runtime/meta_data.h"
+#include "../../runtime/file_util.h"
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {

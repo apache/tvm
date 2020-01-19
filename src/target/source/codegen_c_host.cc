@@ -20,11 +20,11 @@
 /*!
  * \file codegen_c_host.cc
  */
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <vector>
 #include <string>
 #include "codegen_c_host.h"
-#include "build_common.h"
+#include "../build_common.h"
 
 namespace tvm {
 namespace codegen {

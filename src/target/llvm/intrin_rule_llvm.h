@@ -21,14 +21,14 @@
  * \file intrin_rule_llvm.h
  * \brief Common utilities for llvm intrinsics.
  */
-#ifndef TVM_CODEGEN_LLVM_INTRIN_RULE_LLVM_H_
-#define TVM_CODEGEN_LLVM_INTRIN_RULE_LLVM_H_
+#ifndef TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_
+#define TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <string>
 #include "llvm_common.h"
 
@@ -72,4 +72,4 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
 }  // namespace tvm
 
 #endif  // LLVM_VERSION
-#endif  // TVM_CODEGEN_LLVM_INTRIN_RULE_LLVM_H_
+#endif  // TVM_TARGET_LLVM_INTRIN_RULE_LLVM_H_

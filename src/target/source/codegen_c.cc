@@ -23,8 +23,8 @@
 #include <iomanip>
 #include <cctype>
 #include "codegen_c.h"
-#include "../arith/compute_expr.h"
-#include "../tir/pass/ir_util.h"
+#include "../../arith/compute_expr.h"
+#include "../../tir/pass/ir_util.h"
 
 namespace tvm {
 namespace codegen {

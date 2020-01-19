@@ -21,13 +21,14 @@
  *  Common build utilities
  * \file build_common.h
  */
-#ifndef TVM_CODEGEN_BUILD_COMMON_H_
-#define TVM_CODEGEN_BUILD_COMMON_H_
+#ifndef TVM_TARGET_BUILD_COMMON_H_
+#define TVM_TARGET_BUILD_COMMON_H_
 
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/lowered_func.h>
 #include <unordered_map>
 #include <string>
 #include "../runtime/meta_data.h"
@@ -36,9 +37,9 @@ namespace tvm {
 namespace codegen {
 // Extract function information from device function.
 inline std::unordered_map<std::string, runtime::FunctionInfo>
-ExtractFuncInfo(const Array<LoweredFunc>& funcs) {
+ExtractFuncInfo(const Array<tir::LoweredFunc>& funcs) {
   std::unordered_map<std::string, runtime::FunctionInfo> fmap;
-  for (LoweredFunc f : funcs) {
+  for (tir::LoweredFunc f : funcs) {
     runtime::FunctionInfo info;
     for (size_t i = 0; i < f->args.size(); ++i) {
       info.arg_types.push_back(f->args[i].dtype());
@@ -52,4 +53,4 @@ ExtractFuncInfo(const Array<LoweredFunc>& funcs) {
 }
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_BUILD_COMMON_H_
+#endif  // TVM_TARGET_BUILD_COMMON_H_

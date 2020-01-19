@@ -21,8 +21,8 @@
  * \file codegen_llvm.h
  * \brief Common base class for generating into LLVM IR
  */
-#ifndef TVM_CODEGEN_LLVM_CODEGEN_LLVM_H_
-#define TVM_CODEGEN_LLVM_CODEGEN_LLVM_H_
+#ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
+#define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/arith/analyzer.h>
@@ -30,7 +30,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -311,4 +311,4 @@ class CodeGenLLVM :
 }  // namespace codegen
 }  // namespace tvm
 #endif  // LLVM_VERSION
-#endif  // TVM_CODEGEN_LLVM_CODEGEN_LLVM_H_
+#endif  // TVM_TARGET_LLVM_CODEGEN_LLVM_H_

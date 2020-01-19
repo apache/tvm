@@ -18,46 +18,54 @@
  */
 
 /*!
- * \file codegen_metal.h
- * \brief Generate Metal device code.
+ * \file codegen_opencl.h
+ * \brief Generate OpenCL device code.
  */
-#ifndef TVM_CODEGEN_CODEGEN_METAL_H_
-#define TVM_CODEGEN_CODEGEN_METAL_H_
+#ifndef TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
+#define TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_
 
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <string>
 #include "codegen_c.h"
 
 namespace tvm {
 namespace codegen {
 
-class CodeGenMetal final : public CodeGenC {
+class CodeGenOpenCL final : public CodeGenC {
  public:
-  CodeGenMetal();
+  CodeGenOpenCL();
   void AddFunction(LoweredFunc f);
+  std::string Finish();
+
   // override print thread tag.
-  void PrintArgUnionDecl();
   void InitFuncState(LoweredFunc f) final;
+  void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
-  // print load of single element
-  void PrintVecElemLoad(
-      const std::string& vec, DataType t, int i, std::ostream& os) final;  // NOLINT(*)
-  // print store of single element.
-  void PrintVecElemStore(
-      const std::string& vec, DataType t, int i, const std::string& value) final;
+  std::string GetVecLoad(DataType t, const VarNode* buffer,
+                         PrimExpr base) final;
+  void PrintVecStore(const VarNode* buffer,
+                     DataType t, PrimExpr base,
+                     const std::string& value) final;  // NOLINT(*)
+  // the address of load/store
+  void PrintVecAddr(const VarNode* buffer, DataType t,
+                    PrimExpr base, std::ostream& os);  // NOLINT(*)
+  std::string CastFromTo(std::string value, DataType from, DataType target); // NOLINT(*)
+
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-
-  // overload visitor
   void VisitExpr_(const CallNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const FloatImmNode *op, std::ostream& os) final; // NOLINT(*)
 
  private:
-  int thread_index_bits_{32};
+  // whether enable fp16 and fp64 extension
+  bool enable_fp16_{false};
+  bool enable_fp64_{false};
 };
+
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_CODEGEN_CODEGEN_METAL_H_
+#endif  // TVM_TARGET_SOURCE_CODEGEN_OPENCL_H_

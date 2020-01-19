@@ -21,17 +21,17 @@
  * \file codegen_source_base.h
  * \brief Common utilities to source code in text form.
  */
-#ifndef TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
-#define TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
+#ifndef TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
+#define TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <string>
 #include <vector>
 #include <functional>
 #include <unordered_map>
-#include "../runtime/meta_data.h"
+#include "../../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
@@ -154,4 +154,4 @@ runtime::Module DeviceSourceModuleCreate(
   std::function<std::string(const std::string&)> fget_source = nullptr);
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
+#endif  // TVM_TARGET_SOURCE_CODEGEN_SOURCE_BASE_H_

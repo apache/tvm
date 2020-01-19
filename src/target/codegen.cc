@@ -21,12 +21,12 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/build_module.h>
 #include <dmlc/memory_io.h>
 #include <sstream>
 #include <vector>
