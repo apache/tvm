@@ -179,9 +179,10 @@ class ConvBiasAddReLUAnnotator(ExprMutator):
 
     def annotate_call(self, call):
         new_args = []
+        has_arg = "nn.conv2d"
         for arg in call.args:
             new_arg = super().visit(arg)
-            if call.op.name == "nn.conv2d" or isinstance(new_arg, relay.expr.Var):
+            if call.op.name == "nn.conv2d" or isinstance(new_arg, (relay.expr.Var, relay.expr.Constant)):
                 new_arg = compiler_begin(new_arg, self.backend)
             new_args.append(new_arg)
         return relay.Call(call.op, new_args, call.attrs, call.type_args)
@@ -245,6 +246,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
     def check_graph_runtime_result():
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             json, lib, param = relay.build(mod, target=target, params=params)
+        # print(json)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
 
@@ -257,7 +259,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
-    check_vm_result()
+    # check_vm_result()
     check_graph_runtime_result()
 
 
@@ -554,30 +556,36 @@ def test_partition_conv_bias_relu():
         mod = get_partitoned_mod(mod)
         assert(len(get_partitions(mod)) == 27)
 
+    def test_exec(mod, params, ref_mod, ref_params, out_shape):
+        ishape = (1, 3, 224, 224)
+        i_data = np.random.randn(*ishape).astype(np.float32)
+        ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
+        ref_res = ref_ex.evaluate()(i_data, **ref_params)
+
+        mod = pre_optimize(mod, params)
+        mod = get_partitoned_mod(mod)
+
+        check_result(mod, {"data": i_data},
+                     out_shape, ref_res.asnumpy(), tol=1e-5, params=params)
+
     test_partition()
-    # test_partition_mobilenet()
+    test_partition_mobilenet()
 
-    # TODO: Enable executor check once the runtime signature issue is resolved
-    net = get_net()
-    mod, params = tvm.relay.testing.create_workload(net)
-    mod = pre_optimize(mod, params)
-    mod = get_partitoned_mod(mod)
+    # net = get_net()
+    # mod, params = tvm.relay.testing.create_workload(net)
+    # ref_mod, ref_params = tvm.relay.testing.create_workload(net)
+    # test_exec(mod, params, ref_mod, ref_params, (1, 16, 224, 224))
 
-    ref_mod, params = tvm.relay.testing.create_workload(net)
-    ishape = (1, 3, 224, 224)
-    i_data = np.random.randn(*ishape).astype(np.float32)
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, **params)
-
-    check_result(mod, {"data": i_data},
-                 ishape, ref_res.asnumpy(), tol=1e-5, params=params)
+    mod, params = relay.testing.mobilenet.get_workload()
+    ref_mod, ref_params = relay.testing.mobilenet.get_workload()
+    test_exec(mod, params, ref_mod, ref_params, (1, 1000))
 
 
 if __name__ == "__main__":
-    test_multi_node_compiler()
-    test_extern_ccompiler_single_op()
-    test_extern_ccompiler_default_ops()
-    test_extern_ccompiler()
-    test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    # test_multi_node_compiler()
+    # test_extern_ccompiler_single_op()
+    # test_extern_ccompiler_default_ops()
+    # test_extern_ccompiler()
+    # test_extern_dnnl()
+    # test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()

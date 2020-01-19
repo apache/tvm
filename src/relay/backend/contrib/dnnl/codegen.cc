@@ -51,14 +51,6 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     out_.push_back({node->name_hint(), 0});
   }
 
-  void VisitExpr_(const ConstantNode* node) final {
-    LOG(INFO) << "Visiting constant node";
-    auto name = "dnnl_input" + std::to_string(ext_func_args_.size());
-    ext_func_args_.push_back(name);
-    out_.clear();
-    out_.push_back({name, 0});
-  }
-
   void VisitExpr_(const CallNode* call) final {
     struct Output {
       std::string decl, buf;
@@ -159,7 +151,6 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     if (!conv_call || !IsOp(conv_call, "nn.conv2d")) return nullptr;
     auto bias_name = "dnnl_fused_input" + std::to_string(ext_fused_func_args_.size());
     ext_fused_func_args_.push_back(bias_name);
-    LOG(INFO) << "fused op found";
     return conv_call;
   }
 
@@ -312,12 +303,10 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "\n";
 
     if (ref->IsInstance<FunctionNode>()) {
-        LOG(INFO) << "Invoking  GenDNNLFunc on FuncNode";
       GenDNNLFunc(Downcast<Function>(ref));
     } else if (ref->IsInstance<IRModuleNode>()) {
       IRModule mod = Downcast<IRModule>(ref);
       for (const auto& it : mod->functions) {
-        LOG(INFO) << "Invoking  GenDNNLFunc";
         GenDNNLFunc(Downcast<Function>(it.second));
       }
     } else {
@@ -328,7 +317,6 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("module.csource_module_create");
     CHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
-    LOG(INFO) << code_stream_.str();
     return (*pf)(code_stream_.str(), "cc");
   }
 
