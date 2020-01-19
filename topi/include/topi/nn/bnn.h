@@ -27,7 +27,7 @@
 #include <string>
 
 #include "tvm/top/operation.h"
-#include "tvm/ir_pass.h"
+#include "tvm/tir/ir_pass.h"
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
 
@@ -59,7 +59,7 @@ inline tvm::top::Tensor binarize_pack(const tvm::top::Tensor& data,
   Array<PrimExpr> oshape;
   for (size_t i = 0; i < n; ++i) {
     oshape.push_back(i == static_cast<size_t>(axis) ?
-                     tvm::ir::Simplify(indexdiv(ishape[i], 32)) :
+                     tvm::tir::Simplify(indexdiv(ishape[i], 32)) :
                      ishape[i]);
   }
 
@@ -110,7 +110,7 @@ inline tvm::top::Tensor binary_dense(const tvm::top::Tensor& data,
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  auto k = tvm::reduce_axis(Range(0, in_dim), "k");
+  auto k = tvm::top::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::top::compute(
     { batch, out_dim },
     [&](Var i, Var j) {

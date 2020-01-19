@@ -21,7 +21,7 @@
  * \file multibox_op.cc
  * \brief Multibox related operators
  */
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/vision.h>
 

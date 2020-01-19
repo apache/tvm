@@ -32,7 +32,7 @@
 #include "topi/nn.h"
 #include "topi/reduction.h"
 #include "topi/tags.h"
-#include "tvm/ir_pass.h"
+#include "tvm/tir/ir_pass.h"
 
 namespace topi {
 namespace nn {
@@ -103,13 +103,13 @@ inline Tensor pool_impl(const Tensor& x,
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
 
-  auto out_height = tvm::ir::Simplify(
+  auto out_height = tvm::tir::Simplify(
       indexdiv(height - kernel_height + pad_top + pad_bottom, stride_height) + 1);
-  auto out_width = tvm::ir::Simplify(
+  auto out_width = tvm::tir::Simplify(
       indexdiv(width - kernel_width + pad_left + pad_right, stride_width) + 1);
 
-  auto dheight = tvm::reduce_axis(Range(0, kernel_height));
-  auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
+  auto dheight = tvm::top::reduce_axis(Range(0, kernel_height));
+  auto dwidth = tvm::top::reduce_axis(Range(0, kernel_width));
 
   Array<PrimExpr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
@@ -156,11 +156,11 @@ inline Tensor pool_impl(const Tensor& x,
       } else {
         PrimExpr h_start = output[height_axis] * stride_height - pad_top;
         PrimExpr w_start = output[width_axis] * stride_width - pad_left;
-        PrimExpr h_end = ir::MinNode::make(h_start + kernel_height, height);
-        PrimExpr w_end = ir::MinNode::make(w_start + kernel_width, width);
-        h_start = ir::MaxNode::make(h_start, make_const(DataType::DataType::Int(32), 0));
-        w_start = ir::MaxNode::make(w_start, make_const(DataType::DataType::Int(32), 0));
-        PrimExpr divide_factor = ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
+        PrimExpr h_end = tir::MinNode::make(h_start + kernel_height, height);
+        PrimExpr w_end = tir::MinNode::make(w_start + kernel_width, width);
+        h_start = tir::MaxNode::make(h_start, make_const(DataType::DataType::Int(32), 0));
+        w_start = tir::MaxNode::make(w_start, make_const(DataType::DataType::Int(32), 0));
+        PrimExpr divide_factor = tir::MaxNode::make((h_end - h_start) * (w_end - w_start),
                                            make_const(DataType::DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
@@ -214,12 +214,12 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
   pad_after.Set(width_axis, pad_right);
 
   auto out_height =
-      tvm::ir::Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
+      tvm::tir::Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
   auto out_width =
-      tvm::ir::Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
+      tvm::tir::Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
 
-  auto dheight = tvm::reduce_axis(Range(0, kernel_height));
-  auto dwidth = tvm::reduce_axis(Range(0, kernel_width));
+  auto dheight = tvm::top::reduce_axis(Range(0, kernel_height));
+  auto dwidth = tvm::top::reduce_axis(Range(0, kernel_width));
 
   Array<PrimExpr> out_shape = x->shape;
   out_shape.Set(height_axis, out_height);
@@ -237,23 +237,26 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
     ravel_shape.Set(height_axis, ravel_shape[height_axis] + pad_top + pad_bottom);
     ravel_shape.Set(width_axis, ravel_shape[width_axis] + pad_left + pad_right);
 
-    auto windowh = tvm::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
-    auto windoww = tvm::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
+    auto windowh = tvm::top::reduce_axis(
+        Range(0, (kernel_height + stride_height - 1) / stride_height));
+    auto windoww = tvm::top::reduce_axis(
+        Range(0, (kernel_width + stride_width - 1) / stride_width));
 
     auto argmax = MakeArgmaxReducer();
     auto pad_x = do_pad ? pad(
         x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
 
     auto mp_argmax =
-        tvm::top::compute(out_shape,
-                     [&](const Array<Var>& inds) {
-                       Array<PrimExpr> window_inds{inds.begin(), inds.end()};
-                       window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
-                       window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
-                       auto idx = detail::RavelIndex(window_inds, ravel_shape);
-                       return argmax({idx, pad_x(window_inds)}, {dheight, dwidth}, nullptr);
-                     },
-                     "maxpool_grad_argmax", kCommReduceIdx);
+        tvm::top::compute(
+            out_shape,
+            [&](const Array<Var>& inds) {
+              Array<PrimExpr> window_inds{inds.begin(), inds.end()};
+              window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
+              window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
+              auto idx = detail::RavelIndex(window_inds, ravel_shape);
+              return argmax({idx, pad_x(window_inds)}, {dheight, dwidth}, nullptr);
+            },
+            "maxpool_grad_argmax", kCommReduceIdx);
 
     auto mp_inds = mp_argmax[0];
 
@@ -269,16 +272,16 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
-          PrimExpr out_idx_lower_h = ir::SelectNode::make(
+          PrimExpr out_idx_lower_h = tir::SelectNode::make(
               pad_inds[height_axis] < kernel_height, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[height_axis] - kernel_height) / stride_height + 1);
-          PrimExpr out_idx_lower_w = ir::SelectNode::make(
+          PrimExpr out_idx_lower_w = tir::SelectNode::make(
               pad_inds[width_axis] < kernel_width, make_const(DataType::DataType::Int(32), 0),
               (pad_inds[width_axis] - kernel_width) / stride_width + 1);
 
           return tvm::sum(
-              tvm::if_then_else(ir::AndNode::make(
-                  ir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
+              tvm::if_then_else(tir::AndNode::make(
+                  tir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
                                 out_idx[width_axis] >= out_idx_lower_w),
                   mp_inds(out_idx) == idx),
                   out_grad(out_idx), make_const(x->dtype, 0)),
@@ -286,8 +289,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
         },
         "T_pool_grad", "pool_grad_max");
   } else if (pool_type == kAvgPool) {
-    auto windowh = tvm::reduce_axis(Range(0, (kernel_height + stride_height - 1) / stride_height));
-    auto windoww = tvm::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width));
+    auto windowh = tvm::top::reduce_axis(
+        Range(0, (kernel_height + stride_height - 1) / stride_height));
+    auto windoww = tvm::top::reduce_axis(
+        Range(0, (kernel_width + stride_width - 1) / stride_width));
     return tvm::top::compute(
         x->shape,
         [&](const Array<Var>& inds) {
@@ -299,10 +304,10 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
-          PrimExpr out_idx_lower_h = ir::SelectNode::make(
+          PrimExpr out_idx_lower_h = tir::SelectNode::make(
               pad_h_idx < kernel_height, make_const(DataType::Int(32), 0),
               (pad_h_idx - kernel_height) / stride_height + 1);
-          PrimExpr out_idx_lower_w = ir::SelectNode::make(
+          PrimExpr out_idx_lower_w = tir::SelectNode::make(
               pad_w_idx < kernel_width, make_const(DataType::Int(32), 0),
               (pad_w_idx - kernel_width) / stride_width + 1);
 
@@ -312,19 +317,19 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
           } else {
             PrimExpr h_start = out_idx[height_axis] * stride_height - pad_top;
             PrimExpr w_start = out_idx[width_axis] * stride_width - pad_left;
-            PrimExpr h_end = ir::MinNode::make(h_start + kernel_height, height);
-            PrimExpr w_end = ir::MinNode::make(w_start + kernel_width, width);
-            h_start = ir::MaxNode::make(h_start, make_const(DataType::Int(32), 0));
-            w_start = ir::MaxNode::make(w_start, make_const(DataType::Int(32), 0));
+            PrimExpr h_end = tir::MinNode::make(h_start + kernel_height, height);
+            PrimExpr w_end = tir::MinNode::make(w_start + kernel_width, width);
+            h_start = tir::MaxNode::make(h_start, make_const(DataType::Int(32), 0));
+            w_start = tir::MaxNode::make(w_start, make_const(DataType::Int(32), 0));
             divide_factor =
-                ir::MaxNode::make((h_end - h_start) * (w_end - w_start),
+                tir::MaxNode::make((h_end - h_start) * (w_end - w_start),
                               make_const(DataType::Int(32), 1));
           }
           return tvm::sum(tvm::if_then_else(
-              ir::AndNode::make(
-                ir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
+              tir::AndNode::make(
+                tir::AndNode::make(out_idx[height_axis] >= out_idx_lower_h,
                               out_idx[height_axis] < out_height),
-                ir::AndNode::make(out_idx[width_axis] >= out_idx_lower_w,
+                tir::AndNode::make(out_idx[width_axis] >= out_idx_lower_w,
                               out_idx[width_axis] < out_width)),
               out_grad(out_idx) / divide_factor, make_const(out_grad->dtype, 0)),
               {windowh, windoww});
@@ -481,7 +486,7 @@ inline PrimExpr end_index(const Var& out_index,
                       const PrimExpr& odim,
                       const PrimExpr& idim) {
   PrimExpr tmp = indexdiv((out_index + 1) * idim, odim);
-  return tvm::ir::SelectNode::make(indexmod((out_index + 1) * idim, odim) == 0,
+  return tvm::tir::SelectNode::make(indexmod((out_index + 1) * idim, odim) == 0,
                                tmp, tmp + 1);
 }
 
@@ -520,8 +525,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       auto i_end_h = end_index(output[height_axis], out_height, height);
       auto i_start_w = start_index(output[width_axis], out_width, width);
       auto i_end_w = end_index(output[width_axis], out_width, width);
-      auto dheight = tvm::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
-      auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
+      auto dheight = tvm::top::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
+      auto dwidth = tvm::top::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
       indices.Set(height_axis, i_start_h + dheight);
       indices.Set(width_axis, i_start_w + dwidth);
       return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
@@ -536,8 +541,8 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       auto i_end_w = end_index(output[width_axis], out_width, width);
       auto divide_factor = tvm::cast(x->dtype, (i_end_h - i_start_h)
                                                * (i_end_w - i_start_w));
-      auto dheight = tvm::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
-      auto dwidth = tvm::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
+      auto dheight = tvm::top::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
+      auto dwidth = tvm::top::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
       indices.Set(height_axis, i_start_h + dheight);
       indices.Set(width_axis, i_start_w + dwidth);
       return tvm::sum(x(indices), { dheight, dwidth });
@@ -683,12 +688,12 @@ inline Tensor pool_impl_nd(const Tensor& x,
       pad_tail[i] += stride[i] - 1;
     }
 
-    daxis.push_back(tvm::reduce_axis(Range(0, kernel[i])));
+    daxis.push_back(tvm::top::reduce_axis(Range(0, kernel[i])));
 
     pad_before.Set(ii, pad_head[i]);
     pad_after.Set(ii, pad_tail[i]);
 
-    auto out_dim = tvm::ir::Simplify(
+    auto out_dim = tvm::tir::Simplify(
       indexdiv(x->shape[ii] - kernel[i] + pad_head[i] + pad_tail[i], stride[i]) + 1);
 
     out_shape.Set(ii, out_dim);
@@ -743,12 +748,12 @@ inline Tensor pool_impl_nd(const Tensor& x,
         for (int i = 0; i < k_size; i++) {
           int ii = axis[i];
           start[i] = output[ii] * stride[i] - pad_head[i];
-          end[i] = ir::MinNode::make(start[i] + kernel[i], x->shape[ii]);
-          start[i] = ir::MaxNode::make(start[i], make_const(DataType::Int(32), 0));
+          end[i] = tir::MinNode::make(start[i] + kernel[i], x->shape[ii]);
+          start[i] = tir::MaxNode::make(start[i], make_const(DataType::Int(32), 0));
           kernel_size *= (end[i] - start[i]);
         }
 
-        PrimExpr divide_factor = ir::MaxNode::make(kernel_size, make_const(DataType::Int(32), 1));
+        PrimExpr divide_factor = tir::MaxNode::make(kernel_size, make_const(DataType::Int(32), 1));
         return div(pool_sum(indices), divide_factor);
       }
     }, "tensor", kElementWise);

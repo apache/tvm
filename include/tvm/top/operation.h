@@ -28,9 +28,9 @@
 #include <tvm/top/tensor.h>
 #include <tvm/top/schedule.h>
 
-#include <tvm/expr.h>
-#include <tvm/expr_operator.h>
-#include <tvm/buffer.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/buffer.h>
 
 #include <string>
 #include <vector>
@@ -40,8 +40,6 @@
 
 namespace tvm {
 namespace top {
-
-using arith::IntSet;
 
 /*!
  * \brief Temporary data structure to store union
@@ -58,7 +56,7 @@ struct TensorDom {
 /*!
  * \brief Base class of all operation nodes
  */
-class OperationNode : public ir::FunctionBaseNode {
+class OperationNode : public tir::FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
   std::string name;
@@ -553,6 +551,29 @@ class HybridOpNode : public OperationNode {
   static constexpr const char* _type_key = "HybridOp";
   TVM_DECLARE_FINAL_OBJECT_INFO(HybridOpNode, OperationNode);
 };
+
+/*!
+ * \brief Construct a new Var expression
+ * \param name_hint The name hint for the expression
+ * \param t The type of the expression
+ */
+TVM_DLL Var var(std::string name_hint, DataType t = DataType::Int(32));
+
+/*!
+ * \brief Create a new IterVar that represents an axis in thread.
+ *
+ * \param dom Optional, domain of the thread axis.
+ * \param tag The thread tag of the axis.
+ */
+TVM_DLL IterVar thread_axis(Range dom, std::string tag);
+
+/*!
+ * \brief Create a new IterVar for reduction operations.
+ *
+ * \param dom The domain of the reduction axis.
+ * \param name The name of the reduction axis.
+ */
+TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 /*! \brief The compute function to specify the input source of a Tensor */
 using FCompute = std::function<PrimExpr (const Array<Var>& i)>;

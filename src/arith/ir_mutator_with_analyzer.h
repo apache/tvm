@@ -24,7 +24,7 @@
 #ifndef TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 #define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
 #include <utility>
 
@@ -40,7 +40,7 @@ namespace arith {
  *
  * \sa src/arithmetic/ir_mutator_with_analyzer.cc
  */
-class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
+class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
  public:
   explicit IRMutatorWithAnalyzer(Analyzer* analyzer)
       : analyzer_(analyzer) {}
@@ -49,15 +49,15 @@ class IRMutatorWithAnalyzer : public ir::StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
 
   // override functions that need to populate the context information.
-  Stmt VisitStmt_(const ir::ForNode* op) override;
-  Stmt VisitStmt_(const ir::LetStmtNode* op) override;
-  Stmt VisitStmt_(const ir::IfThenElseNode* op) override;
-  Stmt VisitStmt_(const ir::AttrStmtNode* op) override;
-  Stmt VisitStmt_(const ir::AssertStmtNode* op) override;
-  PrimExpr VisitExpr_(const ir::LetNode* op) override;
-  PrimExpr VisitExpr_(const ir::SelectNode* op) override;
-  PrimExpr VisitExpr_(const ir::CallNode* op) override;
-  PrimExpr VisitExpr_(const ir::ReduceNode* op) override;
+  Stmt VisitStmt_(const tir::ForNode* op) override;
+  Stmt VisitStmt_(const tir::LetStmtNode* op) override;
+  Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
+  Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
+  Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
+  PrimExpr VisitExpr_(const tir::LetNode* op) override;
+  PrimExpr VisitExpr_(const tir::SelectNode* op) override;
+  PrimExpr VisitExpr_(const tir::CallNode* op) override;
+  PrimExpr VisitExpr_(const tir::ReduceNode* op) override;
 
  protected:
   /*! \brief internal analyzer field. */

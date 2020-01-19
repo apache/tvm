@@ -21,8 +21,8 @@
  * \file graph.cc
  * \brief Utilities to get information about schedule graph.
  */
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/top/operation.h>
 #include <utility>
 #include <unordered_set>
@@ -33,11 +33,11 @@ namespace tvm {
 namespace top {
 // key to specific tensor dimension.
 struct TensorDimKey {
-  ir::FunctionRef f;
+  tir::FunctionRef f;
   int value_index;
   int dim;
   TensorDimKey() {}
-  TensorDimKey(const ir::CallNode* op, int dim)
+  TensorDimKey(const tir::CallNode* op, int dim)
       : f(op->func), value_index(op->value_index), dim(dim) {
   }
   TensorDimKey(const Tensor& t, int dim)
@@ -263,7 +263,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
-        const ir::CallNode *call = n.as<ir::CallNode>();
+        const tir::CallNode *call = n.as<tir::CallNode>();
         if (call != nullptr && call->func.defined()) {
           if (!bset.count(call->func.get())) return;
           for (size_t i = 0; i < call->args.size(); ++i) {
@@ -275,12 +275,12 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
                 reach[it->second].push_back(dkey);
               }
             };
-            ir::PostOrderVisit(call->args[i], fpush);
+            tir::PostOrderVisit(call->args[i], fpush);
           }
         }
       };
       for (auto& e : compute_op->body) {
-        ir::PostOrderVisit(e, fvisit);
+        tir::PostOrderVisit(e, fvisit);
       }
     }
   }
@@ -353,7 +353,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
           const ObjectRef& n) {
-        const ir::CallNode *call = n.as<ir::CallNode>();
+        const tir::CallNode *call = n.as<tir::CallNode>();
         if (call != nullptr && call->func.defined()) {
           for (size_t i = 0; i < call->args.size(); ++i) {
             auto it = vmap.find(call->args[i].get());
@@ -372,7 +372,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         }
       };
       for (auto& e : compute_op->body) {
-        ir::PostOrderVisit(e, fvisit);
+        tir::PostOrderVisit(e, fvisit);
       }
     }
   }

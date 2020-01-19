@@ -24,9 +24,9 @@
 #include <tvm/relay/op.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
-#include <tvm/expr_operator.h>
-#include <tvm/ir.h>
-#include <tvm/data_layout.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/runtime/packed_func.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
@@ -42,7 +42,7 @@
 
 namespace tvm {
 namespace relay {
-using ir::IntImmNode;
+using tir::IntImmNode;
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -695,8 +695,8 @@ Array<top::Tensor> ReshapeCompute(const Attrs& attrs,
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->IsInstance<ir::AnyNode>()) {
-      newshape.push_back(val.as<ir::AnyNode>()->ToVar());
+    if (val->IsInstance<tir::AnyNode>()) {
+      newshape.push_back(val.as<tir::AnyNode>()->ToVar());
     } else {
       newshape.push_back(val);
     }
@@ -1223,8 +1223,8 @@ inline top::Tensor DynamicArange(const top::Tensor& start,
                                  tvm::DataType dtype,
                                  std::string name = "tensor",
                                  std::string tag = topi::kInjective) {
-  tvm::PrimExpr num_elem = tvm::Var("num_elem");
-  return top::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
+  tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
+  return top::compute({num_elem}, [&](const Array<tvm::tir::Var>& indices) {
     return tvm::cast(dtype, start[0] + step[0] * indices[0]);
   }, name, tag);
 }
@@ -1384,7 +1384,7 @@ bool TileRel(const Array<Type>& types,
     << "repetition array is not defined. data.ndim = " << ndim;
   const size_t rndim = reps.size();
   for (size_t i = 0; i < rndim; ++i) {
-    if (const tvm::ir::IntImmNode* val = reps[i].as<tvm::ir::IntImmNode>()) {
+    if (const tvm::tir::IntImmNode* val = reps[i].as<tvm::tir::IntImmNode>()) {
       CHECK_GT(val->value, 0)
           << "Tile reps value should always be larger than 0, but get: " << val->value;
     }
@@ -1652,7 +1652,7 @@ bool SqueezeRel(const Array<Type>& types,
       if (!e.as<IntImmNode>()) {
         LOG(FATAL) << "axis needs to be defined for dynamic input.";
       }
-      const int64_t* axis_ptr = as_const_int(e);
+      const int64_t* axis_ptr = tir::as_const_int(e);
       CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
       if (*axis_ptr != 1) {
         result_shape.push_back(e);
@@ -1677,7 +1677,7 @@ bool SqueezeRel(const Array<Type>& types,
       if (p.second) {
         result_shape.push_back(p.first);
       } else {
-        const int64_t* axis_ptr = as_const_int(p.first);
+        const int64_t* axis_ptr = tir::as_const_int(p.first);
         CHECK(axis_ptr != nullptr) << "cannot get concrete shape of input tensor";
         CHECK_EQ(*axis_ptr, 1) << "cannot squeeze axis with dimension not equal to 1";
       }
@@ -1916,7 +1916,7 @@ bool StridedSliceRel(const Array<Type>& types,
     // Normal path, require the shape to be concrete integer.
     // Require concrete integer as symbolic inference of min/max
     // can get complicated and not very helpful.
-    const int64_t* p_dim_size = as_const_int(dshape[i]);
+    const int64_t* p_dim_size = tir::as_const_int(dshape[i]);
     CHECK(p_dim_size)
         << "strided_slice requires sliced dimension to be concrete int";
     int64_t dim_size = p_dim_size[0];
@@ -1940,7 +1940,7 @@ bool StridedSliceRel(const Array<Type>& types,
       slice_range = end_v - begin_v;
       step = stride_v;
     }
-    oshape[i] = make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
+    oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
@@ -2141,7 +2141,7 @@ bool SplitRel(const Array<Type>& types,
 
   if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     CHECK(reporter->Assert(indexmod(data->shape[axis],
-                                    sections->value) == make_zero(DataType::Int(64))))
+                                    sections->value) == tir::make_zero(DataType::Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
@@ -2153,7 +2153,7 @@ bool SplitRel(const Array<Type>& types,
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
-    auto begin = IndexExpr(make_zero(DataType::Int(32)));
+    auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
@@ -2205,7 +2205,7 @@ Expr MakeSplit(Expr data,
 TVM_REGISTER_GLOBAL("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
-      *rv = MakeSplit(args[0], make_const(DataType::Int(64), int64_t(args[1])), args[2]);
+      *rv = MakeSplit(args[0], tir::make_const(DataType::Int(64), int64_t(args[1])), args[2]);
     } else {
       *rv = MakeSplit(args[0], args[1], args[2]);
     }

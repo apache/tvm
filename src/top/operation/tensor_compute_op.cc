@@ -23,8 +23,8 @@
  */
 #include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include "./op_util.h"
 #include "./compute_op.h"
@@ -32,7 +32,7 @@
 
 namespace tvm {
 namespace top {
-using namespace ir;
+using namespace tir;
 // TensorComputeOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<TensorComputeOpNode>([](const ObjectRef& node, NodePrinter* p) {
@@ -154,9 +154,9 @@ Stmt TensorComputeOpNode::BuildProvide(
       tuple.push_back(region[i]->extent);
     }
     input_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, ir::attr::buffer_bind_scope,
+        bind_spec, tir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(),
-                       ir::intrinsic::tvm_tuple,
+                       tir::intrinsic::tvm_tuple,
                        tuple, CallNode::Intrinsic), nop));
   }
 
@@ -180,15 +180,15 @@ Stmt TensorComputeOpNode::BuildProvide(
     }
 
     output_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, ir::attr::buffer_bind_scope,
+        bind_spec, tir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(),
-                       ir::intrinsic::tvm_tuple,
+                       tir::intrinsic::tvm_tuple,
                        tuple, CallNode::Intrinsic), nop));
   }
 
   // Check variable remap
   std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ir::ArgBinder binder(&vmap);
+  tir::ArgBinder binder(&vmap);
 
   // Map the expressions passed in the call to the TensorIntrin, to the placeholder
   // variables
@@ -215,7 +215,7 @@ Stmt TensorComputeOpNode::BuildProvide(
         << "Normal store op for intrin " << this << " is not defined";
     Stmt body = MergeNest(output_bind_nest, this->intrin->body);
     body = MergeNest(input_bind_nest, body);
-    body = ir::Substitute(body, vmap);
+    body = tir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
     body = top::Substitute(body, n.main_vmap);
     Stmt ret =  MergeNest(nest, body);
@@ -243,7 +243,7 @@ Stmt TensorComputeOpNode::BuildProvide(
       // The update
       Stmt update = MergeNest(output_bind_nest, this->intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
-      update = ir::Substitute(update, vmap);
+      update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
       update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
@@ -257,7 +257,7 @@ Stmt TensorComputeOpNode::BuildProvide(
                                     this->intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);
       update = MergeNest(input_bind_nest, update);
-      update = ir::Substitute(update, vmap);
+      update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
       update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);

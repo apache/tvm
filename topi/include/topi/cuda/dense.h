@@ -113,11 +113,13 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
       out = outs[0]->op.output(0);
       s[dense].compute_at(s[out], s[out]->op.as<ComputeOpNode>()->axis[1]);
     }
-    s[out].bind(s[out]->op.as<ComputeOpNode>()->axis[0], tvm::thread_axis(Range(), "blockIdx.y"));
-    s[out].bind(s[out]->op.as<ComputeOpNode>()->axis[1], tvm::thread_axis(Range(), "blockIdx.x"));
+    s[out].bind(s[out]->op.as<ComputeOpNode>()->axis[0],
+                tvm::top::thread_axis(Range(), "blockIdx.y"));
+    s[out].bind(s[out]->op.as<ComputeOpNode>()->axis[1],
+                tvm::top::thread_axis(Range(), "blockIdx.x"));
 
     auto tx = s[dense]->op.as<ComputeOpNode>()->reduce_axis[0];
-    auto thread_x = tvm::thread_axis(Range(), "threadIdx.x");
+    auto thread_x = tvm::top::thread_axis(Range(), "threadIdx.x");
     s[dense].bind(tx, thread_x);
     s[dense_f].compute_at(s[dense], tx);
     s[dense].set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);

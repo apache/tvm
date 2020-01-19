@@ -31,7 +31,7 @@
 #define TVM_IR_ATTR_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <utility>
 
 namespace tvm {
@@ -77,40 +77,40 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
   virtual R VisitAttrDefault_(const Object* node, Args... args) = 0;
   virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::IntImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::FloatImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::StringImmNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   // deep comparison of symbolic integer expressions.
-  virtual R VisitAttr_(const VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const SizeVarNode* op, Args... args) {
-    return VisitAttr_(static_cast<const VarNode*>(op), std::forward<Args>(args)...);
+  virtual R VisitAttr_(const tir::VarNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::SizeVarNode* op, Args... args) {
+    return VisitAttr_(static_cast<const tir::VarNode*>(op), std::forward<Args>(args)...);
   }
-  virtual R VisitAttr_(const ir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::SubNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::MulNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::DivNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::ModNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::FloorDivNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::FloorModNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::MinNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::MaxNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::GENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::GTNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::LTNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::LENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::EQNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::NENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::AndNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::OrNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::NotNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::CastNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::CallNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
-  virtual R VisitAttr_(const ir::SelectNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::AddNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::SubNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::MulNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::DivNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::ModNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::FloorDivNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::FloorModNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::MinNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::MaxNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::GENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::GTNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::LTNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::LENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::EQNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::NENode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::AndNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::OrNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::NotNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::CastNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::CallNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const tir::SelectNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
 
  private:
   // initialize the vtable.
   static FType InitVTable() {
-    using namespace ir;
+    using namespace tir;
     FType vtable;
     // Set dispatch
     ATTR_FUNCTOR_DISPATCH(StrMapNode);
@@ -159,30 +159,30 @@ class AttrsEqualHandler :
   bool VisitAttrDefault_(const Object* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) final;
   bool VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::IntImmNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::FloatImmNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::StringImmNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::AddNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::SubNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::MulNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::DivNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::ModNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::FloorDivNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::FloorModNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::MinNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::MaxNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::GENode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::GTNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::LTNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::LENode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::EQNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::NENode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::AndNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::OrNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::NotNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::CastNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::CallNode* lhs, const ObjectRef& other) final;
-  bool VisitAttr_(const ir::SelectNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::IntImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::FloatImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::StringImmNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::AddNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::SubNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::MulNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::DivNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::ModNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::FloorDivNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::FloorModNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::MinNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::MaxNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::GENode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::GTNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::LTNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::LENode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::EQNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::NENode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::AndNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::OrNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::NotNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::CastNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::CallNode* lhs, const ObjectRef& other) final;
+  bool VisitAttr_(const tir::SelectNode* lhs, const ObjectRef& other) final;
 };
 
 class AttrsHashHandler :
@@ -199,32 +199,32 @@ class AttrsHashHandler :
 
  protected:
   size_t VisitAttrDefault_(const Object* lhs) final;
-  size_t VisitAttr_(const ir::IntImmNode* lhs) final;
-  size_t VisitAttr_(const ir::FloatImmNode* lhs) final;
-  size_t VisitAttr_(const ir::StringImmNode* lhs) final;
+  size_t VisitAttr_(const tir::IntImmNode* lhs) final;
+  size_t VisitAttr_(const tir::FloatImmNode* lhs) final;
+  size_t VisitAttr_(const tir::StringImmNode* lhs) final;
   size_t VisitAttr_(const ArrayNode* lhs) final;
   size_t VisitAttr_(const StrMapNode* lhs) final;
-  size_t VisitAttr_(const ir::AddNode* op) final;
-  size_t VisitAttr_(const ir::SubNode* op) final;
-  size_t VisitAttr_(const ir::MulNode* op) final;
-  size_t VisitAttr_(const ir::DivNode* op) final;
-  size_t VisitAttr_(const ir::ModNode* op) final;
-  size_t VisitAttr_(const ir::FloorDivNode* op) final;
-  size_t VisitAttr_(const ir::FloorModNode* op) final;
-  size_t VisitAttr_(const ir::MinNode* op) final;
-  size_t VisitAttr_(const ir::MaxNode* op) final;
-  size_t VisitAttr_(const ir::GENode* op) final;
-  size_t VisitAttr_(const ir::GTNode* op) final;
-  size_t VisitAttr_(const ir::LENode* op) final;
-  size_t VisitAttr_(const ir::LTNode* op) final;
-  size_t VisitAttr_(const ir::EQNode* op) final;
-  size_t VisitAttr_(const ir::NENode* op) final;
-  size_t VisitAttr_(const ir::AndNode* op) final;
-  size_t VisitAttr_(const ir::OrNode* op) final;
-  size_t VisitAttr_(const ir::NotNode* op) final;
-  size_t VisitAttr_(const ir::CastNode* op) final;
-  size_t VisitAttr_(const ir::CallNode* op) final;
-  size_t VisitAttr_(const ir::SelectNode* op) final;
+  size_t VisitAttr_(const tir::AddNode* op) final;
+  size_t VisitAttr_(const tir::SubNode* op) final;
+  size_t VisitAttr_(const tir::MulNode* op) final;
+  size_t VisitAttr_(const tir::DivNode* op) final;
+  size_t VisitAttr_(const tir::ModNode* op) final;
+  size_t VisitAttr_(const tir::FloorDivNode* op) final;
+  size_t VisitAttr_(const tir::FloorModNode* op) final;
+  size_t VisitAttr_(const tir::MinNode* op) final;
+  size_t VisitAttr_(const tir::MaxNode* op) final;
+  size_t VisitAttr_(const tir::GENode* op) final;
+  size_t VisitAttr_(const tir::GTNode* op) final;
+  size_t VisitAttr_(const tir::LENode* op) final;
+  size_t VisitAttr_(const tir::LTNode* op) final;
+  size_t VisitAttr_(const tir::EQNode* op) final;
+  size_t VisitAttr_(const tir::NENode* op) final;
+  size_t VisitAttr_(const tir::AndNode* op) final;
+  size_t VisitAttr_(const tir::OrNode* op) final;
+  size_t VisitAttr_(const tir::NotNode* op) final;
+  size_t VisitAttr_(const tir::CastNode* op) final;
+  size_t VisitAttr_(const tir::CallNode* op) final;
+  size_t VisitAttr_(const tir::SelectNode* op) final;
   /*!
    * \brief alias of dmlc::HashCombine
    * \param lhs The first hash value.

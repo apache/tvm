@@ -22,7 +22,7 @@
  * \brief Property def of nn operators.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
@@ -405,10 +405,10 @@ bool BatchFlattenRel(const Array<Type>& types,
   if (data == nullptr) return false;
   if (data->shape.size() == 0) return false;
 
-  auto target_dim = make_const(DataType::Int(32), 1);
+  auto target_dim = tir::make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<ir::AnyNode>()) {
+    if (!data->shape[i].as<tir::AnyNode>()) {
       target_dim = target_dim * data->shape[i];
     } else {
       target_dim = data->shape[i];

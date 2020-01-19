@@ -22,14 +22,14 @@
  */
 #include <tvm/top/schedule_pass.h>
 #include <tvm/top/operation.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr_functor.h>
 
 namespace tvm {
 namespace top {
 
-using namespace ir;
+using namespace tir;
 
-class ElemWiseDetector : public ir::ExprVisitor {
+class ElemWiseDetector : public tir::ExprVisitor {
  public:
   explicit ElemWiseDetector(Array<IterVar> axis) : axis_(axis) {}
 

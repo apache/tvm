@@ -24,7 +24,7 @@
  * \brief This is a backend-aware optimization pass.
  *   Fuse necessary ops into a single one.
  */
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
@@ -982,7 +982,7 @@ Pass FuseOps(int fuse_opt_level) {
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
   return CreateFunctionPass(pass_func, 1, "FuseOps",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps")

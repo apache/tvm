@@ -26,7 +26,7 @@
 
 #include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 
 namespace tvm {
 namespace arith {
@@ -39,7 +39,7 @@ namespace arith {
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
 Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
-                                     const Array<Var>& vars);
+                                     const Array<tir::Var>& vars);
 
 /*!
  * \brief Detect if expression corresponds to clip bound of the vars
@@ -50,7 +50,7 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
  *          return empty if the e does not match the pattern.
  */
 Array<PrimExpr> DetectClipBound(const PrimExpr& e,
-                                const Array<Var>& vars);
+                                const Array<tir::Var>& vars);
 
 }  // namespace arith
 }  // namespace tvm

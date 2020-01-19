@@ -22,7 +22,7 @@
  * \brief QNN concatenate operator. It concatenates quantized input tensors along a given axis.
  */
 
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>

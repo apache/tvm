@@ -83,13 +83,13 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // even if the result of shape inference becomes int64.
   Array<IndexExpr> res;
   for (IndexExpr val : shape) {
-    const int64_t* pval = as_const_int(val);
+    const int64_t* pval = tir::as_const_int(val);
     if (pval != nullptr) {
       CHECK_LE(pval[0], std::numeric_limits<int32_t>::max());
       CHECK_GE(pval[0], std::numeric_limits<int32_t>::min());
       res.push_back(IntImm(DataType::Int(32), *pval));
-    } else if (val->IsInstance<ir::AnyNode>()) {
-      res.push_back(val.as<ir::AnyNode>()->ToVar());
+    } else if (val->IsInstance<tir::AnyNode>()) {
+      res.push_back(val.as<tir::AnyNode>()->ToVar());
     } else {
       res.push_back(val);
     }
@@ -186,10 +186,11 @@ class ScheduleGetter :
   }
 
   Array<top::Tensor> VisitExpr_(const ConstantNode* op) final {
+    using tir::make_const;
     CHECK(op->is_scalar());
     void* data = op->data->data;
     DataType dtype = DataType(op->data->dtype);
-    auto value = top::compute({}, [&](const Array<tvm::Var>&) {
+    auto value = top::compute({}, [&](const Array<tvm::tir::Var>&) {
         if (dtype == DataType::Int(32)) {
           return make_const(dtype, static_cast<const int32_t*>(data)[0]);
         } else if (dtype == DataType::Int(64)) {
@@ -459,13 +460,14 @@ class MakeShapeFunc : public ExprFunctor<Array<top::Tensor>(const Expr&)> {
   }
 
   Array<top::Tensor> VisitExpr_(const ConstantNode* op) final {
+    using tir::make_const;
     CHECK(data_dependants_.size());
     CHECK(op->is_scalar());
     bool data_dependant = data_dependants_.back();
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = DataType(op->data->dtype);
-      auto value = tvm::top::compute({}, [&](const Array<tvm::Var>&) {
+      auto value = tvm::top::compute({}, [&](const Array<tvm::tir::Var>&) {
           if (dtype == DataType::Int(32)) {
             return make_const(dtype, static_cast<const int32_t*>(data)[0]);
           } else if (dtype == DataType::Int(64)) {
@@ -484,8 +486,8 @@ class MakeShapeFunc : public ExprFunctor<Array<top::Tensor>(const Expr&)> {
       scalars_.push_back(value);
       return {value};
     } else {
-      auto value = tvm::top::compute({}, [&](const Array<tvm::Var>&) {
-          return make_const(DataType::Int(64), 0);
+      auto value = tvm::top::compute({}, [&](const Array<tvm::tir::Var>&) {
+          return tir::make_const(DataType::Int(64), 0);
       }, "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
       return {value};
@@ -620,13 +622,13 @@ class CompileEngineImpl : public CompileEngineNode {
       CHECK(src_func.defined());
       if (!src_func->UseDefaultCompiler()) {
         auto compiler = FunctionGetAttr(src_func, attr::kCompiler);
-        const tvm::ir::StringImmNode* code_gen = compiler.as<tvm::ir::StringImmNode>();
+        const tvm::tir::StringImmNode* code_gen = compiler.as<tvm::tir::StringImmNode>();
         CHECK(code_gen) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
           ext_mods[code_gen->value] = IRModule({}, {});
         }
         auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
-        const tvm::ir::StringImmNode* symbol_name = ext_symbol.as<tvm::ir::StringImmNode>();
+        const tvm::tir::StringImmNode* symbol_name = ext_symbol.as<tvm::tir::StringImmNode>();
         CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
         auto gv = GlobalVar(symbol_name->value);
         ext_mods[code_gen->value]->Add(gv, src_func);
@@ -697,7 +699,7 @@ class CompileEngineImpl : public CompileEngineNode {
     if (!key->source_func->UseDefaultCompiler()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::ir::StringImmNode>();
+          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::tir::StringImmNode>();
       CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
       cache_node->func_name = name_node->value;
       cache_node->target = tvm::target::ext_dev();
@@ -733,7 +735,7 @@ class CompileEngineImpl : public CompileEngineNode {
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
       tvm::BuildConfig bcfg = BuildConfig::Create();
-      std::unordered_map<top::Tensor, Buffer> binds;
+      std::unordered_map<top::Tensor, tir::Buffer> binds;
       cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
@@ -768,7 +770,7 @@ class CompileEngineImpl : public CompileEngineNode {
       all_args.push_back(arg);
     }
     tvm::BuildConfig bcfg = BuildConfig::Create();
-    std::unordered_map<top::Tensor, Buffer> binds;
+    std::unordered_map<top::Tensor, tir::Buffer> binds;
     cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
     value->cached_func = CachedFunc(cache_node);
     return value;

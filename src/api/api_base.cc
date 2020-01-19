@@ -22,7 +22,7 @@
  * \file api_base.cc
  */
 #include <dmlc/memory_io.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/tensor.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/node/serialization.h>

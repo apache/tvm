@@ -21,10 +21,11 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 
 TEST(PackedFunc, Basic) {
   using namespace tvm;
+  using namespace tvm::tir;
   using namespace tvm::runtime;
   int x = 0;
   void* handle = &x;
@@ -45,6 +46,7 @@ TEST(PackedFunc, Basic) {
 
 TEST(PackedFunc, Node) {
   using namespace tvm;
+  using namespace tvm::tir;
   using namespace tvm::runtime;
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
@@ -129,7 +131,7 @@ TEST(PackedFunc, Expr) {
   // automatic conversion of int to expr
   PackedFunc addone([](TVMArgs args, TVMRetValue* rv) {
       PrimExpr x = args[0];
-      *rv = x.as<tvm::ir::IntImmNode>()->value + 1;
+      *rv = x.as<tvm::tir::IntImmNode>()->value + 1;
   });
   int r0 = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
       PackedFunc f = args[0];
@@ -198,6 +200,7 @@ TEST(TypedPackedFunc, Deduce) {
 
 TEST(PackedFunc, ObjectConversion) {
   using namespace tvm;
+  using namespace tvm::tir;
   using namespace tvm::runtime;
   TVMRetValue rv;
   auto x = NDArray::Empty(

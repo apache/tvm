@@ -21,9 +21,9 @@
  * \brief Logics related to tensorize, used by ComputeOpNode.
  * \file tensorize.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
 
 #include "op_util.h"
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace top {
 
-using namespace ir;
+using namespace tir;
 
 // Detect the region of input and output to be tensrized.
 // out_dom: the domain of root iter vars in output op
@@ -144,13 +144,13 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
     }
   }
   for (const PrimExpr& pred : n.main_predicates) {
-    if (ir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
     }
   }
   for (const PrimExpr& pred : n.init_predicates) {
-    if (ir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, banned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
     }
@@ -390,9 +390,9 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       tuple.push_back(r->extent);
     }
     input_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, ir::attr::buffer_bind_scope,
+        bind_spec, tir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(),
-                       ir::intrinsic::tvm_tuple,
+                       tir::intrinsic::tvm_tuple,
                        tuple, CallNode::Intrinsic), nop));
   }
   // output binding
@@ -412,14 +412,14 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     Buffer buffer = intrin->buffers[i];
     Array<ObjectRef> bind_spec{buffer, tensor};
     output_bind_nest.emplace_back(AttrStmtNode::make(
-        bind_spec, ir::attr::buffer_bind_scope,
+        bind_spec, tir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(),
-                       ir::intrinsic::tvm_tuple,
+                       tir::intrinsic::tvm_tuple,
                        tuple, CallNode::Intrinsic), nop));
   }
   // Check variable remap
   std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ir::ArgBinder binder(&vmap);
+  tir::ArgBinder binder(&vmap);
   CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
       << "Tensorization fail: reduction axis size do not match";
   size_t start = self->reduce_axis.size() - intrin_compute->reduce_axis.size();
@@ -450,7 +450,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
         << "Normal store op for intrin " << intrin << " is not defined";
     Stmt body = MergeNest(output_bind_nest, intrin->body);
     body = MergeNest(input_bind_nest, body);
-    body = ir::Substitute(body, vmap);
+    body = tir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
     body = top::Substitute(body, n.main_vmap);
     return MergeNest(nest, body);
@@ -477,7 +477,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       // The update
       Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
-      update = ir::Substitute(update, vmap);
+      update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
       update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
@@ -491,7 +491,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
                                     intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);
       update = MergeNest(input_bind_nest, update);
-      update = ir::Substitute(update, vmap);
+      update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
       update = top::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);

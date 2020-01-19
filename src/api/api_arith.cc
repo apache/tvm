@@ -26,8 +26,8 @@
 #include <tvm/arith/pattern.h>
 #include <tvm/arith/analyzer.h>
 
-#include <tvm/expr.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 
 #include <tvm/top/tensor.h>

@@ -26,7 +26,7 @@
  * used as "barrier" to avoid fusing operators belonging to differen devices.
  */
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>

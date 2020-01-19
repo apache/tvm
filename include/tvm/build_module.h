@@ -24,19 +24,17 @@
 #ifndef TVM_BUILD_MODULE_H_
 #define TVM_BUILD_MODULE_H_
 
+#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/support/with.h>
 #include <tvm/top/schedule_pass.h>
+#include <tvm/tir/lowered_func.h>
 
 #include <string>
 #include <vector>
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
-
-#include "runtime/packed_func.h"
-
-#include "lowered_func.h"
 
 namespace tvm {
 
@@ -174,11 +172,12 @@ class BuildConfig : public ::tvm::ObjectRef {
 * \param config The build configuration.
 * \return The lowered function.
 */
-TVM_DLL Array<LoweredFunc> lower(top::Schedule sch,
-                                 const Array<top::Tensor>& args,
-                                 const std::string& name,
-                                 const std::unordered_map<top::Tensor, Buffer>& binds,
-                                 const BuildConfig& config);
+TVM_DLL Array<tir::LoweredFunc> lower(
+    top::Schedule sch,
+    const Array<top::Tensor>& args,
+    const std::string& name,
+    const std::unordered_map<top::Tensor, tir::Buffer>& binds,
+    const BuildConfig& config);
 /*!
 * \brief Split host/device function and running necessary pass before build
 * \param funcs The functions to be built.
@@ -188,10 +187,11 @@ TVM_DLL Array<LoweredFunc> lower(top::Schedule sch,
 * \return The Array<Array<LoweredFunc>> with 2 elements. First is host function Array,
           second is device function array
 */
-TVM_DLL Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
-                                                        const Target& target,
-                                                        const Target& target_host,
-                                                        const BuildConfig& config);
+TVM_DLL Array<Array<tir::LoweredFunc> > split_dev_host_funcs(
+    const Array<tir::LoweredFunc>& funcs,
+    const Target& target,
+    const Target& target_host,
+    const BuildConfig& config);
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.
@@ -201,7 +201,7 @@ TVM_DLL Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>
 * \param config The build configuration.
 * \return The built module.
 */
-TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
+TVM_DLL runtime::Module build(const Array<tir::LoweredFunc>& funcs,
                               const Target& target,
                               const Target& target_host,
                               const BuildConfig& config);
@@ -216,7 +216,7 @@ TVM_DLL runtime::Module build(const Array<LoweredFunc>& funcs,
  * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<Target, Array<LoweredFunc>>& input,
+TVM_DLL runtime::Module build(const Map<Target, Array<tir::LoweredFunc>>& input,
                               const Target& target_host,
                               const BuildConfig& config);
 
@@ -231,7 +231,7 @@ TVM_DLL runtime::Module build(const Map<Target, Array<LoweredFunc>>& input,
  * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<std::string, Array<LoweredFunc>>& input,
+TVM_DLL runtime::Module build(const Map<std::string, Array<tir::LoweredFunc>>& input,
                               const Target& target_host,
                               const BuildConfig& config);
 

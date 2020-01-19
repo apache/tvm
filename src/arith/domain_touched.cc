@@ -21,9 +21,9 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
-#include <tvm/expr.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/top/tensor.h>
 #include <tvm/runtime/registry.h>
 
@@ -33,7 +33,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 // Find Read region of the tensor in the stmt.
 class FuncTouchedDomain final : public StmtExprVisitor {

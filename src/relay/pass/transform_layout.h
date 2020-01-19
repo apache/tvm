@@ -26,7 +26,7 @@
 #ifndef TVM_RELAY_PASS_TRANSFORM_LAYOUT_H_
 #define TVM_RELAY_PASS_TRANSFORM_LAYOUT_H_
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/expr.h>
 #include <string>
 #include <unordered_map>

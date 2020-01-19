@@ -140,7 +140,7 @@ FuncType FunctionNode::func_type_annotation() const {
 
 bool FunctionNode::IsPrimitive() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kPrimitive);
-  const ir::IntImmNode* pval = res.as<ir::IntImmNode>();
+  const tir::IntImmNode* pval = res.as<tir::IntImmNode>();
   return pval && pval->value != 0;
 }
 
@@ -166,7 +166,7 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionGetParams")
 
 bool FunctionNode::UseDefaultCompiler() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kCompiler);
-  const ir::StringImmNode* pval = res.as<ir::StringImmNode>();
+  const tir::StringImmNode* pval = res.as<tir::StringImmNode>();
   return pval == nullptr || pval->value == "default";
 }
 

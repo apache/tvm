@@ -22,7 +22,7 @@
  * \brief Property def of nn operators.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/debug.h>
 #include <topi/elemwise.h>

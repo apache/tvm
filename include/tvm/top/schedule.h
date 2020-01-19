@@ -25,7 +25,7 @@
 #ifndef TVM_TOP_SCHEDULE_H_
 #define TVM_TOP_SCHEDULE_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/top/tensor.h>
 #include <tvm/top/tensor_intrin.h>
 

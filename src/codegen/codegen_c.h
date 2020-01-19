@@ -24,10 +24,11 @@
 #ifndef TVM_CODEGEN_CODEGEN_C_H_
 #define TVM_CODEGEN_CODEGEN_C_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/codegen.h>
-#include <tvm/lowered_func.h>
+#include <tvm/tir/lowered_func.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -37,7 +38,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 /*!
  * \brief A base class to generate C code.
  *

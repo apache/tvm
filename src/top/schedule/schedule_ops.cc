@@ -20,9 +20,9 @@
 /*!
  * \file schedule_ops.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/top/operation.h>
 #include <tvm/top/schedule_pass.h>
 #include <utility>
@@ -30,12 +30,12 @@
 #include <unordered_set>
 #include "graph.h"
 #include "../operation/op_util.h"
-#include "../../pass/ir_util.h"
+#include "../../tir/pass/ir_util.h"
 
 namespace tvm {
 namespace top {
 
-using namespace ir;
+using namespace tir;
 
 Stmt MakePipeline(const Stage& s,
                   const std::unordered_map<IterVar, Range>& dom_map,
@@ -47,7 +47,7 @@ Stmt MakePipeline(const Stage& s,
   }
   if (s->double_buffer) {
     producer = AttrStmtNode::make(
-        s->op, ir::attr::double_buffer_scope, 1, producer);
+        s->op, tir::attr::double_buffer_scope, 1, producer);
   }
   Stmt pipeline = producer;
 
@@ -58,13 +58,13 @@ Stmt MakePipeline(const Stage& s,
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
   // use attribute to mark scope of the operation.
   pipeline = AttrStmtNode::make(
-      s->op, ir::attr::realize_scope,
+      s->op, tir::attr::realize_scope,
       StringImmNode::make(s->scope),
       pipeline);
 
   if (s->is_opengl) {
     pipeline = AttrStmtNode::make(
-        s->op, ir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
+        s->op, tir::attr::opengl_stage_scope, StringImmNode::make(""), pipeline);
   }
   return pipeline;
 }
@@ -198,7 +198,7 @@ class SchedulePostProc : public StmtExprMutator {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
-        CHECK(is_zero(ir::Simplify(it->second - op->value)));
+        CHECK(is_zero(tir::Simplify(it->second - op->value)));
         return this->VisitStmt(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
@@ -206,8 +206,8 @@ class SchedulePostProc : public StmtExprMutator {
         thread_extent_scope_.erase(op->node.get());
         return ret;
       }
-    } else if (op->attr_key == ir::attr::realize_scope ||
-               op->attr_key == ir::attr::double_buffer_scope) {
+    } else if (op->attr_key == tir::attr::realize_scope ||
+               op->attr_key == tir::attr::double_buffer_scope) {
       auto it = replace_op_.find(op->node.get());
       if (it != replace_op_.end()) {
         if (it->second.defined()) {
@@ -218,7 +218,7 @@ class SchedulePostProc : public StmtExprMutator {
           return this->VisitStmt(op->body);
         }
       }
-    } else if (op->attr_key == ir::attr::buffer_bind_scope) {
+    } else if (op->attr_key == tir::attr::buffer_bind_scope) {
       Array<ObjectRef> tuple = Downcast<Array<ObjectRef> >(op->node);
       Tensor tensor = Downcast<Tensor>(tuple[1]);
       auto it = replace_op_.find(tensor->op.get());
@@ -231,7 +231,7 @@ class SchedulePostProc : public StmtExprMutator {
           return this->VisitStmt(op->body);
         }
       }
-    } else if (op->attr_key == ir::attr::buffer_dim_align) {
+    } else if (op->attr_key == tir::attr::buffer_dim_align) {
       Tensor tensor = Downcast<Tensor>(op->node);
       auto it = replace_op_.find(tensor->op.get());
       if (it != replace_op_.end()) {

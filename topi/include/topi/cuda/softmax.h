@@ -70,8 +70,8 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   }
 
   int num_thread = 64;
-  auto block_x = tvm::thread_axis(Range(), "blockIdx.x");
-  auto thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
+  auto block_x = tvm::top::thread_axis(Range(), "blockIdx.x");
+  auto thread_x = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.x");
 
   if (has_exp) {
     s[exp].bind(exp->op.as<ComputeOpNode>()->axis[0], block_x);

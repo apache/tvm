@@ -27,6 +27,21 @@
 
 namespace tvm {
 namespace top {
+
+IterVar thread_axis(Range dom, std::string tag) {
+  return IterVarNode::make(
+      dom, Var(tag), kThreadIndex, tag);
+}
+
+IterVar reduce_axis(Range dom, std::string name) {
+  return IterVarNode::make(
+      dom, Var(name), kCommReduce);
+}
+
+Var var(std::string name_hint, DataType t) {
+  return Var(name_hint, t);
+}
+
 // Tensor
 PrimExpr Tensor::operator()(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
@@ -34,7 +49,7 @@ PrimExpr Tensor::operator()(Array<Var> indices) const {
 }
 
 PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
-  using ir::CallNode;
+  using tir::CallNode;
   if (ndim() != 0) {
     CHECK_EQ(ndim(), indices.size())
         << "Tensor dimension mismatch in read"

@@ -23,13 +23,13 @@
  */
 #include <tvm/top/operation.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <unordered_set>
 #include "op_util.h"
 
 namespace tvm {
 namespace top {
-using namespace ir;
+using namespace tir;
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<ExternOpNode>([](const ObjectRef& node, NodePrinter* p) {
@@ -148,7 +148,7 @@ Stmt ExternOpNode::BuildRealize(
           Range::make_by_min_extent(
               make_const(t->shape[i].dtype(), 0), t->shape[i]));
     }
-    realize_body = ir::RealizeNode::make(
+    realize_body = tir::RealizeNode::make(
         t->op, t->value_index, t->dtype,
         bounds, const_true(), realize_body);
   }

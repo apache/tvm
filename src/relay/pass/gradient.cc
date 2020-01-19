@@ -22,7 +22,7 @@
  * \brief API for Automatic Differentiation for the Relay IR.
  */
 
-#include <tvm/lowered_func.h>
+#include <tvm/tir/lowered_func.h>
 #include <tvm/top/operation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>

@@ -46,6 +46,13 @@ class NodePrinter {
   using FType = NodeFunctor<void(const ObjectRef&, NodePrinter*)>;
   TVM_DLL static FType& vtable();
 };
+
+/*!
+ * \brief Dump the node to stderr, used for debug purposes.
+ * \param node The input node
+ */
+TVM_DLL void Dump(const ObjectRef& node);
+
 }  // namespace tvm
 
 namespace tvm {

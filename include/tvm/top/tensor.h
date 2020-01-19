@@ -26,8 +26,8 @@
 
 #include <tvm/node/container.h>
 #include <tvm/arith/bound.h>
-#include <tvm/expr.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 
 #include <string>
 #include <vector>
@@ -38,6 +38,9 @@
 
 namespace tvm {
 namespace top {
+
+using arith::IntSet;
+using namespace tvm::tir;
 
 // Internal node container of Tensor
 class TensorNode;
@@ -139,7 +142,7 @@ class Tensor : public ObjectRef {
 };
 
 /*! \brief Operation that produces tensors */
-class Operation : public ir::FunctionRef {
+class Operation : public tir::FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
@@ -215,18 +218,18 @@ inline bool Tensor::operator!=(const Tensor& other) const {
 
 // macro to turn every operation of slice to expression
 #define DEFINE_OVERLOAD_SLICE_UNARY_OP(Op)                              \
-  inline PrimExpr operator Op (const Tensor::Slice& a) {           \
-    return Op a.operator PrimExpr() ;                              \
+  inline PrimExpr operator Op (const Tensor::Slice& a) {                \
+    return Op a.operator PrimExpr() ;                                   \
   }                                                                     \
 
 #define DEFINE_OVERLOAD_SLICE_BINARY_OP(Op)                             \
   template<typename T>                                                  \
-  inline PrimExpr operator Op (const Tensor::Slice& a, const T& b) { \
-    return a.operator PrimExpr() Op b;                             \
+  inline PrimExpr operator Op (const Tensor::Slice& a, const T& b) {    \
+    return a.operator PrimExpr() Op b;                                  \
   }                                                                     \
   template<typename T>                                                  \
-  inline PrimExpr operator Op (const T& a, const Tensor::Slice& b) {  \
-    return a Op b.operator PrimExpr();                                \
+  inline PrimExpr operator Op (const T& a, const Tensor::Slice& b) {    \
+    return a Op b.operator PrimExpr();                                  \
   }                                                                        \
   inline PrimExpr operator Op (const Tensor::Slice& a, const Tensor::Slice& b) { \
     return a.operator PrimExpr() Op b.operator PrimExpr();                  \

@@ -26,7 +26,7 @@
 
 
 #include <tvm/ir/span.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <tvm/node/node.h>
 #include <string>
 #include <vector>

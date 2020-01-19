@@ -824,7 +824,7 @@ class PrettyPrinter :
   Doc PrintAttr(const ObjectRef& value, bool meta = false) {
     if (value.defined()) {
       Doc printed_attr;
-      if (value.as<tvm::ir::AnyNode>()) {
+      if (value.as<tvm::tir::AnyNode>()) {
         printed_attr << "?";
       } else if (meta) {
         printed_attr = meta_.GetMetaNode(Downcast<ObjectRef>(value));
@@ -853,15 +853,15 @@ class PrettyPrinter :
     return doc;
   }
 
-  Doc VisitAttr_(const ir::IntImmNode* op) final {
+  Doc VisitAttr_(const tir::IntImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::FloatImmNode* op) final {
+  Doc VisitAttr_(const tir::FloatImmNode* op) final {
     return PrintConstScalar(op->dtype, &(op->value));
   }
 
-  Doc VisitAttr_(const ir::StringImmNode* op) final {
+  Doc VisitAttr_(const tir::StringImmNode* op) final {
     return PrintString(op->value);
   }
 

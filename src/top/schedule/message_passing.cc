@@ -22,15 +22,15 @@
  * \brief The message passing domain.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include "message_passing.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace top {
 
-using namespace ir;
+using namespace tir;
 
 void Update(std::unordered_map<IterVar, Range>* p_state,
             const IterVar& iv,

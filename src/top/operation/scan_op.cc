@@ -22,14 +22,14 @@
  * \file scan_op.cc
  */
 #include <tvm/top/operation.h>
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include "op_util.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
 namespace top {
-using namespace ir;
+using namespace tir;
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<ScanOpNode>([](const ObjectRef& node, NodePrinter* p) {
@@ -39,7 +39,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 inline bool prove_equal(PrimExpr lhs, PrimExpr rhs) {
-  return is_zero(ir::Simplify(lhs - rhs));
+  return is_zero(tir::Simplify(lhs - rhs));
 }
 
 int ScanOpNode::num_outputs() const {
@@ -230,7 +230,7 @@ void ScanOpNode::GatherBound(
   Range sdom = this->scan_axis->dom;
   Range r = arith::Union(time_dom).cover_range(sdom);
   (*out_dom_map)[this->scan_axis] = Range::make_by_min_extent(
-      sdom->min, ir::Simplify(r->extent + r->min - sdom->min));
+      sdom->min, tir::Simplify(r->extent + r->min - sdom->min));
   Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
@@ -240,7 +240,7 @@ void ScanOpNode::GatherBound(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       CHECK(!out_dom_map->count(sp_ax));
       CHECK(fix_pt.count(sp_ax));
-      if (fix_pt[sp_ax].as<ir::IntImmNode>()->value) {
+      if (fix_pt[sp_ax].as<tir::IntImmNode>()->value) {
         // fix point, we can slice it.
         (*out_dom_map)[sp_ax] = arith::Union(d.data[k]).cover_range(sp_ax->dom);
       } else {
@@ -258,7 +258,7 @@ Stmt ScanOpNode::BuildRealize(
   CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
   Range tdom = Range::make_by_min_extent(
-      0, ir::Simplify(sdom->extent + sdom->min));
+      0, tir::Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;
   for (size_t i = 0; i < update.size(); ++i) {
@@ -270,7 +270,7 @@ Stmt ScanOpNode::BuildRealize(
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       bounds.push_back(dom_map.at(sp_ax));
     }
-    ret = ir::RealizeNode::make(t->op, t->value_index, t->dtype,
+    ret = tir::RealizeNode::make(t->op, t->value_index, t->dtype,
                             bounds, const_true(), ret);
   }
   return ret;

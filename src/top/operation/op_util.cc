@@ -21,9 +21,9 @@
  * \brief Utility to make loop nest.
  * \file op_util.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/top/operation.h>
 #include <string>
 #include "op_util.h"
@@ -34,7 +34,7 @@ namespace tvm {
 namespace top {
 
 using namespace arith;
-using namespace ir;
+using namespace tir;
 
 std::vector<std::vector<Stmt> >
 MakeLoopNest(const Stage& stage,
@@ -101,7 +101,7 @@ MakeLoopNest(const Stage& stage,
             pvalue = make_const(DataType::Int(32), 1);
           }
           nest[i + 1].emplace_back(
-              AttrStmtNode::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
+              AttrStmtNode::make(iv, tir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
         }
       }
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
@@ -131,7 +131,7 @@ MakeLoopNest(const Stage& stage,
         for (size_t j = 0; j < it_attr->prefetch_data.size(); ++j) {
           nest[i + 1].emplace_back(
               AttrStmtNode::make(it_attr->prefetch_data[j],
-                             ir::attr::prefetch_scope,
+                             tir::attr::prefetch_scope,
                              it_attr->prefetch_offset[j], no_op));
         }
       }
@@ -143,7 +143,7 @@ MakeLoopNest(const Stage& stage,
       CHECK(is_positive_const(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, ir::attr::virtual_thread, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, tir::attr::virtual_thread, dom->extent, no_op));
       value_map[iv] = var;
     } else if (bind_iv->thread_tag == "pipeline") {
       // pipeline marker.
@@ -151,14 +151,14 @@ MakeLoopNest(const Stage& stage,
       CHECK(is_one(dom->extent));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, ir::attr::pipeline_exec_scope, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, tir::attr::pipeline_exec_scope, dom->extent, no_op));
       value_map[iv] = dom->min;
     } else {
       // Always restrict threaded IterVar to starts from 0.
       CHECK(is_zero(dom->min));
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(bind_iv, ir::attr::thread_extent, dom->extent, no_op));
+          AttrStmtNode::make(bind_iv, tir::attr::thread_extent, dom->extent, no_op));
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
@@ -186,17 +186,17 @@ std::vector<Stmt> MakeIfNest(const std::vector<PrimExpr>& predicates) {
 }
 
 // replacer to replace tensors
-class TensorReplacer : public ir::StmtExprMutator {
+class TensorReplacer : public tir::StmtExprMutator {
  public:
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
 
-  PrimExpr VisitExpr_(const ir::CallNode* op) final {
-    if (op->call_type == ir::CallNode::Halide) {
+  PrimExpr VisitExpr_(const tir::CallNode* op) final {
+    if (op->call_type == tir::CallNode::Halide) {
       Tensor t = Downcast<Operation>(op->func).output(op->value_index);
       auto it = vmap_.find(t);
       if (it != vmap_.end()) {
-        PrimExpr ret = ir::CallNode::make(
+        PrimExpr ret = tir::CallNode::make(
             op->dtype, it->second->op->name, op->args,
             op->call_type, it->second->op, it->second->value_index);
         found = true;
@@ -233,10 +233,10 @@ Stmt Substitute(Stmt s,
   for (const auto& kv : value_map) {
     init[kv.first->var.get()] = kv.second;
   }
-  return ir::Substitute(s, init);
+  return tir::Substitute(s, init);
 }
 
-IterVarType ForTypeToIterVarType(ir::ForType for_type) {
+IterVarType ForTypeToIterVarType(tir::ForType for_type) {
   switch (for_type) {
   case ForType::Serial:
     return kDataPar;
@@ -251,7 +251,7 @@ IterVarType ForTypeToIterVarType(ir::ForType for_type) {
   }
 }
 
-ir::ForType IterVarTypeToForType(IterVarType iter_type) {
+tir::ForType IterVarTypeToForType(IterVarType iter_type) {
   switch (iter_type) {
   case kDataPar:
     return ForType::Serial;
