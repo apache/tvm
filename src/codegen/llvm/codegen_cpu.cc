@@ -23,11 +23,10 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <memory>
 #include <unordered_map>
 #include "codegen_cpu.h"
-#include "../../pass/ir_util.h"
 
 namespace tvm {
 namespace codegen {
@@ -423,7 +422,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
   //   This is easier than set the alias scope manually.
   using llvm::BasicBlock;
-  Array<Var> vargs = ir::UndefinedVars(op->body, {});
+  Array<Var> vargs = tir::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
@@ -513,7 +512,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
       llvm::Function::PrivateLinkage,
       "__tvm_parallel_lambda", module_.get());
   // allocate and setup the closure, call the closure.
-  Array<Var> vfields = ir::UndefinedVars(body, {});
+  Array<Var> vfields = tir::UndefinedVars(body, {});
   uint64_t nbytes;
   llvm::Value* cdata = PackClosureData(vfields, &nbytes);
   BasicBlock* par_launch_end = CheckCallSuccess(
@@ -582,7 +581,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   }
   // allocate and setup the closure, call the closure.
   uint64_t nbytes;
-  Array<Var> vfields = ir::UndefinedVars(body, {});
+  Array<Var> vfields = tir::UndefinedVars(body, {});
   llvm::Value* cdata = PackClosureData(vfields, &nbytes);
   BasicBlock* init_end = CheckCallSuccess(
       builder_->CreateCall(
@@ -692,7 +691,7 @@ CodeGenCPU::MakeCallPacked(const Array<PrimExpr> &args, llvm::Value **rvalue,
   BasicBlock *end_block = CheckCallSuccess(builder_->CreateCall(
       RuntimeTVMFuncCall(), {handle, arg_value, arg_tcode, ConstInt32(nargs),
                              ret_value, *ret_tcode}));
-  DataType r_api_type = ir::APIType(r_type);
+  DataType r_api_type = tir::APIType(r_type);
   *rvalue = builder_->CreateAlignedLoad(
       builder_->CreatePointerCast(ret_value,
                                   LLVMType(r_api_type)->getPointerTo()),
@@ -870,9 +869,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == ir::attr::coproc_uop_scope) {
+  if (op->attr_key == tir::attr::coproc_uop_scope) {
     this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
-  } else  if (op->attr_key == ir::attr::compute_scope) {
+  } else  if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
@@ -892,7 +891,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       builder_->CreateCall(
           RuntimeTVMParallelBarrier(),
           {MakeValue(parallel_env_.task_id),  parallel_env_.penv});
-    } else if (op->attr_key == ir::attr::pragma_import_llvm) {
+    } else if (op->attr_key == tir::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();
       CHECK(value != nullptr);
       this->HandleImport(value->value);

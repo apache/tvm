@@ -47,7 +47,7 @@ inline bool WillOverflow(int64_t x,
 }
 
 template<>
-inline bool WillOverflow<ir::AddNode>(int64_t x,
+inline bool WillOverflow<tir::AddNode>(int64_t x,
                                       int64_t y,
                                       int64_t min_value,
                                       int64_t max_value) {
@@ -57,7 +57,7 @@ inline bool WillOverflow<ir::AddNode>(int64_t x,
 }
 
 template<>
-inline bool WillOverflow<ir::SubNode>(int64_t x,
+inline bool WillOverflow<tir::SubNode>(int64_t x,
                                       int64_t y,
                                       int64_t min_value,
                                       int64_t max_value) {
@@ -67,7 +67,7 @@ inline bool WillOverflow<ir::SubNode>(int64_t x,
 }
 
 template<>
-inline bool WillOverflow<ir::MulNode>(int64_t x,
+inline bool WillOverflow<tir::MulNode>(int64_t x,
                                       int64_t y,
                                       int64_t min_value,
                                       int64_t max_value) {
@@ -84,7 +84,7 @@ inline bool WillOverflow<ir::MulNode>(int64_t x,
 }
 
 template<>
-inline bool WillOverflow<ir::ModNode>(int64_t x,
+inline bool WillOverflow<tir::ModNode>(int64_t x,
                                       int64_t y,
                                       int64_t min_value,
                                       int64_t max_value) {

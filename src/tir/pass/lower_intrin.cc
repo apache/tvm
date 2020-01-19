@@ -21,18 +21,18 @@
  *  Lower intrinsic calls and ops to device specific ir when possible.
  * \file lower_intrin.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
 
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arith/pattern_match.h"
-#include "../arith/ir_mutator_with_analyzer.h"
+#include "../../arith/pattern_match.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
@@ -103,7 +103,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // equivalent to rdiv + (rmod >= 0 ? 0: -1);
           return rdiv + (rmod >> make_const(dtype, dtype.bits() - 1));
         } else {
-          return ir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
+          return tir::SelectNode::make(rmod >= 0 , rdiv, rdiv - make_const(dtype, 1));
         }
       }
     } else {
@@ -113,7 +113,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
       PrimExpr rdiv = truncdiv(op->a, op->b);
       PrimExpr rmod = truncmod(op->a, op->b);
-      return ir::SelectNode::make(
+      return tir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rdiv, rdiv - make_const(dtype, 1));
     }
@@ -152,7 +152,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
           // -> rmod >= 0 ? 0 : b
           return rmod + (op->b & (rmod >> make_const(dtype, dtype.bits() - 1)));
         } else {
-          return ir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
+          return tir::SelectNode::make(rmod >= 0, rmod, rmod + op->b);
         }
       }
     } else {
@@ -163,7 +163,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // b > 0 && rmod < 0  -> rmod + b
       // b < 0 && rmod < 0 -> rmod
       // b < 0 && rmod > 0 -> rmod + b
-      return ir::SelectNode::make(
+      return tir::SelectNode::make(
           (op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0),
           rmod, rmod + op->b);
     }
@@ -296,5 +296,5 @@ LowerIntrin(LoweredFunc f, const std::string& target) {
 TVM_REGISTER_GLOBAL("ir_pass._LowerIntrinStmt")
 .set_body_typed(LowerIntrinStmt);
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

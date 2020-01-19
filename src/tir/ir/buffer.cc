@@ -20,23 +20,23 @@
 /*!
  * \file buffer.cc
  */
-#include <tvm/buffer.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
 #include <iterator>
 #include <stack>
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
-
+namespace tir {
 // TODO(tqchen): change to floormod/div
-using IndexMod = ir::FloorModNode;
-using IndexDiv = ir::FloorDivNode;
+using IndexMod = tir::FloorModNode;
+using IndexDiv = tir::FloorDivNode;
 
 Array<PrimExpr> SimplifyArray(Array<PrimExpr> array) {
   for (size_t i = 0; i < array.size(); ++i) {
-    array.Set(i, ir::Simplify(array[i]));
+    array.Set(i, tir::Simplify(array[i]));
   }
   return array;
 }
@@ -58,7 +58,7 @@ Buffer decl_buffer(Array<PrimExpr> shape,
 
 // Split the given expression w.r.t the add operator
 inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr &expr) {
-  using namespace ir;
+  using namespace tir;
   std::vector<const PrimExpr*> ret;
   std::stack<const PrimExpr*> split_buffer;
   split_buffer.push(&expr);
@@ -87,7 +87,7 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr &expr) {
 inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr &mult_expr,
                                               const PrimExpr &mod_l_expr,
                                               const PrimExpr &mod_r_expr) {
-  using namespace ir;
+  using namespace tir;
   const MulNode* mult_ptr = mult_expr.as<MulNode>();
   if (!mult_ptr) return std::make_pair(false, PrimExpr());
   PrimExpr mult_outer = mult_ptr->b;
@@ -155,7 +155,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
                                       PrimExpr* no_opt_sum,
                                       bool* has_mult,
                                       bool* has_mod) {
-  using namespace ir;
+  using namespace tir;
   *has_mult = false;
   *has_mod = false;
   for (const PrimExpr* ele : eles) {
@@ -181,7 +181,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
 // Return: a pair with (false, Expr()) if cannot be optimized.
 //         a pair with (true, optimized_expr) if can be optimized
 inline PrimExpr MergeMulMod(const PrimExpr &base) {
-  using namespace ir;
+  using namespace tir;
   // 1. Prepare the lists.
   // We store two lists, a list that contain all the elements that match Mul and
   //                     a list that contain all the elements that match Mod.
@@ -285,7 +285,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
   if (dtype.lanes() != 1) {
-    return ir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    return tir::RampNode::make(offset, make_const(offset.dtype(), 1), dtype.lanes());
   } else {
     return offset;
   }
@@ -299,13 +299,13 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
-    return ir::CastNode::make(
+    return tir::CastNode::make(
         DataType::Bool(),
-        ir::LoadNode::make(
+        tir::LoadNode::make(
             DataType::Int(8), n->data, BufferOffset(n, begin, DataType::Int(8)),
             const_true()));
   } else {
-    return ir::LoadNode::make(
+    return tir::LoadNode::make(
         dtype, n->data, BufferOffset(n, begin, dtype),
         const_true(dtype.lanes()));
   }
@@ -320,12 +320,12 @@ Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
   if (value.dtype() == DataType::Bool()) {
-    return ir::StoreNode::make(n->data,
-                           ir::CastNode::make(DataType::Int(8), value),
+    return tir::StoreNode::make(n->data,
+                           tir::CastNode::make(DataType::Int(8), value),
                            BufferOffset(n, begin, DataType::Int(8)),
                            const_true());
   } else {
-    return ir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
+    return tir::StoreNode::make(n->data, value, BufferOffset(n, begin, dtype),
                            const_true(dtype.lanes()));
   }
 }
@@ -349,7 +349,7 @@ Buffer Buffer::MakeStrideView() const {
 Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
   begins = SimplifyArray(begins);
-  PrimExpr elem_offset = ir::Simplify(ElemOffset(n, begins));
+  PrimExpr elem_offset = tir::Simplify(ElemOffset(n, begins));
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
@@ -358,7 +358,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
     for (size_t i = 0; i < extents.size(); ++i) {
       if (!can_relax) {
         if (!is_zero(begins[i]) ||
-            !is_zero(ir::Simplify(extents[i] - n->shape[i]))) {
+            !is_zero(tir::Simplify(extents[i] - n->shape[i]))) {
           need_stride = true;
         }
       }
@@ -394,22 +394,22 @@ PrimExpr Buffer::access_ptr(int access_mask,
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
-    extent = arith::ComputeReduce<ir::MulNode>(self->shape, PrimExpr()) - offset;
+    extent = arith::ComputeReduce<tir::MulNode>(self->shape, PrimExpr()) - offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
-    e_dtype = ir::TypeAnnotation(self->dtype.with_lanes(content_lanes));
+    e_dtype = tir::TypeAnnotation(self->dtype.with_lanes(content_lanes));
     extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
     elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(),
                                                  content_lanes);
   } else {
-    e_dtype = ir::TypeAnnotation(self->dtype);
+    e_dtype = tir::TypeAnnotation(self->dtype);
   }
   Array<PrimExpr> acc_args{
     e_dtype, self->data, elem_offset,
         extent, make_const(DataType::Int(32), access_mask)};
-  return ir::CallNode::make(
-      ptr_type, ir::intrinsic::tvm_access_ptr, acc_args, ir::CallNode::Intrinsic);
+  return tir::CallNode::make(
+      ptr_type, tir::intrinsic::tvm_access_ptr, acc_args, tir::CallNode::Intrinsic);
 }
 
 Buffer BufferNode::make(Var data,
@@ -447,7 +447,7 @@ Buffer BufferNode::make(Var data,
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(tvm::var("stride"));
+      n->strides.push_back(Var("stride"));
     }
   }
   return Buffer(n);
@@ -460,5 +460,5 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 });
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
-
+}  // namespace tir
 }  // namespace tvm

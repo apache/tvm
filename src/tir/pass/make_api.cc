@@ -20,10 +20,10 @@
 /*!
  * \file make_api.cc Build API function.
  */
-#include <tvm/ir_pass.h>
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/buffer.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
 #include <utility>
@@ -33,7 +33,7 @@
 #include "arg_binder.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
@@ -255,7 +255,7 @@ class DeviceTypeBinder: public StmtExprMutator {
     // eager check NE for device check
     PrimExpr res = StmtExprMutator::VisitExpr_(op);
     op = res.as<NENode>();
-    if (ir::Equal(op->a, op->b)) {
+    if (tir::Equal(op->a, op->b)) {
       return make_const(op->dtype, false);
     }
     return res;
@@ -281,5 +281,5 @@ LoweredFunc BindDeviceType(LoweredFunc f,
   return LoweredFunc(n);
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

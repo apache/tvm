@@ -132,12 +132,11 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/top/*.cc
     src/api/*.cc
     src/autotvm/*.cc
-    src/lang/*.cc
-    src/pass/*.cc
+    src/tir/*.cc
     )
 
 file(GLOB CODEGEN_SRCS
-    src/codegen/*.cc
+  src/codegen/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})

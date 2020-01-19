@@ -22,6 +22,7 @@
  */
 
 #include <tvm/runtime/registry.h>
+
 #include <cmath>
 #include <vector>
 #include <string>
@@ -93,9 +94,9 @@ std::string CodeGenCUDA::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenCUDA::VisitStmt_(const ir::ForNode* op) {
+void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
   CHECK(is_const_int(op->min, 0));
-  if (op->for_type == ir::ForType::Unrolled) {
+  if (op->for_type == tir::ForType::Unrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
   }

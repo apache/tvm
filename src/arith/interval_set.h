@@ -25,7 +25,7 @@
 #define TVM_ARITH_INTERVAL_SET_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <limits>
 #include "const_fold.h"
 

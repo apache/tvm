@@ -25,9 +25,9 @@
 #define TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/lowered_func.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/lowered_func.h>
 
 #include <vector>
 #include <memory>
@@ -39,7 +39,7 @@
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 
 /*!
  * \brief Code generator into SPIRV

@@ -21,13 +21,13 @@
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <unordered_map>
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 // Mark the statment of each stage.
 class NoOpRemover : public StmtMutator {
@@ -151,5 +151,5 @@ class NoOpRemover : public StmtMutator {
 Stmt RemoveNoOp(Stmt stmt) {
   return NoOpRemover()(std::move(stmt));
 }
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

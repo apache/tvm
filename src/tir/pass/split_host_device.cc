@@ -21,15 +21,15 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
-#include <tvm/ir.h>
-#include <tvm/lowered_func.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/lowered_func.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/module.h>
 #include <unordered_map>
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 // use/def analysis, also delete unreferenced lets
 class IRUseDefAnalysis : public StmtExprMutator {
@@ -253,5 +253,5 @@ Array<LoweredFunc> SplitHostDevice(LoweredFunc func) {
   return HostDeviceSplitter().Split(func);
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

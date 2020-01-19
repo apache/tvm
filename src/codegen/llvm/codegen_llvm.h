@@ -26,8 +26,10 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/codegen.h>
 #include <memory>
 #include <utility>
@@ -37,11 +39,13 @@
 #include <unordered_set>
 #include "llvm_common.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../arith/compute_expr.h"
+#include "../../tir/pass/ir_util.h"
 
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 
 /*!
  * \brief A base class to generate a LLVM.

@@ -25,7 +25,7 @@
 #define TVM_CODEGEN_LLVM_INTRIN_RULE_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 
 #include <tvm/codegen.h>
@@ -38,7 +38,7 @@ namespace codegen {
 template<unsigned id, int num_signature>
 inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
-  const ir::CallNode* call = e.as<ir::CallNode>();
+  const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
@@ -48,14 +48,14 @@ inline void DispatchLLVMPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::CallNode::make(
-      call->dtype, "llvm_intrin", cargs, ir::CallNode::PureIntrinsic);
+  *rv = tir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, tir::CallNode::PureIntrinsic);
 }
 
 template<unsigned id, int num_signature>
 inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   PrimExpr e = targs[0];
-  const ir::CallNode* call = e.as<ir::CallNode>();
+  const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
   Array<PrimExpr> cargs;
   // intrin id.
@@ -64,8 +64,8 @@ inline void DispatchLLVMIntrin(const TVMArgs& targs, TVMRetValue* rv) {
   for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::CallNode::make(
-      call->dtype, "llvm_intrin", cargs, ir::CallNode::Intrinsic);
+  *rv = tir::CallNode::make(
+      call->dtype, "llvm_intrin", cargs, tir::CallNode::Intrinsic);
 }
 
 }  // namespace codegen

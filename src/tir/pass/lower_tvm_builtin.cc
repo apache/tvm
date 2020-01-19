@@ -21,15 +21,15 @@
  *  Lower TVM related buildin intrinsics such as packed call.
  * \file lower_tvm_buildin.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 inline PrimExpr ConstInt32(size_t index) {
   CHECK_LE(index, std::numeric_limits<int>::max());
@@ -374,5 +374,5 @@ LoweredFunc LowerTVMBuiltin(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

@@ -20,14 +20,14 @@
 /*!
  * \file tvm/arith/ir_mutator_with_analyzer.cc
  */
-#include <tvm/ir_pass.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/op.h>
 #include "ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 Stmt IRMutatorWithAnalyzer::
 VisitStmt_(const ForNode* op) {
@@ -39,7 +39,7 @@ VisitStmt_(const ForNode* op) {
 Stmt IRMutatorWithAnalyzer::
 VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!ir::HasSideEffect(value)) {
+  if (!tir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
@@ -128,7 +128,7 @@ VisitStmt_(const AssertStmtNode* op) {
 PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  if (op->is_intrinsic(ir::intrinsic::tvm_if_then_else)) {
+  if (op->is_intrinsic(tir::intrinsic::tvm_if_then_else)) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
     PrimExpr true_value, false_value;
     {
@@ -162,7 +162,7 @@ VisitExpr_(const CallNode* op) {
 PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!ir::HasSideEffect(value)) {
+  if (!tir::HasSideEffect(value)) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
