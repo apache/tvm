@@ -184,6 +184,12 @@ class ConvBiasAddReLUAnnotator(ExprMutator):
             new_args.append(new_arg)
         return relay.Call(call.op, new_args, call.attrs, call.type_args)
 
+    # def visit_function(self, func):
+    #     print("visiting function")
+    #     new_body = super().visit(func.body)
+    #     return relay.Function(func.params, new_body,
+    #                           func.ret_type, func.type_params, func.attrs)
+
     def visit_call(self, call):
         if call.op.name == "nn.conv2d":
             if self.current_state == self.state.Bias:
@@ -469,6 +475,10 @@ def test_extern_dnnl_mobilenet():
 
 
 def test_partition_conv_bias_relu():
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
     def get_layers(prefix, data, in_channel, out_channel,
                    include_bn=True, include_sigmoid=False):
         weight = relay.const(np.random.randn(out_channel, in_channel, 3, 3))
@@ -496,21 +506,33 @@ def test_partition_conv_bias_relu():
         last = layer2
         return relay.Function(relay.analysis.free_vars(last), last)
 
-    def get_partitoned_mod(net):
+    def pre_optimize(mod, params):
         remove_bn_pass = transform.Sequential([
             relay.transform.InferType(),
             relay.transform.SimplifyInference(),
             relay.transform.FoldConstant(),
             relay.transform.FoldScaleAxis(),
         ])
-        mod, params = tvm.relay.testing.create_workload(net)
+
+        inputs = {}
+        for name, param in params.items():
+            if isinstance(param, np.ndarray):
+                param = tvm.nd.array(param)
+            inputs[name] = _expr.const(param)
+
+        from tvm.relay._build_module import BindParamsByName
+        mod["main"] = BindParamsByName(mod["main"], inputs)
 
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = remove_bn_pass(mod)
 
+        return mod
+
+    def get_partitoned_mod(mod):
         mod["main"] = ConvBiasAddReLUAnnotator("dnnl").visit(mod["main"])
+        #print(mod["main"])
         mod = transform.PartitionGraph()(mod)
-        return mod, params
+        return mod
 
     def get_partitions(mod):
         partitions = []
@@ -523,7 +545,9 @@ def test_partition_conv_bias_relu():
 
     def test_detect_pattern(include_bn, include_sigmoid, num_expected_partition):
         net = get_net(include_bn, include_sigmoid)
-        mod, _ = get_partitoned_mod(net)
+        mod, params = tvm.relay.testing.create_workload(net)
+        mod = pre_optimize(mod, params)
+        mod = get_partitoned_mod(mod)
         assert(len(get_partitions(mod)) == num_expected_partition)
 
     def test_partition():
@@ -534,7 +558,16 @@ def test_partition_conv_bias_relu():
         # conv + bn + sigmoid + relu -> fail
         test_detect_pattern(True, True, 0)
 
-    test_partition()
+    def test_partition_mobilenet():
+        mod, params = relay.testing.mobilenet.get_workload()
+        mod = pre_optimize(mod, params)
+        # print(mod["main"])
+        mod = get_partitoned_mod(mod)
+        print(mod["main"])
+        print(len(get_partitions(mod["main"])))
+
+    # test_partition()
+    test_partition_mobilenet()
 
     # TODO: Enable executor check once the runtime signature issue is resolved
     # net = get_net()
@@ -551,10 +584,10 @@ def test_partition_conv_bias_relu():
 
 
 if __name__ == "__main__":
-    test_multi_node_compiler()
-    test_extern_ccompiler_single_op()
-    test_extern_ccompiler_default_ops()
-    test_extern_ccompiler()
-    test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    # test_multi_node_compiler()
+    # test_extern_ccompiler_single_op()
+    # test_extern_ccompiler_default_ops()
+    # test_extern_ccompiler()
+    # test_extern_dnnl()
+    # test_extern_dnnl_mobilenet()
     test_partition_conv_bias_relu()
