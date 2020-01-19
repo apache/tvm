@@ -25,7 +25,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <mutex>
 #include "llvm_common.h"
 #include "codegen_llvm.h"

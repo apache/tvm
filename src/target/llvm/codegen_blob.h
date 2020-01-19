@@ -21,8 +21,8 @@
  * \file codegen_blob.h
  * \brief Code Generation of blob data
  */
-#ifndef TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
-#define TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
+#ifndef TVM_TARGET_LLVM_CODEGEN_BLOB_H_
+#define TVM_TARGET_LLVM_CODEGEN_BLOB_H_
 #ifdef TVM_LLVM_VERSION
 #include <utility>
 #include <memory>
@@ -48,4 +48,4 @@ std::pair<std::unique_ptr<llvm::Module>,
 }  // namespace codegen
 }  // namespace tvm
 #endif  // LLVM_VERSION
-#endif  // TVM_CODEGEN_LLVM_CODEGEN_BLOB_H_
+#endif  // TVM_TARGET_LLVM_CODEGEN_BLOB_H_

@@ -24,9 +24,9 @@
 #include <string>
 #include <algorithm>
 #include "codegen_metal.h"
-#include "build_common.h"
-#include "../runtime/metal/metal_module.h"
-#include "../runtime/thread_storage_scope.h"
+#include "../build_common.h"
+#include "../../runtime/metal/metal_module.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace codegen {

@@ -21,8 +21,8 @@
  * \file codegen_llvm_cpu.h
  * \brief Common base class for generating into LLVM IR on CPU host.
  */
-#ifndef TVM_CODEGEN_LLVM_CODEGEN_CPU_H_
-#define TVM_CODEGEN_LLVM_CODEGEN_CPU_H_
+#ifndef TVM_TARGET_LLVM_CODEGEN_CPU_H_
+#define TVM_TARGET_LLVM_CODEGEN_CPU_H_
 
 #include <utility>
 #include <vector>
@@ -153,4 +153,4 @@ class CodeGenCPU : public CodeGenLLVM {
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_LLVM_CODEGEN_CPU_H_
+#endif  // TVM_TARGET_LLVM_CODEGEN_CPU_H_

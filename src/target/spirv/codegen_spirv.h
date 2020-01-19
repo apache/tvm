@@ -21,8 +21,8 @@
  * \file ir_builder.h
  * \brief Utility for building SPIRV code block
  */
-#ifndef TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
-#define TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
+#ifndef TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
+#define TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -150,4 +150,4 @@ class CodeGenSPIRV:
 }  // namespace tvm
 
 
-#endif  // TVM_CODEGEN_SPIRV_CODEGEN_SPIRV_H_
+#endif  // TVM_TARGET_SPIRV_CODEGEN_SPIRV_H_

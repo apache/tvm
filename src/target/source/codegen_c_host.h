@@ -21,10 +21,10 @@
  * \file codegen_c_host.h
  * \brief Generate C host code.
  */
-#ifndef TVM_CODEGEN_CODEGEN_C_HOST_H_
-#define TVM_CODEGEN_CODEGEN_C_HOST_H_
+#ifndef TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
+#define TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_
 
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <string>
 #include "codegen_c.h"
@@ -75,4 +75,4 @@ class CodeGenCHost final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_CODEGEN_CODEGEN_C_HOST_H_
+#endif  // TVM_TARGET_SOURCE_CODEGEN_C_HOST_H_

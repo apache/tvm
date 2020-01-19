@@ -21,8 +21,8 @@
  * \file ir_builder.h
  * \brief Utility for building SPIRV code block
  */
-#ifndef TVM_CODEGEN_SPIRV_IR_BUILDER_H_
-#define TVM_CODEGEN_SPIRV_IR_BUILDER_H_
+#ifndef TVM_TARGET_SPIRV_IR_BUILDER_H_
+#define TVM_TARGET_SPIRV_IR_BUILDER_H_
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/expr.h>
@@ -620,4 +620,4 @@ class IRBuilder {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_CODEGEN_SPIRV_IR_BUILDER_H_
+#endif  // TVM_TARGET_SPIRV_IR_BUILDER_H_

@@ -21,13 +21,13 @@
  * \file codegen_c.h
  * \brief Common utilities to generated C style code.
  */
-#ifndef TVM_CODEGEN_CODEGEN_C_H_
-#define TVM_CODEGEN_CODEGEN_C_H_
+#ifndef TVM_TARGET_SOURCE_CODEGEN_C_H_
+#define TVM_TARGET_SOURCE_CODEGEN_C_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <tvm/tir/lowered_func.h>
 #include <string>
 #include <vector>
@@ -214,4 +214,4 @@ class CodeGenC :
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_CODEGEN_C_H_
+#endif  // TVM_TARGET_SOURCE_CODEGEN_C_H_
