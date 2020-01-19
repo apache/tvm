@@ -24,7 +24,8 @@
 #ifndef TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
 #define TVM_CODEGEN_CODEGEN_SOURCE_BASE_H_
 
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/codegen.h>
 #include <string>
 #include <vector>
@@ -66,13 +67,13 @@ class CodeGenSourceBase {
    * \param v The variable.
    * \return the variable name.
    */
-  std::string AllocVarID(const VarNode* v);
+  std::string AllocVarID(const tir::VarNode* v);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the variable name.
    */
-  std::string GetVarID(const VarNode* v) const;
+  std::string GetVarID(const tir::VarNode* v) const;
   /*!
    * \brief Get the SSA ID corresponds to src
    *  If necessary, generate new assignment
@@ -110,7 +111,7 @@ class CodeGenSourceBase {
   /*! \brief the stream to be printed */
   std::ostringstream stream;
   /*! \brief name of each variable */
-  std::unordered_map<const VarNode*, std::string> var_idmap_;
+  std::unordered_map<const tir::VarNode*, std::string> var_idmap_;
 
  private:
   /*! \brief assignment map of ssa */

@@ -22,16 +22,16 @@
  * \file unroll_loop.cc
  */
 // Unrolls the loop as in Halide pipeline.
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 class LoopUnroller : public StmtExprMutator {
  public:
@@ -157,7 +157,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = ir::Simplify(op->extent);
+    PrimExpr extent = tir::Simplify(op->extent);
     const IntImmNode  *v1 = extent.as<IntImmNode>();
     int value = -1;
     if (v1 != nullptr) {
@@ -207,5 +207,5 @@ Stmt UnrollLoopExplicitly(Stmt stmt) {
   return LoopUnroller(0, 0, 0, false).Unroll(op);
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

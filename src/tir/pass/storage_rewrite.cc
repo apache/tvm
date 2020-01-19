@@ -23,19 +23,19 @@
  *  Re-write data access to enable memory sharing when possible.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target_info.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
 #include "ir_util.h"
-#include "../arith/compute_expr.h"
-#include "../runtime/thread_storage_scope.h"
+#include "../../arith/compute_expr.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -311,7 +311,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (src_ == buf) {
       if (store_ == nullptr ||
           store_->value.dtype() != op->dtype ||
-          !ir::Equal(store_->index, op->index)) {
+          !tir::Equal(store_->index, op->index)) {
         result_ = false; return;
       }
     }
@@ -622,7 +622,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           if (!divided) {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
-          combo_size = ir::Simplify(combo_size);
+          combo_size = tir::Simplify(combo_size);
           e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
               EvaluateNode::make(0));
@@ -1020,5 +1020,5 @@ Stmt StorageRewrite(Stmt stmt) {
   stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
   return VectorAllocRewriter()(std::move(stmt));
 }
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

@@ -21,13 +21,13 @@
  * \file verify_memory.cc
  * \brief Pass to check if memory accesses are legal.
  */
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 
 
 namespace tvm {
-namespace ir {
+namespace tir {
 namespace {
 
 /*!
@@ -192,5 +192,5 @@ bool VerifyMemory(LoweredFunc func, int device_type) {
   return !v.Failed();
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

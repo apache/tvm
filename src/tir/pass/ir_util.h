@@ -21,16 +21,16 @@
  * \file ir_util.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_PASS_IR_UTIL_H_
-#define TVM_PASS_IR_UTIL_H_
+#ifndef TVM_TIR_PASS_IR_UTIL_H_
+#define TVM_TIR_PASS_IR_UTIL_H_
 
-#include <tvm/ir.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
 
 namespace tvm {
-namespace ir {
+namespace tir {
 /*!
  * \brief combine the nest stmt, whose body is not defined.
  * \param nest A list of For and LetStmt, whose body is not defined.
@@ -190,6 +190,6 @@ inline bool GetRamp1Base(PrimExpr index, int lanes, PrimExpr *base) {
   *base = r->base;
   return true;
 }
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm
-#endif  // TVM_PASS_IR_UTIL_H_
+#endif  // TVM_TIR_PASS_IR_UTIL_H_

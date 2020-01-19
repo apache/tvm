@@ -23,13 +23,13 @@
 #include <iomanip>
 #include <cctype>
 #include "codegen_c.h"
-#include "../pass/ir_util.h"
 #include "../arith/compute_expr.h"
+#include "../tir/pass/ir_util.h"
 
 namespace tvm {
 namespace codegen {
 
-using namespace ir;
+using namespace tir;
 
 void CodeGenC::Init(bool output_ssa) {
   print_ssa_form_ = output_ssa;
@@ -809,18 +809,18 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == ir::attr::thread_extent) {
+  if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_idmap_.count(iv->var.get())) {
         BindThreadIndex(iv);
       }
     }
-  } else if (op->attr_key == ir::attr::storage_scope) {
+  } else if (op->attr_key == tir::attr::storage_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
-  } else if (op->attr_key == ir::attr::volatile_scope) {
+  } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     volatile_buf_.insert(v);

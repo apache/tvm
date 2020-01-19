@@ -21,17 +21,17 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
-#include "../arith/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
   if (e.dtype().lanes() == lanes) return e;
@@ -556,5 +556,5 @@ Stmt SkipVectorize(Stmt stmt) {
   return VectorizeSkipper()(std::move(stmt));
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

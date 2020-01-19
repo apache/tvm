@@ -20,9 +20,9 @@
 /*!
  * \file tvm/arith/analyzer.cc
  */
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace arith {
@@ -48,7 +48,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr) {
 
 void Analyzer::Bind(const Var& var, const Range& range) {
   CHECK(range.defined());
-  if (is_one(range->extent)) {
+  if (tir::is_one(range->extent)) {
     this->Bind(var, range->min);
   } else {
     this->const_int_bound.Bind(var, range);
@@ -78,7 +78,7 @@ void ConstraintContext::ExitWithScope() {
 }
 
 bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
-  if (const auto* ptr = expr.as<ir::IntImmNode>()) {
+  if (const auto* ptr = expr.as<tir::IntImmNode>()) {
     return ptr->value >= lower_bound;
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
@@ -102,9 +102,9 @@ bool Analyzer::CanProve(const PrimExpr& expr) {
 }
 
 PrimExpr Analyzer::Simplify(const PrimExpr& expr) {
-  if (is_const(expr)) return expr;
+  if (tir::is_const(expr)) return expr;
   auto res = this->rewrite_simplify(expr);
-  if (is_const(res)) return res;
+  if (tir::is_const(res)) return res;
   res = this->canonical_simplify(res);
   return res;
 }

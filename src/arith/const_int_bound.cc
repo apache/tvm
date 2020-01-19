@@ -21,7 +21,7 @@
  * \file tvm/arith/const_int_bound.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr_functor.h>
 #include <algorithm>
 #include "int_operator.h"
 #include "pattern_match.h"
@@ -29,7 +29,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
@@ -133,7 +133,7 @@ class ConstIntBoundAnalyzer::Impl :
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (ir::Equal(expr, info.expr)) {
+      if (tir::Equal(expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }

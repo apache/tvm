@@ -25,7 +25,7 @@
 #define TVM_ARITH_REWRITE_SIMPLIFY_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <unordered_map>
 #include <vector>
 #include "const_fold.h"
@@ -35,7 +35,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 /*!
  * \brief Rewrite-based simplifier.

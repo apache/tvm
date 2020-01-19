@@ -26,7 +26,8 @@
 
 #include <tvm/codegen.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 #include <unordered_map>
 #include <string>
 #include "../runtime/meta_data.h"

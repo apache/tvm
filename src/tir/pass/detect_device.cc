@@ -17,31 +17,22 @@
  * under the License.
  */
 
-#include <tvm/ir.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+/*!
+ * \file detect_device.cc
+ */
+
+#include <tvm/tir/ir_pass.h>
+#include "ir_util.h"
 
 namespace tvm {
-namespace ir {
-
-class AssertSkipper : public StmtMutator {
- public:
-  Stmt VisitStmt_(const AssertStmtNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AssertStmtNode>();
-    return op->body;
-  }
-};
-
-Stmt SkipAssert(Stmt stmt) {
-  return AssertSkipper()(std::move(stmt));
+namespace tir {
+Stmt DecorateDeviceScope(Stmt stmt) {
+  Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)),
+                             tir::attr::device_scope,
+                             0,
+                             stmt);
+  return body;
 }
 
-LoweredFunc SkipAssert(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = SkipAssert(f->body);
-  return LoweredFunc(n);
-}
-
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

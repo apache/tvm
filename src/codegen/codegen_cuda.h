@@ -25,7 +25,7 @@
 #define TVM_CODEGEN_CODEGEN_CUDA_H_
 
 #include <tvm/codegen.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <string>
 #include <unordered_map>
 #include "codegen_c.h"
@@ -43,7 +43,7 @@ class CodeGenCUDA final : public CodeGenC {
     return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void VisitStmt_(const ir::ForNode* op) final;
+  void VisitStmt_(const tir::ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(

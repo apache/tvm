@@ -29,7 +29,6 @@
 #include "codegen_llvm.h"
 #include "../build_common.h"
 #include "../codegen_source_base.h"
-#include "../../pass/ir_util.h"
 #include "../../runtime/rocm/rocm_module.h"
 
 namespace tvm {

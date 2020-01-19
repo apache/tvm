@@ -22,8 +22,8 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/ir.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/runtime/registry.h>
 
 #include <sstream>
@@ -33,7 +33,7 @@ namespace codegen {
 
 inline void DispatchExternOCML(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
-  using namespace ir;
+  using namespace tir;
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
   std::ostringstream intrinsic_name;

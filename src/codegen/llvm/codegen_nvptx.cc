@@ -26,7 +26,6 @@
 #include <tvm/runtime/device_api.h>
 #include "codegen_llvm.h"
 #include "../build_common.h"
-#include "../../pass/ir_util.h"
 #include "../../runtime/cuda/cuda_module.h"
 
 namespace tvm {

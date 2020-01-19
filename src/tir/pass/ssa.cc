@@ -23,15 +23,15 @@
  *  SSA requires each varaible to be only defined once.
  * \file ssa.cc
  */
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
 
 namespace tvm {
-namespace ir {
+namespace tir {
 namespace {
 class IRVerifySSA final : public StmtExprVisitor {
  public:
@@ -207,5 +207,5 @@ Stmt ConvertSSA(Stmt stmt) {
   return IRConvertSSA()(std::move(stmt));
 }
 
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

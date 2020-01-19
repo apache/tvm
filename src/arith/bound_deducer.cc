@@ -21,9 +21,9 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
-#include <tvm/expr.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/expr_functor.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 
@@ -34,7 +34,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 // a visitor to find the path to the target variable
 // from a expression.

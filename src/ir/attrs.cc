@@ -70,7 +70,7 @@ TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
 
 
-using namespace ir;
+using namespace tir;
 // Equal handler.
 bool AttrsEqualHandler::Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
   if (lhs.same_as(rhs)) return true;

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,7 +22,7 @@
  * \brief Common utilities to generated C style code.
  */
 #include <tvm/codegen.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -37,17 +37,17 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module Build(const Array<LoweredFunc>& funcs,
+runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
                       const std::string& target) {
   std::string mode = target;
   size_t pos = mode.find(' ');
   if (pos != std::string::npos) {
     mode = mode.substr(0, pos);
   }
-  Array<LoweredFunc> transformed_funcs;
+  Array<tir::LoweredFunc> transformed_funcs;
   if (BuildConfig::Current()->disable_assert) {
     for (const auto& x : funcs) {
-      auto func = ir::SkipAssert(x);
+      auto func = tir::SkipAssert(x);
       transformed_funcs.push_back(func);
     }
   }

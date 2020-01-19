@@ -18,112 +18,31 @@
  */
 
 /*!
- * \file tvm/expr_operator.h
+ * \file tvm/tir/op.h
  * \brief Common operators defined for Expr.
  *
  * \note Most of the operator defined here perform simple constant folding
  *   when the type is int32 or int64 for simplifying the index expressions.
  */
 // Acknowledgement: Most operator APIs originate from Halide.
-#ifndef TVM_EXPR_OPERATOR_H_
-#define TVM_EXPR_OPERATOR_H_
+#ifndef TVM_TIR_OP_H_
+#define TVM_TIR_OP_H_
+
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 
 #include <algorithm>
 #include <type_traits>
 #include <limits>
-#include "expr.h"
-#include "ir.h"
+
 
 namespace tvm {
-
-/*!
- * \brief Make a const value with certain data type.
- * \param t The target type.
- * \param value The input value
- * \return the result expression.
- * \tparam ValueType The constant value type
- */
-template<typename ValueType,
-         typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
-inline PrimExpr make_const(DataType t, ValueType value);
-/*!
- * \brief Make a const zero expr.
- * \param t The target type.
- * \return the result expression.
- */
-inline PrimExpr make_zero(DataType t);
-/*!
- * \brief Make a constant true expression.
- * \param lanes The number of lanes in the bool
- * \return The result expression.
- */
-inline PrimExpr const_true(int lanes = 1) {
-  return make_const(DataType::UInt(1, lanes), 1);
-}
-/*!
- * \brief Make a constant false expression.
- * \param lanes The number of lanes in the bool
- * \return The result expression.
- */
-inline PrimExpr const_false(int lanes = 1) {
-  return make_const(DataType::UInt(1, lanes), 0);
-}
-/*!
- * \brief Get x as constant int expression.
- * \param x The expression
- * \return the address to the int expression,
- *         return nullptr, if x is not IntImm.
- */
-inline const int64_t* as_const_int(const PrimExpr& x) {
-  if (!x.defined()) return nullptr;
-  if (const ir::IntImmNode* op = x.as<ir::IntImmNode>()) {
-    return &(op->value);
-  } else {
-    return nullptr;
-  }
-}
-
-/*!
- * \brief Check whether x is a constant integer expression.
- * \param x The input argument
- * \param value the value to be compared against.
- * \return whether x is constant expression.
- */
-inline bool is_const_int(const PrimExpr& x, int64_t value);
-
-/*!
- * \brief Check whether stmt is nop.
- * \param stmt The input statement
- * \return whether stmt is nop
- */
-inline bool is_no_op(const Stmt& stmt);
-
-/*!
- * \brief Check whether x is a constant integer 1
- * \param x The input argument.
- * \note This only return true for integer types.
- * \return whether x is constant 1
- */
-inline bool is_one(const PrimExpr& x) {
-  return is_const_int(x, 1);
-}
-
-/*!
- * \brief Check whether x is a constant integer 0
- * \param x The input argument
- * \return whether x is constant 0
- * \note This only return true for integer types.
- */
-inline bool is_zero(const PrimExpr& x) {
-  return is_const_int(x, 0);
-}
-
-/*!
- * \brief Check whether x is a constant.
- * \note This only return true for integer types.
- * \return whether x is constant
- */
-inline bool is_const(const PrimExpr& x);
+// Most common operators can be overloaded by argument type(PrimExpr).
+// So we put them under the root namespace.
+// It is also necessary to overload operators for PrimExpr.
+//
+// We put more developer oriented APIs -- make_const and is_const under tir
+// as they are more specific to the tir namespace.
 
 /*!
  * Query the maximum possible value of dtype.
@@ -138,16 +57,6 @@ TVM_DLL PrimExpr max_value(const DataType& dtype);
  * \return the minimum possible value in this format.
  */
 TVM_DLL PrimExpr min_value(const DataType& dtype);
-
-/*!
- * \brief Check whether x is a constant power of two
- * If x is power of two, write the power to the shift.
- *
- * \param x The input expression.
- * \param shift The output shift if x is power of two.
- * \return whether x is constant power of two
- */
-TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 
 /*!
  * \brief cast value to type.
@@ -510,42 +419,42 @@ TVM_DLL PrimExpr isnan(PrimExpr x);
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr sum(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr sum(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief logical And of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr all(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr all(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief logical Or of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr any(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr any(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr max(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr max(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief max of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr min(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr min(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief product of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
  */
-TVM_DLL PrimExpr prod(PrimExpr source, Array<IterVar> axis);
+TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis);
 
 /*!
  * \brief Calculate floor(x)
@@ -593,10 +502,10 @@ TVM_DLL PrimExpr trunc(PrimExpr x);
 TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                                             \
-  inline PrimExpr OpName(PrimExpr x) {                                     \
-    return ir::CallNode::make(x.dtype(), #OpName, {x}, ir::CallNode::PureIntrinsic); \
-  }                                                                                  \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                                               \
+  inline PrimExpr OpName(PrimExpr x) {                                                 \
+    return tir::CallNode::make(x.dtype(), #OpName, {x}, tir::CallNode::PureIntrinsic); \
+  }                                                                                    \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(erf);
@@ -610,13 +519,113 @@ TVM_DECLARE_INTRIN_UNARY(cos);
 TVM_DECLARE_INTRIN_UNARY(sin);
 TVM_DECLARE_INTRIN_UNARY(atan);
 
+namespace tir {
+/*!
+ * \brief Make a const value with certain data type.
+ * \param t The target type.
+ * \param value The input value
+ * \return the result expression.
+ * \tparam ValueType The constant value type
+ */
+template<typename ValueType,
+         typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
+inline PrimExpr make_const(DataType t, ValueType value);
+/*!
+ * \brief Make a const zero expr.
+ * \param t The target type.
+ * \return the result expression.
+ */
+inline PrimExpr make_zero(DataType t);
+/*!
+ * \brief Make a constant true expression.
+ * \param lanes The number of lanes in the bool
+ * \return The result expression.
+ */
+inline PrimExpr const_true(int lanes = 1) {
+  return make_const(DataType::UInt(1, lanes), 1);
+}
+/*!
+ * \brief Make a constant false expression.
+ * \param lanes The number of lanes in the bool
+ * \return The result expression.
+ */
+inline PrimExpr const_false(int lanes = 1) {
+  return make_const(DataType::UInt(1, lanes), 0);
+}
+/*!
+ * \brief Get x as constant int expression.
+ * \param x The expression
+ * \return the address to the int expression,
+ *         return nullptr, if x is not IntImm.
+ */
+inline const int64_t* as_const_int(const PrimExpr& x) {
+  if (!x.defined()) return nullptr;
+  if (const tir::IntImmNode* op = x.as<tir::IntImmNode>()) {
+    return &(op->value);
+  } else {
+    return nullptr;
+  }
+}
+
+/*!
+ * \brief Check whether x is a constant integer expression.
+ * \param x The input argument
+ * \param value the value to be compared against.
+ * \return whether x is constant expression.
+ */
+inline bool is_const_int(const PrimExpr& x, int64_t value);
+
+/*!
+ * \brief Check whether stmt is nop.
+ * \param stmt The input statement
+ * \return whether stmt is nop
+ */
+inline bool is_no_op(const tir::Stmt& stmt);
+
+/*!
+ * \brief Check whether x is a constant integer 1
+ * \param x The input argument.
+ * \note This only return true for integer types.
+ * \return whether x is constant 1
+ */
+inline bool is_one(const PrimExpr& x) {
+  return is_const_int(x, 1);
+}
+
+/*!
+ * \brief Check whether x is a constant integer 0
+ * \param x The input argument
+ * \return whether x is constant 0
+ * \note This only return true for integer types.
+ */
+inline bool is_zero(const PrimExpr& x) {
+  return is_const_int(x, 0);
+}
+
+/*!
+ * \brief Check whether x is a constant.
+ * \note This only return true for integer types.
+ * \return whether x is constant
+ */
+inline bool is_const(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is a constant power of two
+ * If x is power of two, write the power to the shift.
+ *
+ * \param x The input expression.
+ * \param shift The output shift if x is power of two.
+ * \return whether x is constant power of two
+ */
+TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
+
 // Implementation details after this
 inline bool is_const(const PrimExpr& x) {
-  if (x.as<ir::IntImmNode>()) {
+  if (x.as<tir::IntImmNode>()) {
     return true;
-  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
+  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
-    if (val.as<ir::IntImmNode>()) {
+    if (val.as<tir::IntImmNode>()) {
       return true;
     }
   }
@@ -624,7 +633,7 @@ inline bool is_const(const PrimExpr& x) {
 }
 
 inline bool is_positive_const(const PrimExpr& a) {
-  if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
+  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
     return op->value > 0;
   } else {
     return false;
@@ -632,7 +641,7 @@ inline bool is_positive_const(const PrimExpr& a) {
 }
 
 inline bool is_negative_const(const PrimExpr& a) {
-  if (const ir::IntImmNode* op = a.as<ir::IntImmNode>()) {
+  if (const tir::IntImmNode* op = a.as<tir::IntImmNode>()) {
     return op->value < 0;
   } else {
     return false;
@@ -640,23 +649,23 @@ inline bool is_negative_const(const PrimExpr& a) {
 }
 
 inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  if (const auto* op = x.as<ir::IntImmNode>()) {
+  if (const auto* op = x.as<tir::IntImmNode>()) {
     return op->value == value;
-  } else if (const auto* op = x.as<ir::BroadcastNode>()) {
+  } else if (const auto* op = x.as<tir::BroadcastNode>()) {
     const PrimExpr& val = op->value;
-    if (const auto* opv = val.as<ir::IntImmNode>()) {
+    if (const auto* opv = val.as<tir::IntImmNode>()) {
       return opv->value == value;
     }
   }
   return false;
 }
 
-inline bool is_no_op(const Stmt& stmt) {
+inline bool is_no_op(const tir::Stmt& stmt) {
   if (!stmt.defined()) return true;
-  if (const auto* op = stmt.as<ir::EvaluateNode>()) {
+  if (const auto* op = stmt.as<tir::EvaluateNode>()) {
     return is_const(op->value);
   }
-  if (const auto* op = stmt.as<ir::SeqStmtNode>()) {
+  if (const auto* op = stmt.as<tir::SeqStmtNode>()) {
     return op->seq.size() == 0;
   }
   return false;
@@ -694,7 +703,7 @@ inline PrimExpr make_const(DataType t, ValueType value) {
   if (t.lanes() == 1) {
     return MakeConstScalar(t, value);
   } else {
-    return ir::BroadcastNode::make(
+    return tir::BroadcastNode::make(
         MakeConstScalar(t.element_of(), value), t.lanes());
   }
 }
@@ -705,6 +714,7 @@ inline PrimExpr make_zero(DataType t) {
   }
   return make_const(t, 0);
 }
+}  // namespace tir
 
 // additional const expression overloading
 #define TVM_DEFINE_ASSIGN_OP_OVERLOAD(Name, OpFunc)             \
@@ -714,38 +724,37 @@ inline PrimExpr make_zero(DataType t) {
   }
 
 #define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)              \
-  inline PrimExpr Name(const PrimExpr& a, float b) { \
-    return Name(a, PrimExpr(b));                          \
+  inline PrimExpr Name(const PrimExpr& a, float b) {           \
+    return Name(a, PrimExpr(b));                               \
   }                                                            \
-  inline PrimExpr Name(float a, const PrimExpr& b) { \
-    return Name(PrimExpr(a), b);                          \
+  inline PrimExpr Name(float a, const PrimExpr& b) {           \
+    return Name(PrimExpr(a), b);                               \
   }                                                            \
-  inline PrimExpr Name(int a, const PrimExpr& b) {   \
-    return Name(make_const(b.dtype(), a), b);                  \
+  inline PrimExpr Name(int a, const PrimExpr& b) {             \
+    return Name(tir::make_const(b.dtype(), a), b);             \
   }                                                            \
-  inline PrimExpr Name(const PrimExpr& a, int b) {   \
-    return Name(a, make_const(a.dtype(), b));                  \
+  inline PrimExpr Name(const PrimExpr& a, int b) {             \
+    return Name(a, tir::make_const(a.dtype(), b));             \
   }                                                            \
-  inline PrimExpr Name(const PrimExpr& a, double b) {\
-    return Name(a, make_const(DataType::Float(64), b));        \
+  inline PrimExpr Name(const PrimExpr& a, double b) {          \
+    return Name(a, tir::make_const(DataType::Float(64), b));   \
   }
 
-#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)        \
-  inline PrimExpr Name(const PrimExpr& a, bool b) { \
-    return Name(a, PrimExpr(b));                         \
-  }                                                           \
-  inline PrimExpr Name(bool a, const PrimExpr& b) { \
-    return Name(PrimExpr(a), b);                         \
+#define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)         \
+  inline PrimExpr Name(const PrimExpr& a, bool b) {            \
+    return Name(a, PrimExpr(b));                               \
+  }                                                            \
+  inline PrimExpr Name(bool a, const PrimExpr& b) {            \
+    return Name(PrimExpr(a), b);                               \
   }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)            \
-  inline PrimExpr Name(const PrimExpr& a, int b) {  \
-    return Name(a, make_const(a.dtype(), b));                 \
+  inline PrimExpr Name(const PrimExpr& a, int b) {            \
+    return Name(a, tir::make_const(a.dtype(), b));            \
   }                                                           \
-  inline PrimExpr Name(int a, const PrimExpr& b) {  \
-    return Name(make_const(b.dtype(), a), b);                 \
+  inline PrimExpr Name(int a, const PrimExpr& b) {            \
+    return Name(tir::make_const(b.dtype(), a), b);            \
   }
-
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator-=, operator-);
@@ -775,7 +784,6 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(operator^);
 // logical ops
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator&&);
 TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(operator||);
-
 
 /*!
  * \brief Helper function to raise a compiler error about division ambiguity.
@@ -815,6 +823,5 @@ inline PrimExpr operator%(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;
 }
-
 }  // namespace tvm
-#endif  // TVM_EXPR_OPERATOR_H_
+#endif  // TVM_TIR_OP_H_

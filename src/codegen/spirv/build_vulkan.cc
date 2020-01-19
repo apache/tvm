@@ -24,7 +24,7 @@
 // Use libspirv for parsing and validating code.
 #include <libspirv.h>
 #include <dmlc/memory_io.h>
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 
 #include "codegen_spirv.h"
 #include "../build_common.h"

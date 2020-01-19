@@ -22,6 +22,7 @@
  */
 #ifdef TVM_LLVM_VERSION
 
+#include <tvm/tir/op.h>
 #include "intrin_rule_llvm.h"
 
 namespace tvm {
@@ -63,22 +64,24 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.nearbyint")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tanh")
 .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+  using tir::make_const;
+  using tir::make_zero;
   PrimExpr e = targs[0];
-  const ir::CallNode* call = e.as<ir::CallNode>();
+  const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
   PrimExpr one = make_const(x.dtype(), 1);
   PrimExpr two = make_const(x.dtype(), 2);
   PrimExpr neg_two = make_const(x.dtype(), -2);
 
-  PrimExpr exp_neg2x = ir::CallNode::make(
-      x.dtype(), "exp", {neg_two * x}, ir::CallNode::PureIntrinsic);
-  PrimExpr exp_pos2x = ir::CallNode::make(
-      x.dtype(), "exp", {two * x}, ir::CallNode::PureIntrinsic);
+  PrimExpr exp_neg2x = tir::CallNode::make(
+      x.dtype(), "exp", {neg_two * x}, tir::CallNode::PureIntrinsic);
+  PrimExpr exp_pos2x = tir::CallNode::make(
+      x.dtype(), "exp", {two * x}, tir::CallNode::PureIntrinsic);
 
   PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-  *rv = ir::SelectNode::make(
+  *rv = tir::SelectNode::make(
       x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
 });
 
