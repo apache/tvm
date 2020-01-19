@@ -56,7 +56,7 @@ bool YoloReorgRel(const Array<Type>& types,
   oshape[1] = oshape[1] * param->stride * param->stride;
   oshape[2] = indexdiv(oshape[2], param->stride);
   oshape[3] = indexdiv(oshape[3], param->stride);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 

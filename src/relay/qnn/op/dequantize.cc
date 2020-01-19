@@ -52,7 +52,7 @@ bool DequantizeRel(const Array<Type>& types,
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, DataType::Float(32)));
+  reporter->Assign(types[3], TensorType(oshape, DataType::Float(32)));
   return true;
 }
 

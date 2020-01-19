@@ -529,7 +529,7 @@ class Interpreter :
         if (is_dyn) {
           auto sh = out_shapes[i];
           auto tt = Downcast<TensorType>(rtype->fields[i]);
-          fields.push_back(fset_output(i, TensorTypeNode::make(sh, tt->dtype)));
+          fields.push_back(fset_output(i, TensorType(sh, tt->dtype)));
         } else {
           fields.push_back(fset_output(i, rtype->fields[i]));
         }
@@ -542,7 +542,7 @@ class Interpreter :
         CHECK_EQ(out_shapes.size(), 1);
         auto sh = out_shapes[0];
         auto tt = Downcast<TensorType>(ret_type);
-        out_tensor = fset_output(0, TensorTypeNode::make(sh, tt->dtype));
+        out_tensor = fset_output(0, TensorType(sh, tt->dtype));
       } else {
         out_tensor = fset_output(0, ret_type);
       }

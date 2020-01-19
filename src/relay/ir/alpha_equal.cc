@@ -21,6 +21,7 @@
  * \file src/tvm/relay/ir/alpha_equal.cc
  * \brief Alpha equality check by deep comparing two nodes.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
@@ -28,7 +29,6 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
-#include "type_functor.h"
 #include "../../ir/attr_functor.h"
 namespace tvm {
 namespace relay {
@@ -277,8 +277,8 @@ class AlphaEqualHandler:
     }
   }
 
-  bool VisitType_(const RefTypeNode* lhs, const Type& other) final {
-    if (const RefTypeNode* rhs = other.as<RefTypeNode>()) {
+  bool VisitType_(const RelayRefTypeNode* lhs, const Type& other) final {
+    if (const RelayRefTypeNode* rhs = other.as<RelayRefTypeNode>()) {
       return TypeEqual(lhs->value, rhs->value);
     }
     return false;

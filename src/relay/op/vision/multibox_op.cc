@@ -50,7 +50,7 @@ bool MultiboxPriorRel(const Array<Type>& types,
     {1, in_height * in_width * (num_sizes + num_ratios - 1), 4});
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -122,8 +122,8 @@ bool MultiBoxTransformLocRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape0({cls_shape[0], anchor_shape[1], 6});
   std::vector<IndexExpr> oshape1({cls_shape[0]});
   std::vector<Type> fields;
-  fields.push_back(TensorTypeNode::make(oshape0, cls_prob->dtype));
-  fields.push_back(TensorTypeNode::make(oshape1, DataType::Int(32)));
+  fields.push_back(TensorType(oshape0, cls_prob->dtype));
+  fields.push_back(TensorType(oshape1, DataType::Int(32)));
 
   // assign output type
   reporter->Assign(types[3], TupleType(Array<Type>(fields)));

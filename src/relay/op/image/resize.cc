@@ -60,7 +60,7 @@ bool ResizeRel(const Array<Type>& types,
 
   // assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
+                   TensorType(layout_converter.BackwardShape(oshape),
                                         out_dtype));
   return true;
 }
@@ -143,7 +143,7 @@ bool CropAndResizeRel(const Array<Type>& types,
   auto bshape = layout_converter.BackwardShape(oshape);
   // assign output type
   reporter->Assign(types[3],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
+                   TensorType(layout_converter.BackwardShape(oshape),
                                         out_dtype));
   return true;
 }

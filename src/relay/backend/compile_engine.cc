@@ -21,8 +21,7 @@
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
-#include "compile_engine.h"
-
+#include <tvm/ir/type_functor.h>
 #include <tvm/top/schedule.h>
 #include <tvm/top/operation.h>
 #include <tvm/top/schedule_pass.h>
@@ -42,7 +41,8 @@
 #include <functional>
 #include <vector>
 #include <unordered_map>
-#include "../ir/type_functor.h"
+
+#include "compile_engine.h"
 
 namespace tvm {
 namespace relay {
@@ -239,12 +239,12 @@ class ScheduleGetter :
     // TODO(@icemelon): Support recursive tuple
     Type call_node_type = call_node->checked_type();
     if (const auto* tt = call_node->checked_type().as<TensorTypeNode>()) {
-      call_node_type = TensorTypeNode::make(GetShape(tt->shape), tt->dtype);
+      call_node_type = TensorType(GetShape(tt->shape), tt->dtype);
     } else if (const auto* tuple_t = call_node->checked_type().as<TupleTypeNode>()) {
       std::vector<Type> new_fields;
       for (auto field : tuple_t->fields) {
         if (const auto* tt = field.as<TensorTypeNode>()) {
-          new_fields.push_back(TensorTypeNode::make(GetShape(tt->shape), tt->dtype));
+          new_fields.push_back(TensorType(GetShape(tt->shape), tt->dtype));
         } else {
           new_fields.push_back(field);
         }

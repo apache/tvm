@@ -286,7 +286,7 @@ bool ShapeOfRel(const Array<Type>& types,
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
   auto rank_shape = RankShape(tt->shape);
-  reporter->Assign(types[1], TensorTypeNode::make(rank_shape, param->dtype));
+  reporter->Assign(types[1], TensorType(rank_shape, param->dtype));
   return true;
 }
 
@@ -337,7 +337,7 @@ bool NdarraySizeRel(const Array<Type>& types,
   CHECK(tt != nullptr);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
-  reporter->Assign(types[1], TensorTypeNode::make({1}, param->dtype));
+  reporter->Assign(types[1], TensorType({1}, param->dtype));
   return true;
 }
 

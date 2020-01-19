@@ -161,7 +161,7 @@ bool Pool2DRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -327,7 +327,7 @@ bool GlobalPool2DRel(const Array<Type>& types,
   oshape.Set(widx, 1);
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -462,7 +462,7 @@ bool AdaptivePool2DRel(const Array<Type>& types,
   oshape.Set(widx, output_width);
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -792,7 +792,7 @@ bool Pool1DRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -987,7 +987,7 @@ bool Pool3DRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
