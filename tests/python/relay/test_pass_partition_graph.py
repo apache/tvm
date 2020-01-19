@@ -28,6 +28,8 @@ from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import analysis, expr as _expr
+from tvm.relay.build_module import bind_params_by_name
+
 
 # Leverage the pass manager to write a simple white list based annotator
 @transform.function_pass(opt_level=0)
@@ -515,14 +517,8 @@ def test_partition_conv_bias_relu():
         ])
 
         if params != {}:
-            inputs = {}
-            for name, param in params.items():
-                if isinstance(param, np.ndarray):
-                    param = tvm.nd.array(param)
-                inputs[name] = _expr.const(param)
-
-            from tvm.relay._build_module import BindParamsByName
-            mod["main"] = BindParamsByName(mod["main"], inputs)
+            # This is required for constant folding on mobilenet
+            mod["main"] = bind_params_by_name(mod["main"], params)
 
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = remove_bn_pass(mod)

@@ -158,7 +158,6 @@ class BuildModule(object):
 
         return mod, params
 
-
     def _set_params(self, params):
         self._set_params_func(_convert_param_map(params))
 
@@ -318,6 +317,10 @@ def bind_params_by_name(func, params):
     -------
     func : relay.Function
         The function with parameters bound
+<<<<<<< HEAD
+=======
+
+>>>>>>> introduce bind_params_by_name as reusable api
     """
     inputs = _convert_param_map(params)
     return _build_module.BindParamsByName(func, inputs)
