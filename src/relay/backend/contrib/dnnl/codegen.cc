@@ -334,8 +334,7 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
  */
 runtime::Module DNNLCompiler(const ObjectRef& ref) {
   DNNLModuleCodegen dnnl;
-  auto ret = dnnl.CreateCSourceModule(ref);
-  return ret;
+  return dnnl.CreateCSourceModule(ref);
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.dnnl").set_body_typed(DNNLCompiler);
