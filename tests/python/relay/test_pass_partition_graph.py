@@ -186,12 +186,6 @@ class ConvBiasAddReLUAnnotator(ExprMutator):
             new_args.append(new_arg)
         return relay.Call(call.op, new_args, call.attrs, call.type_args)
 
-    # def visit_function(self, func):
-    #     print("visiting function")
-    #     new_body = super().visit(func.body)
-    #     return relay.Function(func.params, new_body,
-    #                           func.ret_type, func.type_params, func.attrs)
-
     def visit_call(self, call):
         if call.op.name == "nn.conv2d":
             if self.current_state == self.state.Bias:
