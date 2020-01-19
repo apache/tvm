@@ -23,7 +23,7 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr.h>
-#include <tvm/codegen.h>
+#include <tvm/target/codegen.h>
 #include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/registry.h>
 

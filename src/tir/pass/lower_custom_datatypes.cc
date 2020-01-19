@@ -23,7 +23,7 @@
 
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/ir_pass.h>
-#include "../../codegen/datatype/registry.h"
+#include "../../target/datatype/registry.h"
 
 namespace tvm {
 namespace tir {

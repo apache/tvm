@@ -25,7 +25,8 @@
 #define TOPI_CUDA_DENSE_H_
 
 #include "tvm/top/operation.h"
-#include "tvm/build_module.h"
+#include "tvm/top/schedule_pass.h"
+#include "tvm/target/generic_func.h"
 #include "topi/tags.h"
 #include "topi/detail/array_utils.h"
 #include "topi/nn/dense.h"
