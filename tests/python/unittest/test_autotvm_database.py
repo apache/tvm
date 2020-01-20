@@ -54,7 +54,7 @@ def test_db_hash():
     res2l = list(tuple(res1))
 
     # set timestamp
-    res2l[-1] = -1
+    res2l[-2] = -1
     res2 = MeasureResult(*res2l)
     _db = database.DummyDatabase()
     _db.flush()
@@ -75,9 +75,9 @@ def test_db_latest_all():
     lis3 = list(tuple(res1))
 
     # set timestamp
-    lis1[-1] = 0.0
-    lis2[-1] = 1.1
-    lis3[-1] = 9999.9999
+    lis1[-2] = 0.0
+    lis2[-2] = 1.1
+    lis3[-2] = 9999.9999
     res1 = MeasureResult(*lis1)
     res2 = MeasureResult(*lis2)
     res3 = MeasureResult(*lis3)

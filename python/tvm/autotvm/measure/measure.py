@@ -34,7 +34,8 @@ class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
     """
 
 
-class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])):
+class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp",
+                                                 "options"])):
     """
     Stores all the results of a measurement
 
@@ -49,7 +50,10 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
         All cost of this measure, including rpc, compilation, test runs
     timestamp: float
         The absolute time stamp when we finish measurement.
+    options: list of str
+        The compiler option of building
     """
+MeasureResult.__new__.__defaults__ = (None,) * len(MeasureResult._fields)
 
 
 class MeasureErrorNo(object):

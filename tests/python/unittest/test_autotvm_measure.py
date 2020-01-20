@@ -17,7 +17,8 @@
 """Test builder and runner"""
 import logging
 import time
-
+import os
+from shutil import which
 import numpy as np
 
 import tvm
@@ -85,9 +86,29 @@ def test_check_correctness():
                callbacks=[_callback_wrong])
 
 
+def test_build_options():
+    if which("g++") is None:
+        print("Skip test because g++ is not available.")
+        return
+    task, target = get_sample_task()
+    # simulate we are using NDK_CC
+    os.environ['TVM_NDK_CC'] = 'g++'
+    measure_option = autotvm.measure_option(
+        builder=autotvm.LocalBuilder(build_func='ndk', options=["-std=c++11", "-fPIC", "-shared"]),
+        runner=autotvm.LocalRunner()
+    )
+
+    def _callback(tuner, measure_inputs, measure_results):
+        assert "-std=c++11" in measure_results[0].options
+
+    tuner = autotvm.tuner.RandomTuner(task)
+    tuner.tune(n_trial=2, measure_option=measure_option,
+               callbacks=[_callback])
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()
     test_check_correctness()
+    test_build_options()
 

@@ -162,13 +162,19 @@ class Module(ModuleBase):
                     f.write(_PackImportsToC(self, is_system_lib))
                 files.append(path_cc)
 
-        if has_c_module:
-            options = []
-            if "options" in kwargs:
-                opts = kwargs["options"]
-                options = opts if isinstance(opts, (list, tuple)) else [opts]
-            opts = options + ["-I" + path for path in find_include_path()]
-            kwargs.update({'options': opts})
+        # Make sure we won't pass {'options': None} or {'options': [None, '-std=c++11', ...]}
+        # to compiler. We can not prevent users doing the following code:
+        # f.export_library(path_dso, cc.create_shared, options=None)
+        # f.export_library(path_dso, cc.create_shared, options=[None, '-std=c++11'])
+        options = ["-I" + path for path in find_include_path()] if has_c_module else []
+        if "options" in kwargs:
+            opts = kwargs["options"]
+            options += opts if isinstance(opts, (list, tuple)) else [opts]
+            options = [opt for opt in options if opt]
+            if not options:
+                del kwargs["options"]
+        if options:
+            kwargs.update({"options": options})
 
         fcompile(file_name, files, **kwargs)
 

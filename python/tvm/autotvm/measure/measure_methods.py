@@ -46,7 +46,8 @@ from .local_executor import LocalExecutor
 
 logger = logging.getLogger('autotvm')
 
-class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
+class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost',
+                                             'options'))):
     """
     Stores all the necessary inputs for a measurement.
 
@@ -60,6 +61,8 @@ class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 't
         The error happens during compilation.
     time_cost : float
         The time cost of building
+    options: list of str
+        The compiler option of building
     """
 
 class LocalBuilder(Builder):
@@ -75,8 +78,10 @@ class LocalBuilder(Builder):
         If is 'default', use default build function
         If is 'ndk', use function for android ndk
         If is callable, use it as custom build function, expect lib_format field.
+    options : list of str, optional
+        The additional options.
     """
-    def __init__(self, timeout=10, n_parallel=None, build_func='default'):
+    def __init__(self, timeout=10, n_parallel=None, build_func='default', options=None):
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
@@ -86,7 +91,7 @@ class LocalBuilder(Builder):
                 build_func = ndk.create_shared
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _wrap_build_func(build_func)
+        self.build_func = _wrap_build_func(build_func, options=options)
         self.executor = LocalExecutor(timeout=timeout)
         self.tmp_dir = tempfile.mkdtemp()
 
@@ -268,8 +273,11 @@ class RPCRunner(Runner):
             for future in futures:
                 res = future.get()
                 if isinstance(res, Exception):   # executor error or timeout
+                    # For parallel runners, we could pick any runner's compiler options
+                    # because their compiler options are the same
+                    options = build_results[0].options
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
-                                                 self.timeout, time.time()))
+                                                 self.timeout, time.time(), options))
                 else:
                     results.append(res)
 
@@ -370,7 +378,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
-def _wrap_build_func(build_func):
+def _wrap_build_func(build_func, options=None):
     """
     Wrap build_func to a function that can be used in measure.
 
@@ -378,6 +386,9 @@ def _wrap_build_func(build_func):
     ----------
     build_func : The compilation function
         We expect fcompile to contain an attr "output_format"
+
+    options : list of str, optional
+        The additional options.
 
     Returns
     -------
@@ -406,10 +417,10 @@ def _wrap_build_func(build_func):
                 getrandbits(64), output_format))
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, **kwargs)
-            func.export_library(filename, build_func)
+            func.export_library(filename, build_func, options=options)
         except Exception as e:  # pylint: disable=broad-except
-            return BuildResult(None, None, e, time.time() - tic)
-        return BuildResult(filename, arg_info, None, time.time() - tic)
+            return BuildResult(None, None, e, time.time() - tic, options)
+        return BuildResult(filename, arg_info, None, time.time() - tic, options)
     return _wrapped
 
 
@@ -507,7 +518,8 @@ def run_through_rpc(measure_input, build_result,
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
-    return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
+    return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp,
+                         build_result.options)
 
 
 def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
