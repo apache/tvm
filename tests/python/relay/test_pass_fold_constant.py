@@ -19,6 +19,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.testing import run_infer_type, create_workload
 
 
 def run_opt_pass(expr, opt_pass):
@@ -163,6 +164,15 @@ def test_fold_full():
 
 
 def test_fold_batch_norm():
+    def expected():
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.const(np.zeros((16, 3, 3, 3)))
+        bias = relay.const(np.zeros((16, 1, 1)))
+        conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                               channels=16, padding=(1, 1))
+        add = relay.add(conv, bias)
+        return relay.Function(relay.analysis.free_vars(add), add)
+
     remove_bn_pass = transform.Sequential([
         relay.transform.InferType(),
         relay.transform.SimplifyInference(),
@@ -181,12 +191,17 @@ def test_fold_batch_norm():
                            channels=16, padding=(1, 1))
     bn_output = relay.nn.batch_norm(conv, bn_gamma, bn_beta,
                                     bn_mmean, bn_mvar)
+    def initializer(_, param):
+        param = np.zeros(param.shape)
 
-    mod, params = tvm.relay.testing.create_workload(bn_output[0])
+    mod, params = create_workload(bn_output[0], initializer)
     mod["main"] = bind_params_by_name(mod["main"], params)
 
     with relay.build_config(opt_level=3):
         mod = remove_bn_pass(mod)
+
+    expect = run_infer_type(expected())
+    assert relay.analysis.graph_equal(mod["main"], expect)
 
 
 if __name__ == "__main__":
