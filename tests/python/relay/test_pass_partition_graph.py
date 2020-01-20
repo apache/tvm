@@ -29,6 +29,7 @@ from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import analysis, expr as _expr
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.backend import compile_engine
 
 
 # Leverage the pass manager to write a simple white list based annotator
@@ -475,7 +476,7 @@ def test_partition_conv_bias_relu():
         print("skip because DNNL codegen is not available")
         return
 
-    def get_layers(prefix, data, in_channel, out_channel,
+    def get_blocks(prefix, data, in_channel, out_channel,
                    include_bn=True, include_sigmoid=False):
         weight = relay.var(prefix + "weight")
         bn_gamma = relay.var(prefix + "bn_gamma")
@@ -497,8 +498,8 @@ def test_partition_conv_bias_relu():
 
     def get_net(include_bn=True, include_sigmoid=False):
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
-        layer1 = get_layers("layer1_", data, 3, 16, include_bn, include_sigmoid)
-        layer2 = get_layers("layer2_", layer1, 16, 16, include_bn, include_sigmoid)
+        layer1 = get_blocks("layer1_", data, 3, 16, include_bn, include_sigmoid)
+        layer2 = get_blocks("layer2_", layer1, 16, 16, include_bn, include_sigmoid)
         last = layer2
         return relay.Function(relay.analysis.free_vars(last), last)
 
@@ -510,9 +511,8 @@ def test_partition_conv_bias_relu():
             relay.transform.FoldScaleAxis(),
         ])
 
-        if params != {}:
-            # This is required for constant folding
-            mod["main"] = bind_params_by_name(mod["main"], params)
+        # This is required for constant folding
+        mod["main"] = bind_params_by_name(mod["main"], params)
 
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             mod = remove_bn_pass(mod)
@@ -559,6 +559,7 @@ def test_partition_conv_bias_relu():
         i_data = np.random.randn(*ishape).astype(np.float32)
         ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
         ref_res = ref_ex.evaluate()(i_data, **ref_params)
+        compile_engine.get().clear()
 
         mod = pre_optimize(mod, params)
         mod = get_partitoned_mod(mod)
