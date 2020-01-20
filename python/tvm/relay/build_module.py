@@ -317,10 +317,6 @@ def bind_params_by_name(func, params):
     -------
     func : relay.Function
         The function with parameters bound
-<<<<<<< HEAD
-=======
-
->>>>>>> introduce bind_params_by_name as reusable api
     """
     inputs = _convert_param_map(params)
     return _build_module.BindParamsByName(func, inputs)
