@@ -513,6 +513,23 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
     return _transform.Legalize(legalize_map_attr_name)
 
 
+def MergeComposite(compiler):
+    """Merge multiple operators into a single composite relay function.
+
+    Parameters
+    ----------
+    compiler : str
+        The compiler used for codegen.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that merges operators into a single composite
+        relay function.
+    """
+    return _transform.MergeComposite(compiler)
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.

@@ -561,6 +561,8 @@ constexpr const char* kParams = "__params__";
 constexpr const char* kExternalSymbol = "ExternalSymbol";
 /*! \brief Mark if the function should be avoided being optimized. */
 constexpr const char* kSkipOptimization = "SkipOptimization";
+/*! \brief Treat the function as a composite operator. */
+constexpr const char* kComposite = "Composite";
 }  // namespace attr
 
 }  // namespace relay
