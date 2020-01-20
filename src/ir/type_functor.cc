@@ -21,11 +21,10 @@
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */
+#include <tvm/ir/type_functor.h>
 #include <utility>
-#include "type_functor.h"
 
 namespace tvm {
-namespace relay {
 
 void TypeVisitor::VisitType_(const TypeVarNode* op) {
 }
@@ -57,7 +56,7 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
   }
 }
 
-void TypeVisitor::VisitType_(const RefTypeNode* op) {
+void TypeVisitor::VisitType_(const RelayRefTypeNode* op) {
   this->VisitType(op->value);
 }
 
@@ -89,6 +88,9 @@ void TypeVisitor::VisitType_(const TypeDataNode* op) {
       this->VisitType(t);
     }
   }
+}
+
+void TypeVisitor::VisitType_(const PrimTypeNode* op) {
 }
 
 Type TypeMutator::VisitType(const Type& t) {
@@ -169,8 +171,8 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   }
 }
 
-Type TypeMutator::VisitType_(const RefTypeNode* op) {
-  return RefTypeNode::make(this->VisitType(op->value));
+Type TypeMutator::VisitType_(const RelayRefTypeNode* op) {
+  return RelayRefType(this->VisitType(op->value));
 }
 
 Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
@@ -203,6 +205,10 @@ Type TypeMutator::VisitType_(const TypeDataNode* op) {
   return GetRef<Type>(op);
 }
 
+Type TypeMutator::VisitType_(const PrimTypeNode* op) {
+  return GetRef<Type>(op);
+}
+
 // Implements bind.
 class TypeBinder : public TypeMutator {
  public:
@@ -227,5 +233,4 @@ Type Bind(const Type& type, const tvm::Map<TypeVar, Type>& args_map) {
   return TypeBinder(args_map).VisitType(type);
 }
 
-}  // namespace relay
 }  // namespace tvm

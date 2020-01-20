@@ -47,7 +47,7 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (weight_data->shape.size() == 1) {
     // CSR case.
     Array<IndexExpr> oshape({data->shape[0], weight_indptr->shape[0] - 1});
-    reporter->Assign(types[4], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
   }
 
@@ -56,7 +56,7 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     Array<IndexExpr> oshape({
         data->shape[0],
           (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
-    reporter->Assign(types[4], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
   }
   LOG(FATAL) << "Unknown weight ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
@@ -105,9 +105,9 @@ bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   const auto* sparse_indptr = types[2].as<TensorTypeNode>();
 
   std::vector<Type> output_types;
-  output_types.push_back(TensorTypeNode::make(sparse_data->shape, sparse_data->dtype));
-  output_types.push_back(TensorTypeNode::make(sparse_indices->shape, sparse_indices->dtype));
-  output_types.push_back(TensorTypeNode::make(sparse_indptr->shape, sparse_indptr->dtype));
+  output_types.push_back(TensorType(sparse_data->shape, sparse_data->dtype));
+  output_types.push_back(TensorType(sparse_indices->shape, sparse_indices->dtype));
+  output_types.push_back(TensorType(sparse_indptr->shape, sparse_indptr->dtype));
 
   reporter->Assign(types[3], TupleType(Array<Type>(output_types)));
   return true;

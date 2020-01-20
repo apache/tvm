@@ -21,13 +21,13 @@
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/tir/op.h>
 #include <string>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include "type_solver.h"
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -270,7 +270,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Type(nullptr);
     }
 
-    return TensorTypeNode::make(shape, tt1->dtype);
+    return TensorType(shape, tt1->dtype);
   }
 
   Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
@@ -312,7 +312,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     for (size_t i = ftn->type_params.size(); i < op->type_params.size(); ++i) {
-      subst_map.Set(op->type_params[i], IncompleteTypeNode::make(kType));
+      subst_map.Set(op->type_params[i], IncompleteType(kType));
     }
 
     FuncType ft = FuncType(op->arg_types,
@@ -343,12 +343,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return FuncType(arg_types, ret_type, ft2->type_params, type_constraints);
   }
 
-  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
-    const auto* rtn = tn.as<RefTypeNode>();
+  Type VisitType_(const RelayRefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RelayRefTypeNode>();
     if (!rtn) {
       return Type(nullptr);
     }
-    return RefTypeNode::make(Unify(op->value, rtn->value));
+    return RelayRefType(Unify(op->value, rtn->value));
   }
 
   Type VisitType_(const TypeCallNode* op, const Type& tn) override {
@@ -690,7 +690,7 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
             Expr e = VarNode::make("dummy_var",
-              IncompleteTypeNode::make(Kind::kType));
+              IncompleteType(Kind::kType));
             return solver->AddConstraint(c, e);
           });
       } else {

@@ -59,7 +59,7 @@ TensorType ConstantNode::tensor_type() const {
         tvm::IntImm(DataType::Int(32), data->shape[i]));
   }
 
-  return TensorTypeNode::make(shape, dtype);
+  return TensorType(shape, dtype);
 }
 
 Tuple TupleNode::make(tvm::Array<relay::Expr> fields) {
@@ -129,12 +129,12 @@ FuncType FunctionNode::func_type_annotation() const {
   Array<Type> param_types;
   for (auto param : this->params) {
     Type param_type = (param->type_annotation.defined()) ? param->type_annotation
-      : IncompleteTypeNode::make(Kind::kType);
+      : IncompleteType(Kind::kType);
     param_types.push_back(param_type);
   }
 
   Type ret_type = (this->ret_type.defined()) ? this->ret_type
-    : IncompleteTypeNode::make(Kind::kType);
+    : IncompleteType(Kind::kType);
   return FuncType(param_types, ret_type, this->type_params, {});
 }
 
@@ -358,6 +358,9 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
   [](Function func, std::string name, ObjectRef ref) {
     return FunctionSetAttr(func, name, ref);
 });
+
+TVM_REGISTER_GLOBAL("relay._make.Any")
+.set_body_typed([]() { return Any::make(); });
 
 }  // namespace relay
 }  // namespace tvm

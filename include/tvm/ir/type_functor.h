@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file type_functor.h
+ * \file tvm/ir/type_functor.h
  * \brief A way to defined arbitrary function signature with dispatch on types.
  */
-#ifndef TVM_RELAY_IR_TYPE_FUNCTOR_H_
-#define TVM_RELAY_IR_TYPE_FUNCTOR_H_
+#ifndef TVM_IR_TYPE_FUNCTOR_H_
+#define TVM_IR_TYPE_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
 #include <tvm/relay/expr.h>
@@ -32,17 +32,16 @@
 #include <utility>
 
 namespace tvm {
-namespace relay {
 
 template <typename FType>
 class TypeFunctor;
 
 // functions to be overriden.
-#define TYPE_FUNCTOR_DEFAULT \
+#define TYPE_FUNCTOR_DEFAULT                                            \
   { return VisitTypeDefault_(op, std::forward<Args>(args)...); }
 
 
-#define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                                 \
+#define TVM_TYPE_FUNCTOR_DISPATCH(OP)                                   \
   vtable.template set_dispatch<OP>(                                     \
       [](const ObjectRef& n, TSelf* self, Args... args) {               \
         return self->VisitType_(static_cast<const OP*>(n.get()),        \
@@ -89,10 +88,11 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const RefTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const RelayRefTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const GlobalTypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
@@ -103,25 +103,29 @@ class TypeFunctor<R(const Type& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    RELAY_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeVarNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeConstraintNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(RefTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(GlobalTypeVarNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TypeVarNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TypeConstraintNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(RelayRefTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(GlobalTypeVarNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
     return vtable;
   }
 };
 
+#undef TVM_TYPE_FUNCTOR_DISPATCH
+
 /*!
  * \brief A type visitor that recursively visit types.
  */
-class TypeVisitor : public TypeFunctor<void(const Type& n)> {
+class TVM_DLL TypeVisitor :
+      public TypeFunctor<void(const Type& n)> {
  public:
   void VisitType_(const TypeVarNode* op) override;
   void VisitType_(const IncompleteTypeNode* op) override;
@@ -129,14 +133,18 @@ class TypeVisitor : public TypeFunctor<void(const Type& n)> {
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
   void VisitType_(const TypeRelationNode* op) override;
-  void VisitType_(const RefTypeNode* op) override;
+  void VisitType_(const RelayRefTypeNode* op) override;
   void VisitType_(const GlobalTypeVarNode* op) override;
   void VisitType_(const TypeCallNode* op) override;
   void VisitType_(const TypeDataNode* op) override;
+  void VisitType_(const PrimTypeNode* op) override;
 };
 
-// Mutator that transform a type to another one.
-class TypeMutator : public TypeFunctor<Type(const Type& n)> {
+/*!
+ * \brief TypeMutator that mutates expressions.
+ */
+class TVM_DLL TypeMutator :
+      public TypeFunctor<Type(const Type& n)> {
  public:
   Type VisitType(const Type& t) override;
   Type VisitType_(const TypeVarNode* op) override;
@@ -145,10 +153,11 @@ class TypeMutator : public TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const FuncTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
   Type VisitType_(const TypeRelationNode* type_rel) override;
-  Type VisitType_(const RefTypeNode* op) override;
+  Type VisitType_(const RelayRefTypeNode* op) override;
   Type VisitType_(const GlobalTypeVarNode* op) override;
   Type VisitType_(const TypeCallNode* op) override;
   Type VisitType_(const TypeDataNode* op) override;
+  Type VisitType_(const PrimTypeNode* op) override;
 
  private:
   Array<Type> MutateArray(Array<Type> arr);
@@ -161,6 +170,5 @@ class TypeMutator : public TypeFunctor<Type(const Type& n)> {
  */
 Type Bind(const Type& type, const Map<TypeVar, Type>& args_map);
 
-}  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_IR_TYPE_FUNCTOR_H_
+#endif  // TVM_IR_TYPE_FUNCTOR_H_

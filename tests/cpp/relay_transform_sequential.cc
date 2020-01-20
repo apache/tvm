@@ -36,7 +36,7 @@ TVM_REGISTER_GLOBAL("schedule")
 
 TEST(Relay, Sequential) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({1, 2, 3}, DataType::Float(32));
+  auto tensor_type = relay::TensorType({1, 2, 3}, DataType::Float(32));
   auto c_data =
       tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 

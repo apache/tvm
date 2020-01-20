@@ -81,7 +81,7 @@ bool BitPackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     out_shape.push_back(bits);
   }
 
-  reporter->Assign(types[1], TensorTypeNode::make(out_shape, pack_type));
+  reporter->Assign(types[1], TensorType(out_shape, pack_type));
   return true;
 }
 
@@ -144,7 +144,7 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   DataType out_dtype = param->out_dtype;
   oshape = trans_in_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -220,7 +220,7 @@ bool BinaryDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   }
 
   // Assign output type.
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 

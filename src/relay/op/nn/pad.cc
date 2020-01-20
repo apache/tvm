@@ -155,7 +155,7 @@ bool PadRel(const Array<Type>& types,
     }
   }
 
-  reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape),
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
                                                   data->dtype));
   return true;
 }
@@ -260,7 +260,7 @@ bool MirrorPadRel(const Array<Type>& types,
     oshape.push_back(data->shape[i] + padding);
   }
 
-  reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape),
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
                                                   data->dtype));
   return true;
 }

@@ -63,7 +63,7 @@ bool QuantizeRel(const Array<Type>& types,
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, unit8, int32] but was " << out_dtype;
   // assign output type
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
 }
 

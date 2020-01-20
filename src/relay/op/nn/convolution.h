@@ -81,7 +81,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -117,7 +117,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -179,7 +179,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -226,7 +226,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -290,7 +290,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
 
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -346,7 +346,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 

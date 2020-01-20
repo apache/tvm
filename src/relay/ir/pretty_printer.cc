@@ -30,13 +30,12 @@
  *    - Var
  *  - Otherwise, inline if the node is at the end of a scope and is used at most once.
  */
-
+#include <tvm/ir/type_functor.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
-#include "type_functor.h"
 #include "../pass/dependency_graph.h"
 #include "../../ir/attr_functor.h"
 
@@ -779,7 +778,7 @@ class PrettyPrinter :
     return doc << "(" << PrintSep(arg_types) << ") -> " << Print(node->ret_type);
   }
 
-  Doc VisitType_(const RefTypeNode* node) final {
+  Doc VisitType_(const RelayRefTypeNode* node) final {
     Doc doc;
     return doc << "ref(" << Print(node->value) << ")";
   }

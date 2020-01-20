@@ -87,7 +87,7 @@ bool UpSamplingRel(const Array<Type>& types,
 
   // assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
+                   TensorType(layout_converter.BackwardShape(oshape),
                                         data->dtype));
   return true;
 }
@@ -167,7 +167,7 @@ bool UpSampling3DRel(const Array<Type>& types,
 
   // assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape),
+                   TensorType(layout_converter.BackwardShape(oshape),
                                         data->dtype));
   return true;
 }
