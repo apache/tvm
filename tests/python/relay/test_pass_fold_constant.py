@@ -18,6 +18,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
 
 
 def run_opt_pass(expr, opt_pass):
@@ -161,6 +162,33 @@ def test_fold_full():
     assert relay.analysis.graph_equal(zz, zexpected)
 
 
+def test_fold_batch_norm():
+    remove_bn_pass = transform.Sequential([
+        relay.transform.InferType(),
+        relay.transform.SimplifyInference(),
+        relay.transform.FoldConstant(),
+        relay.transform.FoldScaleAxis(),
+    ])
+
+    data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+    weight = relay.var("weight")
+    bn_gamma = relay.var("bn_gamma")
+    bn_beta = relay.var("bn_beta")
+    bn_mmean = relay.var("bn_mean")
+    bn_mvar = relay.var("bn_var")
+
+    conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                           channels=16, padding=(1, 1))
+    bn_output = relay.nn.batch_norm(conv, bn_gamma, bn_beta,
+                                    bn_mmean, bn_mvar)
+
+    mod, params = tvm.relay.testing.create_workload(bn_output[0])
+    mod["main"] = bind_params_by_name(mod["main"], params)
+
+    with relay.build_config(opt_level=3):
+        mod = remove_bn_pass(mod)
+
+
 if __name__ == "__main__":
     test_fold_const()
     test_fold_let()
@@ -168,3 +196,4 @@ if __name__ == "__main__":
     test_fold_concat()
     test_fold_shape_of()
     test_fold_full()
+    test_fold_batch_norm()
