@@ -34,35 +34,6 @@ import numpy as np
 import pickle
 from collections import namedtuple
 
-# TODOs:
-# - experiments
-# - add overflow check
-
-# Hardware Specific
-# simulation mostly for accuracy
-# track scale for every tensor
-
-# During Search Phase:
-# search num_bit for every connection
-#   - estimate threshold for every connection by calibration
-#   - calculate constant parameters of simulated quantize
-#     1. calculate scale, clip_min, clip_max of simulated quantize with (num_bit, threshold)
-#     2. inferred scale of every connection
-#     2. calculate overflow_min, overflow_max with inferred scale of every connection
-#   - build simulated graph with those constant parameters
-#   - acc = evaluate it on validation set
-#   - TODO: refine threshold after this procedure
-# choose num_bit setting
-
-# sq(data, scale, clip_min, clip_max, upper_bound, lower_bound, signed=True, rounding='round')
-# scale infer: map[op] -> scale
-
-# simulated_qunatize(conv_out, 8, threshold, upper_bound=16):
-# - 1. we want requantize it into 8bit
-# - 2. we make sure it can fit into 16 bit before quantize
-
-# map: call(sq_op, data, scale, clip_min, clip_max) -> (num_bit, threshold)
-
 # Two representation for tensors:
 # - REAL number reprentation
 # - INTEGER number reprentation
@@ -70,24 +41,6 @@ from collections import namedtuple
 #   scale = real_threshold / integer_range
 #   INTEGER = REAL / scale
 #   REAL = INTEGER * scale
-# 
-# Behavior of SimulatedQuantize:
-# def simulated_quantize(data, scale, clip_min, clip_max, overflow_min_real, overflow_max_real):
-#     # simulated overflow error
-#     # because scale here is output scale, you cannot it to recover the quant of last op's output
-#     data = overflow_truncate(data, overflow_min_real, overflow_max_real)
-# 
-#     # transform from real to integer(simulated)
-#     quant = data / scale
-#
-#     # simulated rounding error
-#     quant = round(quant)
-#     # simulated clipping error
-#     quant = clip(quant, clip_min, clip_max)
-#
-#     # transform from integer to real
-#     data = quant * scale
-#     return data
 
 def generate_choices(graph, hardware, topology):
     def get_in_bits(hardware, node):
@@ -409,24 +362,18 @@ def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, por
     return best_guess, best_cost
 
 
-def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=1000):
-    fout = open('qsearch_greedy_squash.log', 'w+', buffering=1)
-    def squash(origin):
-        while True:
-            new = origin.copy()
-            dim = squash.dim_cnt % len(domains) 
-            new[dim] -= 1
-            squash.dim_cnt += 1
-            if new[dim] >= min(domains[dim]):
-                return new
-    squash.dim_cnt = 0
-
+def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=3000):
+    cfg = qtz.current_qconfig()
+    fout = open('qsearch_{}.log'.format(cfg.search_strategy), 'w+', buffering=1)
     best_guess, best_cost = None, 0
     num_iter = 0
     # init with maximum bit setting
     guess = [choices[0] for choices in domains]
+    stop_guess = [choices[-1] for choices in domains]
+    dim_idx = 0
+    last_update_idx = 0
     while num_iter < max_iter: 
-        cost = fcost(guess, *args)
+        cost, qcost = fcost(guess, *args)
         if cost >= best_cost:
             # stored as best guess 
             best_guess = guess
@@ -435,13 +382,30 @@ def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=1000):
         if (best_cost - cost) < tolerance:
             previous_guess = guess
             previous_cost = cost
-        print('niter: {}, acc: {}, best acc: {}\n\n'.format(num_iter, cost, best_cost))
+            last_update_idx = dim_idx
+        else:
+            # move to next dimension
+            dim_idx += 1
+
         fout.write(str(guess))
         fout.write('\n')
-        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
+        # fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
+        fout.write("{}, {:.3f}, {:.3f}, {:.3f}".format(num_iter, cost, qcost, best_cost))
         fout.write('\n')
+
+        if dim_idx - last_update_idx > len(domains):
+            # early stopping
+            break
+
         # make new guess
-        guess = squash(previous_guess)
+        guess = previous_guess.copy()
+        while guess != stop_guess:
+            dim = dim_idx % len(domains)
+            if guess[dim] == min(domains[dim]):
+                dim_idx += 1
+            else:
+                break
+        guess[dim] -= 1
         num_iter += 1
     fout.close()
     return best_guess, best_cost
@@ -455,7 +419,10 @@ def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, data
         best_bits, best_acc = random_search(eval_func, bit_choices, args)
     elif cfg.search_strategy == 'default_setting':
         # best_bits = [choices[0] for choices in bit_choices]
-        best_bits = [7, 8, 31, 31, 31, 31, 8, 7, 31, 31, 31, 7, 8, 31, 31, 31, 32, 31, 7, 7, 31, 31, 31, 8, 7, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
+        # sim acc: 71.1, qtz acc: 71.1, imagenet: 68.7
+        # best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 24, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
+        # sim acc: 71.9  qtz acc: 71.9, imagenet: 68.7
+        best_bits = [6, 8, 24, 21, 24, 24, 8, 8, 21, 18, 21, 8, 7, 27, 23, 30, 32, 26, 8, 8, 22, 20, 22, 8, 8, 22, 19, 22, 21, 22, 8, 7, 21, 19, 8, 8, 23, 21, 23, 8, 8, 22, 20, 31, 22, 22, 8, 8, 21, 19, 20, 8, 8, 24, 21, 24, 23, 24, 8, 8, 17, 16, 8, 8, 22, 20, 22, 8, 8, 23, 20, 29, 23, 23, 8, 8, 19, 16, 18, 8, 8, 18, 16, 18, 16, 18, 8, 8, 13, 11, 8, 8, 30, 32, 32, 8, 8, 32, 32, 32, 32, 32, 8, 8, 32, 32, 32, 8, 8, 32, 32, 32, 32, 32]
         best_acc = eval_func(best_bits, *args)
         return best_bits, best_acc
     elif cfg.search_strategy == 'grid_search':
@@ -463,7 +430,7 @@ def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, data
     elif cfg.search_strategy == 'simulated_annealing':
         best_bits, best_acc = simulated_annealing(eval_func, bit_choices, args)
     elif cfg.search_strategy == 'greedy_squash':
-        best_bits, best_acc = greedy_squash(eval_func, bit_choices, args, max_iter=26)
+        best_bits, best_acc = greedy_squash(eval_func, bit_choices, args)
     else:
         raise ValueError('unknown search strategy: {}'.format(cfg.search_strategy))
 
@@ -472,10 +439,12 @@ def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, data
 
 def search_quantize_strategy(mod, hardware, dataset=None):
     graph = mod['main']
+
     # print('original acc: {}'.format(eval_acc(graph, dataset)[1]))
     topology = analyze_topology(graph, hardware)
     choices = generate_choices(graph, hardware, topology)
     # search_space = create_search_space(graph, topology, choices)
+
 
     # search for bits settings with learning method
     def eval_func(bits, graph, hardware, topology, dataset):
@@ -486,19 +455,22 @@ def search_quantize_strategy(mod, hardware, dataset=None):
         thresholds = threshold_estimate(graph, topology, bits, dataset)
 
         strategy = (topology, bits, thresholds)
-        simulated_graph = qtz.create_quantizer(graph, hardware, strategy).simulate()
+        quantizer = qtz.create_quantizer(graph, hardware, strategy)
+        simulated_graph = quantizer.simulate()
         # print('simulated_graph')
         # print(simulated_graph)
-        _, acc = eval_acc(simulated_graph, dataset)
+        _, simulated_acc = eval_acc(simulated_graph, dataset)
         # [optional] calibrate threshold estimation
-        return float(acc)
+        quantized_graph = quantizer.quantize()
+        _, quantized_acc = eval_acc(quantized_graph, dataset)
+
+        # logging
+        print('simulated_acc: {}, quantized_acc: {}\n\n'.format(simulated_acc, quantized_acc))
+        return float(simulated_acc), float(quantized_acc)
 
     best_bits, best_acc = search_bits_strategy(eval_func, choices, graph, hardware, topology, dataset)
     print('finished search')
     print('best_acc: {0}'.format(best_acc))
     best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
     best_strategy = (topology, best_bits, best_thresholds)
-    with open('strategy.pkl', 'wb') as fout:
-        pickle.dump(best_strategy, fout)
-        print('save best strategy as strategy.pkl')
     return best_strategy, best_acc

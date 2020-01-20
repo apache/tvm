@@ -1,3 +1,19 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 from __future__ import absolute_import
 
 from .base import *
@@ -27,13 +43,14 @@ class Stats(object):
     def data(self, idx):
         return self.raw_data[idx] 
 
-    def range(self, idx, power2=False):
+    def range(self, idx):
+        arr = np.concatenate(self.raw_data[idx]).reshape(-1)
+        return np.amax(np.abs(arr))
+
+    def power2_range(self, idx):
         arr = np.concatenate(self.raw_data[idx]).reshape(-1)
         arange = np.amax(np.abs(arr))
-        if power2:
-            # round to the nearest power of two
-            return 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
-        return arange
+        return 2**np.math.ceil(np.math.log(arange, 2)) if arange > 0 else 1.0
 
     def mean(self, idx):
         pass
@@ -60,13 +77,38 @@ def evaluate(func, dataset):
     return outputs
 
 
-def collect_stats(mod, dataset):
+# def StatsCollector(relay.ExprMutator):
+#     def __init__(self):
+#         super().__init__()
+# 
+#     def collect(self, graph, dataset):
+#         logging.info("collecting statistics for calibration...")
+#         self._outputs = []
+#         stats_graph = self.visit(graph)
+#         outputs = evaluate(stats_graph, dataset)
+#         return Stats(outputs)
+# 
+#     def visit(self, expr):
+#         expr = super().visit(expr) 
+# 
+#     def visit_function(self, fn):
+#         pass
+# 
+# 
+
+
+
+
+def collect_stats(graph, dataset):
+    assert isinstance(graph, relay.Function)
     logging.info("collecting statistics for calibration...")
-    if isinstance(mod, tvm.relay.Module):
-        func = mod['main']
-    else:
-        func = mod
-    func = _quantize.CreateStatsCollector(func)
+    outputs = []
+    def fvisit(node):
+        if isinstance(node, (relay.Var, relay.Constant, relay.Call)):
+            outputs.append(node)
+    relay.analysis.post_order_visit(graph, fvisit)
+    out = relay.Tuple(outputs)
+    func = relay.Function(graph.params, out)
     outputs = evaluate(func, dataset)
     return Stats(outputs)
 
@@ -146,12 +188,21 @@ def inspect_graph_statistic(func, hardware, strategy, dataset=None):
         real_out = evaluate(graph, data_batch)[0][0]
         simulated_out = evaluate(simulated_graph, data_batch)[0][0]
         quantized_out = evaluate(quantized_graph, data_batch)[0][0]
+        print('compare real_out vs. simulated_out')
         compare(real_out, simulated_out)
+        print('compare real_out vs. quantized_out')
         compare(real_out, quantized_out)
-        if not np.allclose(simulated_out, quantized_out, atol=1e-6):
+        if not np.allclose(simulated_out, quantized_out):
+            print('compare simulated_out vs. quantized_out')
+            compare(simulated_out, quantized_out)
+            is_close = np.isclose(simulated_out, quantized_out)
+            indexes = np.where(np.logical_not(is_close))
+            print('num of mismatched items: {}'.format(len(indexes[0])))
+            print('simulated out:\n{}'.format(simulated_out[indexes]))
+            print('quantized out:\n{}'.format(quantized_out[indexes]))
             print('\nsimulated graph')
             print(simulated_graph)
             print('\nquantized graph')
             print(quantized_graph)
-            raise ValueError
+            # raise ValueError
         print('\n\n')

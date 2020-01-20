@@ -27,6 +27,7 @@ import tvm
 import sys
 import math
 import numpy as np
+import logging
 from collections import namedtuple
 
 SimulatedQuantizeParams = namedtuple("SimulatedQuantizeParams", ['in_scale',
@@ -176,6 +177,10 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
                 param = SimulatedQuantizeParams(in_scale, out_scale, clip_min, clip_max,
                                                 in_dtype, out_dtype)
                 print('  {}'.format(param))
+                in_cond, in_expo = exponent_based_two(param.in_scale)
+                assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
+                out_cond, out_expo = exponent_based_two(param.out_scale)
+                assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
                 internal_params.append(param)
             return
         if isinstance(node, relay.Function):
@@ -196,6 +201,16 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
             output_params.append(param)
             return
     relay.analysis.post_order_visit(graph, fvisit)
+
+    if current_qconfig().threshold_estimate_strategy == 'power2_range':
+        # check all scale need to be power of 2
+        print('check scale to be power of two...')
+        params = internal_params + output_params
+        for param in params:
+            in_cond, in_expo = exponent_based_two(param.in_scale)
+            assert in_cond, "scale={}, expo={}\nparam\{}".format(param.in_scale, in_expo, param)
+            out_cond, out_expo = exponent_based_two(param.out_scale)
+            assert out_cond, "scale={}, expo={}\nparam={}".format(param.out_scale, out_expo, param)
 
     return internal_params, output_params
 
@@ -278,36 +293,47 @@ def _realize(simulated_graph, node2cstr):
         """calculate `data * in_scale / out_scale`"""
         if math.isclose(in_scale, out_scale):
             return data
-    
+
+        def use_shift(in_val, out_val):
+            # whether to use shift, consider floating point numeric error
+            in_cond, in_exp = exponent_based_two(in_val) 
+            out_cond, out_exp = exponent_based_two(out_val) 
+            if in_cond and out_cond:
+                return True, in_exp - out_exp 
+            return exponent_based_two(in_val / out_val)
+
         factor = in_scale / out_scale
-        shift_factor = math.log2(factor)
-        print('shift_factor: {}'.format(shift_factor))
-        print('rounded shift_factor: {}'.format(round(shift_factor)))
-        if math.isclose(shift_factor, round(shift_factor), rel_tol=1e-5):
-            print('use shift')
+        do_shift, shift_factor = use_shift(in_scale, out_scale)
+        print('  factor: {}'.format(factor))
+        print('  shift_factor: {}'.format(shift_factor))
+        print('  rounded shift_factor: {}'.format(round(shift_factor)))
+        if do_shift:
             if shift_factor > 0:
+                print('  use left shift')
                 out = relay.left_shift(data, relay.const(round(shift_factor), dtype))
             else:
+                print('  use right shift')
                 # TODO(ziheng) statistic bias
                 # add bias for rounding
                 shift_factor = - round(shift_factor)
                 out = data + relay.const(2**(shift_factor - 1), dtype)
                 out = relay.right_shift(out, relay.const(shift_factor, dtype))
         elif math.isclose(factor, round(factor)):
-            print('use integer multiply')
+            print('  use integer multiply')
             # TODO(ziheng) overflow risk
             out = relay.multiply(data, relay.const(factor, dtype))
         else:
-            print('use float multiply')
+            print('  use float multiply')
             # TODO(ziheng) rounding
             out = relay.cast(data, "float32")
-            out = relay.multiply(data, relay.const(factor))
+            out = relay.multiply(out, relay.const(factor, 'float32'))
+            out = relay.round(out)
             out = relay.cast(out, dtype)
+            raise ValueError
         return out
     
     def realize_simulated_quantize(node):
         data = node.args[0]
-        print('realize sq({})'.format(node_str(data)))
         attrs = node.attrs
         in_scale = float(attrs.in_scale)
         out_scale = float(attrs.out_scale)
@@ -315,6 +341,8 @@ def _realize(simulated_graph, node2cstr):
         clip_max = attrs.clip_max
         in_dtype = attrs.in_dtype
         out_dtype = attrs.out_dtype
+        print('  in_scale: {}'.format(in_scale))
+        print('  out_scale: {}'.format(out_scale))
     
         if in_dtype == 'float32' and out_dtype == 'float32':
             # do nothing
@@ -353,11 +381,14 @@ def _realize(simulated_graph, node2cstr):
             super().__init__()
 
         def realize(self, graph):
+            self.node2idx = build_node_index(graph)
             return self.visit(graph)
 
         def visit_call(self, node):
             new_node = super().visit_call(node)
             if node.op.name == "hago.simulated_quantize":
+                print('---------')
+                print('simulated_quantize({})'.format(node_str(node.args[0], self.node2idx)))
                 new_node = realize_simulated_quantize(new_node)
                 return new_node
             cstr = node2cstr[node]

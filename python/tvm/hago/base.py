@@ -24,6 +24,7 @@ from ..relay.base import NodeBase, register_relay_node
 
 import tvm
 from tvm._ffi.runtime_ctypes import TVMType
+import math
 import numpy as np
 from collections import defaultdict, OrderedDict
 
@@ -399,3 +400,12 @@ def eval_acc(func, dataset):
     outputs = np.concatenate(outputs).reshape(-1)
     acc = num_correct / num_samples
     return outputs, acc
+
+
+def exponent_based_two(val):
+    exponent = math.log2(val)
+    cond = (exponent == round(exponent))
+    # cond = math.isclose(exponent, round(exponent), rel_tol=5e-5)
+    if cond: 
+        return cond, round(exponent)
+    return cond, exponent

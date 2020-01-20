@@ -121,7 +121,8 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
         # data = topi.multiply(data, in_scale)
 
         data = topi.divide(data, in_scale)
-        data = topi.cast(topi.cast(data, 'int64'), attrs.in_dtype)
+        data = topi.cast(topi.round(data), 'int64')
+        data = topi.cast(data, attrs.in_dtype)
         data = topi.multiply(data, in_scale)
     data = my_print(data, '*******************************************')
     data = my_print(data, "[in_scale={}, out_scale={}, clip_min={}, clip_max={}, in_dtype={}, out_dtype={}".format(in_scale, out_scale, clip_min, clip_max, attrs.in_dtype, attrs.out_dtype))
@@ -235,22 +236,27 @@ def threshold_rectify_for_add(input_bits, output_bits, input_thresholds, output_
 
     # choose scale of the one with max threshold
     idx = np.argmax(itholds)
-    unified_scale = itholds[idx] / (2 ** (ibits[idx] - sign_bit) - 1)
+    chosen_thold = itholds[idx]
+    chosen_bit = ibits[idx]
+    unified_scale = itholds[idx] / (2 ** (ibits[idx] - sign_bit))
 
-    print('input bits: {}'.format(ibits))
-    print('output bits: {}'.format(obits))
-    print('input thresholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in itholds])))
-    print('output thresholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in otholds])))
-    print('choose unifed scale {:.3e} for op add'.format(unified_scale))
-
+    print('  in bits   : {}'.format(ibits))
+    print('  out bits  : {}'.format(obits))
+    print('  in tholds : {}'.format(', '.join(["{:.3f}".format(thold) for thold in itholds])))
+    print('  out tholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in otholds])))
+    print('  choose unifed scale {:.3e} for op add'.format(unified_scale))
     new_tholds = []
     for i, bit in enumerate(ibits):
-        integer_range = 2 ** (bit - sign_bit) - 1
-        thold = integer_range * unified_scale
-        print('rectify threshold from {:.3e} to {:.3e} for op add'.format(itholds[i], thold))
-        new_tholds.append(integer_range * unified_scale)
+        # integer_range = 2 ** (bit - sign_bit) - 1
+        # thold = integer_range * unified_scale
+        thold = (2 ** (bit - chosen_bit)) * chosen_thold 
+        print('  rectify threshold from {} to {} for op add'.format(itholds[i], thold))
+        new_tholds.append(thold)
     for thold in otholds:
         new_tholds.append(thold)
+
+    print('  new tholds: {}'.format(', '.join(["{:.3f}".format(thold) for thold in new_tholds])))
+
     return new_tholds
 
 

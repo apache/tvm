@@ -135,8 +135,8 @@ def _find_scale_by_kl(arr,
 
 
 def threshold_rectify(graph, topology, bits, thresholds):
-    print('bits')
-    print(bits)
+    # print('bits')
+    # print(bits)
     edge2bit = complete_dict(bits, topology.edge2cond)
     edge2idx = build_edge_index(graph)
     node2idx = build_node_index(graph)
@@ -158,8 +158,8 @@ def threshold_rectify(graph, topology, bits, thresholds):
             frectify = node.op.get_attr('FHagoRectify')
             if frectify is not None:
                 output_edges = node2edges[node]
-                # print(node.op.name)
-                # print(len(output_edges))
+                print('---------')
+                print(node.op.name)
                 input_bits = [edge2bit[(src, node)] for src in node.args]
                 output_bits = [edge2bit[edge] for edge in output_edges]
                 input_tholds = [thresholds[node2idx[src]] for src in node.args]
@@ -177,7 +177,7 @@ def threshold_rectify(graph, topology, bits, thresholds):
 
 def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
     print('calculating threshold...')
-    cfg = qtz.current_qconfig()
+    cfg = current_qconfig()
     stats = analysis.collect_stats(graph, dataset)
 
     if cfg.threshold_estimate_strategy == 'global_scale':
@@ -185,10 +185,12 @@ def threshold_estimate(graph, topology, bits, dataset=None, rectify=True):
     elif cfg.threshold_estimate_strategy == 'max_range':
         thresholds = [stats.range(i) for i in range(len(stats))]
     elif cfg.threshold_estimate_strategy == 'power2_range':
-        thresholds = [stats.range(i, power2=True) for i in range(len(stats))]
+        thresholds = [stats.power2_range(i) for i in range(len(stats))]
     else:
         raise ValueError
 
+    print('before rectify, thresholds: {}'.format(thresholds))
     if rectify:
         thresholds = threshold_rectify(graph, topology, bits, thresholds)
+    print('after rectify, thresholds: {}'.format(thresholds))
     return thresholds

@@ -23,6 +23,7 @@ import numpy as np
 from mxnet import gluon
 import logging
 import os
+import pickle
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -59,7 +60,7 @@ def get_val_data(model_name,
     return val_data, batch_fn
 
 
-def get_model(model_name, batch_size, qconfig, target=None, original=False, simulated=False, calib_set=None):
+def get_model(model_name, batch_size, qconfig, original=False, simulated=False, calib_set=None):
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
     img_size = 299 if model_name == 'inceptionv3' else 224
     data_shape = (batch_size, 3, img_size, img_size)
@@ -69,14 +70,6 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
     logging.debug('original')
     logging.debug(qmod['main'].astext(show_meta_data=False))
 
-    def visit(e):
-        if isinstance(e, tvm.relay.Call):
-            print(e.op.name)
-            for var in e.args:
-                if isinstance(var, tvm.relay.Constant):
-                    print(np.max(var.data.asnumpy()))
-    relay.analysis.post_order_visit(qmod['main'], visit)
-
     if original:
         return qmod
 
@@ -85,18 +78,20 @@ def get_model(model_name, batch_size, qconfig, target=None, original=False, simu
         logging.debug(hago.current_qconfig())
         hardware = hago.create_accelerator_description()
         strategy, acc = hago.search_quantize_strategy(qmod, hardware, dataset=calib_set)
+        print('simulated accuracy on calibration dataset: {}'.format(acc))
         quantizer = hago.create_quantizer(qmod['main'], hardware, strategy)
         simulated_graph = quantizer.simulate()
         quantized_graph = quantizer.quantize()
         logging.debug('after quantize')
         logging.debug(quantized_graph.astext(show_meta_data=False))
         out, acc = hago.eval_acc(quantized_graph, calib_set)
-        print(acc)
-        raise ValueError
+        print('quantized accuracy on calibration dataset: {}'.format(acc))
+        # hago.inspect_graph_statistic(qmod['main'], hardware, strategy, dataset=calib_set)
+        qmod = relay.Module.from_expr(quantized_graph)
     return qmod
 
 
-def eval_acc(mod, dataset, batch_fn, target=tvm.target.cuda(), ctx=tvm.gpu(), log_interval=100):
+def eval_acc(mod, dataset, batch_fn, target='llvm', ctx=tvm.cpu(), log_interval=100):
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target)
     # create runtime module
@@ -145,10 +140,8 @@ def test_quantize_acc(cfg, rec_val):
 
     val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
     calib_set = get_calibration_dataset(val_data, batch_fn)
-    # calib_set = None
 
-    mod = get_model(cfg.model, 32, qconfig, tvm.target.cuda(), calib_set=calib_set)
-    raise ValueError
+    mod = get_model(cfg.model, 32, qconfig, calib_set=calib_set)
 
     acc = eval_acc(mod, val_data, batch_fn)
     assert acc > cfg.expected_acc
