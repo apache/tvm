@@ -176,7 +176,7 @@ static inline void AssignType(const Type& expr_type, const DataType& dtype, cons
   const auto tensor_dtype = tensor_type->dtype;
   CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
   if (tensor_type->shape.size() != 0) {
-    reporter->Assign(expr_type, TensorTypeNode::make({shape}, tensor_type->dtype));
+    reporter->Assign(expr_type, TensorType({shape}, tensor_type->dtype));
   }
 }
 

@@ -271,7 +271,7 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     channels = param->channels;
 
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, data->dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -310,7 +310,7 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     out_dtype = data->dtype;
   }
   oshape = trans_out_layout.BackwardShape(oshape);
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -434,7 +434,7 @@ bool Conv1DTransposeRel(const Array<Type>& types,
     channels = param->channels;
 
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    reporter->Assign(types[1], TensorType(wshape, data->dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -469,7 +469,7 @@ bool Conv1DTransposeRel(const Array<Type>& types,
     out_dtype = data->dtype;
   }
   oshape = trans_out_layout.BackwardShape(oshape);
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -616,7 +616,7 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -702,7 +702,7 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
       data->shape[1],
   };
 
-  reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape),
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
                                                   data->dtype));
   return true;
 }
@@ -817,7 +817,7 @@ bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types,
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
-  reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape), out_dtype));
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), out_dtype));
   return true;
 }
 
@@ -1025,7 +1025,7 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
     // assign result to reporter
-    reporter->Assign(types[2], TensorTypeNode::make(wshape, data->dtype));
+    reporter->Assign(types[2], TensorType(wshape, data->dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -1066,12 +1066,12 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
   // infer offset shape
   Array<IndexExpr> offset_shape({data->shape[0], 2 * ksize_y * ksize_x * param->deformable_groups,
           oshape[2], oshape[3]});
-  reporter->Assign(types[1], TensorTypeNode::make(offset_shape, data->dtype));
+  reporter->Assign(types[1], TensorType(offset_shape, data->dtype));
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
 
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
 }
 

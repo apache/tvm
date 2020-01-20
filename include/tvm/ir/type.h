@@ -352,5 +352,75 @@ class FuncType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
 
+/*!
+ * \brief Intermediate values that is used to indicate incomplete type
+ *         during type inference.
+ *
+ * If we view the type relations as "computational graph of types",
+ * then IncompleteType represents intermediate values of the graph,
+ * TypeVar represents the input to the graph.
+ *
+ * \sa IncompleteType
+ */
+class IncompleteTypeNode : public TypeNode {
+ public:
+  /*! \brief kind of the type. */
+  TypeKind kind;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("kind", &kind);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.IncompleteType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IncompleteTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to IncompleteTypeNode.
+ * \sa IncompleteTypeNode
+ */
+class IncompleteType : public Type {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param kind kind of the type.
+   */
+  TVM_DLL explicit IncompleteType(TypeKind kind);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IncompleteType, Type, IncompleteTypeNode);
+};
+
+
+/*!
+ * \brief Reference Type High-level Relay IR.
+ *
+ * \sa RelayRefType.
+ */
+class RelayRefTypeNode : public TypeNode {
+ public:
+  /*! \brief The type of value in the Reference. */
+  Type value;
+
+  RelayRefTypeNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("value", &value);
+    v->Visit("span", &span);
+  }
+
+  static constexpr const char* _type_key = "relay.RefType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RelayRefTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to RelayRefTypeNode.
+ * \sa RelayRefTypeNode.
+ */
+class RelayRefType : public Type {
+ public:
+  TVM_DLL explicit RelayRefType(Type value);
+  TVM_DEFINE_OBJECT_REF_METHODS(RelayRefType, Type, RelayRefTypeNode);
+};
 }  // namespace tvm
 #endif  // TVM_IR_TYPE_H_

@@ -317,8 +317,8 @@ class Object {
  * \tparam ObjectType The object type
  * \return The corresponding RefType
  */
-template <typename RefType, typename ObjectType>
-inline RefType GetRef(const ObjectType* ptr);
+template <typename RelayRefType, typename ObjectType>
+inline RelayRefType GetRef(const ObjectType* ptr);
 
 /*!
  * \brief Downcast a base reference type to a more specific type.
@@ -484,8 +484,8 @@ class ObjectPtr {
   friend class TVMArgsSetter;
   friend class TVMRetValue;
   friend class TVMArgValue;
-  template <typename RefType, typename ObjType>
-  friend RefType GetRef(const ObjType* ptr);
+  template <typename RelayRefType, typename ObjType>
+  friend RelayRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
@@ -848,11 +848,11 @@ inline const ObjectType* ObjectRef::as() const {
   }
 }
 
-template <typename RefType, typename ObjType>
-inline RefType GetRef(const ObjType* ptr) {
-  static_assert(std::is_base_of<typename RefType::ContainerType, ObjType>::value,
+template <typename RelayRefType, typename ObjType>
+inline RelayRefType GetRef(const ObjType* ptr) {
+  static_assert(std::is_base_of<typename RelayRefType::ContainerType, ObjType>::value,
                 "Can only cast to the ref of same container type");
-  return RefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
+  return RelayRefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
 }
 
 template <typename BaseType, typename ObjType>

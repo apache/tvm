@@ -22,11 +22,10 @@
  * \file de_duplicate.cc
  * \brief Use a fresh Id for every Var to make the result well-formed.
  */
-
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/pattern_functor.h>
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {

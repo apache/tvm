@@ -60,7 +60,7 @@ bool CastRel(const Array<Type>& types,
     return false;
   }
   const auto* param = attrs.as<CastAttrs>();
-  reporter->Assign(types[1], TensorTypeNode::make(
+  reporter->Assign(types[1], TensorType(
       data->shape, param->dtype));
   return true;
 }
@@ -120,7 +120,7 @@ bool CastLikeRel(const Array<Type>& types,
         << types[1];
     return false;
   }
-  reporter->Assign(types[2], TensorTypeNode::make(data->shape, dtype_like->dtype));
+  reporter->Assign(types[2], TensorType(data->shape, dtype_like->dtype));
   return true;
 }
 
@@ -226,7 +226,7 @@ bool ExpandDimsRel(const Array<Type>& types,
   for (int i = pivot; i < ndim; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -408,7 +408,7 @@ bool StackRel(const Array<Type>& types,
   for (int i = axis; i < ndim; ++i) {
     oshape.emplace_back(first->shape[i]);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, dtype));
+  reporter->Assign(types[1], TensorType(oshape, dtype));
   return true;
 }
 
@@ -500,7 +500,7 @@ bool TransposeRel(const Array<Type>& types,
   for (int axis : int_axes) {
     oshape.push_back(data->shape[axis]);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -679,10 +679,10 @@ bool ReshapeRel(const Array<Type>& types,
   }
 
   if (param->reverse) {
-    reporter->Assign(types[1], TensorTypeNode::make(
+    reporter->Assign(types[1], TensorType(
         Array<IndexExpr>(oshape.rbegin(), oshape.rend()), data->dtype));
   } else {
-    reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[1], TensorType(oshape, data->dtype));
   }
   return true;
 }
@@ -809,7 +809,7 @@ bool ReshapeLikeRel(const Array<Type>& types,
     CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
       << "Reshape inputs size should be compatible.";
   }
-  reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
+  reporter->Assign(types[2], TensorType(reshape_like->shape, data->dtype));
   return true;
 }
 
@@ -853,7 +853,7 @@ bool ArgWhereRel(const Array<Type>& types,
   std::vector<IndexExpr> result_shape;
   result_shape.push_back(Any::make());
   result_shape.push_back(IntImm(DataType::Int(32), input_rank));
-  reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
+  reporter->Assign(types[1], TensorType(result_shape, DataType::Int(32)));
   return true;
 }
 
@@ -894,7 +894,7 @@ bool TakeRel(const Array<Type>& types,
 
   if (!param->axis.defined()) {
     std::vector<IndexExpr> oshape(indices->shape.begin(), indices->shape.end());
-    reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[2], TensorType(oshape, data->dtype));
     return true;
   }
 
@@ -918,7 +918,7 @@ bool TakeRel(const Array<Type>& types,
     oshape.emplace_back(data->shape[i]);
   }
 
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -1005,7 +1005,7 @@ bool FullRel(const Array<Type>& types,
     << "Fill value should be a scalar but has dimension "
     << fill_value->shape.size() << ".";
 
-  reporter->Assign(types[1], TensorTypeNode::make(param->shape, out_dtype));
+  reporter->Assign(types[1], TensorType(param->shape, out_dtype));
   return true;
 }
 
@@ -1049,7 +1049,7 @@ bool InitOpRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 1);
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
 
-  reporter->Assign(types[0], TensorTypeNode::make(param->shape, param->dtype));
+  reporter->Assign(types[0], TensorType(param->shape, param->dtype));
   return true;
 }
 
@@ -1113,7 +1113,7 @@ bool FullLikeRel(const Array<Type>& types,
     << "The fill value should be a scalar but here it has dimension "
     << fill_value->shape.size() << ".";
 
-  reporter->Assign(types[2], TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
   return true;
 }
 
@@ -1197,7 +1197,7 @@ bool ArangeRel(const Array<Type>& types,
 
   reporter->Assign(types[0], types[1]);
   reporter->Assign(types[1], types[2]);
-  reporter->Assign(types[2], TensorTypeNode::make({}, attrs->dtype));
+  reporter->Assign(types[2], TensorType({}, attrs->dtype));
 
   if ((cstart = attrs->start.as<ConstantNode>()) &&
       (cstop = attrs->stop.as<ConstantNode>()) &&
@@ -1209,10 +1209,10 @@ bool ArangeRel(const Array<Type>& types,
     CHECK_GT(num_elem, 0)
         << "Invalid arange attributes (start, stop, step): " << attrs->start
         << ", " << attrs->stop << ", " << attrs->step;
-    reporter->Assign(types[3], TensorTypeNode::make({num_elem}, attrs->dtype));
+    reporter->Assign(types[3], TensorType({num_elem}, attrs->dtype));
     return true;
   } else {
-    reporter->Assign(types[3], TensorTypeNode::make({Any::make()}, attrs->dtype));
+    reporter->Assign(types[3], TensorType({Any::make()}, attrs->dtype));
     return true;
   }
 }
@@ -1320,7 +1320,7 @@ bool RepeatRel(const Array<Type>& types,
   for (int i = pivot + 1; i < ndim; ++i) {
     oshape.emplace_back(data->shape[i]);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -1431,7 +1431,7 @@ bool TileRel(const Array<Type>& types,
       oshape.emplace_back(data_shape[i] * reps_shape[i]);
     }
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -1560,7 +1560,7 @@ bool WhereRel(const Array<Type>& types,
         << "condition and x must have the same shape: " << cond_shape << " vs " << x_shape;
     }
   }
-  reporter->Assign(types[3], TensorTypeNode::make(x_shape, x->dtype));
+  reporter->Assign(types[3], TensorType(x_shape, x->dtype));
   return true;
 }
 
@@ -1683,7 +1683,7 @@ bool SqueezeRel(const Array<Type>& types,
       }
     }
   }
-  reporter->Assign(types[1], TensorTypeNode::make(result_shape, data->dtype));
+  reporter->Assign(types[1], TensorType(result_shape, data->dtype));
   return true;
 }
 
@@ -1761,7 +1761,7 @@ bool BroadCastToRel(const Array<Type>& types,
   CHECK(ioattrs);
   auto intt = types[0].as<TensorTypeNode>();
   if (intt == nullptr) { return false; }
-  auto type = TensorTypeNode::make(ioattrs->shape, intt->dtype);
+  auto type = TensorType(ioattrs->shape, intt->dtype);
   reporter->Assign(types[1], type);
   return BroadcastRel({types[0], types[1], types[1]}, 2, Attrs(), reporter);
 }
@@ -1942,7 +1942,7 @@ bool StridedSliceRel(const Array<Type>& types,
     }
     oshape[i] = tir::make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
   }
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -2147,7 +2147,7 @@ bool SplitRel(const Array<Type>& types,
     for (int i = 0; i < sections->value; ++i) {
         std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
         oshape[axis] = indexdiv(oshape[axis], sections->value);
-        auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+        auto vec_type = TensorType(oshape, data->dtype);
         fields.push_back(vec_type);
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
@@ -2161,14 +2161,14 @@ bool SplitRel(const Array<Type>& types,
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
       oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
       begin = Downcast<IndexExpr>(indices[i]);
-      auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+      auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
     CHECK(reporter->Assert(begin < data->shape[axis]))
         << "The sum of sections must match the input.shape[axis]";
     std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
     oshape[axis] = data->shape[axis] - begin;
-    auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+    auto vec_type = TensorType(oshape, data->dtype);
     fields.push_back(vec_type);
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   }
@@ -2290,7 +2290,7 @@ bool SliceLikeRel(const Array<Type>& types,
     }
   }
 
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -2400,7 +2400,7 @@ bool LayoutTransformRel(const Array<Type>& types,
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
 
   const auto& out_shape = layout_converter.ForwardShape(data->shape);
-  reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
+  reporter->Assign(types[1], TensorType(out_shape, data->dtype));
   return true;
 }
 
@@ -2499,7 +2499,7 @@ bool GatherNDRel(const Array<Type>& types,
       oshape.push_back(indices->shape[i]);
   for (size_t i = mdim->value; i < ndim; ++i)
       oshape.push_back(data->shape[i]);
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -2552,7 +2552,7 @@ bool SequenceMaskRel(const Array<Type>& types,
   Array<IndexExpr> valid_length_shape;
   CHECK(param->axis == 0 || param->axis == 1);
   valid_length_shape.push_back(data->shape[1 - param->axis]);
-  reporter->Assign(types[1], TensorTypeNode::make(valid_length_shape, valid_length->dtype));
+  reporter->Assign(types[1], TensorType(valid_length_shape, valid_length->dtype));
   reporter->Assign(types[2], types[0]);
   return true;
 }
@@ -2666,7 +2666,7 @@ bool OneHotRel(const Array<Type>& types,
     }
   }
 
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, param->dtype));
+  reporter->Assign(types[3], TensorType(oshape, param->dtype));
   return true;
 }
 

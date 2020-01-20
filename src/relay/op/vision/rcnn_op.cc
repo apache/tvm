@@ -45,7 +45,7 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   std::vector<IndexExpr> oshape(
       {rshape[0], dshape[1], roi_align_attrs->pooled_size[0], roi_align_attrs->pooled_size[1]});
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -96,7 +96,7 @@ bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   std::vector<IndexExpr> oshape(
       {rshape[0], dshape[1], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1]});
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -155,7 +155,7 @@ bool ProposalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   std::vector<IndexExpr> oshape(
       {batch * proposal_attrs->rpn_post_nms_top_n, 5});
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, cls_prob->dtype));
+  reporter->Assign(types[3], TensorType(oshape, cls_prob->dtype));
   return true;
 }
 

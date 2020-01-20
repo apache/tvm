@@ -96,7 +96,7 @@ Type ConcreteBroadcast(const TensorType& t1,
   for (; i <= max_ndim; ++i) {
     oshape.push_back(rshape[max_ndim - i]);
   }
-  return TensorTypeNode::make(Array<IndexExpr>(
+  return TensorType(Array<IndexExpr>(
       oshape.rbegin(), oshape.rend()), output_dtype);
 }
 

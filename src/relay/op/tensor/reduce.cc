@@ -272,7 +272,7 @@ bool ArgReduceRel(const Array<Type>& types,
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, DataType::Int(32)));
+  reporter->Assign(types[1], TensorType(oshape, DataType::Int(32)));
   return true;
 }
 
@@ -297,7 +297,7 @@ bool ReduceRel(const Array<Type>& types,
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -594,7 +594,7 @@ bool VarianceRel(const Array<Type>& types,
 
   // assign output type and shape
   auto oshape = ReduceShapeImpl(in_shape, param, reporter);
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
