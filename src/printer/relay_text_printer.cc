@@ -894,6 +894,7 @@ std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
 }  // namespace relay
 
 static const char* kSemVer = "v0.0.4";
+
 // TODO(tvm-team): split into files, related: arith/analyzer.h
 //
 // - text_printer.h (common header)
@@ -903,6 +904,12 @@ static const char* kSemVer = "v0.0.4";
 //    - Implements AsText
 // - relay_text_printer.cc (specific printing logics for relay)
 // - tir_text_printer.cc (specific printing logics for TIR)
+std::string PrettyPrint(const ObjectRef& node) {
+  Doc doc;
+  doc << relay::RelayTextPrinter(false, nullptr).PrintFinal(node);
+  return doc.str();
+}
+
 std::string AsText(const ObjectRef& node,
                    bool show_meta_data,
                    runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {

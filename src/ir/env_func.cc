@@ -31,8 +31,8 @@ using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<EnvFuncNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<EnvFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const EnvFuncNode*>(node.get());
     p->stream << "EnvFunc(" << op->name << ")";
 });
