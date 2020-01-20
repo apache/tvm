@@ -308,5 +308,20 @@ class IRModule : public ObjectRef {
   TVM_DLL static IRModule FromText(const std::string& text, const std::string& source_path);
 };
 
+/*!
+ * \brief Render the node as a string in the text format.
+ *
+ * \param node The node to be rendered.
+ * \param show_meta_data Whether to print meta data section.
+ * \param annotate An optional callback function for attaching
+ *        additional comment block to an expr.
+ *
+ * \note We support a limited set of IR nodes that are part of
+ *       relay IR and
+ * \return The text representation.
+ */
+TVM_DLL std::string AsText(const ObjectRef& node,
+                           bool show_meta_data = true,
+                           runtime::TypedPackedFunc<std::string(ObjectRef)> annotate = nullptr);
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

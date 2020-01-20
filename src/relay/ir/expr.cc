@@ -21,6 +21,7 @@
  * \file src/tvm/relay/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
+#include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {
@@ -361,6 +362,10 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
 
 TVM_REGISTER_GLOBAL("relay._make.Any")
 .set_body_typed([]() { return Any::make(); });
+
+std::string PrettyPrint(const ObjectRef& node) {
+  return AsText(node, false, nullptr);
+}
 
 }  // namespace relay
 }  // namespace tvm
