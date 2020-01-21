@@ -33,7 +33,7 @@
 
 namespace tvm {
 // forward delcare Tensor
-namespace top {
+namespace te {
 class Tensor;
 }
 namespace arith {
@@ -84,7 +84,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \return The domain that covers all the calls or provides within the given statement.
  */
 Domain DomainTouched(Stmt body,
-                     const top::Tensor &tensor,
+                     const te::Tensor &tensor,
                      bool consider_calls,
                      bool consider_provides);
 
