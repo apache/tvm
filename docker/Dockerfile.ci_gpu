@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker GPU env
-# tag: v0.56
+# tag: v0.57
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 
 # Base scripts
