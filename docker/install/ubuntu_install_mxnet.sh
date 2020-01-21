@@ -19,5 +19,6 @@
 set -e
 set -u
 set -o pipefail
-
-pip3 install mxnet==1.5.0
+# We need  dependency on mkl version to be able to
+# test quantized models end-to-end.
+pip3 install mxnet-mkl==1.5.1
