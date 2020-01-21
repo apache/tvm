@@ -218,9 +218,11 @@ def get_mkldnn_uint8_scale(range_min,
     return np.float32(scale)
 
 
-def quantize_conv_weights_channel_mkldnn_from_var(weights_var,
-                                                  min_vector_range,
-                                                  max_vector_range):
+def quantize_conv_weights_bias_channel_mkldnn_from_var(weights_var,
+                                                       bias,
+                                                       min_vector_range,
+                                                       max_vector_range,
+                                                       data_scale):
     r"""Helper method to quantize the convolution kernel in prequantized model
     in MXNet with MKLDNN. The kernel is always quantized to int8 output datatype.
     The inputs are the raw weights which are floating point numbers. The min and
@@ -230,11 +232,15 @@ def quantize_conv_weights_channel_mkldnn_from_var(weights_var,
     Parameters
     ----------
     weights_var : tvm.relay.var
-                The float32 representation of the weights.
+        The float32 representation of the weights.
+    bias : np.array
+        The float32 np array for bias.
     min_vector_range : array of float32
-              A number representing the minimum of the weights per channel.
+        A number representing the minimum of the weights per channel.
     max_vector_range : array of float32
-              A number representing the maximum of the weights per channel.
+        A number representing the maximum of the weights per channel.
+    data_scale : float
+        The data scale value.
 
     Returns
     -------
@@ -245,11 +251,24 @@ def quantize_conv_weights_channel_mkldnn_from_var(weights_var,
     quantized_range = zero_centered_int8_quantized_range
     real_vector_range = np.maximum(np.absolute(min_vector_range),
                                    np.absolute(max_vector_range))
-    vector_scale = np.divide(real_vector_range, quantized_range)
+    # If real_vector_range is 0, then to avoid division by 0 in scaling,
+    # make real_vector INT32_max
+    vector_scale = np.where(real_vector_range == 0,
+                            1./float(np.iinfo(np.int32).max),
+                            np.divide(real_vector_range, quantized_range))
+
+    # Handle bias impact on scales as done by MxNet-MKLDNN.
+    if bias is not None:
+        common = 2.0 * bias.astype('float32') * (1/data_scale)
+        vector_scale_min = np.where(bias > 0,
+                                    common/float(np.iinfo(np.int32).max),
+                                    common/float(np.iinfo(np.int32).min))
+        vector_scale = np.maximum(vector_scale, vector_scale_min)
+
     zero_point = 0
     quantized_output = quantize(weights_var,
                                 relay.const(vector_scale),
-                                relay.const(zero_point, 'int32'),
+                                relay.const(zero_point ,'int32'),
                                 axis=0,
                                 out_dtype='int8')
     return quantized_output, vector_scale, zero_point

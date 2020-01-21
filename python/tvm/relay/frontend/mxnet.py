@@ -41,7 +41,7 @@ from .nnvm_common import _clip, _transpose, _upsampling
 from .nnvm_common import _elemwise_sum, _reshape
 from .nnvm_common import _warn_not_used
 from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
-                                quantize_conv_weights_channel_mkldnn_from_var, \
+                                quantize_conv_weights_bias_channel_mkldnn_from_var, \
                                 quantize_conv_bias_mkldnn_from_var, \
                                 get_conv_mkldnn_requantized_scale_outDtype, \
                                 dequantize_mxnet_min_max, \
@@ -1097,6 +1097,57 @@ def _mx_cond(inputs, attrs, subgraphs):
     return ret
 
 
+def _qnn_contrib_concat(inputs, attrs):
+    axis = attrs.get_int("dim", 1)
+    num_args = attrs.get_int("num_args", -1)
+    assert num_args > 0
+
+    input_exprs = inputs[0:num_args]
+
+    min_start_idx = num_args
+    max_start_idx = num_args + 1
+
+    mins = list()
+    maxs = list()
+
+    for i in range(min_start_idx, len(inputs), 2):
+        mins.append(inputs[i])
+
+    for i in range(max_start_idx, len(inputs), 2):
+        maxs.append(inputs[i])
+
+    # Check if all the input tensors have same qnn params.
+    if len(set(mins)) == 1 and len(set(maxs)) == 1:
+        output_min = mins[0]
+        output_max = maxs[0]
+        concat = _op.concatenate(tuple(input_exprs), axis=axis)
+        return concat, output_min, output_max
+    else:
+        # Get all dtypes. Find input and output scales, call concatenate.
+        dtypes = [_infer_type(x).checked_type.dtype for x in input_exprs]
+        assert all([x == 'uint8' for x in dtypes]), \
+                "Current suppor is limited to uint8 inputs only."
+        new_min = min(mins)
+        new_max = max(maxs)
+        assert new_min == 0
+
+        output_scale = get_mkldnn_uint8_scale(new_min, new_max)
+        min_max = zip(mins, maxs)
+        input_scales = [get_mkldnn_uint8_scale(x, y) for (x, y) in min_max]
+        input_zeros = [0] * len(input_scales)
+        output_zero = 0
+
+        input_scales_expr = [relay.const(x, 'float32') for x in input_scales]
+        input_zeros_expr = [relay.const(x, 'int32') for x in input_zeros]
+
+        output_scale_expr = relay.const(output_scale, 'float32')
+        output_zero_expr = relay.const(output_zero, 'int32')
+
+        res = relay.qnn.op.concatenate(input_exprs, input_scales_expr, input_zeros_expr,
+                                     output_scale_expr, output_zero_expr, axis=axis)
+        return res, new_min, new_max
+
+
 def _qnn_quantize(inputs, attrs):
     out_dtype = 'int8'
     out_type = attrs.get_str('out_type')
@@ -1148,10 +1199,6 @@ def _get_subgraph_op(subgraphs, op_name):
 
 
 def _qnn_conv(inputs, attrs, subgraphs, params):
-    def _check_for_attr_not_supported(_attrs, _attr_name):
-        if _attrs.get_bool(_attr_name, False):
-            raise ValueError('{} with qnn convolution is not yet supported.'.format(_attr_name))
-
     def _has_fused_activation(_attrs, _supported_activations):
         has_fused_activation = False
         if attrs.get_bool('with_act', False) or attrs.get_bool('with_postsum_act', False):
@@ -1165,6 +1212,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
     def _get_data_scale_and_zp(_data, _inputs,
                                _data_min_idx, _data_max_idx):
+        """ Finds the Qnn params for the data expr. """
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
         data_dtype = _infer_type(_data).checked_type.dtype
@@ -1180,42 +1228,69 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
     def _get_bn_alpha_coeff(_bn_gamma_idx, _bn_beta_idx,
                             _bn_running_mean_idx, _bn_running_var_idx):
+        """ Extract the BN coeff. These will be use later for BN folding into convolution. """
         # Extract relevant attrs from bn.
         bn_attrs = _get_subgraph_op(subgraphs, 'BatchNorm')['attrs']
         bn_epsilon_param = float(bn_attrs['eps'])
         bn_scale_param = bn_attrs['fix_gamma'] == "False"
         bn_center_param = True
+
         # Extract the relevant relay expressions.
         bn_running_var = inputs[_bn_running_var_idx]
         bn_gamma = inputs[_bn_gamma_idx]
         bn_beta = inputs[_bn_beta_idx]
         bn_running_mean = inputs[_bn_running_mean_idx]
+
         # Get coefficient to multiply to weights.
         bn_epsilon = relay.const(bn_epsilon_param, "float32")
         denominator = relay.sqrt(relay.add(bn_running_var, bn_epsilon))
         _bn_scale = relay.divide(relay.const(1.0, "float32"), denominator)
         if bn_scale_param:
             _bn_scale = relay.multiply(bn_gamma, _bn_scale)
+
         # Get the shift.
         _bn_shift = relay.negative(relay.multiply(bn_running_mean, _bn_scale))
         if bn_center_param:
             _bn_shift = relay.add(bn_beta, _bn_shift)
+
         return _bn_scale, _bn_shift
 
-    def _get_quantized_kernel(_bn_scale):
-        # BN is folded into conv at runtime in MKLDNN. This folding is done at runtime.
+    def _fold_bn(_bn_scale, _bn_shift, _has_bias, _has_bn):
+        """ Fold BN into kernel and bias. Get new kernel and bias. """
         _kernel = inputs[1]
         if _bn_scale:
             assert attrs.get_bool('with_bn', False)
-            # Weights are on OIHW, and bn_scale is in O.
-            _bn_scale = relay.expand_dims(_bn_scale, axis=1, num_newaxis=3)
-            _kernel = relay.multiply(_bn_scale, _kernel)
+            # Weights are on OIHW, and _bn_scale is in O.
+            exp_bn_scale = relay.expand_dims(_bn_scale, axis=1, num_newaxis=3)
+            _kernel = relay.multiply(exp_bn_scale, _kernel)
+
+        _bias = None
+        if _has_bias:
+            _bias = inputs[2]
+            if _has_bn:
+                assert _bn_shift is not None
+                assert _bn_scale is not None
+                _bias = relay.add(relay.multiply(_bn_scale, _bias), _bn_shift)
+        elif _has_bn:
+            assert _bn_shift is not None
+            assert _bn_scale is not None
+            _bias = _bn_shift
+        return _kernel, _bias
+
+    def _get_quantized_kernel(_kernel, _bias, _data_scale):
         # For quantizing, we need min/max of kernel. So, we have to pre compute this expr.
         np_kernel = _infer_value(_kernel, params).asnumpy()
         kernel_channel_min = np.amin(np_kernel, axis=(1, 2, 3))
         kernel_channel_max = np.amax(np_kernel, axis=(1, 2, 3))
-        return quantize_conv_weights_channel_mkldnn_from_var(_kernel, kernel_channel_min,
-                                                             kernel_channel_max)
+
+        np_bias = None
+        if _bias is not None:
+            np_bias = _infer_value(_bias, params).asnumpy()
+        return quantize_conv_weights_bias_channel_mkldnn_from_var(_kernel,
+                                                                  np_bias,
+                                                                  kernel_channel_min,
+                                                                  kernel_channel_max,
+                                                                  _data_scale)
 
     def _get_qnn_conv2d(_data, _kernel, _data_zero_point,
                         _kernel_zero_point, _data_scale,
@@ -1227,29 +1302,14 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             kernel_zero_point=relay.const(_kernel_zero_point, 'int32'),
             input_scale=relay.const(_data_scale, 'float32'),
             kernel_scale=relay.const(_kernel_vector_scale),
+            channels=_conv2d_attrs['channels'],
+            groups=_conv2d_attrs['groups'],
             kernel_size=_conv2d_attrs['kernel_size'],
             strides=_conv2d_attrs['strides'],
             dilation=_conv2d_attrs['dilation'],
             padding=_conv2d_attrs['padding'],
             data_layout=_conv2d_attrs['data_layout'],
             kernel_layout=_conv2d_attrs['kernel_layout'])
-
-    def _get_quantized_bias(_bn_scale, _bn_shift, scale,
-                            _has_bias, _has_bn):
-        """ Get bias. Fold bias with BN if BN is present. """
-        _bias = None
-        _bias_scale = scale
-        if _has_bias:
-            _bias = inputs[2]
-            if _has_bn:
-                assert _bn_shift is not None
-                assert _bn_scale is not None
-                _bias = relay.add(relay.multiply(_bn_scale, _bias), _bn_shift)
-        elif _has_bn:
-            assert _bn_shift is not None
-            assert _bn_scale is not None
-            _bias = _bn_shift
-        return _bias, _bias_scale
 
     def _get_requantized_op(_res, _input_scale, _output_scale, _out_dtype):
         # Requantize to get the output back
@@ -1262,71 +1322,168 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             axis=1,
             out_dtype=_out_dtype)
 
-    assert len(subgraphs) == 1
-    # Support to be added soon.
-    _check_for_attr_not_supported(attrs, 'with_sum')
-    subgraph_conv_attrs = StrAttrsDict(_get_subgraph_op(subgraphs, 'Convolution')['attrs'])
-    is_quantized = attrs.get_bool('quantized', False)
-    has_fused_relu = _has_fused_activation(attrs, ['relu'])
-    if not is_quantized:
-        res = _mx_conv(inputs, subgraph_conv_attrs)
-        if has_fused_relu:
-            res = _op.nn.relu(res)
-        return res
-    else:
-        has_bias = not subgraph_conv_attrs.get_bool("no_bias", False)
-        has_bn = attrs.get_bool('with_bn', False)
-        # Get input scale and zero point
-        # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are for
-        # the second tensor. So, the data min max indexes are last 3 and 4
-        data_min_idx = -2
-        data_max_idx = -1
-        data = inputs[0]
-        data_scale, data_zero_point = \
-            _get_data_scale_and_zp(data, inputs, data_min_idx, data_max_idx)
-        # Extract bn_scale/shift. These will be used for folding BN into conv.
-        bn_scale = bn_shift = None
-        if has_bn:
-            if has_bias:
-                bn_start_idx = 3
-            else:
-                bn_start_idx = 2
-            bn_gamma_idx = bn_start_idx
-            bn_beta_idx = bn_start_idx + 1
-            bn_running_mean_idx = bn_start_idx + 2
-            bn_running_var_idx = bn_start_idx + 3
+    def _get_sum(_res, _output_scale, out_dtype):
+        """ Handles sum of the second quantized tensor. """
+        # This is done in following steps
+        #   1) rhs is the add's second operand. First rhs will be requantized to output scale with
+        #   dtype int32. The int32 dtype is to keep precision high before adding.
+        #   2) Call normal add
+        #   3) Depending on final out_dtype, clip and cast (or just call requantize).
 
-            bn_scale, bn_shift = _get_bn_alpha_coeff(bn_gamma_idx,
-                                                     bn_beta_idx,
-                                                     bn_running_mean_idx,
-                                                     bn_running_var_idx)
-        # Extract kernel with quantized info.
-        kernel, kernel_vector_scale, kernel_zero_point = _get_quantized_kernel(bn_scale)
-        # Get Qnn conv2d
-        conv2d_attrs = _get_mx_conv2d_attrs(subgraph_conv_attrs)
-        res = _get_qnn_conv2d(data, kernel, data_zero_point, kernel_zero_point, data_scale,
-                              kernel_vector_scale, conv2d_attrs)
-        # Extract bias
-        if has_bias or has_bn:
-            bias, bias_scale = _get_quantized_bias(bn_scale,
-                                                   bn_shift,
-                                                   data_scale * kernel_vector_scale,
-                                                   has_bias,
-                                                   has_bn)
-            int32_bias = quantize_conv_bias_mkldnn_from_var(bias, bias_scale)
-            res = _op.nn.bias_add(res, int32_bias, axis=1)
-        min_output_range = attrs.get_float('min_calib_range')
-        max_output_range = attrs.get_float('max_calib_range')
-        input_scale = data_scale * kernel_vector_scale
-        output_scale, out_dtype = \
-            get_conv_mkldnn_requantized_scale_outDtype(min_output_range,
-                                                       max_output_range)
-        # Get the requantized conv output
-        res = _get_requantized_op(res, input_scale, output_scale, out_dtype)
-        # Get the activation if needed.
-        if has_fused_relu:
-            res = _op.nn.relu(res)
-        return res, min_output_range, max_output_range
+        output_scale_val = _output_scale
+        _output_scale = relay.const(_output_scale, 'float32')
+        data_sum = inputs[-5]
+        data_sum_min = inputs[-2]
+        data_sum_max = inputs[-1]
+
+        data_sum_dtype = _infer_type(data_sum).checked_type.dtype
+        data_sum_scale = get_mkldnn_uint8_scale(data_sum_min, data_sum_max) if data_sum_dtype == 'uint8' \
+            else get_mkldnn_int8_scale(data_sum_min, data_sum_max)
+        data_sum_scale_val = data_sum_scale
+        data_sum_scale = relay.const(data_sum_scale, 'float32')
+        zero_point = relay.const(0, 'int32')
+
+        data_sum = relay.qnn.op.requantize(data_sum,
+                                           input_scale=data_sum_scale,
+                                           input_zero_point=zero_point,
+                                           output_scale=_output_scale,
+                                           output_zero_point=zero_point,
+                                           out_dtype='int32')
+
+        # 2) Add two int32 tensors.
+        _res = relay.add(_res, data_sum)
+
+        # 3) Requantize just to change the out dtype.
+        return relay.qnn.op.requantize(_res,
+                                       input_scale=_output_scale,
+                                       input_zero_point=zero_point,
+                                       output_scale=_output_scale,
+                                       output_zero_point=zero_point,
+                                       out_dtype=out_dtype)
+
+
+    def _parse():
+        assert len(subgraphs) == 1
+        subgraph_conv_attrs = StrAttrsDict(_get_subgraph_op(subgraphs, 'Convolution')['attrs'])
+
+        is_quantized = attrs.get_bool('quantized', False)
+        if is_quantized:
+            # The MKLDNN has a quantized convolution subgraph. There are many different arguments
+            # that are taken into account to parse the subgraph.
+            #   * no_bias
+            #   * with_sum
+            #   * with_bn
+            #   * with_postsum_relu
+            #   * with_act
+            #
+            # Note - Relu/clip handling is not required because output min/max take care of that.
+            #
+            # The parsing can be broken down into following steps
+            #   1) Get the input data scale and zero points.
+            #   2) Extract BN params.
+            #   3) Fold the BN params into kernel and bias.
+            #   4) Quantize the kernel.
+            #   4) Call QNN conv2d op.
+            #   5) Quantize bias and call bias_add.
+            #   6) Handle sum of quantized tensors if needed. Or just Requantize.
+
+            has_bias = not subgraph_conv_attrs.get_bool("no_bias", False)
+            has_sum = attrs.get_bool('with_sum', False)
+            has_bn = attrs.get_bool('with_bn', False)
+
+            ###############################################
+            #   1) Get the input data scale and zero point.
+            ###############################################
+            # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are for
+            # the second tensor. So, the data min max indexes are last 3 and 4
+            data_min_idx = -1
+            data_max_idx = -2
+            if has_sum:
+                data_min_idx = -4
+                data_max_idx = -3
+
+            data = inputs[0]
+            data_scale, data_zero_point = \
+                _get_data_scale_and_zp(data, inputs, data_min_idx, data_max_idx)
+
+
+            #############################
+            #   2) Extract the BN params.
+            #############################
+            # Find the indexes to look at for BN.
+            bn_scale = bn_shift = None
+            if has_bn:
+                if has_bias:
+                    bn_start_idx = 3
+                else:
+                    bn_start_idx = 2
+
+                bn_gamma_idx = bn_start_idx
+                bn_beta_idx = bn_start_idx + 1
+                bn_running_mean_idx = bn_start_idx + 2
+                bn_running_var_idx = bn_start_idx + 3
+
+                bn_scale, bn_shift = _get_bn_alpha_coeff(bn_gamma_idx,
+                                                         bn_beta_idx,
+                                                         bn_running_mean_idx,
+                                                         bn_running_var_idx)
+
+            ########################################
+            #   3) Fold the BN into kernel and bias.
+            ########################################
+            kernel, bias = _fold_bn(bn_scale, bn_shift, has_bias, has_bn)
+
+            #######################################################################
+            #   4) Fold BN params into kernel. Get quantized kernel and QNN params.
+            #######################################################################
+            kernel, kernel_vector_scale, kernel_zero_point = _get_quantized_kernel(kernel, bias,
+                                                                                   data_scale)
+
+            ##########################
+            #   5) Call QNN conv2d op.
+            ##########################
+            conv2d_attrs = _get_mx_conv2d_attrs(subgraph_conv_attrs)
+            res = _get_qnn_conv2d(data, kernel, data_zero_point, kernel_zero_point, data_scale,
+                    kernel_vector_scale, conv2d_attrs)
+
+            ###############################################
+            #   6) Fold BN params into bias. Call bias_add.
+            ###############################################
+            if has_bias or has_bn:
+                bias_scale = data_scale * kernel_vector_scale
+                int32_bias = quantize_conv_bias_mkldnn_from_var(bias, bias_scale)
+                res = _op.nn.bias_add(res, int32_bias, axis=1)
+
+            #####################################################################
+            #   7) Handle sum of quantized tensors if needed. Or just Requantize.
+            #####################################################################
+            min_output_range = attrs.get_float('min_calib_range')
+            max_output_range = attrs.get_float('max_calib_range')
+            output_scale, out_dtype = get_conv_mkldnn_requantized_scale_outDtype(min_output_range,
+                                                                                 max_output_range)
+
+            # QNN conv2d output scale is product of data_scale and kernel_vector_scale
+            input_scale = data_scale * kernel_vector_scale
+            if attrs.get_bool('with_sum', False):
+                # There is a second tensor that has to be added to the QNN conv2d output. Therefore,
+                # the QNN conv2d is first requantized to output scale with int32 precision. The
+                # second tensor will also be requantized to output scale with int32 precision,
+                # followed by an add operator.
+                res = _get_requantized_op(res, input_scale, output_scale, 'int32')
+                res = _get_sum(res, output_scale, out_dtype)
+            else:
+                # Get the requantized conv output
+                res = _get_requantized_op(res, input_scale, output_scale, out_dtype)
+
+            return res, min_output_range, max_output_range
+        else:
+            res = _mx_conv(inputs, subgraph_conv_attrs)
+            has_fused_relu = _has_fused_activation()
+            if has_fused_relu:
+                res = _op.nn.relu(res)
+            return res
+
+    return _parse()
 
 
 def _qnn_flatten(inputs, attrs):
@@ -1344,7 +1501,6 @@ def _qnn_dequantize(inputs, attrs):
     input_min = inputs[1]
     input_max = inputs[2]
     in_dtype = _infer_type(data).checked_type.dtype
-    # in_dtype = get_dtype_from_min_max(input_min, input_max)
     result = dequantize_mxnet_min_max(data, input_min, input_max, in_dtype)
     return result
 
@@ -1363,8 +1519,44 @@ def _qnn_activation(inputs, attrs):
 def _qnn_pooling(inputs, attrs):
     input_min = inputs[1]
     input_max = inputs[2]
-    res = _mx_pooling(inputs, attrs)
+    data = inputs[0]
+    data_dtype = _infer_type(data).checked_type.dtype
+    if data_dtype in ('int8', 'uint8'):
+        data = _op.cast(data, 'int32')
+    res = _mx_pooling([data, input_min, input_max], attrs)
+    res = _op.cast(res, data_dtype)
     return res, input_min, input_max
+
+
+def _qnn_batch_norm(inputs, attrs):
+    # Perform batch norm in FP32
+    data = inputs[0]
+
+    # Dequantize the data.
+    data_min_idx, data_max_idx = (-2, -1)
+    data_min, data_max = inputs[data_min_idx], inputs[data_max_idx]
+    data_dtype = _infer_type(data).checked_type.dtype
+    data_scale = get_mkldnn_uint8_scale(data_min, data_max) if data_dtype == 'uint8' \
+        else get_mkldnn_int8_scale(data_min, data_max)
+    data_zp = 0
+    data = relay.qnn.op.dequantize(data,
+                                   relay.const(data_scale, 'float32'),
+                                   relay.const(data_zp, 'int32'))
+
+    # Run BN. The last 4 inputs are same as before.
+    new_inputs = [data, *inputs[1:5]]
+    res = _mx_batch_norm(new_inputs, attrs)
+
+    # Quantize the result
+    min_output_range = attrs.get_float('min_calib_range')
+    max_output_range = attrs.get_float('max_calib_range')
+    output_scale, out_dtype = get_conv_mkldnn_requantized_scale_outDtype(min_output_range,
+                                                                         max_output_range)
+    res = relay.qnn.op.quantize(res[0],
+                                relay.const(output_scale, 'float32'),
+                                relay.const(0, 'int32'),
+                                out_dtype=out_dtype)
+    return res, min_output_range, max_output_range
 
 
 def _qnn_fully_connected(inputs, attrs, subgraphs, params):
@@ -1647,6 +1839,7 @@ _convert_map = {
     "ring_buffer": _mx_contrib_fifo_buffer,
     # Qnn ops
     "_contrib_quantize_v2": _qnn_quantize,
+    "_contrib_quantized_concat" : _qnn_contrib_concat,
     # "_contrib_quantized_fifo_buffer": _qnn_contrib_quantized_fifo_buffer,
     "_contrib_quantized_ring_buffer": _qnn_contrib_quantized_fifo_buffer,
     "_sg_mkldnn_conv": _qnn_conv,
@@ -1654,6 +1847,7 @@ _convert_map = {
     "_contrib_dequantize": _qnn_dequantize,
     "_contrib_quantized_act": _qnn_activation,
     "_contrib_quantized_pooling": _qnn_pooling,
+    "_contrib_quantized_batch_norm" : _qnn_batch_norm,
     "_sg_mkldnn_fully_connected": _qnn_fully_connected,
 }
 
