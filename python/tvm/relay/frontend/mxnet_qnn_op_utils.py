@@ -32,15 +32,15 @@ zero_centered_int8_quantized_range = np.float32(127.5)
 def _get_mkldnn_scale(data_min,
                       data_max,
                       quantized_range):
-    r"""Computes the scale as per MKLDNN specification mentioned here -
+    """Computes the scale as per MKLDNN specification mentioned here -
     https://intel.github.io/mkl-dnn/ex_int8_simplenet.html
 
     Parameters
     ----------
     data_min : float32
-             A number representing the lower end of the tensor to be quantized.
+        A number representing the lower end of the tensor to be quantized.
     data_max : float32
-             A number representing the upper end of the tensor to be quantized.
+        A number representing the upper end of the tensor to be quantized.
     quantized_range : float32
         255 for uint8 and 127 for int8. This is the data type range.
 
@@ -71,7 +71,7 @@ def _quantize_with_zero_centered(data,
                                  data_max,
                                  quantized_range,
                                  out_dtype):
-    r"""Quantizes the given data tensor by calculating the scale
+    """Quantizes the given data tensor by calculating the scale
     using the MKLDNN formula `quantized_range / max(abs(data_min, data_max))`.
     Where quantized_range is 255 for uint8 and 127 for int8. The `data_min`
     and `data_max` are the min and max to use for the `data` tensor elements.
@@ -108,7 +108,7 @@ def _quantize_with_zero_centered(data,
 def _quantize_mkldnn_min_max_uint8(data,
                                    data_min,
                                    data_max):
-    r"""Quantizes the given `data` in float32 and the given
+    """Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `uint8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
     We use our default quantize implementation from src/relay/qnn/op/quantize.cc:72
@@ -140,7 +140,7 @@ def _quantize_mkldnn_min_max_uint8(data,
 def _quantize_mkldnn_min_max_int8(data,
                                   data_min,
                                   data_max):
-    r"""Quantizes the given `data` in float32 and the given
+    """Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type is `int8`.
     The method of quantizing is described here - https://tinyurl.com/y5k6fz5w.
     We use our default quantize implementation from src/relay/qnn/op/quantize.cc:72
@@ -172,16 +172,16 @@ def _quantize_mkldnn_min_max_int8(data,
 
 def get_mkldnn_int8_scale(range_min,
                           range_max):
-    r"""Computes the quantization scale using MKLDNN specifications
+    """Computes the quantization scale using MKLDNN specifications
     with the given range. The output datatype of tensor to be quantized should be
     int8.
 
     Parameters
     ----------
     range_min : float32
-             A number representing the lower end of the tensor to be quantized.
+        A number representing the lower end of the tensor to be quantized.
     range_max : float32
-             A number representing the upper end of the tensor to be quantized.
+        A number representing the upper end of the tensor to be quantized.
 
     Returns
     -------
@@ -196,21 +196,21 @@ def get_mkldnn_int8_scale(range_min,
 
 def get_mkldnn_uint8_scale(range_min,
                            range_max):
-    r"""Computes the quantization scale using MKLDNN specifications
-   with the given range. The output datatype of tensor to be quantized should be
-   uint8.
+    """Computes the quantization scale using MKLDNN specifications
+    with the given range. The output datatype of tensor to be quantized should be
+    uint8.
 
-   Parameters
-   ----------
-   range_min : float32
-            A number representing the lower end of the tensor to be quantized.
-   range_max : float32
-            A number representing the upper end of the tensor to be quantized.
+    Parameters
+    ----------
+    range_min : float32
+        A number representing the lower end of the tensor to be quantized.
+    range_max : float32
+        A number representing the upper end of the tensor to be quantized.
 
-   Returns
-   -------
-   scale : A float32 number which acts as the scale for quantization.
-   """
+    Returns
+    -------
+    scale : A float32 number which acts as the scale for quantization.
+    """
 
     scale = _get_mkldnn_scale(range_min,
                               range_max,
@@ -223,7 +223,7 @@ def quantize_conv_weights_bias_channel_mkldnn_from_var(weights_var,
                                                        min_vector_range,
                                                        max_vector_range,
                                                        data_scale):
-    r"""Helper method to quantize the convolution kernel in prequantized model
+    """Helper method to quantize the convolution kernel in prequantized model
     in MXNet with MKLDNN. The kernel is always quantized to int8 output datatype.
     The inputs are the raw weights which are floating point numbers. The min and
     max ranges are used from the weight itself. The name supplied is used to create
@@ -268,7 +268,7 @@ def quantize_conv_weights_bias_channel_mkldnn_from_var(weights_var,
     zero_point = 0
     quantized_output = quantize(weights_var,
                                 relay.const(vector_scale),
-                                relay.const(zero_point ,'int32'),
+                                relay.const(zero_point, 'int32'),
                                 axis=0,
                                 out_dtype='int8')
     return quantized_output, vector_scale, zero_point
@@ -310,7 +310,7 @@ def quantize_mxnet_min_max(data,
                            min_range,
                            max_range,
                            out_dtype='int8'):
-    r"""Quantizes the given `data` in float32 and the given
+    """Quantizes the given `data` in float32 and the given
     min and max ranges and the output data type.
     Only `int8` and `uint8` is supported as output data types.
     The input data type is expected to be `float32`.
@@ -354,7 +354,7 @@ def _dequantize_zero_centered(data,
                               data_min,
                               data_max,
                               quantized_range):
-    r"""Dequantizes the given data tensor by calculating the scale
+    """Dequantizes the given data tensor by calculating the scale
     using the MKLDNN formula `max(abs(data_min, data_max))/quantized_range`.
     Where quantized_range is 255 for uint8 and 127 for int8. The `data_min`
     and `data_max` are the min and max to use for the `data` tensor elements.
@@ -386,7 +386,7 @@ def _dequantize_zero_centered(data,
 def _dequantize_mkldnn_min_max_int8(data,
                                     imin_range,
                                     imax_range):
-    r"""Dequantizes the given `data` in {int8 or uint8} and the given
+    """Dequantizes the given `data` in {int8 or uint8} and the given
     min and max ranges and the output data type is `float32`.
     The method of dequantizing is described here - https://tinyurl.com/y5k6fz5w.
     We use our default quantize implementation from src/relay/qnn/op/dequantize.cc:67
@@ -418,7 +418,7 @@ def _dequantize_mkldnn_min_max_int8(data,
 def _dequantize_mkldnn_min_max_uint8(data,
                                      imin_range,
                                      imax_range):
-    r"""Dequantizes the given `data` in {int8 or uint8} and the given
+    """Dequantizes the given `data` in {int8 or uint8} and the given
     min and max ranges and the output data type is `float32`.
     The method of dequantize is described here - https://tinyurl.com/y5k6fz5w.
     We use our default quantize implementation from src/relay/qnn/op/dequantize.cc:67
@@ -451,7 +451,7 @@ def dequantize_mxnet_min_max(data,
                              min_range,
                              max_range,
                              in_dtype='int8'):
-    r"""Dequantizes the given `data` in {int8 or uint8} and the given
+    """Dequantizes the given `data` in {int8 or uint8} and the given
     min and max ranges. The output data type is float32.
     Only `float32` is supported as output data types.
     The input data type is expected to be {int8 or uint8}.

@@ -1144,7 +1144,7 @@ def _qnn_contrib_concat(inputs, attrs):
         output_zero_expr = relay.const(output_zero, 'int32')
 
         res = relay.qnn.op.concatenate(input_exprs, input_scales_expr, input_zeros_expr,
-                                     output_scale_expr, output_zero_expr, axis=axis)
+                                       output_scale_expr, output_zero_expr, axis=axis)
         return res, new_min, new_max
 
 
@@ -1330,16 +1330,15 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         #   2) Call normal add
         #   3) Depending on final out_dtype, clip and cast (or just call requantize).
 
-        output_scale_val = _output_scale
         _output_scale = relay.const(_output_scale, 'float32')
         data_sum = inputs[-5]
         data_sum_min = inputs[-2]
         data_sum_max = inputs[-1]
 
         data_sum_dtype = _infer_type(data_sum).checked_type.dtype
-        data_sum_scale = get_mkldnn_uint8_scale(data_sum_min, data_sum_max) if data_sum_dtype == 'uint8' \
+        data_sum_scale = \
+            get_mkldnn_uint8_scale(data_sum_min, data_sum_max) if data_sum_dtype == 'uint8' \
             else get_mkldnn_int8_scale(data_sum_min, data_sum_max)
-        data_sum_scale_val = data_sum_scale
         data_sum_scale = relay.const(data_sum_scale, 'float32')
         zero_point = relay.const(0, 'int32')
 
@@ -1394,8 +1393,8 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             ###############################################
             #   1) Get the input data scale and zero point.
             ###############################################
-            # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are for
-            # the second tensor. So, the data min max indexes are last 3 and 4
+            # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are
+            # for the second tensor. So, the data min max indexes are last 3 and 4
             data_min_idx = -1
             data_max_idx = -2
             if has_sum:
@@ -1444,7 +1443,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             ##########################
             conv2d_attrs = _get_mx_conv2d_attrs(subgraph_conv_attrs)
             res = _get_qnn_conv2d(data, kernel, data_zero_point, kernel_zero_point, data_scale,
-                    kernel_vector_scale, conv2d_attrs)
+                                  kernel_vector_scale, conv2d_attrs)
 
             ###############################################
             #   6) Fold BN params into bias. Call bias_add.
@@ -1478,7 +1477,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             return res, min_output_range, max_output_range
         else:
             res = _mx_conv(inputs, subgraph_conv_attrs)
-            has_fused_relu = _has_fused_activation()
+            has_fused_relu = _has_fused_activation(attrs, ['relu'])
             if has_fused_relu:
                 res = _op.nn.relu(res)
             return res
