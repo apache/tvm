@@ -28,6 +28,52 @@ from mxnet.gluon.model_zoo import vision
 import model_zoo
 
 
+def get_gluon_output(name, x, dtype):
+    net = vision.get_model(name)
+    net.collect_params().initialize(mx.init.Xavier())
+    net_sym = gluon.nn.SymbolBlock(outputs=net(mx.sym.var('data')),
+                                   inputs=mx.sym.var('data'),
+                                   params=net.collect_params())
+    out = net_sym(mx.nd.array(x.astype(dtype))).asnumpy()
+    return out, net_sym
+
+
+def get_mxnet_output(symbol, x, dtype='float32', arg_params=None, aux_params=None):
+    from collections import namedtuple
+    Batch = namedtuple('Batch', ['data'])
+    mod = mx.mod.Module(symbol, label_names=None)
+    mod.bind(data_shapes=[('data', x.shape)], for_training=False)
+    if aux_params is not None and arg_params is not None:
+        mod.set_params(arg_params, aux_params)
+    else:
+        mod.init_params()
+    mod.forward(Batch([mx.nd.array(x.astype(dtype))]))
+    out = mod.get_outputs()[0].asnumpy()
+    args, auxs = mod.get_params()
+    return out, args, auxs
+
+
+def get_tvm_output(symbol, x, args, auxs, target, ctx, out_shape, dtype='float32', gluon_impl=False):
+    shape_dict = {"data": x.shape}
+    if gluon_impl:
+        mod, params = relay.frontend.from_mxnet(symbol, shape_dict)
+    else:
+        mod, params = relay.frontend.from_mxnet(symbol,
+                                                shape_dict,
+                                                arg_params=args,
+                                                aux_params=auxs)
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(mod, target, params=params)
+    m = graph_runtime.create(graph, lib, ctx)
+    # set inputs
+    m.set_input("data", tvm.nd.array(x.astype(dtype)))
+    m.set_input(**params)
+    m.run()
+    # get outputs
+    out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
+    return out.asnumpy()
+
+
 def verify_mxnet_frontend_impl(mx_symbol,
                                data_shape=(1, 3, 224, 224),
                                out_shape=(1, 1000),
@@ -35,51 +81,10 @@ def verify_mxnet_frontend_impl(mx_symbol,
                                name=None,
                                dtype='float32'):
     """Use name different from test to avoid pytest picking it up"""
-    if gluon_impl:
-        def get_gluon_output(name, x):
-            net = vision.get_model(name)
-            net.collect_params().initialize(mx.init.Xavier())
-            net_sym = gluon.nn.SymbolBlock(outputs=net(mx.sym.var('data')),
-                                           inputs=mx.sym.var('data'),
-                                           params=net.collect_params())
-            out = net_sym(mx.nd.array(x.astype(dtype))).asnumpy()
-            return out, net_sym
-    else:
-        def get_mxnet_output(symbol, x, dtype='float32'):
-            from collections import namedtuple
-            Batch = namedtuple('Batch', ['data'])
-            mod = mx.mod.Module(symbol, label_names=None)
-            mod.bind(data_shapes=[('data', x.shape)], for_training=False)
-            mod.init_params()
-            mod.forward(Batch([mx.nd.array(x.astype(dtype))]))
-            out = mod.get_outputs()[0].asnumpy()
-            args, auxs = mod.get_params()
-            return out, args, auxs
-
-    def get_tvm_output(symbol, x, args, auxs, target, ctx, dtype='float32'):
-        shape_dict = {"data": x.shape}
-        if gluon_impl:
-            mod, params = relay.frontend.from_mxnet(symbol, shape_dict)
-        else:
-            mod, params = relay.frontend.from_mxnet(symbol,
-                                                    shape_dict,
-                                                    arg_params=args,
-                                                    aux_params=auxs)
-        with relay.build_config(opt_level=3):
-            graph, lib, params = relay.build(mod, target, params=params)
-        m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
-        m.set_input("data", tvm.nd.array(x.astype(dtype)))
-        m.set_input(**params)
-        m.run()
-        # get outputs
-        out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
-        return out.asnumpy()
-
     # random input
     x = np.random.uniform(size=data_shape)
     if gluon_impl:
-        gluon_out, gluon_sym = get_gluon_output(name, x)
+        gluon_out, gluon_sym = get_gluon_output(name, x, dtype)
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(gluon_sym, x, None, None, target, ctx, dtype)
             tvm.testing.assert_allclose(gluon_out, tvm_out, rtol=1e-5, atol=1e-5)
@@ -87,8 +92,108 @@ def verify_mxnet_frontend_impl(mx_symbol,
         mx_out, args, auxs = get_mxnet_output(mx_symbol, x, dtype)
         assert "data" not in args
         for target, ctx in ctx_list():
-            tvm_out = get_tvm_output(mx_symbol, x, args, auxs, target, ctx, dtype)
+            tvm_out = get_tvm_output(mx_symbol, x, args, auxs, target, ctx, out_shape, dtype)
             tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def verify_mxnet_quantized_forward_impl(mx_symbol,
+                                        data_shape=(1, 3, 224, 224),
+                                        out_shape=(1, 1000),
+                                        name=None,
+                                        dtype='float32'):
+
+    def use_old_mxnet_quantization_api():
+        mx_version = float(mx.__version__[:3])
+        return mx_version <= 1.5
+
+    def quantize_with_old_api(sym, _arg_params, _aux_params, quantized_dtype, _data_shape, logger):
+        """Calibrate and quantize the network with dummy data"""
+        ctx = mx.cpu(0)
+        batch_size = 1
+        num_calib_batches = 5
+        num_calib_examples = num_calib_batches * batch_size
+        calibration_data = [mx.random.uniform(-1.0, 1.0, shape=_data_shape, ctx=ctx, dtype='float32')]
+        data = mx.io.NDArrayIter(data=calibration_data, label=[], batch_size=batch_size,
+                                 shuffle=True, last_batch_handle='discard')
+        qsym = sym.get_backend_symbol('MKLDNN_QUANTIZE')
+        qsym, qarg_params, qaux_params = mx.contrib.quantization.quantize_model(sym=qsym,
+                                                                                arg_params=_arg_params,
+                                                                                aux_params=_aux_params,
+                                                                                ctx=ctx,
+                                                                                excluded_sym_names=[],
+                                                                                calib_data=data,
+                                                                                num_calib_examples=num_calib_examples,
+                                                                                calib_mode='none',
+                                                                                quantized_dtype=quantized_dtype,
+                                                                                label_names=None,
+                                                                                logger=logger)
+        qsym = sym.get_backend_symbol('MKLDNN_QUANTIZE')
+        return qsym, qarg_params, qaux_params
+
+    def quantized_with_new_api(sym, _arg_params, _aux_params, quantized_dtype, _data_shape, logger):
+        from mxnet.contrib.quantization import *
+
+        sym = sym.get_backend_symbol('MKLDNN_QUANTIZE')
+        # set exclude layers
+        excluded_names = []
+        # set calib mode.
+        calib_mode = 'naive'
+        # set calib_layer
+        calib_layer = None
+        # set quantized_dtype
+        ctx = mx.cpu(0)
+        cqsym, cqarg_params, _aux_params, collector = \
+            quantize_graph(sym=sym, arg_params=_arg_params, aux_params=_aux_params,
+                           excluded_sym_names=excluded_names,
+                           calib_mode=calib_mode, calib_layer=calib_layer,
+                           quantized_dtype=quantized_dtype, logger=logger)
+        batch_size = 16
+        calibration_data = [mx.random.uniform(-1.0, 1.0, shape=_data_shape, ctx=ctx, dtype='float32')]
+
+        data = mx.io.NDArrayIter(data=calibration_data, label=[], batch_size=batch_size,
+                                 shuffle=True, last_batch_handle='discard')
+        # create module
+        mod = mx.mod.Module(symbol=sym, label_names=None, context=mx.cpu())
+        mod.bind(for_training=False, data_shapes=data.provide_data, label_shapes=None)
+        mod.set_params(_arg_params, _aux_params)
+        # calibration configs
+        # set num_calib_batches
+        num_calib_batches = 5
+        max_num_examples = num_calib_batches * batch_size
+        # monitor FP32 Inference
+        mod._exec_group.execs[0].set_monitor_callback(collector.collect, monitor_all=True)
+        num_batches = 0
+        num_examples = 0
+        for batch in data:
+            mod.forward(data_batch=batch, is_train=False)
+            num_batches += 1
+            num_examples += batch_size
+            if num_examples >= max_num_examples:
+                break
+        if logger is not None:
+            logger.info("Collected statistics from %d batches with batch_size=%d"
+                        % (num_batches, batch_size))
+        cqsym, cqarg_params, _aux_params = calib_graph(qsym=cqsym,
+                                                       arg_params=_arg_params,
+                                                       aux_params=_aux_params,
+                                                       collector=collector,
+                                                       calib_mode=calib_mode,
+                                                       quantized_dtype=quantized_dtype,
+                                                       logger=logger)
+        return cqsym, cqarg_params, _aux_params
+
+    ctx = mx.cpu(0)
+    x = mx.random.uniform(-1.0, 1.0, shape=data_shape, ctx=ctx, dtype='float32')
+    _, arg_params, aux_params = get_mxnet_output(mx_symbol, x)
+    quantize_api = quantize_with_old_api if use_old_mxnet_quantization_api() else quantized_with_new_api
+
+
+
+
+
+
+
+
 
 def test_forward_mlp():
     mlp = model_zoo.mx_mlp()
