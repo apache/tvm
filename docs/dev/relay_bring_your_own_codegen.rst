@@ -18,7 +18,6 @@
 =============================
 Bring Your Own Codegen To TVM
 =============================
-**Author**: `Zhi Chen <https://github.com/zhiics>`_, `Cody Yu <https://github.com/comaniac>`_
 
 As the number of hardware devices targeted by deep learning workloads keeps increasing, the required knowledge for users to achieve high performance on various devices keeps increasing as well. To free data scientists from worrying about the performance when developing a new model, hardware backend providers either provide libraries such as MKLDNN or cuDNN with many commonly used deep learning operators, or provide frameworks such as TensorRT to let users describe their models in a certain way to achieve high performance. However, users have to learn a new programming interface when they attempt to work on a new library or device. As a result, the demand for a unified programming interface becomes more and more important to 1) let all users and hardware backend providers stand on the same page, and 2) provide a feasible solution to allow specialized hardware or library to only support widely used operators with extremely high performance, but fallback unsupported operators to general devices like CPU/GPU.
 
@@ -930,3 +929,30 @@ In addition, if you want to support module creation directly from an ExampleJSON
   });
 
 It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.module.load("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
+
+*******
+Summary
+*******
+
+In summary, here is a checklist for you to refer:
+
+* A codegen class derived from ``ExprVisitor`` and ``CodegenCBase`` (only for C codegen) with following functions.
+
+  * ``VisitExpr_(const CallNode* call)`` to collect call node information.
+  * Other visitor functions you needed to collect subgraph information.
+  * ``JIT`` to generate subgraph code.
+  * Register codegen.
+
+* A function to create ``CSourceModule`` (for C codegen).
+
+* A runtime module class derived from ``ModuleNode`` with following functions (for your graph representation).
+
+  * Constructor.  
+  * ``GetFunction`` to generate a TVM runtime compatible ``PackedFunc``.
+  * ``Run`` to execute a subgraph.
+  * Register a runtime creation API.
+  * ``SaveToBinary`` and ``LoadFromBinary`` to serialize/deserialize customized runtime module.
+  * Register ``LoadFromBinary`` API to support ``tvm.module.load(your_module_lib_path)``.
+  * (optional) ``Create`` to support customized runtime module construction from subgraph file in your representation.
+
+* An annotator to annotate a user Relay program to make use of your compiler and runtime (TBA).
