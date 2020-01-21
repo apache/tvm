@@ -24,15 +24,15 @@
 #ifndef TOPI_CUDA_SOFTMAX_H_
 #define TOPI_CUDA_SOFTMAX_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/top/operation.h"
-#include "tvm/top/schedule_pass.h"
-#include "tvm/target/generic_func.h"
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule_pass.h>
+#include <tvm/target/generic_func.h>
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
 
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 namespace cuda {
 
@@ -52,9 +52,9 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   auto s = create_schedule(out_ops);
 
   auto softmax = outs[0];
-  tvm::top::Tensor max_elem;
-  tvm::top::Tensor expsum;
-  tvm::top::Tensor exp;
+  tvm::te::Tensor max_elem;
+  tvm::te::Tensor expsum;
+  tvm::te::Tensor exp;
   bool has_exp = false;
 
   auto tag = softmax->op.as<ComputeOpNode>()->tag;
@@ -71,8 +71,8 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   }
 
   int num_thread = 64;
-  auto block_x = tvm::top::thread_axis(Range(), "blockIdx.x");
-  auto thread_x = tvm::top::thread_axis(Range(0, num_thread), "threadIdx.x");
+  auto block_x = tvm::te::thread_axis(Range(), "blockIdx.x");
+  auto thread_x = tvm::te::thread_axis(Range(0, num_thread), "threadIdx.x");
 
   if (has_exp) {
     s[exp].bind(exp->op.as<ComputeOpNode>()->axis[0], block_x);

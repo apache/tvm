@@ -82,8 +82,8 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -178,8 +178,8 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -227,8 +227,8 @@ RELAY_REGISTER_OP("memory.invoke_tvm_op")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -251,8 +251,8 @@ RELAY_REGISTER_OP("memory.kill")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -339,8 +339,8 @@ RELAY_REGISTER_OP("memory.shape_func")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 

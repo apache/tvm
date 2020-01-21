@@ -23,7 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/relay/transform.h>
 
 
@@ -157,8 +157,8 @@ TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 TVM_REGISTER_GLOBAL("relay._transform.MakeFunctionPass")
 .set_body_typed(FunctionPassNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FunctionPassNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<FunctionPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const FunctionPassNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Function pass: " << info->name

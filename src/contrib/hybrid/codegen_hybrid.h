@@ -28,7 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/lowered_func.h>
-#include <tvm/top/schedule.h>
+#include <tvm/te/schedule.h>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace contrib {
 
-using namespace top;
+using namespace te;
 using namespace tir;
 /*!
  * \brief A base class to generate Hybrid Script.

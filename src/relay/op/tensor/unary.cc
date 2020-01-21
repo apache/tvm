@@ -34,9 +34,9 @@ namespace relay {
 
 #define RELAY_UNARY_COMPUTE(FTOPI)                      \
   [] (const Attrs& attrs,                               \
-      const Array<top::Tensor>& inputs,                      \
+      const Array<te::Tensor>& inputs,                      \
       const Type& out_type,                             \
-      const Target& target) -> Array<top::Tensor> {          \
+      const Target& target) -> Array<te::Tensor> {          \
     return {FTOPI(inputs[0])};                          \
   }                                                     \
 
@@ -290,8 +290,8 @@ bool ShapeOfRel(const Array<Type>& types,
   return true;
 }
 
-Array<top::Tensor> ShapeOfCompute(const Attrs& attrs,
-                             const Array<top::Tensor>& inputs,
+Array<te::Tensor> ShapeOfCompute(const Attrs& attrs,
+                             const Array<te::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   CHECK_EQ(inputs.size(), 1);
@@ -341,14 +341,14 @@ bool NdarraySizeRel(const Array<Type>& types,
   return true;
 }
 
-Array<top::Tensor> NdarraySizeCompute(const Attrs& attrs,
-                          const Array<top::Tensor>& inputs,
+Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
+                          const Array<te::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
-  return Array<top::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
+  return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
 TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")

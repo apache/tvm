@@ -26,6 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/module.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -40,6 +41,7 @@ using BaseFunc = tvm::BaseFunc;
 using BaseFuncNode = tvm::BaseFuncNode;
 using GlobalVar = tvm::GlobalVar;
 using GlobalVarNode = tvm::GlobalVarNode;
+using tvm::PrettyPrint;
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
@@ -539,20 +541,6 @@ class TempExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_METHODS(TempExpr, RelayExpr, TempExprNode);
 };
 
-/*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
-std::string PrettyPrint(const ObjectRef& node);
-
-/*!
- * \brief Render the node as a string in the Relay text format.
- * \param node The node to be rendered.
- * \param show_meta_data Whether to print meta data section.
- * \param annotate An optional callback function for attaching
- *        additional comment block to an expr.
- * \return The text representation.
- */
-std::string AsText(const ObjectRef& node,
-                   bool show_meta_data = true,
-                   runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 
 /*! \brief namespace of the attributes that are attached to a function. */
 namespace attr {

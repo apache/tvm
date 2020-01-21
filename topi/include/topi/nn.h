@@ -24,19 +24,19 @@
 #ifndef TOPI_NN_H_
 #define TOPI_NN_H_
 
+#include <topi/tags.h>
+#include <topi/detail/constant_utils.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/op.h>
+#include <tvm/te/operation.h>
+
 #include <algorithm>
 #include <string>
 
-#include "topi/tags.h"
-#include "topi/detail/constant_utils.h"
-#include "tvm/tir/expr.h"
-#include "tvm/tir/ir_pass.h"
-#include "tvm/top/operation.h"
-#include "tvm/tir/op.h"
-
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 namespace detail {
 
 template <typename T>
@@ -62,11 +62,11 @@ tvm::PrimExpr Map(const tvm::Array<tvm::PrimExpr>& exprs, T op) {
  * \return A Tensor whose op member is the relu operation
  */
 template <typename T>
-inline tvm::top::Tensor relu(const tvm::top::Tensor& t,
+inline tvm::te::Tensor relu(const tvm::te::Tensor& t,
                         T threshold = static_cast<T>(0),
                         std::string name = "T_relu",
                         std::string tag = kElementWise) {
-  return tvm::top::compute(
+  return tvm::te::compute(
       t->shape,
       [&](const tvm::Array<tvm::tir::Var>& i) {
         auto threshold_const = tvm::tir::make_const(t->dtype, threshold);
@@ -86,11 +86,11 @@ inline tvm::top::Tensor relu(const tvm::top::Tensor& t,
 *
 * \return A Tensor whose op member is the leaky relu operation
 */
-inline tvm::top::Tensor leaky_relu(const tvm::top::Tensor& t,
+inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t,
                               double alpha = 0.1,
                               std::string name = "T_leaky_relu",
                               std::string tag = kElementWise) {
-  return tvm::top::compute(
+  return tvm::te::compute(
     t->shape,
     [&](const tvm::Array<tvm::tir::Var>& i) {
       auto value = t(i);
@@ -112,8 +112,8 @@ inline tvm::top::Tensor leaky_relu(const tvm::top::Tensor& t,
  *
  * \return A Tensor whose op member is the parametric relu operation
  */
-inline tvm::top::Tensor prelu(const tvm::top::Tensor &x,
-                         const tvm::top::Tensor &slope,
+inline tvm::te::Tensor prelu(const tvm::te::Tensor &x,
+                         const tvm::te::Tensor &slope,
                          const int axis = 1,
                          std::string name = "T_prelu",
                          std::string tag = kBroadcast) {
@@ -123,7 +123,7 @@ inline tvm::top::Tensor prelu(const tvm::top::Tensor &x,
         topi::detail::GetConstInt(x->shape[axis]))
         << "Wrong slope shape received.";
 
-  return tvm::top::compute(x->shape,
+  return tvm::te::compute(x->shape,
                      [&](const tvm::Array<tvm::tir::Var> &indices) {
                         auto xval = x(indices);
                         return tvm::tir::SelectNode::make(
@@ -172,7 +172,7 @@ inline tvm::top::Tensor prelu(const tvm::top::Tensor &x,
  *
  *
  */
-inline tvm::top::Tensor pad(const tvm::top::Tensor& t,
+inline tvm::te::Tensor pad(const tvm::te::Tensor& t,
                        const tvm::Array<tvm::PrimExpr>& pad_before,
                        tvm::Array<tvm::PrimExpr> pad_after = tvm::Array<tvm::PrimExpr>(),
                        PrimExpr pad_value = PrimExpr(),
@@ -252,7 +252,7 @@ inline tvm::top::Tensor pad(const tvm::top::Tensor& t,
     }
     return t(indices);
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -275,8 +275,8 @@ inline tvm::top::Tensor pad(const tvm::top::Tensor& t,
  * \return A Tensor whose op member is the 2-D convolution operation (NCHW
  * layout)
  */
-inline tvm::top::Tensor conv2d_nchw(const tvm::top::Tensor& I,
-                               const tvm::top::Tensor& W,
+inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I,
+                               const tvm::te::Tensor& W,
                                int pad_h = 0,
                                int pad_w = 0,
                                int stride_h = 1,
@@ -293,9 +293,9 @@ inline tvm::top::Tensor conv2d_nchw(const tvm::top::Tensor& I,
     indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
     indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
   };
-  auto i = tvm::top::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
-  auto kh = tvm::top::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
-  auto kw = tvm::top::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
+  auto i = tvm::te::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
+  auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
+  auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
@@ -304,7 +304,7 @@ inline tvm::top::Tensor conv2d_nchw(const tvm::top::Tensor& I,
         T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw),
         {i, kh, kw});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -326,8 +326,8 @@ inline tvm::top::Tensor conv2d_nchw(const tvm::top::Tensor& I,
  * \return A Tensor whose op member is the 2-D convolution operation
  * (HWCN layout)
  */
-inline tvm::top::Tensor conv2d_hwcn(const tvm::top::Tensor& I,
-                               const tvm::top::Tensor& W,
+inline tvm::te::Tensor conv2d_hwcn(const tvm::te::Tensor& I,
+                               const tvm::te::Tensor& W,
                                int pad_h = 0,
                                int pad_w = 0,
                                int stride_h = 1,
@@ -344,16 +344,16 @@ inline tvm::top::Tensor conv2d_hwcn(const tvm::top::Tensor& I,
       I->shape[2],                                             // B
       W->shape[3]                                              // O
   };
-  auto i = tvm::top::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
-  auto kh = tvm::top::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
-  auto kw = tvm::top::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
+  auto i = tvm::te::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
+  auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
+  auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0) ? I : pad(I, {pad_h, pad_w});
   auto l = [&](tvm::tir::Var b, tvm::tir::Var o, tvm::tir::Var h, tvm::tir::Var w) {
     return tvm::sum(
         T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o),
         {i, kh, kw});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 
@@ -377,8 +377,8 @@ inline tvm::top::Tensor conv2d_hwcn(const tvm::top::Tensor& I,
  * \return A Tensor whose op member is the 2-D depthwise convolution operation
  * (NCHW layout)
  */
-inline tvm::top::Tensor depthwise_conv2d_nchw(const tvm::top::Tensor& I,
-                                         const tvm::top::Tensor& W,
+inline tvm::te::Tensor depthwise_conv2d_nchw(const tvm::te::Tensor& I,
+                                         const tvm::te::Tensor& W,
                                          int pad_h = 0,
                                          int pad_w = 0,
                                          int stride_h = 1,
@@ -396,9 +396,9 @@ inline tvm::top::Tensor depthwise_conv2d_nchw(const tvm::top::Tensor& I,
       indexdiv(I->shape[2] - W->shape[2] + 2 * pad_h, stride_h) + 1,  // H
       indexdiv(I->shape[3] - W->shape[3] + 2 * pad_w, stride_w) + 1   // W
   };
-  auto i = tvm::top::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
-  auto kh = tvm::top::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
-  auto kw = tvm::top::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
+  auto i = tvm::te::reduce_axis(tvm::Range{0, I->shape[1]}, "i");
+  auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[2]}, "kh");
+  auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
@@ -407,11 +407,11 @@ inline tvm::top::Tensor depthwise_conv2d_nchw(const tvm::top::Tensor& I,
                     W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
                     {i, kh, kw});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
-inline tvm::top::Tensor depthwise_conv2d_nhwc(const tvm::top::Tensor& I,
-                                         const tvm::top::Tensor& W,
+inline tvm::te::Tensor depthwise_conv2d_nhwc(const tvm::te::Tensor& I,
+                                         const tvm::te::Tensor& W,
                                          int pad_h = 0,
                                          int pad_w = 0,
                                          int stride_h = 1,
@@ -429,9 +429,9 @@ inline tvm::top::Tensor depthwise_conv2d_nhwc(const tvm::top::Tensor& I,
       indexdiv(I->shape[2] - W->shape[2] + 2 * pad_w, stride_w) + 1,   // W
       W->shape[3],                                            // O
   };
-  auto i = tvm::top::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
-  auto kh = tvm::top::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
-  auto kw = tvm::top::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
+  auto i = tvm::te::reduce_axis(tvm::Range{0, I->shape[3]}, "i");
+  auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
+  auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::PrimExpr(0), pad_h, pad_w, tvm::PrimExpr(0)});
@@ -440,7 +440,7 @@ inline tvm::top::Tensor depthwise_conv2d_nhwc(const tvm::top::Tensor& I,
                     W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
                     {kh, kw, i});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -463,8 +463,8 @@ inline tvm::top::Tensor depthwise_conv2d_nhwc(const tvm::top::Tensor& I,
  * \return A Tensor whose op member is the 2-D groupconvolution operation
  * (NCHW layout)
  */
-inline tvm::top::Tensor group_conv2d_ngchw(const tvm::top::Tensor& I,
-                                      const tvm::top::Tensor& W,
+inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I,
+                                      const tvm::te::Tensor& W,
                                       int pad_h = 0,
                                       int pad_w = 0,
                                       int stride_h = 1,
@@ -482,9 +482,9 @@ inline tvm::top::Tensor group_conv2d_ngchw(const tvm::top::Tensor& I,
       indexdiv(I->shape[3] - W->shape[3] + 2 * pad_h, stride_h) + 1,  // H
       indexdiv(I->shape[4] - W->shape[4] + 2 * pad_w, stride_w) + 1   // W
   };
-  auto i = tvm::top::reduce_axis(tvm::Range{0, I->shape[2]}, "i");
-  auto kh = tvm::top::reduce_axis(tvm::Range{0, W->shape[3]}, "kh");
-  auto kw = tvm::top::reduce_axis(tvm::Range{0, W->shape[4]}, "kw");
+  auto i = tvm::te::reduce_axis(tvm::Range{0, I->shape[2]}, "i");
+  auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[3]}, "kh");
+  auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[4]}, "kw");
 
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
@@ -499,7 +499,7 @@ inline tvm::top::Tensor group_conv2d_ngchw(const tvm::top::Tensor& I,
         I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
         {i, kh, kw});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 }  // namespace topi

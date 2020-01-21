@@ -957,7 +957,7 @@ class FuseMutator : private ExprMutator {
 
   // Debug function, dump the group assignment in text.
   void DebugDumpGroup(const Expr& body) {
-    std::string text = AsText(body, false, [this](const Expr& expr) -> std::string {
+    std::string text = AsText(body, false, [this](const ObjectRef& expr) -> std::string {
         auto it = gmap_.find(expr.get());
         if (it == gmap_.end()) return "";
         std::ostringstream os;

@@ -32,7 +32,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/support/with.h>
-#include <tvm/top/schedule_pass.h>
+#include <tvm/te/schedule_pass.h>
 #include <tvm/tir/lowered_func.h>
 
 #include <string>
@@ -52,10 +52,10 @@ namespace tvm {
 * \return The lowered function.
 */
 TVM_DLL Array<tir::LoweredFunc> lower(
-    top::Schedule sch,
-    const Array<top::Tensor>& args,
+    te::Schedule sch,
+    const Array<te::Tensor>& args,
     const std::string& name,
-    const std::unordered_map<top::Tensor, tir::Buffer>& binds,
+    const std::unordered_map<te::Tensor, tir::Buffer>& binds,
     const BuildConfig& config);
 /*!
 * \brief Split host/device function and running necessary pass before build

@@ -20,10 +20,10 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tir/ir_pass.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 TEST(IRSIMPLIFY, MinMax) {
-  auto x = tvm::top::var("x");
+  auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1)) ;
   auto e1s = tvm::tir::CanonicalSimplify(e1);
   CHECK(tvm::tir::is_zero(e1s));
@@ -34,7 +34,7 @@ TEST(IRSIMPLIFY, MinMax) {
 }
 
 TEST(IRSIMPLIFY, Mul) {
-  auto x = tvm::top::var("x");
+  auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x) ;
   auto es = tvm::tir::CanonicalSimplify(e);
   CHECK(tvm::tir::is_zero(es));

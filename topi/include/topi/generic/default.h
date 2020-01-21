@@ -24,15 +24,15 @@
 #ifndef TOPI_GENERIC_DEFAULT_H_
 #define TOPI_GENERIC_DEFAULT_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/top/operation.h"
-#include "tvm/top/schedule_pass.h"
-#include "tvm/target/generic_func.h"
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule_pass.h>
+#include <tvm/target/generic_func.h>
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
 
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 namespace generic {
 /*!
@@ -68,7 +68,7 @@ inline Schedule default_schedule_auto_inline(const Target& target, Array<Tensor>
   }
   auto s = create_schedule(out_ops);
   auto x = outs[0];
-  tvm::top::AutoInlineInjective(s);
+  tvm::te::AutoInlineInjective(s);
   auto axis = s[x]->op.as<ComputeOpNode>()->axis;
   if (axis.size() > 0) {
     detail::Fuse(s[x], axis);

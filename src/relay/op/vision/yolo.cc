@@ -82,12 +82,12 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .set_attrs_type<YoloReorgAttrs>()
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
+                                         const Array<te::Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
   const auto* params = attrs.as<YoloReorgAttrs>();
   CHECK(params != nullptr);
-  return Array<top::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
+  return Array<te::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
 });
 
 }  // namespace relay

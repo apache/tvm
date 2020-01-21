@@ -21,13 +21,13 @@
  * \file target/target_info.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/target/target_info.h>
 
 namespace tvm {
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {
   auto* op = static_cast<const MemoryInfoNode*>(node.get());
   p->stream << "mem-info("
             << "unit_bits=" << op->unit_bits << ", "

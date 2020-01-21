@@ -59,8 +59,8 @@ Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
   return Attrs(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<DictAttrsNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const DictAttrsNode*>(node.get());
     p->stream << op->dict;
 });

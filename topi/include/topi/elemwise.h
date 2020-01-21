@@ -32,7 +32,7 @@
 
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 // Unary intrinsic operators
 #define TOPI_DECLARE_UNARY_OP(OpName)                           \

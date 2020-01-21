@@ -20,15 +20,15 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tir/ir_pass.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 TEST(SimplePasses, HasSideEffect) {
   using namespace tvm;
-  auto n = top::var("n");
+  auto n = te::var("n");
   Array<PrimExpr> shape;
   shape.push_back(n);
 
-  auto A = top::placeholder(shape, DataType::Float(32), "A");
+  auto A = te::placeholder(shape, DataType::Float(32), "A");
 
   CHECK(!tvm::tir::HasSideEffect(A[0]));
 }
