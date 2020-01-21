@@ -45,24 +45,28 @@ SizeVar::SizeVar(std::string name_hint, DataType t)
 SizeVarNode::SizeVarNode(DataType t, std::string name_hint)
     : VarNode(t, std::move(name_hint)) {}
 
-IterVar IterVarNode::make(Range dom,
-                          Var var,
-                          IterVarType t,
-                          std::string thread_tag) {
-  ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
-  n->dom = dom;
-  n->var = var;
-  n->iter_type = t;
-  n->thread_tag = thread_tag;
-  return IterVar(n);
+IterVarNode::IterVarNode(DataType dtype, std::string name_hint,
+                         Range dom, IterVarType iter_type,
+                         std::string thread_tag) : VarNode(dtype, std::move(name_hint)) {
+  this->dom = dom;
+  this->iter_type = iter_type;
+  this->thread_tag = std::move(thread_tag);
 }
+
+IterVar::IterVar(Range dom,
+                 IterVarType iter_type,
+                 std::string name_hint,
+                 DataType t,
+                 std::string thread_tag)
+    : IterVar(make_object<IterVarNode>(
+        t, name_hint, dom, iter_type, thread_tag)) {}
 
 TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
 .set_dispatch<IterVarNode>([](const ObjectRef& node, NodePrinter* p) {
     auto* op = static_cast<const IterVarNode*>(node.get());
     p->stream << "iter_var(";
-    if (op->var->name_hint.length() != 0) {
-      p->stream  << op->var->name_hint << ", ";
+    if (op->name_hint.length() != 0) {
+      p->stream  << op->name_hint << ", ";
     }
     if (op->dom.defined()) {
       p->stream << op->dom;

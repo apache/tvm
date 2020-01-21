@@ -43,7 +43,7 @@ class LayoutAxis {
  public:
   static const LayoutAxis& Get(const char name);
 
-  // Get the singleton LayoutAxis using itvar->var->name_hint
+  // Get the singleton LayoutAxis using itvar->name_hint
   static const LayoutAxis& Get(const tir::IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
@@ -223,7 +223,7 @@ class Layout : public ObjectRef {
     for (auto dst_axis : dst_layout->axes) {
       if (LayoutAxis::Get(dst_axis).IsPrimal()) {
         if (!this->Contains(LayoutAxis::Get(dst_axis))) {
-          new_src_layout_str += dst_axis->var->name_hint;
+          new_src_layout_str += dst_axis->name_hint;
         }
       }
     }
@@ -244,7 +244,7 @@ class Layout : public ObjectRef {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i]->var->name_hint == axis.name()) return static_cast<int32_t>(i);
+      if (axes[i]->name_hint == axis.name()) return static_cast<int32_t>(i);
     }
     return -1;
   }
@@ -266,7 +266,7 @@ class Layout : public ObjectRef {
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
     for (const tir::IterVar var : operator->()->axes) {
-      if (var->var->name_hint == axis.name()) {
+      if (var->name_hint == axis.name()) {
         return true;
       }
     }

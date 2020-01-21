@@ -45,7 +45,7 @@ PrimExpr::PrimExpr(std::string str)
 PrimExpr PrimExpr::FromObject_(ObjectPtr<Object> ptr) {
   using runtime::ObjectTypeChecker;
   if (ptr->IsInstance<tir::IterVarNode>()) {
-    return tir::IterVar(ptr)->var;
+    return tir::IterVar(ptr);
   }
   if (ptr->IsInstance<top::TensorNode>()) {
     return top::Tensor(ptr)();
