@@ -82,8 +82,8 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -154,11 +154,11 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     for (auto i = 0u; i < dims; i++) {
       out_shape.push_back(tvm::Integer(sh[i]));
     }
-    alloc_type = TensorTypeNode::make(out_shape, alloc_attrs->dtype);
+    alloc_type = TensorType(out_shape, alloc_attrs->dtype);
   } else {
     CHECK(alloc_attrs->assert_shape.defined())
         << "the assert_shape must be set when const_shape is not";
-    alloc_type = TensorTypeNode::make(alloc_attrs->assert_shape, alloc_attrs->dtype);
+    alloc_type = TensorType(alloc_attrs->assert_shape, alloc_attrs->dtype);
     return true;
   }
 
@@ -178,8 +178,8 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -227,8 +227,8 @@ RELAY_REGISTER_OP("memory.invoke_tvm_op")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -251,8 +251,8 @@ RELAY_REGISTER_OP("memory.kill")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 
@@ -309,13 +309,13 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);
-      shape_func_ins.push_back(TensorTypeNode::make(shape, DataType::Int(64)));
+      shape_func_ins.push_back(TensorType(shape, DataType::Int(64)));
     }
   }
 
   for (auto out_type : out_types) {
     auto rank_shape = RankShape(out_type->shape);
-    shape_func_outs.push_back(TensorTypeNode::make(rank_shape, DataType::Int(64)));
+    shape_func_outs.push_back(TensorType(rank_shape, DataType::Int(64)));
   }
 
   auto input_type = TupleType(shape_func_ins);
@@ -339,8 +339,8 @@ RELAY_REGISTER_OP("memory.shape_func")
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
     .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                              const Type& out_dtype, const Target& target) -> Array<top::Tensor> {
+                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                              const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
                              return {topi::identity(inputs[0])};
                            });
 

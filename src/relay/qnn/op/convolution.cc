@@ -21,7 +21,7 @@
  * \file src/relay/qnn/op/convolution.cc
  * \brief Property def of qnn convolution operator.
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
@@ -69,7 +69,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
-  return param->channels.defined() && tvm::ir::Equal(param->channels, param->groups) &&
+  return param->channels.defined() && tvm::tir::Equal(param->channels, param->groups) &&
          param->groups != 1;
 }
 

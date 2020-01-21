@@ -28,7 +28,7 @@
  *  3. Collect the device allocation of each expression.
  */
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
@@ -577,7 +577,7 @@ Pass RewriteAnnotatedOps(int fallback_device) {
     return Downcast<Function>(RewriteAnnotatedOps(f, fallback_device));
   };
   return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")

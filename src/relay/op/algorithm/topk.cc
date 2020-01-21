@@ -52,8 +52,8 @@ bool TopKRel(const Array<Type>& types,
       out_shape.push_back(param->k);
     }
   }
-  auto values_ty = TensorTypeNode::make(out_shape, data->dtype);
-  auto indices_ty = TensorTypeNode::make(out_shape, param->dtype);
+  auto values_ty = TensorType(out_shape, data->dtype);
+  auto indices_ty = TensorType(out_shape, param->dtype);
   if (param->ret_type == "both") {
     reporter->Assign(types[1], TupleType({values_ty, indices_ty}));
   } else if (param->ret_type == "values") {

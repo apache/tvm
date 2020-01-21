@@ -23,20 +23,18 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
-from tvm import autotvm
+from tvm import autotvm, container
+from tvm.object import Object
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
 from . import _vm
-from . import vmobj as _obj
 from .interpreter import Executor
-
-ADT = _obj.ADT
 
 def _convert(arg, cargs):
     if isinstance(arg, _expr.Constant):
         cargs.append(arg.data)
-    elif isinstance(arg, _obj.Object):
+    elif isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
         nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
@@ -47,7 +45,7 @@ def _convert(arg, cargs):
         field_args = []
         for field in arg:
             _convert(field, field_args)
-        cargs.append(_obj.tuple_object(field_args))
+        cargs.append(container.tuple_object(field_args))
     elif isinstance(arg, (_base.numeric_types, bool)):
         dtype = "int32" if isinstance(arg, (int, bool)) else "float32"
         value = tvm.nd.array(np.array(arg, dtype=dtype), ctx=tvm.cpu(0))

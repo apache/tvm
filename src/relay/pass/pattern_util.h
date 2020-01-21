@@ -27,13 +27,15 @@
 #define TVM_RELAY_PASS_PATTERN_UTIL_H_
 
 #include <builtin_fp16.h>
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/attrs/reduce.h>
+#include <tvm/relay/op_attr_types.h>
+
 #include <string>
 #include <vector>
 #include <utility>
@@ -117,7 +119,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
       }
       ++j;
     } else if (i >= base) {
-      if (!is_const_int(trhs->shape[i - base], 1)) {
+      if (!tir::is_const_int(trhs->shape[i - base], 1)) {
         return false;
       }
       if (rhs_value != nullptr) {
@@ -182,8 +184,8 @@ inline bool IsDepthwiseConv2D(const Call& call,
   static const Layout kOIHW("OIHW");
   const auto bilayout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
   auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
-  return is_const_int(wshape[0], param->groups) &&
-      is_const_int(wshape[1], 1);
+  return tir::is_const_int(wshape[0], param->groups) &&
+      tir::is_const_int(wshape[1], 1);
 }
 
 /*!
@@ -196,7 +198,7 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
     auto tweight = call->args[1]->type_as<TensorTypeNode>();
     auto index = param->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
-    auto channels = as_const_int(tweight->shape[index]);
+    auto channels = tir::as_const_int(tweight->shape[index]);
     return *channels;
 }
 

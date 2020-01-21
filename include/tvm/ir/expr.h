@@ -30,6 +30,8 @@
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
 #include <string>
+#include <algorithm>
+#include <limits>
 
 namespace tvm {
 
@@ -114,76 +116,11 @@ class PrimExpr : public BaseExpr {
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
-};
 
-/*!
- * \brief Constant integer literals in the program.
- * \sa IntImm
- */
-class IntImmNode : public PrimExprNode {
- public:
-  /*! \brief the Internal value. */
-  int64_t value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  static constexpr const char* _type_key = "IntImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference class to IntImmNode.
- *
- * \sa IntImmNode
- */
-class IntImm : public PrimExpr {
- public:
-  /*!
-   * \brief Constructor.
-   * \param dtype The data type of the value.
-   * \param value The internal value.
-   */
-  TVM_DLL IntImm(DataType dtype, int64_t value);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
-};
-
-/*!
- * \brief Constant floating point literals in the program.
- * \sa FloatImm
- */
-class FloatImmNode : public PrimExprNode {
- public:
-  /*! \brief The constant value content. */
-  double value;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-  }
-
-  static constexpr const char* _type_key = "FloatImm";
-  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference class to FloatImmNode.
- *
- * \sa FloatImmNode
- */
-class FloatImm : public PrimExpr {
- public:
-  /*!
-   * \brief Constructor.
-   * \param dtype The data type of the value.
-   * \param value The internal value.
-   */
-  TVM_DLL FloatImm(DataType dtype, double value);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+ private:
+  // Internal function for conversion.
+  friend class runtime::TVMPODValue_;
+  TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
 };
 
 /*!
@@ -298,6 +235,163 @@ class BaseFunc : public RelayExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
 };
 
+// PrimExprs that are useful as runtime containers.
+//
+/*!
+ * \brief Constant integer literals in the program.
+ * \sa IntImm
+ */
+class IntImmNode : public PrimExprNode {
+ public:
+  /*! \brief the Internal value. */
+  int64_t value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
+  }
+
+  static constexpr const char* _type_key = "IntImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference class to IntImmNode.
+ *
+ * \sa IntImmNode
+ */
+class IntImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param dtype The data type of the value.
+   * \param value The internal value.
+   */
+  TVM_DLL IntImm(DataType dtype, int64_t value);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(IntImm, PrimExpr, IntImmNode);
+};
+
+/*!
+ * \brief Constant floating point literals in the program.
+ * \sa FloatImm
+ */
+class FloatImmNode : public PrimExprNode {
+ public:
+  /*! \brief The constant value content. */
+  double value;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("dtype", &dtype);
+    v->Visit("value", &value);
+  }
+
+  static constexpr const char* _type_key = "FloatImm";
+  TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
+};
+
+/*!
+ * \brief Managed reference class to FloatImmNode.
+ *
+ * \sa FloatImmNode
+ */
+class FloatImm : public PrimExpr {
+ public:
+  /*!
+   * \brief Constructor.
+   * \param dtype The data type of the value.
+   * \param value The internal value.
+   */
+  TVM_DLL FloatImm(DataType dtype, double value);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(FloatImm, PrimExpr, FloatImmNode);
+};
+
+/*!
+ * \brief Container of constant int that adds more constructors.
+ *
+ * This is used to store and automate type check
+ * attributes that must be constant integer.
+ *
+ * \sa IntImm
+ */
+class Integer : public IntImm {
+ public:
+  Integer() {}
+  /*!
+   * \brief constructor from node.
+   */
+  explicit Integer(ObjectPtr<Object> node) : IntImm(node) {}
+  /*!
+   * \brief Construct integer from int value.
+   */
+  Integer(int value) : IntImm(DataType::Int(32), value) {}  // NOLINT(*)
+  /*!
+   * \brief Construct integer from int imm.
+   * \param other The other value.
+   */
+  Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
+  /*!
+   * \brief Assign an expression to integer.
+   * \param other another expression.
+   */
+  Integer& operator=(const IntImm& other) {
+    data_ = ObjectRef::GetDataPtr<Object>(other);
+    return *this;
+  }
+  /*!
+   * \brief convert to int64_t
+   */
+  operator int64_t() const {
+    CHECK(data_ != nullptr)
+        << " Trying to reference a null Integer";
+    return (*this)->value;
+  }
+};
+
+/*! \brief range over one dimension */
+class RangeNode : public Object {
+ public:
+  /*! \brief beginning of the node */
+  PrimExpr min;
+  /*! \brief the extend of range */
+  PrimExpr extent;
+  /*! \brief constructor */
+  RangeNode() {}
+  RangeNode(PrimExpr min, PrimExpr extent) : min(min), extent(extent) {}
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("min", &min);
+    v->Visit("extent", &extent);
+  }
+
+  static constexpr const char* _type_key = "Range";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
+};
+
+/*! \brief Range constainer  */
+class Range : public ObjectRef {
+ public:
+  /*!
+   * \brief constructor by begin and end
+   * \param begin The begin of the range.
+   * \param end The end of the range.
+   */
+  TVM_DLL Range(PrimExpr begin, PrimExpr end);
+  /*!
+   * \brief construct a new range with min and extent
+   *  The corresponding constructor is removed,
+   *  because that is counter convention of tradition meaning
+   *  of range(begin, end)
+   *
+   * \param min The minimum range.
+   * \param extent The extent of the range.
+   */
+  static Range make_by_min_extent(PrimExpr min, PrimExpr extent);
+  // declare range.
+  TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
+};
+
 // implementataions
 inline const Type& RelayExprNode::checked_type() const {
   CHECK(checked_type_.defined())
@@ -321,5 +415,26 @@ inline const TTypeNode* RelayExprNode::type_as() const {
   return node;
 }
 
+}  // namespace tvm
+
+namespace tvm {
+namespace runtime {
+// Additional implementattion overloads for PackedFunc.
+inline TVMPODValue_::operator tvm::PrimExpr() const {
+  if (type_code_ == kTVMNullptr) return PrimExpr();
+  if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
+    return PrimExpr(static_cast<int>(value_.v_int64));
+  }
+  if (type_code_ == kDLFloat) {
+    return PrimExpr(static_cast<float>(value_.v_float64));
+  }
+
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(value_.v_handle);
+  return PrimExpr::FromObject_(ObjectPtr<Object>(ptr));
+}
+}  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

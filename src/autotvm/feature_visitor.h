@@ -26,14 +26,15 @@
 #ifndef TVM_AUTOTVM_FEATURE_VISITOR_H_
 #define TVM_AUTOTVM_FEATURE_VISITOR_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 #include <string>
 
 namespace tvm {
 namespace autotvm {
 
-using namespace tvm::ir;
+using namespace tvm::tir;
 
 /*!
  * \brief Type of for loop, used as one-hot encoding in features
@@ -69,7 +70,7 @@ class FeatureVisitor : public StmtExprVisitor {
  * \param ann_type The type for the for loop
  * \return skip Whether skip this node
  */
-  virtual bool EnterItervar_(tvm::Var var, int64_t length, AnnotationType ann_type) = 0;
+  virtual bool EnterItervar_(tir::Var var, int64_t length, AnnotationType ann_type) = 0;
   /*! \brief Exit a for loop subtree */
   virtual void ExitItervar_() = 0;
   /*!
@@ -77,7 +78,7 @@ class FeatureVisitor : public StmtExprVisitor {
    * \param buffer_var The buffer to access.
    * \param index Index expression
    */
-  virtual void EnterMem_(tvm::Var buffer_var, tvm::PrimExpr index) = 0;
+  virtual void EnterMem_(tir::Var buffer_var, tvm::PrimExpr index) = 0;
   /*! \brief Exit a memory access node */
   virtual void ExitMem_() = 0;
 };

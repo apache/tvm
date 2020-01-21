@@ -24,7 +24,6 @@
 
 #include <tvm/ir/type.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/relay/base.h>
 
 namespace tvm {

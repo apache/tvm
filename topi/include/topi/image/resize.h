@@ -24,22 +24,21 @@
 #ifndef TOPI_IMAGE_RESIZE_H_
 #define TOPI_IMAGE_RESIZE_H_
 
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+#include <topi/elemwise.h>
+#include <topi/detail/ravel_unravel.h>
+#include <topi/detail/constant_utils.h>
+
 #include <string>
 #include <vector>
 #include <iterator>
 #include <algorithm>
 
-#include "topi/tags.h"
-#include "topi/elemwise.h"
-#include "topi/detail/ravel_unravel.h"
-#include "topi/detail/constant_utils.h"
-#include "tvm/top/operation.h"
-#include "tvm/expr_operator.h"
-
 namespace topi {
 namespace image {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
  * \brief Sample a point in a tensor using bilinear interpolation.
@@ -260,8 +259,8 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
                                      static_cast<float>(*out_width - 1)));
   }
 
-  PrimExpr other_y = tvm::ir::Simplify(input->shape[1] - cone);
-  PrimExpr other_x = tvm::ir::Simplify(input->shape[2] - cone);
+  PrimExpr other_y = tvm::tir::Simplify(input->shape[1] - cone);
+  PrimExpr other_x = tvm::tir::Simplify(input->shape[2] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -337,8 +336,8 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
                                      static_cast<float>(*out_width - 1)));
   }
 
-  PrimExpr other_y = tvm::ir::Simplify(input->shape[2] - cone);
-  PrimExpr other_x = tvm::ir::Simplify(input->shape[3] - cone);
+  PrimExpr other_y = tvm::tir::Simplify(input->shape[2] - cone);
+  PrimExpr other_x = tvm::tir::Simplify(input->shape[3] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {

@@ -24,11 +24,11 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/ir/transform.h>
 
 // TODO(tqchen): Update to use String container after it is merged.
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 
 #include <stack>
 #include <unordered_set>
@@ -38,7 +38,7 @@ namespace transform {
 
 using tvm::runtime::TVMArgs;
 using tvm::runtime::TVMRetValue;
-using tvm::NodePrinter;
+using tvm::ReprPrinter;
 
 struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -268,7 +268,7 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
 inline bool PassArrayContains(const Array<tvm::PrimExpr>& pass_array,
                               const std::string& pass_name) {
   for (auto x : pass_array) {
-    auto* str_name = x.as<ir::StringImmNode>();
+    auto* str_name = x.as<tir::StringImmNode>();
     CHECK(str_name) << "pass name must be str";
     if (str_name->value == pass_name) return true;
   }
@@ -310,7 +310,7 @@ IRModule SequentialNode::operator()(const IRModule& module,
     if (!PassEnabled(pass_info))  continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
-      const auto* name = it.as<tvm::ir::StringImmNode>();
+      const auto* name = it.as<tvm::tir::StringImmNode>();
       CHECK(name);
       mod = GetPass(name->value)(mod, pass_ctx);
     }
@@ -341,15 +341,15 @@ TVM_REGISTER_GLOBAL("relay._transform.Info")
   *ret = pass->Info();
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
   auto* node = static_cast<const PassInfoNode*>(ref.get());
   p->stream << "The meta data of the pass: ";
   p->stream << "pass name: " << node->name;
   p->stream << "opt_level: " << node->opt_level;
   p->stream << "required passes: [" << "\n";
   for (const auto& it : node->required) {
-    const auto* str = it.as<tvm::ir::StringImmNode>();
+    const auto* str = it.as<tvm::tir::StringImmNode>();
     p->stream << str->value << ", ";
   }
   p->stream << "]\n";
@@ -371,8 +371,8 @@ TVM_REGISTER_GLOBAL("relay._transform.RunPass")
   *ret = pass(mod);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ModulePassNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const ModulePassNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Module pass: " << info->name
@@ -391,8 +391,8 @@ TVM_REGISTER_GLOBAL("relay._transform.Sequential")
   *ret = Sequential(passes, pass_info);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<SequentialNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const SequentialNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Sequential pass: " << info->name
@@ -421,8 +421,8 @@ TVM_REGISTER_GLOBAL("relay._transform.PassContext")
   *ret = pctx;
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<PassContextNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const PassContextNode*>(ref.get());
   p->stream << "Pass context information: " << "\n";
   p->stream << "\topt_level: " << node->opt_level << "\n";

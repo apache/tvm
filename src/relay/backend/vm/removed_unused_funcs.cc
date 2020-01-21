@@ -90,7 +90,7 @@ IRModule RemoveUnusedFunctions(const IRModule& module,
                              Array<tvm::PrimExpr> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
-    auto* str_name = entry.as<ir::StringImmNode>();
+    auto* str_name = entry.as<tir::StringImmNode>();
     auto funcs = CallTracer(module).Trace(str_name->value);
     called_funcs.insert(funcs.cbegin(), funcs.cend());
   }

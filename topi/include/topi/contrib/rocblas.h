@@ -24,13 +24,13 @@
 #ifndef TOPI_CONTRIB_ROCBLAS_H_
 #define TOPI_CONTRIB_ROCBLAS_H_
 
-#include "tvm/top/operation.h"
+#include <tvm/te/operation.h>
 #include "topi/detail/extern.h"
 
 namespace topi {
 namespace contrib {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 /*!
 * \brief Create an op that multiplies lhs and rhs with rocBLAS
 *

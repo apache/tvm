@@ -21,17 +21,16 @@
  *  Exposure of pass functions.
  * \file api_pass.cc
  */
-#include <tvm/expr.h>
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/expr_functor.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 namespace tvm {
-namespace ir {
+namespace tir {
 
 TVM_REGISTER_GLOBAL("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -97,8 +96,8 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
 TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
 .set_body_typed
   ([](const Stmt& stmt,
-      const top::Schedule& schedule,
-      const Map<top::Tensor, Buffer>& extern_buffer) {
+      const te::Schedule& schedule,
+      const Map<te::Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
 
@@ -122,7 +121,7 @@ TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
 TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
-    ir::PostOrderVisit(args[0], [f](const ObjectRef& n) {
+    tir::PostOrderVisit(args[0], [f](const ObjectRef& n) {
         f(n);
       });
   });
@@ -178,5 +177,5 @@ REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
 REGISTER_PASS(InferFragment)
-}  // namespace ir
+}  // namespace tir
 }  // namespace tvm

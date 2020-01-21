@@ -25,7 +25,8 @@
 #ifndef TVM_RELAY_QNN_UTIL_H_
 #define TVM_RELAY_QNN_UTIL_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <limits>
@@ -48,7 +49,7 @@ static inline const int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
-    auto* min_value = as_const_int(tvm::min_value(dtype));
+    auto* min_value = tir::as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
@@ -61,7 +62,7 @@ static inline const int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
-    auto* max_value = as_const_int(tvm::max_value(dtype));
+    auto* max_value = tir::as_const_int(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
@@ -87,7 +88,7 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
 }
 
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
-  auto* value_ptr = as_const_int(x);
+  auto* value_ptr = tir::as_const_int(x);
   CHECK(value_ptr) << "Expr is not a constant int";
   return value_ptr[0];
 }
@@ -175,7 +176,7 @@ static inline void AssignType(const Type& expr_type, const DataType& dtype, cons
   const auto tensor_dtype = tensor_type->dtype;
   CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
   if (tensor_type->shape.size() != 0) {
-    reporter->Assign(expr_type, TensorTypeNode::make({shape}, tensor_type->dtype));
+    reporter->Assign(expr_type, TensorType({shape}, tensor_type->dtype));
   }
 }
 

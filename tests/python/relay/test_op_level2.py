@@ -1182,6 +1182,35 @@ def test_conv2d_int8_intrinsics():
     assert "vpmulld" in asm and "vpadd" in asm
 
 
+def test_depthwise_conv2d_int8():
+    input_dtype = 'uint8'
+    weight_dtype = 'int8'
+    output_dtype = 'int32'
+
+    data_shape = (1, 64, 56, 56)
+    x = relay.var("x", relay.TensorType(data_shape, input_dtype))
+
+    kernel_shape = (64, 1, 3, 3)
+    weight = relay.var("weight", relay.TensorType(kernel_shape, weight_dtype))
+
+    y = relay.nn.conv2d(x, weight,
+                        kernel_size=(3, 3),
+                        groups=64,
+                        padding=(1, 1),
+                        dilation=(1, 1),
+                        out_dtype=output_dtype)
+    func = relay.Function([x, weight], y)
+    wdata = np.random.rand(*kernel_shape) * 10
+    parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
+
+    targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    llvm_version = tvm.codegen.llvm_version_major()
+    for target in targets:
+        if llvm_version >= 8:
+            with relay.build_config(opt_level=3):
+                graph, lib, params = relay.build(func, target, params=parameters)
+
+
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
     n, c, h, w = tvm.size_var("n"), 32, 224, 224
@@ -1234,3 +1263,4 @@ if __name__ == "__main__":
     test_upsampling()
     test_upsampling3d()
     test_conv2d_int8_intrinsics()
+    test_depthwise_conv2d_int8()

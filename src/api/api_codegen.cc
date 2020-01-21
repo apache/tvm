@@ -21,20 +21,18 @@
  *  Implementation of API functions related to Codegen
  * \file c_api_codegen.cc
  */
-#include <tvm/expr.h>
-#include <tvm/ir.h>
-#include <tvm/codegen.h>
-#include <tvm/lowered_func.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/target/codegen.h>
+#include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 namespace tvm {
 namespace codegen {
 
 TVM_REGISTER_GLOBAL("codegen._Build")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsObjectRef<LoweredFunc>()) {
+  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
       *ret = Build({args[0]}, args[1]);
     } else {
       *ret = Build(args[0], args[1]);
