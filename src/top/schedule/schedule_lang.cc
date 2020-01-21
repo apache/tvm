@@ -795,8 +795,8 @@ TVM_REGISTER_NODE_TYPE(SingletonNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 // Printer
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<StageNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<StageNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const StageNode*>(node.get());
     if (op->op.defined()) {
       p->stream << "stage(" << op->origin_op->name << ", " << op << ")";
@@ -804,11 +804,11 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
       p->stream << "group-stage(" << op << ")";
     }
 })
-.set_dispatch<IterVarAttrNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<IterVarAttrNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const IterVarAttrNode*>(node.get());
     p->stream << IterVarType2String(op->iter_type);
 })
-.set_dispatch<SplitNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<SplitNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const SplitNode*>(node.get());
     p->stream << "split(parent=";
     p->Print(op->parent);
@@ -818,7 +818,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->inner);
     p->stream << ')';
 })
-.set_dispatch<FuseNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<FuseNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const FuseNode*>(node.get());
     p->stream << "split(";
     p->stream << "outer=";
@@ -829,7 +829,7 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->fused);
     p->stream << ')';
 })
-.set_dispatch<RebaseNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<RebaseNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const RebaseNode*>(node.get());
     p->stream << "rebase(";
     p->stream << "parent=";
@@ -838,13 +838,13 @@ TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
     p->Print(op->rebased);
     p->stream << ')';
 })
-.set_dispatch<SingletonNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<SingletonNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const SingletonNode*>(node.get());
     p->stream << "singleton(";
     p->Print(op->iter);
     p->stream << ')';
 })
-.set_dispatch<ScheduleNode>([](const ObjectRef& node, NodePrinter* p) {
+.set_dispatch<ScheduleNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
   });

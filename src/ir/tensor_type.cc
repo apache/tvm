@@ -27,7 +27,7 @@
 
 namespace tvm {
 
-using tvm::NodePrinter;
+using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
 TensorType::TensorType(Array<PrimExpr> shape, DataType dtype) {
@@ -60,8 +60,8 @@ TVM_REGISTER_GLOBAL("relay._make.TensorType")
   return TensorType(shape, dtype);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TensorTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TensorTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const TensorTypeNode*>(ref.get());
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });

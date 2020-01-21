@@ -144,7 +144,7 @@ def _GetContext(debugger):
 def PrettyPrint(debugger, command, result, internal_dict):
     ctx = _GetContext(debugger)
     rc = ctx.EvaluateExpression(
-        "tvm::relay::PrettyPrint({command})".format(command=command)
+        "tvm::PrettyPrint({command})".format(command=command)
     )
     result.AppendMessage(str(rc))
 
@@ -175,7 +175,7 @@ def _EvalExpressionAsString(logger, ctx, expr):
 
 def _EvalAsNodeRef(logger, ctx, value):
     return _EvalExpressionAsString(
-        logger, ctx, "tvm::relay::PrettyPrint({name})".format(name=value.name)
+        logger, ctx, "tvm::PrettyPrint({name})".format(name=value.name)
     )
 
 
