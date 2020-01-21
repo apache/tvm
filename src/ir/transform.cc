@@ -24,7 +24,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/ir/transform.h>
 
 // TODO(tqchen): Update to use String container after it is merged.
@@ -38,7 +38,7 @@ namespace transform {
 
 using tvm::runtime::TVMArgs;
 using tvm::runtime::TVMRetValue;
-using tvm::NodePrinter;
+using tvm::ReprPrinter;
 
 struct PassContextThreadLocalEntry {
   /*! \brief The default pass context. */
@@ -341,8 +341,8 @@ TVM_REGISTER_GLOBAL("relay._transform.Info")
   *ret = pass->Info();
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PassInfoNode>([](const ObjectRef& ref, tvm::ReprPrinter* p) {
   auto* node = static_cast<const PassInfoNode*>(ref.get());
   p->stream << "The meta data of the pass: ";
   p->stream << "pass name: " << node->name;
@@ -371,8 +371,8 @@ TVM_REGISTER_GLOBAL("relay._transform.RunPass")
   *ret = pass(mod);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ModulePassNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const ModulePassNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Module pass: " << info->name
@@ -391,8 +391,8 @@ TVM_REGISTER_GLOBAL("relay._transform.Sequential")
   *ret = Sequential(passes, pass_info);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<SequentialNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const SequentialNode*>(ref.get());
   const PassInfo info = node->Info();
   p->stream << "Run Sequential pass: " << info->name
@@ -421,8 +421,8 @@ TVM_REGISTER_GLOBAL("relay._transform.PassContext")
   *ret = pctx;
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<PassContextNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PassContextNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const PassContextNode*>(ref.get());
   p->stream << "Pass context information: " << "\n";
   p->stream << "\topt_level: " << node->opt_level << "\n";
