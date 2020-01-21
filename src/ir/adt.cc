@@ -45,8 +45,8 @@ TVM_REGISTER_GLOBAL("relay._make.Constructor")
   return Constructor(name_hint, inputs, belong_to);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ConstructorNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ConstructorNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const ConstructorNode*>(ref.get());
   p->stream << "ConstructorNode(" << node->name_hint << ", "
             << node->inputs << ", " << node->belong_to << ")";
@@ -71,8 +71,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeData")
   return TypeData(header, type_vars, constructors);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeDataNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeDataNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const TypeDataNode*>(ref.get());
   p->stream << "TypeDataNode(" << node->header << ", " << node->type_vars << ", "
             << node->constructors << ")";

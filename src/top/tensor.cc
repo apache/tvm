@@ -82,8 +82,8 @@ Tensor TensorNode::make(Array<PrimExpr> shape,
   return Tensor(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TensorNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* t = static_cast<const TensorNode*>(node.get());
     p->stream << "Tensor(shape=" << t->shape
               << ", op.name=" << t->op->name << ')';
@@ -114,8 +114,8 @@ TensorIntrin TensorIntrinNode::make(std::string name,
   return TensorIntrin(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TensorIntrinNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TensorIntrinNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const TensorIntrinNode*>(node.get());
     p->stream << "TensorIntrin(name=" << op->name << ", " << op << ")";
   });
@@ -139,8 +139,8 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
   return TensorIntrinCall(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TensorIntrinCallNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* n = static_cast<const TensorIntrinCallNode*>(node.get());
     p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
   });

@@ -40,8 +40,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeCall")
   return TypeCall(func, type);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeCallNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeCallNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TypeCallNode*>(ref.get());
   p->stream << "TypeCallNode(" << node->func << ", "
             << node->args << ")";
@@ -69,8 +69,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
   return TypeRelation(func, args, num_inputs, attrs);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TypeRelationNode*>(ref.get());
     p->stream << "TypeRelationNode("
               << node->func->name

@@ -21,12 +21,13 @@
  * \file src/tvm/relay/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
+#include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace relay {
 
-using tvm::NodePrinter;
+using tvm::ReprPrinter;
 using namespace tvm::runtime;
 
 Constant ConstantNode::make(runtime::NDArray data) {
@@ -40,8 +41,8 @@ TVM_REGISTER_NODE_TYPE(ConstantNode);
 TVM_REGISTER_GLOBAL("relay._make.Constant")
 .set_body_typed(ConstantNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ConstantNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ConstantNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const ConstantNode*>(ref.get());
     const PackedFunc* fprint = Registry::Get("relay._constant_repr");
     CHECK(fprint) << "unable to find printing function for constants";
@@ -73,8 +74,8 @@ TVM_REGISTER_NODE_TYPE(TupleNode);
 TVM_REGISTER_GLOBAL("relay._make.Tuple")
 .set_body_typed(TupleNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TupleNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TupleNode*>(ref.get());
     p->stream << "Tuple(" << node->fields << ")";
   });
@@ -98,8 +99,8 @@ TVM_REGISTER_NODE_TYPE(VarNode);
 TVM_REGISTER_GLOBAL("relay._make.Var")
 .set_body_typed(static_cast<Var (*)(std::string, Type)>(VarNode::make));
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<VarNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<VarNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const VarNode*>(ref.get());
     p->stream << "Var(" << node->name_hint();
     if (node->type_annotation.defined()) {
@@ -208,8 +209,8 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 TVM_REGISTER_GLOBAL("relay._make.Function")
 .set_body_typed(FunctionNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FunctionNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<FunctionNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const FunctionNode*>(ref.get());
   p->stream << "FunctionNode(" << node->params << ", " << node->ret_type
             << ", " << node->body << ", " << node->type_params << ", "
@@ -231,8 +232,8 @@ TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_REGISTER_GLOBAL("relay._make.Call")
 .set_body_typed(CallNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<CallNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<CallNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const CallNode*>(ref.get());
   p->stream << "CallNode(" << node->op << ", " << node->args << ", "
             << node->attrs << ", " << node->type_args << ")";
@@ -251,8 +252,8 @@ TVM_REGISTER_NODE_TYPE(LetNode);
 TVM_REGISTER_GLOBAL("relay._make.Let")
 .set_body_typed(LetNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<LetNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<LetNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const LetNode*>(ref.get());
   p->stream << "LetNode(" << node->var << ", " << node->value
             << ", " << node->body << ")";
@@ -271,8 +272,8 @@ TVM_REGISTER_NODE_TYPE(IfNode);
 TVM_REGISTER_GLOBAL("relay._make.If")
 .set_body_typed(IfNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<IfNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<IfNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const IfNode*>(ref.get());
   p->stream << "IfNode(" << node->cond << ", " << node->true_branch
             << ", " << node->false_branch << ")";
@@ -290,8 +291,8 @@ TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 TVM_REGISTER_GLOBAL("relay._make.TupleGetItem")
 .set_body_typed(TupleGetItemNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TupleGetItemNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const TupleGetItemNode*>(ref.get());
   p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
 });
@@ -307,8 +308,8 @@ TVM_REGISTER_NODE_TYPE(RefCreateNode);
 TVM_REGISTER_GLOBAL("relay._make.RefCreate")
 .set_body_typed(RefCreateNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<RefCreateNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<RefCreateNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const RefCreateNode*>(ref.get());
   p->stream << "RefCreateNode(" << node->value << ")";
 });
@@ -324,8 +325,8 @@ TVM_REGISTER_NODE_TYPE(RefReadNode);
 TVM_REGISTER_GLOBAL("relay._make.RefRead")
 .set_body_typed(RefReadNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<RefReadNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<RefReadNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const RefReadNode*>(ref.get());
   p->stream << "RefReadNode(" << node->ref << ")";
 });
@@ -342,8 +343,8 @@ TVM_REGISTER_NODE_TYPE(RefWriteNode);
 TVM_REGISTER_GLOBAL("relay._make.RefWrite")
 .set_body_typed(RefWriteNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<RefWriteNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<RefWriteNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const RefWriteNode*>(ref.get());
   p->stream << "RefWriteNode(" << node->ref << ", " << node->value << ")";
 });

@@ -18,9 +18,11 @@
  */
 
 /*!
- * \file pretty_printer.cc
- * \brief Pretty printer for Relay programs
- * Supports ANF, GNF, and metadata.
+ * \file text_format_printer.cc
+ * \brief Printer to print out the IR text format
+ *        that can be parsed by a parser.
+ *
+ * Supports ANF, GNF in relay and metadata.
  *
  * Inlining heuristics:
  *  - Always inline:
@@ -31,142 +33,27 @@
  *  - Otherwise, inline if the node is at the end of a scope and is used at most once.
  */
 #include <tvm/ir/type_functor.h>
-#include <tvm/node/serialization.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/ir/module.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
-#include "../pass/dependency_graph.h"
-#include "../../ir/attr_functor.h"
+#include "meta_data.h"
+#include "../relay/pass/dependency_graph.h"
+#include "../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {
 
-static const char* kSemVer = "v0.0.4";
-
-Doc Brace(const Doc& d,
-          const std::string& open = "{",
-          const std::string& close = "}",
-          int indent = 2) {
-  Doc doc;
-  doc << open;
-  doc << Indent(indent, PrintNewLine() << d) << PrintNewLine();
-  doc << close;
-  return doc;
-}
-
-/*!
- * \brief Meta data context for PrettyPrinter.
- *
- * This is an important part to enable bi-directional serializability.
- * We use tvm's Node system to build the current IR.
- * It can be hard to design a text format for all the possible nodes
- * as the set of nodes can grow when we do more extensions.
- *
- * Instead of trying to design readable text format for every node,
- * we support a meta data section in the text format.
- * We allow the text format to refer to a node in the meta data section.
- *
- * The meta data section is a json serialized string of an Map<string, Array<NodeRef>>.
- * Each element in the meta data section can be referenced by the text format.
- * Each meta data node is printed in the following format.
- *
- * meta[type-key-of-node>][<index-in-meta-section>]
- *
- * Specifically, consider the following IR(constructed by python).
- *
- * \code
- *
- * n = tvm.var("n")
- * x = tvm.relay.var("x", shape=(n, 1))
- * f = tvm.relay.Function([x], x)
- * print(f.astext())
- *
- * \endcode
- *
- * The corresponding text format is shown in the following code block.
- *
- * \code
- *
- * fn (%x: Tensor[(meta[Variable][0],), float32]) {
- *   %x
- * }
- * # Meta data section is a json-serialized string
- * # of the following array.
- * # [tvm.var("n")]
- *
- * \endcode
- *
- * Note that we store tvm.var("n") in the meta data section.
- * Since it is stored in the index-0 in the meta data section,
- * we print it as meta[Variable][0].
- *
- * The text parser can recover this object by loading from the corresponding
- * location in the meta data section.
- *
- * This is is a design trade-off.
- * It allows us to embedded any meta data in the text format,
- * while still being able to tweak the text part of the printed IR easily.
- */
-class TextMetaDataContext {
- public:
-  /*!
-   * \brief Get text representation of meta node.
-   * \param node The node to be converted to meta node.
-   * \return A string representation of the meta node.
-   */
-  Doc GetMetaNode(const ObjectRef& node) {
-    auto it = meta_repr_.find(node);
-    if (it != meta_repr_.end()) {
-      return it->second;
-    }
-    std::string type_key = node->GetTypeKey();
-    CHECK(!type_key.empty());
-    Array<ObjectRef>& mvector =
-        meta_data_[type_key];
-    int64_t index = static_cast<int64_t>(mvector.size());
-    mvector.push_back(node);
-    Doc doc;
-    doc << "meta[" << type_key << "][" << index << "]";
-    meta_repr_[node] = doc;
-    return meta_repr_[node];
-  }
-
-  Doc PrintKeyValue(const std::string& str, const Doc& v) const {
-    return Doc("\"") << str << "\": " << v;
-  }
-
-  /*!
-   * \brief Get the metadata section in json format.
-   * \return the meta data string.
-   */
-  Doc GetMetaSection() const {
-    if (meta_data_.size() == 0) return Doc();
-    return Doc(SaveJSON(Map<std::string, ObjectRef>(meta_data_.begin(), meta_data_.end())));
-  }
-
-  /*! \return whether the meta data context is empty. */
-  bool empty() const {
-    return meta_data_.empty();
-  }
-
- private:
-  /*! \brief additional metadata stored in TVM json format */
-  std::unordered_map<std::string, Array<ObjectRef> > meta_data_;
-  /*! \brief map from meta data into its string representation */
-  std::unordered_map<ObjectRef, Doc, ObjectHash, ObjectEqual> meta_repr_;
-};
-
-class PrettyPrinter :
+class RelayTextPrinter :
     public ExprFunctor<Doc(const Expr&)>,
     public PatternFunctor<Doc(const Pattern&)>,
     public TypeFunctor<Doc(const Type&)>,
     public AttrFunctor<Doc(const ObjectRef&)> {
  public:
-  explicit PrettyPrinter(bool show_meta_data,
-                         runtime::TypedPackedFunc<std::string(Expr)> annotate) :
-                         show_meta_data_(show_meta_data),
-                         annotate_(annotate) {}
+  explicit RelayTextPrinter(bool show_meta_data,
+                            runtime::TypedPackedFunc<std::string(ObjectRef)> annotate)
+      : show_meta_data_(show_meta_data),
+        annotate_(annotate) {}
 
   /*!
     * \brief Print additional info about expr in comment.
@@ -194,7 +81,7 @@ class PrettyPrinter :
     Doc doc;
     Doc body;
     doc << "{";
-    doc << Indent(indent, body << PrintNewLine() << PrintScope(node)) << PrintNewLine();
+    doc << Doc::Indent(indent, body << Doc::NewLine() << PrintScope(node)) << Doc::NewLine();
     doc << "}";
     return doc;
   }
@@ -220,10 +107,10 @@ class PrettyPrinter :
     Doc doc;
     doc << PrintScope(node);
     if (!meta_.empty()) {
-      doc << PrintNewLine();
+      doc << Doc::NewLine();
       if (show_meta_data_) {
         // append meta data in the end.
-        doc << "METADATA:" << PrintNewLine() << meta_.GetMetaSection();
+        doc << "METADATA:" << Doc::NewLine() << meta_.GetMetaSection();
       } else {
         doc << "// meta data omitted. you can use show_meta_data=True to include meta data";
       }
@@ -244,8 +131,9 @@ class PrettyPrinter :
     } else if (node.as<IRModuleNode>()) {
       return PrintMod(Downcast<IRModule>(node));
     } else {
-      Doc doc;
-      return doc << node;
+      std::ostringstream os;
+      os << node;
+      return Doc() << os.str();
     }
   }
 
@@ -278,23 +166,23 @@ class PrettyPrinter :
       }
     }
     name_alloc_map_[unique_prefix] = 0;
-    return Doc(unique_prefix);
+    return Doc::Text(unique_prefix);
   }
 
   Doc Print(Kind k) {
     switch (k) {
     case kType:
-      return Doc("Type");
+      return Doc::Text("Type");
     case kShapeVar:
-      return Doc("Shape");
+      return Doc::Text("Shape");
     case kBaseType:
-      return Doc("BaseType");
+      return Doc::Text("BaseType");
     case kConstraint:
-      return Doc("Constraint");
+      return Doc::Text("Constraint");
     case kAdtHandle:
-      return Doc("AdtHandle");
+      return Doc::Text("AdtHandle");
     case kTypeData:
-      return Doc("TypeData");
+      return Doc::Text("TypeData");
     default:
       LOG(ERROR) << "Unknown Kind";
       throw;
@@ -387,7 +275,7 @@ class PrettyPrinter :
       // wrap GNFed let in brackets
       Doc body;
       printed_expr << "(";
-      printed_expr << Indent(2, body << PrintNewLine() << VisitExpr(expr)) << PrintNewLine();
+      printed_expr << Doc::Indent(2, body << Doc::NewLine() << VisitExpr(expr)) << Doc::NewLine();
       printed_expr << ")";
     } else {
       printed_expr = VisitExpr(expr);
@@ -399,7 +287,7 @@ class PrettyPrinter :
     if (expr.as<VarNode>()) {
       // This is our first time visiting the var and we hit the VarNode case
       // in the visitor. Thus the variable is free.
-      doc_stack_.back() << "free_var " << printed_expr << PrintNewLine();
+      doc_stack_.back() << "free_var " << printed_expr << Doc::NewLine();
       // Memoization is done in AllocVar.
       return memo_[expr];
     } else if (inline_expr) {
@@ -408,7 +296,7 @@ class PrettyPrinter :
     } else {
       Doc temp_var = AllocTemp();
       memo_[expr] = temp_var;
-      doc_stack_.back() << temp_var << " = " << printed_expr << ";" << PrintNewLine();
+      doc_stack_.back() << temp_var << " = " << printed_expr << ";" << Doc::NewLine();
       return temp_var;
     }
   }
@@ -419,6 +307,28 @@ class PrettyPrinter :
     return AllocVar(GetRef<Var>(op));
   }
 
+  /*!
+   * \brief special method to print out const scalar
+   * \param dtype The data type
+   * \param value The value to be printed.
+   */
+  template<typename T>
+  static Doc ScalarLiteral(DataType dtype, const T& value) {
+    std::ostringstream os;
+    if (dtype == DataType::Int(32)) {
+      os << value;
+    } else if (dtype == DataType::Float(32)) {
+      os << value << 'f';
+    } else if (dtype == DataType::Float(64)) {
+      os << value;
+    } else if (dtype == DataType::Bool()) {
+      return Doc::PyBoolLiteral(value != 0);
+    } else {
+      os << value;
+    }
+    return Doc::Text(os.str());
+  }
+
   Doc VisitExpr_(const ConstantNode* op) final {
     // Print out simple scalars directly.
     if (op->is_scalar()) {
@@ -426,15 +336,15 @@ class PrettyPrinter :
       DataType dtype = DataType(op->data->dtype);
       CHECK_EQ(op->data->ctx.device_type, kDLCPU);
       if (dtype == DataType::Int(32)) {
-        return PrintConstScalar(dtype, static_cast<const int32_t*>(op->data->data));
+        return ScalarLiteral(dtype, static_cast<const int32_t*>(op->data->data)[0]);
       } else if (dtype == DataType::Int(64)) {
-        return PrintConstScalar(dtype, static_cast<const int64_t*>(op->data->data));
+        return ScalarLiteral(dtype, static_cast<const int64_t*>(op->data->data)[0]);
       } else if (dtype == DataType::Float(32)) {
-        return PrintConstScalar(dtype, static_cast<const float*>(op->data->data));
+        return ScalarLiteral(dtype, static_cast<const float*>(op->data->data)[0]);
       } else if (dtype == DataType::Float(64)) {
-        return PrintConstScalar(dtype, static_cast<const double*>(op->data->data));
+        return ScalarLiteral(dtype, static_cast<const double*>(op->data->data)[0]);
       } else if (dtype == DataType::Bool()) {
-        return PrintConstScalar(dtype, static_cast<const uint8_t*>(op->data->data));
+        return ScalarLiteral(dtype, static_cast<const uint8_t*>(op->data->data)[0]);
       }
     }
     // default fall-back, record it as meta node.
@@ -448,7 +358,7 @@ class PrettyPrinter :
       fields.push_back(Print(field));
     }
     Doc doc;
-    doc << "(" << PrintSep(fields);
+    doc << "(" << Doc::Concat(fields);
     // conform to python tuple format (1,)
     if (op->fields.size() == 1) {
       doc << ",";
@@ -478,7 +388,7 @@ class PrettyPrinter :
       << " = "
       << Print(op->value, false, true)
       << ";"
-      << PrintNewLine();
+      << Doc::NewLine();
     // we use a scope here so GNF hoisting doesn't escape too far
     // and nested, unique lets are not hoisted
     doc << PrintScope(op->body);
@@ -492,9 +402,9 @@ class PrettyPrinter :
       doc << "[";
       std::vector<Doc> type_params;
       for (const TypeVar& tv : fn->type_params) {
-        type_params.push_back(Doc(tv->name_hint));
+        type_params.push_back(Doc::Text(tv->name_hint));
       }
-      doc << PrintSep(type_params);
+      doc << Doc::Concat(type_params);
       doc << "]";
     }
     doc << "(";
@@ -505,7 +415,7 @@ class PrettyPrinter :
     for (const Doc& d : PrintFuncAttrs(fn->attrs)) {
       params.push_back(d);
     }
-    doc << PrintSep(params) << ") ";
+    doc << Doc::Concat(params) << ") ";
     if (fn->ret_type.defined()) {
       doc << "-> " << Print(fn->ret_type) << " ";
     }
@@ -530,36 +440,36 @@ class PrettyPrinter :
     // type definitions
     for (const auto& kv : mod->type_definitions) {
       if (counter++ != 0) {
-        doc << PrintNewLine();
+        doc << Doc::NewLine();
       }
       doc << Print(kv.second);
-      doc << PrintNewLine();
+      doc << Doc::NewLine();
     }
     // functions
     for (const auto& kv : mod->functions) {
       dg_ = DependencyGraph::Create(&arena_, kv.second);
 
       if (counter++ != 0) {
-        doc << PrintNewLine();
+        doc << Doc::NewLine();
       }
       std::ostringstream os;
       os << "def @" << kv.first->name_hint;
-      doc << PrintFunc(Doc(os.str()), kv.second);
-      doc << PrintNewLine();
+      doc << PrintFunc(Doc::Text(os.str()), kv.second);
+      doc << Doc::NewLine();
     }
     return doc;
   }
 
   Doc VisitExpr_(const FunctionNode* op) final {
-    return PrintFunc(Doc("fn "), GetRef<Function>(op));
+    return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
   }
 
   Doc VisitExpr_(const GlobalVarNode* op) final {
-    return Doc('@' + op->name_hint);
+    return Doc::Text('@' + op->name_hint);
   }
 
   Doc VisitExpr_(const OpNode* op) final {
-    return Doc(op->name);
+    return Doc::Text(op->name);
   }
 
   Doc VisitExpr_(const CallNode* op) final {
@@ -584,7 +494,7 @@ class PrettyPrinter :
       // don't print as a call if it's a 0-arity cons
       return doc;
     } else {
-      return doc << "(" << PrintSep(args) << ")";
+      return doc << "(" << Doc::Concat(args) << ")";
     }
   }
 
@@ -619,13 +529,13 @@ class PrettyPrinter :
       Doc rhs_doc = PrintScope(clause->rhs);
       if (clause->rhs.as<LetNode>()) {
         // only add braces if there are multiple lines on the rhs
-        rhs_doc = Brace(rhs_doc);
+        rhs_doc = Doc::Brace("{", rhs_doc, "}");
       }
       clause_doc << rhs_doc << ",";
       clause_docs.push_back(clause_doc);
     }
-    doc << Indent(2, body << PrintNewLine() << PrintSep(clause_docs, PrintNewLine()))
-        << PrintNewLine() << "}";
+    doc << Doc::Indent(2, body << Doc::NewLine() << Doc::Concat(clause_docs, Doc::NewLine()))
+        << Doc::NewLine() << "}";
     return doc;
   }
 
@@ -651,7 +561,7 @@ class PrettyPrinter :
       for (const auto& pat : p->patterns) {
         pats.push_back(Print(pat));
       }
-      doc << PrintSep(pats) << ")";
+      doc << Doc::Concat(pats) << ")";
     }
     return doc;
   }
@@ -663,12 +573,12 @@ class PrettyPrinter :
     for (const auto& pat : pt->patterns) {
       pats.push_back(Print(pat));
     }
-    doc << PrintSep(pats) << ")";
+    doc << Doc::Concat(pats) << ")";
     return doc;
   }
 
   Doc VisitPattern_(const PatternWildcardNode* pw) final {
-    return Doc("_");
+    return Doc::Text("_");
   }
 
   Doc VisitPattern_(const PatternVarNode* pv) final {
@@ -684,7 +594,7 @@ class PrettyPrinter :
       for (Type input : n->inputs) {
         inputs.push_back(Print(input));
       }
-      doc << PrintSep(inputs) << ")";
+      doc << Doc::Concat(inputs) << ")";
     }
     return doc;
   }
@@ -711,11 +621,11 @@ class PrettyPrinter :
   }
 
   Doc VisitType_(const TypeVarNode* node) final {
-    return Doc(node->name_hint);
+    return Doc::Text(node->name_hint);
   }
 
   Doc VisitType_(const GlobalTypeVarNode* node) final {
-    return Doc(node->name_hint);
+    return Doc::Text(node->name_hint);
   }
 
   Doc VisitType_(const TypeCallNode* node) final {
@@ -725,9 +635,13 @@ class PrettyPrinter :
       args.push_back(PrintType(t, false));
     }
     doc << "[";
-    doc << PrintSep(args);
+    doc << Doc::Concat(args);
     doc << "]";
     return doc;
+  }
+
+  Doc PrintDType(DataType dtype) {
+    return Doc::Text(runtime::DLDataType2String(dtype));
   }
 
   Doc VisitType_(const TensorTypeNode* node) final {
@@ -741,7 +655,7 @@ class PrettyPrinter :
     for (ObjectRef shape : node->shape) {
       shapes.push_back(PrintAttr(shape));
     }
-    doc << PrintSep(shapes);
+    doc << Doc::Concat(shapes);
     return doc << "), " << PrintDType(node->dtype) << "]";
   }
 
@@ -751,7 +665,7 @@ class PrettyPrinter :
       fields.push_back(Print(field));
     }
     Doc doc;
-    doc << "(" << PrintSep(fields);
+    doc << "(" << Doc::Concat(fields);
     // conform to python tuple format (1,)
     if (node->fields.size() == 1) {
       doc << ",";
@@ -768,14 +682,14 @@ class PrettyPrinter :
       for (Type type_param : node->type_params) {
         type_params.push_back(Print(type_param));
       }
-      doc << PrintSep(type_params);
+      doc << Doc::Concat(type_params);
       doc << "]";
     }
     std::vector<Doc> arg_types;
     for (Type arg_type : node->arg_types) {
       arg_types.push_back(Print(arg_type));
     }
-    return doc << "(" << PrintSep(arg_types) << ") -> " << Print(node->ret_type);
+    return doc << "(" << Doc::Concat(arg_types) << ") -> " << Print(node->ret_type);
   }
 
   Doc VisitType_(const RelayRefTypeNode* node) final {
@@ -795,7 +709,7 @@ class PrettyPrinter :
       for (Type type_var : node->type_vars) {
         type_vars.push_back(Print(type_var));
       }
-      doc << PrintSep(type_vars) << "]";
+      doc << Doc::Concat(type_vars) << "]";
     }
     doc << " ";
 
@@ -804,14 +718,14 @@ class PrettyPrinter :
       constructor_docs.push_back(Print(constructor, /* meta */ false, /* try_inline */ true));
     }
     Doc separator;
-    separator << "," << PrintNewLine();
+    separator << "," << Doc::NewLine();
     Doc adt_body;
-    adt_body << PrintSep(constructor_docs, separator);
+    adt_body << Doc::Concat(constructor_docs, separator);
     // add trailing comma if there are any constructors
     if (!constructor_docs.empty()) {
       adt_body << ",";
     }
-    doc << Brace(adt_body);
+    doc << Doc::Brace("{", adt_body, "}");
     in_adt_def_ = false;
     return doc;
   }
@@ -832,7 +746,7 @@ class PrettyPrinter :
       }
       return printed_attr;
     } else {
-      return Doc("None");
+      return Doc::Text("None");
     }
   }
 
@@ -847,28 +761,28 @@ class PrettyPrinter :
     for (auto val : op->data) {
       arr_vals.push_back(PrintAttr(val));
     }
-    doc << PrintSep(arr_vals);
+    doc << Doc::Concat(arr_vals);
     doc << "]";
     return doc;
   }
 
   Doc VisitAttr_(const tir::IntImmNode* op) final {
-    return PrintConstScalar(op->dtype, &(op->value));
+    return ScalarLiteral(op->dtype, op->value);
   }
 
   Doc VisitAttr_(const tir::FloatImmNode* op) final {
-    return PrintConstScalar(op->dtype, &(op->value));
+    return ScalarLiteral(op->dtype, op->value);
   }
 
   Doc VisitAttr_(const tir::StringImmNode* op) final {
-    return PrintString(op->value);
+    return Doc::StrLiteral(op->value);
   }
 
  private:
   /*! \brief Whether to print meta data. */
   bool show_meta_data_;
   /*! \brief additional comment function */
-  runtime::TypedPackedFunc<std::string(Expr)> annotate_;
+  runtime::TypedPackedFunc<std::string(ObjectRef)> annotate_;
   /*! \brief Stack of docs to implement scoped GNFing. */
   std::vector<Doc> doc_stack_{};
   /*! \brief Map from Expr to Doc */
@@ -896,9 +810,11 @@ class PrettyPrinter :
 /*!
  * \brief Attribute printer which prints the attributes in the call.
  */
-class PrettyPrinter::AttrPrinter : public AttrVisitor {
+class RelayTextPrinter::AttrPrinter :
+      public AttrVisitor {
  public:
-  AttrPrinter(std::vector<Doc>* doc, PrettyPrinter* parent) : docs(doc), parent_(parent) {}
+  AttrPrinter(std::vector<Doc>* doc, RelayTextPrinter* parent)
+      : docs(doc), parent_(parent) {}
 
   template<typename T>
   void PrintKV(const char* key, const T& value) {
@@ -922,16 +838,16 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
     PrintKV(key, *value);
   }
   void Visit(const char* key, bool* value) final {
-    PrintKV(key, PrintBool(*value));
+    PrintKV(key, Doc::PyBoolLiteral(*value));
   }
   void Visit(const char* key, std::string* value) final {
-    PrintKV(key, PrintString(*value));
+    PrintKV(key, Doc::StrLiteral(*value));
   }
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "do not allow void as argument";
   }
   void Visit(const char* key, DataType* value) final {
-    PrintKV(key, PrintString(runtime::DLDataType2String(*value)));
+    PrintKV(key, Doc::StrLiteral(runtime::DLDataType2String(*value)));
   }
   void Visit(const char* key, runtime::NDArray* value) final {
     LOG(FATAL) << "do not allow NDarray as argument";
@@ -942,10 +858,11 @@ class PrettyPrinter::AttrPrinter : public AttrVisitor {
 
  private:
   std::vector<Doc>* docs;
-  PrettyPrinter* parent_;
+  RelayTextPrinter* parent_;
 };
 
-std::vector<Doc> PrettyPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
+std::vector<Doc> RelayTextPrinter::PrintCallAttrs(
+    const Attrs& attrs, const Expr& op) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* op_node = op.as<OpNode>();
@@ -962,7 +879,7 @@ std::vector<Doc> PrettyPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& o
   }
 }
 
-std::vector<Doc> PrettyPrinter::PrintFuncAttrs(const Attrs& attrs) {
+std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* dict_attrs = attrs.as<DictAttrsNode>();
@@ -974,30 +891,34 @@ std::vector<Doc> PrettyPrinter::PrintFuncAttrs(const Attrs& attrs) {
   }
   return docs;
 }
+}  // namespace relay
 
-std::string PrettyPrint_(const ObjectRef& node,
-                         bool show_meta_data,
-                         runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  Doc doc;
-  doc << kSemVer << PrintNewLine()
-      << PrettyPrinter(show_meta_data, annotate).PrintFinal(node);
-  return doc.str();
-}
+static const char* kSemVer = "v0.0.4";
 
+// TODO(tvm-team): split into files, related: arith/analyzer.h
+//
+// - text_printer.h (common header)
+// - text_printer.cc (prints modules dispatch into relay and tir files)
+//    - type_text_printer.cc(specific printing logics for types,
+//      can also consider put under type_text_printer)
+//    - Implements AsText
+// - relay_text_printer.cc (specific printing logics for relay)
+// - tir_text_printer.cc (specific printing logics for TIR)
 std::string PrettyPrint(const ObjectRef& node) {
   Doc doc;
-  doc << PrettyPrinter(false, runtime::TypedPackedFunc<std::string(Expr)>()).PrintFinal(node);
+  doc << relay::RelayTextPrinter(false, nullptr).PrintFinal(node);
   return doc.str();
 }
 
 std::string AsText(const ObjectRef& node,
-                       bool show_meta_data,
-                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return PrettyPrint_(node, show_meta_data, annotate);
+                   bool show_meta_data,
+                   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
+  Doc doc;
+  doc << kSemVer << Doc::NewLine()
+      << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
+  return doc.str();
 }
 
 TVM_REGISTER_GLOBAL("relay._expr.AsText")
 .set_body_typed(AsText);
-
-}  // namespace relay
 }  // namespace tvm

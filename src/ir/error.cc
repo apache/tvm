@@ -111,7 +111,7 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
     //
     // The annotation callback will annotate the error messages
     // contained in the map.
-    annotated_prog << relay::AsText(func, false, [&err_map](tvm::relay::Expr expr) {
+    annotated_prog << AsText(func, false, [&err_map](const ObjectRef& expr) {
       auto it = err_map.find(expr);
       if (it != err_map.end()) {
         CHECK_NE(it->second.size(), 0);

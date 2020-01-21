@@ -19,13 +19,13 @@
 
 /*!
  * Printer utilities
- * \file node/printer.cc
+ * \file node/repr_printer.cc
  */
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 
 namespace tvm {
 
-void NodePrinter::Print(const ObjectRef& node) {
+void ReprPrinter::Print(const ObjectRef& node) {
   static const FType& f = vtable();
   if (!node.defined()) {
     stream << "(nullptr)";
@@ -39,13 +39,13 @@ void NodePrinter::Print(const ObjectRef& node) {
   }
 }
 
-void NodePrinter::PrintIndent() {
+void ReprPrinter::PrintIndent() {
   for (int i = 0; i < indent; ++i) {
     stream << ' ';
   }
 }
 
-NodePrinter::FType& NodePrinter::vtable() {
+ReprPrinter::FType& ReprPrinter::vtable() {
   static FType inst;
   return inst;
 }

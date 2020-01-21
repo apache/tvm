@@ -39,8 +39,8 @@ namespace tvm {
 namespace top {
 using namespace tir;
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ComputeOpNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const ComputeOpNode*>(node.get());
     p->stream << "compute(" << op->name << ", " << op << ")";
 });

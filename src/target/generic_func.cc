@@ -23,7 +23,7 @@
 
 #include <tvm/runtime/registry.h>
 #include <tvm/node/node.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 #include <tvm/target/target.h>
 #include <tvm/target/generic_func.h>
 #include <tvm/runtime/registry.h>

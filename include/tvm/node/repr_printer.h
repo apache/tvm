@@ -17,25 +17,25 @@
  * under the License.
  */
 /*!
- * \file tvm/node/printer.h
+ * \file tvm/node/repr_printer.h
  * \brief Printer class to print repr string of each AST/IR nodes.
  */
-#ifndef TVM_NODE_PRINTER_H_
-#define TVM_NODE_PRINTER_H_
+#ifndef TVM_NODE_REPR_PRINTER_H_
+#define TVM_NODE_REPR_PRINTER_H_
 
 #include <tvm/node/functor.h>
 #include <iostream>
 
 namespace tvm {
 /*! \brief A printer class to print the AST/IR nodes. */
-class NodePrinter {
+class ReprPrinter {
  public:
   /*! \brief The output stream */
   std::ostream& stream;
   /*! \brief The indentation level. */
   int indent{0};
 
-  explicit NodePrinter(std::ostream& stream)  // NOLINT(*)
+  explicit ReprPrinter(std::ostream& stream)  // NOLINT(*)
       : stream(stream) {}
 
   /*! \brief The node to be printed. */
@@ -43,7 +43,7 @@ class NodePrinter {
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
-  using FType = NodeFunctor<void(const ObjectRef&, NodePrinter*)>;
+  using FType = NodeFunctor<void(const ObjectRef&, ReprPrinter*)>;
   TVM_DLL static FType& vtable();
 };
 
@@ -60,9 +60,9 @@ namespace runtime {
 // default print function for all objects
 // provide in the runtime namespace as this is where objectref originally comes from.
 inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
-  NodePrinter(os).Print(n);
+  ReprPrinter(os).Print(n);
   return os;
 }
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_NODE_PRINTER_H_
+#endif  // TVM_NODE_REPR_PRINTER_H_
