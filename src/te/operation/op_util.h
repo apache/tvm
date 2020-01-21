@@ -21,11 +21,11 @@
  * \file op_util.h
  * \brief Common utility used in operator construction.
  */
-#ifndef TVM_TOP_OPERATION_OP_UTIL_H_
-#define TVM_TOP_OPERATION_OP_UTIL_H_
+#ifndef TVM_TE_OPERATION_OP_UTIL_H_
+#define TVM_TE_OPERATION_OP_UTIL_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/top/schedule.h>
+#include <tvm/te/schedule.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -34,7 +34,7 @@
 #include "../schedule/message_passing.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using tir::MergeNest;
 
@@ -102,6 +102,6 @@ IterVarType ForTypeToIterVarType(tir::ForType for_type);
  */
 tir::ForType IterVarTypeToForType(IterVarType iter_type);
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
-#endif  // TVM_TOP_OPERATION_OP_UTIL_H_
+#endif  // TVM_TE_OPERATION_OP_UTIL_H_

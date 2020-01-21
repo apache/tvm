@@ -19,7 +19,7 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 TEST(Expr, Basic) {
   using namespace tvm;

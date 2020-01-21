@@ -24,14 +24,14 @@
 #ifndef TOPI_X86_BNN_H_
 #define TOPI_X86_BNN_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/top/operation.h"
-#include "tvm/target/generic_func.h"
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
+#include <tvm/te/operation.h>
+#include <tvm/target/generic_func.h>
 
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 namespace x86 {
 /*!

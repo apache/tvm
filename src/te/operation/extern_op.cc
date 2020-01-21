@@ -21,14 +21,14 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <unordered_set>
 #include "op_util.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -182,5 +182,5 @@ Stmt ExternOpNode::BuildProvide(
   }
   return ret;
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

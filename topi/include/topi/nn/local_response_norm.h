@@ -24,15 +24,15 @@
 #ifndef TOPI_NN_LOCAL_RESPONSE_NORM_H_
 #define TOPI_NN_LOCAL_RESPONSE_NORM_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
 
-#include "topi/tags.h"
-#include "tvm/top/operation.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
 * \brief Local response normalization inference operator
@@ -65,24 +65,24 @@ inline Tensor lrn(const Tensor& data,
   pad_before.Set(axis, static_cast<PrimExpr>(size/2));
   pad_after.Set(axis, static_cast<PrimExpr>(size/2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");
-  auto rxs = tvm::top::reduce_axis(Range(0, size), "rxs");
+  auto rxs = tvm::te::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
-    sqr_sum = tvm::top::compute(input_shape,
+    sqr_sum = tvm::te::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l + rxs, j, k) *
                                            pad_data(i, l + rxs, j, k),
                                            {rxs});
                            });
   } else if (axis == 3) {
-    sqr_sum = tvm::top::compute(input_shape,
+    sqr_sum = tvm::te::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l, j, k + rxs) *
                                            pad_data(i, l, j, k + rxs),
                                            {rxs});
                            });
   }
-  auto sqrt_sum_up = tvm::top::compute(
+  auto sqrt_sum_up = tvm::te::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
         return tvm::pow(bias +

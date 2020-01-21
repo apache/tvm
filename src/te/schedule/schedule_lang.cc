@@ -20,13 +20,13 @@
 /*!
  * \file schedule_lang.cc
  */
-#include <tvm/top/schedule.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/operation.h>
 #include <unordered_set>
 #include "graph.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 // find first occurance location in leaf
 template<typename T>
@@ -591,7 +591,7 @@ Stage Schedule::create_group(const Array<Tensor>& outputs,
   self->InitCache();
   const auto& op2stage_cache = self->op2stage_cache_;
   // Get the ops.
-  Array<Operation> ops = top::GetSubGraph(
+  Array<Operation> ops = te::GetSubGraph(
       RemapTensor(self, outputs),
       RemapTensor(self, inputs),
       include_inputs);
@@ -715,8 +715,8 @@ Schedule ScheduleNode::make(Array<Operation> ops) {
   auto n = make_object<ScheduleNode>();
   Schedule sch(n);
   n->outputs = ops;
-  auto g = top::CreateReadGraph(n->outputs);
-  Array<Operation> post_order = top::PostDFSOrder(n->outputs, g);
+  auto g = te::CreateReadGraph(n->outputs);
+  Array<Operation> post_order = te::PostDFSOrder(n->outputs, g);
   // output set.
   std::unordered_set<Operation> output_set;
   for (Operation x : ops) {
@@ -848,5 +848,5 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
   });
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

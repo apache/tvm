@@ -51,9 +51,9 @@ struct CachedFuncNode : public Object {
   /*! \brief Function name */
   std::string func_name;
   /* \brief The inputs to the function */
-  tvm::Array<top::Tensor> inputs;
+  tvm::Array<te::Tensor> inputs;
   /* \brief The outputs to the function */
-  tvm::Array<top::Tensor> outputs;
+  tvm::Array<te::Tensor> outputs;
   /*! \brief The lowered functions to support the function. */
   tvm::Array<tir::LoweredFunc> funcs;
   /*! \brief Parameter usage states in the shape function. */

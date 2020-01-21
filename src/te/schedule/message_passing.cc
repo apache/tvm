@@ -28,7 +28,7 @@
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using namespace tir;
 
@@ -539,5 +539,5 @@ std::vector<PrimExpr> MakeBoundCheck(
   }
   return preds;
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

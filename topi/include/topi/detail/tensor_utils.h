@@ -28,7 +28,7 @@
 namespace topi {
 namespace detail {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
  * \brief Check whether input shape has dimension of size 0;

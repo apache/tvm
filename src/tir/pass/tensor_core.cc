@@ -23,7 +23,7 @@
 // IR Passes for TensorCore CodeGen
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/ir_pass.h>
@@ -39,7 +39,7 @@
 namespace tvm {
 namespace tir {
 
-using namespace top;
+using namespace te;
 using runtime::StorageRank;
 using runtime::StorageScope;
 using runtime::ThreadScope;
@@ -418,7 +418,7 @@ class BufferAnalyser : public StmtExprVisitor {
       storage_scope_[op->node.get()] = op->value.as<StringImmNode>()->value;
       this->VisitStmt(op->body);
     } else if (op->attr_key == attr::buffer_dim_align) {
-      top::Tensor tensor = Downcast<top::Tensor>(op->node);
+      te::Tensor tensor = Downcast<te::Tensor>(op->node);
       const CallNode* tuple = op->value.as<CallNode>();
       CHECK(tuple && tuple->is_intrinsic(intrinsic::tvm_tuple));
       auto& vinfo = dim_align_[TensorKey{tensor->op, tensor->value_index}];
@@ -832,7 +832,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     if (op->attr_key == attr::realize_scope) {
-      auto node = op->node.as<top::OperationNode>();
+      auto node = op->node.as<te::OperationNode>();
       if (node != nullptr) {
         if (!frag_reg_.count(node->name)) {
           return stmt;
@@ -1120,9 +1120,9 @@ class TensorCoreIRMutator : public StmtExprMutator {
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
-    ObjectPtr<top::TensorNode> tensor_node = make_object<top::TensorNode>();
+    ObjectPtr<te::TensorNode> tensor_node = make_object<te::TensorNode>();
     tensor_node->value_index = key.value_index;
-    tensor_node->op = Downcast<top::Operation>(key.f);
+    tensor_node->op = Downcast<te::Operation>(key.f);
     tensor_node->shape = shape;
     tensor_node->dtype = datatype;
     Tensor tensor(tensor_node);

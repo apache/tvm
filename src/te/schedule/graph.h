@@ -21,18 +21,18 @@
  * \file graph.h
  * \brief Utilities to get information about schedule graph.
  */
-#ifndef TVM_TOP_SCHEDULE_GRAPH_H_
-#define TVM_TOP_SCHEDULE_GRAPH_H_
+#ifndef TVM_TE_SCHEDULE_GRAPH_H_
+#define TVM_TE_SCHEDULE_GRAPH_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/top/schedule.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/operation.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace tvm {
-namespace top {
+namespace te {
 
 /*!
  * \brief data structure of Operation->Tensors it reads
@@ -125,7 +125,7 @@ Array<Operation> ScanGetBody(const Operation& scan_op);
  */
 Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan);
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
 
-#endif  // TVM_TOP_SCHEDULE_GRAPH_H_
+#endif  // TVM_TE_SCHEDULE_GRAPH_H_

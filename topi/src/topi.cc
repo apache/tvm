@@ -93,7 +93,7 @@ Array<Integer> ArrayOrInt(TVMArgValue arg) {
 inline bool IsTensorType(TVMArgValue arg) {
   return (arg.type_code() == kTVMObjectHandle &&
           static_cast<Object*>(
-              arg.value().v_handle)->IsInstance<tvm::top::TensorNode>());
+              arg.value().v_handle)->IsInstance<tvm::te::TensorNode>());
 }
 
 
@@ -109,17 +109,17 @@ TVM_REGISTER_GLOBAL("topi.TEST_create_target")
       bool lhs_is_tensor = IsTensorType(args[0]);                       \
       bool rhs_is_tensor = IsTensorType(args[1]);                       \
       if (lhs_is_tensor && rhs_is_tensor) {                             \
-        *rv = Op(args[0].operator tvm::top::Tensor(),                        \
-                 args[1].operator tvm::top::Tensor());                       \
+        *rv = Op(args[0].operator tvm::te::Tensor(),                    \
+                 args[1].operator tvm::te::Tensor());                   \
       } else if (!lhs_is_tensor && rhs_is_tensor) {                     \
-        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
-                 args[1].operator tvm::top::Tensor());                       \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                      \
+                 args[1].operator tvm::te::Tensor());                   \
       } else if (lhs_is_tensor && !rhs_is_tensor) {                     \
-        *rv = Op(args[0].operator tvm::top::Tensor(),                        \
-                 args[1].operator tvm::PrimExpr());                         \
+        *rv = Op(args[0].operator tvm::te::Tensor(),                    \
+                 args[1].operator tvm::PrimExpr());                     \
       } else if (!lhs_is_tensor && !rhs_is_tensor) {                    \
-        *rv = Op(args[0].operator tvm::PrimExpr(),                          \
-                 args[1].operator tvm::PrimExpr());                         \
+        *rv = Op(args[0].operator tvm::PrimExpr(),                      \
+                 args[1].operator tvm::PrimExpr());                     \
       }                                                                 \
     });                                                                 \
 
@@ -757,7 +757,7 @@ TVM_REGISTER_GLOBAL("topi.util.is_empty_shape")
 
 /*! \brief Builder function for instantiating schedules. */
 using FTVMScheduleBuilder = std::function<
-  tvm::top::Schedule(const tvm::Target& target, const tvm::Array<tvm::top::Tensor>& outs)>;
+  tvm::te::Schedule(const tvm::Target& target, const tvm::Array<tvm::te::Tensor>& outs)>;
 
 /*!
  * \brief Helper function for registering generic functions matching the
@@ -826,7 +826,7 @@ TVM_REGISTER_GENERIC_FUNC(schedule_binary_dense)
 
 /*! \brief Builder function for instantiating schedules from existing schedules. */
 using FTVMScheduleFromExistingBuilder = std::function<
-  tvm::top::Schedule(tvm::top::Schedule sch, const tvm::top::Tensor& out)>;
+  tvm::te::Schedule(tvm::te::Schedule sch, const tvm::te::Tensor& out)>;
 
 /*!
  * \brief Helper function for registering generic functions matching the
@@ -850,10 +850,10 @@ TVM_REGISTER_GENERIC_FUNC(schedule_injective_from_existing)
   topi::cuda::schedule_injective_from_existing));
 
 /*! \brief Builder function for instantiating dense ops. */
-using FTVMDenseOpBuilder = std::function<tvm::top::Tensor(const Target& target,
-                                                     const tvm::top::Tensor& data,
-                                                     const tvm::top::Tensor& weight,
-                                                     const tvm::top::Tensor& bias,
+using FTVMDenseOpBuilder = std::function<tvm::te::Tensor(const Target& target,
+                                                     const tvm::te::Tensor& data,
+                                                     const tvm::te::Tensor& weight,
+                                                     const tvm::te::Tensor& bias,
                                                      const DataType& out_dtype)>;
 
 /*!
@@ -879,9 +879,9 @@ inline PackedFunc WrapDenseOp(FTVMDenseOpBuilder builder) {
 
 TVM_REGISTER_GENERIC_FUNC(dense)
 .set_default(WrapDenseOp([](const Target& target,
-                            const tvm::top::Tensor& data,
-                            const tvm::top::Tensor& weight,
-                            const tvm::top::Tensor& bias,
+                            const tvm::te::Tensor& data,
+                            const tvm::te::Tensor& weight,
+                            const tvm::te::Tensor& bias,
                             const DataType& out_dtype) {
   return topi::nn::dense(data, weight, bias, out_dtype);
 }))

@@ -21,7 +21,7 @@
  * \brief Compute Op.
  * \file compute_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
@@ -36,7 +36,7 @@
 #include "../../arith/interval_set.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -184,7 +184,7 @@ Operation ComputeOpNode::ReplaceInputs(
   if (this->body[0]->IsInstance<tir::ReduceNode>()) {
     // Specially handle reduce so the replaced op
     // still share all the components
-    PrimExpr new_reduce = top::ReplaceTensor(this->body[0], rmap);
+    PrimExpr new_reduce = te::ReplaceTensor(this->body[0], rmap);
     if (!new_reduce.same_as(this->body[0])) {
       const tir::ReduceNode* r = new_reduce.as<tir::ReduceNode>();
       for (size_t k = 0; k < this->body.size(); ++k) {
@@ -198,7 +198,7 @@ Operation ComputeOpNode::ReplaceInputs(
     }
   } else {
     arr = UpdateArray(this->body, [&rmap] (const PrimExpr& e) {
-        return top::ReplaceTensor(e, rmap);
+        return te::ReplaceTensor(e, rmap);
       });
   }
   if (!arr.same_as(this->body)) {
@@ -495,7 +495,7 @@ ComputeLoopNest ComputeLoopNest::make(
       update_state[self->axis[i]] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
-    top::PassDownBitMaskOr(stage, &update_state);
+    te::PassDownBitMaskOr(stage, &update_state);
     auto leaf_iter_vars = stage->leaf_iter_vars;
     // first first loop that is related to reduction.
     size_t begin_loop = leaf_iter_vars.size();
@@ -638,5 +638,5 @@ Stmt TransformUpdate(const Stage& stage,
                           update, body);
 }
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

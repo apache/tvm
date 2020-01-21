@@ -22,19 +22,19 @@
  * \brief Common utilities to do message passing
  *  on the schedule hyper graph.
  */
-#ifndef TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
-#define TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
+#ifndef TVM_TE_SCHEDULE_MESSAGE_PASSING_H_
+#define TVM_TE_SCHEDULE_MESSAGE_PASSING_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/top/schedule.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace tvm {
-namespace top {
+namespace te {
 /*!
  * \brief Downward inference of domain of each IterVar.
  *  Caller set the range of the root, then the function
@@ -128,6 +128,6 @@ MakeBoundCheck(
     bool skip_ivar_domain,
     const std::unordered_set<IterVar>& skip_iter);
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
-#endif  // TVM_TOP_SCHEDULE_MESSAGE_PASSING_H_
+#endif  // TVM_TE_SCHEDULE_MESSAGE_PASSING_H_

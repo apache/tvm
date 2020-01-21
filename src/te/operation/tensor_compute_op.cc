@@ -21,7 +21,7 @@
  * \brief Tensor Compute Op.
  * \file tensor_compute_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
@@ -31,7 +31,7 @@
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 // TensorComputeOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -217,7 +217,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     body = MergeNest(input_bind_nest, body);
     body = tir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
-    body = top::Substitute(body, n.main_vmap);
+    body = te::Substitute(body, n.main_vmap);
     Stmt ret =  MergeNest(nest, body);
     return ret;
   } else {
@@ -238,14 +238,14 @@ Stmt TensorComputeOpNode::BuildProvide(
           n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
       init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, this->intrin->reduce_init);
-      init = top::Substitute(init, n.init_vmap);
+      init = te::Substitute(init, n.init_vmap);
       init = MergeNest(init_nest, init);
       // The update
       Stmt update = MergeNest(output_bind_nest, this->intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
       update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = top::Substitute(update, n.main_vmap);
+      update = te::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
@@ -259,11 +259,11 @@ Stmt TensorComputeOpNode::BuildProvide(
       update = MergeNest(input_bind_nest, update);
       update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = top::Substitute(update, n.main_vmap);
+      update = te::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, update);
     }
   }
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

@@ -21,10 +21,10 @@
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 namespace tvm {
-namespace top {
+namespace te {
 
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -103,5 +103,5 @@ Stmt PlaceholderOpNode::BuildProvide(
     bool debug_keep_trivial_loop) const {
   return Stmt();
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

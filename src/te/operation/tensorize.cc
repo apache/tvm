@@ -31,7 +31,7 @@
 #include "../schedule/message_passing.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using namespace tir;
 
@@ -81,7 +81,7 @@ size_t InferTensorizeRegion(
   }
   CHECK(found_point);
   // Get domain of the tensorized scope.
-  top::PassUpDomain(stage, dom_map, &up_state);
+  te::PassUpDomain(stage, dom_map, &up_state);
   // Get domains if inputs
   std::unordered_map<Tensor, TensorDom> in_dom;
   std::unordered_map<const VarNode*, IntSet> temp_dmap;
@@ -452,7 +452,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
     body = MergeNest(input_bind_nest, body);
     body = tir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
-    body = top::Substitute(body, n.main_vmap);
+    body = te::Substitute(body, n.main_vmap);
     return MergeNest(nest, body);
   } else {
     // Need to split reduction
@@ -472,14 +472,14 @@ Stmt MakeTensorize(const ComputeOpNode* self,
           n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
       init_nest.emplace_back(MakeIfNest(n.init_predicates));
       Stmt init = MergeNest(output_bind_nest, intrin->reduce_init);
-      init = top::Substitute(init, n.init_vmap);
+      init = te::Substitute(init, n.init_vmap);
       init = MergeNest(init_nest, init);
       // The update
       Stmt update = MergeNest(output_bind_nest, intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
       update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = top::Substitute(update, n.main_vmap);
+      update = te::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, SeqStmt::Flatten(init, update));
     } else {
@@ -493,7 +493,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
       update = MergeNest(input_bind_nest, update);
       update = tir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
-      update = top::Substitute(update, n.main_vmap);
+      update = te::Substitute(update, n.main_vmap);
       update = MergeNest(update_nest, update);
       return MergeNest(common, update);
     }
@@ -532,5 +532,5 @@ TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody")
                               intrin,
                               &vrange);
   });
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
