@@ -31,7 +31,7 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>

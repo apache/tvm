@@ -31,7 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/attrs/memory.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 
 #include <iostream>
 #include <memory>

@@ -32,7 +32,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 
 #include <topi/tags.h>
 #include <utility>

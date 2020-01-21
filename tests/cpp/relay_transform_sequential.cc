@@ -19,7 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>

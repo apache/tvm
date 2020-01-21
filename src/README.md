@@ -26,9 +26,10 @@ There can be internal header files within each module that sit in src.
 - node: base infra for IR/AST nodes that is dialect independent.
 - ir: Common IR infrastructure.
 - tir: Tensor-level IR.
+- te: tensor expression DSL
 - arith: Arithmetic expression and set simplification.
-- top: tensor operation DSL for compute and schedule.
 - relay: Relay IR, high-level optimization.
 - autotvm: The auto-tuning module.
 - contrib: Contrib extension libraries.
 - api: API function registration.
+- driver: Compilation driver APIs.

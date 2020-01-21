@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
