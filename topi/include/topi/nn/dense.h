@@ -24,15 +24,15 @@
 #ifndef TOPI_NN_DENSE_H_
 #define TOPI_NN_DENSE_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
 
-#include "topi/tags.h"
-#include "tvm/top/operation.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
 * \brief Creates an operation that calculates data * weight^T + bias
@@ -44,9 +44,9 @@ using namespace tvm::top;
 *
 * \return Tensor with shape [batch, out_dim]
 */
-inline tvm::top::Tensor dense(const tvm::top::Tensor& data,
-                         const tvm::top::Tensor& weight,
-                         const tvm::top::Tensor& bias,
+inline tvm::te::Tensor dense(const tvm::te::Tensor& data,
+                         const tvm::te::Tensor& weight,
+                         const tvm::te::Tensor& bias,
                          const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
@@ -58,8 +58,8 @@ inline tvm::top::Tensor dense(const tvm::top::Tensor& data,
   auto in_dim = data->shape[1];
   auto out_dim = weight->shape[0];
 
-  auto k = tvm::top::reduce_axis(Range(0, in_dim), "k");
-  auto matmul = tvm::top::compute(
+  auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
+  auto matmul = tvm::te::compute(
     { batch, out_dim },
     [&](Var i, Var j) {
       return tvm::sum(tvm::cast(out_dtype, data(i, k)) *
@@ -67,7 +67,7 @@ inline tvm::top::Tensor dense(const tvm::top::Tensor& data,
     }, "tensor", "dense");
 
   if (bias.defined()) {
-    matmul = tvm::top::compute(
+    matmul = tvm::te::compute(
       { batch, out_dim },
       [&](Var i, Var j) {
         return matmul(i, j) + tvm::cast(out_dtype, bias(j));

@@ -23,8 +23,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/top/operation.h>
-#include <tvm/top/schedule_pass.h>
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule_pass.h>
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
@@ -33,7 +33,7 @@
 #include "../../tir/pass/ir_util.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using namespace tir;
 
@@ -423,5 +423,5 @@ Stmt ScheduleOps(
   return post_proc(std::move(body));
 }
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

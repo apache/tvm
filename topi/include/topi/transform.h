@@ -24,6 +24,13 @@
 #ifndef TOPI_TRANSFORM_H_
 #define TOPI_TRANSFORM_H_
 
+#include <tvm/tir/data_layout.h>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+#include <topi/detail/ravel_unravel.h>
+#include <topi/detail/constant_utils.h>
+#include <topi/detail/tensor_utils.h>
+
 #include <string>
 #include <vector>
 #include <iterator>
@@ -31,17 +38,9 @@
 #include <limits>
 #include <unordered_set>
 
-#include "topi/tags.h"
-#include "topi/detail/ravel_unravel.h"
-#include "topi/detail/constant_utils.h"
-#include "topi/detail/tensor_utils.h"
-#include "tvm/top/operation.h"
-#include "tvm/tir/op.h"
-#include "tvm/tir/data_layout.h"
-
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
@@ -1042,20 +1041,20 @@ inline Tensor gather_nd(const Tensor& data,
  *
  * \return A Tensor whose op member is the matmul operation
  */
-inline tvm::top::Tensor matmul(const tvm::top::Tensor& A,
-                           const tvm::top::Tensor& B,
+inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
+                           const tvm::te::Tensor& B,
                            bool trans_a = false,
                            bool trans_b = false,
                            std::string name = "T_matmul",
                            std::string tag = kMatMul) {
   tvm::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0],
                                      B->shape[trans_b ? 0 : 1]};
-  auto k = tvm::top::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
+  auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
   auto l = [&](tvm::tir::Var i, tvm::tir::Var j) {
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]),
                     {k});
   };
-  return tvm::top::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -1070,7 +1069,7 @@ inline tvm::top::Tensor matmul(const tvm::top::Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::top::Tensor& B,
+                        const tvm::te::Tensor& B,
                         int axes = 2,
                         std::string name = "T_tensordot",
                         std::string tag = kMatMul) {
@@ -1125,7 +1124,7 @@ inline Tensor tensordot(const Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::top::Tensor& B,
+                        const tvm::te::Tensor& B,
                         Array<PrimExpr> A_axes,
                         Array<PrimExpr> B_axes,
                         std::string name = "T_tensordot",

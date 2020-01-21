@@ -24,22 +24,21 @@
 #ifndef TOPI_IMAGE_RESIZE_H_
 #define TOPI_IMAGE_RESIZE_H_
 
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+#include <topi/elemwise.h>
+#include <topi/detail/ravel_unravel.h>
+#include <topi/detail/constant_utils.h>
+
 #include <string>
 #include <vector>
 #include <iterator>
 #include <algorithm>
 
-#include "topi/tags.h"
-#include "topi/elemwise.h"
-#include "topi/detail/ravel_unravel.h"
-#include "topi/detail/constant_utils.h"
-#include "tvm/top/operation.h"
-#include "tvm/tir/op.h"
-
 namespace topi {
 namespace image {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
  * \brief Sample a point in a tensor using bilinear interpolation.

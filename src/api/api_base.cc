@@ -23,7 +23,7 @@
  */
 #include <dmlc/memory_io.h>
 #include <tvm/tir/expr.h>
-#include <tvm/top/tensor.h>
+#include <tvm/te/tensor.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/node/serialization.h>
 

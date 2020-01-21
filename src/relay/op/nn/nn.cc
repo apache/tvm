@@ -93,10 +93,10 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_argument("bias", "1D Tensor", "Bias.")
 .set_support_level(1)
 .add_type_rel("BiasAdd", BiasAddRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<top::Tensor>& inputs,
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<te::Tensor>& inputs,
                                         const Type& out_type, const Target& target) {
     const auto* param = attrs.as<BiasAddAttrs>();
-    return tvm::Array<tvm::top::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
+    return tvm::Array<tvm::te::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
 });
 
 
@@ -233,11 +233,11 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
+                    const Array<te::Tensor>& inputs,
                     const Type& out_type,
                     const Target& target) {
     const auto* param = attrs.as<LeakyReluAttrs>();
-    return Array<top::Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
+    return Array<te::Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
 });
 
 
@@ -314,11 +314,11 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
+                    const Array<te::Tensor>& inputs,
                     const Type& out_type,
                     const Target& target) {
     const auto* param = attrs.as<PReluAttrs>();
-    return Array<top::Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
+    return Array<te::Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
 });
 
 
@@ -350,12 +350,12 @@ RELAY_REGISTER_OP("nn.softmax")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
+                                         const Array<te::Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
   const auto* param = attrs.as<SoftmaxAttrs>();
   CHECK(param != nullptr);
-  return Array<top::Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
+  return Array<te::Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
 });
 
 
@@ -384,14 +384,14 @@ RELAY_REGISTER_OP("nn.log_softmax")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
+                                         const Array<te::Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
   const auto* param = attrs.as<SoftmaxAttrs>();
   CHECK(param != nullptr);
   CHECK(param->axis == -1 || param->axis == static_cast<int32_t>(inputs[0].ndim()) - 1)
       << "log_softmax currently only works on last dimension";
-  return Array<top::Tensor>{ topi::nn::log_softmax(inputs[0]) };
+  return Array<te::Tensor>{ topi::nn::log_softmax(inputs[0]) };
 });
 
 
@@ -461,10 +461,10 @@ Example::
 .add_type_rel("BatchFlatten", BatchFlattenRel)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
+                    const Array<te::Tensor>& inputs,
                     const Type& out_type,
                     const Target& target) {
-    return Array<top::Tensor>{ topi::nn::flatten(inputs[0]) };
+    return Array<te::Tensor>{ topi::nn::flatten(inputs[0]) };
 });
 
 
@@ -488,10 +488,10 @@ RELAY_REGISTER_OP("nn.relu")
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
+                                         const Array<te::Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
-  return Array<top::Tensor>{ topi::relu(inputs[0], 0.0f) };
+  return Array<te::Tensor>{ topi::relu(inputs[0], 0.0f) };
 });
 
 

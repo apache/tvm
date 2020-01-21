@@ -21,7 +21,7 @@
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -34,7 +34,7 @@
 #include "hybrid_op.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 // HybridOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -77,7 +77,7 @@ Operation HybridOpNode::make(std::string name,
   n->attrs = std::move(attrs);
   n->inputs = std::move(inputs);
   n->outputs = std::move(outputs);
-  n->axis = top::GatherLoopVars(body);
+  n->axis = te::GatherLoopVars(body);
   n->body = std::move(body);
   Operation res = Operation(n);
   return res;
@@ -110,7 +110,7 @@ Operation HybridOpNode::ReplaceInputs(
     const std::unordered_map<Tensor, Tensor> &rmap) const {
   CHECK_EQ(self.operator->(), this);
   auto n = make_object<HybridOpNode>(*this);
-  n->body = top::ReplaceTensor(this->body, rmap);
+  n->body = te::ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];
     if (rmap.count(t)) {
@@ -210,10 +210,10 @@ Stmt HybridOpNode::BuildProvide(
    * This is a major difference that HybridOpNode is NOT the same as
    * ExternOpNode.
    * */
-  ret = top::ReplaceTensor(ret, rmap);
-  ret = top::ReplaceProvideTensor(ret, rmap);
+  ret = te::ReplaceTensor(ret, rmap);
+  ret = te::ReplaceProvideTensor(ret, rmap);
 
-  ret = top::ApplySchedule(stage, dom_map, ret);
+  ret = te::ApplySchedule(stage, dom_map, ret);
   return ret;
 }
 
@@ -506,5 +506,5 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   Stmt ret = repl(stmt);
   return repl.found ? ret : stmt;
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

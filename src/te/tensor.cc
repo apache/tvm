@@ -20,13 +20,13 @@
 /*!
  * \file tensor.cc
  */
-#include <tvm/top/tensor.h>
-#include <tvm/top/operation.h>
-#include <tvm/top/tensor_intrin.h>
+#include <tvm/te/tensor.h>
+#include <tvm/te/operation.h>
+#include <tvm/te/tensor_intrin.h>
 #include <memory>
 
 namespace tvm {
-namespace top {
+namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
   return IterVarNode::make(
@@ -147,5 +147,5 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

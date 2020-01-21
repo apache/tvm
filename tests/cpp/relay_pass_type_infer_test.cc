@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>

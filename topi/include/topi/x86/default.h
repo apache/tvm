@@ -24,14 +24,14 @@
 #ifndef TOPI_X86_DEFAULT_H_
 #define TOPI_X86_DEFAULT_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/top/operation.h"
-#include "tvm/target/generic_func.h"
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
+#include <tvm/te/operation.h>
+#include <tvm/target/generic_func.h>
 
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 namespace x86 {
 /*!
@@ -55,7 +55,7 @@ inline Schedule MakeDefaultSchedule(const Target &target,
   auto axis = s[x]->op.as<ComputeOpNode>()->axis;
 
   if (auto_inline) {
-    tvm::top::AutoInlineInjective(s);
+    tvm::te::AutoInlineInjective(s);
     if (axis.size() > 0) {
       detail::Fuse(s[x], axis);
     }

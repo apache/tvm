@@ -27,7 +27,7 @@
 #ifndef TVM_TIR_IR_PASS_H_
 #define TVM_TIR_IR_PASS_H_
 
-#include <tvm/top/schedule.h>
+#include <tvm/te/schedule.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/lowered_func.h>
@@ -205,7 +205,7 @@ Stmt Inline(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
-                    Map<top::Tensor, Buffer> extern_buffer,
+                    Map<te::Tensor, Buffer> extern_buffer,
                     int cache_line_size,
                     bool create_bound_attribute = false);
 
@@ -219,8 +219,8 @@ Stmt StorageFlatten(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt RewriteForTensorCore(Stmt stmt,
-                          top::Schedule schedule,
-                          Map<top::Tensor, Buffer> extern_buffer);
+                          te::Schedule schedule,
+                          Map<te::Tensor, Buffer> extern_buffer);
 
 /*!
  * \brief Verify if there is any argument bound to compact buffer.

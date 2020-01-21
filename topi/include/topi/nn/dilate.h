@@ -24,16 +24,16 @@
 #ifndef TOPI_NN_DILATE_H_
 #define TOPI_NN_DILATE_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <tvm/tir/ir_pass.h>
+#include <topi/tags.h>
 
-#include "tvm/top/operation.h"
-#include "tvm/tir/ir_pass.h"
-#include "topi/tags.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*!
 * \brief Create a new expression of the logical and of all
@@ -80,7 +80,7 @@ inline Tensor dilate(const Tensor& x,
       (x->shape[i] - 1) * cast(DataType::Int(32), strides[i] + 1)));
   }
 
-  return tvm::top::compute(
+  return tvm::te::compute(
     out_shape,
     [&](const Array<Var>& indices) {
       Array<PrimExpr> not_zero;

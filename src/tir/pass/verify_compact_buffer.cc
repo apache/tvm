@@ -25,7 +25,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/top/tensor.h>
+#include <tvm/te/tensor.h>
 
 #include <unordered_map>
 

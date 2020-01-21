@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/top/tensor.h>
-#include <tvm/top/schedule.h>
+#include <tvm/te/tensor.h>
+#include <tvm/te/schedule.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/target/target.h>
@@ -104,8 +104,8 @@ using TShapeDataDependant = bool;
  * \return The output compute description of the operator.
  */
 using FTVMCompute = runtime::TypedPackedFunc<
-  Array<top::Tensor>(const Attrs& attrs,
-                     const Array<top::Tensor>& inputs,
+  Array<te::Tensor>(const Attrs& attrs,
+                     const Array<te::Tensor>& inputs,
                      const Type& out_type,
                      const Target& target)>;
 
@@ -119,8 +119,8 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \return schedule The computation schedule.
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
-  top::Schedule(const Attrs& attrs,
-                const Array<top::Tensor>& outs,
+  te::Schedule(const Attrs& attrs,
+                const Array<te::Tensor>& outs,
                 const Target& target)>;
 
 /*!
@@ -136,7 +136,7 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<top::Tensor>& tinfos)>;
+       const Array<te::Tensor>& tinfos)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -152,7 +152,7 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
 using FTVMConvertOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<top::Tensor>& tinfos,
+       const Array<te::Tensor>& tinfos,
        const std::string& desired_layout)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
@@ -211,8 +211,8 @@ enum AnyCodegenStrategy {
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
-  Array<top::Tensor>(const Attrs& attrs,
-                     const Array<top::Tensor>& inputs,
+  Array<te::Tensor>(const Attrs& attrs,
+                     const Array<te::Tensor>& inputs,
                      const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay

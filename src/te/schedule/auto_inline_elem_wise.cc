@@ -20,12 +20,12 @@
 /*!
  * \file auto_inline_elem_wise.cc
  */
-#include <tvm/top/schedule_pass.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/schedule_pass.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/expr_functor.h>
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using namespace tir;
 
@@ -111,5 +111,5 @@ void AutoInlineInjective(Schedule sch) {
   }
 }
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
