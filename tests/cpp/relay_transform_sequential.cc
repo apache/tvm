@@ -27,7 +27,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 TVM_REGISTER_GLOBAL("schedule")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {

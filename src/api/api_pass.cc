@@ -96,8 +96,8 @@ TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
 TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
 .set_body_typed
   ([](const Stmt& stmt,
-      const top::Schedule& schedule,
-      const Map<top::Tensor, Buffer>& extern_buffer) {
+      const te::Schedule& schedule,
+      const Map<te::Tensor, Buffer>& extern_buffer) {
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
 

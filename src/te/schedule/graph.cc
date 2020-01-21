@@ -23,14 +23,14 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <utility>
 #include <unordered_set>
 #include <unordered_map>
 #include "graph.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 // key to specific tensor dimension.
 struct TensorDimKey {
   tir::FunctionRef f;
@@ -55,13 +55,13 @@ struct TensorDimKey {
     return !operator==(other);
   }
 };
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<::tvm::top::TensorDimKey> {
-  std::size_t operator()(const ::tvm::top::TensorDimKey& k) const {
+struct hash<::tvm::te::TensorDimKey> {
+  std::size_t operator()(const ::tvm::te::TensorDimKey& k) const {
     size_t lhs = ::tvm::ObjectHash()(k.f);
     size_t rhs = static_cast<size_t>(k.value_index) << 16UL |
         static_cast<size_t>(k.dim);
@@ -73,7 +73,7 @@ struct hash<::tvm::top::TensorDimKey> {
 
 
 namespace tvm {
-namespace top {
+namespace te {
 
 // construct a read graph that gives readers of each operation
 // that the root depend on
@@ -429,5 +429,5 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
   return ret;
 }
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

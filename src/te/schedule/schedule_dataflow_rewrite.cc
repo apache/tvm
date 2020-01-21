@@ -20,8 +20,8 @@
 /*!
  * \file schedule_dataflow_rewrite.cc
  */
-#include <tvm/top/schedule.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/ir_pass.h>
 #include <unordered_set>
@@ -30,7 +30,7 @@
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 // find first occurance location in leaf
 template<typename T>
 size_t FindNodeRef(ArrayNode* array_node, const T& v) {
@@ -211,7 +211,7 @@ void PrepareAxisMapping(Stage orig_stage,
     dom_map[iv] = iv->dom;
     analyzer.Bind(iv->var, iv->dom);
   }
-  top::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
+  te::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
   {
     // The source->cache
     std::unordered_map<IterVar, PrimExpr> value_map;
@@ -347,7 +347,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     for (IterVar iv : compute->axis) {
       value_map[iv] = iv->var;
     }
-    top::PassDownIndex(orig_stage, dom_map, &value_map, true);
+    te::PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
       if (red_axis.count(iv)) continue;
       args.push_back(value_map.at(iv));
@@ -692,8 +692,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   // Find touched reduction axis.
   std::unordered_map<IterVar, int> touch_map;
   touch_map[axis] = 1;
-  top::PassUpBitMaskOr(reduce_stage, &touch_map, true);
-  top::PassDownBitMaskOr(reduce_stage, &touch_map, true);
+  te::PassUpBitMaskOr(reduce_stage, &touch_map, true);
+  te::PassDownBitMaskOr(reduce_stage, &touch_map, true);
   // skip reduction iteration.
   std::unordered_set<IterVar> skip_bound_check;
   // Verify normal axis are not touched.
@@ -715,7 +715,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     }
     analyzer.Bind(iv->var, iv->dom);
   }
-  top::PassDownDomain(reduce_stage, &dom_map, &analyzer, true);
+  te::PassDownDomain(reduce_stage, &dom_map, &analyzer, true);
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv)) {
       Range dom = dom_map.at(iv);
@@ -726,7 +726,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       }
     }
   }
-  top::PassUpIndex(reduce_stage, dom_map, &value_map, true);
+  te::PassUpIndex(reduce_stage, dom_map, &value_map, true);
   std::vector<PrimExpr> predicates = MakeBoundCheck(
       reduce_stage, dom_map, value_map, true, skip_bound_check);
 
@@ -881,5 +881,5 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   reduce_stage->relations = Array<IterVarRelation>();
   return factor_tensors;
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

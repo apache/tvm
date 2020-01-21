@@ -30,7 +30,7 @@
 #include <tvm/driver/driver.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/ir_pass.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 #include <typeinfo>
 #include <string>

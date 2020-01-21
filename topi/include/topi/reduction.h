@@ -24,24 +24,22 @@
 #ifndef TOPI_REDUCTION_H_
 #define TOPI_REDUCTION_H_
 
+#include <tvm/te/operation.h>
+#include <topi/broadcast.h>
+#include <topi/elemwise.h>
+#include <topi/tags.h>
+#include <topi/transform.h>
+#include <topi/detail/ravel_unravel.h>
+#include <topi/detail/constant_utils.h>
+
 #include <algorithm>
 #include <string>
 #include <vector>
 #include <iterator>
 
-#include "topi/broadcast.h"
-#include "topi/elemwise.h"
-#include "topi/tags.h"
-#include "topi/transform.h"
-#include "topi/detail/ravel_unravel.h"
-#include "topi/detail/constant_utils.h"
-#include "tvm/top/operation.h"
-#include "tvm/tir/op.h"
-
-
 namespace topi {
 using namespace tvm;
-using namespace tvm::top;
+using namespace tvm::te;
 
 /*! \brief The operation to use for CommReduce */
 using FReduce = std::function<PrimExpr(PrimExpr source, const Array<IterVar>& axis)>;
@@ -92,7 +90,7 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
   for (auto i : real_axis) {
     std::string name = "k" + std::to_string(i);
     reduce_axes.push_back(
-      tvm::top::reduce_axis(Range(0, data->shape[i]), name));
+      tvm::te::reduce_axis(Range(0, data->shape[i]), name));
   }
   return reduce_axes;
 }
@@ -168,7 +166,7 @@ inline Tensor DoCommReduce(const Tensor& data,
     return func(data(eval_range), r_axes);
   };
 
-  return tvm::top::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
+  return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
 }
 
 /*!
@@ -252,11 +250,11 @@ inline Tensor CommReduceIdx(const Tensor& data,
     return func({ idx, data(eval_range) }, reduce_axes, nullptr);
   };
 
-  auto temp_idx_val = tvm::top::compute(target_shape, compute,
+  auto temp_idx_val = tvm::te::compute(target_shape, compute,
                                    data->op->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
-  return tvm::top::compute(
+  return tvm::te::compute(
     target_shape,
     [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
     data->op->name + "_red",

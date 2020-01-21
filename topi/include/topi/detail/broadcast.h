@@ -24,14 +24,12 @@
 #ifndef TOPI_DETAIL_BROADCAST_H_
 #define TOPI_DETAIL_BROADCAST_H_
 
+#include <tvm/te/operation.h>
+#include <topi/detail/constant_utils.h>
+
 #include <algorithm>
 #include <deque>
 #include <string>
-
-#include "tvm/tir/ir_pass.h"
-#include "tvm/top/operation.h"
-#include "tvm/tir/op.h"
-#include "topi/detail/constant_utils.h"
 
 namespace topi {
 namespace detail {
@@ -100,7 +98,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::PrimExpr>& shape1,
 
 inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     const tvm::Array<tvm::tir::Var>& ovars,
-    const tvm::top::Tensor& T,
+    const tvm::te::Tensor& T,
     const std::deque<tvm::tir::Var>& my_vars,
     const std::deque<tvm::tir::Var>& all_vars) {
   tvm::Array<tvm::PrimExpr> ivars;
@@ -127,9 +125,9 @@ inline tvm::Array<tvm::PrimExpr> InputIndexFromBroadcast(
 }
 
 template <typename FBinaryExpr>
-inline tvm::top::Tensor WithBroadcast(FBinaryExpr op,
-                                 const tvm::top::Tensor& A,
-                                 const tvm::top::Tensor& B,
+inline tvm::te::Tensor WithBroadcast(FBinaryExpr op,
+                                 const tvm::te::Tensor& A,
+                                 const tvm::te::Tensor& B,
                                  const std::string& name = "tensor",
                                  const std::string& tag = "") {
   auto bh = BroadcastShape(A->shape, B->shape);
@@ -137,7 +135,7 @@ inline tvm::top::Tensor WithBroadcast(FBinaryExpr op,
     return op(A(InputIndexFromBroadcast(ovars, A, bh.vars1, bh.all_vars)),
               B(InputIndexFromBroadcast(ovars, B, bh.vars2, bh.all_vars)));
   };
-  return tvm::top::compute(
+  return tvm::te::compute(
       tvm::Array<tvm::PrimExpr>(bh.common_shape.begin(), bh.common_shape.end()),
       l,
       name,

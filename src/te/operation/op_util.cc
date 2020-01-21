@@ -24,14 +24,14 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 
 using namespace arith;
 using namespace tir;
@@ -172,7 +172,7 @@ MakeLoopNest(const Stage& stage,
     }
   }
   // message passing to get offset of root iter vars.
-  top::PassUpIndex(stage, dom_map, &value_map);
+  te::PassUpIndex(stage, dom_map, &value_map);
   return nest;
 }
 
@@ -266,5 +266,5 @@ tir::ForType IterVarTypeToForType(IterVarType iter_type) {
   }
 }
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

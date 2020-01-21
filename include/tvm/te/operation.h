@@ -18,15 +18,15 @@
  */
 
 /*!
- * \file tvm/top/operation.h
+ * \file tvm/te/operation.h
  * \brief Operation node can generate one or multiple Tensors
  */
-#ifndef TVM_TOP_OPERATION_H_
-#define TVM_TOP_OPERATION_H_
+#ifndef TVM_TE_OPERATION_H_
+#define TVM_TE_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/top/tensor.h>
-#include <tvm/top/schedule.h>
+#include <tvm/te/tensor.h>
+#include <tvm/te/schedule.h>
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -36,10 +36,9 @@
 #include <vector>
 #include <unordered_map>
 
-
-
 namespace tvm {
-namespace top {
+/*! \brief Tensor expression language DSL. */
+namespace te {
 
 /*!
  * \brief Temporary data structure to store union
@@ -679,6 +678,6 @@ inline Tensor compute(Array<PrimExpr> shape,
 inline const OperationNode* Operation::operator->() const {
   return static_cast<const OperationNode*>(get());
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
-#endif  // TVM_TOP_OPERATION_H_
+#endif  // TVM_TE_OPERATION_H_

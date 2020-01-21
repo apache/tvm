@@ -21,14 +21,14 @@
  * \brief Scan Operator.
  * \file scan_op.cc
  */
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include "op_util.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -304,5 +304,5 @@ Stmt ScanOpNode::BuildProvide(
           MakeBoundCheck(stage, dom_map, vmap, false, empty)));
   return MergeNest(nest, provide);
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

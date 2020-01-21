@@ -28,7 +28,7 @@
 // and are only used in minimum cases where they are clearly marked.
 //
 // Rationale: convert from IterVar and top::Tensor
-#include <tvm/top/tensor.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
@@ -47,8 +47,8 @@ PrimExpr PrimExpr::FromObject_(ObjectPtr<Object> ptr) {
   if (ptr->IsInstance<tir::IterVarNode>()) {
     return tir::IterVar(ptr)->var;
   }
-  if (ptr->IsInstance<top::TensorNode>()) {
-    return top::Tensor(ptr)();
+  if (ptr->IsInstance<te::TensorNode>()) {
+    return te::Tensor(ptr)();
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()

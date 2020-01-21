@@ -26,7 +26,7 @@
 #include "op_util.h"
 
 namespace tvm {
-namespace top {
+namespace te {
 using namespace tir;
 
 Stmt MakeCrossThreadReduction(
@@ -114,5 +114,5 @@ Stmt MakeCrossThreadReduction(
   body = Substitute(body, value_map);
   return MergeNest(nest, body);
 }
-}  // namespace top
+}  // namespace te
 }  // namespace tvm

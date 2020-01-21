@@ -18,20 +18,20 @@
  */
 
 /*!
- * \file tvm/top/schedule_pass.h
+ * \file tvm/te/schedule_pass.h
  * \brief  Collection of Schedule pass functions.
  *
  *  These passes works on the schedule hyper-graph
  *  and infers information such as bounds, check conditions
  *  read/write dependencies between the IterVar
  */
-#ifndef TVM_TOP_SCHEDULE_PASS_H_
-#define TVM_TOP_SCHEDULE_PASS_H_
+#ifndef TVM_TE_SCHEDULE_PASS_H_
+#define TVM_TE_SCHEDULE_PASS_H_
 
-#include <tvm/top/schedule.h>
+#include <tvm/te/schedule.h>
 
 namespace tvm {
-namespace top {
+namespace te {
 
 /*!
  * \brief Infer the bound of all iteration variables relates to the schedule.
@@ -71,6 +71,6 @@ void AutoInlineElemWise(Schedule sch);
  */
 TVM_DLL void AutoInlineInjective(Schedule sch);
 
-}  // namespace top
+}  // namespace te
 }  // namespace tvm
-#endif  // TVM_TOP_SCHEDULE_PASS_H_
+#endif  // TVM_TE_SCHEDULE_PASS_H_

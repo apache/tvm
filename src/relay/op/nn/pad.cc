@@ -160,8 +160,8 @@ bool PadRel(const Array<Type>& types,
   return true;
 }
 
-Array<top::Tensor> PadCompute(const Attrs& attrs,
-                         const Array<top::Tensor>& inputs,
+Array<te::Tensor> PadCompute(const Attrs& attrs,
+                         const Array<te::Tensor>& inputs,
                          const Type& out_type,
                          const Target& target) {
   const auto* param = attrs.as<PadAttrs>();
@@ -180,7 +180,7 @@ Array<top::Tensor> PadCompute(const Attrs& attrs,
     pad_after.push_back(pad_width[i][1]);
   }
   const auto* out_ttype = out_type.as<TensorTypeNode>();
-  return Array<top::Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
+  return Array<te::Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
                                   tvm::tir::make_const(out_ttype->dtype, param->pad_value),
                                   "T_pad",
                                   topi::kElementWise,
