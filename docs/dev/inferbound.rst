@@ -268,7 +268,7 @@ After PassUpDomain has finished propagating up_state to all IterVars of the cons
 
 .. code:: cpp
 
-   dom_map[iv->var.get()] = IntSet::range(up_state.at(iv).cover_range(iv->dom));
+   dom_map[iv.get()] = IntSet::range(up_state.at(iv).cover_range(iv->dom));
 
 Note that if the schedule does not contain compute_at, Phases 1-2 are actually unnecessary. dom_map can be built directly from the known Ranges in rmap. Ranges simply need to be converted to IntSets, which involves no loss of information.
 

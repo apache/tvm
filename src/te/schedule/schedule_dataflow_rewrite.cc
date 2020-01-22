@@ -423,7 +423,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<IterVar> compute_axis = tensor_op->axis;
   for (size_t i = tensor_op->schedulable_ndim; i < tensor_op->axis.size(); ++i) {
     IterVar iv = tensor_op->axis[i];
-    IterVar aiv = IterVarNode::make(iv->dom, iv, kDataPar);
+    IterVar aiv = IterVar(iv->dom, kDataPar, iv->name_hint, iv.dtype());
     compute_axis.Set(i, aiv);
   }
 

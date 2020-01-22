@@ -242,8 +242,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
       auto &outer_dom = dom_map.find(outer_)->second;
       CHECK(is_const_int(outer_dom->min, 0));
 
-      inner = IterVarNode::make(inner_dom, inner_, inner_->iter_type);
-      outer = IterVarNode::make(outer_dom, outer_, outer_->iter_type);
+      inner = IterVar(inner_dom, inner_->iter_type, inner_->name_hint, inner_.dtype());
+      outer = IterVar(outer_dom, outer_->iter_type, outer_->name_hint, outer_.dtype());
     }
 
     Stmt VisitStmt_(const ForNode *op) final {
@@ -473,7 +473,8 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
     if (const ForNode *op = node.as<ForNode>()) {
       Var loop_var(op->loop_var);
       Range dom = Range::make_by_min_extent(op->min, op->extent);
-      res_.push_back(IterVarNode::make(dom, loop_var, ForTypeToIterVarType(op->for_type)));
+      res_.push_back(IterVar(dom, ForTypeToIterVarType(op->for_type),
+                     loop_var->name_hint, loop_var->dtype));
     }
   });
   std::reverse(res_.begin(), res_.end());

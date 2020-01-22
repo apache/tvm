@@ -107,14 +107,13 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
                           << " before dimension " << c;
       std::string shape_name("_shape");
       shape_name.insert(0, 1, c);
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), Var(shape_name)),
-                                       Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis = IterVar(Range(PrimExpr(0), Var(shape_name)), kDataPar, std::string(1, c));
       node->axes.push_back(axis);
     } else if (c >= 'a' && c <= 'z') {
       CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                           << factor << " for dimension " << c;
-      IterVar axis = IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
-                                       Var(std::string(1, c)), tir::kDataPar);
+      IterVar axis = IterVar(Range(PrimExpr(0), PrimExpr(factor)),
+                             tir::kDataPar, std::string(1, c));
       node->axes.push_back(axis);
       factor = 0;
     } else if (c >= '0' && c <= '9') {
@@ -175,8 +174,8 @@ Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) 
   Array<IterVar> new_layout;
   for (size_t i = 0; i <= this->ndim(); ++i) {
     if (i == target_pos) {
-      new_layout.push_back(IterVarNode::make(Range(PrimExpr(0), PrimExpr(factor)),
-                                             Var(axis.ToSubordinate().name()), tir::kDataPar));
+      new_layout.push_back(IterVar(Range(PrimExpr(0), PrimExpr(factor)),
+                           tir::kDataPar, axis.ToSubordinate().name()));
     }
     if (i == this->ndim()) break;
     new_layout.push_back(axes[i]);

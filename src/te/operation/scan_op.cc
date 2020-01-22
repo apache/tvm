@@ -98,9 +98,8 @@ Operation ScanOpNode::make(std::string name,
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
         n->spatial_axis_.push_back(
-            IterVarNode::make(
-                Range::make_by_min_extent(0, update[i]->shape[k]),
-                Var(spatial_name.str()), kOpaque));
+            IterVar(Range::make_by_min_extent(0, update[i]->shape[k]),
+                    kOpaque, spatial_name.str()));
       }
     }
 
@@ -128,10 +127,9 @@ Array<Tensor> scan(Array<Tensor> init,
                    std::string tag,
                    Map<std::string, ObjectRef> attrs) {
   IterVar scan_axis =
-      IterVarNode::make(
-          Range::make_by_min_extent(
+      IterVar(Range::make_by_min_extent(
               init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
-          Var(name + ".idx"), kOrdered);
+              kOrdered, name + ".idx");
   Operation op = ScanOpNode::make(
       name, tag, attrs, scan_axis,
       init, update, state_placeholder, inputs);

@@ -29,13 +29,11 @@ namespace tvm {
 namespace te {
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVarNode::make(
-      dom, Var(tag), kThreadIndex, tag);
+  return IterVar(dom, kThreadIndex, tag, DataType::Int(32), tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {
-  return IterVarNode::make(
-      dom, Var(name), kCommReduce);
+  return IterVar(dom, kCommReduce, name);
 }
 
 Var var(std::string name_hint, DataType t) {

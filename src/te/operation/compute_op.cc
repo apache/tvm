@@ -99,8 +99,8 @@ Tensor compute(Array<PrimExpr> shape,
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(
+        Range(0, shape[i]), kDataPar, os.str(), shape[i].dtype());
     args.push_back(axis.back());
   }
 
@@ -121,8 +121,8 @@ Array<Tensor> compute(Array<PrimExpr> shape,
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVarNode::make(
-        Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(
+        Range(0, shape[i]), kDataPar, os.str(), shape[i].dtype());
     args.push_back(axis.back());
   }
 

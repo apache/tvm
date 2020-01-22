@@ -1171,9 +1171,9 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
-      if (!var_map_.count(iv->var.get())) {
-        var_map_[iv->var.get()] = GetThreadIndex(iv);
-        analyzer_->Bind(iv->var, Range::make_by_min_extent(0, op->value));
+      if (!var_map_.count(iv.get())) {
+        var_map_[iv.get()] = GetThreadIndex(iv);
+        analyzer_->Bind(iv, Range::make_by_min_extent(0, op->value));
       }
     }
   } else if (op->attr_key == tir::attr::storage_scope) {
