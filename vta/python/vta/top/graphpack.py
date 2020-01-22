@@ -277,11 +277,11 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
             if isinstance(value, relay.expr.Call):
                 if isinstance(value.op, relay.op.Op):
                     if value.op.name == start_name and not start_found:
-                        if operator_current_idx == start_name_idx or start_name_idx == -1:
+                        if operator_current_idx == start_name_idx or start_name_idx is None:
                             value = relay.expr.Call(bitpack_start, [value])
                             start_found = True
                     elif value.op.name == stop_name:
-                        if operator_current_idx == stop_name_idx or stop_name_idx == -1:
+                        if operator_current_idx == stop_name_idx or stop_name_idx is None:
                             raise BT()
 
             operator_current_idx = _operator_idx_inc(value, count_meta, operator_current_idx)
@@ -309,8 +309,8 @@ def graph_pack(expr,
                weight_bits,
                start_name="nn.max_pool2d",
                stop_name="nn.global_avg_pool2d",
-               start_name_idx=-1,
-               stop_name_idx=-1,
+               start_name_idx=None,
+               stop_name_idx=None,
                count_meta=False):
     """Pack the graph into batch&channel packed format.
 
@@ -329,17 +329,17 @@ def graph_pack(expr,
         The bit-width of the weights.
 
     start_name: str, optional
-       Start packing from certain known node when start_name_idx is -1.
+       Start packing from certain known node when start_name_idx is None.
 
     stop_name: str, optional
-       Stop packing from certain known node when stop_name_idx is -1.
+       Stop packing from certain known node when stop_name_idx is None.
 
     start_name_idx: str, optional
-        When start_name_idx not equal -1, start packing only when node name equal start_name
+        When start_name_idx not None, start packing only when node name equal start_name
         and node idx equal start_name_idx.
 
     stop_name_idx: str, optional
-        When stop_name_idx not equal -1, stop packing only when node name equal stop_name
+        When stop_name_idx not None, stop packing only when node name equal stop_name
         and node index equal stop_name_idx.
 
     count_meta:boolean, optional
