@@ -334,13 +334,13 @@ def graph_pack(expr,
     stop_name: str, optional
        Stop packing from certain known node when stop_name_idx is None.
 
-    start_name_idx: str, optional
+    start_name_idx: int, optional
         When start_name_idx not None, start packing only when node name equal start_name
-        and node idx equal start_name_idx.
+        and node idx equals start_name_idx.
 
-    stop_name_idx: str, optional
+    stop_name_idx: int, optional
         When stop_name_idx not None, stop packing only when node name equal stop_name
-        and node index equal stop_name_idx.
+        and node index equals stop_name_idx.
 
     count_meta:boolean, optional
         start_name_idx and stop_name_idx count meta or not.
