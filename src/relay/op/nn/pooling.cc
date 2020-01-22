@@ -947,21 +947,21 @@ bool Pool3DRel(const Array<Type>& types,
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
 
-  IndexExpr pad_d, pad_h, pad_w;
+  IndexExpr pad[3];
   if (param->padding.size() == 1) {
-    pad_d = param->padding[0] * 2;
-    pad_h = param->padding[0] * 2;
-    pad_w = param->padding[0] * 2;
+    pad[0] = param->padding[0] * 2;
+    pad[1] = param->padding[0] * 2;
+    pad[2] = param->padding[0] * 2;
   } else if (param->padding.size() == 3) {
     // (front, top, left)
-    pad_d = param->padding[0] * 2;
-    pad_h = param->padding[1] * 2;
-    pad_w = param->padding[2] * 2;
+    pad[0] = param->padding[0] * 2;
+    pad[1] = param->padding[1] * 2;
+    pad[2] = param->padding[2] * 2;
   } else if (param->padding.size() == 6) {
     // (front, top, left, back, bottom, right)
-    pad_d = param->padding[0] + param->padding[3];
-    pad_h = param->padding[1] + param->padding[4];
-    pad_w = param->padding[2] + param->padding[5];
+    pad[0] = param->padding[0] + param->padding[3];
+    pad[1] = param->padding[1] + param->padding[4];
+    pad[2] = param->padding[2] + param->padding[5];
   } else {
     return false;
   }
@@ -978,10 +978,10 @@ bool Pool3DRel(const Array<Type>& types,
       oshape[ii] = dshape[ii];
     } else {
       if (param->ceil_mode) {
-        oshape[ii] = ((dshape[ii] + pad_d - param->pool_size[i] +
+        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i] +
                          param->strides[i] - 1) / param->strides[i]) + 1;
       } else {
-        oshape[ii] = ((dshape[ii] + pad_d - param->pool_size[i]) / param->strides[i]) + 1;
+        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i]) / param->strides[i]) + 1;
       }
     }
   }
