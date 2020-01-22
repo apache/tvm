@@ -24,14 +24,7 @@ from tvm.relay import ExprFunctor
 from tvm.relay import Function, Call
 from tvm.relay import analysis
 from tvm.relay import transform as _transform
-from tvm.relay.testing import ctx_list
-
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = _transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
+from tvm.relay.testing import ctx_list, run_infer_type
 
 
 def get_var_func():
