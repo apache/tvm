@@ -20,15 +20,10 @@ import tvm
 import scipy
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 import topi.testing
 from tvm.contrib.nvcc import have_fp16
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def sigmoid(x):
     one = np.ones_like(x)

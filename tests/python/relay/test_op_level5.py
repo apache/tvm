@@ -21,14 +21,9 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 import topi.testing
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_resize_infer_type():
     n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")

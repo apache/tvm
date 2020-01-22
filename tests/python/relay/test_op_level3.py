@@ -21,13 +21,8 @@ import pytest
 import tvm
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list, check_grad
+from tvm.relay.testing import ctx_list, check_grad, run_infer_type
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_zeros_ones():
     for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
