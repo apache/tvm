@@ -22,7 +22,7 @@
  * \brief Code generation for TVM's graph runtime.
  */
 #include <tvm/relay/analysis.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/expr.h>

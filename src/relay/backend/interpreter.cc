@@ -30,7 +30,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/debug.h>
 #include <tvm/relay/feature.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 
 #include "compile_engine.h"
 

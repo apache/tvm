@@ -18,16 +18,16 @@
  */
 
 /*!
- * \file tvm/driver/driver.h
- * \brief Compiler driver utilities.
+ * \file tvm/driver/driver_api.h
+ * \brief Compiler driver APIs to drive the compilation.
  *
  * This module provides end-to-end utils to drive the compilation process.
  * We adopt the term "compiler driver" in common compiler infrastructures.
  * Note that a compiler driver is different from "runtime drivers".
  * Most of runtime related code are defined in the runtime folder instead.
  */
-#ifndef TVM_DRIVER_DRIVER_H_
-#define TVM_DRIVER_DRIVER_H_
+#ifndef TVM_DRIVER_DRIVER_API_H_
+#define TVM_DRIVER_DRIVER_API_H_
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
@@ -115,4 +115,4 @@ TVM_DLL runtime::Module build(const Map<std::string, Array<tir::LoweredFunc>>& i
                               const BuildConfig& config);
 }  // namespace tvm
 
-#endif  // TVM_DRIVER_DRIVER_H_
+#endif  // TVM_DRIVER_DRIVER_API_H_
