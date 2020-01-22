@@ -19,10 +19,10 @@
 
 /*!
  *  Compile executable modules.
- * \file driver.cc
+ * \file driver_api.cc
  */
 #include <dmlc/thread_local.h>
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/target/codegen.h>

@@ -29,7 +29,7 @@
 #include <tvm/te/schedule.h>
 #include <tvm/runtime/registry.h>
 
-#include <tvm/driver/driver.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/tir/data_layout.h>
 
 
