@@ -38,7 +38,7 @@ namespace te {
 using namespace tir;
 
 Stmt MakePipeline(const Stage& s,
-                  const std::unordered_map<IterVar, Range>& dom_map,
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                   Stmt consumer,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
@@ -74,7 +74,7 @@ class InjectAttach : public StmtMutator {
  public:
   InjectAttach(const Stage& stage,
                const Stage& attach_spec,
-               const std::unordered_map<IterVar, Range>& dom_map,
+               const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                bool debug_keep_trivial_loop)
       : stage_(stage), attach_spec_(attach_spec), dom_map_(dom_map),
         debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
@@ -107,7 +107,7 @@ class InjectAttach : public StmtMutator {
   // The attach spec, may not contain op.
   const Stage& attach_spec_;
   // domain map
-  const std::unordered_map<IterVar, Range>& dom_map_;
+  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map_;
   // Whether keep trivial loops with extent of 1 during lowering.
   // This is a debug feature for dataflow/axis analysis
   bool debug_keep_trivial_loop_;
@@ -118,7 +118,7 @@ class InjectScanStep : public StmtMutator {
  public:
   InjectScanStep(const Stage& stage,
                  const Operation& scan_op,
-                 const std::unordered_map<IterVar, Range>& dom_map,
+                 const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                  bool is_init,
                  bool debug_keep_trivial_loop)
       : stage_(stage), scan_op_(scan_op),
@@ -150,7 +150,7 @@ class InjectScanStep : public StmtMutator {
   const Stage& stage_;
   const Operation& scan_op_;
   // domain map
-  const std::unordered_map<IterVar, Range>& dom_map_;
+  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map_;
   // whether it is init.
   bool is_init_;
   // Whether keep trivial loops with extent of 1 during lowering.
@@ -192,7 +192,7 @@ class SchedulePostProc : public StmtExprMutator {
     } else if (op->attr_key == attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
       CHECK(scan);
-      var_value_[scan->scan_axis->var.get()] = op->value;
+      var_value_[scan->scan_axis.get()] = op->value;
       return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::thread_extent) {
       // delete duplicated thread extent attr
@@ -306,8 +306,8 @@ class SchedulePostProc : public StmtExprMutator {
       for (auto kv : s->iter_var_attrs) {
         // Update bind thread information.
         if (kv.second->bind_thread.defined()) {
-          const Var& from = kv.first->var;
-          const Var& to = kv.second->bind_thread->var;
+          const Var& from = kv.first;
+          const Var& to = kv.second->bind_thread;
           CHECK(!var_value_.count(from.get()));
           var_value_[from.get()] = to;
         }
@@ -357,7 +357,7 @@ class SchedulePostProc : public StmtExprMutator {
 Stmt ScheduleOps(
     Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_trivial_loop) {
   Stmt body = Stmt();
-  std::unordered_map<IterVar, Range> dom_map = as_unordered_map(dom_map_);
+  auto dom_map = as_unordered_map_custom<IterVar, Range, ObjectHash, ObjectEqual>(dom_map_);
   // scan init and scan updates
   std::unordered_map<Operation, Operation> scan_init;
   for (Stage s : sch->stages) {

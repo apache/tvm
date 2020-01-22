@@ -40,8 +40,8 @@ class IRUseDefAnalysis : public StmtExprMutator {
       CHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
       // use the first appearance as def.
-      if (!use_count_.count(iv->var.get())) {
-        this->HandleDef(iv->var.get());
+      if (!use_count_.count(iv.get())) {
+        this->HandleDef(iv.get());
         thread_axis_.push_back(iv);
         thread_extent_.push_back(op->value);
       }

@@ -59,7 +59,8 @@ Stmt ReplaceProvideTensor(Stmt stmt,
  * \param stage The schedule information to be applied.
  */
 Stmt ApplySchedule(const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
+                   const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+                   Stmt stmt);
 
 /*!
  * \brief Apply loop splits and fuses in the schedule on the function body.
@@ -68,7 +69,8 @@ Stmt ApplySchedule(const Stage& stage,
  * \param stmt The statement to be processed.
  */
 Stmt ApplyLoopShapes(const Stage &stage,
-                     const std::unordered_map<IterVar, Range>& dom_map, Stmt stmt);
+                     const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+                     Stmt stmt);
 
 
 /*!
@@ -78,7 +80,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
  * \param stmt The statement to be processed.
  */
 Stmt ApplyLoopAnnotations(const Stage &stage,
-                          const std::unordered_map<IterVar, IterVar>& rebased, Stmt stmt);
+                          const std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual>& rebased,
+                          Stmt stmt);
 
 /*!
  * \brief Apply loop order in the schedule on the function body.
@@ -88,8 +91,9 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
  * \param stmt The statement to be processed.
  */
 Stmt ApplyLoopOrder(const Stage &stage,
-                    const std::unordered_map<IterVar, Range> &dom_map,
-                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt);
+                    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
+                    const std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> &rebased,
+                    Stmt stmt);
 
 }  // namespace te
 }  // namespace tvm

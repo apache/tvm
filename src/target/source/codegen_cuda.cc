@@ -104,9 +104,9 @@ void CodeGenCUDA::VisitStmt_(const tir::ForNode* op) {
 }
 
 void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
-  var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, DataType::UInt(32), iv->var.dtype());
+  CHECK(!var_idmap_.count(iv.get()));
+  var_idmap_[iv.get()] =
+      CastFromTo(iv->thread_tag, DataType::UInt(32), iv.dtype());
 }
 
 void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)

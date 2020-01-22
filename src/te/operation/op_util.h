@@ -51,11 +51,11 @@ using tir::MergeNest;
  */
 std::vector<std::vector<Stmt> >
 MakeLoopNest(const Stage& stage,
-             const std::unordered_map<IterVar, Range>& dom_map,
+             const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
              size_t begin_iter_pos,
              bool new_loop_var,
-             const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, PrimExpr>* p_value_map,
+             const std::unordered_set<IterVar, ObjectHash, ObjectEqual>& skip_iter,
+             std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_value_map,
              bool debug_keep_trivial_loop);
 
 /*!
@@ -88,7 +88,7 @@ PrimExpr ReplaceTensor(PrimExpr expr,
  * \return Substituted result.
  */
 Stmt Substitute(Stmt stmt,
-                const std::unordered_map<IterVar, PrimExpr>& value_map);
+                const std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>& value_map);
 
 /*!
  * \brief Converts Halide ForType to its corresponding IterVarType

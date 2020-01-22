@@ -60,7 +60,7 @@ void FeatureVisitor::VisitStmt_(const ForNode* op) {
 void FeatureVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent ||
       op->attr_key == attr::virtual_thread) {
-    Var var = op->node.as<tir::IterVarNode>()->var;
+    Var var = GetRef<Var>(op->node.as<tir::IterVarNode>());
     const auto *extent = op->value.as<IntImmNode>();
     CHECK(extent);
 

@@ -812,7 +812,7 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
-      if (!var_idmap_.count(iv->var.get())) {
+      if (!var_idmap_.count(iv.get())) {
         BindThreadIndex(iv);
       }
     }

@@ -46,7 +46,7 @@ class ElemWiseDetector : public tir::ExprVisitor {
     }
 
     for (size_t i = 0; i < axis_.size(); ++i) {
-      if (!axis[i].same_as(axis_[i]->var)) {
+      if (!axis[i].same_as(axis_[i])) {
         is_elem_wise_ = false;
         return;
       }

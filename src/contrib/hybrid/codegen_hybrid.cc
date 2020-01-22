@@ -291,10 +291,10 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     auto iter_var = op->node.as<IterVarNode>();
     CHECK(iter_var);
-    binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
+    binds_[iter_var] = dot_to_underscore(iter_var->name_hint);
     PrintIndent();
-    stream << "for " << binds_[iter_var->var.get()] << " in bind('"
-           << iter_var->var->name_hint << "', ";
+    stream << "for " << binds_[iter_var] << " in bind('"
+           << iter_var->name_hint << "', ";
     PrintExpr(op->value, stream);
     stream << "):\n";
     indent_ += tab_;

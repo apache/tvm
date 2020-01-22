@@ -488,8 +488,8 @@ class VirtualThreadInjector : public StmtMutator {
       bool allow_share = iv->thread_tag == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);
       VarTouchedAnalysis vs;
-      auto touched = vs.TouchedVar(op->body, iv->var.get());
-      VTInjector injecter(iv->var, nthread, touched, allow_share);
+      auto touched = vs.TouchedVar(op->body, iv.get());
+      VTInjector injecter(iv, nthread, touched, allow_share);
       return injecter(op->body);
     } else {
       return stmt;

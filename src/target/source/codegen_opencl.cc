@@ -79,7 +79,7 @@ std::string CodeGenOpenCL::Finish() {
 }
 
 void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
+  CHECK(!var_idmap_.count(iv.get()));
   runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
   std::ostringstream os;
   if (ts.rank == 1) {
@@ -87,8 +87,8 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
   } else {
     os << "get_group_id(" << ts.dim_index << ")";
   }
-  var_idmap_[iv->var.get()] =
-      CastFromTo(os.str(), DataType::UInt(64), iv->var.dtype());
+  var_idmap_[iv.get()] =
+      CastFromTo(os.str(), DataType::UInt(64), iv.dtype());
 }
 
 void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)

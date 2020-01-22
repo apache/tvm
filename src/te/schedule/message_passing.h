@@ -47,7 +47,7 @@ namespace te {
  */
 void PassDownDomain(
     const Stage& stage,
-    std::unordered_map<IterVar, Range>* p_state,
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* p_state,
     arith::Analyzer* analyzer,
     bool allow_missing = false);
 
@@ -62,7 +62,7 @@ void PassDownDomain(
  */
 void PassUpIndex(const Stage& stage,
                  const Map<IterVar, Range>& dom_map,
-                 std::unordered_map<IterVar, PrimExpr>* p_state,
+                 std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_state,
                  bool allow_missing = false);
 
 /*!
@@ -76,7 +76,7 @@ void PassUpIndex(const Stage& stage,
  */
 void PassDownIndex(const Stage& stage,
                    const Map<IterVar, Range>& dom_map,
-                   std::unordered_map<IterVar, PrimExpr>* p_state,
+                   std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_state,
                    bool allow_missing = false);
 
 /*!
@@ -88,8 +88,8 @@ void PassDownIndex(const Stage& stage,
  * \param p_state The index state of each IterVar.
  */
 void PassUpDomain(const Stage& stage,
-                  const std::unordered_map<IterVar, Range>& dom_map,
-                  std::unordered_map<IterVar, IntSet>* p_state);
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+                  std::unordered_map<IterVar, IntSet, ObjectHash, ObjectEqual>* p_state);
 
 /*!
  * \brief Upward message passing of bitmask with or relation.
@@ -98,7 +98,7 @@ void PassUpDomain(const Stage& stage,
  * \param allow_missing Whether allow missing value.
  */
 void PassUpBitMaskOr(const Stage& stage,
-                     std::unordered_map<IterVar, int>* p_state,
+                     std::unordered_map<IterVar, int, ObjectHash, ObjectEqual>* p_state,
                      bool allow_missing = false);
 
 /*!
@@ -108,7 +108,7 @@ void PassUpBitMaskOr(const Stage& stage,
  * \param allow_missing Whether allow missing value.
  */
 void PassDownBitMaskOr(const Stage& stage,
-                       std::unordered_map<IterVar, int>* p_state,
+                       std::unordered_map<IterVar, int, ObjectHash, ObjectEqual>* p_state,
                        bool allow_missing = false);
 
 /*!
@@ -124,9 +124,9 @@ std::vector<PrimExpr>
 MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, PrimExpr>& value_map,
+    const std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>& value_map,
     bool skip_ivar_domain,
-    const std::unordered_set<IterVar>& skip_iter);
+    const std::unordered_set<IterVar, ObjectHash, ObjectEqual>& skip_iter);
 
 }  // namespace te
 }  // namespace tvm

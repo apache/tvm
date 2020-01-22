@@ -43,13 +43,13 @@ struct ComputeLoopNest {
   // Initialization nest involved.
   std::vector<std::vector<Stmt> > init_nest;
   // Value map for the init code
-  std::unordered_map<IterVar, PrimExpr> init_vmap;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> init_vmap;
   // Predicates for the main update loop
   std::vector<PrimExpr> main_predicates;
   // The general loop nest
   std::vector<std::vector<Stmt> > main_nest;
   // Value map for the IterVar.
-  std::unordered_map<IterVar, PrimExpr> main_vmap;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> main_vmap;
 
   /*!
    * \brief constructor to build ComputeOpNest
@@ -62,7 +62,7 @@ struct ComputeLoopNest {
   static ComputeLoopNest make(
       const BaseComputeOpNode* self,
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop);
 };
 
@@ -77,7 +77,7 @@ struct ComputeLoopNest {
 Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop);
 
 /*!
@@ -90,7 +90,7 @@ Stmt MakeCrossThreadReduction(
  */
 Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map,
+                   const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                    bool debug_keep_trivial_loop);
 
 /*!
@@ -103,7 +103,7 @@ Stmt MakeTensorize(const ComputeOpNode* self,
  * \return Transformed result.
  */
 Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                      const ComputeLoopNest& n,
                      Stmt body,
                      Stmt update);

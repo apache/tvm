@@ -290,9 +290,9 @@ class ScheduleAnalyser {
       }
       const VarNode* axis_var[2];
       const VarNode* reduce_axis_var;
-      axis_var[0] = axis[axis.size()-2]->var.as<VarNode>();
-      axis_var[1] = axis[axis.size()-1]->var.as<VarNode>();
-      reduce_axis_var = reduce_axis[0]->var.as<VarNode>();
+      axis_var[0] = axis[axis.size()-2].as<VarNode>();
+      axis_var[1] = axis[axis.size()-1].as<VarNode>();
+      reduce_axis_var = reduce_axis[0].as<VarNode>();
 
       BodyVisitor body_visitor;
       for (PrimExpr expr : compute->body) {
@@ -410,7 +410,7 @@ class BufferAnalyser : public StmtExprVisitor {
       if (const IntImmNode* value = op->value.as<IntImmNode>()) {
         thread_extent_.insert(
             std::make_pair(
-                op->node.as<IterVarNode>()->var->name_hint,
+                op->node.as<IterVarNode>()->name_hint,
                 value->value));
       }
       StmtExprVisitor::VisitStmt_(op);

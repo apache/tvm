@@ -199,7 +199,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     CHECK_GT(alloc_size, 0)
         << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
-    warp_index_ = WarpIndexFinder(warp_size_).Find(op->body)->var;
+    warp_index_ = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(
         buffer_, warp_index_, analyzer_).Find(op->body);
     CHECK_EQ(alloc_size % (warp_size_ * warp_coeff_), 0)
@@ -315,10 +315,10 @@ class BindVarBoundInfo : public StmtVisitor {
         op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       CHECK_NE(iv->thread_tag.length(), 0U);
-      if (!var_dom_.count(iv->var.get())) {
+      if (!var_dom_.count(iv.get())) {
         Range dom = Range::make_by_min_extent(0, op->value);
-        var_dom_[iv->var.get()] = dom;
-        analyzer_->Bind(iv->var, dom);
+        var_dom_[iv.get()] = dom;
+        analyzer_->Bind(iv, dom);
       }
     }
     StmtVisitor::VisitStmt_(op);

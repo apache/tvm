@@ -259,7 +259,7 @@ ReachGraph GetReachGraph(const Array<Operation>& ops) {
       const auto& axis = compute_op->axis;
       Tensor t = op.output(0);
       for (size_t i = 0; i < axis.size(); ++i) {
-        vmap[axis[i]->var.get()] = TensorDimKey(t, i);
+        vmap[axis[i].get()] = TensorDimKey(t, i);
         reach[TensorDimKey(t, i)] = {};
       }
       auto fvisit = [&vmap, &reach, &bset](const ObjectRef& n) {
@@ -349,7 +349,7 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
         for (int j = 0; j < op->num_outputs(); ++j) {
           keys.emplace_back(op.output(j), i);
         }
-        vmap[axis[i]->var.get()] = std::move(keys);
+        vmap[axis[i].get()] = std::move(keys);
       }
       auto fvisit = [&vmap, &f_merge_key, &exact_reach, &fail_set](
           const ObjectRef& n) {

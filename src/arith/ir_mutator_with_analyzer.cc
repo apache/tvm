@@ -96,7 +96,7 @@ VisitStmt_(const AttrStmtNode* op) {
       op->attr_key == attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
     CHECK_NE(iv->thread_tag.length(), 0U);
-    analyzer_->Bind(iv->var,
+    analyzer_->Bind(iv,
                     Range::make_by_min_extent(0, op->value));
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     return stmt;
@@ -209,7 +209,7 @@ PrimExpr IRMutatorWithAnalyzer::
 VisitExpr_(const ReduceNode* op) {
   // Setup the domain information before simplification.
   for (const IterVar& iv : op->axis) {
-    analyzer_->Bind(iv->var, iv->dom);
+    analyzer_->Bind(iv, iv->dom);
   }
   // Recursively call simplification when necessary.
   return StmtExprMutator::VisitExpr_(op);

@@ -716,7 +716,7 @@ IntSet Intersect(const Array<IntSet>& sets) {
 Map<Var, IntSet> ConvertDomMap(const Map<IterVar, IntSet>& dom_map) {
   Map<Var, IntSet> dmap;
   for (auto kv : dom_map) {
-    dmap.Set(kv.first->var, kv.second);
+    dmap.Set(kv.first, kv.second);
   }
   return dmap;
 }

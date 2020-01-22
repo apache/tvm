@@ -195,16 +195,16 @@ void ScanOpNode::PropBoundToInputs(
           Range::make_by_min_extent(0, this->init[i]->shape[0])));
     }
     if (update_dom) {
-      update_dom->data[0].push_back(dom_map.at(this->scan_axis->var.get()));
+      update_dom->data[0].push_back(dom_map.at(this->scan_axis.get()));
     }
     // The update dimensions
     for (size_t k = 1; k < this->update[i]->shape.size(); ++k, ++sp_idx) {
       IterVar sp_ax = this->spatial_axis_[sp_idx];
       if (init_dom) {
-        init_dom->data[k].push_back(dom_map.at(sp_ax->var.get()));
+        init_dom->data[k].push_back(dom_map.at(sp_ax.get()));
       }
       if (update_dom) {
-        update_dom->data[k].push_back(dom_map.at(sp_ax->var.get()));
+        update_dom->data[k].push_back(dom_map.at(sp_ax.get()));
       }
     }
   }
@@ -213,7 +213,7 @@ void ScanOpNode::PropBoundToInputs(
 void ScanOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   CHECK(!out_dom_map->count(this->scan_axis));
   std::vector<Tensor> output(this->num_outputs());
@@ -253,7 +253,7 @@ void ScanOpNode::GatherBound(
 
 Stmt ScanOpNode::BuildRealize(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
@@ -278,11 +278,11 @@ Stmt ScanOpNode::BuildRealize(
 
 Stmt ScanOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmtNode::make(
-      stage->op, attr::scan_update_scope, this->scan_axis->var,
+      stage->op, attr::scan_update_scope, this->scan_axis,
       EvaluateNode::make(0));
   Stmt init = AttrStmtNode::make(
       stage->op, attr::scan_init_scope, 0,
@@ -294,8 +294,8 @@ Stmt ScanOpNode::BuildProvide(
       begin_scan = i + 1;
     }
   }
-  std::unordered_map<IterVar, PrimExpr> vmap;
-  std::unordered_set<IterVar> empty;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> vmap;
+  std::unordered_set<IterVar, ObjectHash, ObjectEqual> empty;
   auto nest = MakeLoopNest(
       stage, dom_map, 0, false, empty, &vmap, debug_keep_trivial_loop);
   nest[begin_scan].push_back(init);

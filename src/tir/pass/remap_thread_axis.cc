@@ -49,11 +49,11 @@ class ThreadAxisRewriter : private StmtExprMutator {
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
         const IterVar& new_iv = it->second;
-        const VarNode* v = iv->var.get();
+        const VarNode* v = iv.get();
         if (!vmap_.count(v)) {
-          vmap_[v] = new_iv->var;
+          vmap_[v] = new_iv;
         } else {
-          CHECK(vmap_[v].same_as(new_iv->var));
+          CHECK(vmap_[v].same_as(new_iv));
         }
         Stmt body = this->VisitStmt(op->body);
         return AttrStmtNode::make(

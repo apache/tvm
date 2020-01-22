@@ -124,7 +124,7 @@ class OperationNode : public tir::FunctionBaseNode {
   virtual void GatherBound(
       const Operation& self,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const = 0;
+      std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const = 0;
   /*!
    * \brief Build the Realize statement that realizes
    *   the op's output tensors.
@@ -135,7 +135,7 @@ class OperationNode : public tir::FunctionBaseNode {
    */
   virtual Stmt BuildRealize(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
       const Stmt& body) const = 0;
   /*!
    * \brief Build the statement that provide the output tensors.
@@ -146,7 +146,7 @@ class OperationNode : public tir::FunctionBaseNode {
    */
   virtual Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const = 0;
 
   static constexpr const char* _type_key = "Operation";
@@ -180,14 +180,14 @@ class PlaceholderOpNode : public OperationNode {
   void GatherBound(
       const Operation& self,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+      std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const final;
   Stmt BuildRealize(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -222,10 +222,10 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   void GatherBound(
           const Operation& self,
           const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-          std::unordered_map<IterVar, Range>* out_dom_map) const final;
+          std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const final;
   Stmt BuildRealize(
           const Stage& stage,
-          const std::unordered_map<IterVar, Range>& realize_map,
+          const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
           const Stmt& body) const final;
   virtual size_t num_schedulable_dims() const = 0;
 
@@ -257,7 +257,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
   size_t num_schedulable_dims() const final;
 
@@ -310,7 +310,7 @@ class TensorComputeOpNode : public BaseComputeOpNode {
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
   size_t num_schedulable_dims() const final;
 
@@ -386,14 +386,14 @@ class ScanOpNode : public OperationNode {
   void GatherBound(
       const Operation& self,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+      std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const final;
   Stmt BuildRealize(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -453,14 +453,14 @@ class ExternOpNode : public OperationNode {
   void GatherBound(
       const Operation& self,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+      std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const final;
   Stmt BuildRealize(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -521,14 +521,14 @@ class HybridOpNode : public OperationNode {
   void GatherBound(
       const Operation& self,
       const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-      std::unordered_map<IterVar, Range>* out_dom_map) const final;
+      std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const final;
   Stmt BuildRealize(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& realize_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
       const Stmt& body) const final;
   Stmt BuildProvide(
       const Stage& stage,
-      const std::unordered_map<IterVar, Range>& dom_map,
+      const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
       bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {

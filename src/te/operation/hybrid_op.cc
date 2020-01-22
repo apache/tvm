@@ -147,7 +147,7 @@ void HybridOpNode::PropBoundToInputs(
 void HybridOpNode::GatherBound(
     const Operation &self,
     const std::unordered_map<Tensor, TensorDom> &tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const {
   for (auto iter_var : axis) {
     CHECK(!out_dom_map->count(iter_var));
     out_dom_map->operator[](iter_var) = iter_var->dom;
@@ -156,7 +156,7 @@ void HybridOpNode::GatherBound(
 
 Stmt HybridOpNode::BuildRealize(
     const Stage &stage,
-    const std::unordered_map<IterVar, Range> &realize_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &realize_map,
     const Stmt &body) const {
   // TODO(@were): Add attribute inject here and remove it from hybrid parser.
   CHECK_EQ(stage->op.get(), this);
@@ -178,7 +178,7 @@ Stmt HybridOpNode::BuildRealize(
 
 Stmt HybridOpNode::BuildProvide(
     const Stage &stage,
-    const std::unordered_map<IterVar, Range> &dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
@@ -218,7 +218,8 @@ Stmt HybridOpNode::BuildProvide(
 }
 
 Stmt ApplyLoopShapes(const Stage &stage,
-                     const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+                     const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
+                     Stmt stmt) {
   class LoopSpliter : public StmtExprMutator {
     PrimExpr factor;
     const VarNode *parent;
@@ -227,9 +228,9 @@ Stmt ApplyLoopShapes(const Stage &stage,
    public:
     bool splitted;
     LoopSpliter(const SplitNode *split,
-                const std::unordered_map<IterVar, Range> &dom_map) :
+                const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map) :
       factor(split->factor), splitted(false) {
-      parent = split->parent->var.get();
+      parent = split->parent.get();
 
       auto &inner_ = split->inner;
       CHECK(dom_map.count(inner_));
@@ -241,8 +242,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
       auto &outer_dom = dom_map.find(outer_)->second;
       CHECK(is_const_int(outer_dom->min, 0));
 
-      inner = IterVarNode::make(inner_dom, inner_->var, inner_->iter_type);
-      outer = IterVarNode::make(outer_dom, outer_->var, outer_->iter_type);
+      inner = IterVarNode::make(inner_dom, inner_, inner_->iter_type);
+      outer = IterVarNode::make(outer_dom, outer_, outer_->iter_type);
     }
 
     Stmt VisitStmt_(const ForNode *op) final {
@@ -252,9 +253,9 @@ Stmt ApplyLoopShapes(const Stage &stage,
         Stmt ret = tir::Substitute(op->body, rmap);
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElseNode::make(cond, ret);
-        ret = ForNode::make(inner->var, PrimExpr(0), inner->dom->extent,
+        ret = ForNode::make(inner, PrimExpr(0), inner->dom->extent,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);
-        ret = ForNode::make(outer->var, PrimExpr(0), outer->dom->extent,
+        ret = ForNode::make(outer, PrimExpr(0), outer->dom->extent,
                         IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
@@ -273,8 +274,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
    public:
     bool fused;
     explicit LoopFuser(const FuseNode *fuse_)
-      : parent(fuse_->fused), inner(fuse_->inner->var.get()),
-        outer(fuse_->outer->var.get()), under_outer(false),
+      : parent(fuse_->fused), inner(fuse_->inner.get()),
+        outer(fuse_->outer.get()), under_outer(false),
         extent(0), fused(false) {}
 
     // TODO(@were): Handle imperfect loops
@@ -293,7 +294,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
         rmap[op->loop_var.get()] = indexdiv(parent, extent);
         body = tir::Substitute(body, rmap);
         under_outer = false;
-        return ForNode::make(parent->var, PrimExpr(0), extent * op->extent,
+        return ForNode::make(parent, PrimExpr(0), extent * op->extent,
                          op->for_type, op->device_api, body);
       } else if (under_outer) {
         Stmt body = this->VisitStmt(op->body);
@@ -323,7 +324,9 @@ Stmt ApplyLoopShapes(const Stage &stage,
 }
 
 Stmt ApplyLoopAnnotations(const Stage &stage,
-                          const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
+                          const std::unordered_map<IterVar, IterVar,
+                                                   ObjectHash, ObjectEqual> &rebased,
+                          Stmt stmt) {
   class LoopAnnotator : public StmtMutator {
     const VarNode *var;
     const IterVarAttr &attr;
@@ -358,7 +361,7 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
     int found = 0;
 
     const IterVar &actual = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
-    const VarNode *var = actual->var.get();
+    const VarNode *var = actual.get();
     ForType expected = IterVarTypeToForType(iter_var->iter_type);
     IterVarAttr attr;
     if (stage->iter_var_attrs.count(iter_var)) {
@@ -385,8 +388,9 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
 }
 
 Stmt ApplyLoopOrder(const Stage &stage,
-                    const std::unordered_map<IterVar, Range> &dom_map,
-                    const std::unordered_map<IterVar, IterVar> &rebased, Stmt stmt) {
+                    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
+                    const std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> &rebased,
+                    Stmt stmt) {
   std::vector<const VarNode*> current_order;
   PostOrderVisit(stmt, [&current_order](const ObjectRef& node) {
     if (const ForNode *op = node.as<ForNode>())
@@ -403,19 +407,19 @@ Stmt ApplyLoopOrder(const Stage &stage,
     const IterVar &required = rebased.count(iter_var) ? rebased.find(iter_var)->second : iter_var;
     CHECK(required->dom.defined() || dom_map.count(required)) << required << "\n";
     reorder[current] = required;
-    if (current != required->var.get()) {
+    if (current != required.get()) {
       need_reorder = true;
     }
   }
 
   class LoopReorder : public StmtMutator {
     const Stage &stage;
-    const std::unordered_map<IterVar, Range> &dom_map;
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map;
     const std::unordered_map<const VarNode *, IterVar> &reorder;
 
    public:
     LoopReorder(const Stage &stage,
-                const std::unordered_map<IterVar, Range> &dom_map,
+                const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
                 const std::unordered_map<const VarNode*, IterVar> &reorder)
       : stage(stage), dom_map(dom_map), reorder(reorder) {}
 
@@ -424,7 +428,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
       Stmt body_ = this->VisitStmt(op->body);
       CHECK(reorder.count(op->loop_var.get()));
       auto target = reorder.find(op->loop_var.get())->second;
-      if (body_.same_as(op->body) && op->loop_var.get() == target->var.get())
+      if (body_.same_as(op->body) && op->loop_var.get() == target.get())
         return GetRef<Stmt>(op);
       const Stmt &body = op->body.same_as(body_) ? op->body : body_;
       ForType for_type = IterVarTypeToForType(target->iter_type);
@@ -432,7 +436,7 @@ Stmt ApplyLoopOrder(const Stage &stage,
         for_type = IterVarTypeToForType(stage->iter_var_attrs[target]->iter_type);
       }
       const Range &range = target->dom.defined() ? target->dom : dom_map.find(target)->second;
-      return ForNode::make(target->var, range->min, range->extent,
+      return ForNode::make(target, range->min, range->extent,
                        for_type, DeviceAPI::None, body);
     }
   };
@@ -444,10 +448,11 @@ Stmt ApplyLoopOrder(const Stage &stage,
 }
 
 Stmt ApplySchedule(const Stage &stage,
-                   const std::unordered_map<IterVar, Range> &dom_map, Stmt stmt) {
+                   const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map,
+                   Stmt stmt) {
   // TODO(@were): Eliminate loop rebase in script parser and move the burden here
   // Gather rebased variables
-  std::unordered_map<IterVar, IterVar> rebased;
+  std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> rebased;
   for (auto rel : stage->relations) {
     if (const auto* rebase = rel.as<RebaseNode>()) {
       rebased[rebase->rebased] = rebase->parent;

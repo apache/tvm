@@ -44,14 +44,14 @@ struct GraphContext {
   /*! \brief Attachment path */
   AttachPath attach_path;
   /*! \brief The bind map */
-  std::unordered_map<IterVar, IterVar> bind_map;
+  std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> bind_map;
   /*! \brief map from op to stage */
   std::unordered_map<const Object*, Stage> op2stage_;
 };
 
 bool NeedRelax(const IterVar& iv,
                bool found_attach,
-               const std::unordered_map<IterVar, IterVar>& bind_map,
+               const std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual>& bind_map,
                const runtime::StorageScope& scope) {
   auto it = bind_map.find(iv);
   const std::string& tag = (
@@ -94,7 +94,7 @@ StorageScope InferStorageScope(
 
 void InferRootBound(const Stage& stage,
                     const GraphContext& ctx,
-                    std::unordered_map<IterVar, Range>* rmap) {
+                    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* rmap) {
   CHECK_NE(stage->attach_type, kInline)
       << "call schedule.normalize before scheduleops";
   if (stage->attach_type == kInlinedAlready) return;
@@ -138,14 +138,14 @@ void InferRootBound(const Stage& stage,
   // The parent set.
   for (const Operation& op : consumers) {
     std::unordered_map<const VarNode*, IntSet> relax_set;
-    std::unordered_map<IterVar, IntSet> up_state;
+    std::unordered_map<IterVar, IntSet, ObjectHash, ObjectEqual> up_state;
     bool found_attach = false;
     CHECK(ctx.op2stage_.count(op.get()));
     const Stage& op_stage = ctx.op2stage_.at(op.get());
     // Consumer nest
     for (size_t i = op_stage->leaf_iter_vars.size(); i != 0; --i) {
       IterVar iv = op_stage->leaf_iter_vars[i - 1];
-      if (stage_attach.size() != 0 && iv == stage_attach[0]) {
+      if (stage_attach.size() != 0 && iv.same_as(stage_attach[0])) {
         found_attach = true;
       }
       auto it = rmap->find(iv);
@@ -158,9 +158,9 @@ void InferRootBound(const Stage& stage,
             << "InferBound requires every leaf iter var's min equals 0, "
             << " call schedule.normalize to achieve this. ";
         if (ctx.bind_map.count(iv)) {
-          up_state[iv] = IntSet::single_point(ctx.bind_map.at(iv)->var);
+          up_state[iv] = IntSet::single_point(ctx.bind_map.at(iv));
         } else {
-          up_state[iv] = IntSet::single_point(iv->var);
+          up_state[iv] = IntSet::single_point(iv);
         }
       } else {
         up_state[iv] = IntSet::range(vrange);
@@ -168,7 +168,7 @@ void InferRootBound(const Stage& stage,
     }
     // Consumer's attach nest
     for (IterVar iv : ctx.attach_path.at(op)) {
-      if (stage_attach.size() != 0 && iv == stage_attach[0]) {
+      if (stage_attach.size() != 0 && iv.same_as(stage_attach[0])) {
         found_attach = true;
       }
       Range vrange = rmap->at(iv);
@@ -176,9 +176,9 @@ void InferRootBound(const Stage& stage,
           << "InferBound requires every leaf iter var's min equals 0, "
           << "call schedule.normalize to achieve this.";
       if (NeedRelax(iv, found_attach, ctx.bind_map, scope)) {
-        relax_set[iv->var.get()] = IntSet::range(vrange);
+        relax_set[iv.get()] = IntSet::range(vrange);
         if (ctx.bind_map.count(iv)) {
-          relax_set[ctx.bind_map.at(iv)->var.get()] = IntSet::range(vrange);
+          relax_set[ctx.bind_map.at(iv).get()] = IntSet::range(vrange);
         }
       }
     }
@@ -198,11 +198,11 @@ void InferRootBound(const Stage& stage,
         r = iv->dom;
       }
       if (relax_set.size() != 0) {
-        dom_map[iv->var.get()] = EvalSet(r, relax_set);
+        dom_map[iv.get()] = EvalSet(r, relax_set);
       } else {
-        dom_map[iv->var.get()] = IntSet::range(r);
+        dom_map[iv.get()] = IntSet::range(r);
       }
-      analyzer.Bind(iv->var, r);
+      analyzer.Bind(iv, r);
     }
     op->PropBoundToInputs(op, &analyzer, dom_map, &tmap);
   }
@@ -231,7 +231,7 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   }
   ctx.attach_path = CreateAttachPath(sch);
   // Run inference.
-  std::unordered_map<IterVar, Range> ret;
+  std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> ret;
   for (size_t i = sch->stages.size(); i != 0; --i) {
     const Stage& stage = sch->stages[i - 1];
     InferRootBound(stage, ctx, &ret);
@@ -240,7 +240,7 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     for (auto iv : stage->op->root_iter_vars()) {
       auto it = ret.find(iv);
       if (it != ret.end()) {
-        analyzer.Bind(iv->var, it->second);
+        analyzer.Bind(iv, it->second);
       }
     }
 

@@ -38,24 +38,24 @@ using namespace tir;
 
 std::vector<std::vector<Stmt> >
 MakeLoopNest(const Stage& stage,
-             const std::unordered_map<IterVar, Range>& dom_map,
+             const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
              size_t begin_iter_pos,
              bool new_loop_var,
-             const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, PrimExpr>* p_value_map,
+             const std::unordered_set<IterVar, ObjectHash, ObjectEqual>& skip_iter,
+             std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_value_map,
              bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
   Stmt no_op = EvaluateNode::make(0);
   // create the loop nest
   std::vector<std::vector<Stmt> > nest;
   nest.resize(leaf_iter_vars.size() + 1);
-  std::unordered_map<IterVar, PrimExpr>& value_map = *p_value_map;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>& value_map = *p_value_map;
 
   for (size_t i = begin_iter_pos; i < leaf_iter_vars.size(); ++i) {
     auto iv = leaf_iter_vars[i];
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) {
       // skip this iteration.
-      value_map[iv] = iv->var;
+      value_map[iv] = iv;
       continue;
     }
     // Bind iv could be another thread.
@@ -68,13 +68,13 @@ MakeLoopNest(const Stage& stage,
     Range dom = dom_map.at(iv);
 
     // initialize the offset and loop_level
-    Var var = bind_iv->var;
+    Var var = bind_iv;
 
     // Mark the iter var in the IR, to remember the point
     if (bind_iv->thread_tag.length() == 0) {
       // Only generate new loop if we're not bound to a thread.
       if (new_loop_var) {
-        var = Var(iv->var->name_hint + ".init", bind_iv->var.dtype());
+        var = Var(iv->name_hint + ".init", bind_iv.dtype());
       }
 
       ForType for_type = ForType::Serial;
@@ -114,7 +114,7 @@ MakeLoopNest(const Stage& stage,
                       for_type, DeviceAPI::None, no_op));
         value_map[iv] = var;
       } else {
-        Var idx(bind_iv->var->name_hint + ".idx", bind_iv->var.dtype());
+        Var idx(bind_iv->name_hint + ".idx", bind_iv.dtype());
         nest[i + 1].emplace_back(
             ForNode::make(idx, 0, dom->extent,
                       for_type, DeviceAPI::None, no_op));
@@ -168,7 +168,7 @@ MakeLoopNest(const Stage& stage,
     // annotate the extent of the IterVar
     if (!new_loop_var) {
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(iv, attr::loop_scope, iv->var, no_op));
+          AttrStmtNode::make(iv, attr::loop_scope, iv, no_op));
     }
   }
   // message passing to get offset of root iter vars.
@@ -228,10 +228,10 @@ PrimExpr ReplaceTensor(PrimExpr expr,
 
 
 Stmt Substitute(Stmt s,
-                const std::unordered_map<IterVar, PrimExpr>& value_map) {
+                const std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>& value_map) {
   std::unordered_map<const VarNode*, PrimExpr> init;
   for (const auto& kv : value_map) {
-    init[kv.first->var.get()] = kv.second;
+    init[kv.first.get()] = kv.second;
   }
   return tir::Substitute(s, init);
 }

@@ -233,7 +233,7 @@ class IterVar : public Var {
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-    explicit IterVar(ObjectPtr<Object> n) : Var(n) {}
+  explicit IterVar(ObjectPtr<Object> n) : Var(n) {}
   /*! \brief constructor.
    * \param dom interval of the variable.
    * \param iter_type indicate the iteration type of the variable.
@@ -267,6 +267,8 @@ using Domain = Array<Range>;
  */
 class IterVarNode : public VarNode {
  public:
+  // constructor
+  IterVarNode() {}
   /*! \brief constructor.
    * \param dtype data type
    * \param name_hint variable name
@@ -994,6 +996,25 @@ class AnyNode : public PrimExprNode {
 template<typename K, typename V>
 inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   std::unordered_map<K, V> ret;
+  for (auto kv : dmap) {
+    ret[kv.first] = kv.second;
+  }
+  return ret;
+}
+
+/*
+ * \brief Template function to convert Map to unordered_map
+ *  Sometimes useful for API gluing when internal uses unordered_map
+ * \param dmap The container map
+ * \return The corresponding unordered_map.
+ * \tparam K the key of the Map.
+ * \tparam V the value of the Map.
+ * \tparam H the hash function of the unordered_map
+ * \tparam E the equal function of the unordered_map.
+ */
+template<typename K, typename V, typename H, typename E>
+inline std::unordered_map<K, V, H, E> as_unordered_map_custom(const Map<K, V>& dmap) {
+  std::unordered_map<K, V, H, E> ret;
   for (auto kv : dmap) {
     ret[kv.first] = kv.second;
   }

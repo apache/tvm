@@ -79,7 +79,7 @@ class CoProcTouchedBuffer : public StmtExprVisitor {
     bool coproc{false};
   };
   std::unordered_map<const VarNode*, TouchEntry> touched_;
-  std::unordered_set<IterVar> coproc_;
+  std::unordered_set<IterVar, ObjectHash, ObjectEqual> coproc_;
 
  private:
   bool in_scope_{false};
@@ -619,7 +619,7 @@ class CoProcSyncInserter : public StmtMutator {
       }
     }
     CHECK_EQ(visitor.coproc_.size(), 1U);
-    std::string coproc_name = (*visitor.coproc_.begin())->var->name_hint;
+    std::string coproc_name = (*visitor.coproc_.begin())->name_hint;
     // plan sync.
     CoProcSyncPlanner sync_planner(touched, coproc_name);
     sync_planner.Plan(stmt);

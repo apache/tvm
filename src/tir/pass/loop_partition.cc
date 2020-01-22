@@ -91,15 +91,14 @@ class CandidateSelector final : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode *iv = op->node.as<IterVarNode>();
       CHECK(iv);
-      Var var = iv->var;
       runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
       if ((scope.rank == 0) && (!is_const(op->value) || split_const_loop_)) {
-        record_.insert({var.get(), false});
+        record_.insert({iv, false});
         StmtExprVisitor::VisitStmt_(op);
-        if (record_.at(var.get()) && !no_split_) {
+        if (record_.at(iv) && !no_split_) {
           candidates.insert(op);
         }
-        record_.erase(var.get());
+        record_.erase(iv);
         return;
       }
     }
@@ -180,13 +179,12 @@ class PartitionFinder : public StmtExprVisitor {
     if (op->attr_key == attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
-      const VarNode* var = thread_axis->var.get();
       IntSet dom = IntSet::range(Range(make_zero(op->value.dtype()), op->value));
-      hint_map_.insert({var, dom});
-      relax_map_.insert({var, dom});
+      hint_map_.insert({thread_axis, dom});
+      relax_map_.insert({thread_axis, dom});
       StmtExprVisitor::VisitStmt_(op);
-      relax_map_.erase(var);
-      hint_map_.erase(var);
+      relax_map_.erase(thread_axis);
+      hint_map_.erase(thread_axis);
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
@@ -338,7 +336,7 @@ class LoopPartitioner : public StmtMutator {
 
     const IterVarNode *iv = op->node.as<IterVarNode>();
     CHECK(iv);
-    Var var = iv->var;
+    Var var = GetRef<Var>(iv);
     if (selector.candidates.count(op)) {
       Stmt s = TryPartition(op, GetRef<Stmt>(op), var, 0, op->value - 1, op->body, true);
       if (s.defined()) return s;

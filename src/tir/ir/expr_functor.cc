@@ -205,7 +205,7 @@ PrimExpr ExprMutator::VisitExpr_(const ReduceNode* op) {
     } else {
       return IterVarNode::make(
           Range::make_by_min_extent(min, extent),
-          v->var, v->iter_type, v->thread_tag);
+          v, v->iter_type, v->thread_tag);
     }
   };
   Array<IterVar> axis = MutateArray(op->axis, fitervar);

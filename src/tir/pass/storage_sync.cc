@@ -332,7 +332,7 @@ class ThreadSyncInserter : public StmtExprMutator {
           num_blocks_ = (num_blocks_.defined() ?
                          attr->value * num_blocks_ : attr->value);
         } else if (s.rank == 1) {
-          PrimExpr cond = iv->var == make_zero(iv->var.dtype());
+          PrimExpr cond = iv == make_zero(iv.dtype());
           is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
         }
       }

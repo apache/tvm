@@ -166,12 +166,12 @@ std::unordered_map<std::string, runtime::OpenGLShader> CodeGenOpenGL::Finish() {
 
 void CodeGenOpenGL::BindThreadIndex(const IterVar& iv) {
   CHECK_EQ(iv->thread_tag, "threadIdx.x") << "Must be threadIdx.x";
-  CHECK(var_idmap_.find(iv->var.get()) == var_idmap_.end())
+  CHECK(var_idmap_.find(iv.get()) == var_idmap_.end())
     << "Only support one thread iter var";
   CHECK(output_iter_var_ == nullptr) << "Only support one thread iter var";
 
-  var_idmap_[iv->var.get()] = iv->thread_tag;
-  output_iter_var_ = iv->var.get();
+  var_idmap_[iv.get()] = iv->thread_tag;
+  output_iter_var_ = iv.get();
 
   // Declare threadIdx local variable.
   this->PrintIndent();

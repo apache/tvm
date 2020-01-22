@@ -42,13 +42,13 @@ using namespace tir;
 size_t InferTensorizeRegion(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    std::unordered_map<IterVar, Range>* out_dom,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom,
     std::unordered_map<Tensor, Array<Range> >* in_region) {
   // Get the bound of the tensorized scope.
   bool found_point = false;
   size_t loc_scope = 0;
-  std::unordered_map<IterVar, IntSet> up_state;
+  std::unordered_map<IterVar, IntSet, ObjectHash, ObjectEqual> up_state;
   // Loop over the leafs
   for (size_t i = stage->leaf_iter_vars.size(); i != 0; --i) {
     IterVar iv = stage->leaf_iter_vars[i - 1];
@@ -61,7 +61,7 @@ size_t InferTensorizeRegion(
       up_state[iv] = IntSet::single_point(vrange->min);
     } else if (found_point) {
       CHECK(is_zero(vrange->min));
-      up_state[iv] = IntSet::single_point(iv->var);
+      up_state[iv] = IntSet::single_point(iv);
     } else {
       up_state[iv] = IntSet::range(vrange);
     }
@@ -94,8 +94,8 @@ size_t InferTensorizeRegion(
     IntSet iset = up_state.at(iv);
     Range iv_range = iset.cover_range(dom_map.at(iv));
     (*out_dom)[iv] = iv_range;
-    analyzer.Bind(iv->var, iv_range);
-    temp_dmap[iv->var.get()] = iset;
+    analyzer.Bind(iv, iv_range);
+    temp_dmap[iv.get()] = iset;
   }
   // Input domains
   self->PropBoundToInputs(stage->op, &analyzer, temp_dmap, &in_dom);
@@ -127,7 +127,7 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
         banned.insert(op->loop_var.get());
     } else if (const AttrStmtNode* op = s.as<AttrStmtNode>()) {
       if (const IterVarNode* iv = op->node.as<IterVarNode>()) {
-        banned.insert(iv->var.get());
+        banned.insert(iv);
       }
     } else if (const LetStmtNode* op = s.as<LetStmtNode>()) {
       banned.insert(op->var.get());
@@ -206,8 +206,8 @@ class TensorIntrinMatcher final : public StmtExprMutator {
 
   void Init(const ComputeOpNode* self,
             const Stage& stage,
-            const std::unordered_map<IterVar, Range>& dom_map,
-            const std::unordered_map<IterVar, Range>& out_dom,
+            const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+            const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& out_dom,
             const std::unordered_map<Tensor, Array<Range> >& in_region,
             const TensorIntrin& intrin,
             Map<Var, Range>* compute_intrin_iter_space) {
@@ -218,7 +218,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
       auto vit = dom_map.find(iv);
       if (vit != dom_map.end()) {
         const Range vrange = vit->second;
-        compute_intrin_iter_space->Set(iv->var, vrange);
+        compute_intrin_iter_space->Set(iv, vrange);
       }
     }
 
@@ -255,7 +255,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
           << "Tensorize: Output mismatch with tensor intrin "
           << " intrin-dim=" << intrin_compute->axis.size()
           << ", tensorize-dim=" << self->axis.size();
-      var_remap_[self->axis[i]->var.get()] = r->min;
+      var_remap_[self->axis[i].get()] = r->min;
     }
     // Assume we tensorize at regin axis i [min, min + extent)
     // The corresponding intrinsic axis is j [0, extent)
@@ -264,9 +264,9 @@ class TensorIntrinMatcher final : public StmtExprMutator {
       IterVar iv = self->axis[i];
       IterVar target_iv = intrin_compute->axis[i - axis_start];
       Range r = out_dom.at(iv);
-      var_remap_[iv->var.get()] = target_iv->var + r->min;
+      var_remap_[iv.get()] = target_iv + r->min;
       axis_remap_[iv] = target_iv;
-      compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
+      compute_intrin_iter_space->Set(target_iv, target_iv->dom);
     }
     // Remap reduction axis
     CHECK_GE(self->reduce_axis.size(), intrin_compute->reduce_axis.size())
@@ -278,15 +278,15 @@ class TensorIntrinMatcher final : public StmtExprMutator {
           << "Tensorize: Reduction mismatch with tensor intrin "
           << " intrin-dim=" << intrin_compute->reduce_axis.size()
           << ", tensorize-dim=" << self->reduce_axis.size();
-      var_remap_[self->reduce_axis[i]->var.get()] = r->min;
+      var_remap_[self->reduce_axis[i].get()] = r->min;
     }
     for (size_t i = axis_start; i < self->reduce_axis.size(); ++i) {
       IterVar iv = self->reduce_axis[i];
       IterVar target_iv = intrin_compute->reduce_axis[i - axis_start];
       Range r = out_dom.at(iv);
-      var_remap_[iv->var.get()] = target_iv->var + r->min;
+      var_remap_[iv.get()] = target_iv + r->min;
       axis_remap_[iv] = target_iv;
-      compute_intrin_iter_space->Set(target_iv->var, target_iv->dom);
+      compute_intrin_iter_space->Set(target_iv, target_iv->dom);
     }
   }
 
@@ -302,15 +302,15 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   // variable remap.
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // IterVar remap.
-  std::unordered_map<IterVar, IterVar> axis_remap_;
+  std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> axis_remap_;
 };
 
 // Try to match tensor dataflow of the stage with the intrinsic
 Array<PrimExpr> MatchTensorizeBody(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, Range>& out_dom,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin,
     Map<Var, Range>* compute_intrin_iter_space) {
@@ -326,8 +326,8 @@ Array<PrimExpr> MatchTensorizeBody(
 void VerifyTensorizeBody(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, Range>& out_dom,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin) {
   Map<Var, Range> compute_intrin_iter_space;
@@ -359,9 +359,9 @@ void VerifyTensorizeBody(
 
 Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
-                   const std::unordered_map<IterVar, Range>& dom_map,
+                   const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                    bool debug_keep_trivial_loop) {
-  std::unordered_map<IterVar, Range> out_dom;
+  std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> out_dom;
   std::unordered_map<Tensor, Array<Range> > in_region;
   size_t tloc = InferTensorizeRegion(self, stage, dom_map, &out_dom, &in_region);
   TensorIntrin intrin = stage->iter_var_attrs.at(
@@ -505,12 +505,12 @@ TVM_REGISTER_GLOBAL("test.op.InferTensorizeRegion")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     Stage stage = args[0];
     Map<IterVar, Range> dmap = args[1];
-    std::unordered_map<IterVar, Range> out_dom;
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> out_dom;
     std::unordered_map<Tensor, Array<Range> > in_region;
     CHECK(stage->op.as<ComputeOpNode>());
     InferTensorizeRegion(stage->op.as<ComputeOpNode>(),
                          stage,
-                         as_unordered_map(dmap),
+                         as_unordered_map_custom<IterVar, Range, ObjectHash, ObjectEqual>(dmap),
                          &out_dom, &in_region);
     *ret = Array<ObjectRef>{Map<IterVar, Range>(out_dom),
                           Map<Tensor, Array<Range> >(in_region)};
@@ -527,7 +527,8 @@ TVM_REGISTER_GLOBAL("test.op.MatchTensorizeBody")
     *ret = MatchTensorizeBody(stage->op.as<ComputeOpNode>(),
                               stage,
                               {{}},
-                              as_unordered_map(out_dom),
+                              as_unordered_map_custom<IterVar, Range,
+                                                      ObjectHash, ObjectEqual>(out_dom),
                               as_unordered_map(in_region),
                               intrin,
                               &vrange);

@@ -100,12 +100,13 @@ class GPUCodeVerifier : public StmtVisitor {
         visited_shared_buffers_.insert(op->node.as<VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
-      Var var = op->node.as<IterVarNode>()->var;
+      const IterVarNode *var = op->node.as<IterVarNode>();
+      CHECK(var);
       const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
       // record the number of threads in a block
-      std::string name = var.get()->name_hint;
+      std::string name = var->name_hint;
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
         size_t length = static_cast<size_t>(extent->value);
         if (!visited_threads_.count(name)) {

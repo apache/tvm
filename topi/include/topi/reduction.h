@@ -154,7 +154,7 @@ inline Tensor DoCommReduce(const Tensor& data,
       if (std::find(reduce_axes.begin(), reduce_axes.end(), i) != reduce_axes.end()) {
         // real_axis contains i
         eval_range.push_back(r_axes[red_counter]);
-        eval_indices.push_back(r_axes[red_counter]->var);
+        eval_indices.push_back(r_axes[red_counter]);
         red_counter++;
         arg_counter += !squeeze_i;
         continue;
@@ -230,7 +230,7 @@ inline Tensor CommReduceIdx(const Tensor& data,
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
         eval_range.push_back(reduce_axes[red_counter]);
-        eval_indices.push_back(reduce_axes[red_counter]->var);
+        eval_indices.push_back(reduce_axes[red_counter]);
         red_counter++;
       } else {
         if (!keepdims) {

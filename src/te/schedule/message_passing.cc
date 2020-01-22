@@ -32,14 +32,14 @@ namespace te {
 
 using namespace tir;
 
-void Update(std::unordered_map<IterVar, Range>* p_state,
+void Update(std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* p_state,
             const IterVar& iv,
             Range r,
             arith::Analyzer* analyzer) {
   auto it = p_state->find(iv);
   if (it == p_state->end()) {
     (*p_state)[iv] = r;
-    analyzer->Bind(iv->var, r);
+    analyzer->Bind(iv, r);
   } else {
     bool match = is_zero(it->second->min) &&
         analyzer->CanProve(r->extent - it->second->extent == 0);
@@ -52,7 +52,7 @@ void Update(std::unordered_map<IterVar, Range>* p_state,
 }
 
 void PassDownDomain(const Stage& stage,
-                    std::unordered_map<IterVar, Range>* p_state,
+                    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* p_state,
                     arith::Analyzer* actx,
                     bool allow_missing) {
   auto ceil_div = [actx](PrimExpr a, PrimExpr b) {
@@ -118,7 +118,7 @@ void PassDownDomain(const Stage& stage,
 
 void PassUpIndex(const Stage& stage,
                  const Map<IterVar, Range>& dom_map,
-                 std::unordered_map<IterVar, PrimExpr>* p_state,
+                 std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_state,
                  bool allow_missing) {
   auto& state = *p_state;
   for (size_t i = stage->relations.size(); i != 0; --i) {
@@ -177,7 +177,7 @@ void PassUpIndex(const Stage& stage,
 
 void PassDownIndex(const Stage& stage,
                    const Map<IterVar, Range>& dom_map,
-                   std::unordered_map<IterVar, PrimExpr>* p_state,
+                   std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>* p_state,
                    bool allow_missing) {
   auto& state = *p_state;
   for (IterVarRelation rel : stage->relations) {
@@ -215,7 +215,7 @@ void PassDownIndex(const Stage& stage,
       CHECK(is_zero(parent_min));
       state[s->rebased] = value;
     } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
-      state[s->iter] = make_zero(s->iter->var.dtype());
+      state[s->iter] = make_zero(s->iter.dtype());
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -224,7 +224,7 @@ void PassDownIndex(const Stage& stage,
 
 // Domain message passing.
 void PassUpDomain(const SplitNode* s,
-                  const std::unordered_map<IterVar, Range>& dom_map,
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                   const IntSet& outer,
                   const IntSet& inner,
                   IntSet* parent) {
@@ -242,12 +242,12 @@ void PassUpDomain(const SplitNode* s,
   CHECK(inner.defined());
   CHECK(factor.defined());
   *parent = arith::EvalSet(
-      s->outer->var * factor + s->inner->var + parent_min,
+      s->outer * factor + s->inner + parent_min,
       {{s->outer, outer}, {s->inner, inner}});
 }
 
 void PassUpDomain(const FuseNode* s,
-                  const std::unordered_map<IterVar, Range>& dom_map,
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                   const IntSet& fused,
                   IntSet* outer,
                   IntSet* inner) {
@@ -297,7 +297,7 @@ void PassUpDomain(const FuseNode* s,
 }
 
 void PassUpDomain(const RebaseNode* s,
-                  const std::unordered_map<IterVar, Range>& dom_map,
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                   const IntSet& rebased,
                   IntSet* parent) {
   CHECK(dom_map.count(s->parent));
@@ -306,13 +306,13 @@ void PassUpDomain(const RebaseNode* s,
     return;
   }
   PrimExpr parent_min = dom_map.at(s->parent)->min;
-  *parent = arith::EvalSet(s->rebased->var + parent_min,
+  *parent = arith::EvalSet(s->rebased + parent_min,
                            {{s->rebased, rebased}});
 }
 
 void PassUpDomain(const Stage& stage,
-                  const std::unordered_map<IterVar, Range>& dom_map,
-                  std::unordered_map<IterVar, IntSet>* p_state) {
+                  const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
+                  std::unordered_map<IterVar, IntSet, ObjectHash, ObjectEqual>* p_state) {
   auto& state = *p_state;
   for (size_t i = stage->relations.size(); i != 0; --i) {
     IterVarRelation rel = stage->relations[i - 1];
@@ -344,7 +344,7 @@ void PassUpDomain(const Stage& stage,
 
 // Pass up bit mask with or relation.
 void PassUpBitMaskOr(const Stage& stage,
-                     std::unordered_map<IterVar, int>* p_state,
+                     std::unordered_map<IterVar, int, ObjectHash, ObjectEqual>* p_state,
                      bool allow_missing) {
   auto& state = *p_state;
   for (size_t i = stage->relations.size(); i != 0; --i) {
@@ -392,7 +392,7 @@ void PassUpBitMaskOr(const Stage& stage,
 }
 
 void PassDownBitMaskOr(const Stage& stage,
-                       std::unordered_map<IterVar, int>* p_state,
+                       std::unordered_map<IterVar, int, ObjectHash, ObjectEqual>* p_state,
                        bool allow_missing) {
   auto& state = *p_state;
   for (IterVarRelation rel : stage->relations) {
@@ -448,7 +448,7 @@ void PassDownBitMaskOr(const Stage& stage,
  */
 void PassUpBoundCheck(const Stage& s,
                       const Map<IterVar, Range>& dom_map,
-                      std::unordered_map<IterVar, bool>* p_state,
+                      std::unordered_map<IterVar, bool, ObjectHash, ObjectEqual>* p_state,
                       arith::Analyzer* analyzer) {
   auto& state = *p_state;
   for (size_t i = s->relations.size(); i != 0; --i) {
@@ -489,12 +489,12 @@ void PassUpBoundCheck(const Stage& s,
 std::vector<PrimExpr> MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
-    const std::unordered_map<IterVar, PrimExpr>& value_map,
+    const std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual>& value_map,
     bool skip_ivar_domain,
-    const std::unordered_set<IterVar>& skip_iter) {
+    const std::unordered_set<IterVar, ObjectHash, ObjectEqual>& skip_iter) {
   arith::Analyzer analyzer;
 
-  std::unordered_map<IterVar, bool> bound_state;
+  std::unordered_map<IterVar, bool, ObjectHash, ObjectEqual> bound_state;
   for (IterVar iv : stage->leaf_iter_vars) {
     bound_state[iv] = false;
   }
@@ -505,7 +505,7 @@ std::vector<PrimExpr> MakeBoundCheck(
 
   // setup domain map for set analysis
   for (const auto& kv : dom_map) {
-    iset_dmap[kv.first->var.get()] = IntSet::range(kv.second);
+    iset_dmap[kv.first.get()] = IntSet::range(kv.second);
   }
 
   for (const IterVar& iv : stage->all_iter_vars) {

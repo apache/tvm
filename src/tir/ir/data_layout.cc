@@ -61,7 +61,7 @@ const LayoutAxis& LayoutAxis::Get(const char name) {
 }
 
 const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
-  const std::string axis = itvar->var.get()->name_hint;
+  const std::string axis = itvar->name_hint;
   CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
   return LayoutAxis::Get(axis[0]);
 }
@@ -80,11 +80,11 @@ Layout::Layout(const Array<IterVar>& axes) {
       CHECK_GT(factor->value, 0);
       repr << factor->value;
     }
-    CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
-                                                   << axis->var.get()->name_hint;
-    char c = axis->var.get()->name_hint[0];
+    CHECK_EQ(axis->name_hint.size(), 1) << "Invalid layout axis "
+                                        << axis->name_hint;
+    char c = axis->name_hint[0];
     CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
-    repr << axis->var.get()->name_hint;
+    repr << axis->name_hint;
   }
   node->name = repr.str();
   data_ = std::move(node);
@@ -128,7 +128,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   // validate layout
   std::vector<bool> exist_axis(256, false);
   for (const IterVar& v : node->axes) {
-    auto axis_str = v->var.get()->name_hint;
+    auto axis_str = v->name_hint;
     CHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
     CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
@@ -136,7 +136,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
-    char axis = v->var.get()->name_hint[0];
+    char axis = v->name_hint[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
                                       << std::toupper(axis);
@@ -221,14 +221,14 @@ inline bool GetStoreRule(Array<PrimExpr>* rule,
       const IterVar& orig_axis_impl = src_layout->axes[j];
       if (store_axis.ToPrimal() == orig_axis.ToPrimal()) {
         if (orig_axis.IsPrimal()) {
-          PrimExpr orig_var = orig_axis_impl->var;
+          PrimExpr orig_var = orig_axis_impl;
           const int32_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
             orig_var = orig_var * PrimExpr(factor);
           }
           store = store + orig_var;
         } else {
-          store = store + orig_axis_impl->var;
+          store = store + orig_axis_impl;
         }
       }
     }
@@ -257,7 +257,7 @@ inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
   Array<PrimExpr> result;
   std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
-    bind_map[src_axis[i]->var.get()] = src_index[i];
+    bind_map[src_axis[i].get()] = src_index[i];
   }
   for (PrimExpr rule : transform_rule) {
     result.push_back(tir::Simplify(tir::Substitute(rule, bind_map)));
@@ -309,9 +309,9 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
             << orig_axis->dom->extent << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = PrimExpr(0);
+      bind_map[orig_axis.get()] = PrimExpr(0);
     } else {
-      bind_map[orig_axis->var.get()] = orig_shape;
+      bind_map[orig_axis.get()] = orig_shape;
     }
   }
   // infer the target shape,

@@ -128,13 +128,13 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
   }
   // bind thread axis
   for (IterVar iv : f->thread_axis) {
-    CHECK(!var_idmap_.count(iv->var.get()));
+    CHECK(!var_idmap_.count(iv.get()));
     std::string vname = iv->thread_tag;
     if (work_dim <= 1) {
       vname = vname.substr(0, iv->thread_tag.length() - 2);
     }
-    var_idmap_[iv->var.get()] =
-        CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
+    var_idmap_[iv.get()] =
+        CastFromTo(vname, DataType::UInt(thread_index_bits_), iv.dtype());
   }
   // the function scope.
   stream << ") {\n";
@@ -146,9 +146,9 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
 }
 
 void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
-  CHECK(!var_idmap_.count(iv->var.get()));
-  var_idmap_[iv->var.get()] =
-      CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv->var.dtype());
+  CHECK(!var_idmap_.count(iv.get()));
+  var_idmap_[iv.get()] =
+      CastFromTo(iv->thread_tag, DataType::UInt(thread_index_bits_), iv.dtype());
 }
 
 void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)

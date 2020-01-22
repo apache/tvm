@@ -131,12 +131,12 @@ void ExternOpNode::PropBoundToInputs(
 void ExternOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const {
 }
 
 Stmt ExternOpNode::BuildRealize(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   Stmt realize_body = body;
@@ -157,7 +157,7 @@ Stmt ExternOpNode::BuildRealize(
 
 Stmt ExternOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);

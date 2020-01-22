@@ -101,7 +101,7 @@ Tensor compute(Array<PrimExpr> shape,
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
         Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
-    args.push_back(axis.back()->var);
+    args.push_back(axis.back());
   }
 
   return ComputeOpNode::make(
@@ -123,7 +123,7 @@ Array<Tensor> compute(Array<PrimExpr> shape,
     os << "ax" << i;
     axis.emplace_back(IterVarNode::make(
         Range(0, shape[i]), Var(os.str(), shape[i].dtype()), kDataPar));
-    args.push_back(axis.back()->var);
+    args.push_back(axis.back());
   }
 
   Operation op = ComputeOpNode::make(name, tag, attrs, axis, fcompute(args));
@@ -256,7 +256,7 @@ void ComputeOpNode::PropBoundToInputs(
 void BaseComputeOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
@@ -272,7 +272,7 @@ void BaseComputeOpNode::GatherBound(
 
 Stmt BaseComputeOpNode::BuildRealize(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   Region bounds;
@@ -317,7 +317,7 @@ void MakeReduction(const ComputeOpNode* op,
                    Stmt* provide) {
   Array<PrimExpr>  args;
   for (IterVar iv : op->axis) {
-    args.push_back(iv->var);
+    args.push_back(iv);
   }
   std::vector<Stmt> inits, provides;
 
@@ -351,14 +351,14 @@ Stmt MakeProvide(const ComputeOpNode* op,
                  const Tensor& t) {
   Array<PrimExpr> args;
   for (IterVar iv : op->axis) {
-    args.push_back(iv->var);
+    args.push_back(iv);
   }
   return ProvideNode::make(t->op, t->value_index, op->body[t->value_index], args);
 }
 
 Stmt MakeComputeStmt(const ComputeOpNode* self,
                      const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                      bool debug_keep_trivial_loop) {
   // grab the nest structure
   ComputeLoopNest n = ComputeLoopNest::make(self, stage, dom_map, debug_keep_trivial_loop);
@@ -450,7 +450,7 @@ ComputeType DetectComputeType(const ComputeOpNode* self,
 // implement the provide utility.
 Stmt ComputeOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   ComputeType ctype = DetectComputeType(this, stage);
@@ -467,17 +467,18 @@ Stmt ComputeOpNode::BuildProvide(
 ComputeLoopNest ComputeLoopNest::make(
     const BaseComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) {
   CHECK_EQ(stage->op.operator->(), self);
   ComputeLoopNest ret;
   // make main loop nest
   ret.main_nest = MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &ret.main_vmap,
+      stage, dom_map, 0, false,
+      std::unordered_set<IterVar, ObjectHash, ObjectEqual>(), &ret.main_vmap,
       debug_keep_trivial_loop);
   ret.main_predicates = MakeBoundCheck(
       stage, dom_map, ret.main_vmap, false,
-      std::unordered_set<IterVar>());
+      std::unordered_set<IterVar, ObjectHash, ObjectEqual>());
   for (auto& e : ret.main_predicates) {
     e = likely(e);
   }
@@ -487,7 +488,7 @@ ComputeLoopNest ComputeLoopNest::make(
   if (self->reduce_axis.size() != 0) {
     // try to find the location to insert the initialization.
     // Fuse the initialization and provide loop when possible.
-    std::unordered_map<IterVar, int> update_state;
+    std::unordered_map<IterVar, int, ObjectHash, ObjectEqual> update_state;
     for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
@@ -509,7 +510,7 @@ ComputeLoopNest ComputeLoopNest::make(
     }
     ret.num_common_loop = begin_loop;
     // skip loops that are related to reduction and are unrelated to axis.
-    std::unordered_set<IterVar> skip_iter;
+    std::unordered_set<IterVar, ObjectHash, ObjectEqual> skip_iter;
     for (auto kv : update_state) {
       int flag = kv.second;
       if (flag == 2) skip_iter.insert(kv.first);
@@ -604,7 +605,7 @@ static void VerifyComputeOp(const ComputeOpNode* op) {
 }
 
 Stmt TransformUpdate(const Stage& stage,
-                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
                      const ComputeLoopNest& n,
                      Stmt body,
                      Stmt update) {
@@ -623,8 +624,8 @@ Stmt TransformUpdate(const Stage& stage,
       auto vit = dom_map.find(iv);
       CHECK(vit != dom_map.end());
       const Range& vrange = vit->second;
-      conds.push_back(likely(iv->var > vrange->min));
-      banned.insert(iv->var.get());
+      conds.push_back(likely(iv > vrange->min));
+      banned.insert(iv.get());
     }
   }
   for (const PrimExpr& pred : n.main_predicates) {

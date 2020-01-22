@@ -87,19 +87,19 @@ void PlaceholderOpNode::PropBoundToInputs(
 void PlaceholderOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-    std::unordered_map<IterVar, Range>* out_dom_map) const {
+    std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* out_dom_map) const {
 }
 
 Stmt PlaceholderOpNode::BuildRealize(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& realize_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& realize_map,
     const Stmt& body) const {
   return body;
 }
 
 Stmt PlaceholderOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) const {
   return Stmt();
 }

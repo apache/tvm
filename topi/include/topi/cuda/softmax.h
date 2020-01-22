@@ -87,7 +87,7 @@ inline Schedule schedule_softmax(const Target &target, const Array<Tensor>& outs
   s[expsum].bind(s[expsum]->op.as<ComputeOpNode>()->axis[0], block_x);
   s[expsum].bind(s[expsum]->op.as<ComputeOpNode>()->reduce_axis[0], thread_x);
   s[EF].compute_at(s[expsum], s[expsum]->op.as<ComputeOpNode>()->reduce_axis[0]);
-  s[expsum].set_store_predicate(thread_x->var == 0);
+  s[expsum].set_store_predicate(thread_x == 0);
 
   IterVar tx, xi;
   s[softmax].split_by_nparts(softmax->op.as<ComputeOpNode>()->axis[1], num_thread, &tx, &xi);

@@ -32,18 +32,19 @@ using namespace tir;
 Stmt MakeCrossThreadReduction(
     const ComputeOpNode* self,
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) {
   Array<PrimExpr>  args;
   for (IterVar iv : self->axis) {
-    args.push_back(iv->var);
+    args.push_back(iv);
   }
-  std::unordered_map<IterVar, PrimExpr> value_map;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> value_map;
   auto nest = MakeLoopNest(
-      stage, dom_map, 0, false, std::unordered_set<IterVar>(), &value_map, debug_keep_trivial_loop);
+      stage, dom_map, 0, false, std::unordered_set<IterVar, ObjectHash, ObjectEqual>(),
+      &value_map, debug_keep_trivial_loop);
   auto conds = MakeBoundCheck(
       stage, dom_map, value_map, false,
-      std::unordered_set<IterVar>());
+      std::unordered_set<IterVar, ObjectHash, ObjectEqual>());
 
   size_t size = self->body.size();
   CHECK_GT(size, 0);
@@ -75,7 +76,7 @@ Stmt MakeCrossThreadReduction(
       if (it != stage->iter_var_attrs.end() &&
           (*it).second->bind_thread.defined()) {
         IterVar tv = (*it).second->bind_thread;
-        freduce_args.push_back(tv->var);
+        freduce_args.push_back(tv);
       }
     }
   }

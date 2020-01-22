@@ -131,7 +131,7 @@ size_t TensorComputeOpNode::num_schedulable_dims() const {
 
 Stmt TensorComputeOpNode::BuildProvide(
     const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
+    const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
 
@@ -170,7 +170,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     for (size_t i = 0; i < this->axis.size(); ++i) {
       auto ivar = this->axis[i];
       if (i < static_cast<size_t>(this->schedulable_ndim)) {
-        tuple.push_back(ivar->var);
+        tuple.push_back(ivar);
         tuple.push_back(1);
       } else {
         Range dom = ivar->dom;

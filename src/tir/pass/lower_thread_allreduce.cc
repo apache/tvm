@@ -160,7 +160,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (e.scope.rank == 1) {
         CHECK(arith::GetConstInt(attr->value, &(e.extent)))
             << "Need constant extent for reduce set " << iv;
-        if (reduce_set.count(iv->var.get())) {
+        if (reduce_set.count(iv.get())) {
           vred.push_back(e);
           ++nmatch;
         } else {
@@ -299,10 +299,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     PrimExpr ret;
     for (const ThreadEntry& e : tvec) {
       if (ret.defined()) {
-        ret = ret + e.iv->var * total_extent;
+        ret = ret + e.iv * total_extent;
       } else {
         CHECK_EQ(total_extent, 1);
-        ret = e.iv->var;
+        ret = e.iv;
       }
       total_extent *= e.extent;
     }

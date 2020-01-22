@@ -240,9 +240,9 @@ class IRDeepCompare :
       if (CompareExpr(op->axis[i]->dom->min, rhs->axis[i]->dom->min) != 0) return;
       if (CompareExpr(op->axis[i]->dom->extent, rhs->axis[i]->dom->extent) != 0) return;
       if (tie_def_) {
-        vmap_[op->axis[i]->var.get()] = rhs->axis[i]->var.get();
+        vmap_[op->axis[i].get()] = rhs->axis[i].get();
       } else {
-        if (CompareExpr(op->axis[i]->var, rhs->axis[i]->var) != 0) return;
+        if (CompareExpr(op->axis[i], rhs->axis[i]) != 0) return;
       }
     }
     if (CompareExpr(op->condition, rhs->condition) != 0) return;

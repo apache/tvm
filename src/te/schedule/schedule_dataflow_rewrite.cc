@@ -190,9 +190,9 @@ Tensor Schedule::cache_read(const Tensor& tensor,
 template<typename OpType>
 void PrepareAxisMapping(Stage orig_stage,
                         OpType* op,
-                        std::unordered_set<IterVar>* p_red_axis,
+                        std::unordered_set<IterVar, ObjectHash, ObjectEqual>* p_red_axis,
                         Array<IterVar>* p_new_axis,
-                        std::unordered_map<IterVar, Range>* p_dom_map,
+                        std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual>* p_dom_map,
                         std::unordered_map<const VarNode*, PrimExpr>* p_vsub,
                         std::unordered_map<const VarNode*, PrimExpr>* p_vsub2newvar,
                         std::vector<PrimExpr>* p_predicates) {
@@ -209,29 +209,28 @@ void PrepareAxisMapping(Stage orig_stage,
   }
   for (IterVar iv : op->axis) {
     dom_map[iv] = iv->dom;
-    analyzer.Bind(iv->var, iv->dom);
+    analyzer.Bind(iv, iv->dom);
   }
   te::PassDownDomain(orig_stage, &dom_map, &analyzer, true);
   {
     // The source->cache
-    std::unordered_map<IterVar, PrimExpr> value_map;
+    std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> value_map;
     for (IterVar iv : orig_stage->leaf_iter_vars) {
       if (red_axis.count(iv)) continue;
       CHECK_EQ(iv->iter_type, kDataPar)
           << "Can only relayout with in data parallel dimensions";
       Range dom = dom_map.at(iv);
-      IterVar new_iv = IterVarNode::make(
-          dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+      IterVar new_iv(dom, iv->iter_type, iv->name_hint + ".c", iv->dtype);
       new_axis.push_back(new_iv);
       if (is_one(dom->min)) {
         value_map[iv] = dom->min;
       } else {
-        value_map[iv] = iv->var;
-        vsub2newvar[iv->var.get()] = new_iv->var;
+        value_map[iv] = iv;
+        vsub2newvar[iv.get()] = new_iv;
       }
     }
     // skip reduction iteration.
-    std::unordered_set<IterVar> skip_bound_check;
+    std::unordered_set<IterVar, ObjectHash, ObjectEqual> skip_bound_check;
     for (IterVar iv : op->reduce_axis) {
       skip_bound_check.insert(iv);
     }
@@ -241,7 +240,7 @@ void PrepareAxisMapping(Stage orig_stage,
     // The root axis
     for (IterVar iv : op->axis) {
       if (value_map.count(iv)) {
-        vsub[iv->var.get()] = value_map.at(iv);
+        vsub[iv.get()] = value_map.at(iv);
       }  // to handle tensor axis
     }
   }
@@ -301,9 +300,9 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Stage orig_stage = sch[tensor->op];
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
 
-  std::unordered_set<IterVar> red_axis;
+  std::unordered_set<IterVar, ObjectHash, ObjectEqual> red_axis;
   Array<IterVar> new_axis;
-  std::unordered_map<IterVar, Range> dom_map;
+  std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> dom_map;
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
   std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
@@ -343,9 +342,9 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Array<PrimExpr> args;
   {
     // cache->compute
-    std::unordered_map<IterVar, PrimExpr> value_map;
+    std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> value_map;
     for (IterVar iv : compute->axis) {
-      value_map[iv] = iv->var;
+      value_map[iv] = iv;
     }
     te::PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
@@ -382,9 +381,9 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   CHECK_EQ(tensor_op->num_outputs(), 1)
       << "cache write only support single output tensor_compute_op";
 
-  std::unordered_set<IterVar> red_axis;
+  std::unordered_set<IterVar, ObjectHash, ObjectEqual> red_axis;
   Array<IterVar> new_axis;
-  std::unordered_map<IterVar, Range> dom_map;
+  std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> dom_map;
 
   std::unordered_map<const VarNode*, PrimExpr> vsub;
   std::unordered_map<const VarNode*, PrimExpr> vsub2newvar;
@@ -396,8 +395,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
 
   for (int i = tensor_op->schedulable_ndim; i < static_cast<int>(tensor_op->axis.size()); ++i) {
     IterVar iv = tensor_op->axis[i];
-    IterVar new_iv = IterVarNode::make(
-      iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
+    IterVar new_iv(iv->dom, iv->iter_type, iv->name_hint + ".c", iv->dtype);
     new_axis.push_back(new_iv);
   }
   Array<Region> new_regions;
@@ -425,7 +423,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<IterVar> compute_axis = tensor_op->axis;
   for (size_t i = tensor_op->schedulable_ndim; i < tensor_op->axis.size(); ++i) {
     IterVar iv = tensor_op->axis[i];
-    IterVar aiv = IterVarNode::make(iv->dom, iv->var, kDataPar);
+    IterVar aiv = IterVarNode::make(iv->dom, iv, kDataPar);
     compute_axis.Set(i, aiv);
   }
 
@@ -433,9 +431,9 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   Array<PrimExpr> args;
   {
     // cache->compute
-    std::unordered_map<IterVar, PrimExpr> value_map;
+    std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> value_map;
     for (IterVar iv : compute_axis) {
-      value_map[iv] = iv->var;
+      value_map[iv] = iv;
     }
     PassDownIndex(orig_stage, dom_map, &value_map, true);
     for (IterVar iv : orig_stage->leaf_iter_vars) {
@@ -497,7 +495,7 @@ Tensor Schedule::cache_write(const Tensor& tensor,
 
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
-  std::unordered_map<IterVar, IterVar> rebase_map;
+  std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual> rebase_map;
   for (Stage s : sch->stages) {
     if (s->attach_type == kInlinedAlready) continue;
 
@@ -513,8 +511,7 @@ void RebaseNonZeroMinLoop(const Schedule& sch) {
       }
       if (idx < leaf_vars->data.size()) {
         // insert rebase
-        IterVar rebased = IterVarNode::make(
-            Range(), iv->var.copy_with_suffix(""), iv->iter_type);
+        IterVar rebased(Range(), iv->iter_type, iv->name_hint, iv->dtype);
         s->relations.push_back(RebaseNode::make(iv, rebased));
         if (s->iter_var_attrs.count(iv)) {
           s->iter_var_attrs.Set(rebased, s->iter_var_attrs.at(iv));
@@ -559,7 +556,7 @@ void InjectInline(ScheduleNode* sch) {
         CHECK(compute)
             << "can only inline compute op";
         for (auto iv : compute->axis) {
-          args.push_back(iv->var);
+          args.push_back(iv);
         }
         CHECK_EQ(compute->body.size(), 1U)
             << "can only inline compute op with 1 output";
@@ -690,12 +687,12 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
         << "Cannot find IterVar " << axis << " in leaf iter vars";
   }
   // Find touched reduction axis.
-  std::unordered_map<IterVar, int> touch_map;
+  std::unordered_map<IterVar, int, ObjectHash, ObjectEqual> touch_map;
   touch_map[axis] = 1;
   te::PassUpBitMaskOr(reduce_stage, &touch_map, true);
   te::PassDownBitMaskOr(reduce_stage, &touch_map, true);
   // skip reduction iteration.
-  std::unordered_set<IterVar> skip_bound_check;
+  std::unordered_set<IterVar, ObjectHash, ObjectEqual> skip_bound_check;
   // Verify normal axis are not touched.
   for (IterVar iv : compute_op->axis) {
     CHECK(!touch_map.count(iv))
@@ -705,15 +702,15 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   // get analyzer.
   arith::Analyzer analyzer;
   // Get the replace index
-  std::unordered_map<IterVar, Range> dom_map;
-  std::unordered_map<IterVar, PrimExpr> value_map;
+  std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> dom_map;
+  std::unordered_map<IterVar, PrimExpr, ObjectHash, ObjectEqual> value_map;
   for (IterVar iv : compute_op->reduce_axis) {
     if (touch_map.count(iv)) {
       dom_map[iv] = iv->dom;
     } else {
       skip_bound_check.insert(iv);
     }
-    analyzer.Bind(iv->var, iv->dom);
+    analyzer.Bind(iv, iv->dom);
   }
   te::PassDownDomain(reduce_stage, &dom_map, &analyzer, true);
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
@@ -722,7 +719,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       if (is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        value_map[iv] = iv->var;
+        value_map[iv] = iv;
       }
     }
   }
@@ -742,7 +739,8 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     iv_node->dom = dom_map.at(axis);
     CHECK(is_zero(iv_node->dom->min))
         << "Can only factor reduction domain starting from 0";
-    iv_node->var = axis->var;
+    iv_node->name_hint = axis->name_hint;
+    iv_node->dtype = axis->dtype;
     iv_node->iter_type = kDataPar;
 
     const int size = compute_op->axis.size();
@@ -771,7 +769,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
     } else {
       CHECK(value_map.count(iv));
       PrimExpr index = value_map.at(iv);
-      vsub[iv->var.get()] = index;
+      vsub[iv.get()] = index;
     }
   }
 
@@ -832,7 +830,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   }
   // Replace the old reduction.
   IterVar repl_red_axis = reduce_axis(
-      dom_map.at(axis), axis->var->name_hint + ".v");
+      dom_map.at(axis), axis->name_hint + ".v");
   Array<Tensor> factor_tensors;
   Array<Tensor> old_tensors;
   int size = factor_op->num_outputs();
@@ -846,12 +844,12 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       const int idx_size = static_cast<int>(i.size());
       for (int idx = 0; idx < idx_size; ++idx) {
         if (factor_axis_pos == idx) {
-          indices.push_back(repl_red_axis->var);
+          indices.push_back(repl_red_axis);
         }
         indices.push_back(i[idx]);
       }
       if (factor_axis_pos == idx_size) {
-          indices.push_back(repl_red_axis->var);
+          indices.push_back(repl_red_axis);
       }
       Array<PrimExpr> factor_exprs;
       for (int idx = 0; idx < size; ++idx) {
