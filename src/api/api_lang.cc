@@ -326,11 +326,11 @@ TVM_REGISTER_GLOBAL("_OpInputTensors")
 .set_body_method<Operation>(&OperationNode::InputTensors);
 
 TVM_REGISTER_GLOBAL("_IterVar")
-.set_body_typed([](Range dom, Var var, int iter_type, std::string thread_tag) {
-  return IterVarNode::make(
-      dom, var,
-      static_cast<IterVarType>(iter_type),
-      thread_tag);
+.set_body_typed([](Range dom, int iter_type, std::string name,
+                   DataType dtype, std::string thread_tag) {
+  return IterVar(
+      dom, static_cast<IterVarType>(iter_type),
+      name, dtype, thread_tag);
 });
 
 TVM_REGISTER_GLOBAL("_CreateSchedule")

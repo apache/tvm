@@ -739,8 +739,7 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
         if not isinstance(dom, _container.Range):
             raise TypeError("dom need to be Range")
     name = name if name else 'iter'
-    v = var(name)
-    return _api_internal._IterVar(dom, v, iter_type, thread_tag)
+    return _api_internal._IterVar(dom, iter_type, name, int32, thread_tag)
 
 
 def thread_axis(dom=None, tag='', name=''):

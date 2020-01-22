@@ -300,10 +300,6 @@ class IterVarNode : public VarNode {
     v->Visit("thread_tag", &thread_tag);
   }
 
-  TVM_DLL static IterVar make(Range dom, Var var,
-                              IterVarType iter_type,
-                              std::string thread_tag = "");
-
   static constexpr const char* _type_key = "IterVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, VarNode);
 };

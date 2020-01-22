@@ -80,7 +80,8 @@ Stmt ApplyLoopShapes(const Stage &stage,
  * \param stmt The statement to be processed.
  */
 Stmt ApplyLoopAnnotations(const Stage &stage,
-                          const std::unordered_map<IterVar, IterVar, ObjectHash, ObjectEqual>& rebased,
+                          const std::unordered_map<IterVar, IterVar,
+                                                   ObjectHash, ObjectEqual>& rebased,
                           Stmt stmt);
 
 /*!
