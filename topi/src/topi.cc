@@ -43,7 +43,6 @@
 #include <topi/nn/mapping.h>
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
-#include <topi/nn/upsampling.h>
 #include <topi/nn/l2_normalize.h>
 #include <topi/nn/local_response_norm.h>
 #include <topi/nn/batch_matmul.h>
@@ -449,12 +448,6 @@ TVM_REGISTER_GLOBAL("topi.one_hot")
   int axis = args[4];
   DataType dtype = args[5];
   *rv = one_hot(args[0], args[1], args[2], depth, axis, dtype);
-  });
-
-/* Ops from nn/upsampling.h */
-TVM_REGISTER_GLOBAL("topi.nn.upsampling")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::upsampling(args[0], args[1], args[2], args[3]);
   });
 
 /* Ops from nn/bnn.h */
