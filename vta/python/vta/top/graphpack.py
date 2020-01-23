@@ -343,7 +343,10 @@ def graph_pack(expr,
         and node index equals stop_name_idx.
 
     count_meta:boolean, optional
-        start_name_idx and stop_name_idx count meta or not.
+        When count_meta is False, the operator increase logic would not count the meta that have
+        the type 'relay.expr.Constant', start_name_idx and stop_name_idx follow the index from
+        'expr.astext(show_meta_data=False)'. When count_meta is True, the operator increase
+        logic would count the meta.
 
     Returns
     -------
