@@ -176,7 +176,7 @@ def test_rfactor():
     assert(BF.shape[0].value == 4)
     assert(BF.shape[1] == n)
     assert(BF.op.body[0].axis[0] ==  k2)
-    assert(BF.op.body[0].axis[1].var ==  ko.var)
+    assert(BF.op.body[0].axis[1] ==  ko)
     assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
     # schedule with factor_axis
     s = tvm.create_schedule(B.op)
@@ -186,7 +186,7 @@ def test_rfactor():
     assert(n == BF.shape[0])
     assert(BF.shape[1].value == 4)
     assert(BF.op.body[0].axis[0] ==  k2)
-    assert(BF.op.body[0].axis[1].var ==  ko.var)
+    assert(BF.op.body[0].axis[1] ==  ko)
     assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
 
 def test_tensor_intrin():

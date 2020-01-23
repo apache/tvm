@@ -92,7 +92,7 @@ def test_inline_multi_reduce():
     val1 = tvm.compute((m, n), lambda i, j: val[i, j]+1, name='val1')
     val2 = tvm.compute((m, n), lambda i, j: tvm.exp(val1[i, j]), name='val2')
     k = tvm.reduce_axis((0, n), 'k')
-    T_idx, T_val = tvm.compute((m, ), lambda i: argmax((k.var, val2[i, k]), axis=k), name='T')
+    T_idx, T_val = tvm.compute((m, ), lambda i: argmax((k, val2[i, k]), axis=k), name='T')
     s = tvm.create_schedule(T_idx.op)
     s[val1].compute_inline()
     s = s.normalize()

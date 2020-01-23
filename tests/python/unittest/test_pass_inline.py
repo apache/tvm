@@ -22,7 +22,7 @@ def test_inline():
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(T[10] + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
-        stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
+        stmt, T.op, T.op.axis, T.op.body[0])
     print(stmt)
     assert(tvm.ir_pass.VerifySSA(stmt))
 
@@ -41,7 +41,7 @@ def test_inline2():
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.make.Evaluate(tvm.exp(T[10]) + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
-        stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
+        stmt, T.op, T.op.axis, T.op.body[0])
     def check(op):
         if isinstance(op, tvm.expr.Call):
             assert op.func != T.op

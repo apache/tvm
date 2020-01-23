@@ -126,7 +126,7 @@ class VirtualAxis(TransformSpace):
         if isinstance(var, (int, _long)):
             self.length = var
         elif isinstance(var, schedule.IterVar):
-            self.name = var.var.name
+            self.name = var.name
             if var.dom is None:
                 self.length = -1
             else:

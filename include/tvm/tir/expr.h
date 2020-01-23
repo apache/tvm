@@ -231,7 +231,7 @@ enum IterVarType : int {
 class IterVar : public Var {
  public:
   // construct a new iter var without a domain
-  IterVar() {}
+  IterVar() : IterVar(nullptr) {}
   // construct from shared ptr.
   explicit IterVar(ObjectPtr<Object> n) : Var(n) {}
   /*! \brief constructor.
@@ -241,10 +241,10 @@ class IterVar : public Var {
    * \param t data type
    * \param thread_tag additional tag on the iteration variable.
    */
-  TVM_DLL IterVar(Range dom, IterVarType iter_type,
-                  std::string name_hint = "v",
-                  DataType t = DataType::Int(32),
-                  std::string thread_tag = "");
+  TVM_DLL explicit IterVar(Range dom, IterVarType iter_type,
+                           std::string name_hint = "v",
+                           DataType t = DataType::Int(32),
+                           std::string thread_tag = "");
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

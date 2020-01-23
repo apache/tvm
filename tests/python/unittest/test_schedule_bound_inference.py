@@ -119,7 +119,7 @@ def test_bound_fusesplit1():
     for i in range(1, 6):
         for j in range(1, 6):
             for k in range(1, 6):
-                vars = tvm.convert({split1: tvm.const(i, "int32"), l: tvm.const(j, "int32"), xo.var: tvm.const(k, "int32")})
+                vars = tvm.convert({split1: tvm.const(i, "int32"), l: tvm.const(j, "int32"), xo: tvm.const(k, "int32")})
                 comp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value
                 exp_ext = tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(expected_extent, vars)).value
                 assert(comp_ext == exp_ext)
@@ -141,7 +141,7 @@ def test_bound_fusesplit2():
 
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
-    vars = tvm.convert({xo.var: tvm.const(5, "int32")})
+    vars = tvm.convert({xo: tvm.const(5, "int32")})
     assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].min, vars)).value == 2)
     assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[1]].min, vars)).value == 3)
     assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars)).value == 1)

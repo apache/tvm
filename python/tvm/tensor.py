@@ -66,10 +66,8 @@ class Tensor(Object, _expr.ExprOp):
         indices = convert_to_object(indices)
         args = []
         for x in indices:
-            if isinstance(x, _expr.PrimExpr):
+            if isinstance(x, (_expr.PrimExpr, iter_var_cls)):
                 args.append(x)
-            elif isinstance(x, iter_var_cls):
-                args.append(x.var)
             else:
                 raise ValueError("The indices must be expression")
 

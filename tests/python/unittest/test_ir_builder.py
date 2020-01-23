@@ -119,7 +119,7 @@ def test_gpu():
         tx = tvm.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
-        idx = bx.var * max_threads + tx.var
+        idx = bx * max_threads + tx
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
         Cptr = ib.buffer_ptr(C)

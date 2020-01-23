@@ -322,7 +322,7 @@ def test_tensorize_tensor_compute_op():
     # The loop that we tried to tensorize still exists in the code
     # That means tensorize didn't work as expected
     assert isinstance(stmt.body.body.body, tvm.stmt.For)
-    assert stmt.body.body.body.loop_var.name == C.op.axis[0].var.name
+    assert stmt.body.body.body.loop_var.name == C.op.axis[0].name
 
 
 

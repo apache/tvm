@@ -156,7 +156,7 @@ def test_vectorize():
     s[C].vectorize(x)
     stmt = lower(s, [A, B])
     body = stmt.body.body.body.body.body
-    assert(x.var.name not in str(body.condition))
+    assert(x.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.expr.Ramp))))
 
 def test_condition():

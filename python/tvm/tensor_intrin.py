@@ -34,11 +34,7 @@ def _get_region(tslice):
             assert idx.step is None
             region.append(_api.Range(idx.start, idx.stop))
         else:
-            if isinstance(idx, _schedule.IterVar):
-                begin = idx.var
-            else:
-                begin = idx
-            region.append(_make.range_by_min_extent(begin, 1))
+            region.append(_make.range_by_min_extent(idx, 1))
     return region
 
 @register_object
