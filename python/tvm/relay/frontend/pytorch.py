@@ -833,7 +833,7 @@ class Graph(object):
         self._input_shapes = input_shapes if input_shapes else {}
         self._input_types = input_types if input_types else {}
         self._fn_param = []
-        self._relay_map = {}
+        self._relay_map = []
         self._nid_to_node_name = {}
 
     def from_pytorch(self):
@@ -885,7 +885,7 @@ class Graph(object):
                     if len(listconstr) == 1:
                         listconstr = listconstr[0]
 
-                    self._relay_map[nid] = listconstr
+                    self._relay_map.append(listconstr)
                     self._nid_to_node_name[op_name] = nid
                     nid = nid+1
             else:
@@ -901,7 +901,7 @@ class Graph(object):
                 call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
                                               self._op_inputs_types[op_name])
 
-                self._relay_map[nid] = call
+                self._relay_map.append(call)
                 self._nid_to_node_name[op_name] = nid
                 nid = nid+1
 
@@ -1058,6 +1058,7 @@ class Graph(object):
 
             try:
                 input_node_kind = input_node.type().kind()
+                print(input_node_kind)
                 if input_node_kind == 'TensorType':
                     if input_node.type().scalarType() is None:
                         input_list_types.append('float')
@@ -1071,7 +1072,9 @@ class Graph(object):
                     input_list_types.append(str(input_node.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
+                    print('UnsupportedType')
             except Exception as e:
+                print(e)
                 print('Internal PyTorch error. Failed to grab type.')
 
         node_str = str(op_node)
