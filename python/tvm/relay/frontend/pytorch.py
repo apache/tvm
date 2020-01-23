@@ -365,6 +365,8 @@ def _batch_norm():
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('int8'))
             elif data_type == 'byte':
                 gamma = _expr.const(np.ones([int(channels[1])]).astype('uint8'))
+            else:
+                gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
 
         if center:
             beta = beta
@@ -385,6 +387,8 @@ def _batch_norm():
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('int8'))
             elif data_type == 'byte':
                 beta = _expr.const(np.zeros([int(channels[1])]).astype('uint8'))
+            else:
+                beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
@@ -475,6 +479,8 @@ def _dense():
                 alpha = _expr.const(np.int8(alpha), dtype='int8')
             elif data_type == 'byte':
                 alpha = _expr.const(np.uint8(alpha), dtype='uint8')
+            else:
+                alpha = _expr.const(np.float32(alpha), dtype='float32')
             data *= alpha
 
         if not isinstance(beta, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
@@ -494,6 +500,8 @@ def _dense():
                 beta = _expr.const(np.int8(beta), dtype='int8')
             elif data_type == 'byte':
                 beta = _expr.const(np.uint8(beta), dtype='uint8')
+            else:
+                beta = _expr.const(np.float32(beta), dtype='float32')
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
@@ -809,11 +817,11 @@ _convert_map = {
 # Internal graph for parsing
 
 class Graph(object):
-    """ A helper class for handling relay graph copying from PyTorch trace. """
+    """ A helper class for parsing PyTorch model to Relay graph."""
 
-    def __init__(self, trace, input_shapes, input_types):
+    def __init__(self, script_module, input_shapes, input_types):
 
-        self._trace = trace
+        self._script_module = script_module
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
@@ -829,7 +837,7 @@ class Graph(object):
         self._nid_to_node_name = {}
 
     def from_pytorch(self):
-        """ Construct relay nodes from trace of PyTorch graph
+        """ Construct relay nodes from PyTorch graph
 
         Currently only supports traced PyTorch format which means no control flow.
         User must perform torch.jit.trace on a model and pass this in.
@@ -857,10 +865,10 @@ class Graph(object):
         self._parse_ops()
 
         nid = 0
-        for (op_name, operator), op_node in self._ops.items():
-            if operator == 'prim::Constant':
+        for op_name, op_node in self._ops.items():
+            if op_node.kind() == 'prim::Constant':
                 pass
-            elif operator == 'prim::ListConstruct':
+            elif op_node.kind() == 'prim::ListConstruct':
                 if any(inp.debugName() in self._nid_to_node_name.keys() \
                        for inp in op_node.inputs()):
                     listconstr = []
@@ -883,15 +891,15 @@ class Graph(object):
             else:
                 for i in op_node.inputs():
                     if i.debugName() in self._nid_to_node_name.keys():
-                        for cnt in range(0, len(self._op_inputs_r[(op_name, operator)])):
-                            if isinstance(self._op_inputs_r[(op_name, operator)][cnt], str):
-                                if "call/var" in self._op_inputs_r[(op_name, operator)][cnt]:
-                                    self._op_inputs_r[(op_name, operator)][cnt] = \
+                        for cnt in range(0, len(self._op_inputs_r[op_name])):
+                            if isinstance(self._op_inputs_r[op_name][cnt], str):
+                                if "call/var" in self._op_inputs_r[op_name][cnt]:
+                                    self._op_inputs_r[op_name][cnt] = \
                                         self._relay_map[self._nid_to_node_name[i.debugName()]]
                                     break
 
-                call = _convert_map[operator](self._op_inputs_r[(op_name, operator)],
-                                              self._op_inputs_types[(op_name, operator)])
+                call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
+                                              self._op_inputs_types[op_name])
 
                 self._relay_map[nid] = call
                 self._nid_to_node_name[op_name] = nid
@@ -917,8 +925,8 @@ class Graph(object):
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
         # Get names and objects of inputs for IR
-        ir_names = [i.debugName() for i in self._trace.graph.inputs()]
-        ir_inputs = [i for i in self._trace.graph.inputs()]
+        ir_names = [i.debugName() for i in self._script_module.graph.inputs()]
+        ir_inputs = [i for i in self._script_module.graph.inputs()]
 
         # Create corresponding shape and add to input
         for input_name, ir_input in zip(self._input_shapes, ir_inputs[1:]):
@@ -943,7 +951,7 @@ class Graph(object):
     def _parse_params(self):
         """ Map state dictionary values to corresponding prim::GetAttr op node. """
         # Grab weights, biases, etc. from graph
-        state_dict = self._trace.state_dict()
+        state_dict = self._script_module.state_dict()
         param_names = []
         for key, value in state_dict.items():
             param_str = str(key)
@@ -955,7 +963,7 @@ class Graph(object):
 
         # Iterate through graph for getAttr nodes and match full state_dict name to nodes
         node_weight_map = {}
-        for node in self._trace.graph.nodes():
+        for node in self._script_module.graph.nodes():
             if node.kind() == "prim::GetAttr":
                 node_str = str(node)
                 node_assign = (node_str.split(' = ')[0]).split(' : ')
@@ -989,7 +997,7 @@ class Graph(object):
         """ Iterate through nodes and decorate graph with constants, operators,
         and the inputs to each operator. """
         # Traverse nodes and add to graph
-        for node in self._trace.graph.nodes():
+        for node in self._script_module.graph.nodes():
 
             node_str = str(node)
             node_assign = (node_str.split(' = ')[0]).split(' : ')
@@ -1009,33 +1017,28 @@ class Graph(object):
                         list_shape.append(int(self._inputs_r[input_node.debugName()]))
                     elif input_node.debugName() in self._consts.keys():
                         list_shape.append(int(self._consts[input_node.debugName()]))
-                    else:
-                        pass
                 self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
             elif node.kind() == "prim::GetAttr":
                 continue
 
-            self._add_op(node_name, node.kind(), node)
+            self._add_op(node_name, node)
 
     # Graph Helper Functions
 
-    def _add_op(self, op_name, operator, op_node):
+    def _add_op(self, node_id, op_node):
         """ Add an operator and its operators inputs to the graph and insert placeholders
             where an input is a call node.
 
         Parameters
         ----------
-        op_name : string
+        node_id : string
             The ID of the op node
-
-        operator : string
-            The kind of operator
 
         op_node : PyTorch Node object
             The full Node object for the op node
 
         """
-        self._ops[(op_name, operator)] = op_node
+        self._ops[(node_id)] = op_node
         input_list_r = []
         input_list_types = []
         for input_node in op_node.inputs():
@@ -1050,8 +1053,8 @@ class Graph(object):
 
                 # If the inputs of a ListConstruct op is a call or var, remove it from inputs
                 if op_node.kind() == 'prim::ListConstruct':
-                    if op_name in self._inputs_r.keys():
-                        self._inputs_r.pop(op_name)
+                    if node_id in self._inputs_r.keys():
+                        self._inputs_r.pop(node_id)
 
             try:
                 input_node_kind = input_node.type().kind()
@@ -1083,8 +1086,8 @@ class Graph(object):
             node_type = node_type.split('(')[0]
             input_list_types[0] = node_type.lower()
 
-        self._op_inputs_r[(op_name, operator)] = input_list_r
-        self._op_inputs_types[(op_name, operator)] = input_list_types
+        self._op_inputs_r[node_id] = input_list_r
+        self._op_inputs_types[node_id] = input_list_types
 
 
     def _parse_import_prerequisites(self):
@@ -1098,7 +1101,7 @@ class Graph(object):
 
         """
         missing_operators = set()
-        for node in self._trace.graph.nodes():
+        for node in self._script_module.graph.nodes():
             if node.kind() == "prim::Constant" or node.kind() == 'prim::ListConstruct' or \
                     node.kind() == 'prim::GetAttr':
                 pass
@@ -1110,14 +1113,15 @@ class Graph(object):
 
         return missing_operators
 
-def from_pytorch(trace, input_shapes, input_types):
-    """ Load PyTorch model in the form of a trace object into relay.
+def from_pytorch(script_module, input_shapes, input_types):
+    """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
     Parameters
     ----------
-    trace : TopLevelTracedModule object
-        Trace of PyTorch graph
+    script_module : TopLevelTracedModule object
+        TorchScripted PyTorch graph
+        Note: We currently only support traces (ie: torch.jit.trace(model, input)
 
     shape : Dictionary of input dimensions
         Graph level input shape dictionary
@@ -1133,6 +1137,6 @@ def from_pytorch(trace, input_shapes, input_types):
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(trace, input_shapes, input_types)
+    g = Graph(script_module, input_shapes, input_types)
     mod, params = g.from_pytorch()
     return mod, params

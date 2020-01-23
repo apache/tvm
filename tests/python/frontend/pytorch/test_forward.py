@@ -204,6 +204,9 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 def verify_model(model_name, input_type=None):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
+
+    print(model_name)
+
     baseline_model, baseline_input = load_model(model_name, input_type)
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
@@ -564,13 +567,13 @@ def test_resnet34():
 
 def test_resnet50():
     verify_model('resnet50')
-"""
+
 def test_resnet101():
     verify_model('resnet101')
 
 def test_resnet152():
     verify_model('resnet152')
-"""
+
 def test_squeezenet1_0():
     verify_model('squeezenet1_0')
 
@@ -582,7 +585,7 @@ def test_vgg11():
 
 def test_vgg11float64():
     verify_model('vgg11', input_type='float64')
-"""
+
 def test_vgg13():
     verify_model('vgg13')
 
@@ -600,15 +603,12 @@ def test_vgg13_bn():
 
 def test_vgg19_bn():
     verify_model('vgg19_bn')
-"""
 
-"""
 def test_mobilenet_v2():
     verify_model('mobilenet_v2')
 
 def test_densenet121():
     verify_model('densenet121')
-
 
 def test_densenet161():
     verify_model('densenet161')
@@ -636,7 +636,6 @@ def test_mnasnet0_5():
 
 def test_mnasnet1_0():
     verify_model('mnasnet1_0')
-"""
 
 if __name__ == '__main__':
 
@@ -697,22 +696,22 @@ if __name__ == '__main__':
     test_resnet18()
     test_resnet34()
     test_resnet50()
-    #test_resnet101()
-    #test_resnet152()
+    test_resnet101()
+    test_resnet152()
     test_squeezenet1_0()
     test_squeezenet1_1()
     test_vgg11()
-    #test_vgg13()
-    #test_vgg16()
-    #test_vgg19()
+    test_vgg13()
+    test_vgg16()
+    test_vgg19()
     test_vgg11_bn()
-    #test_vgg13_bn()
-    #test_vgg19_bn()
+    test_vgg13_bn()
+    test_vgg19_bn()
     test_mobilenet_v2()
     test_densenet121()
-    #test_densenet161()
-    #test_densenet169()
-    #test_densenet201()
+    test_densenet161()
+    test_densenet169()
+    test_densenet201()
     test_inception_v3()
     test_alexnet()
     test_googlenet()
