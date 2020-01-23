@@ -498,7 +498,7 @@ def _conv3d(opname):
             pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
-            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_v[0], pad_v[1], pad_h[1]]
+            attr['padding'] = [pad_d[0], pad_v[0], pad_h[0], pad_d[1], pad_v[1], pad_h[1]]
 
         else:
             msg = 'Value {} in attribute "padding" of operator Conv is not ' \
@@ -509,7 +509,7 @@ def _conv3d(opname):
             attr['kernel_layout'] = 'DHWIO' if attr['data_format'] == 'NDHWC' else 'OIDHW'
 
         use_bias = len(inputs) == (3 if opname != 'conv_transpose' else 4)
-        channel_axis = 1 if attr['data_format'] == "NCDHW" else 3
+        channel_axis = 1 if attr['data_format'] == "NCDHW" else 4
 
         # Ignore the new attributes from TF2.0, for now.
         out = AttrCvt(

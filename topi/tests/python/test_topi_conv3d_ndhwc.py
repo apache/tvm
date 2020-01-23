@@ -25,10 +25,17 @@ from topi.util import get_const_tuple
 
 
 def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
-    in_depth = in_height = in_width = in_size
+    if isinstance(in_size, tuple):
+        in_depth, in_height, in_width = in_size
+    else:
+        in_depth = in_height = in_width = in_size
+    if isinstance(kernel, tuple):
+        kernel_depth, kernel_height, kernel_width = kernel
+    else:
+        kernel_depth = kernel_height = kernel_width = kernel
 
     A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
-    W = tvm.placeholder((kernel, kernel, kernel, in_channel, num_filter), name='W')
+    W = tvm.placeholder((kernel_depth, kernel_height, kernel_width, in_channel, num_filter), name='W')
     B = topi.nn.conv3d_ndhwc(A, W, stride, padding, dilation)
 
     a_shape = get_const_tuple(A.shape)
@@ -73,6 +80,12 @@ def test_conv3d_ndhwc():
     verify_conv3d_ndhwc(4, 32, 16, 64, 5, 2, "VALID")
     # dilation = 2
     verify_conv3d_ndhwc(1, 64, 32, 64, 3, 1, "SAME", dilation=2)
+
+    verify_conv3d_ndhwc(1, 1, (20, 256, 256), 32, (1, 3, 3), (1, 2, 2), "SAME")
+    verify_conv3d_ndhwc(1, 1, (20, 256, 256), 32,
+                        (1, 6, 6), (1, 2, 2), (0, 2, 2))
+    verify_conv3d_ndhwc(1, 4, (20, 256, 256), 8,
+                        (1, 5, 5), (1, 2, 2), (0, 2, 2))
 
 
 if __name__ == "__main__":
