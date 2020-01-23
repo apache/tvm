@@ -833,7 +833,6 @@ class Graph(object):
         self._input_shapes = input_shapes if input_shapes else {}
         self._input_types = input_types if input_types else {}
         self._fn_param = []
-        self._relay_map = []
         self._nid_to_node_name = {}
 
     def from_pytorch(self):
@@ -864,7 +863,9 @@ class Graph(object):
         self._parse_params()
         self._parse_ops()
 
+        outputs = []
         nid = 0
+
         for op_name, op_node in self._ops.items():
             if op_node.kind() == 'prim::Constant':
                 pass
@@ -875,7 +876,7 @@ class Graph(object):
                     for i in op_node.inputs():
                         if i.debugName() in self._nid_to_node_name.keys():
                             listconstr.append( \
-                                self._relay_map[self._nid_to_node_name[i.debugName()]])
+                                outputs[self._nid_to_node_name[i.debugName()]])
                         elif i.node().kind() == 'prim::Constant':
                             listconstr.append(int(self._consts[i.debugName()]))
                         elif i.debugName() in self._inputs_r.keys():
@@ -885,7 +886,7 @@ class Graph(object):
                     if len(listconstr) == 1:
                         listconstr = listconstr[0]
 
-                    self._relay_map.append(listconstr)
+                    outputs.append(listconstr)
                     self._nid_to_node_name[op_name] = nid
                     nid = nid+1
             else:
@@ -895,21 +896,15 @@ class Graph(object):
                             if isinstance(self._op_inputs_r[op_name][cnt], str):
                                 if "call/var" in self._op_inputs_r[op_name][cnt]:
                                     self._op_inputs_r[op_name][cnt] = \
-                                        self._relay_map[self._nid_to_node_name[i.debugName()]]
+                                        outputs[self._nid_to_node_name[i.debugName()]]
                                     break
 
                 call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
                                               self._op_inputs_types[op_name])
 
-                self._relay_map.append(call)
+                outputs.append(call)
                 self._nid_to_node_name[op_name] = nid
                 nid = nid+1
-
-        outputs = []
-
-        for i in range(nid):
-            output = self._relay_map[i]
-            outputs.append(output)
 
         if len(outputs) == 1:
             body = outputs[0]
@@ -1000,14 +995,11 @@ class Graph(object):
         for node in self._script_module.graph.nodes():
 
             node_str = str(node)
-            node_assign = (node_str.split(' = ')[0]).split(' : ')
-            node_name = (node_assign[0])[1:]
-            node_expr = (node_str.split(' = ')[1]).split(',')[0]
+            node_name = [output.debugName() for output in node.outputs()][0]
 
             if node.kind() == "prim::Constant":
                 node_value = '0'
-                if "None" not in node_str and node_expr != "prim::Constant()" and \
-                        "?" not in node_str:
+                if "None" not in node_str and "?" not in node_str:
                     node_value = ((node_str.split(' = ')[1]).split('value=')[1]).split(']')[0]
                 self._consts[node_name] = node_value
             elif node.kind() == "prim::ListConstruct":
@@ -1058,7 +1050,6 @@ class Graph(object):
 
             try:
                 input_node_kind = input_node.type().kind()
-                print(input_node_kind)
                 if input_node_kind == 'TensorType':
                     if input_node.type().scalarType() is None:
                         input_list_types.append('float')
@@ -1074,7 +1065,6 @@ class Graph(object):
                     input_list_types.append('UnsupportedType')
                     print('UnsupportedType')
             except Exception as e:
-                print(e)
                 print('Internal PyTorch error. Failed to grab type.')
 
         node_str = str(op_node)
