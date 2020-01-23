@@ -48,7 +48,6 @@
 #include <topi/nn/batch_matmul.h>
 
 #include <topi/vision/reorg.h>
-#include <topi/image/resize.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
 #include <topi/generic/injective.h>
@@ -574,17 +573,6 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
   *rv = vision::reorg(args[0], args[1]);
   });
 
-/* Ops from image/resize.h */
-TVM_REGISTER_GLOBAL("topi.image.bilinear_sample_nchw")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = image::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
-  });
-
-TVM_REGISTER_GLOBAL("topi.image.resize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = image::resize(args[0], args[1], args[2], args[3], args[4]);
-  });
-
 /* Generic schedules */
 TVM_REGISTER_GLOBAL("topi.generic.default_schedule")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -746,6 +734,11 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2_normalize")
 TVM_REGISTER_GLOBAL("topi.util.is_empty_shape")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::detail::is_empty_shape(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.util.bilinear_sample_nchw")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = detail::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
   });
 
 /*! \brief Builder function for instantiating schedules. */
