@@ -39,6 +39,7 @@ bool DequantizeRel(const Array<Type>& types,
                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Int(8) ||
         input_dtype == DataType::UInt(8) ||

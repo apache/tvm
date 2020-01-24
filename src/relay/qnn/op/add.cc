@@ -55,6 +55,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // Get the input dtype and shape.
   CHECK_EQ(arg_types.size(), 9);
   auto tensor_type = arg_types[0].as<TensorTypeNode>();
+  CHECK(tensor_type != nullptr);
   auto input_dtype = tensor_type->dtype;
   auto input_shape = tensor_type->shape;
 
