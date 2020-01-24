@@ -25,8 +25,10 @@ from ..relay.base import NodeBase, register_relay_node
 import tvm
 from tvm._ffi.runtime_ctypes import TVMType
 import math
+import json
 import numpy as np
-from collections import defaultdict, OrderedDict
+from json import JSONEncoder
+from collections import namedtuple, defaultdict, OrderedDict
 
 DType = TVMType
 
@@ -50,9 +52,10 @@ class QConfig(NodeBase):
         "search_strategy": "simulated_annealing",
         "threshold_estimate_strategy": "power2_range",
         "global_scale": 8.0,
-        "do_simulation": False,
-        "round_for_shift": True,
-        "debug_enabled_ops": None,
+        "log_file": ".quantize_strategy_search.log",
+        # "do_simulation": False,
+        # "round_for_shift": True,
+        # "debug_enabled_ops": None,
     }
 
     # pylint: disable=no-member
@@ -190,8 +193,64 @@ def quantize_context():
     return QuantizeContext.Current
 
 
+HAGO_LOG_VERSION = 0.1
+
+class Strategy(object):
+    def __init__(self, model_hash, topology, bits, thresholds):
+        self.model_hash = model_hash
+        self.topology = topology
+        self.bits = bits
+        self.thresholds = thresholds
+
+# TODO(ziheng): consider multiple measure metric in the future: latency, energy, etc 
+class MeasureResult(object):
+    def __init__(self, sim_acc, quant_acc):
+        self.sim_acc = sim_acc
+        self.quant_acc = quant_acc
+
+class Measure(object):
+    def __init__(self, strategy, result):
+        self.version = HAGO_LOG_VERSION
+        self.strategy = strategy
+        self.result = result
+
+
+def serialize(obj):
+    class Encoder(JSONEncoder):
+        def default(self, obj):
+            print('serialize: {}'.format(obj))
+            if hasattr(obj, '__dict__'):
+                return obj.__dict__
+            return json.JSONEncoder.default(self, obj)
+    return json.dumps(obj, cls=Encoder)
+
+
+def deserialize(json_str):
+    def decode_topology(obj):
+        node_conds = obj['node_conds']
+        edge_conds = obj['edge_conds']
+        return Topology(node_conds, edge_conds)
+
+    def decode_strategy(obj):
+        model_hash = obj['model_hash']
+        topology = decode_topology(obj['topology'])
+        bits = obj['bits']
+        thresholds = obj['thresholds']
+        return Strategy(model_hash, topology, bits, thresholds)
+    
+    def decode_result(obj):
+        sim_acc = obj['sim_acc']
+        quant_acc = obj['quant_acc']
+        return MeasureResult(sim_acc, quant_acc)
+    
+    json_data = json.loads(json_str)
+    measure = {}
+    measure['strategy'] = decode_strategy(json_data['strategy'])
+    measure['result'] = decode_result(json_data['result'])
+    return measure
+
 def build_node_index(graph):
-    node2idx = {}
+    node2idx = OrderedDict()
     def fvisit_build_index(e):
         if isinstance(e, (relay.Var, relay.Constant, relay.Call)):
             node2idx[e] = fvisit_build_index.idx_cnt 
@@ -202,7 +261,7 @@ def build_node_index(graph):
     return node2idx
 
 def build_edge_index(graph):
-    edge2idx = {} 
+    edge2idx = OrderedDict() 
     def fvisit_build_index(e):
         if isinstance(e, relay.Call):
             for arg in e.args:
@@ -213,15 +272,6 @@ def build_edge_index(graph):
     num_edges = fvisit_build_index.idx_cnt
     return edge2idx
 
-def build_edge_dict(graph):
-    edge_dict = OrderedDict()
-    def fvisit(e):
-        if isinstance(e, relay.Call):
-            for arg in e.args:
-                edge_dict[(arg, e)] = None
-    relay.analysis.post_order_visit(graph, fvisit)
-    return edge_dict
-
 def build_node2edges(graph):
     node2edges = defaultdict(list)
     def fvisit_build_index(node):
@@ -231,18 +281,31 @@ def build_node2edges(graph):
     relay.analysis.post_order_visit(graph, fvisit_build_index)
     return node2edges
 
-def complete_dict(alist, key2cond):
+def build_node_dict(graph, alist, node_conds):
     ret = OrderedDict()
     cnt = 0
-    for key, cond in key2cond.items():
+    node2idx = build_node_index(graph)
+    for key, nidx in node2idx.items():
         val = None
-        if cond:
+        if node_conds[nidx]:
             val = alist[cnt]
             cnt += 1
         ret[key] = val
     assert cnt == len(alist)
     return ret
 
+def build_edge_dict(graph, alist, edge_conds):
+    ret = OrderedDict()
+    cnt = 0
+    edge2idx = build_edge_index(graph)
+    for key, eidx in edge2idx.items():
+        val = None
+        if edge_conds[eidx]:
+            val = alist[cnt]
+            cnt += 1
+        ret[key] = val
+    assert cnt == len(alist)
+    return ret
 
 def bind_params(func, params):
     """Bind the params to the expression.
@@ -348,16 +411,16 @@ def print_edge_dict(graph, edge2info):
     relay.analysis.post_order_visit(graph, fvisit_print)
 
 
-def print_infos(graph, node2info, edge2info):
-    node2idx = build_node_index(graph)
-    def fvisit_print(node):
-        if isinstance(node, relay.Call):
-            print('--------')
-            print('{}: {}'.format(node_str(node, node2idx), node2info[node]))
-            for src in node.args:
-                info = edge2info[(src, node)]
-                print('  {} : {}'.format(edge_str((src, node), node2idx), info))
-    relay.analysis.post_order_visit(graph, fvisit_print)
+# def print_infos(graph, node2info, edge2info):
+#     node2idx = build_node_index(graph)
+#     def fvisit_print(node):
+#         if isinstance(node, relay.Call):
+#             print('--------')
+#             print('{}: {}'.format(node_str(node, node2idx), node2info[node]))
+#             for src in node.args:
+#                 info = edge2info[(src, node)]
+#                 print('  {} : {}'.format(edge_str((src, node), node2idx), info))
+#     relay.analysis.post_order_visit(graph, fvisit_print)
 
 
 def print_scale_info(graph, bits, thresholds):

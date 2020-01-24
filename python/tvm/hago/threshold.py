@@ -137,9 +137,9 @@ def _find_scale_by_kl(arr,
 def threshold_rectify(graph, topology, bits, thresholds):
     # print('bits')
     # print(bits)
-    edge2bit = complete_dict(bits, topology.edge2cond)
     edge2idx = build_edge_index(graph)
     node2idx = build_node_index(graph)
+    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
     node2edges = build_node2edges(graph)
     # print('num_nodes: {}'.format(num_nodes))
     # print('num_node2edge: {}'.format(len(node2edges)))
@@ -153,7 +153,7 @@ def threshold_rectify(graph, topology, bits, thresholds):
 
     def fvisit_rectify(node):
         if isinstance(node, relay.Call):
-            if not topology.node2cond[node]:
+            if not topology.node_conds[node2idx[node]]:
                 return
             frectify = node.op.get_attr('FHagoRectify')
             if frectify is not None:

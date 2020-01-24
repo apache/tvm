@@ -74,18 +74,20 @@ class QConfigNode : public Node {
   std::string search_strategy = "simulated_annealing";
   std::string threshold_estimate_strategy = "max_range";
   double global_scale = 8.0;
-  bool do_simulation = false;
-  bool round_for_shift = true;
-  Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
+  std::string log_file = ".quantize_strategy_search.log";
+  // bool do_simulation = false;
+  // bool round_for_shift = true;
+  // Array<Expr> debug_enabled_ops = Array<Expr>(NodePtr<Node>(nullptr));
 
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("skip_conv_layers", &skip_conv_layers);
     v->Visit("search_strategy", &search_strategy);
     v->Visit("threshold_estimate_strategy", &threshold_estimate_strategy);
     v->Visit("global_scale", &global_scale);
-    v->Visit("do_simulation", &do_simulation);
-    v->Visit("round_for_shift", &round_for_shift);
-    v->Visit("debug_enabled_ops", &debug_enabled_ops);
+    v->Visit("log_file", &log_file);
+    // v->Visit("do_simulation", &do_simulation);
+    // v->Visit("round_for_shift", &round_for_shift);
+    // v->Visit("debug_enabled_ops", &debug_enabled_ops);
   }
 
   static constexpr const char* _type_key = "hago.QConfig";

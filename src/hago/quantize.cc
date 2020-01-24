@@ -129,9 +129,11 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "search_strategy=" << op->search_strategy << ", ";
   p->stream << "threshold_estimate_strategy=" << op->threshold_estimate_strategy << ", ";
   p->stream << "global_scale=" << op->global_scale << ", ";
-  p->stream << "do_simulation==" << op->do_simulation << ", ";
-  p->stream << "round_for_shift==" << op->round_for_shift << ", ";
-  p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
+  p->stream << "log_file=" << op->log_file;
+  
+  // p->stream << "do_simulation==" << op->do_simulation << ", ";
+  // p->stream << "round_for_shift==" << op->round_for_shift << ", ";
+  // p->stream << "debug_enabled_ops==" << op->debug_enabled_ops;
   p->stream << ")";
 });
 

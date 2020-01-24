@@ -24,7 +24,7 @@ from . import quantize as qtz
 from .. import relay
 from .threshold import threshold_estimate
 from .hardware import *
-from .topology import analyze_topology
+from .topology import Topology, analyze_topology
 
 import tvm
 import random
@@ -34,13 +34,6 @@ import numpy as np
 import pickle
 from collections import namedtuple
 
-# Two representation for tensors:
-# - REAL number reprentation
-# - INTEGER number reprentation
-# can be transformed:
-#   scale = real_threshold / integer_range
-#   INTEGER = REAL / scale
-#   REAL = INTEGER * scale
 
 def generate_choices(graph, hardware, topology):
     def get_in_bits(hardware, node):
@@ -62,21 +55,24 @@ def generate_choices(graph, hardware, topology):
         return out_bit
 
     bits = []
+    node2idx = build_node_index(graph)
+    edge2idx = build_edge_index(graph)
     def fvisit(node):
         if isinstance(node, relay.Call):
-            if not topology.node2cond[node]:
+            if not topology.node_conds[node2idx[node]]:
                 return 
 
             cur_in_bits = get_in_bits(hardware, node)
             for idx, src in enumerate(node.args):
-                if topology.edge2cond[(src, node)]:
+                eidx = edge2idx[(src, node)]
+                if topology.edge_conds[eidx]:
                     src_out_bit = get_out_bit(hardware, src)
                     bit = min_with_none(cur_in_bits[idx], src_out_bit)
                     bits.append(bit)
     relay.analysis.post_order_visit(graph, fvisit)
 
     print('bit limit')
-    edge2bit = complete_dict(bits, topology.edge2cond)
+    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
     print_edge_dict(graph, edge2bit)
 
     choices = [list(reversed(range(4, bit + 1))) for bit in bits]
@@ -104,12 +100,14 @@ class SearchSpace(object):
         pass
 
 
+
 # Primitive FVerify:
 # def verify(op, bits):
 # """bits = [in_bits] + [out_bits]"""
 
 # Composed FVerify:
 # bits
+
 
 def create_search_space(graph, topology, choices):
     def group_cstrs(cstrs):
@@ -178,7 +176,7 @@ def create_search_space(graph, topology, choices):
         return new_cstrs
 
     Constraint = namedtuple('Constraint', ['edges', 'fverify'])
-    edge2choices = complete_dict(choices, topology.edge2cond)
+    edge2choices = build_edge_dict(graph, choices, topology.edge_conds)
     node2edges = build_node2edges(graph)
     constraints = []
     # [([edge0, edge1], [edge2]) -> fverify0, 
@@ -264,7 +262,6 @@ def grid_search(f, domains, args, max_iter=1000):
     num_iter = 0
     best_guess = None
     best_cost = 0
-    fout = open('qsearch_grid_search.log', 'w+', buffering=1)
 
     for guess in itertools.product(*domains):
         if num_iter >= max_iter:
@@ -275,10 +272,6 @@ def grid_search(f, domains, args, max_iter=1000):
             best_guess = guess
         num_iter += 1
         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        fout.write(str(guess))
-        fout.write('\n')
-        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
-        fout.write('\n')
         num_iter += 1
     return best_guess, best_cost
 
@@ -295,8 +288,6 @@ def random_search(fcost, domains, args, max_iter=1000):
     num_iter = 0
     best_guess = None
     best_cost = 0
-    fout = open('qsearch_random_search.log', 'w+', buffering=1)
-
 
     for guess in random_guess(domains):
         print('iteration: {0}'.format(num_iter))
@@ -307,17 +298,11 @@ def random_search(fcost, domains, args, max_iter=1000):
             best_cost = cost
             best_guess = guess
         print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
-        fout.write(str(guess))
-        fout.write('\n')
-        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
-        fout.write('\n')
         num_iter += 1
-    fout.close()
     return best_guess, best_cost
 
 
 def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, portion=0.10, step=2):
-    fout = open('qsearch_simulated_annealing.log', 'w+', buffering=1)
     def neighbour(origin, portion):
         num_changed = int(portion * len(origin))
         dims = random.sample(range(0, len(origin)), num_changed)
@@ -350,21 +335,15 @@ def simulated_annealing(fcost, domains, args, T=0.5, Tmin=0.0005, cool=0.99, por
             previous_guess = guess
             previous_cost = cost
         T = T * cool
-        print('niter: {}, acc: {}, best acc: {}\n\n'.format(num_iter, cost, best_cost))
-        fout.write(str(guess))
-        fout.write('\n')
-        fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
-        fout.write('\n')
+        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
         num_iter += 1
         # make new guess
         guess = neighbour(previous_guess, portion)
-    fout.close()
     return best_guess, best_cost
 
 
 def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=3000):
     cfg = qtz.current_qconfig()
-    fout = open('qsearch_{}.log'.format(cfg.search_strategy), 'w+', buffering=1)
     best_guess, best_cost = None, 0
     num_iter = 0
     # init with maximum bit setting
@@ -387,12 +366,6 @@ def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=3000):
             # move to next dimension
             dim_idx += 1
 
-        fout.write(str(guess))
-        fout.write('\n')
-        # fout.write("{}, {:.3f}, {:.3f}".format(num_iter, cost, best_cost))
-        fout.write("{}, {:.3f}, {:.3f}, {:.3f}".format(num_iter, cost, qcost, best_cost))
-        fout.write('\n')
-
         if dim_idx - last_update_idx > len(domains):
             # early stopping
             break
@@ -406,8 +379,8 @@ def greedy_squash(fcost, domains, args, tolerance=0.005, max_iter=3000):
             else:
                 break
         guess[dim] -= 1
+        print('niter: {}, acc: {}, best acc: {}'.format(num_iter, cost, best_cost))
         num_iter += 1
-    fout.close()
     return best_guess, best_cost
 
 
@@ -439,22 +412,24 @@ def search_bits_strategy(eval_func, bit_choices, graph, hardware, topology, data
 
 def search_quantize_strategy(mod, hardware, dataset=None):
     graph = mod['main']
+    fout = open(current_qconfig().log_file, 'w+', buffering=1)
 
-    # print('original acc: {}'.format(eval_acc(graph, dataset)[1]))
+    print('original acc: {}'.format(eval_acc(graph, dataset)[1]))
     topology = analyze_topology(graph, hardware)
     choices = generate_choices(graph, hardware, topology)
     # search_space = create_search_space(graph, topology, choices)
+    model_hash = relay.analysis.structural_hash(graph)
 
 
     # search for bits settings with learning method
     def eval_func(bits, graph, hardware, topology, dataset):
-        edge2bit = complete_dict(bits, topology.edge2cond)
+        edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
         print('bits')
         print_edge_dict(graph, edge2bit)
         # coarse-grained threshold estimate
         thresholds = threshold_estimate(graph, topology, bits, dataset)
 
-        strategy = (topology, bits, thresholds)
+        strategy = Strategy(model_hash, topology, bits, thresholds)
         quantizer = qtz.create_quantizer(graph, hardware, strategy)
         simulated_graph = quantizer.simulate()
         # print('simulated_graph')
@@ -466,11 +441,16 @@ def search_quantize_strategy(mod, hardware, dataset=None):
 
         # logging
         print('simulated_acc: {}, quantized_acc: {}\n\n'.format(simulated_acc, quantized_acc))
+        result = MeasureResult(sim_acc=simulated_acc, quant_acc=quantized_acc)
+        measure = Measure(strategy, result)
+        fout.write(serialize(measure))
+        fout.write('\n')
         return float(simulated_acc), float(quantized_acc)
 
     best_bits, best_acc = search_bits_strategy(eval_func, choices, graph, hardware, topology, dataset)
     print('finished search')
     print('best_acc: {0}'.format(best_acc))
     best_thresholds = threshold_estimate(graph, topology, best_bits, dataset)
-    best_strategy = (topology, best_bits, best_thresholds)
+    best_strategy = Strategy(model_hash, topology, best_bits, best_thresholds)
+    fout.close()
     return best_strategy, best_acc

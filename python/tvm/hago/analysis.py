@@ -77,28 +77,6 @@ def evaluate(func, dataset):
     return outputs
 
 
-# def StatsCollector(relay.ExprMutator):
-#     def __init__(self):
-#         super().__init__()
-# 
-#     def collect(self, graph, dataset):
-#         logging.info("collecting statistics for calibration...")
-#         self._outputs = []
-#         stats_graph = self.visit(graph)
-#         outputs = evaluate(stats_graph, dataset)
-#         return Stats(outputs)
-# 
-#     def visit(self, expr):
-#         expr = super().visit(expr) 
-# 
-#     def visit_function(self, fn):
-#         pass
-# 
-# 
-
-
-
-
 def collect_stats(graph, dataset):
     assert isinstance(graph, relay.Function)
     logging.info("collecting statistics for calibration...")
@@ -123,26 +101,26 @@ def compare(np_x, np_y):
     print('maximum absolute error: {:.4f}, compare {:.4f} with {:.4f}'.format(np.max(abs_err), np_x[idx], np_y[idx]))
 
 
-def construct_subtopology(graph, topology):
-    node2idx = build_node_index(graph)
-    edge2idx = build_node_index(graph)
-    num_nodes = len(node2idx)
-    num_edges = len(edge2idx)
-    new_topo = Topology()
-    new_topo.node2cond = OrderedDict(islice(topology.node2cond.items(), num_nodes))
-    new_topo.edge2cond = OrderedDict(islice(topology.node2cond.items(), num_edges))
-    return new_topo
+# def construct_subtopology(graph, topology):
+#     node2idx = build_node_index(graph)
+#     edge2idx = build_node_index(graph)
+#     num_nodes = len(node2idx)
+#     num_edges = len(edge2idx)
+#     new_topo = Topology()
+#     new_topo.node_conds = topology.node_conds[:num_nodes]
+#     new_topo.edge_conds = topology.edge_conds[:num_edges]
+#     return new_topo
 
 
 # TODO(ziheng) avoid recompute
 def inspect_graph_statistic(func, hardware, strategy, dataset=None):
     print('inspect graph statistic')
     assert isinstance(func, relay.Function)
-    _, bits, thresholds = strategy
+    assert relay.analysis.structural_hash(func) == strategy.model_hash
     topology = analyze_topology(func, hardware)
-    edge2bit = complete_dict(bits, topology.edge2cond)
+    edge2bit = build_edge_dict(func, strategy.bits, topology.edge_conds)
     bits = [edge2bit[key] for key in edge2bit]
-    print('origin bits: \n{}'.format(bits))
+    print('origin bits: \n{}'.format(strategy.bits))
     print_edge_dict(func, edge2bit)
 
     def collect_bits(node):
@@ -179,7 +157,8 @@ def inspect_graph_statistic(func, hardware, strategy, dataset=None):
         # print('bits:')
         # print_edge_dict(graph, edge2bit)
         sub_tholds = threshold_estimate(graph, topology, sub_bits, dataset)
-        sub_strategy = (topology, sub_bits, sub_tholds)
+        sub_model_hash = relay.analysis.structural_hash(graph)
+        sub_strategy = Strategy(sub_model_hash, topology, sub_bits, sub_tholds)
 
         quantizer = create_quantizer(graph, hardware, sub_strategy)
         simulated_graph = quantizer.simulate()

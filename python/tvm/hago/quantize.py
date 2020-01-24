@@ -66,12 +66,12 @@ def select_constraint(graph, hardware, topology, bits):
 
     print('\nselect constraints')
     node2idx = build_node_index(graph)
-    edge2bit = complete_dict(bits, topology.edge2cond)
+    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
     constraints = []
 
     def fvisit(node):
         if isinstance(node, relay.Call):
-            if not topology.node2cond[node]:
+            if not topology.node_conds[node2idx[node]]:
                 return
             # prepare in_bits
             print('---------')
@@ -130,8 +130,8 @@ def calculate_params(graph, topology, bits, thresholds, constraints):
     edge2idx  = build_edge_index(graph)
     node2idx  = build_node_index(graph)
     assert len(thresholds) == len(node2idx)
-    edge2bit = complete_dict(bits, topology.edge2cond)
-    node2cstr = complete_dict(constraints, topology.node2cond) 
+    edge2bit = build_edge_dict(graph, bits, topology.edge_conds)
+    node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
 
     prov_dtypes, req_dtypes = infer_quantized_dtypes(graph, node2cstr)
 
@@ -240,7 +240,7 @@ class Simulator(tvm.relay.ExprMutator):
 
     def simulate(self, graph, hardware, topology, bits, thresholds):
         constraints = select_constraint(graph, hardware, topology, bits)
-        self._original_node2cstr = complete_dict(constraints, topology.node2cond) 
+        self._original_node2cstr = build_node_dict(graph, constraints, topology.node_conds) 
         self._op_params = calculate_params(graph, topology, bits, thresholds, constraints)
         self._edge2idx = build_edge_index(graph)
         return self.visit(graph)
@@ -363,11 +363,13 @@ def _realize(simulated_graph, node2cstr):
             return data
         elif in_scale == out_scale and in_dtype == out_dtype:
             # do nothing
+            # TODO(ziheng) whether to clip?
             return data
         else:
             # requantize
             dtype = in_dtype
             if TVMType(out_dtype).bits > TVMType(in_dtype).bits:
+                # pre-casting
                 data = relay.cast(data, out_dtype)
                 dtype = out_dtype
             data = transform_scale(data, in_scale, out_scale, dtype)
@@ -433,5 +435,7 @@ class Quantizer(object):
         return self.quantized_graph
 
 def create_quantizer(graph, hardware, strategy):
-    topology, bits, thresholds = strategy
-    return Quantizer(graph, hardware, topology, bits, thresholds)
+    # check model hash
+    model_hash = relay.analysis.structural_hash(graph)
+    assert model_hash == strategy.model_hash
+    return Quantizer(graph, hardware, strategy.topology, strategy.bits, strategy.thresholds)

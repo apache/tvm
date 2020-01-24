@@ -24,6 +24,8 @@ from collections import defaultdict
 
 ######################################################
 
+# rename to OpSpec
+
 class OpDesc(object):
     def __init__(self,
                  idtypes=None,

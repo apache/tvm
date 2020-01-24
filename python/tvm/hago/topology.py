@@ -25,20 +25,28 @@ from collections import OrderedDict
 # make topology reference unknown
 
 class Topology(object):
-    def __init__(self):
-        self.edge2cond = OrderedDict()
-        self.node2cond = OrderedDict()
+    def __init__(self, node_conds=[], edge_conds=[]):
+        self.node_conds = node_conds
+        self.edge_conds = edge_conds
 
     def analyze(self, graph, hardware):
+        node2idx = build_node_index(graph)
+        edge2idx = build_edge_index(graph)
+        # expand condition list
+        self.node_conds = [None] * len(node2idx)
+        self.edge_conds = [None] * len(edge2idx)
+
         def fvisit_analyze(node):
             def set_cond(node, cond):
-                self.node2cond[node] = cond
+                nidx = node2idx[node]
+                self.node_conds[nidx] = cond
                 for src in node.args:
-                    self.edge2cond[(src, node)] = cond
+                    eidx = edge2idx[(src, node)]
+                    self.edge_conds[eidx] = cond
 
             if isinstance(node, (relay.Var, relay.Constant)):
                 # mark variable as float
-                self.node2cond[node] = False
+                self.node_conds[node2idx[node]] = False
                 return
 
             if isinstance(node, relay.Call):
@@ -48,7 +56,7 @@ class Topology(object):
                     set_cond(node, False)
                     return
 
-                src_node_conds = [self.node2cond[src] for src in node.args]
+                src_node_conds = [self.node_conds[node2idx[src]] for src in node.args]
                 if not any(src_node_conds) and float_constraints(hardware[node.op]):
                     # all float input and current op support float computation
                     set_cond(node, False)
@@ -56,10 +64,15 @@ class Topology(object):
                     set_cond(node, True)
                 return
         relay.analysis.post_order_visit(graph, fvisit_analyze)
-        # print('analyzed condition')
-        # print_infos(graph, self.node2cond, self.edge2cond)
-        return
 
+        print('analyzed condition')
+        print('node_conds: {}'.format(self.node_conds))
+        print('edge_conds: {}'.format(self.edge_conds))
+
+        # check that all condition has been set properly
+        for cond in self.node_conds + self.edge_conds:
+            assert cond is not None
+        return
 
 
 def analyze_topology(graph, hardware):
