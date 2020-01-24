@@ -789,7 +789,7 @@ def _slice():
         end = size
         for i in range(data_dim):
             if size[i] == -1:
-                end[i] = data_shape[i] - begin[i]
+                end[i] = data_shape[i]
             else:
                 end[i] += begin[i]
         return _op.strided_slice(inputs[0], begin=begin, end=end)
