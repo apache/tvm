@@ -226,7 +226,9 @@ class SplitSpace(TransformSpace):
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
         if now == self.num_output - 1:
-            prod = np.prod(tmp_stack, dtype=np.int64)
+            prod = functools.reduce(lambda x, y: x * y, tmp_stack)
+            if prod > self.product:
+                return
             if self.product % prod == 0 or (not enforce_no_tail and prod < self.product):
                 self.entities.append(SplitEntity([-1] + tmp_stack[::-1]))
         else:
