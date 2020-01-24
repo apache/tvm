@@ -20,7 +20,7 @@ import tvm
 
 from .util import get_pad_tuple
 from ..util import get_const_tuple
-from ..cpp.image import bilinear_sample_nchw
+from ..cpp.util import bilinear_sample_nchw
 
 @tvm.target.generic_func
 def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, deformable_groups,
