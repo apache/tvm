@@ -22,7 +22,6 @@ from . import expr as _expr
 from . import stmt as _stmt
 from . import make as _make
 from . import tensor as _tensor
-from . import schedule as _schedule
 from .build_module import current_build_config
 from ._ffi.object import Object, register_object
 

@@ -524,7 +524,16 @@ class HybridParser(ast.NodeVisitor):
 
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop iterating function parse error!")
-            offset = iter_var = _api.var(_name)
+            iter_type = 0
+            if for_type == 0:
+                iter_type = 0
+            elif for_type == 1:
+                iter_type = 7
+            elif for_type == 2:
+                iter_type = 6
+            elif for_type == 3:
+                iter_type = 5
+            offset = iter_var = _api._IterVar((0, ext), _name, iter_type)
             if not _ir_pass.Equal(low, _api.const(0, 'int32')):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)

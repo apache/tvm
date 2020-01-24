@@ -172,7 +172,7 @@ class Singleton(Object):
 
 
 @register_object
-class IterVar(Object, _expr.ExprOp):
+class IterVar(_expr.Var):
     """Represent iteration variable.
 
     IterVar is normally created by Operation, to represent

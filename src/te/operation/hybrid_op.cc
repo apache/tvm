@@ -224,6 +224,7 @@ Stmt ApplyLoopShapes(const Stage &stage,
     PrimExpr factor;
     const VarNode *parent;
     IterVar inner, outer;
+    Range inner_dom, outer_dom;
 
    public:
     bool splitted;
@@ -231,19 +232,17 @@ Stmt ApplyLoopShapes(const Stage &stage,
                 const std::unordered_map<IterVar, Range, ObjectHash, ObjectEqual> &dom_map) :
       factor(split->factor), splitted(false) {
       parent = split->parent.get();
+      inner = split->inner;
+      outer = split->outer;
 
-      auto &inner_ = split->inner;
-      CHECK(dom_map.count(inner_));
-      auto &inner_dom = dom_map.find(inner_)->second;
+      CHECK(dom_map.count(inner));
+      inner_dom = dom_map.find(inner)->second;
       CHECK(is_const_int(inner_dom->min, 0));
 
-      auto &outer_ = split->outer;
-      CHECK(dom_map.count(outer_));
-      auto &outer_dom = dom_map.find(outer_)->second;
+      CHECK(dom_map.count(outer));
+      outer_dom = dom_map.find(outer)->second;
       CHECK(is_const_int(outer_dom->min, 0));
 
-      inner = IterVar(inner_dom, inner_->iter_type, inner_->name_hint, inner_.dtype());
-      outer = IterVar(outer_dom, outer_->iter_type, outer_->name_hint, outer_.dtype());
     }
 
     Stmt VisitStmt_(const ForNode *op) final {
@@ -253,9 +252,9 @@ Stmt ApplyLoopShapes(const Stage &stage,
         Stmt ret = tir::Substitute(op->body, rmap);
         PrimExpr cond = likely(outer * factor < (op->extent - inner));
         ret = IfThenElseNode::make(cond, ret);
-        ret = ForNode::make(inner, PrimExpr(0), inner->dom->extent,
+        ret = ForNode::make(inner, PrimExpr(0), inner_dom->extent,
                         IterVarTypeToForType(inner->iter_type), op->device_api, ret);
-        ret = ForNode::make(outer, PrimExpr(0), outer->dom->extent,
+        ret = ForNode::make(outer, PrimExpr(0), outer_dom->extent,
                         IterVarTypeToForType(outer->iter_type), op->device_api, ret);
         splitted = true;
         return ret;
@@ -471,10 +470,8 @@ std::vector<IterVar> GatherLoopVars(Stmt stmt) {
   std::vector<IterVar> res_;
   PostOrderVisit(stmt, [&res_](const ObjectRef& node) {
     if (const ForNode *op = node.as<ForNode>()) {
-      Var loop_var(op->loop_var);
-      Range dom = Range::make_by_min_extent(op->min, op->extent);
-      res_.push_back(IterVar(dom, ForTypeToIterVarType(op->for_type),
-                     loop_var->name_hint, loop_var->dtype));
+      CHECK(op->loop_var.as<IterVarNode>());
+      res_.push_back(GetRef<IterVar>(op->loop_var.as<IterVarNode>()));
     }
   });
   std::reverse(res_.begin(), res_.end());
