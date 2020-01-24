@@ -1105,14 +1105,22 @@ class Where(OnnxOpConverter):
     """
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        # x and y can be broadcasted
         condition_shape = infer_shape(inputs[0])
         x_shape = infer_shape(inputs[1])
         y_shape = infer_shape(inputs[2])
-        if len(condition_shape) > len(x_shape):
-            inputs[1] = _op.broadcast_to(inputs[1], condition_shape)
-        if len(condition_shape) > len(y_shape):
-            inputs[2] = _op.broadcast_to(inputs[2], condition_shape)
+
+        # condition, x, and y can all be broadcasted.
+        # broadcast each of them to the longest shape.
+        shapes = [condition_shape, x_shape, y_shape]
+        shape_lens = [len(shape) for shape in shapes]
+        max_size = max(shape_lens)
+        max_size_idx = shape_lens.index(max_size)
+        if len(condition_shape) != max_size:
+            inputs[0] = _op.broadcast_to(inputs[0], shapes[max_size_idx])
+        if len(x_shape) != max_size:
+            inputs[1] = _op.broadcast_to(inputs[1], shapes[max_size_idx])
+        if len(y_shape) != max_size:
+            inputs[2] = _op.broadcast_to(inputs[2], shapes[max_size_idx])
         return _op.where(inputs[0], inputs[1], inputs[2])
 
 class Or(Elemwise):

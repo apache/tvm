@@ -1684,6 +1684,17 @@ def test_where():
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
+    x = np.array([2], dtype=np.float32)
+    y = np.array(1, dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
+    condition = np.array(1, dtype=np.bool)
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    y = np.array([[9, 8], [7, 6]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
 
 def verify_or(indata, dtype):
     x = indata[0].astype(dtype)
