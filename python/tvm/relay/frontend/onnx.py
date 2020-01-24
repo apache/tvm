@@ -1117,13 +1117,13 @@ class Where(OnnxOpConverter):
         shapes = [condition_shape, x_shape, y_shape]
         shape_lens = [len(shape) for shape in shapes]
         max_size = max(shape_lens)
-        max_size_idxs = [i for i,x in enumerate(shape_lens) if x == max_size]
+        max_size_idxs = [i for i, x in enumerate(shape_lens) if x == max_size]
         broadcast_idx = max_size_idxs[0]
         if len(max_size_idxs) > 1:
             for idx in max_size_idxs:
                 if 1 not in shapes[idx]:
                     broadcast_idx = idx
-        
+
         broadcast_shape = shapes[broadcast_idx]
 
         if condition_shape != broadcast_shape:
