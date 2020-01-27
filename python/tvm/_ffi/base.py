@@ -194,13 +194,30 @@ def _find_error_type(line):
     -------
     name : str The error name
     """
-    end_pos = line.find(":")
-    if end_pos == -1:
+    if sys.platform == "win32":
+        # Stack traces aren't logged on Windows due to a DMLC limitation,
+        # so we should try to get the underlying error another way.
+        # DMLC formats errors "[timestamp] file:line: ErrorMessage"
+        # ErrorMessage is usually formatted "ErrorType: message"
+        # We can try to extract the error type using the final ":"
+        end_pos = line.rfind(":")
+        if end_pos == -1:
+            return None
+        start_pos = line.rfind(":", 0, end_pos)
+        if start_pos == -1:
+            return None
+        err_name = line[start_pos + 1 : end_pos].strip()
+        if _valid_error_name(err_name):
+            return err_name
         return None
-    err_name = line[:end_pos]
-    if _valid_error_name(err_name):
-        return err_name
-    return None
+    else:
+        end_pos = line.find(":")
+        if end_pos == -1:
+            return None
+        err_name = line[:end_pos]
+        if _valid_error_name(err_name):
+            return err_name
+        return None
 
 
 def c2pyerror(err_msg):
