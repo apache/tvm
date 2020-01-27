@@ -93,7 +93,7 @@ class LocalBuilder(Builder):
     def build(self, measure_inputs):
         results = []
 
-        shutil.rmtree(self.tmp_dir)
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
         self.tmp_dir = tempfile.mkdtemp()
 
         for i in range(0, len(measure_inputs), self.n_parallel):
