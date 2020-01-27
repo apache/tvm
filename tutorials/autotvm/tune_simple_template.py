@@ -172,7 +172,7 @@ def matmul_v1(N, L, M, dtype):
 # However, we also provide another set of API to make the space definition
 # easier and smarter. It is recommended to use this set of high level API.
 #
-# In the flowing example, we use :any:`ConfigSpace.define_split` to define a split
+# In the following example, we use :any:`ConfigSpace.define_split` to define a split
 # knob. It will enumerate all the possible ways to split an axis and construct
 # the space.
 #
