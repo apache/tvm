@@ -958,7 +958,7 @@ class Graph(object):
         for node in self._script_module.graph.nodes():
 
             node_str = str(node)
-            node_name = [output.debugName() for output in node.outputs()][0]
+            node_name = node.output().debugName()
 
             if node.kind() == "prim::Constant":
                 node_value = '0'
