@@ -85,7 +85,10 @@ PassContext PassContext::Create() {
 }
 
 void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_before) const {
-    this->operator->()->trace_func(module, info, is_before);
+    auto pass_ctx_node = this->operator->();
+    if (pass_ctx_node->trace_func == nullptr) {
+      pass_ctx_node->trace_func(module, info, is_before);
+    }
 }
 
 class ModulePass;
