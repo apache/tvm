@@ -506,10 +506,7 @@ def _dense():
 def _size():
     def _impl(inputs, input_types):
         axis = int(inputs[1])
-        if isinstance(inputs[0], _expr.Var):
-            shape = _infer_shape(inputs[0])
-        else:
-            shape = _infer_shape(inputs[0])
+        shape = _infer_shape(inputs[0])
         return shape[axis]
     return _impl
 
@@ -691,17 +688,12 @@ def _int():
         return int(inputs[0])
     return _impl
 
-def _listunpack():
+def _identity():
     def _impl(inputs, input_types):
         return inputs[0]
     return _impl
 
-def _to():
-    def _impl(inputs, input_types):
-        return inputs[0]
-    return _impl
-
-def _device():
+def _none():
     def _impl(inputs, input_types):
         return None
     return _impl
@@ -741,7 +733,7 @@ def convert_input(data):
 # Operator mappings
 
 _convert_map = {
-    'aten::device'                          : _device(),
+    'aten::device'                          : _none(),
     'aten::add'                             : _elemwise('add'),
     'aten::add_'                            : _elemwise('add'),
     'aten::sub'                             : _elemwise('subtract'),
@@ -755,7 +747,7 @@ _convert_map = {
     'aten::div_'                            : _elemwise('divide'),
     'aten::ones'                            : _ones(),
     'aten::zeros'                           : _zeros(),
-    'aten::to'                              : _to(),
+    'aten::to'                              : _identity(),
     'aten::unsqueeze'                       : _unsqueeze(),
     'aten::cat'                             : _concatenate(),
     'aten::slice'                           : _slice(),
@@ -793,7 +785,7 @@ _convert_map = {
     'aten::expand'                          : _expand(),
     'aten::Int'                             : _int(),
     'prim::NumToTensor'                     : _numtotensor(),
-    'prim::ListUnpack'                      : _listunpack(),
+    'prim::ListUnpack'                      : _identity(),
     'aten::constant_pad_nd'                 : _pad(),
     'aten::permute'                         : _transpose(),
     'aten::sum'                             : _reduce('sum'),
@@ -819,7 +811,6 @@ class Graph(object):
         self._ops = {}
         self._op_inputs_r = {}
         self._op_inputs_types = {}
-        self._op_inputs_otypes = {}
         self._input_shapes = input_shapes if input_shapes else {}
         self._fn_param = []
         self._nid_to_node_name = {}
