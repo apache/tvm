@@ -927,11 +927,12 @@ class Graph(object):
         node_weight_map = {}
         for node in self._script_module.graph.nodes():
             if node.kind() == "prim::GetAttr":
-                node_str = str(node)
-                node_assign = (node_str.split(' = ')[0]).split(' : ')
-                node_name = (node_assign[0])[1:]
-                node_getattr_name = ((node_str.split(' = ')[1]).split('"')[1::2])[0]
-                node_arg = (((node_str.split(' = '))[1]).split('(')[1])[1:-2]
+
+                attribute_names = node.attributeNames()
+                assert(len(attribute_names) == 1)
+                node_getattr_name = node.s(attribute_names[0])
+                node_arg = node.input().debugName()
+                node_name = node.output().debugName()
 
                 if node_arg in input_names:
                     node_weight_map[node_name] = node_getattr_name
