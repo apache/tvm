@@ -883,12 +883,7 @@ class Graph(object):
                 self._nid_to_node_name[op_name] = nid
                 nid = nid+1
 
-        if len(outputs) == 1:
-            body = outputs[0]
-        else:
-            body = outputs[-1]
-
-        func = tvm.relay.Function(_analysis.free_vars(body), body)
+        func = tvm.relay.Function(_analysis.free_vars(outputs[-1]), outputs[-1])
 
         param = {k: tvm.nd.array(v) for k, v in self._param_tensors.items()}
 
