@@ -116,7 +116,7 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
-
+  pass_ctx.Trace(mod, pass_info, true);
   // Execute the pass function and return a new module.
   IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
   std::vector<std::pair<GlobalVar, Function> > updates;
@@ -134,6 +134,7 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
   for (const auto& pair : updates) {
     updated_mod->Add(pair.first, pair.second, true);
   }
+  pass_ctx.Trace(updated_mod, pass_info, false);
   return updated_mod;
 }
 
