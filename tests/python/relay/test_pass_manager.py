@@ -522,6 +522,36 @@ def test_print_ir(capfd):
     assert "Dumping the module IR" in out
     assert "multiply" in out
 
+__TRACE_COUNTER__ = 0
+
+def _tracer(module, info, is_before):
+    global __TRACE_COUNTER__
+    if bool(is_before):
+        __TRACE_COUNTER__ += 1
+
+def test_print_debug_callback():
+    global __TRACE_COUNTER__
+    shape = (1, 2, 3)
+    tp = relay.TensorType(shape, "float32")
+    x = relay.var("x", tp)
+    y = relay.add(x, x)
+    y = relay.multiply(y, relay.const(2, "float32"))
+    func = relay.Function([x], y)
+
+    seq = _transform.Sequential([
+        relay.transform.InferType(),
+        relay.transform.FoldConstant(),
+        relay.transform.DeadCodeElimination()
+    ])
+
+    assert __TRACE_COUNTER__ == 0
+    mod = relay.Module({"main": func})
+
+    with relay.build_config(opt_level=3, trace=_tracer):
+        mod = seq(mod)
+
+    assert __TRACE_COUNTER__ == 4
+
 
 if __name__ == "__main__":
     pytest.main()
