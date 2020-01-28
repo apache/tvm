@@ -141,9 +141,7 @@ def _ones():
         else:
             shape = inputs[0].shape
 
-        fill_value = _get_fill_value(input_types)
-
-        return get_relay_op('full')(fill_value, shape, dtype=_convert_data_type(input_types[0]))
+        return _op.full(_expr.const(1), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
 
 def _zeros():
@@ -155,20 +153,8 @@ def _zeros():
         else:
             shape = inputs[0].shape
 
-        fill_value = _get_fill_value(input_types)
-
-        return _op.full(fill_value, shape, dtype=input_types[0])
+        return _op.full(_expr.const(0), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
-
-def _get_fill_value(input_types):
-    if input_types[0] == 'int':
-        fill_value = _expr.const(1)
-    elif input_types[0] == 'float':
-        fill_value = _expr.const(1.0)
-    else:
-        fill_value = _expr.const(1.0)
-
-    return fill_value
 
 def _relu():
     def _impl(inputs, input_types):
