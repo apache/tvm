@@ -65,6 +65,17 @@
 namespace tvm {
 namespace transform {
 
+// Forward declare for TraceFunc.
+class PassInfo;
+
+/*! \brief A callback for tracing passes, useful for debugging and logging.
+ *
+ */
+using TraceFunc =
+  runtime::TypedPackedFunc<void(const IRModule& ir_module,
+                                const PassInfo& ctx,
+                                bool is_before)>;
+
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
  * such as analysis results.
@@ -88,6 +99,8 @@ class PassContextNode : public Object {
   /*! \brief The list of disabled passes. */
   Array<PrimExpr> disabled_pass;
 
+  TraceFunc trace_func;
+
   PassContextNode() = default;
 
   void VisitAttrs(AttrVisitor* v) {
@@ -100,6 +113,7 @@ class PassContextNode : public Object {
   static constexpr const char* _type_key = "relay.PassContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
 };
+
 
 /*!
  * \brief PassContext that is used to configure the pass behavior.
@@ -145,6 +159,14 @@ class PassContext : public ObjectRef {
    * \return The pass context.
    */
   TVM_DLL static PassContext Current();
+
+  /*!
+   * \brief Apply the tracing functions of the context to the module, with the info.
+   * \param module The IRModule to trace.
+   * \param info The pass information.
+   * \param is_before Indicated whether the tracing is before or after a pass.
+   */
+  TVM_DLL void Trace(const IRModule& module, const PassInfo& info, bool is_before) const;
 
   // accessor.
   using ContainerType = PassContextNode;

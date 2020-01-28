@@ -84,6 +84,13 @@ PassContext PassContext::Create() {
   return PassContext(make_object<PassContextNode>());
 }
 
+void PassContext::Trace(const IRModule& module, const PassInfo& info, bool is_before) const {
+    auto pass_ctx_node = this->operator->();
+    if (pass_ctx_node->trace_func != nullptr) {
+      pass_ctx_node->trace_func(module, info, is_before);
+    }
+}
+
 class ModulePass;
 
 /*!
@@ -231,8 +238,10 @@ IRModule ModulePassNode::operator()(const IRModule& mod,
              << " with opt level: "
              << pass_info->opt_level;
   CHECK(mod.defined());
+  pass_ctx.Trace(mod, pass_info, true);
   IRModule updated_mod = pass_func(mod, pass_ctx);
   CHECK(updated_mod.defined());
+  pass_ctx.Trace(updated_mod, pass_info, false);
   return updated_mod;
 }
 
@@ -414,10 +423,12 @@ TVM_REGISTER_GLOBAL("relay._transform.PassContext")
   int fallback_device = args[1];
   tvm::Array<tvm::PrimExpr> required = args[2];
   tvm::Array<tvm::PrimExpr> disabled = args[3];
+  TraceFunc trace_func = args[4];
   pctx->opt_level = opt_level;
   pctx->fallback_device = fallback_device;
   pctx->required_pass = std::move(required);
   pctx->disabled_pass = std::move(disabled);
+  pctx->trace_func = std::move(trace_func);
   *ret = pctx;
 });
 
