@@ -71,7 +71,10 @@ class PassInfo;
 /*! \brief A callback for tracing passes, useful for debugging and logging.
  *
  */
-using TraceFunc = runtime::TypedPackedFunc<void(const IRModule& ir_module, const PassInfo& ctx, bool is_before)>;
+using TraceFunc =
+  runtime::TypedPackedFunc<void(const IRModule& ir_module,
+                                const PassInfo& ctx,
+                                bool is_before)>;
 
 /*!
  * \brief PassContextNode contains the information that a pass can rely on,
