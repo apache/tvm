@@ -892,7 +892,6 @@ class Graph(object):
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
         # Get names and objects of inputs for IR
-        ir_names = [i.debugName() for i in self._script_module.graph.inputs()]
         ir_inputs = [i for i in self._script_module.graph.inputs()]
 
         # Create corresponding shape and add to input
@@ -908,7 +907,7 @@ class Graph(object):
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
         tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
-        input_name = ir_names[0]
+        input_name = ir_inputs[0].debugName()
         self._inputs_r[input_name] = tensor
 
     def _parse_params(self):
