@@ -846,9 +846,7 @@ class Graph(object):
         nid = 0
 
         for op_name, op_node in self._ops.items():
-            if op_node.kind() == 'prim::Constant':
-                pass
-            elif op_node.kind() == 'prim::ListConstruct':
+            if op_node.kind() == 'prim::ListConstruct':
                 if any(inp.debugName() in self._nid_to_node_name.keys() \
                        for inp in op_node.inputs()):
                     listconstr = []
@@ -868,7 +866,7 @@ class Graph(object):
                     outputs.append(listconstr)
                     self._nid_to_node_name[op_name] = nid
                     nid = nid+1
-            else:
+            elif op_node.kind() != "prim::Constant":
                 for i in op_node.inputs():
                     if i.debugName() in self._nid_to_node_name.keys():
                         for cnt in range(0, len(self._op_inputs_r[op_name])):
