@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for merge composite."""
+from tvm import expr
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
 
@@ -122,9 +123,9 @@ def test_simple_merge():
        relu
 
     """
-    pattern_table = {
-        "add_relu": make_add_relu_pattern()
-    }
+    pattern_table = [
+        ("add_relu", make_add_relu_pattern())
+    ]
 
     def before():
         a = relay.var('a', shape=(10, 10))
@@ -178,9 +179,9 @@ def test_branch_merge():
         relu
     """
 
-    pattern_table = {
-        "add_sub_mul": make_add_sub_mul_pattern()
-    }
+    pattern_table = [
+        ("add_sub_mul", make_add_sub_mul_pattern())
+    ]
 
     def before():
         a = relay.var('a', shape=(10, 10))
@@ -244,10 +245,10 @@ def test_multiple_patterns():
               |  /
              mul
     """
-    pattern_table = {
-        "conv2d_bias_relu": make_conv_bias_relu_pattern(),
-        "add_relu": make_add_relu_pattern()
-    }
+    pattern_table = [
+        ("conv2d_bias_relu", make_conv_bias_relu_pattern()),
+        ("add_relu", make_add_relu_pattern())
+    ]
 
     def before():
         data = relay.var('data', shape=(1, 512, 28, 28))
@@ -310,7 +311,129 @@ def test_multiple_patterns():
     assert relay.analysis.alpha_equal(result, expected)
 
 
+def test_merge_order():
+    """Test that patterns are merged in the order they exist in the pattern table.
+
+    There can be cases where one pattern is a subgraph of another, in which case
+    it is not clear which match should take priority. The priority should come
+    from the order in which the patterns are declared in the pattern table. The
+    first patterns will be merged with highest priority and the last with lowest.
+
+    A:       B:       C:
+    add      add      abs
+     |        |        |
+    abs      abs      relu
+     |
+    relu
+
+    """
+
+    def pattern_A():
+        x = relay.var('x')
+        y = relay.var('y')
+        out = relay.add(x, y)
+        out = relay.abs(out)
+        out = relay.nn.relu(out)
+        return out
+
+    def pattern_B():
+        x = relay.var('x')
+        y = relay.var('y')
+        out = relay.add(x, y)
+        out = relay.abs(out)
+        return out
+
+    def pattern_C():
+        x = relay.var('x')
+        out = relay.abs(x)
+        out = relay.nn.relu(x)
+        return out
+
+    def before():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        out = relay.add(input_1, input_2)
+        out = relay.abs(out)
+        out = relay.nn.relu(out)
+        return relay.Function([input_1, input_2], out)
+
+    def after_A_priority():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        x = relay.var('x')
+        y = relay.var('y')
+        out = relay.add(x, y)
+        out = relay.abs(out)
+        out = relay.nn.relu(out)
+        merged_func = relay.Function([x, y], out)
+        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
+        merged_func = merged_func.set_attribute('Composite', expr.StringImm('A'))
+        ret = relay.Call(merged_func, [input_1, input_2])
+        return relay.Function([input_1, input_2], ret)
+
+    def after_B_priority():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        x = relay.var('x')
+        y = relay.var('y')
+        out = relay.add(x, y)
+        out = relay.abs(out)
+        merged_func = relay.Function([x, y], out)
+        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
+        merged_func = merged_func.set_attribute('Composite', expr.StringImm('B'))
+        merged_call = relay.Call(merged_func, [input_1, input_2])
+        ret = relay.nn.relu(merged_call)
+        return relay.Function([input_1, input_2], ret)
+
+    def after_C_priority():
+        input_1 = relay.var('input_1', shape=(10, 10))
+        input_2 = relay.var('input_2', shape=(10, 10))
+        add = relay.add(input_1, input_2)
+        x = relay.var('x')
+        out = relay.abs(x)
+        out = relay.nn.relu(out)
+        merged_func = relay.Function([x], out)
+        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
+        merged_func = merged_func.set_attribute('Composite', expr.StringImm('C'))
+        ret = relay.Call(merged_func, [add])
+        return relay.Function([input_1, input_2], ret)
+
+    # check A highest priority
+    pattern_table = [
+        ("A", pattern_A()),
+        ("B", pattern_B()),
+        ("C", pattern_C()),
+    ]
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result)
+    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    assert relay.analysis.alpha_equal(result, expected)
+
+    # check B highest priority
+    pattern_table = [
+        ("B", pattern_A()),
+        ("C", pattern_B()),
+        ("A", pattern_C()),
+    ]
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result)
+    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    assert relay.analysis.alpha_equal(result, expected)
+
+    # check C highest priority
+    pattern_table = [
+        ("C", pattern_A()),
+        ("A", pattern_B()),
+        ("B", pattern_C()),
+    ]
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result)
+    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    assert relay.analysis.alpha_equal(result, expected)
+
+
 if __name__ == "__main__":
     test_simple_merge()
     test_branch_merge()
     test_multiple_patterns()
+    test_merge_order()

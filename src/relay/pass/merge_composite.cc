@@ -36,8 +36,8 @@ namespace merge_composite {
 
 class MergeCompositeWrapper : public ExprMutator {
  public:
-  explicit MergeCompositeWrapper(const tvm::Map<std::string, Expr>& pattern_map)
-    : pattern_map_(pattern_map) {}
+  explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
+    : pattern_name_(pattern_name), pattern_(pattern) {}
 
   bool MatchPattern(const Call& pattern, const Call& root) {
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
@@ -135,49 +135,58 @@ class MergeCompositeWrapper : public ExprMutator {
 
     Op op = Downcast<Op>(call->op);
     CHECK(op.defined());
-    for (const auto& x : pattern_map_) {
-      Call pattern = Downcast<Call>(x.second);
-      if (Downcast<Op>(pattern->op)->name != op->name)
-        continue;
+    Call pattern = Downcast<Call>(pattern_);
+    if (Downcast<Op>(pattern->op)->name != op->name)
+      return std::move(call);
 
-      if (MatchPattern(pattern, call)) {
-        Map<std::string, Array<Expr>> args_map;
-        auto extract = ExtractPattern(pattern, call, &args_map);
-        auto free_vars = FreeVars(extract);
-        Function new_func = FunctionNode::make(free_vars, extract,
-                call->checked_type_, {}, Attrs());
-        new_func = FunctionSetAttr(new_func, attr::kComposite,
-                                   tir::StringImmNode::make(x.first));
-        new_func = FunctionSetAttr(new_func, attr::kPrimitive,
-            tvm::Integer(1));
-        Array<Expr> args;
-        for (const auto& free_var : free_vars) {
-          args.push_back(args_map[free_var->name_hint()][1]);
-        }
-        auto new_call = CallNode::make(new_func, args);
-        return std::move(new_call);
+    if (MatchPattern(pattern, call)) {
+      Map<std::string, Array<Expr>> args_map;
+      auto extract = ExtractPattern(pattern, call, &args_map);
+      auto free_vars = FreeVars(extract);
+      Function new_func = FunctionNode::make(free_vars, extract,
+              call->checked_type_, {}, Attrs());
+      new_func = FunctionSetAttr(new_func, attr::kComposite,
+                                 tir::StringImmNode::make(pattern_name_));
+      new_func = FunctionSetAttr(new_func, attr::kPrimitive,
+          tvm::Integer(1));
+      Array<Expr> args;
+      for (const auto& free_var : free_vars) {
+        args.push_back(args_map[free_var->name_hint()][1]);
       }
+      auto new_call = CallNode::make(new_func, args);
+      return std::move(new_call);
     }
 
     return std::move(call);
   }
 
  private:
-  tvm::Map<std::string, Expr> pattern_map_;
+  std::string pattern_name_;
+  Expr pattern_;
 };
 
-Expr MergeComposite(const Expr& expr, const tvm::Map<std::string, Expr>& pattern) {
-  return MergeCompositeWrapper(pattern).Mutate(expr);
+Expr MergeComposite(const Expr& expr,
+    const Array<tir::StringImm>& pattern_names, const Array<Expr>& patterns) {
+  CHECK(pattern_names.size() == patterns.size());
+  Expr merged_expr = expr;
+  for (size_t i = 0; i < patterns.size(); i++) {
+    std::string pattern_name = pattern_names[i]->value;
+    Expr pattern = patterns[i];
+    merged_expr = MergeCompositeWrapper(pattern_name, pattern).Mutate(merged_expr);
+  }
+  return merged_expr;
 }
 
 }  // namespace merge_composite
 
 namespace transform {
 
-Pass MergeComposite(const tvm::Map<std::string, Expr>& pattern) {
+Pass MergeComposite(const tvm::Array<tir::StringImm>& pattern_names,
+    const tvm::Array<Expr>& patterns) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::merge_composite::MergeComposite(f, pattern));
+        return Downcast<Function>(
+            relay::merge_composite::MergeComposite(f, pattern_names, patterns));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "MergeComposite", {});
   return func_pass;

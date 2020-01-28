@@ -513,13 +513,15 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
     return _transform.Legalize(legalize_map_attr_name)
 
 
-def MergeComposite(compiler):
+def MergeComposite(pattern_table):
     """Merge multiple operators into a single composite relay function.
 
     Parameters
     ----------
-    compiler : str
-        The compiler used for codegen.
+    pattern_table : list(tuple)
+        A list of (pattern_name, pattern) tuples.
+        The order of the patterns in the list will determine the order
+        of priority in which they are matched.
 
     Returns
     -------
@@ -527,7 +529,13 @@ def MergeComposite(compiler):
         The registered pass that merges operators into a single composite
         relay function.
     """
-    return _transform.MergeComposite(compiler)
+    pattern_names = []
+    patterns = []
+    for pattern_name, pattern in pattern_table:
+        pattern_names.append(pattern_name)
+        patterns.append(pattern)
+
+    return _transform.MergeComposite(pattern_names, patterns)
 
 
 def RewriteAnnotatedOps(fallback_device):
