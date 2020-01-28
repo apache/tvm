@@ -134,7 +134,7 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
   for (const auto& pair : updates) {
     updated_mod->Add(pair.first, pair.second, true);
   }
-  pass_ctx.Trace(updated_mod, pass_info, true);
+  pass_ctx.Trace(updated_mod, pass_info, false);
   return updated_mod;
 }
 

@@ -526,7 +526,8 @@ __TRACE_COUNTER__ = 0
 
 def _tracer(module, info, is_before):
     global __TRACE_COUNTER__
-    if is_before:
+    import pdb; pdb.set_trace()
+    if bool(is_before):
         __TRACE_COUNTER__ += 1
 
 def test_print_debug_callback():

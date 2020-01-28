@@ -238,7 +238,7 @@ IRModule ModulePassNode::operator()(const IRModule& mod,
   pass_ctx.Trace(mod, pass_info, true);
   IRModule updated_mod = pass_func(mod, pass_ctx);
   CHECK(updated_mod.defined());
-  pass_ctx.Trace(updated_mod, pass_info, true);
+  pass_ctx.Trace(updated_mod, pass_info, false);
   return updated_mod;
 }
 
