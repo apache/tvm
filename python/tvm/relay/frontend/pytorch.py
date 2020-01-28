@@ -812,7 +812,6 @@ class Graph(object):
         self._op_inputs_r = {}
         self._op_inputs_types = {}
         self._input_shapes = input_shapes if input_shapes else {}
-        self._fn_param = []
         self._nid_to_node_name = {}
 
     def from_pytorch(self):
@@ -912,9 +911,6 @@ class Graph(object):
             self._inputs_r[input_name] = _expr.var(input_name,
                                                    shape=self._input_shapes[input_name],
                                                    dtype=ir_dtype)
-            self._fn_param.append(_expr.var(input_name,
-                                            shape=self._input_shapes[input_name],
-                                            dtype=ir_dtype))
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -961,11 +957,6 @@ class Graph(object):
                     self._params[node_name] = _expr.var(node_name,
                                                         shape=shape,
                                                         dtype=_convert_data_type(str(value.dtype)))
-
-                    self._fn_param.append(_expr.var(node_name,
-                                                    shape=shape,
-                                                    dtype=_convert_data_type(str(value.dtype))))
-
 
     def _parse_ops(self):
         """ Iterate through nodes and decorate graph with constants, operators,
