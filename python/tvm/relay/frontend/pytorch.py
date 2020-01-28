@@ -19,6 +19,7 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
+import torch
 import tvm
 
 from .. import analysis as _analysis
@@ -822,6 +823,9 @@ class Graph(object):
     def __init__(self, script_module, input_shapes, input_types):
 
         self._script_module = script_module
+
+        torch._C._jit_pass_inline(script_module.graph)
+
         self._inputs_r = {}
         self._params = {}
         self._param_tensors = {}
@@ -1063,7 +1067,7 @@ class Graph(object):
                     input_list_types.append(str(input_node.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
-                    print('UnsupportedType')
+                    print('UnsupportedType '++str(input_node.type())+' and '+str(input_node_kind))
             except Exception as e:
                 print('Internal PyTorch error. Failed to grab type.')
 
