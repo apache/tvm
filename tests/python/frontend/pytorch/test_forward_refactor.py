@@ -167,7 +167,6 @@ def verify_model(model_name, input_data=[]):
     dtype = 'float32'
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
-    input_types = {input_name: dtype}
     baseline_model(baseline_input)
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
     if torch.cuda.is_available():
@@ -175,7 +174,7 @@ def verify_model(model_name, input_data=[]):
     else:
         trace = trace.cpu()
 
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes)
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
     with relay.build_config(opt_level=3):

@@ -270,7 +270,6 @@ def verify_model(model_name, input_type=None):
     output_shapes = [out.shape for out in baseline_outputs]
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
-    input_types = {input_name: input_type}
 
     trace = torch.jit.trace(baseline_model, baseline_input)
     if input_type is None or input_type == 'float32':
@@ -297,7 +296,7 @@ def verify_model(model_name, input_type=None):
 
         print(model_name)
 
-        mod, params = relay.frontend.from_pytorch(trace, input_shapes, input_types)
+        mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 

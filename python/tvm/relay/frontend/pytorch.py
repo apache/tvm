@@ -820,7 +820,7 @@ _convert_map = {
 class Graph(object):
     """ A helper class for parsing PyTorch model to Relay graph."""
 
-    def __init__(self, script_module, input_shapes, input_types):
+    def __init__(self, script_module, input_shapes):
 
         self._script_module = script_module
 
@@ -835,7 +835,6 @@ class Graph(object):
         self._op_inputs_types = {}
         self._op_inputs_otypes = {}
         self._input_shapes = input_shapes if input_shapes else {}
-        self._input_types = input_types if input_types else {}
         self._fn_param = []
         self._nid_to_node_name = {}
 
@@ -932,14 +931,13 @@ class Graph(object):
             input_shape = self._input_shapes[input_name]
             ir_input.setDebugName(input_name)
 
+            ir_dtype = _convert_data_type(ir_input.type().scalarType().lower())
             self._inputs_r[input_name] = _expr.var(input_name,
                                                    shape=self._input_shapes[input_name],
-                                                   dtype=_convert_data_type(
-                                                       self._input_types[input_name]))
+                                                   dtype=ir_dtype)
             self._fn_param.append(_expr.var(input_name,
                                             shape=self._input_shapes[input_name],
-                                            dtype=_convert_data_type(
-                                                self._input_types[input_name])))
+                                            dtype=ir_dtype))
 
         # Add self (first input of a PyTorch graph) to inputs
         input_shape = [3]
@@ -1110,7 +1108,7 @@ class Graph(object):
 
         return missing_operators
 
-def from_pytorch(script_module, input_shapes, input_types):
+def from_pytorch(script_module, input_shapes):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -1123,9 +1121,6 @@ def from_pytorch(script_module, input_shapes, input_types):
     shape : Dictionary of input dimensions
         Graph level input shape dictionary
 
-    shape : Dictionary of input types
-        Graph level input type dictionary
-
     Returns
     -------
     mod : tvm.relay.Module
@@ -1134,6 +1129,6 @@ def from_pytorch(script_module, input_shapes, input_types):
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(script_module, input_shapes, input_types)
+    g = Graph(script_module, input_shapes)
     mod, params = g.from_pytorch()
     return mod, params
