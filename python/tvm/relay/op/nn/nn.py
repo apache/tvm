@@ -201,7 +201,10 @@ def conv2d(data,
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
     if isinstance(padding, int):
-        padding = (padding, padding)
+        padding = (padding, padding, padding, padding)
+    # convert 2-way padding to 4-way padding
+    if len(padding) == 2:
+        padding = (padding[0], padding[1], padding[0], padding[1])
 
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,

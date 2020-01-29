@@ -62,6 +62,8 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
+    #only accepts 4-way padding
+    assert len(padding)==4, "only accepts 4-way padding"
     # search platform specific declaration first
     # default declaration
     if layout == 'NCHW':
