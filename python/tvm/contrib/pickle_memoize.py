@@ -40,8 +40,12 @@ class Cache(object):
     cache_by_key = {}
     def __init__(self, key, save_at_exit):
         cache_dir = ".pkl_memoize_py{0}".format(sys.version_info[0])
-        if not os.path.exists(cache_dir):
+        try:
             os.mkdir(cache_dir)
+        except FileExistsError:
+            pass
+        else:
+            self.cache = {}
         self.path = os.path.join(cache_dir, key)
         if os.path.exists(self.path):
             try:
