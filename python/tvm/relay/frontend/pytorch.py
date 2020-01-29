@@ -1071,14 +1071,9 @@ class Graph(object):
         """
         missing_operators = set()
         for node in self._graph.nodes():
-            if node.kind() == "prim::Constant" or node.kind() == 'prim::ListConstruct' or \
-                    node.kind() == 'prim::GetAttr':
-                pass
-            else:
-                if any([node.kind() in _convert_map]):
-                    pass
-                else:
-                    missing_operators.add(node.kind())
+            if not node.kind() in ["prim::Constant", 'prim::ListConstruct', 'prim::GetAttr'] \
+                    and not node.kind() in _convert_map:
+                missing_operators.add(node.kind())
 
         return missing_operators
 
