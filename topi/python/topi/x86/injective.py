@@ -45,6 +45,8 @@ def schedule_injective_from_existing(sch, out):
         sch[out].parallel(fused)
     elif len(sch[out].op.axis) >= 1:
         sch[out].parallel(sch[out].op.axis[0])
+    # Vectorize the inner most for loop
+    sch[out].vectorize(sch[out].op.axis[-1])
     return sch
 
 @generic.schedule_injective.register(["cpu"])
