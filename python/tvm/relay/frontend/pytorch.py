@@ -37,11 +37,6 @@ def _elemwise(name):
         data0 = convert_input(inputs[0])
         data1 = convert_input(inputs[1])
 
-        if not isinstance(data0, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
-            temp = data0
-            data0 = data1
-            data1 = temp
-
         return get_relay_op(name)(data0, data1)
     return _impl
 
