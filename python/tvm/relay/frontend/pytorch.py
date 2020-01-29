@@ -81,8 +81,10 @@ def _slice():
         dim = int(inputs[1])
         begin[dim] = int(inputs[2])
 
-        if inputs[3].isdigit():
+        if isinstance(inputs[3], str) and inputs[3].isdigit():
             end[dim] = min(end[dim], int(inputs[3]))
+        else:
+            end[dim] = inputs[3]
 
         strides.append(int(inputs[4]))
         return _op.transform.strided_slice(data, begin, end, strides)
@@ -961,17 +963,27 @@ class Graph(object):
         # Traverse nodes and add to graph
         for node in self._script_module.graph.nodes():
 
-            node_str = str(node)
             if node.outputsSize() == 1:
                 node_name = node.output().debugName()
             else:
                 node_name = [output.debugName() for output in node.outputs()][0]
 
             if node.kind() == "prim::Constant":
-                node_value = '0'
-                if "None" not in node_str and "?" not in node_str:
-                    node_value = ((node_str.split(' = ')[1]).split('value=')[1]).split(']')[0]
-                self._consts[node_name] = node_value
+                if node.hasAttributes():
+                    attribute_names = node.attributeNames()
+                    attr_name = attribute_names[0]
+                    ty = node.output().type().kind()
+
+                    if ty == "IntType" or ty == "BoolType":
+                        self._consts[node_name] = node.i(attr_name)
+                    elif ty == "FloatType" or ty == "LongType":
+                        self._consts[node_name] = node.f(attr_name)
+                    elif ty == "TensorType":
+                        self._consts[node_name] = node.output().toIValue()
+                    else:
+                        self._consts[node_name] = '0'
+                else:
+                    self._consts[node_name] = '0'
             elif node.kind() == "prim::ListConstruct":
                 list_shape = []
                 for input_node in node.inputs():

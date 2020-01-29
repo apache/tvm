@@ -204,9 +204,6 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
 def verify_model(model_name, input_type=None):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-
-    print(model_name)
-
     baseline_model, baseline_input = load_model(model_name, input_type)
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
@@ -295,6 +292,7 @@ def verify_model(model_name, input_type=None):
         torch.jit.save(trace, path)
 
         print(model_name)
+        #print(trace.graph)
 
         mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
@@ -638,6 +636,20 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
+    #"""
+    # TODO: Refactor how testing works for different types
+    test_add3float64()
+    test_add4int32()
+    test_batchnorm1float64()
+    test_subtract3int32()
+    test_subtract1int32()
+    test_subtract1int16()
+    test_subtract1int8()
+    test_subtract1uint8()
+    test_conv2d1float64()
+    test_alexnetfloat64()
+    test_resnet18float64()
+
     # Single operator tests
     test_add1()
     test_add2()
@@ -716,16 +728,6 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
+    #"""
 
-    # TODO: Refactor how testing works for different types
-    test_add3float64()
-    test_add4int32()
-    test_batchnorm1float64()
-    test_subtract3int32()
-    test_subtract1int32()
-    test_subtract1int16()
-    test_subtract1int8()
-    test_subtract1uint8()
-    test_conv2d1float64()
-    test_alexnetfloat64()
-    test_resnet18float64()
+    #test_slice1()
