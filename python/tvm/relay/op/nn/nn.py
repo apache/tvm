@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
 from . import _make
+from .util import get_pad_tuple
 
 
 def conv1d(data,
@@ -201,10 +202,11 @@ def conv2d(data,
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
     if isinstance(padding, int):
-        padding = (padding, padding, padding, padding)
+        padding = (padding, padding)
     # convert 2-way padding to 4-way padding
-    if len(padding) == 2:
-        padding = (padding[0], padding[1], padding[0], padding[1])
+    dilated_kernel_h = (kernel_size[0] - 1) * dilation[0] + 1
+    dilated_kernel_w = (kernel_size[1] - 1) * dilation[1] + 1
+    padding = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
 
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
