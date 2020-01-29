@@ -18,6 +18,8 @@
 """Upsampling in python"""
 import math
 import numpy as np
+from topi.util import nchw_pack_layout
+
 
 def upsample_nearest(arr, scale):
     """ Populate the array by scale factor"""
@@ -44,6 +46,18 @@ def upsampling_python(data, scale, layout='NCHW'):
             for c in range(oshape[1]):
                 output_np[b, c, :, :] = upsample_nearest(data[b, c, :, :], scale)
         return output_np
+    # NCHWinic
+    if nchw_pack_layout(layout):
+        oshape = (ishape[0], ishape[1], int(round(ishape[2]*scale[0])),
+                  int(round(ishape[3]*scale[1])), ishape[4], ishape[5])
+        output_np = np.zeros(oshape, dtype=data.dtype)
+        for b in range(oshape[0]):
+            for ib in range(oshape[4]):
+                for c in range(oshape[1]):
+                    for ic in range(oshape[5]):
+                        output_np[b, c, :, :, ib, ic] = upsample_nearest(data[b, c, :, :, ib, ic], scale)
+        return output_np
+
     if layout == 'NHWC':
         oshape = (ishape[0], int(round(ishape[1]*scale[0])),
                   int(round(ishape[2]*scale[1])), ishape[3])
