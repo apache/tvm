@@ -110,21 +110,21 @@ def _select():
     return _impl
 
 def _convert_data_type(input_type):
-    if input_type == 'double' or input_type == 'torch.float64':
+    if input_type in ['double', 'torch.float64']:
         return 'float64'
-    elif input_type == 'float' or input_type == 'torch.float32':
+    elif input_type in ['float', 'torch.float32']:
         return 'float32'
-    elif input_type == 'half' or input_type == 'torch.float16':
+    elif input_type in ['half', 'torch.float16']:
         return 'float16'
-    elif input_type == 'long' or input_type == 'torch.int64':
+    elif input_type in ['long', 'torch.int64']:
         return 'int64'
-    elif input_type == 'int' or input_type == 'torch.int32':
+    elif input_type in ['int', 'torch.int32']:
         return 'int32'
-    elif input_type == 'short' or input_type == 'torch.int16':
+    elif input_type in ['short', 'torch.int16']:
         return 'int16'
-    elif input_type == 'char' or input_type == 'torch.int8':
+    elif input_type in ['char', 'torch.int8']:
         return 'int8'
-    elif input_type == 'byte' or input_type == 'torch.uint8':
+    elif input_type in ['byte', 'torch.uint8']:
         return 'uint8'
     else:
         return input_type
@@ -965,9 +965,9 @@ class Graph(object):
                     attr_name = attribute_names[0]
                     ty = node.output().type().kind()
 
-                    if ty == "IntType" or ty == "BoolType":
+                    if ty in ["IntType", "BoolType"]:
                         self._consts[node_name] = node.i(attr_name)
-                    elif ty == "FloatType" or ty == "LongType":
+                    elif ty in ["FloatType", "LongType"]:
                         self._consts[node_name] = node.f(attr_name)
                     elif ty == "TensorType":
                         self._consts[node_name] = node.output().toIValue()
