@@ -805,7 +805,7 @@ class Graph(object):
         self._op_inputs_r = {}
         self._op_inputs_types = {}
         self._input_shapes = input_shapes if input_shapes else {}
-        self._nid_to_node_name = {}
+        self._parsed_node_names = {}
 
     def from_pytorch(self):
         """ Construct relay nodes from PyTorch graph
@@ -840,13 +840,13 @@ class Graph(object):
 
         for op_name, op_node in self._ops.items():
             if op_node.kind() == 'prim::ListConstruct':
-                if any(inp.debugName() in self._nid_to_node_name.keys() \
+                if any(inp.debugName() in self._parsed_node_names.keys() \
                        for inp in op_node.inputs()):
                     listconstr = []
                     for i in op_node.inputs():
-                        if i.debugName() in self._nid_to_node_name.keys():
+                        if i.debugName() in self._parsed_node_names.keys():
                             listconstr.append( \
-                                outputs[self._nid_to_node_name[i.debugName()]])
+                                outputs[self._parsed_node_names[i.debugName()]])
                         elif i.node().kind() == 'prim::Constant':
                             listconstr.append(int(self._consts[i.debugName()]))
                         elif i.debugName() in self._inputs_r.keys():
@@ -857,23 +857,23 @@ class Graph(object):
                         listconstr = listconstr[0]
 
                     outputs.append(listconstr)
-                    self._nid_to_node_name[op_name] = nid
+                    self._parsed_node_names[op_name] = nid
                     nid = nid+1
             elif op_node.kind() != "prim::Constant":
                 for i in op_node.inputs():
-                    if i.debugName() in self._nid_to_node_name.keys():
+                    if i.debugName() in self._parsed_node_names.keys():
                         for cnt in range(0, len(self._op_inputs_r[op_name])):
                             if isinstance(self._op_inputs_r[op_name][cnt], str):
                                 if "call/var" in self._op_inputs_r[op_name][cnt]:
                                     self._op_inputs_r[op_name][cnt] = \
-                                        outputs[self._nid_to_node_name[i.debugName()]]
+                                        outputs[self._parsed_node_names[i.debugName()]]
                                     break
 
                 call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
                                               self._op_inputs_types[op_name])
 
                 outputs.append(call)
-                self._nid_to_node_name[op_name] = nid
+                self._parsed_node_names[op_name] = nid
                 nid = nid+1
 
         func = tvm.relay.Function(_analysis.free_vars(outputs[-1]), outputs[-1])
