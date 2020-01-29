@@ -988,9 +988,13 @@ class Graph(object):
                 list_shape = []
                 for input_node in node.inputs():
                     if input_node.debugName() in self._inputs_r.keys():
-                        list_shape.append(int(self._inputs_r[input_node.debugName()]))
+                        c = self._inputs_r[input_node.debugName()]
+                        assert(isinstance(c, int))
+                        list_shape.append(c)
                     elif input_node.debugName() in self._consts.keys():
-                        list_shape.append(int(self._consts[input_node.debugName()]))
+                        c = self._consts[input_node.debugName()]
+                        assert(isinstance(c, int))
+                        list_shape.append(c)
                 self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
 
             if node.kind() != "prim::GetAttr":
