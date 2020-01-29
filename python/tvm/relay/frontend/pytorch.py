@@ -1046,16 +1046,8 @@ class Graph(object):
             except Exception as e:
                 print('Internal PyTorch error. Failed to grab type.')
 
-        node_str = str(op_node)
-        node_assign = (node_str.split(' = ')[0]).split(' : ')
-        node_type = node_assign[1]
-
-        if op_node.kind() == 'aten::ones':
-            node_type = node_type.split('(')[0]
-            input_list_types[0] = node_type.lower()
-
-        if op_node.kind() == 'aten::zeros':
-            node_type = node_type.split('(')[0]
+        if op_node.kind() in ['aten::ones', 'aten::zeros']:
+            node_type = op_node.output().type().scalarType()
             input_list_types[0] = node_type.lower()
 
         self._op_inputs_r[node_id] = input_list_r
