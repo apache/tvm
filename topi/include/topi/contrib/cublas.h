@@ -24,12 +24,13 @@
 #ifndef TOPI_CONTRIB_CUBLAS_H_
 #define TOPI_CONTRIB_CUBLAS_H_
 
-#include "tvm/operation.h"
-#include "topi/detail/extern.h"
+#include <tvm/te/operation.h>
+#include <topi/detail/extern.h>
 
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace tvm::te;
 using namespace topi::detail;
 /*!
 * \brief Create an op that multiplies lhs and rhs with cuBLAS

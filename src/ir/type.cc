@@ -23,8 +23,6 @@
  */
 #include <tvm/ir/type.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 namespace tvm {
 
 PrimType::PrimType(runtime::DataType dtype) {
@@ -40,8 +38,8 @@ TVM_REGISTER_GLOBAL("relay._make.PrimType")
   return PrimType(dtype);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<PrimTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PrimTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const PrimTypeNode*>(ref.get());
     p->stream << node->dtype;
 });
@@ -61,8 +59,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeVar")
   return TypeVar(name, static_cast<TypeKind>(kind));
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeVarNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TypeVarNode*>(ref.get());
     p->stream << "TypeVar(" << node->name_hint << ", "
               << node->kind << ")";
@@ -83,8 +81,8 @@ TVM_REGISTER_GLOBAL("relay._make.GlobalTypeVar")
   return GlobalTypeVar(name, static_cast<TypeKind>(kind));
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
     p->stream << "GlobalTypeVar(" << node->name_hint << ", "
               << node->kind << ")";
@@ -112,13 +110,14 @@ TVM_REGISTER_GLOBAL("relay._make.FuncType")
   return FuncType(arg_types, ret_type, type_params, type_constraints);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<FuncTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<FuncTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const FuncTypeNode*>(ref.get());
   p->stream << "FuncType(" << node->type_params << ", "
             << node->arg_types << ", " << node->ret_type << ", "
             << node->type_constraints << ")";
 });
+
 
 TupleType::TupleType(Array<Type> fields) {
   ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
@@ -137,10 +136,50 @@ TVM_REGISTER_GLOBAL("relay._make.TupleType")
   return TupleType(fields);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TupleTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const TupleTypeNode*>(ref.get());
   p->stream << "TupleTypeNode(" << node->fields << ")";
+});
+
+
+IncompleteType::IncompleteType(TypeKind kind) {
+  auto n = make_object<IncompleteTypeNode>();
+  n->kind = std::move(kind);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
+
+TVM_REGISTER_GLOBAL("relay._make.IncompleteType")
+.set_body_typed([](int kind) {
+    return IncompleteType(static_cast<TypeKind>(kind));
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<IncompleteTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
+    auto* node = static_cast<const IncompleteTypeNode*>(ref.get());
+    p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
+  });
+
+
+RelayRefType::RelayRefType(Type value) {
+  ObjectPtr<RelayRefTypeNode> n = make_object<RelayRefTypeNode>();
+  n->value = std::move(value);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_GLOBAL("relay._make.RefType")
+.set_body_typed([](Type value) {
+  return RelayRefType(value);
+});
+
+TVM_REGISTER_NODE_TYPE(RelayRefTypeNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<RelayRefTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
+  auto* node = static_cast<const RelayRefTypeNode*>(ref.get());
+  p->stream << "RelayRefTypeNode(" << node->value << ")";
 });
 
 }  // namespace tvm

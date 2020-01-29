@@ -26,14 +26,22 @@
 #include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
 #include <tvm/arith/int_set.h>
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/stmt.h>
 
 #include <unordered_map>
 
 namespace tvm {
 // forward delcare Tensor
+namespace te {
 class Tensor;
+}
 namespace arith {
+
+using tir::Var;
+using tir::VarNode;
+using tir::Domain;
+using tir::Stmt;
 
 /*!
  * \brief Deduce the bound of the target variable in a expression,
@@ -75,7 +83,10 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
  * \param consider_provides If provides (write) are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain DomainTouched(Stmt body, const Tensor &tensor, bool consider_calls, bool consider_provides);
+Domain DomainTouched(Stmt body,
+                     const te::Tensor &tensor,
+                     bool consider_calls,
+                     bool consider_provides);
 
 }  // namespace arith
 }  // namespace tvm

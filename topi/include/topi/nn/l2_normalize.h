@@ -24,13 +24,16 @@
 #ifndef TOPI_NN_L2_NORMALIZE_H_
 #define TOPI_NN_L2_NORMALIZE_H_
 
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+
 #include <string>
 #include <algorithm>
-#include "topi/tags.h"
-#include "tvm/operation.h"
+
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief L2 normalization inference operator
@@ -59,7 +62,7 @@ inline Tensor l2_normalize(const Tensor& data,
   Tensor sum_value = topi::sum(dot_value, axis, true);
   Tensor expand_sum = topi::broadcast_to(sum_value, input_shape);
   return topi::divide(data,
-                      topi::sqrt(tvm::compute(expand_sum->shape,
+                      topi::sqrt(tvm::te::compute(expand_sum->shape,
                                               [&](const Array<Var>& i){
                                                 return (max(expand_sum(i), eps));
                                               }, name, tag)));

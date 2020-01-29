@@ -20,16 +20,16 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <topi/cuda/injective.h>
-#include <tvm/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-#include <tvm/build_module.h>
+#include <tvm/driver/driver_api.h>
 
 #include <string>
 #include <cmath>
 
 TEST(BuildModule, Basic) {
   using namespace tvm;
+  using namespace tvm::te;
   auto n = var("n");
   Array<PrimExpr> shape;
   shape.push_back(n);
@@ -75,6 +75,7 @@ TEST(BuildModule, Heterogeneous) {
    */
 
   using namespace tvm;
+  using namespace tvm::te;
   const runtime::PackedFunc* pf = runtime::Registry::Get("module._Enabled");
   bool enabled = (*pf)("cuda");
   if (!enabled) {

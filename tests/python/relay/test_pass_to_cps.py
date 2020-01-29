@@ -21,13 +21,9 @@ from tvm.relay.analysis import alpha_equal, detect_feature
 from tvm.relay.transform import to_cps, un_cps
 from tvm.relay.feature import Feature
 from tvm.relay.prelude import Prelude
-from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, run_opt_pass
+from tvm.relay.testing import add_nat_definitions, make_nat_expr, rand, run_infer_type, run_opt_pass
 from tvm.relay import create_executor
 from tvm.relay import Function, transform
-
-
-def rand(dtype='float32', *shape):
-    return tvm.nd.array(np.random.rand(*shape).astype(dtype))
 
 
 def test_id():

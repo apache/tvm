@@ -22,7 +22,6 @@
  * \file stackvm.cc
  */
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/util.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <algorithm>
 #include "stackvm.h"
@@ -392,50 +391,49 @@ void StackVM::Run(State* s) const {
       }
       // intrinsics
       case TVM_STRUCT_GET: {
-        using namespace ir;
         int index = code[pc + 1].v_int;
         int kind = code[pc + 2].v_int;
         DLTensor* arr = static_cast<DLTensor*>(stack[sp].v_handle);
         switch (kind) {
-          case intrinsic::kArrData: {
+          case StackVM::kArrData: {
             stack[sp].v_handle = arr[index].data; break;
           }
-          case intrinsic::kArrShape: {
+          case StackVM::kArrShape: {
             stack[sp].v_handle = arr[index].shape; break;
           }
-          case intrinsic::kArrStrides: {
+          case StackVM::kArrStrides: {
             stack[sp].v_handle = arr[index].strides; break;
           }
-          case intrinsic::kArrNDim: {
+          case StackVM::kArrNDim: {
             stack[sp].v_int64 = arr[index].ndim; break;
           }
-          case intrinsic::kArrTypeCode: {
+          case StackVM::kArrTypeCode: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].dtype.code); break;
           }
-          case intrinsic::kArrTypeBits: {
+          case StackVM::kArrTypeBits: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].dtype.bits); break;
           }
-          case intrinsic::kArrTypeLanes: {
+          case StackVM::kArrTypeLanes: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].dtype.lanes); break;
           }
-          case intrinsic::kArrByteOffset: {
+          case StackVM::kArrByteOffset: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].byte_offset); break;
           }
-          case intrinsic::kArrDeviceId: {
+          case StackVM::kArrDeviceId: {
             stack[sp].v_int64 = arr[index].ctx.device_id; break;
           }
-          case intrinsic::kArrDeviceType: {
+          case StackVM::kArrDeviceType: {
             stack[sp].v_int64 = static_cast<int64_t>(
                 arr[index].ctx.device_type); break;
           }
-          case intrinsic::kArrAddr: {
+          case StackVM::kArrAddr: {
             stack[sp].v_handle = arr + index; break;
           }
-          case intrinsic::kTVMValueContent: {
+          case StackVM::kTVMValueContent: {
             stack[sp] = static_cast<TVMValue*>(stack[sp].v_handle)[index]; break;
           }
           default: LOG(FATAL) << "unhandled get " << kind;
@@ -444,51 +442,50 @@ void StackVM::Run(State* s) const {
         break;
       }
       case TVM_STRUCT_SET: {
-        using namespace ir;
         int index = code[pc + 1].v_int;
         int kind = code[pc + 2].v_int;
         DLTensor* arr = static_cast<DLTensor*>(stack[sp - 1].v_handle);
         switch (kind) {
-          case intrinsic::kArrData: {
+          case StackVM::kArrData: {
             arr[index].data = stack[sp].v_handle; break;
           }
-          case intrinsic::kArrShape: {
+          case StackVM::kArrShape: {
             arr[index].shape = static_cast<int64_t*>(stack[sp].v_handle);
             break;
           }
-          case intrinsic::kArrStrides: {
+          case StackVM::kArrStrides: {
             arr[index].strides = static_cast<int64_t*>(stack[sp].v_handle);
             break;
           }
-          case intrinsic::kArrNDim: {
+          case StackVM::kArrNDim: {
             arr[index].ndim = static_cast<int>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrTypeCode: {
+          case StackVM::kArrTypeCode: {
             arr[index].dtype.code = static_cast<uint8_t>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrTypeBits: {
+          case StackVM::kArrTypeBits: {
             arr[index].dtype.bits = static_cast<uint8_t>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrTypeLanes: {
+          case StackVM::kArrTypeLanes: {
             arr[index].dtype.lanes = static_cast<uint16_t>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrByteOffset: {
+          case StackVM::kArrByteOffset: {
             arr[index].byte_offset = static_cast<uint64_t>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrDeviceId: {
+          case StackVM::kArrDeviceId: {
             arr[index].ctx.device_id = static_cast<int>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kArrDeviceType: {
+          case StackVM::kArrDeviceType: {
             arr[index].ctx.device_type = static_cast<DLDeviceType>(stack[sp].v_int64);
             break;
           }
-          case intrinsic::kTVMValueContent: {
+          case StackVM::kTVMValueContent: {
             static_cast<TVMValue*>(stack[sp - 1].v_handle)[index] = stack[sp]; break;
           }
           default: LOG(FATAL) << "unhandled tvm_struct_set " << kind;

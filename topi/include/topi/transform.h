@@ -24,6 +24,13 @@
 #ifndef TOPI_TRANSFORM_H_
 #define TOPI_TRANSFORM_H_
 
+#include <tvm/tir/data_layout.h>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+#include <topi/detail/ravel_unravel.h>
+#include <topi/detail/constant_utils.h>
+#include <topi/detail/tensor_utils.h>
+
 #include <string>
 #include <vector>
 #include <iterator>
@@ -31,16 +38,9 @@
 #include <limits>
 #include <unordered_set>
 
-#include "topi/tags.h"
-#include "topi/detail/ravel_unravel.h"
-#include "topi/detail/constant_utils.h"
-#include "topi/detail/tensor_utils.h"
-#include "tvm/operation.h"
-#include "tvm/expr_operator.h"
-#include "tvm/data_layout.h"
-
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
@@ -332,7 +332,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
-  join_size = tvm::ir::Simplify(join_size);
+  join_size = tvm::tir::Simplify(join_size);
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);
@@ -708,7 +708,7 @@ inline Tensor sequence_mask(const Tensor& data,
         len_index.push_back(bid);
         PrimExpr ret = tvm::if_then_else(
             tvm::cast(valid_length->dtype, tid) >= valid_length(len_index),
-            tvm::make_const(data->dtype, mask_value), data(out_index));
+            tvm::tir::make_const(data->dtype, mask_value), data(out_index));
         return ret;
       }, name, tag);
   return out;
@@ -841,7 +841,7 @@ inline Tensor where(const Tensor& condition,
       << condition->shape.size() << " vs " << x->shape.size();
     out = compute(
       oshape, [&](const Array<Var>& indices) {
-        return tvm::ir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
+        return tvm::tir::SelectNode::make(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
     CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
@@ -850,7 +850,7 @@ inline Tensor where(const Tensor& condition,
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<PrimExpr> condition_idx{indices[0]};
-        return tvm::ir::SelectNode::make(condition(condition_idx) != 0,
+        return tvm::tir::SelectNode::make(condition(condition_idx) != 0,
                                      x(indices), y(indices));
       }, name, tag);
   }
@@ -1041,20 +1041,20 @@ inline Tensor gather_nd(const Tensor& data,
  *
  * \return A Tensor whose op member is the matmul operation
  */
-inline tvm::Tensor matmul(const tvm::Tensor& A,
-                           const tvm::Tensor& B,
+inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
+                           const tvm::te::Tensor& B,
                            bool trans_a = false,
                            bool trans_b = false,
                            std::string name = "T_matmul",
                            std::string tag = kMatMul) {
   tvm::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0],
                                      B->shape[trans_b ? 0 : 1]};
-  auto k = tvm::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
-  auto l = [&](tvm::Var i, tvm::Var j) {
+  auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
+  auto l = [&](tvm::tir::Var i, tvm::tir::Var j) {
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]),
                     {k});
   };
-  return tvm::compute(output_shape, l, name, tag);
+  return tvm::te::compute(output_shape, l, name, tag);
 }
 
 /*!
@@ -1069,7 +1069,7 @@ inline tvm::Tensor matmul(const tvm::Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::Tensor& B,
+                        const tvm::te::Tensor& B,
                         int axes = 2,
                         std::string name = "T_tensordot",
                         std::string tag = kMatMul) {
@@ -1124,7 +1124,7 @@ inline Tensor tensordot(const Tensor& A,
  * \return A Tensor computing the result
  */
 inline Tensor tensordot(const Tensor& A,
-                        const tvm::Tensor& B,
+                        const tvm::te::Tensor& B,
                         Array<PrimExpr> A_axes,
                         Array<PrimExpr> B_axes,
                         std::string name = "T_tensordot",
@@ -1317,7 +1317,7 @@ inline Tensor one_hot(const Tensor& indices,
     }
 
     auto idx = iter_vars[true_axis];
-    return ir::SelectNode::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
+    return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
   }, name, tag);
 }
 

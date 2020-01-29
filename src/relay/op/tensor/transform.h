@@ -119,7 +119,7 @@ bool ConcatenateRel(const Array<Type>& types,
     concat_dim = Any::make();
   }
 
-  auto rtype = TensorTypeNode::make(oshape, dtype);
+  auto rtype = TensorType(oshape, dtype);
   reporter->Assign(types[1], rtype);
   return true;
 }

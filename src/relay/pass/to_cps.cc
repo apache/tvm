@@ -50,10 +50,10 @@
  * All cases in the transform must return via the mcont,
  * wheter directly invoking it, or indirectly by recursion.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include "../ir/type_functor.h"
 #include "let_list.h"
 #include "pass_util.h"
 

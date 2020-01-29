@@ -191,7 +191,6 @@ def _schedule_dense_pack_template(cfg, s, C):
     z, y, x = s[packedB].op.axis
     s[packedB].reorder(z, x, y)
     s[packedB].parallel(z)
-    s[packedB].vectorize(y)
     return s
 
 

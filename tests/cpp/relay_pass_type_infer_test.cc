@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
@@ -26,7 +26,7 @@
 
 TEST(Relay, SelfReference) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({}, DataType::Bool());
+  auto tensor_type = relay::TensorType({}, DataType::Bool());
   auto x = relay::VarNode::make("x", relay::Type());
   auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
   CHECK(f->IsInstance<BaseFuncNode>());

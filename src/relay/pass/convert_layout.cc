@@ -28,7 +28,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/transform.h>
-#include <tvm/operation.h>
+#include <tvm/te/operation.h>
 #include <tuple>
 #include <vector>
 #include <functional>
@@ -86,10 +86,10 @@ class ConvertTransformMemorizer : public TransformMemorizer {
     Expr new_e;
     bool modified = false;
     if (fconvert_layout.count(op)) {
-      tvm::Array<tvm::Tensor> tinfos;
+      tvm::Array<tvm::te::Tensor> tinfos;
       for (auto expr : ref_call->args) {
         auto ttype = expr->type_as<TensorTypeNode>();
-        tinfos.push_back(tvm::placeholder(ttype->shape, ttype->dtype));
+        tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
       }
       Expr altered_value =
           fconvert_layout[op](ref_call->attrs, new_args, tinfos, operator->()->desired_layout_);
@@ -134,8 +134,8 @@ Pass ConvertLayout(const std::string& desired_layout) {
       };
   return CreateFunctionPass(
       pass_func, 3, "ConvertLayout",
-      {ir::StringImmNode::make("InferType"),
-       ir::StringImmNode::make("CanonicalizeOps")});
+      {tir::StringImmNode::make("InferType"),
+       tir::StringImmNode::make("CanonicalizeOps")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);

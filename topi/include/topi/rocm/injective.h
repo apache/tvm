@@ -24,15 +24,16 @@
 #ifndef TOPI_ROCM_INJECTIVE_H_
 #define TOPI_ROCM_INJECTIVE_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/operation.h"
-#include "tvm/build_module.h"
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
+#include <tvm/te/operation.h>
+#include <tvm/target/generic_func.h>
 
 #include "topi/cuda/injective.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 
 namespace rocm {
 
@@ -41,7 +42,7 @@ namespace rocm {
  *
  * \param sch The schedule to update.
  * \param out The tensor representing the injective op.
- * 
+ *
  * \return The updated schedule.
  */
 inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {

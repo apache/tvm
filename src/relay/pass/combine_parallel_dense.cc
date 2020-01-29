@@ -81,7 +81,7 @@ Pass CombineParallelDense(uint64_t min_num_branches) {
       return Downcast<Function>(CombineParallelDense(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelDense",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelDense")

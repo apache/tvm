@@ -19,14 +19,15 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/ir.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/node/functor.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr_functor.h>
+#include <tvm/tir/stmt_functor.h>
 
 TEST(IRF, Basic) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x");
   auto z = x + 1;
 
@@ -43,12 +44,13 @@ TEST(IRF, Basic) {
 
 TEST(IRF, CountVar) {
   using namespace tvm;
+  using namespace tvm::tir;
   int n_var = 0;
   Var x("x"), y;
 
   auto z = x + 1 + y + y;
-  ir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
-      if (n.as<VarNode>()) ++n_var;
+  tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
+    if (n.as<VarNode>()) ++n_var;
     });
   CHECK_EQ(n_var, 2);
 }
@@ -56,12 +58,12 @@ TEST(IRF, CountVar) {
 
 TEST(IRF, ExprTransform) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x");
   auto z = x + 1;
 
   class MyExprFunctor
-      : public ir::ExprFunctor<int(const PrimExpr&, int)> {
+      : public tir::ExprFunctor<int(const PrimExpr&, int)> {
    public:
     int VisitExpr_(const VarNode* op, int b) final {
       return b;
@@ -85,13 +87,13 @@ TEST(IRF, ExprTransform) {
 
 TEST(IRF, ExprVisit) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x");
   auto z = x + 1;
 
   class MyVisitor
-      : public ir::ExprFunctor<void(const PrimExpr&)>,
-        public ir::StmtFunctor<void(const Stmt&)> {
+      : public tir::ExprFunctor<void(const PrimExpr&)>,
+        public tir::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
     // implementation
@@ -116,7 +118,7 @@ TEST(IRF, ExprVisit) {
 
 TEST(IRF, StmtVisitor) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x");
   class MyVisitor
       : public StmtExprVisitor {
@@ -140,12 +142,12 @@ TEST(IRF, StmtVisitor) {
 
 TEST(IRF, StmtMutator) {
   using namespace tvm;
-  using namespace tvm::ir;
+  using namespace tvm::tir;
   Var x("x");
 
   class MyVisitor
-      : public ir::StmtMutator,
-        public ir::ExprMutator {
+      : public tir::StmtMutator,
+        public tir::ExprMutator {
    public:
     using StmtMutator::operator();
     using ExprMutator::operator();

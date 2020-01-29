@@ -24,18 +24,17 @@
 #ifndef TOPI_NN_FLATTEN_H_
 #define TOPI_NN_FLATTEN_H_
 
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
+#include <topi/detail/constant_utils.h>
+
 #include <string>
 #include <vector>
-
-#include "topi/tags.h"
-#include "topi/detail/constant_utils.h"
-#include "tvm/operation.h"
-#include "tvm/expr_operator.h"
-
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Flattens the input tensor into a 2-D tensor by collapsing higher dimensions.
@@ -64,7 +63,7 @@ inline Tensor flatten(const Tensor& x,
   }
   std::reverse(extra_shape.begin(), extra_shape.end());
 
-  return tvm::compute(
+  return tvm::te::compute(
     oshape, [&](Var i, Var j) {
       PrimExpr idx = j;
       std::vector<PrimExpr> index;

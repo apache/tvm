@@ -89,12 +89,12 @@
  *
  * These assumptions do not affect the correctness of the algorithm, however.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/interpreter.h>
-#include "../ir/type_functor.h"
 #include "pass_util.h"
 #include "let_list.h"
 
@@ -749,7 +749,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic r = VisitExpr(op->ref, ll);
     if (r->pstatic.defined()) {
       PStatic ret = store_.Lookup(r->pstatic.as<SRefNode>());
-      if (ret) {
+      if (ret.defined()) {
         return ret;
       }
     }
@@ -863,7 +863,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
               subst.Set(func->type_params[i], type_args[i]);
             }
             for (size_t i = type_args.size(); i < func->type_params.size(); ++i) {
-              subst.Set(func->type_params[i], IncompleteTypeNode::make(kType));
+              subst.Set(func->type_params[i], IncompleteType(kType));
             }
             return VisitExpr(RegisterFuncId(TypeSubst(AnnotateFuncId(func->body), subst)), ll);
           } else {
@@ -935,11 +935,12 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (v->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(v);
       return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
-    } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
+    } else if (const runtime::ADTObj* op = v.as<runtime::ADTObj>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const ObjectRef& field : op->fields) {
-        PStatic ps = Reify(field, ll);
+      auto adt = GetRef<runtime::ADT>(op);
+      for (size_t i = 0; i < adt.size(); ++i) {
+        PStatic ps = Reify(adt[i], ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
       }

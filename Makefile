@@ -17,7 +17,7 @@
 
 ROOTDIR = $(CURDIR)
 
-.PHONY: clean all test doc pylint cpplint lint\
+.PHONY: clean all test doc pylint cpplint scalalint lint\
 	 cython cython2 cython3 web runtime vta
 
 ifndef DMLC_CORE_PATH
@@ -80,7 +80,10 @@ pylint:
 jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
-lint: cpplint pylint jnilint
+scalalint:
+	make -C vta/hardware/chisel lint
+
+lint: cpplint pylint jnilint scalalint
 
 doc:
 	doxygen docs/Doxyfile

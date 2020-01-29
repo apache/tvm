@@ -24,9 +24,9 @@
 #ifndef TVM_RUNTIME_DEVICE_API_H_
 #define TVM_RUNTIME_DEVICE_API_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
 #include <string>
-#include "packed_func.h"
-#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {

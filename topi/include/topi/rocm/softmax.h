@@ -24,15 +24,16 @@
 #ifndef TOPI_ROCM_SOFTMAX_H_
 #define TOPI_ROCM_SOFTMAX_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/operation.h"
-#include "tvm/build_module.h"
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
+#include <tvm/te/operation.h>
+#include <tvm/target/generic_func.h>
 
 #include "topi/cuda/softmax.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 
 namespace rocm {
 

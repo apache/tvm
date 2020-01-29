@@ -21,7 +21,7 @@
  * \file src/relay/qnn/op/convolution.cc
  * \brief Property def of qnn convolution operator.
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
@@ -57,7 +57,10 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[5], DataType::Float(32)));  // kernel_scale
+  // Kernel scale can be a vector of length output_channels or a scalar.
+  size_t axis = param->kernel_layout.find('O');
+  CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
+  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
@@ -66,7 +69,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
-  return param->channels.defined() && tvm::ir::Equal(param->channels, param->groups) &&
+  return param->channels.defined() && tvm::tir::Equal(param->channels, param->groups) &&
          param->groups != 1;
 }
 

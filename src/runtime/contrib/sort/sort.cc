@@ -22,7 +22,6 @@
  */
 
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/util.h>
 #include <dlpack/dlpack.h>
 #include <algorithm>
 #include <vector>

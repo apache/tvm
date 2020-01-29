@@ -31,9 +31,9 @@
  * We check this by ensuring the `dtype` field of a Tensor always
  * contains a data type such as `int`, `float`, `uint`.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/ir/error.h>
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -107,9 +107,9 @@ struct KindChecker : TypeFunctor<Kind(const Type&)> {
     return Kind::kType;
   }
 
-  Kind VisitType_(const RefTypeNode* op) override {
+  Kind VisitType_(const RelayRefTypeNode* op) override {
     // ref types should only contain normal types
-    RefType rt = GetRef<RefType>(op);
+    RelayRefType rt = GetRef<RelayRefType>(op);
     CheckKindMatches(op->value, rt, Kind::kType, "ref contents");
     return Kind::kType;
   }

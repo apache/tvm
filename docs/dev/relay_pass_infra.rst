@@ -621,6 +621,26 @@ By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
 dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 pass after any pass they want to debug for viewing the optimization effect.
 
+There is a more flexible debugging mechanism also exposed by the build configuration
+object. One can pass a tracing function which can be used to execute arbitrary code
+before and/or after each pass. A tracing function will receive a ``IRModule``, ``PassInfo``,
+and a boolean indicating whether you are executing before, or after a pass.
+An example is below.
+
+.. code:: python
+
+    def print_ir(mod, info, is_before):
+        """Print the name of the pass, the IR, only before passes execute."""
+        if is_before:
+            print(f"Running pass: {}", info)
+            print(mod)
+
+    with relay.build_config(opt_level=3, trace=print_ir):
+            with tvm.target.create("llvm"):
+                # Perform the optimizations.
+                mod = seq(mod)
+
+
 For more pass infra related examples in Python and C++, please refer to
 `tests/python/relay/test_pass_manager.py`_ and
 `tests/cpp/relay_transform_sequential.cc`_, respectively.

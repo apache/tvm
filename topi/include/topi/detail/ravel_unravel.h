@@ -24,14 +24,14 @@
 #ifndef TOPI_DETAIL_RAVEL_UNRAVEL_H_
 #define TOPI_DETAIL_RAVEL_UNRAVEL_H_
 
-#include <vector>
+#include <tvm/te/operation.h>
 
-#include "tvm/operation.h"
-#include "tvm/expr_operator.h"
+#include <vector>
 
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Flatten the indices to 1D

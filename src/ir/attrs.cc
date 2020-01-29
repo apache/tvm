@@ -22,8 +22,6 @@
  */
 #include <tvm/ir/attrs.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 #include "attr_functor.h"
 
 namespace tvm {
@@ -61,8 +59,8 @@ Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
   return Attrs(n);
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<DictAttrsNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const DictAttrsNode*>(node.get());
     p->stream << op->dict;
 });
@@ -72,7 +70,7 @@ TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
 
 
-using namespace ir;
+using namespace tir;
 // Equal handler.
 bool AttrsEqualHandler::Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
   if (lhs.same_as(rhs)) return true;

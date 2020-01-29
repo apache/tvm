@@ -169,6 +169,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 6);
   const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
   const auto in_dtype = data->dtype;
   CHECK(in_dtype == DataType::Int(8) ||
         in_dtype == DataType::UInt(8) ||
@@ -197,7 +198,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         out_dtype == DataType::UInt(8) ||
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
-  reporter->Assign(types[5], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;
 }
 

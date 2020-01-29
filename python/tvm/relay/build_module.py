@@ -51,6 +51,15 @@ def _update_target(target):
     return tgts
 
 
+def _convert_param_map(params):
+    inputs = {}
+    for name, param in params.items():
+        if isinstance(param, np.ndarray):
+            param = _nd.array(param)
+        inputs[name] = _expr.const(param)
+    return inputs
+
+
 class BuildModule(object):
     """Build a Relay function to run on TVM graph runtime. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
@@ -151,12 +160,7 @@ class BuildModule(object):
 
 
     def _set_params(self, params):
-        inputs = {}
-        for name, param in params.items():
-            if isinstance(param, np.ndarray):
-                param = _nd.array(param)
-            inputs[name] = _expr.const(param)
-        self._set_params_func(inputs)
+        self._set_params_func(_convert_param_map(params))
 
     def get_json(self):
         """Return the json file of the built program."""
@@ -294,6 +298,29 @@ def optimize(mod, target=None, params=None):
         bld_mod = BuildModule()
         mod, params = bld_mod.optimize(func, target, params)
     return mod, params
+
+
+def bind_params_by_name(func, params):
+    """Bind params to function by name.
+    This could be useful when assembling custom Relay optimization
+    passes that involve constant folding.
+
+    Parameters
+    ----------
+    func : relay.Function
+        The function to bind parameters to.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    Returns
+    -------
+    func : relay.Function
+        The function with parameters bound
+    """
+    inputs = _convert_param_map(params)
+    return _build_module.BindParamsByName(func, inputs)
 
 
 class GraphExecutor(_interpreter.Executor):

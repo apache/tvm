@@ -40,8 +40,8 @@ bool GetValidCountRel(const Array<Type>& types,
 
   std::vector<IndexExpr> oshape({data->shape[0]});
   std::vector<Type> fields;
-  fields.push_back(TensorTypeNode::make(oshape, DataType::Int(32)));
-  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
+  fields.push_back(TensorType(oshape, DataType::Int(32)));
+  fields.push_back(TensorType(data->shape, data->dtype));
 
   // assign output type
   reporter->Assign(types[1], TupleType(Array<Type>(fields)));
@@ -95,9 +95,9 @@ bool NMSRel(const Array<Type>& types,
   // assign output type
   if (param->return_indices) {
     std::vector<IndexExpr> oshape({dshape[0], dshape[1]});
-    reporter->Assign(types[2], TensorTypeNode::make(oshape, DataType::Int(32)));
+    reporter->Assign(types[2], TensorType(oshape, DataType::Int(32)));
   } else {
-    reporter->Assign(types[2], TensorTypeNode::make(dshape, data->dtype));
+    reporter->Assign(types[2], TensorType(dshape, data->dtype));
   }
   return true;
 }

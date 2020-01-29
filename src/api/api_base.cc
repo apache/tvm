@@ -22,11 +22,9 @@
  * \file api_base.cc
  */
 #include <dmlc/memory_io.h>
-#include <tvm/expr.h>
-#include <tvm/tensor.h>
+#include <tvm/tir/expr.h>
+#include <tvm/te/tensor.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 #include <tvm/node/serialization.h>
 
 namespace tvm {

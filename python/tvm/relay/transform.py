@@ -78,7 +78,8 @@ class PassContext(RelayNode):
                  opt_level=2,
                  fallback_device=_nd.cpu(),
                  required_pass=None,
-                 disabled_pass=None):
+                 disabled_pass=None,
+                 trace=None):
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device).device_type
         elif isinstance(fallback_device, TVMContext):
@@ -99,7 +100,7 @@ class PassContext(RelayNode):
 
         self.__init_handle_by_constructor__(_transform.PassContext, opt_level,
                                             fallback_device, required,
-                                            disabled)
+                                            disabled, trace)
 
     def __enter__(self):
         _transform.EnterPassContext(self)
@@ -117,7 +118,8 @@ class PassContext(RelayNode):
 def build_config(opt_level=2,
                  fallback_device=_nd.cpu(),
                  required_pass=None,
-                 disabled_pass=None):
+                 disabled_pass=None,
+                 trace=None):
     """Configure the build behavior by setting config variables.
 
     Parameters
@@ -151,13 +153,16 @@ def build_config(opt_level=2,
     disabled_pass: set of str, optional
         Optimization passes to be disabled during optimization.
 
+    trace: Callable[[IRModule, PassInfo, bool], None]
+        A tracing function for debugging or introspection.
+
     Returns
     -------
     pass_context: PassContext
         The pass context for optimizations.
     """
     return PassContext(opt_level, fallback_device, required_pass,
-                       disabled_pass)
+                       disabled_pass, trace)
 
 
 @register_relay_node

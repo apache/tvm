@@ -22,7 +22,7 @@
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
-#include <tvm/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
@@ -31,6 +31,8 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/attrs/memory.h>
+#include <tvm/driver/driver_api.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
@@ -968,6 +970,8 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::Codegen() {
+  using tir::LoweredFunc;
+
   if (!context_.module.defined()) {
     LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
     return;

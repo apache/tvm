@@ -21,15 +21,9 @@ import tvm
 from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 from tvm.contrib import util
 import topi.testing
-
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 
 def test_conv1d_infer_type():
@@ -768,7 +762,7 @@ def test_pool1d():
 
 def test_pool3d():
 
-    def _test_pool3d(opfunc):
+    def _test_pool3d(opfunc, padding=(0, 0, 0, 0, 0, 0), out_shape=(1, 3, 16, 16, 16)):
         n, c, d, h, w = tvm.size_var("n"), 10, 5, 224, 224
         x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
         y = opfunc(x, pool_size=(1, 1, 1))
@@ -780,18 +774,28 @@ def test_pool3d():
         dshape = (1, 3, 32, 32, 32)
         x = relay.var("x", shape=dshape)
         pool_type = 'max' if 'max' in str(opfunc) else 'avg'
-        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=(0, 0, 0, 0, 0, 0))
+        y = opfunc(x, pool_size=(2, 2, 2), strides=(2, 2, 2), padding=padding)
         func = relay.Function([x], y)
+        # check output shape
+        f_out_shape = tuple(map(lambda x: int(x), run_infer_type(func).ret_type.shape))
+        assert out_shape == f_out_shape, \
+            "Output shape mismatch. expected {}, actual {}".format(out_shape, f_out_shape)
         data = np.random.uniform(size=dshape).astype(dtype)
         ref_res = topi.testing.pool3d_ncdhw_python(data, (2, 2, 2), (2, 2, 2),
-                                                   (0, 0, 0, 0, 0, 0), (1, 3, 16, 16, 16), pool_type, False)
+                                                   padding, out_shape, pool_type, False)
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
     _test_pool3d(relay.nn.max_pool3d)
+    _test_pool3d(relay.nn.max_pool3d, padding=(2, 0, 0, 2, 0, 0), out_shape=(1, 3, 18, 16, 16))
+    _test_pool3d(relay.nn.max_pool3d, padding=(0, 3, 0, 0, 3, 0), out_shape=(1, 3, 16, 19, 16))
+    _test_pool3d(relay.nn.max_pool3d, padding=(0, 0, 4, 0, 0, 4), out_shape=(1, 3, 16, 16, 20))
     _test_pool3d(relay.nn.avg_pool3d)
+    _test_pool3d(relay.nn.avg_pool3d, padding=(2, 0, 0, 2, 0, 0), out_shape=(1, 3, 18, 16, 16))
+    _test_pool3d(relay.nn.avg_pool3d, padding=(0, 3, 0, 0, 3, 0), out_shape=(1, 3, 16, 19, 16))
+    _test_pool3d(relay.nn.avg_pool3d, padding=(0, 0, 4, 0, 0, 4), out_shape=(1, 3, 16, 16, 20))
 
 
 def test_avg_pool2d_no_count_pad():
@@ -1182,6 +1186,35 @@ def test_conv2d_int8_intrinsics():
     assert "vpmulld" in asm and "vpadd" in asm
 
 
+def test_depthwise_conv2d_int8():
+    input_dtype = 'uint8'
+    weight_dtype = 'int8'
+    output_dtype = 'int32'
+
+    data_shape = (1, 64, 56, 56)
+    x = relay.var("x", relay.TensorType(data_shape, input_dtype))
+
+    kernel_shape = (64, 1, 3, 3)
+    weight = relay.var("weight", relay.TensorType(kernel_shape, weight_dtype))
+
+    y = relay.nn.conv2d(x, weight,
+                        kernel_size=(3, 3),
+                        groups=64,
+                        padding=(1, 1),
+                        dilation=(1, 1),
+                        out_dtype=output_dtype)
+    func = relay.Function([x, weight], y)
+    wdata = np.random.rand(*kernel_shape) * 10
+    parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
+
+    targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
+    llvm_version = tvm.codegen.llvm_version_major()
+    for target in targets:
+        if llvm_version >= 8:
+            with relay.build_config(opt_level=3):
+                graph, lib, params = relay.build(func, target, params=parameters)
+
+
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
     n, c, h, w = tvm.size_var("n"), 32, 224, 224
@@ -1234,3 +1267,4 @@ if __name__ == "__main__":
     test_upsampling()
     test_upsampling3d()
     test_conv2d_int8_intrinsics()
+    test_depthwise_conv2d_int8()

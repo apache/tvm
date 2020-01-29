@@ -23,7 +23,7 @@
  */
 // Acknowledgement: Most rewrite-rules are from Halide.
 #include <tvm/arith/analyzer.h>
-#include <tvm/expr_operator.h>
+#include <tvm/tir/op.h>
 #include <algorithm>
 #include "const_fold.h"
 #include "pattern_match.h"
@@ -32,7 +32,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 // macro for doing simple rewrite
 #define TVM_TRY_REWRITE(SrcExpr, ResExpr)       \
@@ -1747,7 +1747,7 @@ VisitExpr_(const CastNode* op) {
 PrimExpr RewriteSimplifier::Impl::
 VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (!ir::HasSideEffect(value)) {
+  if (!tir::HasSideEffect(value)) {
     // it is fine to discard the let binding
     // because the value will always be inlined in the simplifier.
     analyzer_->Bind(op->var, value);

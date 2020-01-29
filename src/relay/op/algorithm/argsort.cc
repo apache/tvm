@@ -43,7 +43,7 @@ bool ArgsortRel(const Array<Type>& types,
         << types[0];
     return false;
   }
-  reporter->Assign(types[1], TensorTypeNode::make(data->shape, param->dtype));
+  reporter->Assign(types[1], TensorType(data->shape, param->dtype));
   return true;
 }
 
