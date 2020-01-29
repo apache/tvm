@@ -1009,15 +1009,19 @@ class Graph(object):
         self._ops[(node_id)] = op_node
         input_list_r = []
         input_list_types = []
-        for input_node in op_node.inputs():
-            if input_node.debugName() in self._inputs_r.keys():
-                input_list_r.append(self._inputs_r[input_node.debugName()])
-            elif input_node.debugName() in self._params.keys():
-                input_list_r.append(self._params[input_node.debugName()])
-            elif input_node.node().kind() == "prim::Constant":
-                input_list_r.append(self._consts[input_node.debugName()])
+        for input_value in op_node.inputs():
+
+            inode_id = input_value.debugName()
+            inode = input_value.node()
+
+            if inode_id in self._inputs_r.keys():
+                input_list_r.append(self._inputs_r[inode_id])
+            elif inode_id in self._params.keys():
+                input_list_r.append(self._params[inode_id])
+            elif inode.kind() == "prim::Constant":
+                input_list_r.append(self._consts[inode_id])
             else:
-                input_list_r.append("call/var."+input_node.debugName())
+                input_list_r.append("call/var."+inode_id)
 
                 # If the inputs of a ListConstruct op is a call or var, remove it from inputs
                 if op_node.kind() == 'prim::ListConstruct':
@@ -1025,20 +1029,20 @@ class Graph(object):
                         self._inputs_r.pop(node_id)
 
             try:
-                input_node_kind = input_node.type().kind()
-                if input_node_kind == 'TensorType':
-                    if input_node.type().scalarType() is None:
+                input_value_kind = input_value.type().kind()
+                if input_value_kind == 'TensorType':
+                    if input_value.type().scalarType() is None:
                         input_list_types.append('float')
                     else:
-                        input_list_types.append(input_node.type().scalarType().lower())
-                elif input_node_kind == 'ListType':
-                    input_list_types.append(str(input_node.type().getElementType()).lower())
-                elif input_node_kind in ['IntType', 'FloatType', 'BoolType', 'StringType',
+                        input_list_types.append(input_value.type().scalarType().lower())
+                elif input_value_kind == 'ListType':
+                    input_list_types.append(str(input_value.type().getElementType()).lower())
+                elif input_value_kind in ['IntType', 'FloatType', 'BoolType', 'StringType',
                                          'OptionalType']:
-                    input_list_types.append(str(input_node.type()).lower())
+                    input_list_types.append(str(input_value.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
-                    print('UnsupportedType '+str(input_node.type())+' and '+str(input_node_kind))
+                    print('UnsupportedType '+str(input_value.type())+' and '+str(input_value_kind))
             except Exception as e:
                 print('Internal PyTorch error. Failed to grab type.')
 
