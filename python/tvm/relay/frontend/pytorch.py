@@ -870,7 +870,7 @@ class Graph(object):
                                     break
 
                 call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
-                                              self._op_inputs_types[op_name])
+                                                    self._op_inputs_types[op_name])
 
                 outputs.append(call)
                 self._parsed_node_names[op_name] = nid
@@ -922,7 +922,7 @@ class Graph(object):
             if node.kind() == "prim::GetAttr":
 
                 attribute_names = node.attributeNames()
-                assert(len(attribute_names) == 1)
+                assert len(attribute_names) == 1
                 node_getattr_name = node.s(attribute_names[0])
                 node_arg = node.input().debugName()
 
@@ -980,11 +980,11 @@ class Graph(object):
                 for input_node in node.inputs():
                     if input_node.debugName() in self._inputs_r.keys():
                         c = self._inputs_r[input_node.debugName()]
-                        assert(isinstance(c, int))
+                        assert isinstance(c, int)
                         list_shape.append(c)
                     elif input_node.debugName() in self._consts.keys():
                         c = self._consts[input_node.debugName()]
-                        assert(isinstance(c, int))
+                        assert isinstance(c, int)
                         list_shape.append(c)
                 self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
 
@@ -1038,7 +1038,7 @@ class Graph(object):
                 elif input_value_kind == 'ListType':
                     input_list_types.append(str(input_value.type().getElementType()).lower())
                 elif input_value_kind in ['IntType', 'FloatType', 'BoolType', 'StringType',
-                                         'OptionalType']:
+                                          'OptionalType']:
                     input_list_types.append(str(input_value.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
