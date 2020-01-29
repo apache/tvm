@@ -992,10 +992,9 @@ class Graph(object):
                     elif input_node.debugName() in self._consts.keys():
                         list_shape.append(int(self._consts[input_node.debugName()]))
                 self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
-            elif node.kind() == "prim::GetAttr":
-                continue
 
-            self._add_op(node_name, node)
+            if node.kind() != "prim::GetAttr":
+                self._add_op(node_name, node)
 
     # Graph Helper Functions
 
