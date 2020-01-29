@@ -33,6 +33,9 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
+COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_torch.sh
+RUN bash /install/ubuntu_install_torch.sh
+
 # SGX deps (build early; changes infrequently)
 COPY install/ubuntu_install_sgx.sh /install/ubuntu_install_sgx.sh
 RUN bash /install/ubuntu_install_sgx.sh

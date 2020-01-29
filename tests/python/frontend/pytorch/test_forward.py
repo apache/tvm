@@ -730,4 +730,5 @@ if __name__ == '__main__':
     test_mnasnet1_0()
     #"""
 
-    #test_slice1()
+    test_add2()
+    test_size1()
