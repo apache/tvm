@@ -34,8 +34,8 @@ __all__ = ['from_pytorch']
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
-        data0 = convert_input(inputs[0])
-        data1 = convert_input(inputs[1])
+        data0 = _convert_elemwise_input(inputs[0])
+        data1 = _convert_elemwise_input(inputs[1])
 
         return get_relay_op(name)(data0, data1)
     return _impl
@@ -712,20 +712,14 @@ def _sqrt():
 
 # Helper functions for operator implementation
 
-def convert_input(data):
-    """ Handle input conversion for elemwise op """
-    if isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
-        return data
-    elif isinstance(data, str):
-        if len(data) == 1:
-            return _expr.const(int(data), dtype='float32')
-        else:
-            if '.' in data:
-                return _expr.const(float(data[1:-1]), dtype='float32')
-            else:
-                return _expr.const(int(data[1:-1]), dtype='float32')
-    else:
+# TODO: Fix typing
+def _convert_elemwise_input(data):
+    if isinstance(data, torch.Tensor):
+        return _expr.const(data.item(), dtype='float32')
+    elif not isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
         return _expr.const(int(data), dtype='float32')
+    else:
+        return data
 
 # Operator mappings
 
