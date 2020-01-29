@@ -1033,13 +1033,12 @@ class Graph(object):
                         input_list_types.append(input_node.type().scalarType().lower())
                 elif input_node_kind == 'ListType':
                     input_list_types.append(str(input_node.type().getElementType()).lower())
-                elif input_node_kind == 'IntType' or input_node_kind == 'FloatType' or \
-                        input_node_kind == 'BoolType' or input_node_kind == 'StringType' or \
-                        input_node_kind == 'OptionalType':
+                elif input_node_kind in ['IntType', 'FloatType', 'BoolType', 'StringType',
+                                         'OptionalType']:
                     input_list_types.append(str(input_node.type()).lower())
                 else:
                     input_list_types.append('UnsupportedType')
-                    print('UnsupportedType '++str(input_node.type())+' and '+str(input_node_kind))
+                    print('UnsupportedType '+str(input_node.type())+' and '+str(input_node_kind))
             except Exception as e:
                 print('Internal PyTorch error. Failed to grab type.')
 
@@ -1057,7 +1056,6 @@ class Graph(object):
 
         self._op_inputs_r[node_id] = input_list_r
         self._op_inputs_types[node_id] = input_list_types
-
 
     def _parse_import_prerequisites(self):
         """ Calculate the named preconditions from PyTorch graph.
