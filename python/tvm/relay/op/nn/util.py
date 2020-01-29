@@ -18,14 +18,12 @@
 """NN operator common utilities"""
 from __future__ import absolute_import
 
-def get_pad_tuple(padding, kernel):
+def get_pad_tuple(padding):
     """Common code to get the pad option
     Parameters
     ----------
     padding : int or str
         Padding size, or ['VALID', 'SAME']
-    kernel : tuple of int
-        Conv kernel size
     Returns
     -------
     pad_top : int
@@ -48,12 +46,6 @@ def get_pad_tuple(padding, kernel):
             raise ValueError("Size of padding can only be 2 or 4")
     elif isinstance(padding, int):
         pad_h = pad_w = padding * 2
-    elif padding == "VALID":
-        pad_h = 0
-        pad_w = 0
-    elif padding == "SAME":
-        pad_h = kernel[0] - 1
-        pad_w = kernel[1] - 1
     else:
         raise ValueError("Unknown padding option %s" % padding)
     pad_top = (pad_h + 1) // 2

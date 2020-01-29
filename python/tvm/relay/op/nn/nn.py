@@ -204,9 +204,7 @@ def conv2d(data,
     if isinstance(padding, int):
         padding = (padding, padding)
     # convert 2-way padding to 4-way padding
-    dilated_kernel_h = (kernel_size[0] - 1) * dilation[0] + 1
-    dilated_kernel_w = (kernel_size[1] - 1) * dilation[1] + 1
-    padding = get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
+    padding = get_pad_tuple(padding)
 
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
