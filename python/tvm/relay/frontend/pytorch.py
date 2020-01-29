@@ -792,8 +792,10 @@ class Graph(object):
     def __init__(self, script_module, input_shapes):
 
         self._script_module = script_module
+        self._graph = script_module.graph.copy()
 
-        torch._C._jit_pass_inline(script_module.graph)
+        # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
+        torch._C._jit_pass_inline(self._graph)
 
         self._inputs_r = {}
         self._params = {}
@@ -883,7 +885,7 @@ class Graph(object):
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
         # Get names and objects of inputs for IR
-        ir_inputs = [i for i in self._script_module.graph.inputs()]
+        ir_inputs = [i for i in self._graph.inputs()]
 
         # Create corresponding shape and add to input
         for input_name, ir_input in zip(self._input_shapes, ir_inputs[1:]):
@@ -916,7 +918,7 @@ class Graph(object):
 
         # Iterate through graph for getAttr nodes and match full state_dict name to nodes
         node_weight_map = {}
-        for node in self._script_module.graph.nodes():
+        for node in self._graph.nodes():
             if node.kind() == "prim::GetAttr":
 
                 attribute_names = node.attributeNames()
@@ -950,7 +952,7 @@ class Graph(object):
         """ Iterate through nodes and decorate graph with constants, operators,
         and the inputs to each operator. """
         # Traverse nodes and add to graph
-        for node in self._script_module.graph.nodes():
+        for node in self._graph.nodes():
 
             if node.outputsSize() == 1:
                 node_name = node.output().debugName()
@@ -1068,7 +1070,7 @@ class Graph(object):
 
         """
         missing_operators = set()
-        for node in self._script_module.graph.nodes():
+        for node in self._graph.nodes():
             if node.kind() == "prim::Constant" or node.kind() == 'prim::ListConstruct' or \
                     node.kind() == 'prim::GetAttr':
                 pass
