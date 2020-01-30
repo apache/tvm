@@ -27,6 +27,7 @@
 #include <dmlc/json.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
+#include <tvm/relay/transform.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/ir_pass.h>
@@ -34,6 +35,8 @@
 
 #include <typeinfo>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace relay {
@@ -79,6 +82,44 @@ inline std::string DType2String(const tvm::DataType dtype) {
   }
   os << dtype.bits();
   return os.str();
+}
+
+/*!
+ * \brief Bind params to function by using name
+ * \param func Relay function
+ * \param params params dict
+ * \return relay::Function
+ */
+inline relay::Function
+BindParamsByName(relay::Function func,
+                 const std::unordered_map<std::string, runtime::NDArray>& params) {
+  std::unordered_map<std::string, relay::Var> name_dict;
+  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
+  for (auto arg : func->params) {
+    const auto& name = arg->name_hint();
+    if (name_dict.count(name)) {
+      repeat_var.insert(arg);
+    } else {
+      name_dict[name] = arg;
+    }
+  }
+
+  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
+  for (auto& kv : params) {
+    if (name_dict.count(kv.first) == 0) {
+      continue;
+    }
+    auto arg = name_dict.at(kv.first);
+    if (repeat_var.count(arg)) {
+      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
+    }
+    bind_dict[arg] = ConstantNode::make(kv.second);
+  }
+  Expr bound_expr = relay::Bind(func, bind_dict);
+  Function ret = Downcast<Function>(bound_expr);
+  CHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
+                       << "\n";
+  return ret;
 }
 
 }  // namespace backend
