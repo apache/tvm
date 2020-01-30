@@ -713,8 +713,8 @@ def _sqrt():
 
 # TODO: Fix typing
 def _convert_elemwise_input(data):
-    from torch import Tensor
-    if isinstance(data, Tensor):
+    import torch
+    if isinstance(data, torch.Tensor):
         return _expr.const(data.item(), dtype='float32')
     elif not isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
         return _expr.const(int(data), dtype='float32')
@@ -795,8 +795,8 @@ class Graph(object):
         self._graph = script_module.graph.copy()
 
         # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
-        from torch._C import _jit_pass_inline
-        _jit_pass_inline(self._graph)
+        import torch
+        torch._C._jit_pass_inline(self._graph)
 
         self._inputs_r = {}
         self._params = {}
