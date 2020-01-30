@@ -42,43 +42,6 @@ using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
 
 /*!
- * \brief Bind params to function by using name
- * \param func Relay function
- * \param params params dict
- * \return relay::Function
- */
-relay::Function BindParamsByName(relay::Function func,
-                                 const std::unordered_map<std::string, runtime::NDArray>& params) {
-  std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
-  for (auto arg : func->params) {
-    const auto& name = arg->name_hint();
-    if (name_dict.count(name)) {
-      repeat_var.insert(arg);
-    } else {
-      name_dict[name] = arg;
-    }
-  }
-
-  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
-  for (auto& kv : params) {
-    if (name_dict.count(kv.first) == 0) {
-      continue;
-    }
-    auto arg = name_dict.at(kv.first);
-    if (repeat_var.count(arg)) {
-      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
-    }
-    bind_dict[arg] = ConstantNode::make(kv.second);
-  }
-  Expr bound_expr = relay::Bind(func, bind_dict);
-  Function ret = Downcast<Function>(bound_expr);
-  CHECK(ret.defined()) << "The returning type is expected to be a Relay Function."
-                       << "\n";
-  return ret;
-}
-
-/*!
  * \brief Output of building module
  *
  */
@@ -527,7 +490,7 @@ TVM_REGISTER_GLOBAL("relay.build_module.BindParamsByName")
   for (const auto& kv : params) {
     params_[kv.first] = kv.second->data;
   }
-  *rv = BindParamsByName(args[0], params_);
+  *rv = relay::backend::BindParamsByName(args[0], params_);
 });
 
 }  // namespace backend

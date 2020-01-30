@@ -115,16 +115,6 @@ class VMCompiler : public runtime::ModuleNode {
   void Codegen();
 
  protected:
-  /*!
-   * \brief Bind params to function by using name
-   * \param func Relay function
-   * \param params params dict
-   * \return relay::Function
-   */
-  relay::Function BindParamsByName(
-      relay::Function func,
-      const std::unordered_map<std::string, runtime::NDArray>& params);
-
   IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
