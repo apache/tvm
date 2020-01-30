@@ -60,14 +60,14 @@ class Add3Float16(Module):
     def forward(self, *args):
         ones = torch.ones([1, 3, 224, 224], dtype=torch.float16)
         if torch.cuda.is_available():
-            ones = ones.cuda().float16()
+            ones = ones.cuda()
         return args[0] + ones
 
 class Add4Float16(Module):
     def forward(self, *args):
         ones = torch.ones([1, 1, 224, 224], dtype=torch.float16)
         if torch.cuda.is_available():
-            ones = ones.cuda().float16()
+            ones = ones.cuda()
         return args[0] + ones
 
 class Add3Float64(Module):

@@ -81,8 +81,8 @@ def load_single_op(model_name, input_type=None):
         temp = np.random.random_sample((1, 3, 224, 224))
         input_data = torch.from_numpy(temp)
     elif input_type == 'float16':
-        model = getattr(single_op, model_name)().float().eval()
-        input_data = torch.rand(input_shape)
+        model = getattr(single_op, model_name)().half().eval()
+        input_data = torch.rand(input_shape).half()
     elif input_type == 'int32':
         model = getattr(single_op, model_name)().eval()
         input_data = torch.randint(0, 10, input_shape).int()
@@ -290,9 +290,6 @@ def verify_model(model_name, input_type=None):
     with TemporaryDirectory() as tmp:
         path = os.path.join(tmp, 'model.pth')
         torch.jit.save(trace, path)
-
-        print(model_name)
-        #print(trace.graph)
 
         mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
@@ -556,6 +553,10 @@ def test_chunk1():
 def test_resnet18():
     verify_model('resnet18')
 
+def test_resnet18_eager():
+    verify_model('resnet18_eager')
+
+
 def test_resnet18float64():
     verify_model('resnet18', input_type='float64')
 
@@ -636,7 +637,6 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
-    #"""
     # TODO: Refactor how testing works for different types
     test_add3float64()
     test_add4int32()
@@ -728,7 +728,3 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
-    #"""
-
-    test_add2()
-    test_size1()
