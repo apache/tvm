@@ -19,7 +19,6 @@
 """PT: PyTorch frontend."""
 import numpy as np
 
-import torch
 import tvm
 
 from .. import analysis as _analysis
@@ -714,7 +713,8 @@ def _sqrt():
 
 # TODO: Fix typing
 def _convert_elemwise_input(data):
-    if isinstance(data, torch.Tensor):
+    from torch import Tensor
+    if isinstance(data, Tensor):
         return _expr.const(data.item(), dtype='float32')
     elif not isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
         return _expr.const(int(data), dtype='float32')
@@ -795,7 +795,8 @@ class Graph(object):
         self._graph = script_module.graph.copy()
 
         # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
-        torch._C._jit_pass_inline(self._graph)
+        from torch._C import _jit_pass_inline
+        _jit_pass_inline(self._graph)
 
         self._inputs_r = {}
         self._params = {}
