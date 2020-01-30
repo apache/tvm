@@ -56,16 +56,15 @@ class LegalizeLayoutTranform(ExprMutator):
             src_layout = expr.attrs['src_layout']
             dst_layout = expr.attrs['dst_layout']
             if src_layout == "NCHW" and dst_layout == "NHWC":
-                return relay.transpose(visit, axes=[0, 2, 3, 1])
+                return relay.transpose(visit.args[0], axes=[0, 2, 3, 1])
             elif src_layout == "NHWC" and dst_layout == "NCHW":
-                return relay.transpose(visit, axes=[0, 3, 1, 2])
+                return relay.transpose(visit.args[0], axes=[0, 3, 1, 2])
             elif src_layout == "HWIO" and dst_layout == "OIHW":
-                return relay.transpose(visit, axes=[3, 2, 0, 1])
+                return relay.transpose(visit.args[0], axes=[3, 2, 0, 1])
             elif src_layout == "HWOI" and dst_layout == "OIHW":
-                return relay.transpose(visit, axes=[2, 3, 0, 1])
-            # may be uneeded
+                return relay.transpose(visit.args[0], axes=[2, 3, 0, 1])
             elif src_layout == "HWIO" and dst_layout == "IOHW":
-                return relay.transpose(visit, axes=[2, 3, 0, 1])
+                return relay.transpose(visit.args[0], axes=[2, 3, 0, 1])
         return visit
 
 class RemoveDropout(ExprMutator):
