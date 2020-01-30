@@ -349,6 +349,7 @@ def print_results():
         print(f'Average baseline latency is {baseline_sum/test_repeats:.3f} +/- {thresh:d} ms.')
         print(f'Average relative speedup is {speedup_sum/test_repeats:.3f}')
 
+"""
 # Test Functions
 def test_add1():
     verify_model('Add1')
@@ -630,6 +631,7 @@ def test_mnasnet0_5():
 
 def test_mnasnet1_0():
     verify_model('mnasnet1_0')
+"""
 
 if __name__ == '__main__':
 
