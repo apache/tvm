@@ -29,12 +29,6 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
-# Install PyTorch for testing in CI/CD
-export PYTHONPATH=$PYTHONPATH:.local/lib/python3.6/site-packages
-
-echo "Running relay PyTorch frontend test..."
-python3 -m pytest -v tests/python/frontend/pytorch
-
 echo "Running relay TFLite frontend test..."
 python3 -m pytest -v tests/python/frontend/tflite
 
@@ -58,3 +52,6 @@ python3 -m pytest -v tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
 python3 -m pytest -v tests/python/frontend/darknet
+
+echo "Running relay PyTorch frontend test..."
+python3 -m pytest -v tests/python/frontend/pytorch
