@@ -956,7 +956,7 @@ class Graph(object):
                         self._consts[node_name] = node.i(attr_name)
                     elif ty in ["FloatType", "LongType"]:
                         self._consts[node_name] = node.f(attr_name)
-                    elif ty == "TensorType":
+                    elif ty in ["TensorType", "CompleteTensorType"]:
                         self._consts[node_name] = node.output().toIValue()
                     else:
                         self._consts[node_name] = '0'
@@ -1017,7 +1017,7 @@ class Graph(object):
 
             try:
                 input_value_kind = input_value.type().kind()
-                if input_value_kind == 'TensorType':
+                if input_value_kind in ['TensorType', 'CompleteTensorType']:
                     if input_value.type().scalarType() is None:
                         input_list_types.append('float')
                     else:
