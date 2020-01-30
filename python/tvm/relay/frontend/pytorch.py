@@ -781,7 +781,8 @@ class Graph(object):
 
         # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
         import torch
-        torch._C._jit_pass_inline(self._graph)
+        if torch.__version__ != "1.2.0":
+            torch._C._jit_pass_inline(self._graph)
 
         self._inputs_r = {}
         self._params = {}
