@@ -86,7 +86,8 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
         dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
 
-        if isinstance(padding, (list, tuple)) and len(padding) > 2:
+        if isinstance(padding, (list, tuple)) and len(padding) == 4 and \
+           (padding[0] != padding[2] or padding[1] != padding[3]):
             raise ValueError("Cudnn doesn't support asymmetric padding.")
         pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
         OH = (H + pt + pb - KH) // stride_h + 1
