@@ -33,8 +33,17 @@ __all__ = ['from_pytorch']
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
-        data0 = _convert_elemwise_input(inputs[0])
-        data1 = _convert_elemwise_input(inputs[1])
+        # TODO: Figure out a better way to get typing to work for tensor + scalar
+        type0 = input_types[0]
+        if isinstance(inputs[1], (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+            type0 = input_types[1]
+
+        type1 = input_types[1]
+        if isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+            type1 = input_types[0]
+
+        data0 = _convert_elemwise_input(inputs[0], type0)
+        data1 = _convert_elemwise_input(inputs[1], type1)
 
         return get_relay_op(name)(data0, data1)
     return _impl
@@ -92,26 +101,6 @@ def _select():
 
         return _op.transform.take(data, _expr.const(index, dtype='int32'), axis=dim)
     return _impl
-
-def _convert_data_type(input_type):
-    if input_type in ['double', 'torch.float64']:
-        return 'float64'
-    elif input_type in ['float', 'torch.float32']:
-        return 'float32'
-    elif input_type in ['half', 'torch.float16']:
-        return 'float16'
-    elif input_type in ['long', 'torch.int64']:
-        return 'int64'
-    elif input_type in ['int', 'torch.int32']:
-        return 'int32'
-    elif input_type in ['short', 'torch.int16']:
-        return 'int16'
-    elif input_type in ['char', 'torch.int8']:
-        return 'int8'
-    elif input_type in ['byte', 'torch.uint8']:
-        return 'uint8'
-    else:
-        return input_type
 
 def _ones():
     def _impl(inputs, input_types):
@@ -696,13 +685,33 @@ def _sqrt():
 
 # Helper functions for operator implementation
 
+def _convert_data_type(input_type):
+    if input_type in ['double', 'torch.float64']:
+        return 'float64'
+    elif input_type in ['float', 'torch.float32']:
+        return 'float32'
+    elif input_type in ['half', 'torch.float16']:
+        return 'float16'
+    elif input_type in ['long', 'torch.int64']:
+        return 'int64'
+    elif input_type in ['int', 'torch.int32']:
+        return 'int32'
+    elif input_type in ['short', 'torch.int16']:
+        return 'int16'
+    elif input_type in ['char', 'torch.int8']:
+        return 'int8'
+    elif input_type in ['byte', 'torch.uint8']:
+        return 'uint8'
+    else:
+        return input_type
+
 # TODO: Fix typing
-def _convert_elemwise_input(data):
+def _convert_elemwise_input(data, input_type):
     import torch
     if isinstance(data, torch.Tensor):
-        return _expr.const(data.item(), dtype='float32')
+        return _expr.const(data.item(), dtype=_convert_data_type(input_type))
     elif not isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
-        return _expr.const(int(data), dtype='float32')
+        return _expr.const(int(data), dtype=_convert_data_type(input_type))
     else:
         return data
 
