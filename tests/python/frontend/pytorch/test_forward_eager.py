@@ -81,8 +81,8 @@ def load_single_op(model_name, input_type=None):
         temp = np.random.random_sample((1, 3, 224, 224))
         input_data = torch.from_numpy(temp)
     elif input_type == 'float16':
-        model = getattr(single_op, model_name)().half().eval()
-        input_data = torch.rand(input_shape).half()
+        model = getattr(single_op, model_name)().float().eval()
+        input_data = torch.rand(input_shape)
     elif input_type == 'int32':
         model = getattr(single_op, model_name)().eval()
         input_data = torch.randint(0, 10, input_shape).int()
@@ -289,7 +289,13 @@ def verify_model(model_name, input_type=None):
         trace = trace.cpu()
     with TemporaryDirectory() as tmp:
         path = os.path.join(tmp, 'model.pth')
-        torch.jit.save(trace, path)
+        #torch.jit.save(trace, path)
+        torch.save(baseline_model, path)
+
+        print(model_name)
+        #print(trace.graph)
+
+        trace = pt_load_model(path, input_shapes)
 
         mod, params = relay.frontend.from_pytorch(trace, input_shapes)
 
@@ -319,6 +325,34 @@ def verify_model(model_name, input_type=None):
 
     from subprocess import call
     call('rm -rf ~/.torch/models/*', shell=True)
+
+def pt_load_model(filename, input_shapes):
+    """The parser supports PyTorch models which are traceable which includes TorchScript
+        modules.
+        """
+    try:
+        trace = torch.jit.load(filename, map_location='cpu').float().eval()
+    except RuntimeError:
+        print('first except')
+        try:
+            trace = torch.load(filename, map_location='cpu').float().eval()
+        except UnpicklingError:
+            raise RuntimeError('Failed to load model')
+    shapes = [input_shapes[k] for k in sorted(input_shapes)]
+    inputs = [torch.zeros(shape).float() for shape in shapes]
+    try:
+        """Not the most legible code and will always produce a warning on PyTorch's side 
+        if the model loaded in was a trace.
+        """
+        trace = torch.jit.trace(trace, *inputs).float().eval()
+        return trace
+    except RuntimeError:
+        print('second except')
+        inputs = [inp.cuda() for inp in inputs]
+        trace = torch.jit.trace(trace, *inputs).float().eval().cpu()
+        inputs = [inp.cpu() for inp in inputs]
+        trace = torch.jit.trace(trace, *inputs).float().eval().cpu()
+        return trace
 
 def print_results():
     print(baseline_latencies_map)
@@ -553,6 +587,10 @@ def test_chunk1():
 def test_resnet18():
     verify_model('resnet18')
 
+def test_resnet18_eager():
+    verify_model('resnet18_eager')
+
+
 def test_resnet18float64():
     verify_model('resnet18', input_type='float64')
 
@@ -633,6 +671,7 @@ def test_mnasnet1_0():
 
 if __name__ == '__main__':
 
+    """
     # TODO: Refactor how testing works for different types
     test_add3float64()
     test_add4int32()
@@ -724,3 +763,6 @@ if __name__ == '__main__':
     test_googlenet()
     test_mnasnet0_5()
     test_mnasnet1_0()
+    """
+
+    test_resnet18()
