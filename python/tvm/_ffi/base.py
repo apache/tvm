@@ -205,8 +205,9 @@ def _find_error_type(line):
             return None
         start_pos = line.rfind(":", 0, end_pos)
         if start_pos == -1:
-            return None
-        err_name = line[start_pos + 1 : end_pos].strip()
+            err_name = line[:end_pos].strip()
+        else:
+            err_name = line[start_pos + 1 : end_pos].strip()
         if _valid_error_name(err_name):
             return err_name
         return None
