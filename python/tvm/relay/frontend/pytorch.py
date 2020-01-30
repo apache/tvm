@@ -87,25 +87,10 @@ def _slice():
 def _select():
     def _impl(inputs, input_types):
         data = inputs[0]
-        inferred_shape = _infer_shape(data)
-        end = []
-
-        for infer in inferred_shape:
-            end.append(int(infer))
-
-        begin = [0]*len(end)
         dim = int(inputs[1])
         index = int(inputs[2])
 
-        end[dim] = index+1
-        begin[dim] = index
-
-        strides = [1]*len(end)
-
-        sym = _op.transform.strided_slice(data, begin, end, strides)
-        axis = [dim]
-
-        return _op.transform.squeeze(sym, axis)
+        return _op.transform.take(data, _expr.const(index, dtype='int32'), axis=dim)
     return _impl
 
 def _convert_data_type(input_type):
