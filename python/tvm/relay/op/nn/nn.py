@@ -201,8 +201,6 @@ def conv2d(data,
         strides = (strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
-    if isinstance(padding, int):
-        padding = (padding, padding)
     # convert 2-way padding to 4-way padding
     padding = get_pad_tuple(padding)
 

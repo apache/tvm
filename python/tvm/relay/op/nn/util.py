@@ -17,13 +17,14 @@
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
 from __future__ import absolute_import
+from .... import container
 
 def get_pad_tuple(padding):
     """Common code to get the pad option
     Parameters
     ----------
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : Union[int, Tuple[int, ...]]
+        Padding size
     Returns
     -------
     pad_top : int
@@ -36,6 +37,8 @@ def get_pad_tuple(padding):
         Padding size on right.
     """
     # compute the padding size
+    if isinstance(padding, container.Array):
+        padding = list(padding)
     if isinstance(padding, (tuple, list)):
         if len(padding) == 2:
             pad_h = padding[0] * 2

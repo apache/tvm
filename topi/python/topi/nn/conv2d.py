@@ -46,9 +46,8 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of 2 or 4 ints
+    padding : int or a list/tuple of 4 ints
         padding size, or
-        [pad_height, pad_width] for 2 ints, or
         [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
