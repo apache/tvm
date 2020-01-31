@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
 from . import _make
-from .util import get_pad_tuple
+from .util import get_pad_tuple2d
 
 
 def conv1d(data,
@@ -201,8 +201,9 @@ def conv2d(data,
         strides = (strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
+    # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
     # convert 2-way padding to 4-way padding
-    padding = get_pad_tuple(padding)
+    padding = get_pad_tuple2d(padding)
 
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,

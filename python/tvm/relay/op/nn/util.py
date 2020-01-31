@@ -19,7 +19,7 @@
 from __future__ import absolute_import
 from .... import container
 
-def get_pad_tuple(padding):
+def get_pad_tuple2d(padding):
     """Common code to get the pad option
     Parameters
     ----------
