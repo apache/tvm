@@ -33,7 +33,10 @@ def get_2d_indices(indices, layout='NCHW'):
     elif nchw_pack_layout(layout):
         n, c, y, x, inum, ic = indices
     else:
+        # else must be NCHWxc
+        assert nchw_xc_layout(layout)
         n, c, y, x, cc = indices
+
     return n, c, y, x, cc, inum, ic
 
 def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
@@ -47,7 +50,9 @@ def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc,
         return data(n, c, y, x).astype('float')
     if nchw_pack_layout(layout):
         return data(n, c, y, x, ib, ic).astype('float')
+
     # else must be NCHWxc
+    assert nchw_xc_layout(layout)
     return data(n, c, y, x, cc).astype('float')
 
 def resize_nearest_neighbor(indices, data, image_height, image_width,
