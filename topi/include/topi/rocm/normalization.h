@@ -44,17 +44,6 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
   return topi::cuda::schedule_lrn(target, outs);
 }
 
-/*!
-* \brief Create a rocm schedule for L2 Normalization
-*
-* \param target The target to generate a schedule for.
-* \param outs The output tensors.
-*
-* \return A schedule for the given ops.
-*/
-inline Schedule schedule_l2_normalize(const Target &target, const Array<Tensor>& outs) {
-  return topi::cuda::schedule_l2_normalize(target, outs);
-}
 }  // namespace rocm
 }  // namespace topi
 #endif  // TOPI_ROCM_NORMALIZATION_H_

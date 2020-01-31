@@ -124,13 +124,26 @@ Expr InstanceNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
+Expr L2NormToInferUnpack(const Attrs attrs, Expr data) {
+  const auto param = attrs.as<L2NormalizeAttrs>();
+  CHECK(param);
+
+  Expr epsilon = MakeConstantScalar(DataType::Float(32), static_cast<float>(param->eps));
+
+  Expr sqr = Multiply(data, data);
+  Expr sum = Maximum(Sum(sqr, param->axis, true, false), epsilon);
+  Expr sqrt = Sqrt(sum);
+  return Divide(data, sqrt);
+}
+
 class InferenceSimplifier : public ExprMutator {
  public:
   InferenceSimplifier()
       : batch_norm_op_(Op::Get("nn.batch_norm")),
         dropout_op_(Op::Get("nn.dropout")),
         instance_norm_op_(Op::Get("nn.instance_norm")),
-        layer_norm_op_(Op::Get("nn.layer_norm")) {}
+        layer_norm_op_(Op::Get("nn.layer_norm")),
+        l2_norm_op_(Op::Get("nn.l2_normalize")) {}
 
   Expr VisitExpr_(const TupleGetItemNode* n) final {
     Expr new_e = ExprMutator::VisitExpr_(n);
@@ -155,12 +168,15 @@ class InferenceSimplifier : public ExprMutator {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
     } else if (n->op == layer_norm_op_) {
       const auto* call = new_n.as<CallNode>();
-      return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1],
-                                    call->args[2], n->args[0]->checked_type());
+      return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
+                                    n->args[0]->checked_type());
     } else if (n->op == instance_norm_op_) {
       const auto* call = new_n.as<CallNode>();
-      return InstanceNormToInferUnpack(call->attrs, call->args[0], call->args[1],
-                                    call->args[2], n->args[0]->checked_type());
+      return InstanceNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
+                                       n->args[0]->checked_type());
+    } else if (n->op == l2_norm_op_) {
+      const auto* call = new_n.as<CallNode>();
+      return L2NormToInferUnpack(call->attrs, call->args[0]);
     }
     return new_n;
   }
@@ -173,6 +189,7 @@ class InferenceSimplifier : public ExprMutator {
   const Op& dropout_op_;
   const Op& instance_norm_op_;
   const Op& layer_norm_op_;
+  const Op& l2_norm_op_;
   std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
 
