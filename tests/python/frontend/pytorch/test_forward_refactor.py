@@ -210,6 +210,7 @@ def verify_model(model_name, input_data=[]):
 
     del model_name
     del baseline_model
+    torch.cuda.empty_cache()
 
 # Single operator tests
 def test_forward_add():
