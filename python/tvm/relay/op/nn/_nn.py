@@ -611,22 +611,6 @@ def schedule_lrn(attrs, outs, target):
 reg.register_pattern("nn.lrn", OpPattern.OPAQUE)
 
 
-# l2_normalize
-@reg.register_compute("nn.l2_normalize")
-def compute_l2_normalize(attrs, inputs, out_dtype, target):
-    """Compute definition of l2 normalize"""
-    return [topi.nn.l2_normalize(inputs[0], attrs.eps, attrs.axis)]
-
-
-@reg.register_schedule("nn.l2_normalize")
-def schedule_l2_normalize(attrs, outs, target):
-    """Schedule definition of l2 normalize"""
-    with target:
-        return topi.generic.schedule_l2_normalize(outs)
-
-
-reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
-
 # upsampling
 reg.register_schedule("nn.upsampling", reg.schedule_injective)
 
