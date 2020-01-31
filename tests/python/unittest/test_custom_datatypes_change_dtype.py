@@ -133,38 +133,39 @@ def setup():
                 "notbfloat",
                 intrinsic_name="exp")
 
-    register("posit", 131)
+    register("posit32", 131)
 
     register_op(create_lower_func("FloatToPosit32es2"), "Cast", "llvm",
-                "posit", "float")
+                "posit32", "float")
     register_op(create_lower_func("Posit32es2ToFloat"), "Cast", "llvm",
-                "float", "posit")
-    register_op(create_lower_func("IntToPosit32es2"), "Cast", "llvm", "posit",
-                "int")
-    register_op(create_lower_func("Posit32es2Add"), "Add", "llvm", "posit")
-    register_op(create_lower_func("Posit32es2Sub"), "Sub", "llvm", "posit")
+                "float", "posit32")
+    register_op(create_lower_func("IntToPosit32es2"), "Cast", "llvm",
+                "posit32", "int")
+    register_op(create_lower_func("Posit32es2Add"), "Add", "llvm", "posit32")
+    register_op(create_lower_func("Posit32es2Sub"), "Sub", "llvm", "posit32")
     register_op(create_lower_func("FloatToPosit32es2"), "FloatImm", "llvm",
-                "posit")
-    register_op(create_lower_func("Posit32es2Mul"), "Mul", "llvm", "posit")
-    register_op(create_lower_func("Posit32es2Div"), "Div", "llvm", "posit")
-    register_op(create_lower_func("Posit32es2Max"), "Max", "llvm", "posit")
+                "posit32")
+    register_op(create_lower_func("Posit32es2Mul"), "Mul", "llvm", "posit32")
+    register_op(create_lower_func("Posit32es2Div"), "Div", "llvm", "posit32")
+    register_op(create_lower_func("Posit32es2Max"), "Max", "llvm", "posit32")
     register_op(create_lower_func("Posit32es2Sqrt"),
                 "Call",
                 "llvm",
-                "posit",
+                "posit32",
                 intrinsic_name="sqrt")
     # TODO(gus) not sure if this will work...
     register_op(lower_ite,
                 "Call",
                 "llvm",
-                "posit",
+                "posit32",
                 intrinsic_name="tvm_if_then_else")
     register_op(create_lower_func("Posit32es2Exp"),
                 "Call",
                 "llvm",
-                "posit",
+                "posit32",
                 intrinsic_name="exp")
-    register_min_func(lambda num_bits: -3.38953139e38, "posit")
+    # TODO(gus) these aren't actually right. these are double min(actually lowest)/max.
+    register_min_func(lambda num_bits: -1.79769e+308, "posit32")
 
 
 def run_ops(src_dtype, dst_dtype):
@@ -244,13 +245,6 @@ def run_ops(src_dtype, dst_dtype):
     ]:
         check_binary_op(op, src_dtype, dst_dtype)
 
-def test_cast():
-    """Test cast of a random image"""
-    ex = relay.create_executor()
-    image = np.random.rand(3, 224, 224).astype('float32')
-    image_converted = convert_ndarray('custom[posit]32', image, ex).data
-    image_converted = convert_ndarray('float32', image_converted, ex).data
-    tvm.testing.assert_allclose(image, image_converted.asnumpy())
 
 def run_model(get_workload, input_shape, src_dtype, dst_dtype, num_classes):
     module, params = get_workload(image_shape=input_shape,
@@ -404,33 +398,30 @@ def run_conv2d(src_dtype, dst_dtype):
 
 
 def test_ops():
-    run_ops('float32', 'custom[posit]32')
+    run_ops('float32', 'custom[posit32]32')
 
 
 # disabled for now, because it's slow
 @nottest
 def test_conv2d():
-    run_conv2d('float32', 'custom[posit]32')
+    run_conv2d('float32', 'custom[posit32]32')
 
 
-# disabled for now, because it's slow
-@nottest
 def test_models():
-    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit]32')
-    # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit]32')
-    # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit]32')
+    # run_model(get_mobilenet, (3, 224, 224), 'float32', 'custom[posit32]32')
+    # run_model(get_inception, (3, 299, 299), 'float32', 'custom[posit32]32')
+    # run_model(get_resnet, (3, 224, 224), 'float32', 'custom[posit32]32')
     # Run cifar-10 sizes to be a little faster...
     run_model(get_mobilenet, (3, 32, 32),
               'float32',
-              'custom[posit]32',
+              'custom[posit32]32',
               num_classes=10)
-    # run_model(get_resnet, (3, 32, 32), 'float32', 'custom[posit]32', num_classes=10)
+    # run_model(get_resnet, (3, 32, 32), 'float32', 'custom[posit32]32', num_classes=10)
 
 
 if __name__ == "__main__":
     setup()
     test_ops()
-    test_cast()
     test_models()
     # Runs slowly:
     # test_conv2d()
