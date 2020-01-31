@@ -397,6 +397,11 @@ inline Expr Divide(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+inline Expr Maximum(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("maximum");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
 inline Expr ZerosLike(Expr e) {
   static const Op& op = Op::Get("zeros_like");
   return CallNode::make(op, {e});
