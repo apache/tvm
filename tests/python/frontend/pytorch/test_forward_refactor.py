@@ -222,11 +222,6 @@ def memReport():
             print(type(obj), obj.size())
 
 def cpuStats():
-    if torch.cuda.is_available():
-        # Print memory usage
-        print(torch.cuda.memory_allocated(0))
-        print(torch.cuda.max_memory_allocated(0))
-
     import psutil
     print(sys.version)
     print(psutil.cpu_percent())
@@ -269,13 +264,13 @@ def test_forward_add():
                 ones = ones.cuda()
             return args[0] + ones
 
-    input_data = torch.rand(input_shape).float()
-
-    verify_model(Add1().float().eval(), input_data=input_data)
-    verify_model(Add2().float().eval(), input_data=input_data)
-    verify_model(Add3().float().eval(), input_data=input_data)
-    verify_model(Add4().float().eval(), input_data=input_data)
-    verify_model(Add5().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Add1().float().eval(), input_data=input_data)
+        verify_model(Add2().float().eval(), input_data=input_data)
+        verify_model(Add3().float().eval(), input_data=input_data)
+        verify_model(Add4().float().eval(), input_data=input_data)
+        verify_model(Add5().float().eval(), input_data=input_data)
 
 def test_forward_add1():
     cpuStats()
@@ -314,13 +309,13 @@ def test_forward_subtract():
                 ones = ones.cuda()
             return args[0] - ones
 
-    input_data = torch.rand(input_shape).float()
-
-    verify_model(Subtract1().float().eval(), input_data=input_data)
-    verify_model(Subtract2().float().eval(), input_data=input_data)
-    verify_model(Subtract3().float().eval(), input_data=input_data)
-    verify_model(Subtract4().float().eval(), input_data=input_data)
-    verify_model(Subtract5().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Subtract1().float().eval(), input_data=input_data)
+        verify_model(Subtract2().float().eval(), input_data=input_data)
+        verify_model(Subtract3().float().eval(), input_data=input_data)
+        verify_model(Subtract4().float().eval(), input_data=input_data)
+        verify_model(Subtract5().float().eval(), input_data=input_data)
 
 def test_forward_subtract1():
     cpuStats()
@@ -359,12 +354,13 @@ def test_forward_multiply():
                 ones = ones.cuda()
             return args[0] * ones
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Multiply1().float().eval(), input_data=input_data)
-    verify_model(Multiply2().float().eval(), input_data=input_data)
-    verify_model(Multiply3().float().eval(), input_data=input_data)
-    verify_model(Multiply4().float().eval(), input_data=input_data)
-    verify_model(Multiply5().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Multiply1().float().eval(), input_data=input_data)
+        verify_model(Multiply2().float().eval(), input_data=input_data)
+        verify_model(Multiply3().float().eval(), input_data=input_data)
+        verify_model(Multiply4().float().eval(), input_data=input_data)
+        verify_model(Multiply5().float().eval(), input_data=input_data)
 
 def test_forward_multiply1():
     cpuStats()
@@ -400,9 +396,10 @@ def test_forward_concatenate():
             c = (args[0][:, :, 2] + 5) * 13
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Concatenate1().float().eval(), input_data=input_data)
-    verify_model(Concatenate2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Concatenate1().float().eval(), input_data=input_data)
+        verify_model(Concatenate2().float().eval(), input_data=input_data)
 
 def test_forward_concatenate1():
     cpuStats()
@@ -416,8 +413,9 @@ def test_forward_relu():
         def forward(self, *args):
             return torch.nn.ReLU()(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(ReLU1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(ReLU1().float().eval(), input_data=input_data)
 
 def test_forward_relu1():
     cpuStats()
@@ -431,8 +429,9 @@ def test_forward_adaptiveavgpool1():
         def forward(self, *args):
             return torch.nn.AdaptiveAvgPool2d([1, 1])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool11():
     cpuStats()
@@ -446,8 +445,9 @@ def test_forward_adaptiveavgpool2():
         def forward(self, *args):
             return torch.nn.AdaptiveAvgPool2d([100, 100])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool21():
     cpuStats()
@@ -461,8 +461,9 @@ def test_forward_adaptiveavgpool3():
         def forward(self, *args):
             return torch.nn.AdaptiveAvgPool2d([224, 224])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D3().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(AdaptiveAvgPool2D3().float().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool31():
     cpuStats()
@@ -476,8 +477,9 @@ def test_forward_maxpool1():
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[1, 1])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(MaxPool2D1().float().eval(), input_data=input_data)
 
 def test_forward_maxpool11():
     cpuStats()
@@ -491,8 +493,9 @@ def test_forward_maxpool2():
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[100, 100])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(MaxPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_maxpool21():
     cpuStats()
@@ -506,8 +509,9 @@ def test_forward_maxpool3():
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[224, 224])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D3().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(MaxPool2D3().float().eval(), input_data=input_data)
 
 def test_forward_maxpool31():
     cpuStats()
@@ -521,8 +525,9 @@ def test_forward_avgpool():
         def forward(self, *args):
             return torch.nn.AvgPool2d(kernel_size=[100, 100])(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(AvgPool2D1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(AvgPool2D1().float().eval(), input_data=input_data)
 
 def test_forward_avgpool1():
     cpuStats()
@@ -536,8 +541,9 @@ def test_forward_hardtanh():
         def forward(self, *args):
             return torch.nn.Hardtanh()(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(HardTanh1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(HardTanh1().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh1():
     cpuStats()
@@ -565,9 +571,10 @@ def test_forward_conv():
         def forward(self, *args):
             return self.softmax(self.conv(args[0]))
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Conv2D1().float().eval(), input_data=input_data)
-    verify_model(Conv2D2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Conv2D1().float().eval(), input_data=input_data)
+        verify_model(Conv2D2().float().eval(), input_data=input_data)
 
 def test_forward_conv1():
     cpuStats()
@@ -581,8 +588,9 @@ def test_forward_threshold():
         def forward(self, *args):
             return torch.nn.Threshold(0, 0)(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Threshold1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Threshold1().float().eval(), input_data=input_data)
 
 def test_forward_threshold1():
     cpuStats()
@@ -596,8 +604,9 @@ def test_forward_contiguous():
         def forward(self, *args):
             return args[0].contiguous()
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Contiguous1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Contiguous1().float().eval(), input_data=input_data)
 
 def test_forward_contiguous1():
     cpuStats()
@@ -621,9 +630,10 @@ def test_forward_batchnorm():
         def forward(self, *args):
             return self.batch_norm(args[0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    verify_model(BatchNorm2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(BatchNorm1().float().eval(), input_data=input_data)
+        verify_model(BatchNorm2().float().eval(), input_data=input_data)
 
 def test_forward_batchnorm1():
     cpuStats()
@@ -641,9 +651,10 @@ def test_forward_transpose():
         def forward(self, *args):
             return args[0].transpose(-2, -1)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Transpose1().float().eval(), input_data=input_data)
-    verify_model(Transpose2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Transpose1().float().eval(), input_data=input_data)
+        verify_model(Transpose2().float().eval(), input_data=input_data)
 
 def test_forward_transpose1():
     cpuStats()
@@ -657,8 +668,9 @@ def test_forward_size():
         def forward(self, *args):
             return args[0].size(0) * args[0]
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Size1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Size1().float().eval(), input_data=input_data)
 
 def test_forward_size1():
     cpuStats()
@@ -676,9 +688,10 @@ def test_forward_view():
         def forward(self, *args):
             return args[0].view(args[0].shape[0], -1)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(View1().float().eval(), input_data=input_data)
-    verify_model(View2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(View1().float().eval(), input_data=input_data)
+        verify_model(View2().float().eval(), input_data=input_data)
 
 def test_forward_view1():
     cpuStats()
@@ -692,8 +705,9 @@ def test_forward_select():
         def forward(self, *args):
             return args[0].select(1, 1)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Select1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Select1().float().eval(), input_data=input_data)
 
 def test_forward_select1():
     cpuStats()
@@ -707,8 +721,9 @@ def test_forward_clone():
         def forward(self, *args):
             return args[0].clone()
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Clone1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Clone1().float().eval(), input_data=input_data)
 
 def test_forward_clone1():
     cpuStats()
@@ -722,8 +737,9 @@ def test_forward_logsoftmax():
         def forward(self, *args):
             return torch.nn.LogSoftmax(dim=1)(args[0][0, 0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(LogSoftmax1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(LogSoftmax1().float().eval(), input_data=input_data)
 
 def test_forward_logsoftmax1():
     cpuStats()
@@ -736,8 +752,10 @@ def test_forward_sigmoid():
     class Sigmoid1(Module):
         def forward(self, *args):
             return torch.nn.Sigmoid()(args[0])
-    input_data = torch.rand(input_shape).float()
-    verify_model(Sigmoid1().float().eval(), input_data=input_data)
+
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Sigmoid1().float().eval(), input_data=input_data)
 
 def test_forward_sigmoid1():
     cpuStats()
@@ -761,9 +779,10 @@ def test_forward_dense():
         def forward(self, *args):
             return self.linear(args[0][0, 0])
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Dense1().float().eval(), input_data=input_data)
-    verify_model(Dense2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Dense1().float().eval(), input_data=input_data)
+        verify_model(Dense2().float().eval(), input_data=input_data)
 
 def test_forward_dense1():
     cpuStats()
@@ -777,8 +796,9 @@ def test_forward_dropout():
         def forward(self, *args):
             return torch.nn.functional.dropout(args[0][0, 0], 0.5, False)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Dropout1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Dropout1().float().eval(), input_data=input_data)
 
 def test_forward_dropout1():
     cpuStats()
@@ -796,9 +816,10 @@ def test_forward_slice():
         def forward(self, *args):
             return args[0][0, :, :, :]
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Slice1().float().eval(), input_data=input_data)
-    verify_model(Slice2().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Slice1().float().eval(), input_data=input_data)
+        verify_model(Slice2().float().eval(), input_data=input_data)
 
 def test_forward_slice1():
     cpuStats()
@@ -812,8 +833,9 @@ def test_forward_mean():
         def forward(self, *args):
             return args[0].mean(2)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Mean1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Mean1().float().eval(), input_data=input_data)
 
 def test_forward_mean1():
     cpuStats()
@@ -827,8 +849,9 @@ def test_forward_expand():
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Expand1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Expand1().float().eval(), input_data=input_data)
 
 def test_forward_expand1():
     cpuStats()
@@ -842,8 +865,9 @@ def test_forward_pow():
         def forward(self, *args):
             return args[0] ** 2
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Pow1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Pow1().float().eval(), input_data=input_data)
 
 def test_forward_pow1():
     cpuStats()
@@ -858,8 +882,9 @@ def test_forward_chunk():
             chunks = args[0].chunk(7, 2)
             return torch.cat(chunks, 2)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(Chunk1().float().eval(), input_data=input_data)
+    with torch.no_grad():
+        input_data = torch.rand(input_shape).float()
+        verify_model(Chunk1().float().eval(), input_data=input_data)
 
 def test_forward_chunk1():
     cpuStats()
