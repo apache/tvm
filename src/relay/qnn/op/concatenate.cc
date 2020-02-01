@@ -48,7 +48,10 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
                 << PrettyPrint(types[1]));
   }
   for (const auto& input_scale : input_scales_tuple->fields) {
-    CHECK(IsScalarType(input_scale, DataType::Float(32)));  // input_scales[idx]
+    const auto* input_scale_type = input_scale.as<TensorTypeNode>();
+    CHECK(input_scale_type && IsScalarType(input_scale, input_scale_type->dtype) &&
+          (input_scale_type->dtype == DataType::Float(32) ||
+           input_scale_type->dtype == DataType::Float(64)));  // input_scale[idx]
   }
 
   const auto* input_zero_points_tuple = types[2].as<TupleTypeNode>();
@@ -61,8 +64,12 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
     CHECK(IsScalarType(input_zero_point, DataType::Int(32)));  // input_zero_points[idx]
   }
 
-  CHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
-  CHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
+  const auto* output_scale_type = types[3].as<TensorTypeNode>();
+  CHECK(output_scale_type && IsScalarType(types[3], output_scale_type->dtype) &&
+        (output_scale_type->dtype == DataType::Float(32) ||
+         output_scale_type->dtype == DataType::Float(64)));  // output_scale
+
+  CHECK(IsScalarType(types[4], DataType::Int(32)));  // output_zero_point
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Concatenate infer type function.

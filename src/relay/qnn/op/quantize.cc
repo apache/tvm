@@ -53,8 +53,11 @@ bool QuantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_GE(axis, 0) << "axis " << quantize_attrs->axis << " is out of range";
 
   // Check and assign types for scale and zero points.
-  AssignType(types[1], DataType::Float(32), data->shape[axis], reporter);  // scale
-  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);    // zero point
+  const auto* scale_type = types[1].as<TensorTypeNode>();
+  CHECK(scale_type &&
+        (scale_type->dtype == DataType::Float(32) || scale_type->dtype == DataType::Float(64)));
+  AssignType(types[1], scale_type->dtype, data->shape[axis], reporter);  // scale
+  AssignType(types[2], DataType::Int(32), data->shape[axis], reporter);  // zero point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   const DataType out_dtype = quantize_attrs->out_dtype;
@@ -98,7 +101,7 @@ Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
 
   const int32_t min_val = GetQmin(out_dtype);
   const int32_t max_val = GetQmax(out_dtype);
-  auto scale_data = Divide(input_tensor, expanded_output_scale);
+  auto scale_data = Divide(input_tensor, Cast(expanded_output_scale, DataType::Float(32)));
   auto add_zero_point =
       Cast(Round(Add(scale_data, Cast(expanded_output_zero_point, DataType::Float(32)))),
            DataType::Int(32));

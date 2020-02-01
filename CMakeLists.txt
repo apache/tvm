@@ -95,6 +95,7 @@ if(MSVC)
   add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /bigobj")
   if(USE_MSVC_MT)
     foreach(flag_var

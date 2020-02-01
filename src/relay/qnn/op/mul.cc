@@ -49,7 +49,7 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpTensorType input_type(arg_types, 0);
   // data types
   const auto int32_dtype = DataType::Int(32);
-  const auto float32_dtype = DataType::Float(32);
+  const auto float64_dtype = DataType::Float(64);
 
   /*
   A tensor multiplication c = a * b can be written in terms of respective
@@ -79,10 +79,24 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto output = Multiply(lhs_shifted, rhs_shifted);
 
   // Get the adjusted new scale and zero points.
-  float lhs_scale_float = GetScalarFromConstant<float>(args.lhs_scale);
-  float rhs_scale_float = GetScalarFromConstant<float>(args.rhs_scale);
-  float new_scale_float = lhs_scale_float * rhs_scale_float;
-  auto new_input_scale = MakeConstantScalar(float32_dtype, new_scale_float);
+  auto lhs_scale_dtype = GetDataTypeFromConstant(args.lhs_scale);
+  auto rhs_scale_dtype = GetDataTypeFromConstant(args.rhs_scale);
+  double lhs_scale_val = -1.f, rhs_scale_val = -1.f;
+  if (lhs_scale_dtype == DataType::Float(32)) {
+    lhs_scale_val = GetScalarFromConstant<float>(args.lhs_scale);
+  } else if (lhs_scale_dtype == DataType::Float(64)) {
+    lhs_scale_val = GetScalarFromConstant<double>(args.lhs_scale);
+  }
+
+  if (rhs_scale_dtype == DataType::Float(32)) {
+    rhs_scale_val = GetScalarFromConstant<float>(args.rhs_scale);
+  } else if (rhs_scale_dtype == DataType::Float(64)) {
+    rhs_scale_val = GetScalarFromConstant<double>(args.rhs_scale);
+  }
+  CHECK(lhs_scale_val != -1.f && rhs_scale_val != -1.f);
+
+  double new_scale_val = lhs_scale_val * rhs_scale_val;
+  auto new_input_scale = MakeConstantScalar(float64_dtype, new_scale_val);
   auto new_input_zero_point = zero_scalar;
 
   // Requantize to get Q_c

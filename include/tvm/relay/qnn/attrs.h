@@ -32,6 +32,25 @@ namespace tvm {
 namespace relay {
 namespace qnn {
 
+/*! \brief Attribute for qnn add operator */
+struct QnnAddAttrs : public tvm::AttrsNode<QnnAddAttrs> {
+  std::string rounding;
+
+  TVM_DECLARE_ATTRS(QnnAddAttrs, "relay.attrs.QnnAddAttrs") {
+    TVM_ATTR_FIELD(rounding).set_default("UPWARD").describe(
+        "Defines the rounding direction when the value is midway between"
+        "two representable values. There are two 3 modes - UPWARD, TONEAREST"
+        "or TFLITE. UP/TONEAREST modes behave exactly same except at the"
+        "midpoints between the two representable values. At the midpoint,"
+        "UPWARD rounds towards positive infinity (for example -1.5 will be"
+        "rounded to -1). TONEAREST is the standard rounding where the"
+        "value is rounded away from zero at midpoints (for example, -1.5"
+        "rounds to -2). More context can be found at following glibc manual"
+        "https://www.gnu.org/software/libc/manual/html_node/Rounding.html."
+        "TFLITE mode is more complicated, referring to tflite implementation.");
+  }
+};
+
 /*! \brief Attribute for requantize operator */
 struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
   int axis;
@@ -46,14 +65,15 @@ struct RequantizeAttrs : public tvm::AttrsNode<RequantizeAttrs> {
         .set_default(-1);
     TVM_ATTR_FIELD(rounding).set_default("UPWARD").describe(
         "Defines the rounding direction when the value is midway between"
-        "two representable values. There are two supported modes - UPWARD"
-        "or TONEAREST. Both modes behave exactly same except at the"
+        "two representable values. There are two 3 modes - UPWARD, TONEAREST"
+        "or TFLITE. UP/TONEAREST modes behave exactly same except at the"
         "midpoints between the two representable values. At the midpoint,"
         "UPWARD rounds towards positive infinity (for example -1.5 will be"
         "rounded to -1). TONEAREST is the standard rounding where the"
         "value is rounded away from zero at midpoints (for example, -1.5"
-        "rounds to -2). More context can be found at following gblic manual"
-        "https://www.gnu.org/software/libc/manual/html_node/Rounding.html.");
+        "rounds to -2). More context can be found at following glibc manual"
+        "https://www.gnu.org/software/libc/manual/html_node/Rounding.html."
+        "TFLITE mode is more complicated, referring to tflite implementation.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");

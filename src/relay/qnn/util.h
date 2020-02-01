@@ -98,8 +98,8 @@ static inline int64_t get_const_int(const tvm::PrimExpr& x) {
  * \param tensor The quantized input tensor of dtype int64.
  * \param multiplier The scalar multiplier.
  * \param input_shape Shape of the input tensor.
- * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
- is midway between" "two representable values.
+ * \param rounding "UPWARD", "TONEAREST" or "TFLITE". The rounding direction
+ * when the value is midway between" "two representable values.
  * \return The sequence of Relay ops for fixed point multiplication.
 
  * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
@@ -125,8 +125,8 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
  * \param input_shape Shape of the input tensor.
  * \param channel_axis The channel_axis along which the input tensor is quantized. Default value is
  -1 which corresponds to the last channel_axis.
- * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
- is midway between" "two representable values.
+ * \param rounding "UPWARD", "TONEAREST" or "TFLITE". The rounding direction
+ * when the value is midway between" "two representable values.
  * \return The sequence of Relay ops for fixed point multiplication.
 
  * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
@@ -191,6 +191,27 @@ static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
     vals.push_back(static_cast<float*>(n->data->data)[i]);
   }
   return vals;
+}
+
+static inline std::vector<double> GetDoubleVectorFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  std::vector<double> vals;
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  int64_t num_elems = 1;
+  auto shape = n->data.Shape();
+  for (size_t i = 0; i < shape.size(); i++) {
+    num_elems *= shape[i];
+  }
+  for (int64_t i = 0; i < num_elems; i++) {
+    vals.push_back(static_cast<double*>(n->data->data)[i]);
+  }
+  return vals;
+}
+
+static inline DataType GetDataTypeFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  return n->tensor_type()->dtype;
 }
 
 }  // namespace qnn

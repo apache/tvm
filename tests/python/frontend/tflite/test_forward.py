@@ -84,7 +84,7 @@ def get_real_image_object_detection(im_height, im_width):
     return data
 
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
-                  out_names=None):
+                  out_names=None, opt_level=3):
     """ Generic function to compile on relay and execute on tvm """
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
@@ -109,7 +109,7 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
 
-    with relay.build_config(opt_level=3):
+    with relay.build_config(opt_level=opt_level):
         graph, lib, params = relay.build(mod, target, params=params)
 
     ctx = tvm.context(target, 0)
@@ -1978,18 +1978,15 @@ def test_forward_qnn_inception_v1_net():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    # Test image. Checking the labels because the requantize implementation is different between
-    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
-    # labels. Also, giving a real image, instead of random inputs.
-    data = get_real_image(224, 224)
+    np.random.seed(0)
+    data = np.random.randint(256, size=(1, 224, 224, 3)).astype('uint8')
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions,
+                                rtol=0, atol=0)
 
 def test_forward_qnn_mobilenet_v1_net():
     """Test the Quantized TFLite Mobilenet V1 model."""
@@ -2000,18 +1997,15 @@ def test_forward_qnn_mobilenet_v1_net():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    # Test image. Checking the labels because the requantize implementation is different between
-    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
-    # labels. Also, giving a real image, instead of random inputs.
-    data = get_real_image(224, 224)
+    np.random.seed(0)
+    data = np.random.randint(256, size=(1, 224, 224, 3)).astype('uint8')
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_predictions = np.squeeze(tflite_output).astype('int32')
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
-    tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tvm_predictions = np.squeeze(tvm_output).astype('int32')
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions,
+                                rtol=0, atol=0)
 
 def test_forward_qnn_mobilenet_v2_net():
     """Test the Quantized TFLite Mobilenet V2 model."""
@@ -2022,18 +2016,16 @@ def test_forward_qnn_mobilenet_v2_net():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    # Test image. Checking the labels because the requantize implementation is different between
-    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
-    # labels. Also, giving a real image, instead of random inputs.
-    data = get_real_image(224, 224)
+    np.random.seed(43)
+    # TODO: np.random.seed(43) setting py3 
+    data = np.random.randint(256, size=(1, 224, 224, 3)).astype('uint8')
 
     tflite_output = run_tflite_graph(tflite_model_buf, data)
-    tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
-    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
-    tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
-    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+    tflite_predictions = np.squeeze(tflite_output).astype('int32')
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input', opt_level=2)
+    tvm_predictions = np.squeeze(tvm_output).astype('int32')
+    tvm.testing.assert_allclose(tvm_predictions, tflite_predictions,
+                                rtol=0, atol=0)
 
 #######################################################################
 # Mobilenet V3 Quantized

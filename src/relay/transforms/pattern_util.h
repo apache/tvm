@@ -503,6 +503,21 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
+static inline Expr Greater(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("greater");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Equal(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("equal");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr LogicalAnd(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("logical_and");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);

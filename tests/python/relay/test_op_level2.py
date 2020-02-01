@@ -818,8 +818,18 @@ def test_pool2d():
     _test_pool2d(relay.nn.max_pool2d, np.max, pool_size=2, strides=2, padding=0)
     _test_pool2d(relay.nn.avg_pool2d, np.mean)
     _test_pool2d(relay.nn.avg_pool2d, np.mean, pool_size=2, strides=2, padding=0)
-    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'int32')
-    _test_pool2d_int(relay.nn.avg_pool2d, np.mean, 'uint16')
+
+    def mean_integer(int_array, axis, keepdims=False):
+        sum_array = np.sum(int_array, axis=axis, keepdims=keepdims)
+        input_shape = np.shape(int_array)
+        kernel_size = 1
+        for a in axis:
+            kernel_size = kernel_size * input_shape[a]
+        sum_array += kernel_size // 2
+        return sum_array // kernel_size
+
+    _test_pool2d_int(relay.nn.avg_pool2d, mean_integer, 'int32')
+    _test_pool2d_int(relay.nn.avg_pool2d, mean_integer, 'uint16')
     _test_global_pool2d(relay.nn.global_max_pool2d, np.max)
     _test_global_pool2d(relay.nn.global_avg_pool2d, np.mean)
 

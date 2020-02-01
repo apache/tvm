@@ -57,13 +57,18 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
   // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
-  CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
-  CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
+  CHECK(IsScalarType(types[2], DataType::Int(32)));  // input_zero_point
+  CHECK(IsScalarType(types[3], DataType::Int(32)));  // kernel_zero_point
+  const auto* input_scale_type = types[4].as<TensorTypeNode>();
+  CHECK(input_scale_type && IsScalarType(types[4], input_scale_type->dtype) &&
+        (input_scale_type->dtype == DataType::Float(32) ||
+         input_scale_type->dtype == DataType::Float(64)));  // input_scale
+
   // Kernel scale can be a vector of length output_channels or a scalar.
   size_t axis = param->kernel_layout.find('O');
   CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
-  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
+  const auto* kernel_scale_type = types[5].as<TensorTypeNode>();
+  AssignType(types[5], kernel_scale_type->dtype, weight->shape[axis], reporter);  // kernel scale
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.

@@ -45,7 +45,7 @@ class TensorWrapper(object):
 
 class OperatorConverter(object):
     """Operator Converted for converting TFLite ops to Relay ops"""
-    def __init__(self, model, subgraph, exp_tab):
+    def __init__(self, model, subgraph, exp_tab, rounding):
 
         try:
             from tflite.BuiltinOperator import BuiltinOperator
@@ -60,6 +60,7 @@ class OperatorConverter(object):
         self.builtin_op_code = build_str_map(BuiltinOperator())
         self.activation_fn_type = build_str_map(ActivationFunctionType())
         self.builtin_options = build_str_map(BuiltinOptions())
+        self.rounding = rounding
 
         # Add more operators
         self.convert_map = {
@@ -643,6 +644,9 @@ class OperatorConverter(object):
 
         return out
 
+    # TODO in quantized mode, concat op implicitly invokes requantize in cpp
+    # implementation, TFLITE mode rounding needed to be selected in order
+    # to get bit-exact execution.
     def convert_concatenation(self, op):
         """Convert TFLite concatenation"""
         try:
@@ -854,14 +858,26 @@ class OperatorConverter(object):
         if lhs_tensor.qnn_params:
             assert rhs_tensor.qnn_params, "Both tensors should be quantized."
             assert output_tensor.qnn_params, "Output tensor should be quantized."
-            out = relay_op(lhs=lhs_expr,
-                           rhs=rhs_expr,
-                           lhs_scale=lhs_tensor.qnn_params['scale'],
-                           lhs_zero_point=lhs_tensor.qnn_params['zero_point'],
-                           rhs_scale=rhs_tensor.qnn_params['scale'],
-                           rhs_zero_point=rhs_tensor.qnn_params['zero_point'],
-                           output_scale=output_tensor.qnn_params['scale'],
-                           output_zero_point=output_tensor.qnn_params['zero_point'])
+            has_tflite_rounding_mode = [_qnn.op.add]
+            if relay_op in has_tflite_rounding_mode:
+                out = relay_op(lhs=lhs_expr,
+                               rhs=rhs_expr,
+                               lhs_scale=lhs_tensor.qnn_params['scale'],
+                               lhs_zero_point=lhs_tensor.qnn_params['zero_point'],
+                               rhs_scale=rhs_tensor.qnn_params['scale'],
+                               rhs_zero_point=rhs_tensor.qnn_params['zero_point'],
+                               output_scale=output_tensor.qnn_params['scale'],
+                               output_zero_point=output_tensor.qnn_params['zero_point'],
+                               rounding=self.rounding)
+            else:
+                out = relay_op(lhs=lhs_expr,
+                               rhs=rhs_expr,
+                               lhs_scale=lhs_tensor.qnn_params['scale'],
+                               lhs_zero_point=lhs_tensor.qnn_params['zero_point'],
+                               rhs_scale=rhs_tensor.qnn_params['scale'],
+                               rhs_zero_point=rhs_tensor.qnn_params['zero_point'],
+                               output_scale=output_tensor.qnn_params['scale'],
+                               output_zero_point=output_tensor.qnn_params['zero_point'])
         else:
             out = relay_op(lhs_expr, rhs_expr)
 
@@ -924,6 +940,9 @@ class OperatorConverter(object):
             return self._convert_elemwise(_qnn.op.subtract, op)
         return self._convert_elemwise(_op.subtract, op)
 
+    # TODO in quantized mode, mul op implicitly invokes requantize in cpp
+    # implementation, TFLITE mode rounding needed to be selected in order
+    # to get bit-exact execution.
     def convert_mul(self, op):
         """Convert TFLite MUL"""
         # Check if the input tensor is quantized, call QNN op
@@ -1327,6 +1346,7 @@ class OperatorConverter(object):
                                      input_zero_point=input_tensor.qnn_params['zero_point'],
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     rounding=self.rounding,
                                      out_dtype=output_tensor_type_str)
 
         return out
@@ -1452,6 +1472,7 @@ class OperatorConverter(object):
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     rounding=self.rounding,
                                      out_dtype=output_tensor_type_str)
 
             # Call activation function
@@ -1667,6 +1688,7 @@ class OperatorConverter(object):
                                      input_zero_point=new_input_zero_point,
                                      output_scale=output_tensor.qnn_params['scale'],
                                      output_zero_point=output_tensor.qnn_params['zero_point'],
+                                     rounding=self.rounding,
                                      out_dtype=output_tensor_type_str)
 
             # Call activation function
@@ -2454,8 +2476,10 @@ def get_scalar_from_constant(expr):
     assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
         "Expr is not a constant scalar."
     value = expr.data.asnumpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
-        "value must be float32/int32"
+    assert value.dtype == np.dtype(np.int32) or \
+           value.dtype == np.dtype(np.float32) or \
+           value.dtype == np.dtype(np.float64), \
+        "value must be float32/float64/int32"
     return np.asscalar(value)
 
 
@@ -2524,7 +2548,7 @@ def get_tensor_name(subgraph, tensor_idx):
     return subgraph.Tensors(tensor_idx).Name().decode("utf-8")
 
 
-def from_tflite(model, shape_dict, dtype_dict):
+def from_tflite(model, shape_dict, dtype_dict, rounding='TFLITE'):
     """Convert from tflite model into compatible relay Function.
 
     Parameters
@@ -2537,6 +2561,9 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     dtype_dict : dict of str to str
         Input types of the model.
+
+    rounding : str
+        Rounding mode for tflite model
 
     Returns
     -------
@@ -2576,7 +2603,7 @@ def from_tflite(model, shape_dict, dtype_dict):
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model
-    op_converter = OperatorConverter(model, subgraph, exp_tab)
+    op_converter = OperatorConverter(model, subgraph, exp_tab, rounding)
     op_converter.check_unsupported_ops()
     op_converter.convert_op_to_relay()
 

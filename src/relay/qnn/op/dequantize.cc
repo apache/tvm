@@ -46,8 +46,10 @@ bool DequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << input_dtype;
 
   // Check the types of scale and zero points.
-  CHECK(IsScalarType(types[1], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
+  const auto* input_scale_type = types[1].as<TensorTypeNode>();
+  CHECK(input_scale_type && (input_scale_type->dtype == DataType::Float(32) ||
+                             input_scale_type->dtype == DataType::Float(64)));
+  CHECK(IsScalarType(types[2], DataType::Int(32)));  // input_zero_point
 
   const Array<tvm::PrimExpr> oshape = data->shape;
   // assign output type, output will always be float 32.
@@ -66,7 +68,8 @@ Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point) {
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point) {
   auto shift = Subtract(Cast(input_tensor, DataType::Int(32)), input_zero_point);
-  auto scaled_output = Multiply(Cast(shift, DataType::Float(32)), input_scale);
+  auto scaled_output =
+      Multiply(Cast(shift, DataType::Float(32)), Cast(input_scale, DataType::Float(32)));
   return scaled_output;
 }
 

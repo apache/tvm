@@ -21,7 +21,7 @@ import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
 
-roundings = ["UPWARD", "TONEAREST"]
+roundings = ["UPWARD", "TONEAREST", "TFLITE"]
 
 def verify(mod, goldens):
     with relay.build_config(opt_level=3):
@@ -90,7 +90,10 @@ def test_downscale():
         # Try positive values
         # 8 corresponds to 0.5, resulting in 1
         golden_data = np.arange(0, 32, 1).astype('int32')
-        golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([0, 1, 2], [7, 16, 9])
+        else:
+            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
         verify(mod, (golden_data, golden_output))
 
         # Try negative values
@@ -113,8 +116,12 @@ def test_downscale():
         # Try positive values
         # 2I corresponds to 0.5, resulting in 1
         golden_data = np.arange(0, 32, 1).astype('int32')
-        golden_output = np.repeat([0, 1, 2, 3, 4, 5, 6, 7, 8],
-                                  [2, 4, 4, 4, 4, 4, 4, 4, 2])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([0, 1, 2, 3, 4, 5, 6, 7, 8],
+                                      [1, 4, 4, 4, 4, 4, 4, 4, 3])
+        else:
+            golden_output = np.repeat([0, 1, 2, 3, 4, 5, 6, 7, 8],
+                                      [2, 4, 4, 4, 4, 4, 4, 4, 2])
         verify(mod, (golden_data, golden_output))
 
         # Try negative values
@@ -139,7 +146,10 @@ def test_downscale():
         # Try positive values
         # 8 corresponds to 0.5, resulting in 1
         golden_data = np.arange(0, 32, 1).astype('int32')
-        golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([0, 1, 2], [7, 16, 9])
+        else:
+            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
         verify(mod, (golden_data, golden_output))
 
         # Try uint8 in_dtyope and uint8 out_dtype
@@ -153,7 +163,10 @@ def test_downscale():
         # Try positive values
         # 8 corresponds to 0.5, resulting in 1
         golden_data = np.arange(0, 32, 1).astype('int32')
-        golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([0, 1, 2], [7, 16, 9])
+        else:
+            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
         verify(mod, (golden_data, golden_output))
 
 def test_upscale():
@@ -214,7 +227,10 @@ def test_zero_point():
         # Try positive values
         # 8 corresponds to 0.5, resulting in 1
         golden_data = np.arange(0, 32, 1).astype('int32')
-        golden_output = np.repeat([0, 1, 2], [8, 16, 8])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([0, 1, 2], [7, 16, 9])
+        else:
+            golden_output = np.repeat([0, 1, 2], [8, 16, 8])
         golden_output = np.add(1, golden_output)
         verify(mod, (golden_data, golden_output))
 
@@ -240,7 +256,10 @@ def test_zero_point():
 
         # Try positive values
         golden_data = np.arange(32, 64, 1).astype('int32')
-        golden_output = np.repeat([2, 3, 4], [8, 16, 8])
+        if rounding == "TFLITE":
+            golden_output = np.repeat([2, 3, 4], [7, 16, 9])
+        else:
+            golden_output = np.repeat([2, 3, 4], [8, 16, 8])
         golden_output = np.subtract(golden_output, 1)
         verify(mod, (golden_data, golden_output))
 
@@ -284,17 +303,29 @@ def test_per_channel_same_scale():
 
 def test_per_channel_different_scale():
     # Have same scales, everything within range
-    golden_data = np.arange(-5, 5, 1).astype('int32').reshape((5,2))
-    golden_output = np.array([-5, -2, -3, -1, -1, 0, 1, 1, 3, 2]).reshape((5, 2))
-
+    golden_data = np.arange(-32, 32, 1).astype('int32').reshape((32,2))
+   
     for rounding in roundings:
-        mod = get_mod(data_shape=(5, 2),
+        mod = get_mod(data_shape=(32, 2),
                       data_dtype='int32',
                       out_dtype="int8",
-                      input_scale=[0.5, 0.25],
-                      output_scale=0.5,
+                      input_scale=[1, 32],
+                      output_scale=16,
                       axis=1,
                       rounding=rounding)
+        
+        if rounding == "UPWARD":
+            golden_output = np.array(
+                [-2, -62, -2, -58, -2, -54, -2, -50, -1, -46, -1, -42, -1, -38,
+                 -1, -34, -1, -30, -1, -26, -1, -22, -1, -18, 0, -14, 0, -10,
+                 0, -6, 0, -2, 0, 2, 0, 6, 0, 10, 0, 14, 1, 18, 1, 22, 1, 26,
+                 1, 30, 1, 34, 1, 38, 1, 42, 1, 46, 2, 50, 2, 54, 2, 58, 2, 62]).reshape(32, 2)
+        else:
+            golden_output = np.array(
+                [-2, -62, -2, -58, -2, -54, -2, -50, -2, -46, -1, -42, -1, -38,
+                 -1, -34, -1, -30, -1, -26, -1, -22, -1, -18, -1, -14, 0, -10,
+                 0, -6, 0, -2, 0, 2, 0, 6, 0, 10, 0, 14, 1, 18, 1, 22, 1, 26,
+                 1, 30, 1, 34, 1, 38, 1, 42, 1, 46, 2, 50, 2, 54, 2, 58, 2, 62]).reshape(32, 2)
         verify(mod, (golden_data, golden_output))
 
     # Change axis
