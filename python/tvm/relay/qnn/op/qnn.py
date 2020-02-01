@@ -119,8 +119,8 @@ def quantize(data,
 
 
 def dequantize(data,
-               output_scale,
-               output_zero_point):
+               input_scale,
+               input_zero_point):
     r""" Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
@@ -130,10 +130,10 @@ def dequantize(data,
     ----------
     data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8].
-    output_zero_point : tvm.relay.Expr
-        The output zero_point.
-    output_scale : tvm.relay.Expr
-        The output scale.
+    input_zero_point : tvm.relay.Expr
+        The input zero_point.
+    input_scale : tvm.relay.Expr
+        The input scale.
     Returns
     -------
     result : tvm.relay.Expr
@@ -141,8 +141,8 @@ def dequantize(data,
     """
 
     return _make.dequantize(data,
-                            output_scale,
-                            output_zero_point)
+                            input_scale,
+                            input_zero_point)
 
 
 def concatenate(data,
