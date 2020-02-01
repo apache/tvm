@@ -415,8 +415,8 @@ class OperatorConverter(object):
         # implementation in future.
         if input_tensor.qnn_params:
             in_expr = _qnn.op.dequantize(data=in_expr,
-                                         input_scale=input_tensor.qnn_params['scale'],
-                                         input_zero_point=input_tensor.qnn_params['zero_point'])
+                                         output_scale=input_tensor.qnn_params['scale'],
+                                         output_zero_point=input_tensor.qnn_params['zero_point'])
 
         out = _op.nn.softmax(in_expr, **params)
 
