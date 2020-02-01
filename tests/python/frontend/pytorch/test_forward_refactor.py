@@ -58,22 +58,23 @@ def assert_shapes_match(tru, est):
 def load_torchvision(model_name):
     """Given a model name, returns a Torchvision model in eval mode as well
     as an example input."""
-    if model_name.startswith('inception'):
-        height = width = 299
-        mean = [0.5, 0.5, 0.5]
-        std = [0.5, 0.5, 0.5]
-    else:
-        height = width = 224
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-    input_shape = [1, 3, height, width]
-    input_data = torch.randn(input_shape).float()
-    for channel in range(3):
-        input_data[:, channel] -= mean[channel]
-        input_data[:, channel] /= std[channel]
-    model = getattr(torchvision.models, model_name)(pretrained=True)
-    model = model.float().eval()
-    return model, input_data
+    with torch.no_grad():
+        if model_name.startswith('inception'):
+            height = width = 299
+            mean = [0.5, 0.5, 0.5]
+            std = [0.5, 0.5, 0.5]
+        else:
+            height = width = 224
+            mean = [0.485, 0.456, 0.406]
+            std = [0.229, 0.224, 0.225]
+        input_shape = [1, 3, height, width]
+        input_data = torch.randn(input_shape).float()
+        for channel in range(3):
+            input_data[:, channel] -= mean[channel]
+            input_data[:, channel] /= std[channel]
+        model = getattr(torchvision.models, model_name)(pretrained=True)
+        model = model.float().eval()
+        return model, input_data
 
 def load_pretrainedmodels(model_name):
     """Given a model name, returns a pretrainedmodels.pytorch model in eval
@@ -925,75 +926,99 @@ def test_forward_chunk1():
 
 # Model tests
 def test_resnet18():
+    torch.set_grad_enabled(False)
     verify_model('resnet18')
 
 def test_resnet34():
+    torch.set_grad_enabled(False)
     verify_model('resnet34')
 
 def test_resnet50():
+    torch.set_grad_enabled(False)
     verify_model('resnet50')
 
 def test_resnet101():
+    torch.set_grad_enabled(False)
     verify_model('resnet101')
 
 def test_resnet152():
+    torch.set_grad_enabled(False)
     verify_model('resnet152')
 
 def test_squeezenet1_0():
+    torch.set_grad_enabled(False)
     verify_model('squeezenet1_0')
 
 def test_squeezenet1_1():
+    torch.set_grad_enabled(False)
     verify_model('squeezenet1_1')
 
 def test_vgg11():
+    torch.set_grad_enabled(False)
     verify_model('vgg11')
 
 def test_vgg13():
+    torch.set_grad_enabled(False)
     verify_model('vgg13')
 
 def test_vgg16():
+    torch.set_grad_enabled(False)
     verify_model('vgg16')
 
 def test_vgg19():
+    torch.set_grad_enabled(False)
     verify_model('vgg19')
 
 def test_vgg11_bn():
+    torch.set_grad_enabled(False)
     verify_model('vgg11_bn')
 
 def test_vgg13_bn():
+    torch.set_grad_enabled(False)
     verify_model('vgg13_bn')
 
 def test_vgg19_bn():
+    torch.set_grad_enabled(False)
     verify_model('vgg19_bn')
 
 def test_mobilenet_v2():
+    torch.set_grad_enabled(False)
     verify_model('mobilenet_v2')
 
 def test_densenet121():
+    torch.set_grad_enabled(False)
     verify_model('densenet121')
 
 def test_densenet161():
+    torch.set_grad_enabled(False)
     verify_model('densenet161')
 
 def test_densenet169():
+    torch.set_grad_enabled(False)
     verify_model('densenet169')
 
 def test_densenet201():
+    torch.set_grad_enabled(False)
     verify_model('densenet201')
 
 def test_inception_v3():
+    torch.set_grad_enabled(False)
     verify_model('inception_v3')
 
 def test_alexnet():
+    torch.set_grad_enabled(False)
     verify_model('alexnet')
 
 def test_googlenet():
+    torch.set_grad_enabled(False)
     verify_model('googlenet')
 
 def test_mnasnet0_5():
+    torch.set_grad_enabled(False)
     verify_model('mnasnet0_5')
 
 def test_mnasnet1_0():
+    torch.set_grad_enabled(False)
     verify_model('mnasnet1_0')
 
 if __name__ == '__main__':
