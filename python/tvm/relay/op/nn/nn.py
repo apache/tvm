@@ -1760,6 +1760,8 @@ def contrib_conv2d_winograd_without_weight_transform(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_winograd_without_weight_transform(
         data, weight, tile_size, strides, padding, dilation,
         groups, channels, kernel_size, data_layout,
@@ -1826,6 +1828,8 @@ def contrib_conv2d_winograd_nnpack_without_weight_transform(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_winograd_nnpack_without_weight_transform(
         data, weight, strides, padding, dilation,
         groups, channels, kernel_size, data_layout,
@@ -1893,6 +1897,8 @@ def contrib_conv2d_nchwc(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_NCHWc(data, kernel, strides, padding, dilation,
                                       groups, channels, kernel_size, data_layout,
                                       kernel_layout, out_layout, out_dtype)
@@ -2023,6 +2029,8 @@ def contrib_conv2d_nchwc_int8(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_NCHWc_int8(data, kernel, strides, padding, dilation,
                                            groups, channels, kernel_size, data_layout,
                                            kernel_layout, out_layout, out_dtype)
