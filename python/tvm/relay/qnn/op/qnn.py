@@ -119,8 +119,8 @@ def quantize(data,
 
 
 def dequantize(data,
-               input_scale,
-               input_zero_point):
+               output_scale,
+               output_zero_point):
     r""" Dequantize op
     This operator takes quantized int8 and unit8 as input and produces
     dequantized float32 as output. The output shape is the same as input shape. The input
@@ -130,9 +130,9 @@ def dequantize(data,
     ----------
     data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8].
-    input_zero_point : tvm.relay.Expr
+    output_zero_point : tvm.relay.Expr
         The output zero_point.
-    input_scale : tvm.relay.Expr
+    output_scale : tvm.relay.Expr
         The output scale.
     Returns
     -------
@@ -141,8 +141,8 @@ def dequantize(data,
     """
 
     return _make.dequantize(data,
-                            input_scale,
-                            input_zero_point)
+                            output_scale,
+                            output_zero_point)
 
 
 def concatenate(data,
@@ -201,12 +201,12 @@ def conv2d(data,
            kernel_zero_point,
            input_scale,
            kernel_scale,
+           kernel_size,
            strides=(1, 1),
            padding=(0, 0),
            dilation=(1, 1),
            groups=1,
            channels=None,
-           kernel_size=None,
            data_layout="NCHW",
            kernel_layout="OIHW",
            out_layout="",
@@ -244,6 +244,9 @@ def conv2d(data,
            needed in the pass pipeline after qnn.conv2d is lowered to the
            sequence of steps as in nn.conv2d. See also input_scale in Requantize.
 
+    kernel_size : tuple of int
+        The spatial width and height of the convolution kernel.
+
     strides : tuple of int, optional
         The strides of convolution.
 
@@ -258,9 +261,6 @@ def conv2d(data,
 
     channels : int, optional
         Number of output channels of this convolution.
-
-    kernel_size : tuple of int, optional
-        The spatial of the convolution kernel.
 
     data_layout : str, optional
         Layout of the input.
