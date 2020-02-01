@@ -22,6 +22,7 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
+from tvm.relay import testing
 import pytest
 
 def check_result(args, expected_result, mod=None):
@@ -570,6 +571,10 @@ def test_add_op_broadcast():
     mod["main"] = func
     check_result([x_data, y_data], x_data + y_data, mod=mod)
 
+def test_vm_optimize():
+    mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
+    comp = relay.backend.vm.VMCompiler()
+    opt_mod, _ = comp.optimize(mod, "llvm", params)
 
 if __name__ == "__main__":
     pytest.main([__file__])
