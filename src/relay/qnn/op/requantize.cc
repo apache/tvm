@@ -103,7 +103,11 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     shifted_int64_t = Add(Cast(output_zero_point, hp_dtype), scaled_int64_t);
   }
 
-  // 4) Clip to the out_dtype min/max.
+  // 4) Clip to the out_dtype min/max. Skip clipping if out_dtype is Int32. The fixed point
+  // multiplication keeps the value in int32 range.
+  if (out_dtype == DataType::Int(32)) {
+    return Cast(shifted_int64_t, out_dtype);
+  }
   auto q_min = GetQmin(out_dtype);
   auto q_max = GetQmax(out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
