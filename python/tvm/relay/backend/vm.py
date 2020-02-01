@@ -422,7 +422,7 @@ class VMCompiler(object):
         inputs = {}
         for name, param in params.items():
             if isinstance(param, np.ndarray):
-                param = _nd.array(param)
+                param = tvm.nd.array(param)
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
 
