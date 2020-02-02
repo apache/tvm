@@ -23,6 +23,7 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
+import tvm.ndarray as _nd
 from tvm import autotvm, container
 from tvm.object import Object
 from tvm.relay import expr as _expr
@@ -409,6 +410,8 @@ class VMCompiler(object):
         self._codegen = self.mod["codegen"]
         self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
+        self._get_params_func = self.mod["get_params"]
+        self._optimize = self.mod["optimize"]
 
     def set_params(self, params):
         """Set constant parameters for the model.
@@ -425,6 +428,14 @@ class VMCompiler(object):
                 param = _nd.array(param)
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
+
+    def get_params(self):
+        """Return the updated weights."""
+        params = self._get_params_func()
+        ret = {}
+        for key, value in params.items():
+            ret[key] = value.data
+        return ret
 
     def lower(self, mod, target=None, target_host=None):
         """Lower the module to VM bytecode.
@@ -457,6 +468,33 @@ class VMCompiler(object):
     def codegen(self):
         """Generate the kernel library."""
         self._codegen()
+
+    def optimize(self, mod, target=None, params=None):
+        """Helper method that optimizes a Relay module via VM.
+
+        Parameters
+        ----------
+        mod : relay.Module
+
+        target : str, :any:`tvm.target.Target`, or dict of str (i.e.
+            device/context name) to str/tvm.target.Target, optional
+
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+
+        Returns
+        -------
+        mod : relay.Module
+            The optimized relay module.
+
+        params : dict
+            The parameters of the final module.
+        """
+        target = self._update_target(target)
+        if params:
+            self.set_params(params)
+        return self._optimize(mod, target), self.get_params()
 
     def get_exec(self):
         """Get the VM executable.

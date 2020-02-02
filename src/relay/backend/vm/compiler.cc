@@ -772,6 +772,19 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
         this->SetParam(kv.first, kv.second->data);
       }
     });
+  } else if (name == "get_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Map<std::string, Constant> ret;
+      for (const auto& kv : params_) {
+        ret.Set(kv.first, ConstantNode::make(kv.second));
+      }
+      *rv = ret;
+    });
+  } else if (name == "optimize") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 2);
+      *rv = this->OptimizeModule(args[0], args[1]);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
