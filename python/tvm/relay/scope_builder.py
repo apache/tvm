@@ -18,6 +18,7 @@
 """The scope builder interface."""
 from __future__ import absolute_import
 
+from . import ty as _ty
 from . import expr as _expr
 from .._ffi import base as _base
 
