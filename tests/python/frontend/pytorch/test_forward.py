@@ -401,7 +401,7 @@ def test_forward_relu():
 
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 224, 224]
+    input_shape = [1, 3, 100, 100]
 
     class AdaptiveAvgPool2D1(Module):
         def forward(self, *args):
@@ -411,19 +411,14 @@ def test_forward_adaptiveavgpool():
         def forward(self, *args):
             return torch.nn.AdaptiveAvgPool2d([100, 100])(args[0])
 
-    class AdaptiveAvgPool2D3(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([224, 224])(args[0])
-
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
         verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
         verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
-        verify_model(AdaptiveAvgPool2D3().float().eval(), input_data=input_data)
 
 def test_forward_maxpool():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 224, 224]
+    input_shape = [1, 3, 100, 100]
 
     class MaxPool2D1(Module):
         def forward(self, *args):
@@ -432,10 +427,6 @@ def test_forward_maxpool():
     class MaxPool2D2(Module):
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[100, 100])(args[0])
-
-    class MaxPool2D3(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[224, 224])(args[0])
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
