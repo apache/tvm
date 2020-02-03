@@ -1837,6 +1837,7 @@ class OperatorConverter(object):
             )
 
         inputs = self.get_input_tensors(op)
+        assert len(inputs) == 3, "inputs length should be 3"
         cls_pred = self.get_expr(inputs[1].tensor_idx)
         loc_prob = self.get_expr(inputs[0].tensor_idx)
         anchor_values = self.get_tensor_value(inputs[2])
