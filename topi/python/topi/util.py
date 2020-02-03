@@ -27,6 +27,14 @@ class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
     pass
 
+def nchw_pack_layout(layout_info):
+    """Check whether the layout type is NCHWinic"""
+    return layout_info[:4] == 'NCHW' and 'c' in layout_info and 'n' in layout_info
+
+def nchw_xc_layout(layout_info):
+    """Check whether the layout type is NCHWxc"""
+    return layout_info[:4] == 'NCHW' and 'c' in layout_info and layout_info[4:-1].isnumeric()
+
 def traverse_inline(s, final_op, callback):
     """Traverse computation graph and do auto inline
 
