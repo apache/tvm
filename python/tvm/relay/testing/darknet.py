@@ -60,6 +60,7 @@ def _resize_image(img, w_in, h_in):
 def load_image_color(test_image):
     """To load the image using opencv api and do preprocessing."""
     imagex = cv2.imread(test_image)
+    imagex = cv2.cvtColor(imagex, cv2.COLOR_BGR2RGB)
     imagex = np.array(imagex)
     imagex = imagex.transpose((2, 0, 1))
     imagex = np.divide(imagex, 255.0)
