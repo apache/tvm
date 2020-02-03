@@ -337,6 +337,11 @@ class StringImmNode : public PrimExprNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
 };
 
+class StringImm : public PrimExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
+};
+
 /*!
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
