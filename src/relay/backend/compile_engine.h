@@ -171,6 +171,8 @@ class CCacheValue : public ObjectRef {
  */
 class CompileEngineNode : public Object {
  public:
+  /*! \brief destructor */
+  virtual ~CompileEngineNode() {}
   /*!
    * \brief Get lowered result.
    * \param key The key to the cached function.

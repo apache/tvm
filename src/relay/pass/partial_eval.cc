@@ -275,6 +275,7 @@ class Fuel : public ObjectRef {
 
 class FuelNode : public RelayNode {
  public:
+  virtual ~FuelNode() {}
   // Please implement one of the following function or there will be infinite loop.
   /*! \brief return the new Fuel, and whether progress is made.
    *

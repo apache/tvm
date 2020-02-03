@@ -70,6 +70,8 @@ class TransformMemorizer : public ObjectRef {
   TransformMemorizer() {}
   explicit TransformMemorizer(ObjectPtr<Object> n) : ObjectRef(n) {}
 
+  virtual ~TransformMemorizer() {}
+
   TransformMemorizerNode* operator->() {
     return static_cast<TransformMemorizerNode*>(get_mutable());
   }
