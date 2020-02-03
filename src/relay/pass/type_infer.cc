@@ -604,6 +604,7 @@ class TypeInferencer::Resolver : public ExprMutator, PatternMutator {
   Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, ObjectHash, ObjectEqual>& tmap,
            TypeSolver* solver)
     : tmap_(tmap), solver_(solver) {
+    enter_primitives_ = true;
   }
 
   Expr VisitExpr_(const VarNode* op) final {

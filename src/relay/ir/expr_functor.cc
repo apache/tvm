@@ -85,6 +85,13 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
   tvm::Array<TypeVar> ty_params;
   bool all_ty_params_unchanged = true;
+  // don't mutate primitive functions
+  const auto primitive = FunctionGetAttr(GetRef<Function>(op), attr::kPrimitive);
+  if (primitive->IsInstance<tir::IntImmNode>()) {
+    if (primitive.as<IntImmNode>()->value && !enter_primitives_) {
+        return GetRef<Expr>(op);
+    }
+  }
 
   for (auto ty_param : op->type_params) {
     TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
@@ -256,7 +263,12 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const FunctionNode* op) {
   for (auto param : op->params) {
     this->VisitExpr(param);
   }
-
+  const auto primitive = FunctionGetAttr(GetRef<Function>(op), attr::kPrimitive);
+  if (primitive->IsInstance<tir::IntImmNode>()) {
+      if (primitive.as<IntImmNode>()->value && !enter_primitives_) {
+          return;
+      }
+  }
   this->VisitExpr(op->body);
 }
 

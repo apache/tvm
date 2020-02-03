@@ -181,6 +181,7 @@ class ExprVisitor
  protected:
   // Internal visiting counter
   std::unordered_map<const Object*, size_t> visit_counter_;
+  bool enter_primitives_ = false;
 };
 
 /*!
@@ -231,6 +232,7 @@ class ExprMutator
  protected:
   /*! \brief Internal map used for memoization. */
   std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual> memo_;
+  bool enter_primitives_ = false;
 };
 
 /*!
