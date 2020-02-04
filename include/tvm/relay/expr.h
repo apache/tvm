@@ -526,6 +526,8 @@ class RefWrite : public Expr {
  */
 class TempExprNode : public ExprNode {
  public:
+  /*! \brief virtual destructor */
+  virtual ~TempExprNode() {}
   /*!
    * \brief Convert the expression to a normal(non-temp) Expr.
    * \return The corresponding normal(non-temp) expression.

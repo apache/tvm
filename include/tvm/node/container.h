@@ -150,14 +150,14 @@ class Array : public ObjectRef {
    * \brief move constructor
    * \param other source
    */
-  Array(Array<T> && other) {  // NOLINT(*)
+  Array(Array<T> && other) : ObjectRef() {  // NOLINT(*)
     data_ = std::move(other.data_);
   }
   /*!
    * \brief copy constructor
    * \param other source
    */
-  Array(const Array<T> &other) { // NOLINT(*)
+  Array(const Array<T> &other) : ObjectRef() { // NOLINT(*)
     data_ = std::move(other.data_);
   }
   /*!
