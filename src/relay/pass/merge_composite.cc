@@ -114,7 +114,6 @@ class MergeCompositeWrapper : public ExprMutator {
       new_args.push_back(new_arg);
       i++;
     }
-
     return CallNode::make(root->op, new_args, root->attrs);
   }
 
