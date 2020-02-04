@@ -40,32 +40,6 @@ class MergeCompositeWrapper : public ExprMutator {
  public:
   explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
     : pattern_name_(pattern_name), pattern_(pattern) {}
-  /*!
-   * \brief Determine if a pattern and a subgraph have the same call structure.
-   * \param pattern the root call node of the pattern.
-   * \param root the root call node of the subgraph.
-   * \return Whether they match.
-   */
-  bool MatchPattern(const Call& pattern, const Call& root) {
-    if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
-      return false;
-    if (pattern->op.as<OpNode>()->name != root->op.as<OpNode>()->name)
-      return false;
-    if (pattern->args.size() != root->args.size())
-      return false;
-
-    unsigned int i = 0;
-    for (const auto& arg : pattern->args) {
-      if (arg->IsInstance<CallNode>()) {
-        if (!root->args[i]->IsInstance<CallNode>())
-          return false;
-        if (!MatchPattern(Downcast<Call>(arg), Downcast<Call>(root->args[i])))
-          return false;
-      }
-      i++;
-    }
-    return true;
-  }
 
   Expr ExtractPattern(const Var& pattern, const Expr& root,
           Map<std::string, Array<Expr>>* var_map) {
@@ -142,9 +116,9 @@ class MergeCompositeWrapper : public ExprMutator {
     // only call patterns are supported
     Call pattern = Downcast<Call>(pattern_);
     CHECK(pattern.defined());
-    if (MatchPattern(pattern, call)) {
-      Map<std::string, Array<Expr>> args_map;
-      auto extract = ExtractPattern(pattern, call, &args_map);
+    Map<std::string, Array<Expr>> args_map;
+    auto extract = ExtractPattern(pattern, call, &args_map);
+    if (extract.defined()) {
       auto free_vars = FreeVars(extract);
       // make the composite function
       auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
