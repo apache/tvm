@@ -85,37 +85,38 @@ class MergeCompositeWrapper : public ExprMutator {
 
   Expr ExtractPattern(const Call& pattern, const Call& root,
           Map<std::string, Array<Expr>>* var_map) {
-    Expr empty_expr;
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
-      return empty_expr;
+      return Expr();
     if (pattern->op.as<OpNode>()->name != root->op.as<OpNode>()->name)
-      return empty_expr;
+      return Expr();
     if (pattern->args.size() != root->args.size())
-      return empty_expr;
+      return Expr();
 
     unsigned int i = 0;
     Array<Expr> new_args;
     for (const auto& arg : pattern->args) {
+      Expr new_arg;
       if (arg->IsInstance<CallNode>()) {
-        new_args.push_back(ExtractPattern(Downcast<Call>(arg),
-                                          Downcast<Call>(root->args[i]),
-                                          var_map));
+        new_arg = ExtractPattern(Downcast<Call>(arg),
+                                 Downcast<Call>(root->args[i]),
+                                 var_map);
+      } else if (arg->IsInstance<VarNode>()) {
+        new_arg = ExtractPattern(Downcast<Var>(arg),
+                                 root->args[i],
+                                 var_map);
+      } else if (arg->IsInstance<ConstantNode>()) {
+        new_arg = ExtractPattern(Downcast<Constant>(arg),
+                                 root->args[i],
+                                 var_map);
       }
-      if (arg->IsInstance<VarNode>()) {
-        new_args.push_back(ExtractPattern(Downcast<Var>(arg),
-                                          root->args[i],
-                                          var_map));
+      if (!new_arg.defined()) {
+        return Expr();
       }
-      if (arg->IsInstance<ConstantNode>()) {
-        new_args.push_back(ExtractPattern(Downcast<Constant>(arg),
-                                          root->args[i],
-                                          var_map));
-      }
+      new_args.push_back(new_arg);
       i++;
     }
 
-    auto new_call = CallNode::make(root->op, new_args, root->attrs);
-    return std::move(new_call);
+    return CallNode::make(root->op, new_args, root->attrs);
   }
 
   Expr VisitExpr_(const CallNode* cn) {
