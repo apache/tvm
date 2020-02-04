@@ -202,35 +202,9 @@ def verify_model(model_name, input_data=[]):
                 tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
                                             rtol=1e-3, atol=1e-3)
 
-    # Try manually removing model from memory after each test
-
-    if torch.cuda.is_available():
-        # Print memory usage
-        print(torch.cuda.memory_allocated(0))
-        print(torch.cuda.max_memory_allocated(0))
-
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
-    cpuStats()
-    memReport()
-
-# Memory checking
-def memReport():
-    import gc
-    for obj in gc.get_objects():
-        if torch.is_tensor(obj):
-            print(type(obj), obj.size())
-
-def cpuStats():
-    import psutil
-    print(sys.version)
-    print(psutil.cpu_percent())
-    print(psutil.virtual_memory())  # physical memory usage
-    pid = os.getpid()
-    py = psutil.Process(pid)
-    memoryUse = py.memory_info()[0] / 2. ** 30  # memory use in GB...I think
-    print('memory GB:', memoryUse)
 
 # Single operator tests
 def test_forward_add():
