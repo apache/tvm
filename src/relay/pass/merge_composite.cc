@@ -140,12 +140,9 @@ class MergeCompositeWrapper : public ExprMutator {
     if (!call->op->IsInstance<OpNode>())
       return std::move(call);
 
-    Op op = Downcast<Op>(call->op);
-    CHECK(op.defined());
+    // only call patterns are currently supported
     Call pattern = Downcast<Call>(pattern_);
-    if (Downcast<Op>(pattern->op)->name != op->name)
-      return std::move(call);
-
+    CHECK(pattern.defined());
     if (MatchPattern(pattern, call)) {
       Map<std::string, Array<Expr>> args_map;
       auto extract = ExtractPattern(pattern, call, &args_map);
