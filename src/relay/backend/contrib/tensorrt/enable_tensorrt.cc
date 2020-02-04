@@ -392,8 +392,8 @@ static const std::unordered_map<std::string, IsCompatibleFn>
         {"mean", ReduceOpChecker},
         {"contrib.adaptive_max_pool2d", AdapativePool2DOpChecker},
         {"contrib.adaptive_avg_pool2d", AdapativePool2DOpChecker},
+        {"clip", AlwaysChecker},
         // Ops which require TRT 5.1.5+
-        {"clip", TrtVersionChecker<5, 1, 5>},
         {"nn.leaky_relu", TrtVersionChecker<5, 1, 5>},
         {"sin", TrtVersionChecker<5, 1, 5>},
         {"cos", TrtVersionChecker<5, 1, 5>},

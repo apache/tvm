@@ -182,9 +182,10 @@ def EnableTrt(mod, params=None, trt_version=None):
     assert len(trt_version) == 3
 
     # Apply passes required for TRT
-    mod = relay.transform.RemoveUnusedFunctions()(mod)
-    mod = relay.transform.InferType()(mod)
-    mod = relay.transform.ConvertLayout('NCHW')(mod)
+    seq = relay.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                      relay.transform.ConvertLayout('NCHW')])
+    with relay.transform.PassContext(opt_level=3):
+        mod = seq(mod)
     mod = PreprocessForTrt(mod)
     if params:
         # Bind params so that we can use FoldConstant.

@@ -92,6 +92,8 @@ GetOpConverters() {
   map->emplace("ceil", std::make_shared<UnaryOpConverter>());
   map->emplace("floor", std::make_shared<UnaryOpConverter>());
   map->emplace("strided_slice", std::make_shared<StridedSliceOpConverter>());
+#else
+  map->emplace("clip", std::make_shared<ClipLegacyOpConverter>());
 #endif
 #if TRT_VERSION_GE(6, 0, 1)
   map->emplace("image.resize", std::make_shared<ResizeOpConverter>());

@@ -147,6 +147,28 @@ class TrtOpConverter {
     // Subtract 1 for implicit batch dim.
     return axis - 1;
   }
+
+  // Create constant that is broadcastable against input.
+  /*!
+   * \brief Create constant that is broadcastable.
+   * \param params Parameters for this op.
+   * \param value Value of scalar.
+   * \param broadcast_to_dims Dims that scalar should be broadcastable against.
+   * \return Constant tensor.
+   */
+  nvinfer1::ITensor* CreateScalar(
+      AddTrtLayerParams* params, float value,
+      const nvinfer1::Dims& broadcast_to_dims) const {
+    nvinfer1::Dims dims;
+    dims.nbDims = broadcast_to_dims.nbDims;
+    std::fill_n(dims.d, dims.nbDims, 1);
+    float* values = new float[1];
+    values[0] = value;
+    nvinfer1::Weights weights{nvinfer1::DataType::kFLOAT,
+                              static_cast<void*>(values), 1};
+    params->trt_weights->push_back(weights);
+    return params->network->addConstant(dims, weights)->getOutput(0);
+  }
 };
 
 class ActivationOpConverter : public TrtOpConverter {
@@ -182,6 +204,40 @@ class ActivationOpConverter : public TrtOpConverter {
 #endif
     CHECK(act_layer != nullptr);
     params->outputs.push_back(act_layer->getOutput(0));
+  }
+};
+
+class ClipLegacyOpConverter : public TrtOpConverter {
+ public:
+  ClipLegacyOpConverter() : TrtOpConverter({kTensor}) {}
+
+  void Convert(AddTrtLayerParams* params) const {
+    const auto* attrs = params->call->attrs.as<ClipAttrs>();
+    CHECK_EQ(params->inputs.size(), 1) << "Activation op expects 1 input.";
+    auto input = params->inputs.at(0).tensor;
+    // relu(x)
+    nvinfer1::ITensor* output = nullptr;
+    if (attrs->a_min == 0.0f) {
+      // Use relu instead of max(x, 0) because relu can be fused.
+      nvinfer1::IActivationLayer* relu_layer = params->network->addActivation(
+          *input, nvinfer1::ActivationType::kRELU);
+      CHECK(relu_layer != nullptr);
+      output = relu_layer->getOutput(0);
+    } else {
+      // max(x, a_min)
+      nvinfer1::ITensor* a_min =
+          CreateScalar(params, attrs->a_min, input->getDimensions());
+      nvinfer1::IElementWiseLayer* max_layer = params->network->addElementWise(
+          *input, *a_min, nvinfer1::ElementWiseOperation::kMAX);
+      CHECK(max_layer != nullptr);
+      output = max_layer->getOutput(0);
+    }
+    // min(relu(x), a_max)
+    nvinfer1::ITensor* a_max =
+        CreateScalar(params, attrs->a_max, input->getDimensions());
+    nvinfer1::IElementWiseLayer* min_layer = params->network->addElementWise(
+        *output, *a_max, nvinfer1::ElementWiseOperation::kMIN);
+    params->outputs.push_back(min_layer->getOutput(0));
   }
 };
 
