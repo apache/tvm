@@ -21,7 +21,7 @@ import ctypes
 import traceback
 from numbers import Number, Integral
 
-from ..base import _LIB, get_last_ffi_error, py2cerror
+from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
 from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
 from . import ndarray as _nd
@@ -45,6 +45,14 @@ def _ctypes_free_resource(rhandle):
 # Global callback that is always alive
 TVM_FREE_PYOBJ = TVMCFuncFinalizer(_ctypes_free_resource)
 ctypes.pythonapi.Py_IncRef(ctypes.py_object(TVM_FREE_PYOBJ))
+
+
+def _make_packed_func(handle, is_global):
+    """Make a packed function class"""
+    obj = _CLASS_PACKED_FUNC.__new__(_CLASS_PACKED_FUNC)
+    obj.is_global = is_global
+    obj.handle = handle
+    return obj
 
 
 def convert_to_tvm_func(pyfunc):
@@ -96,7 +104,7 @@ def convert_to_tvm_func(pyfunc):
     if _LIB.TVMFuncCreateFromCFunc(
             f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)) != 0:
         raise get_last_ffi_error()
-    return _CLASS_PACKED_FUNC(handle, False)
+    return _make_packed_func(handle, False)
 
 
 def _make_tvm_args(args, temp_args):
@@ -239,6 +247,19 @@ def _handle_return_func(x):
     if not isinstance(handle, PackedFuncHandle):
         handle = PackedFuncHandle(handle)
     return _CLASS_PACKED_FUNC(handle, False)
+
+
+def _get_global_func(name, allow_missing=False):
+    handle = PackedFuncHandle()
+    check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
+
+    if handle.value:
+        return _make_packed_func(handle, False)
+
+    if allow_missing:
+        return None
+
+    raise ValueError("Cannot find global function %s" % name)
 
 # setup return handle for function type
 _object.__init_by_constructor__ = __init_handle_by_constructor__

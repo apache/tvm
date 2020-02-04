@@ -96,6 +96,8 @@ ctypedef void (*TVMPackedCFuncFinalizer)(void* resource_handle)
 cdef extern from "tvm/runtime/c_runtime_api.h":
     void TVMAPISetLastError(const char* msg)
     const char *TVMGetLastError()
+    int TVMFuncGetGlobal(const char* name,
+                         TVMPackedFuncHandle* out);
     int TVMFuncCall(TVMPackedFuncHandle func,
                     TVMValue* arg_values,
                     int* type_codes,

@@ -66,6 +66,13 @@ cdef int tvm_callback(TVMValue* args,
     return 0
 
 
+cdef object make_packed_func(TVMPackedFuncHandle chandle, int is_global):
+    obj = _CLASS_PACKED_FUNC.__new__(_CLASS_PACKED_FUNC)
+    (<PackedFuncBase>obj).chandle = chandle
+    (<PackedFuncBase>obj).is_global = is_global
+    return obj
+
+
 def convert_to_tvm_func(object pyfunc):
     """Convert a python function to TVM function
 
@@ -85,9 +92,7 @@ def convert_to_tvm_func(object pyfunc):
                                 <void*>(pyfunc),
                                 tvm_callback_finalize,
                                 &chandle))
-    ret = _CLASS_PACKED_FUNC(None, False)
-    (<PackedFuncBase>ret).chandle = chandle
-    return ret
+    return make_packed_func(chandle, False)
 
 
 cdef inline int make_arg(object arg,
@@ -206,9 +211,7 @@ cdef inline object make_ret(TVMValue value, int tcode):
     elif tcode == kTVMModuleHandle:
         return _CLASS_MODULE(ctypes_handle(value.v_handle))
     elif tcode == kTVMPackedFuncHandle:
-        fobj = _CLASS_PACKED_FUNC(None, False)
-        (<PackedFuncBase>fobj).chandle = value.v_handle
-        return fobj
+        return make_packed_func(value.v_handle, False)
     elif tcode in _TVM_EXT_RET:
         return _TVM_EXT_RET[tcode](ctypes_handle(value.v_handle))
 
@@ -304,6 +307,18 @@ cdef class PackedFuncBase:
         cdef int ret_tcode
         FuncCall(self.chandle, args, &ret_val, &ret_tcode)
         return make_ret(ret_val, ret_tcode)
+
+
+def _get_global_func(name, allow_missing):
+    cdef TVMPackedFuncHandle chandle
+    CALL(TVMFuncGetGlobal(c_str(name), &chandle))
+    if chandle != NULL:
+        return make_packed_func(chandle, True)
+
+    if allow_missing:
+       return None
+
+    raise ValueError("Cannot find global function %s" % name)
 
 
 _CLASS_PACKED_FUNC = None

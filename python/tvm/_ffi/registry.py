@@ -22,7 +22,6 @@ import ctypes
 from .. import _api_internal
 
 from .base import _LIB, check_call, py_str, c_str, string_types, _FFI_MODE, _RUNTIME_ONLY
-from .packed_func import convert_to_tvm_func, PackedFuncHandle, PackedFunc
 
 try:
     # pylint: disable=wrong-import-position,unused-import
@@ -30,10 +29,12 @@ try:
         raise ImportError()
     from ._cy3.core import _register_object
     from ._cy3.core import _reg_extension
+    from ._cy3.core import convert_to_tvm_func, _get_global_func, PackedFuncBase
 except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position,unused-import
     from ._ctypes.object import _register_object
     from ._ctypes.ndarray import _reg_extension
+    from ._ctypes.packed_func import convert_to_tvm_func, _get_global_func, PackedFuncBase
 
 
 def register_object(type_key=None):
@@ -187,7 +188,7 @@ def register_func(func_name, f=None, override=False):
     ioverride = ctypes.c_int(override)
     def register(myf):
         """internal register function"""
-        if not isinstance(myf, PackedFunc):
+        if not isinstance(myf, PackedFuncBase):
             myf = convert_to_tvm_func(myf)
         check_call(_LIB.TVMFuncRegisterGlobal(
             c_str(func_name), myf.handle, ioverride))
@@ -213,15 +214,7 @@ def get_global_func(name, allow_missing=False):
     func : PackedFunc
         The function to be returned, None if function is missing.
     """
-    handle = PackedFuncHandle()
-    check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
-    if handle.value:
-        return PackedFunc(handle, False)
-
-    if allow_missing:
-        return None
-
-    raise ValueError("Cannot find global function %s" % name)
+    return _get_global_func(name, allow_missing)
 
 
 def list_global_func_names():
