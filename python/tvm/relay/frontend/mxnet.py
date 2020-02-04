@@ -1328,7 +1328,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         #   1) rhs is the add's second operand. First rhs will be requantized to output scale with
         #   dtype int32. The int32 dtype is to keep precision high before adding.
         #   2) Call normal add
-        #   3) Depending on final out_dtype, clip and cast (or just call requantize).
+        #   3) Depending on final out_dtype, clip and cast (basically requantize).
 
         _output_scale = relay.const(_output_scale, 'float32')
         data_sum = inputs[-5]
@@ -1342,24 +1342,35 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         data_sum_scale = relay.const(data_sum_scale, 'float32')
         zero_point = relay.const(0, 'int32')
 
-        data_sum = relay.qnn.op.requantize(data_sum,
-                                           input_scale=data_sum_scale,
-                                           input_zero_point=zero_point,
-                                           output_scale=_output_scale,
-                                           output_zero_point=zero_point,
-                                           out_dtype='int32')
+        # Save one requantize if the previous expr already has a requantize node. This also improves
+        # little bit with accuracy.
+        if isinstance(data_sum, _expr.Call) and data_sum.op.name == "qnn.requantize":
+            prev_input, prev_scale, prev_zero_point = data_sum.args[0:3]
+            prev_axis = data_sum.attrs.axis
+            data_sum = relay.qnn.op.requantize(prev_input,
+                                               input_scale=prev_scale,
+                                               input_zero_point=prev_zero_point,
+                                               output_scale=_output_scale,
+                                               output_zero_point=zero_point,
+                                               axis=prev_axis,
+                                               out_dtype='int32')
+        else:
+            data_sum = relay.qnn.op.requantize(data_sum,
+                                               input_scale=data_sum_scale,
+                                               input_zero_point=zero_point,
+                                               output_scale=_output_scale,
+                                               output_zero_point=zero_point,
+                                               out_dtype='int32')
 
         # 2) Add two int32 tensors.
         _res = relay.add(_res, data_sum)
 
-        # 3) Requantize just to change the out dtype.
-        return relay.qnn.op.requantize(_res,
-                                       input_scale=_output_scale,
-                                       input_zero_point=zero_point,
-                                       output_scale=_output_scale,
-                                       output_zero_point=zero_point,
-                                       out_dtype=out_dtype)
-
+        # 3) Clip/cast to change the out dtype.
+        _res = relay.clip(_res,
+                          a_min=float(tvm.api.min_value(out_dtype).value),
+                          a_max=float(tvm.api.max_value(out_dtype).value))
+        _res = relay.cast(_res, out_dtype)
+        return _res
 
     def _parse():
         assert len(subgraphs) == 1
@@ -1520,10 +1531,12 @@ def _qnn_pooling(inputs, attrs):
     input_max = inputs[2]
     data = inputs[0]
     data_dtype = _infer_type(data).checked_type.dtype
-    if data_dtype in ('int8', 'uint8'):
+    pool_type = attrs.get_str("pool_type")
+    if data_dtype in ('int8', 'uint8') and pool_type != 'max':
         data = _op.cast(data, 'int32')
     res = _mx_pooling([data, input_min, input_max], attrs)
-    res = _op.cast(res, data_dtype)
+    if data_dtype in ('int8', 'uint8') and pool_type != 'max':
+        res = _op.cast(res, data_dtype)
     return res, input_min, input_max
 
 
