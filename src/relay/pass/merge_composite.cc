@@ -131,7 +131,6 @@ class MergeCompositeWrapper : public ExprMutator {
       auto new_call = CallNode::make(f, args);
       return std::move(new_call);
     }
-
     return std::move(call);
   }
 
