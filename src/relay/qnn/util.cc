@@ -158,7 +158,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
-    is_lshift_required |= (lshift != 0);
+    is_lshift_required = is_lshift_required | (lshift != 0);
   }
 
   // 2) Multiply the integer multiplier. Convert lefts shifts into expr and multiply.
