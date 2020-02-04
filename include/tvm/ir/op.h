@@ -192,7 +192,7 @@ class Op : public RelayExpr {
    * \param key The attribute key
    * \return bool True if the key is present
    */
-  TVM_DLL static const bool HasGenericAttr(const std::string& key);
+  TVM_DLL static bool HasGenericAttr(const std::string& key);
 };
 
 /*!
