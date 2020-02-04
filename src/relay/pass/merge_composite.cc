@@ -140,7 +140,7 @@ class MergeCompositeWrapper : public ExprMutator {
     if (!call->op->IsInstance<OpNode>())
       return std::move(call);
 
-    // only call patterns are currently supported
+    // only call patterns are supported
     Call pattern = Downcast<Call>(pattern_);
     CHECK(pattern.defined());
     if (MatchPattern(pattern, call)) {
