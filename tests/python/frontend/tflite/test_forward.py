@@ -148,7 +148,10 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
             # with respect to its fp32 input range, defined in fake_quant.
             # s = 255/(fmax-fmin);  m = -fmin*s (the zero point)
             for i in input_arrays:
-                quant_scale = 255 / (input_range[i][1] - input_range[i][0])
+                try:
+                    quant_scale = 255 / (input_range[i][1] - input_range[i][0])
+                except ZeroDivisionError:
+                    raise ZeroDivisionError('Min and max of the input range for tensor ' + i + ' can\'t be equal')
                 mean = - input_range[i][0] * quant_scale
                 input_stats[i] = (mean, quant_scale)
             converter.quantized_input_stats = input_stats
@@ -800,7 +803,7 @@ def _test_elemwise(math_op, data, fused_activation_function=None, quantized=Fals
         if quantized:
             inq_const = tf.quantization.fake_quant_with_min_max_args(data[0], min=-100, max=100, name="const_tensor")
             inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0], min=-50, max=50, name="inq_1")]
-            input_range = {'inq_1': (-100, 100)}
+            input_range = {'inq_1': (-50, 50)}
             # the 1st tensor is treated as constant and directly added as part of the operation
             out = math_op(ops.convert_to_tensor(inq_const, dtype='float32', name='inq_const'), inq_data)
             out = with_fused_activation_function(out, fused_activation_function)
