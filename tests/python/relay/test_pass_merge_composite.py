@@ -268,7 +268,7 @@ def test_multiple_patterns():
         add_node = relay.add(relu_node, a)
         relu_node_2 = relay.nn.relu(add_node)
         r = relay.multiply(relu_node_2, b)
-        return relay.Function([data, kernel, bias], r)
+        return relay.Function([data, kernel, bias, a, b], r)
 
     def expected():
         data = relay.var('data', shape=(1, 512, 28, 28))
