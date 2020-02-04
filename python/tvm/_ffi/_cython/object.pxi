@@ -96,6 +96,6 @@ cdef class ObjectBase:
         self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
-            (<FunctionBase>fconstructor).chandle,
+            (<PackedFuncBase>fconstructor).chandle,
             kTVMObjectHandle, args, &chandle)
         self.chandle = chandle

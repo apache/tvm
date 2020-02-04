@@ -19,11 +19,10 @@
 This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
-from __future__ import absolute_import as _abs
 import warnings
+import tvm._ffi
 
-from ._ffi.function import Function
-from ._ffi.object import Object, register_object
+from ._ffi.object import Object
 from . import api
 from . import _api_internal
 from . import tensor
@@ -115,7 +114,7 @@ class DumpIR(object):
         DumpIR.scope_level -= 1
 
 
-@register_object
+@tvm._ffi.register_object
 class BuildConfig(Object):
     """Configuration scope to set a build config option.
 

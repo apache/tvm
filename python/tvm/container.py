@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Container data structures used in TVM DSL."""
-from __future__ import absolute_import as _abs
+import tvm._ffi
+
 from tvm import ndarray as _nd
 from . import _api_internal
-from ._ffi.object import Object, register_object, getitem_helper
-from ._ffi.function import _init_api
+from ._ffi.object import Object, getitem_helper
 
-@register_object
+
+@tvm._ffi.register_object
 class Array(Object):
     """Array container of TVM.
 
@@ -52,7 +53,7 @@ class Array(Object):
         return _api_internal._ArraySize(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class EnvFunc(Object):
     """Environment function.
 
@@ -66,7 +67,7 @@ class EnvFunc(Object):
         return _api_internal._EnvFuncGetPackedFunc(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class Map(Object):
     """Map container of TVM.
 
@@ -89,7 +90,7 @@ class Map(Object):
         return _api_internal._MapSize(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class StrMap(Map):
     """A special map container that has str as key.
 
@@ -101,7 +102,7 @@ class StrMap(Map):
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
 
 
-@register_object
+@tvm._ffi.register_object
 class Range(Object):
     """Represent a range in TVM.
 
@@ -110,7 +111,7 @@ class Range(Object):
     """
 
 
-@register_object
+@tvm._ffi.register_object
 class LoweredFunc(Object):
     """Represent a LoweredFunc in TVM."""
     MixedFunc = 0
@@ -118,7 +119,7 @@ class LoweredFunc(Object):
     DeviceFunc = 2
 
 
-@register_object("vm.ADT")
+@tvm._ffi.register_object("vm.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.
 
@@ -168,4 +169,4 @@ def tuple_object(fields=None):
     return _Tuple(*fields)
 
 
-_init_api("tvm.container")
+tvm._ffi._init_api("tvm.container")

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Code generation related functions."""
-from ._ffi.function import _init_api
+import tvm._ffi
 
 def build_module(lowered_func, target):
     """Build lowered_func into Module.
@@ -35,4 +35,4 @@ def build_module(lowered_func, target):
     """
     return _Build(lowered_func, target)
 
-_init_api("tvm.codegen")
+tvm._ffi._init_api("tvm.codegen")

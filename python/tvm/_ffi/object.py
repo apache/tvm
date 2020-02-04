@@ -16,33 +16,20 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
-from __future__ import absolute_import
-
-import sys
 import ctypes
 from .. import _api_internal
 from .base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
-from .object_generic import ObjectGeneric, convert_to_object, const
-
-IMPORT_EXCEPT = RuntimeError if _FFI_MODE == "cython" else ImportError
 
 try:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_object
-        from ._cy3.core import ObjectBase as _ObjectBase
-        from ._cy3.core import _register_object
-    else:
-        from ._cy2.core import _set_class_object
-        from ._cy2.core import ObjectBase as _ObjectBase
-        from ._cy2.core import _register_object
-except IMPORT_EXCEPT:
+    from ._cy3.core import _set_class_object, _set_class_object_generic
+    from ._cy3.core import ObjectBase
+except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position,unused-import
-    from ._ctypes.function import _set_class_object
-    from ._ctypes.object import ObjectBase as _ObjectBase
-    from ._ctypes.object import _register_object
+    from ._ctypes.packed_func import _set_class_object, _set_class_object_generic
+    from ._ctypes.object import ObjectBase
 
 
 def _new_object(cls):
@@ -50,7 +37,7 @@ def _new_object(cls):
     return cls.__new__(cls)
 
 
-class Object(_ObjectBase):
+class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
     def __repr__(self):
         return _api_internal._format_str(self)
@@ -102,52 +89,6 @@ class Object(_ObjectBase):
         if not isinstance(other, Object):
             return False
         return self.__hash__() == other.__hash__()
-
-
-def register_object(type_key=None):
-    """register object type.
-
-    Parameters
-    ----------
-    type_key : str or cls
-        The type key of the node
-
-    Examples
-    --------
-    The following code registers MyObject
-    using type key "test.MyObject"
-
-    .. code-block:: python
-
-      @tvm.register_object("test.MyObject")
-      class MyObject(Object):
-          pass
-    """
-    object_name = type_key if isinstance(type_key, str) else type_key.__name__
-
-    def register(cls):
-        """internal register function"""
-        if hasattr(cls, "_type_index"):
-            tindex = cls._type_index
-        else:
-            tidx = ctypes.c_uint()
-            if not _RUNTIME_ONLY:
-                check_call(_LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx)))
-            else:
-                # directly skip unknown objects during runtime.
-                ret = _LIB.TVMObjectTypeKey2Index(
-                    c_str(object_name), ctypes.byref(tidx))
-                if ret != 0:
-                    return cls
-            tindex = tidx.value
-        _register_object(tindex, cls)
-        return cls
-
-    if isinstance(type_key, str):
-        return register
-
-    return register(type_key)
 
 
 def getitem_helper(obj, elem_getter, length, idx):

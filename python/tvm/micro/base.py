@@ -23,9 +23,11 @@ import sys
 from enum import Enum
 
 import tvm
+import tvm._ffi
+
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
-from .._ffi.function import _init_api
+
 
 class LibType(Enum):
     """Enumeration of library types that can be compiled and loaded onto a device"""
@@ -222,4 +224,4 @@ def get_micro_device_dir():
     return micro_device_dir
 
 
-_init_api("tvm.micro", "tvm.micro.base")
+tvm._ffi._init_api("tvm.micro", "tvm.micro.base")

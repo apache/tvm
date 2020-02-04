@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Runtime Object api"""
-from __future__ import absolute_import
-
 import ctypes
 from ..base import _LIB, check_call
 from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func

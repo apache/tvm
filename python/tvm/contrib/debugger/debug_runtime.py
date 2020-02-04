@@ -19,8 +19,9 @@
 import os
 import tempfile
 import shutil
+import tvm._ffi
+
 from tvm._ffi.base import string_types
-from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
 from tvm.ndarray import array
 from . import debug_result
@@ -64,7 +65,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
             fcreate = ctx[0]._rpc_sess.get_function(
                 "tvm.graph_runtime_debug.create")
         else:
-            fcreate = get_global_func("tvm.graph_runtime_debug.create")
+            fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
         raise ValueError(
             "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "

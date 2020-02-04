@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Node is the base class of all TVM AST.
-
-Normally user do not need to touch this api.
+"""Python2 version check
 """
-# pylint: disable=unused-import
-from __future__ import absolute_import as _abs
-from ._ffi.object import Object, register_object
+import sys
+
+#----------------------------
+# Python3 version.
+#----------------------------
+if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 5):
+    PY3STATEMENT = """TVM project proudly dropped support of Python2.
+    The minimal Python requirement is Python 3.5
+    """
+    raise Exception(PY3STATEMENT)

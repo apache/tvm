@@ -16,17 +16,13 @@
 # under the License.
 """Functions defined in TVM."""
 # pylint: disable=invalid-name,unused-import,redefined-builtin
-from __future__ import absolute_import as _abs
-
 from numbers import Integral as _Integral
 
+import tvm._ffi
+
 from ._ffi.base import string_types, TVMError
-from ._ffi.object import register_object, Object
-from ._ffi.object import convert_to_object as _convert_to_object
-from ._ffi.object_generic import _scalar_type_inference
-from ._ffi.function import Function
-from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
-from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
+from ._ffi.object_generic import convert, const
+from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
 from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
 from . import make as _make
@@ -75,30 +71,6 @@ def max_value(dtype):
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype=None):
-    """construct a constant
-
-    Parameters
-    ----------
-    value : number
-        The content of the constant number.
-
-    dtype : str or None, optional
-        The data type.
-
-    Returns
-    -------
-    const_val: tvm.Expr
-        The result expression.
-    """
-    if dtype is None:
-        dtype = _scalar_type_inference(value)
-    if dtype == "uint64" and value >= (1 << 63):
-        return _api_internal._LargeUIntImm(
-            dtype, value & ((1 << 32) - 1), value >> 32)
-    return _api_internal._const(value, dtype)
-
-
 def get_env_func(name):
     """Get an EnvFunc by a global name.
 
@@ -119,27 +91,6 @@ def get_env_func(name):
     This can be used to serialize function field in the language.
     """
     return _api_internal._EnvFuncGet(name)
-
-
-def convert(value):
-    """Convert value to TVM node or function.
-
-    Parameters
-    ----------
-    value : python value
-
-    Returns
-    -------
-    tvm_val : Object or Function
-        Converted value in TVM
-    """
-    if isinstance(value, (Function, Object)):
-        return value
-
-    if callable(value):
-        return _convert_tvm_func(value)
-
-    return _convert_to_object(value)
 
 
 def load_json(json_str):
@@ -1073,10 +1024,9 @@ def floormod(a, b):
     """
     return _make._OpFloorMod(a, b)
 
-
-_init_api("tvm.api")
-
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')
 max = comm_reducer(lambda x, y: _make._OpMax(x, y), min_value, name='max')
+
+tvm._ffi._init_api("tvm.api")

@@ -16,11 +16,10 @@
 # under the License.
 #pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
-from __future__ import absolute_import
 import warnings
-
 import topi
-from ..._ffi.function import register_func
+import tvm._ffi
+
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
@@ -144,7 +143,8 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     qctx.qnode_map[key] = qnode
     return qnode
 
-register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
+tvm._ffi.register_func(
+    "relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
