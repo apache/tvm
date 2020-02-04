@@ -42,6 +42,9 @@ from tvm.contrib.download import download_testdata
 import tvm.relay.testing.tf as tf_testing
 from packaging import version as package_version
 
+from PIL import Image
+import os
+
 #######################################################################
 # Generic run functions for TVM & TFLite
 # --------------------------------------
@@ -49,6 +52,20 @@ def convert_to_list(x):
     if not isinstance(x, list):
         x = [x]
     return x
+
+
+#######################################################################
+# Get a real image for e2e testing.
+# --------------------------------------
+def get_real_image(im_height, im_width):
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+    img_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download_testdata(image_url, img_name, module='data')
+    image = Image.open(img_path).resize((im_height, im_width))
+    x = np.array(image).astype('uint8')
+    data = np.reshape(x, (1, im_height, im_width, 3))
+    return data
 
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None):
@@ -1425,16 +1442,18 @@ def test_forward_qnn_inception_v1_net():
         "inception_v1_224_quant.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    # Checking the labels because the requantize implementation is different between TFLite and
-    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
-    np.random.seed(0)
-    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(224, 224)
+
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_sorted_labels = tflite_predictions.argsort()[-5:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm_sorted_labels = tvm_predictions.argsort()[-5:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 def test_forward_qnn_mobilenet_v1_net():
@@ -1445,16 +1464,18 @@ def test_forward_qnn_mobilenet_v1_net():
         "mobilenet_v1_1.0_224_quant.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    # Checking the labels because the requantize implementation is different between TFLite and
-    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
-    np.random.seed(0)
-    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(224, 224)
+
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_sorted_labels = tflite_predictions.argsort()[-5:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm_sorted_labels = tvm_predictions.argsort()[-5:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 def test_forward_qnn_mobilenet_v2_net():
@@ -1465,16 +1486,18 @@ def test_forward_qnn_mobilenet_v2_net():
         "mobilenet_v2_1.0_224_quant.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    # Checking the labels because the requantize implementation is different between TFLite and
-    # Relay. This cause final output numbers to mismatch. So, testing accuracy via labels.
-    np.random.seed(0)
-    data = np.random.random_integers(low=0, high=128, size=(1, 224, 224, 3)).astype('uint8')
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(224, 224)
+
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tflite_predictions = np.squeeze(tflite_output)
-    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tflite_sorted_labels = tflite_predictions.argsort()[-5:][::-1]
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
     tvm_predictions = np.squeeze(tvm_output)
-    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm_sorted_labels = tvm_predictions.argsort()[-5:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 #######################################################################
