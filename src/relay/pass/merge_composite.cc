@@ -85,11 +85,10 @@ class MergeCompositeWrapper : public ExprMutator {
 
   Expr ExtractPattern(const Call& pattern, const Call& root,
           Map<std::string, Array<Expr>>* var_map) {
+    // check to make sure both calls are to operators (not functions)
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
       return Expr();
     if (pattern->op.as<OpNode>()->name != root->op.as<OpNode>()->name)
-      return Expr();
-    if (pattern->args.size() != root->args.size())
       return Expr();
 
     unsigned int i = 0;
