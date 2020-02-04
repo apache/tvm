@@ -365,6 +365,8 @@ def conv2d_transpose(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.conv2d_transpose(data, weight, strides, padding, dilation,
                                   groups, channels, kernel_size, data_layout,
                                   kernel_layout, out_layout, output_padding, out_dtype)
@@ -1964,6 +1966,8 @@ def contrib_depthwise_conv2d_nchwc(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
                                                 groups, channels, kernel_size, data_layout,
                                                 kernel_layout, out_layout, out_dtype)
@@ -2152,6 +2156,8 @@ def deformable_conv2d(data,
         The computed result.
 
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.deformable_conv2d(data, offset, weight, strides, padding, dilation,
                                    deformable_groups, groups, channels, kernel_size, data_layout,
                                    kernel_layout, out_layout, out_dtype)
@@ -2261,7 +2267,8 @@ def bitserial_conv2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
-
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.bitserial_conv2d(data, weight, strides, padding, channels,
                                   kernel_size, activation_bits, weight_bits,
                                   data_layout, kernel_layout, pack_dtype,
