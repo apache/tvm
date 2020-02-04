@@ -147,17 +147,15 @@ class MergeCompositeWrapper : public ExprMutator {
       Map<std::string, Array<Expr>> args_map;
       auto extract = ExtractPattern(pattern, call, &args_map);
       auto free_vars = FreeVars(extract);
-      Function new_func = FunctionNode::make(free_vars, extract,
-              call->checked_type_, {}, Attrs());
-      new_func = FunctionSetAttr(new_func, attr::kComposite,
-                                 tir::StringImmNode::make(pattern_name_));
-      new_func = FunctionSetAttr(new_func, attr::kPrimitive,
-          tvm::Integer(1));
+      // make the composite function
+      auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
+      f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
+      f = FunctionSetAttr(f, attr::kPrimitive, tvm::Integer(1));
       Array<Expr> args;
       for (const auto& free_var : free_vars) {
         args.push_back(args_map[free_var->name_hint()][1]);
       }
-      auto new_call = CallNode::make(new_func, args);
+      auto new_call = CallNode::make(f, args);
       return std::move(new_call);
     }
 
