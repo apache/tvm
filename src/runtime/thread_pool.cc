@@ -412,12 +412,6 @@ int TVMBackendParallelLaunch(
   {
     TVMParallelGroupEnv env;
     env.num_task = num_task;
-    std::atomic<int32_t>* sync_counter = new std::atomic<int>[num_task * tvm::runtime::kSyncStride];
-    for (int i = 0; i < num_task; ++i) {
-      sync_counter[i * tvm::runtime::kSyncStride].store(
-          0, std::memory_order_relaxed);
-    }
-    env.sync_handle = sync_counter;
     (*flambda)(omp_get_thread_num(), &env, cdata);
   }
   return 0;
