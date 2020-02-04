@@ -222,6 +222,8 @@ class BaseAttrsNode : public Object {
  public:
   using TVMArgs = runtime::TVMArgs;
   using TVMRetValue = runtime::TVMRetValue;
+  /*! \brief virtual destructor */
+  virtual ~BaseAttrsNode() {}
   // visit function
   virtual void VisitAttrs(AttrVisitor* v) {}
   /*!

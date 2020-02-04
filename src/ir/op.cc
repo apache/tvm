@@ -87,7 +87,7 @@ const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
 }
 
 // Check if a key is present in the registry.
-const bool Op::HasGenericAttr(const std::string& key) {
+bool Op::HasGenericAttr(const std::string& key) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex> lock(mgr->mutex);
   auto it = mgr->attr.find(key);
