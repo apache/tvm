@@ -141,6 +141,48 @@ TOPI_DEFINE_BCAST_OP(logical_or, { return a || b; });
 TOPI_DEFINE_OP_OVERLOAD(operator||, logical_or);
 
 /*!
+ * \fn bitwise_and
+ * \brief Compute A & B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(bitwise_and, { return a & b; });
+TOPI_DEFINE_OP_OVERLOAD(operator&, bitwise_and);
+
+/*!
+ * \fn bitwise_or
+ * \brief Compute A | B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(bitwise_or, { return a | b; });
+TOPI_DEFINE_OP_OVERLOAD(operator|, bitwise_or);
+
+/*!
+ * \fn bitwise_xor
+ * \brief Compute A ^ B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(bitwise_xor, { return a ^ b; });
+TOPI_DEFINE_OP_OVERLOAD(operator^, bitwise_xor);
+
+/*!
  * \fn add
  * \brief Compute A + B with auto-broadcasting.
  *
