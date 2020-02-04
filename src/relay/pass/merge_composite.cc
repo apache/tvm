@@ -86,6 +86,10 @@ class MergeCompositeWrapper : public ExprMutator {
     for (const auto& arg : pattern->args) {
       Expr new_arg;
       if (arg->IsInstance<CallNode>()) {
+        // fail if the root argument is not also a call node
+        if (!root->args[i]->IsInstance<CallNode>()) {
+          return Expr();
+        }
         // if it's a call node, recursively call this function
         new_arg = ExtractPattern(Downcast<Call>(arg),
                                  Downcast<Call>(root->args[i]),
