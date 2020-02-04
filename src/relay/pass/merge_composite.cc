@@ -20,7 +20,9 @@
 /*!
  * \file src/relay/pass/merge_composite.cc
  * \brief Merges expressions matching patterns into functions marked
- * as 'composite'.
+ * as 'composite'. This is primarily intended to be used alongside the
+ * external codegen infrastructure to support the case where multiple
+ * Relay operators map to a single external operator.
  */
 
 #include <tvm/te/operation.h>
@@ -38,7 +40,12 @@ class MergeCompositeWrapper : public ExprMutator {
  public:
   explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
     : pattern_name_(pattern_name), pattern_(pattern) {}
-
+  /*!
+   * \brief Determine if a pattern and a subgraph have the same call structure.
+   * \param pattern the root call node of the pattern.
+   * \param root the root call node of the subgraph.
+   * \return Whether they match.
+   */
   bool MatchPattern(const Call& pattern, const Call& root) {
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
       return false;
@@ -118,6 +125,7 @@ class MergeCompositeWrapper : public ExprMutator {
       Function func = Downcast<Function>(call->op);
       CHECK(func.defined());
       const auto name_node = FunctionGetAttr(func, attr::kComposite).as<tir::StringImmNode>();
+      // don't step into existing composite functions
       if (name_node->value != "") {
         tvm::Array<tvm::relay::Expr> new_args;
         for (const auto& arg : call->args) {
@@ -169,6 +177,7 @@ Expr MergeComposite(const Expr& expr,
     const Array<tir::StringImm>& pattern_names, const Array<Expr>& patterns) {
   CHECK(pattern_names.size() == patterns.size());
   Expr merged_expr = expr;
+  // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
     std::string pattern_name = pattern_names[i]->value;
     Expr pattern = patterns[i];
