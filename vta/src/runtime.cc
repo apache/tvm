@@ -314,7 +314,7 @@ class UopKernel {
 template <class T>
 class BaseQueue {
  public:
-  ~BaseQueue() {
+  virtual ~BaseQueue() {
     if (fpga_buff_ != nullptr) {
       VTAMemFree(fpga_buff_);
     }

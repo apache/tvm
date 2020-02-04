@@ -731,6 +731,8 @@ class LetNode : public PrimExprNode {
 /*! \brief Base node of internal functions. */
 class FunctionBaseNode : public Object {
  public:
+  /*! \brief virtual destructor */
+  virtual ~FunctionBaseNode() {}
   /*! \return the name of the function */
   virtual const std::string& func_name() const = 0;
   /*! \return the number of outputs of this function */
