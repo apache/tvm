@@ -1100,7 +1100,7 @@ def test_forward_squeeze():
 # Pad
 # ---
 
-def _test_pad(data):
+def _test_pad(data, mode="CONSTANT"):
     """ One iteration of PAD """
 
     assert len(data) == 2
@@ -1108,7 +1108,7 @@ def _test_pad(data):
     # Test with tensor and constant
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
-        out = array_ops.pad(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype))
+        out = array_ops.pad(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
         compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
 
 
@@ -1122,6 +1122,10 @@ def test_forward_pad():
                np.array([[1, 1], [2, 2]], dtype=np.int32)])
     _test_pad([np.arange(1.0, 4.0, dtype=np.float32).reshape((1, 3)),
                np.array([[1, 1], [2, 2]], dtype=np.int32)])
+    _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="REFLECT")
+    _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="SYMMETRIC")
 
 
 #######################################################################
