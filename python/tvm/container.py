@@ -17,9 +17,9 @@
 """Container data structures used in TVM DSL."""
 import tvm._ffi
 
-from tvm import ndarray as _nd
+from tvm.runtime import Object, ObjectTypes
+from tvm.runtime.container import getitem_helper
 from . import _api_internal
-from ._ffi.object import Object, getitem_helper
 
 
 @tvm._ffi.register_object
@@ -31,23 +31,9 @@ class Array(Object):
     to Array during tvm function call.
     You may get Array in return values of TVM function call.
     """
-    def __getitem__(self, i):
-        if isinstance(i, slice):
-            start = i.start if i.start is not None else 0
-            stop = i.stop if i.stop is not None else len(self)
-            step = i.step if i.step is not None else 1
-            if start < 0:
-                start += len(self)
-            if stop < 0:
-                stop += len(self)
-            return [self[idx] for idx in range(start, stop, step)]
-
-        if i < -len(self) or i >= len(self):
-            raise IndexError("Array index out of range. Array size: {}, got index {}"
-                             .format(len(self), i))
-        if i < 0:
-            i += len(self)
-        return _api_internal._ArrayGetItem(self, i)
+    def __getitem__(self, idx):
+        return getitem_helper(
+            self, _api_internal._ArrayGetItem, len(self), idx)
 
     def __len__(self):
         return _api_internal._ArraySize(self)
@@ -133,7 +119,7 @@ class ADT(Object):
     """
     def __init__(self, tag, fields):
         for f in fields:
-            assert isinstance(f, (Object, _nd.NDArray)), "Expect object or " \
+            assert isinstance(f, ObjectTypes), "Expect object or " \
             "tvm NDArray type, but received : {0}".format(type(f))
         self.__init_handle_by_constructor__(_ADT, tag, *fields)
 
@@ -164,7 +150,7 @@ def tuple_object(fields=None):
     """
     fields = fields if fields else []
     for f in fields:
-        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or tvm " \
+        assert isinstance(f, ObjectTypes), "Expect object or tvm " \
         "NDArray type, but received : {0}".format(type(f))
     return _Tuple(*fields)
 

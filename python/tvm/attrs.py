@@ -17,7 +17,7 @@
 """ TVM Attribute module, which is mainly used for defining attributes of operators"""
 import tvm._ffi
 
-from ._ffi.object import Object
+from tvm.runtime import Object
 from . import _api_internal
 
 

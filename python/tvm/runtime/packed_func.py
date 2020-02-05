@@ -18,20 +18,20 @@
 # pylint: disable=invalid-name, unused-import
 """Packed Function namespace."""
 import ctypes
-from .base import _LIB, check_call, c_str, string_types, _FFI_MODE
+from tvm._ffi.base import _LIB, check_call, c_str, string_types, _FFI_MODE
 
 try:
     # pylint: disable=wrong-import-position
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from ._cy3.core import _set_class_packed_func, _set_class_module
-    from ._cy3.core import PackedFuncBase
-    from ._cy3.core import convert_to_tvm_func
+    from tvm._ffi._cy3.core import _set_class_packed_func, _set_class_module
+    from tvm._ffi._cy3.core import PackedFuncBase
+    from tvm._ffi._cy3.core import convert_to_tvm_func
 except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position
-    from ._ctypes.packed_func import _set_class_packed_func, _set_class_module
-    from ._ctypes.packed_func import PackedFuncBase
-    from ._ctypes.packed_func import convert_to_tvm_func
+    from tvm._ffi._ctypes.packed_func import _set_class_packed_func, _set_class_module
+    from tvm._ffi._ctypes.packed_func import PackedFuncBase
+    from tvm._ffi._ctypes.packed_func import convert_to_tvm_func
 
 
 PackedFuncHandle = ctypes.c_void_p

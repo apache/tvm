@@ -16,11 +16,12 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin
-from __future__ import absolute_import as _abs
+from tvm.runtime import ndarray as _nd
+from tvm.runtime import TVMContext as _TVMContext
+
 from . import _make
 from ..expr import Tuple
-from ... import nd as _nd
-from ... import TVMContext as _TVMContext
+
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.

@@ -20,7 +20,7 @@ import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
-from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
+from ..runtime_ctypes import DataType, TVMContext, TVMByteArray
 
 
 cdef void tvm_callback_finalize(void* fhandle):
@@ -129,7 +129,7 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, Number):
         value[0].v_float64 = arg
         tcode[0] = kFloat
-    elif isinstance(arg, TVMType):
+    elif isinstance(arg, DataType):
         tstr = c_str(str(arg))
         value[0].v_str = tstr
         tcode[0] = kTVMStr

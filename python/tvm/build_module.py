@@ -22,7 +22,7 @@ LoweredFunc and compiled Module.
 import warnings
 import tvm._ffi
 
-from ._ffi.object import Object
+from tvm.runtime import Object, ndarray
 from . import api
 from . import _api_internal
 from . import tensor
@@ -33,7 +33,6 @@ from . import stmt as _stmt
 from . import container
 from . import module
 from . import codegen
-from . import ndarray
 from . import target as _target
 from . import make
 

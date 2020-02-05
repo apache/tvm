@@ -20,10 +20,10 @@ from numbers import Integral as _Integral
 
 import tvm._ffi
 
+from tvm.runtime import convert, const, DataType
 from ._ffi.base import string_types, TVMError
-from ._ffi.object_generic import convert, const
 from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
-from ._ffi.runtime_ctypes import TVMType
+
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
