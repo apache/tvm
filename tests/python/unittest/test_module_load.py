@@ -113,7 +113,8 @@ def test_device_module_dump():
             raise ValueError("Unsupported platform")
 
         path_dso = temp.relpath("dev_lib.so")
-        f.export_library(path_dso)
+        # test cross compiler function
+        f.export_library(path_dso, cc.cross_compiler("g++"))
 
         f1 = tvm.module.load(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
@@ -134,8 +135,8 @@ def test_device_module_dump():
         name = "myadd_%s" % device
         f = tvm.build(s, [A, B], device, "stackvm", name=name)
         path_dso = temp.relpath("dev_lib.stackvm")
-        #f.export_library(path_dso)
-        #f1 = tvm.module.load(path_dso)
+        f.export_library(path_dso)
+        f1 = tvm.module.load(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         f(a, b)
