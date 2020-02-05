@@ -207,7 +207,7 @@ def test_cuda_shuffle():
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
         c_ = np.zeros((64, ), dtype='int32')
         ref = a_ +  np.array((list(range(4))) * 16, dtype='int32')
-        nda, ndb, ndc = [tvm.ndarray.array(i, tvm.gpu(0)) for i in [a_, b_, c_]]
+        nda, ndb, ndc = [tvm.nd.array(i, tvm.gpu(0)) for i in [a_, b_, c_]]
         module(nda, ndb, ndc)
         tvm.testing.assert_allclose(ndc.asnumpy(), ref)
 

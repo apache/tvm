@@ -405,8 +405,8 @@ def test_math_intrin():
     func = tvm.build(sch, [a8, b8])
     assert func
     a = numpy.arange(2, 10).astype('float32')
-    tvm_a = tvm.ndarray.array(a)
-    tvm_b = tvm.ndarray.array(numpy.zeros((8, ), dtype='float32'))
+    tvm_a = tvm.nd.array(a)
+    tvm_b = tvm.nd.array(numpy.zeros((8, ), dtype='float32'))
     b = intrin_real(a)
     func(tvm_a, tvm_b)
     tvm.testing.assert_allclose(b, tvm_b.asnumpy(), rtol=1e-5)
@@ -423,8 +423,8 @@ def test_math_intrin():
     func = tvm.build(sch, [a1, b1])
     assert func
     a = numpy.array([114514]).astype('int32')
-    tvm_a = tvm.ndarray.array(a)
-    tvm_b = tvm.ndarray.array(numpy.array([0]).astype('int32'))
+    tvm_a = tvm.nd.array(a)
+    tvm_b = tvm.nd.array(numpy.array([0]).astype('int32'))
     b = intrin_int(a)
     func(tvm_a, tvm_b)
     assert tvm_b.asnumpy()[0] == b[0]
@@ -578,8 +578,8 @@ def test_const_param():
     np_b = 11
     np_c = numpy.zeros((11, )).astype('int32')
 
-    nd_a = tvm.ndarray.array(np_a)
-    nd_c = tvm.ndarray.array(numpy.zeros((11, )).astype('int32'))
+    nd_a = tvm.nd.array(np_a)
+    nd_c = tvm.nd.array(numpy.zeros((11, )).astype('int32'))
     module(nd_a, nd_c)
     ref = add_something(np_a, 11)
 
@@ -614,8 +614,8 @@ def test_value_index():
     np_b, np_c = kernel_a(np_a)
     ref = kernel_b(np_c, np_b)
 
-    res = tvm.ndarray.array(numpy.zeros((4, 4)).astype('int32'))
-    module(tvm.ndarray.array(np_a), res)
+    res = tvm.nd.array(numpy.zeros((4, 4)).astype('int32'))
+    module(tvm.nd.array(np_a), res)
     tvm.testing.assert_allclose(res.asnumpy(), ref)
 
 def test_func_call():
