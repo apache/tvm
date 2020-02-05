@@ -719,6 +719,21 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
 
 
 def unpack_NCHWc_to_nchw(packed_out, out_dtype):
+    """Unpack conv2d_NCHWc output from layout NCHWc to NCHW
+
+     Parameters
+    -----------
+    packed_out : tvm.Tensor
+        The output tensor of conv2d_NCHWc.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    unpacked_out : tvm.Tensor
+        The unpacked output tensor in NCHW layout.
+    """
     n, oc_chunk, oh, ow, oc_bn = get_const_tuple(packed_out.shape)
 
     idxmod = tvm.indexmod

@@ -155,6 +155,7 @@ _dp4a = dp4a('shared', 'shared', 'local')
 
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.cuda")
 def schedule_conv2d_NCHWc_int8(cfg, outs):
+    """Schedule conv2d int8 NCHWc template"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
@@ -167,7 +168,6 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 
 
 def _schedule_conv2d_NCHWc_int8(cfg, s, output):
-    """Schedule conv2d int8 NCHWc template"""
     conv = output.op.input_tensors[0]
     packed_data, packed_kernel = conv.op.input_tensors
 

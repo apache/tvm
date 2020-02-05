@@ -19,7 +19,7 @@
 
 import tvm
 from tvm import autotvm
-from .. import generic, tag
+from .. import tag
 from ..util import get_const_tuple
 from ..generic import conv2d as conv2d_generic
 from .. import nn
@@ -44,6 +44,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
 @autotvm.register_topi_compute("conv2d_NCHWc_int8.arm_cpu")
 def conv2d_NCHWc_int8(cfg, data, kernel, strides,
                       padding, dilation, layout, out_layout, out_dtype):
+    """Compute conv2d int8 with NCHWc layout"""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)

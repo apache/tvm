@@ -67,12 +67,14 @@ def _fallback_schedule(cfg, wkl):
     cfg["tile_ow"] = SplitEntity([out_width // reg_n, reg_n])
 
 def depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise conv2d with NCHW layout."""
     layout = "NCHW"
     packed_out = depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
                                         layout, layout, out_dtype)
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
 def schedule_depthwise_conv2d_nchw(outs):
+    """Create schedule for depthwise_conv2d_nchw."""
     return schedule_depthwise_conv2d_NCHWc(outs)
 
 def _pack_data(cfg, data, kernel):
@@ -100,6 +102,7 @@ def _pack_data(cfg, data, kernel):
 @autotvm.register_topi_compute("depthwise_conv2d_NCHWc.x86")
 def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
                            layout, out_layout, out_dtype=None):
+    """Compute depthwise conv2d with NCHWc layout"""
     out_dtype = data.dtype if out_dtype is None else out_dtype
 
     if len(data.shape) == 5:

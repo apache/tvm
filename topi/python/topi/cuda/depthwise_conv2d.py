@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
 from tvm import autotvm
@@ -25,6 +25,7 @@ from .. import nn
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.cuda")
 def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise_conv2d with NCHW layout."""
     return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
 @autotvm.register_topi_schedule("depthwise_conv2d_nchw.cuda")

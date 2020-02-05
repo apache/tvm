@@ -18,7 +18,6 @@
 """Schedule for vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import generic
 from .. import cpp
 from .. import tag
 from .pooling import schedule_pool

@@ -18,7 +18,7 @@
 """Proposal operator"""
 import math
 import tvm
-from ...vision.rcnn import proposal, generate_anchor, reg_bbox, reg_iou
+from ...vision.rcnn import generate_anchor, reg_bbox, reg_iou
 from ...util import get_const_tuple, get_const_int
 
 

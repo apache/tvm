@@ -25,7 +25,7 @@ from ..nn.depthwise_conv2d import depthwise_conv2d_infer_layout
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.intel_graphics")
-def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
     return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
 

@@ -28,7 +28,7 @@ from .. import nn
 
 
 @autotvm.register_topi_compute("group_conv2d_nchw.cuda")
-def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
+def group_conv2d_nchw_cuda(_, data, kernel, stride, padding, dilation, groups,
                            out_dtype='float32'):
     return nn.group_conv2d_nchw(data, kernel, stride, padding, dilation, groups, out_dtype)
 
@@ -302,14 +302,13 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
     #
     # Compared with a normal convolution, group convolution only sums
     # input channels from the group that an output channel resides in.
-    conv = tvm.compute(oshape, lambda n, occ, oh, ow, ocb:
-    tvm.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
-                     oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
-            .astype('int32') *
-            packed_kernel[occ, icc,
-                          kh, kw, ocb, icb]
-            .astype('int32'),
-            axis=[icc, kh, kw, icb]))
+    conv = tvm.compute(
+        oshape, lambda n, occ, oh, ow, ocb:
+        tvm.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
+                         oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
+                .astype('int32') *
+                packed_kernel[occ, icc, kh, kw, ocb, icb].astype('int32'),
+                axis=[icc, kh, kw, icb]))
 
     # Type conversion
     output = tvm.compute(oshape, lambda *index: conv(*index).astype(out_dtype),

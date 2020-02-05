@@ -18,7 +18,6 @@
 """x86 nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import generic
 
 def schedule_softmax(outs):
     """Schedule for softmax

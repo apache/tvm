@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unused-variable,unused-argument
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali (Bifrost) GPU"""
 
 import tvm

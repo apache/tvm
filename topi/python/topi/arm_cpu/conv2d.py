@@ -34,12 +34,14 @@ from .conv2d_spatial_pack import conv2d_spatial_pack_nchw, \
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
 def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with NCHW layout"""
     return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
                                     dilation, out_dtype, num_tile=2)
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_spatial_pack.arm_cpu")
 def schedule_conv2d_nchw_spatial_pack(cfg, outs):
+    """Create schedule for conv2d_nchw"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -69,12 +71,14 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
 
 @autotvm.register_topi_compute("conv2d_nhwc_spatial_pack.arm_cpu")
 def conv2d_nhwc_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with NHWC layout"""
     return conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding,
                                     dilation, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv2d_nhwc_spatial_pack.arm_cpu")
 def schedule_conv2d_nhwc_spatial_pack(cfg, outs):
+    """Create schedule for conv2d_nhwc"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -87,6 +91,7 @@ def schedule_conv2d_nhwc_spatial_pack(cfg, outs):
 
 @autotvm.register_topi_compute("conv2d_nchw_winograd.arm_cpu")
 def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nchw layout using Winograd with weight transform"""
     tile_size = 4
     return _decl_winograd(cfg, data, kernel, strides, padding, dilation,
                           out_dtype, tile_size)
@@ -94,6 +99,7 @@ def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtyp
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.arm_cpu")
 def schedule_conv2d_nchw_winograd(cfg, outs):
+    """Create schedule for conv2d_nchw_winograd"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -286,6 +292,7 @@ def _schedule_winograd(cfg, s, output, last):
 
 @autotvm.register_topi_compute("conv2d_nchw_winograd_nnpack.arm_cpu")
 def conv2d_nchw_winograd_nnpack(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nchw using nnpack Winograd implementation"""
     dtype = data.dtype
     if dtype == "float32":
         return _conv2d_arm_cpu_winograd_nnpack(
@@ -302,6 +309,7 @@ def conv2d_nchw_winograd_nnpack(cfg, data, kernel, strides, padding, dilation, o
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_nnpack.arm_cpu")
 def schedule_conv2d_nchw_winograd_nnpack(cfg, outs):
+    """Create schedule for conv2d_nchw_winograd_nnpack"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -371,6 +379,7 @@ def _schedule_winograd_nnpack(cfg, s, output, last):
 @autotvm.register_topi_compute("conv2d_nchw_winograd_nnpack_without_weight_transform.arm_cpu")
 def conv2d_nchw_winograd_nnpack_without_weight_transform(
         cfg, data, transformed_kernel, bias, strides, padding, dilation, out_dtype):
+    """Compute conv2d_nchw using NNPack winograd without weight transform"""
     N, CI, IH, IW = get_const_tuple(data.shape)
     if isinstance(dilation, int):
         dilation_h = dilation_w = dilation

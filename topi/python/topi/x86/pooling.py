@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
 import tvm
-from .. import generic
 from .. import tag
 
 def _parallel_sch(sch, oshape, do_vectorize=False):

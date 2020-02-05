@@ -18,7 +18,6 @@
 """scheduler functions for cuda backend"""
 from __future__ import absolute_import as _abs
 
-import tvm
 from .. import cpp
 
 def schedule_lrn(outs):

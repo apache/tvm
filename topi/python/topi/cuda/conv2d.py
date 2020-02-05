@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Compute definition for conv2d with cuda backend"""
 import tvm
 from tvm import autotvm
@@ -28,11 +28,13 @@ from .conv2d_direct import schedule_direct_cuda
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
 def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    """Compute conv2d with NCHW layout"""
     return nn.conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv2d_nchw.cuda")
 def schedule_conv2d_nchw(cfg, outs):
+    """Create the schedule for conv2d_nchw"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
@@ -67,6 +69,7 @@ def schedule_conv2d_nchw(cfg, outs):
 @autotvm.register_topi_compute("conv2d_cudnn.cuda")
 def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
                  out_dtype='float32'):
+    """Compute conv2d using CuDNN library"""
     if layout == 'NCHW':
         tensor_format = 0 # CUDNN_TENSOR_NCHW
         N, _, H, W = get_const_tuple(data.shape)
@@ -110,4 +113,5 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCHW',
 
 @autotvm.register_topi_schedule("conv2d_cudnn.cuda")
 def schedule_conv2d_cudnn(cfg, outs):
+    """Create the schedule for conv2d_cudnn"""
     return generic.schedule_extern(outs)

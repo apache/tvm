@@ -151,14 +151,14 @@ def _pack_data(cfg, data, kernel):
     kernel = tvm.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn),
         lambda occ, icc, k_h, k_w, icb, ocb:
-        kernel[occ * oc_bn + ocb,
-                icc * ic_bn + icb, k_h, k_w],
+        kernel[occ * oc_bn + ocb, icc * ic_bn + icb, k_h, k_w],
         name="kernel_vec")
 
     return data, kernel
 
 @autotvm.register_topi_compute("conv2d_NCHWc.x86")
 def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
+    """Compute conv2d with NCHWc layout."""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
     if len(data.shape) == 5:

@@ -135,6 +135,7 @@ def _default_dense_nopack_config(cfg, M, N, K):
 
 @autotvm.register_topi_compute("dense_nopack.x86")
 def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense without packing"""
     if out_dtype is None:
         out_dtype = data.dtype
     M, K = get_const_tuple(data.shape)
@@ -165,6 +166,7 @@ def dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_nopack.x86")
 def schedule_dense_nopack(cfg, outs):
+    """Create the schedule for dense_nopack"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -175,6 +177,7 @@ def schedule_dense_nopack(cfg, outs):
 
 @autotvm.register_topi_compute("dense_pack.x86")
 def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense with packing"""
     if out_dtype is None:
         out_dtype = data.dtype
     M, K = get_const_tuple(data.shape) # batch, in_dim
@@ -207,6 +210,7 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_pack.x86")
 def schedule_dense_pack(cfg, outs):
+    """Create the schedule for dense_pack"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -217,6 +221,7 @@ def schedule_dense_pack(cfg, outs):
 
 @autotvm.register_topi_compute("dense_cblas.x86")
 def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
+    """Compute dense using cblas library"""
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     cfg.add_flop(M * K * N * 2)
@@ -228,4 +233,5 @@ def dense_cblas(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_cblas.x86")
 def schedule_dense_cblas(_, outs):
+    """Create schedule for dense_cblas"""
     return generic.schedule_extern(outs)

@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-statements
+# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
 from tvm import autotvm
+
 from tvm.autotvm.task.space import SplitEntity
 
 from .. import nn, tag
 
 @autotvm.register_topi_compute("conv2d_hwcn.cuda")
 def conv2d_hwcn(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    """Compute conv2d with HWCN layout on CUDA"""
     return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
 
 

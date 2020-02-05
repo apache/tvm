@@ -26,7 +26,8 @@ from ..nn.util import get_pad_tuple
 
 
 @autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
-def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise_conv2d with NCHW layout"""
     return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
 
@@ -177,6 +178,7 @@ def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dila
 
 @autotvm.register_topi_schedule("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
 def schedule_depthwise_conv2d_nchw_spatial_pack(cfg, outs):
+    """Create the schedule for depthwise_conv2d_nchw_spatial_pack"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 

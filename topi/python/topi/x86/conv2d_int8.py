@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member, import-outside-toplevel
 """Conv2D int8 schedule on x86"""
 
-import re
 import tvm
 from tvm import autotvm
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
@@ -75,6 +74,7 @@ def is_int8_hw_support(data_dtype, kernel_dtype):
 
 
 def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype):
+    """Compute conv2d with NCHW layout and int8 dtype"""
     layout = "NCHW"
     packed_out = conv2d_NCHWc_int8(data, kernel, strides, padding, dilation,
                                    layout, layout, out_dtype)
@@ -82,6 +82,7 @@ def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype):
 
 
 def schedule_conv2d_nchw_int8(outs):
+    """Create the schedule for conv2d_nchw_int8"""
     return schedule_conv2d_NCHWc_int8(outs)
 
 
@@ -111,6 +112,7 @@ def _pack_data(cfg, data, kernel):
 @autotvm.register_topi_compute("conv2d_NCHWc_int8.x86")
 def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding,
                       dilation, layout, out_layout, out_dtype):
+    """Compute conv2d with NCHWc layout and int8 dtype"""
     if len(data.shape) == 5:
         n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
         in_channel = ic_chunk * ic_bn

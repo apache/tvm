@@ -22,7 +22,7 @@ from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.pad import pad
-from ..nn.util import get_pad_tuple, infer_pad
+from ..nn.util import get_pad_tuple
 from ..generic import conv2d as conv2d_generic
 from ..util import get_const_tuple, simplify
 from .tensor_intrin import dot_16x1x16_uint8_int8_int32

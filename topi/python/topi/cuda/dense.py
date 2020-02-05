@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
 from __future__ import absolute_import as _abs
 import logging
@@ -65,6 +65,7 @@ def dense_small_batch(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_small_batch.cuda")
 def schedule_dense_small_batch(cfg, outs):
+    """Schedule float32/64 dense with small batch size"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
@@ -76,7 +77,6 @@ def schedule_dense_small_batch(cfg, outs):
     return s
 
 def _schedule_dense_small_batch(cfg, s, C):
-    """Schedule float32/64 dense with small batch size"""
     A, _ = C.op.input_tensors
     _, in_dim = get_const_tuple(A.shape)
     cfg.define_split('tile_k', in_dim, num_outputs=2)
@@ -110,6 +110,7 @@ def dense_large_batch(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_large_batch.cuda")
 def schedule_dense_large_batch(cfg, outs):
+    """Schedule float32/64 dense with large batch size"""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
