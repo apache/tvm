@@ -365,9 +365,9 @@ class Server(object):
             #
             # pylint: disable=subprocess-popen-preexec-fn
             if platform.system() == "Windows":
-              self.proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+                self.proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
-              self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
