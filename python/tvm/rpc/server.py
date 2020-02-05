@@ -36,6 +36,7 @@ import subprocess
 import time
 import sys
 import signal
+import platform
 import tvm._ffi
 
 from tvm._ffi.base import py_str
@@ -363,7 +364,10 @@ class Server(object):
             # interim, stop the pylint diagnostic.
             #
             # pylint: disable=subprocess-popen-preexec-fn
-            self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+            if platform.system() == "Windows":
+                self.proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
