@@ -1,0 +1,2 @@
+python3 scripts_vnni/compile_tvm_for_vnni.py --symbol-file=./model/resnet50_v1-quantized-5batches-naive-symbol.json --param-file=./model/resnet50_v1-quantized-0000.params --image-shape=3,224,224 --ctx=cpu
+python3 profile_tvm_for_vnni.py --symbol-file=./model/resnet50_v1-quantized-5batches-naive-symbol.json --param-file=./model/resnet50_v1-quantized-0000.params --batch-size=1 --num-inference-batches=2000 --ctx=cpu
