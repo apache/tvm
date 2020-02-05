@@ -161,12 +161,12 @@ def decode(row, protocol='json'):
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
         config = pickle.loads(base64.b64decode(items[2].encode()))
-        result = pickle.loads(base64.b64decode(items[3].encode()))
+        result = MeasureResult(*pickle.loads(base64.b64decode(items[3].encode())))
         config.cost = np.mean(result.costs)
 
         tsk = task.Task(task_tuple[0], task_tuple[1])
         tsk.workload = task_tuple[3]
-        return MeasureInput(tgt, tsk, config), MeasureResult(*result)
+        return MeasureInput(tgt, tsk, config), result
 
     raise RuntimeError("Invalid log protocol: " + protocol)
 

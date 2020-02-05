@@ -407,32 +407,28 @@ def test_tuple():
                 "e": [["tile_ic", "sp", [1, 5]],
                       ["tile_oc", "sp", [1, 2]],
                       ["tile_ow", "sp", [4, 8]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+                      ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     cfg_dict = {"i": -1,
                 "c": None,
                 "e": [["tile_ic", "sp", [1, 5]],
                       ["tile_oc", "sp", [1, 3]],
                       ["tile_ow", "sp", [2, 16]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+                      ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     cfg_dict = {"i": -1,
                 "c": None,
                 "e": [["tile_ic", "sp", [1, 5]],
                       ["tile_oc", "sp", [2, 1]],
                       ["tile_ow", "sp", [4, 8]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+                      ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     cfg_dict = {"i": -1,
                 "c": None,
                 "e": [["tile_ic", "sp", [1, 5]],
                       ["tile_oc", "sp", [3, 1]],
                       ["tile_ow", "sp", [2, 16]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+                      ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []

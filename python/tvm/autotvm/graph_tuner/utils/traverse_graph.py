@@ -84,7 +84,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
             return
         node_index = len(node_list)
         node_entry = {"node": node, "inputs": [], "types": [],
-                      "op": "null", "name": None}
+                      "op": None, "name": None}
 
         if isinstance(node, Call):
             op = node.op

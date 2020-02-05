@@ -199,7 +199,7 @@ def test_conv2d_run():
             except_targets = []
 
         x = relay.var("x", shape=dshape, dtype=dtype)
-        w = relay.var("w", dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
         y = relay.nn.conv2d(x, w,
                             padding=padding,
                             dilation=dilation,
@@ -230,7 +230,7 @@ def test_conv2d_run():
                         dilation=(1, 1),
                         **attrs):
         x = relay.var("x", shape=dshape, dtype=dtype)
-        w = relay.var("w", dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
         y = relay.nn.conv2d(x, w,
                             padding=padding,
                             dilation=dilation,

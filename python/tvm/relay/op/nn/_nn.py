@@ -307,7 +307,7 @@ reg.register_strategy_broadcast("nn.pad")
 
 # mirror_pad
 @reg.register_compute("nn.mirror_pad")
-def compute_mirror_pad(attrs, inputs, out_dtype, target):
+def compute_mirror_pad(attrs, inputs, out_dtype):
     pad_before, pad_after = list(zip(*attrs.pad_width))
     mode = attrs.mode
     out = topi.nn.mirror_pad(inputs[0], pad_before=pad_before, pad_after=pad_after, mode=mode)

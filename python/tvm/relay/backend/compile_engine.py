@@ -256,7 +256,7 @@ class ScheduleGetter(ExprVisitor):
         self.func_name = "fused"
         outputs = self.visit(prim_func.body)
         if len(self.func_name) > ScheduleGetter.MAX_FUNC_NAME_LENGTH:
-            hash_digest = int(hashlib.sha1(self.func_name).hexdigest(), 16)
+            hash_digest = int(hashlib.sha1(self.func_name.encode("utf-8")).hexdigest(), 16)
             self.func_name = "%s_%s" % (
                 self.func_name[:ScheduleGetter.MAX_FUNC_NAME_LENGTH], hash_digest)
 
@@ -270,7 +270,8 @@ class ScheduleGetter(ExprVisitor):
             # print('master op:', self.master_op.name)
             sch = self.master_implement.schedule(self.master_attrs, tensor_outs, self.target)
             for scalar in self.scalars:
-                sch[scalar].compute_inline()
+                if scalar in sch.stage_map:
+                    sch[scalar].compute_inline()
         return CachedFunc(self.target, self.func_name, inputs, outputs, sch)
 
     def visit_var(self, var):
@@ -381,10 +382,10 @@ class ScheduleGetter(ExprVisitor):
         return fields
 
     def visit_tuple_getitem(self, t):
-        tup = self.visit(t.tuple)
-        assert len(tup) == len(t.tuple.checked_type.fields)
+        tup = self.visit(t.tuple_value)
+        assert len(tup) == len(t.tuple_value.checked_type.fields)
         assert t.index >= 0
-        assert t.index < tup.size()
+        assert t.index < len(tup)
         return [tup[t.index]]
 
 

@@ -26,7 +26,7 @@ from tvm import autotvm, relay
 from tvm.relay.testing import resnet
 from tvm.autotvm.graph_tuner.utils import has_multiple_inputs, get_direct_ancestor, get_in_nodes, \
     get_out_nodes, expr2graph, bind_inputs
-from tvm.relay.expr import Call, TupleGetItem, Tuple
+from tvm.relay.expr import Call, TupleGetItem, Tuple, Var
 from topi.nn.conv2d import conv2d
 
 
@@ -53,7 +53,7 @@ def test_has_multiple_inputs():
     out = relay.add(out1, out2)
     net = relay.Function(relay.analysis.free_vars(out), out)
     net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1)})
-    target_ops = ["conv2d"]
+    target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
     expr2graph(net, target_ops, node_dict, node_list)
@@ -67,22 +67,17 @@ def test_expr2graph():
     mod, _ = resnet.get_workload(num_layers=50, batch_size=1)
     node_dict = {}
     node_list = []
-    target_ops = ["conv2d"]
+    target_ops = [relay.op.get("nn.conv2d")]
     op_name_list = []
     def _count_node(node):
-        if not isinstance(node, relay.op.op.Op,):
-            return
         if isinstance(node, Call):
-            op_name_list.append(node.op.name.split(".")[-1])
-        elif isinstance(node, TupleGetItem):
-            op_name_list.append("TupleGetItem")
-        elif isinstance(node, Tuple):
-            op_name_list.append("Tuple")
-        else:
-            op_name_list.append("null")
+            op_name_list.append(node.op)
+        elif isinstance(node, (Var, TupleGetItem, Tuple)):
+            op_name_list.append(None)
     relay.analysis.post_order_visit(mod["main"], _count_node)
 
     expr2graph(mod["main"], target_ops, node_dict, node_list)
+    assert len(node_list) == len(op_name_list)
     for i, item in enumerate(zip(op_name_list, node_list)):
         op_name, node = item
         assert op_name == node["op"], "%dth Node operator mismatch: expecting %s but got %s" \
@@ -99,7 +94,7 @@ def test_get_direct_ancestor():
     out = relay.nn.conv2d(out3, w1)
     net = relay.Function(relay.analysis.free_vars(out), out)
     net = bind_inputs(net, {"data": (1, 16, 224, 224), "w0": (16, 16, 1, 1), "w1": (16, 16, 1, 1)})
-    target_ops = ["conv2d"]
+    target_ops = [relay.op.get("nn.conv2d")]
     node_list = []
     node_dict = {}
     expr2graph(net, target_ops, node_dict, node_list)

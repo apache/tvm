@@ -64,7 +64,7 @@ def test_check_correctness():
     # a bad template
     n = 128
     target = tvm.target.create("llvm -device=bad_device")
-    task = autotvm.task.create(bad_matmul, args=(n, n, n, 'float32'), target=target)
+    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, 'float32'), target=target)
 
     def _callback_wrong(tuner, measure_inputs, measure_results):
         for _, res in zip(measure_inputs, measure_results):

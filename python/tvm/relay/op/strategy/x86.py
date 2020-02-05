@@ -116,7 +116,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nchw))
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
-            logger.warning("For x86 target, NCHW layout is recommended for depthwise_conv2d.")
+            logger.warning("For x86 target, depthwise_conv2d with NCHW layout is "
+                           "not optimized.")
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc))

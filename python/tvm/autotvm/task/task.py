@@ -342,74 +342,6 @@ def args_to_workload(x, task_name=None):
                            'primitive types or tvm.expr.Var only' % type(x))
     return tuple((task_name, ) + workload) if task_name else workload
 
-# def template(func):
-#     """
-#     Decorate a function as a tunable schedule template
-#
-#     Parameters
-#     ----------
-#     func: callable
-#         A callable template function.
-#         Its argument should be hashable values.
-#         Its return value should be a Tuple(Schedule, Array of Tensor)
-#
-#     Returns
-#     -------
-#     func: callable
-#         The decorated function
-#
-#     Examples
-#     --------
-#     The following code is a tunable template for a blocked matrix multiplication
-#
-#     .. code-block:: python
-#
-#         @autotvm.template
-#         def matmul(N, L, M, dtype):
-#             A = tvm.placeholder((N, L), name='A', dtype=dtype)
-#             B = tvm.placeholder((L, M), name='B', dtype=dtype)
-#
-#             k = tvm.reduce_axis((0, L), name='k')
-#             C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-#             s = tvm.create_schedule(C.op)
-#
-#             # schedule
-#             y, x = s[C].op.axis
-#             k = s[C].op.reduce_axis[0]
-#
-#             ##### define space begin #####
-#             cfg = autotvm.get_config()
-#             cfg.define_split("tile_y", y, num_outputs=2)
-#             cfg.define_split("tile_x", x, num_outputs=2)
-#             ##### define space end #####
-#
-#             # schedule according to config
-#             yo, yi = cfg["tile_y"].apply(s, C, y)
-#             xo, xi = cfg["tile_x"].apply(s, C, x)
-#
-#             s[C].reorder(yo, xo, k, yi, xi)
-#
-#             return s, [A, B, C]
-#     """
-#     # pylint: disable=unused-variable
-#
-#     fname = get_func_name(func)
-#
-#     @register(fname)
-#     @dispatcher
-#     def config_dispatcher(*args, **kwargs):
-#         assert not kwargs, "Do not support kwargs in template function call"
-#         return (fname, ) + args_to_workload(args)
-#
-#     @config_dispatcher.register("")
-#     def template_call(cfg, *args, **kwargs):
-#         assert not kwargs, "Do not support kwargs in template function call"
-#         with ApplyConfig(cfg):
-#             return func(*args, **kwargs)
-#
-#     config_dispatcher.func_name = fname
-#     return config_dispatcher
-
 def get_config():
     """Get current config object
 
@@ -418,7 +350,8 @@ def get_config():
     cfg: ConfigSpace or ConfigEntity
         The current config
     """
-    return DispatchContext.current.query(None, None)
+    tgt = _target.current_target(allow_none=True)
+    return DispatchContext.current.query(tgt, None)
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
