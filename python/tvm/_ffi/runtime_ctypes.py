@@ -48,7 +48,7 @@ class TVMByteArray(ctypes.Structure):
     _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),
                 ("size", ctypes.c_size_t)]
 
-class TVMType(ctypes.Structure):
+class DataType(ctypes.Structure):
     """TVM datatype structure"""
     _fields_ = [("type_code", ctypes.c_uint8),
                 ("bits", ctypes.c_uint8),
@@ -60,7 +60,7 @@ class TVMType(ctypes.Structure):
         4 : 'handle'
     }
     def __init__(self, type_str):
-        super(TVMType, self).__init__()
+        super(DataType, self).__init__()
         if isinstance(type_str, np.dtype):
             type_str = str(type_str)
 
@@ -104,8 +104,8 @@ class TVMType(ctypes.Structure):
     def __repr__(self):
         if self.bits == 1 and self.lanes == 1:
             return "bool"
-        if self.type_code in TVMType.CODE2STR:
-            type_name = TVMType.CODE2STR[self.type_code]
+        if self.type_code in DataType.CODE2STR:
+            type_name = DataType.CODE2STR[self.type_code]
         else:
             type_name = "custom[%s]" % \
                         _api_internal._datatype_get_type_name(self.type_code)
@@ -263,7 +263,7 @@ class TVMArray(ctypes.Structure):
     _fields_ = [("data", ctypes.c_void_p),
                 ("ctx", TVMContext),
                 ("ndim", ctypes.c_int),
-                ("dtype", TVMType),
+                ("dtype", DataType),
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
                 ("byte_offset", ctypes.c_uint64)]

@@ -57,8 +57,8 @@ We can also use other specific function in this module to create specific target
 import warnings
 import tvm._ffi
 
+from tvm.runtime import Object
 from ._ffi.base import _LIB_NAME
-from ._ffi.object import Object
 from . import _api_internal
 
 try:

@@ -657,9 +657,9 @@ def test_llvm_shuffle():
     with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
-        a_ = tvm.ndarray.array(np.arange(1, 9, dtype='int32'))
-        b_ = tvm.ndarray.array(np.arange(8, 0, -1, dtype='int32'))
-        c_ = tvm.ndarray.array(np.zeros((8, ), dtype='int32'))
+        a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))
+        b_ = tvm.nd.array(np.arange(8, 0, -1, dtype='int32'))
+        c_ = tvm.nd.array(np.zeros((8, ), dtype='int32'))
         module(a_, b_, c_)
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 

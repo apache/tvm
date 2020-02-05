@@ -20,7 +20,7 @@ import tvm._ffi
 from . import make as _make
 from .api import convert
 from .expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
-from ._ffi.runtime_ctypes import TVMType as _TVMType
+from ._ffi.runtime_ctypes import DataType
 from . import _api_internal
 
 
@@ -131,7 +131,7 @@ def create_lower_func(extern_func_name):
         width as the custom type is returned. Otherwise, the type is
         unchanged."""
         dtype = op.dtype
-        t = _TVMType(dtype)
+        t = DataType(dtype)
         if get_type_registered(t.type_code):
             dtype = "uint" + str(t.bits)
             if t.lanes > 1:

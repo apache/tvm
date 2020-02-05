@@ -17,9 +17,8 @@
 """The computation schedule api of TVM."""
 import tvm._ffi
 
-from ._ffi.base import string_types
-from ._ffi.object import Object
-from ._ffi.object_generic import convert
+from tvm._ffi.base import string_types
+from tvm.runtime import Object, convert
 
 from . import _api_internal
 from . import tensor as _tensor

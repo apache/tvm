@@ -23,7 +23,7 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_runtime
-from tvm.ndarray import array
+from tvm.runtime.ndarray import array
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"

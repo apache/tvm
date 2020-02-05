@@ -23,7 +23,7 @@ from .expr_functor import ExprMutator
 from .scope_builder import ScopeBuilder
 from . import transform
 from . import op, ty, expr
-from .. import TVMType, register_func
+from .. import DataType, register_func
 from .backend import compile_engine
 
 
@@ -109,7 +109,7 @@ class ManifestAllocPass(ExprMutator):
         return expr.Tuple(new_fields)
 
     def compute_alignment(self, dtype):
-        dtype = TVMType(dtype)
+        dtype = DataType(dtype)
         align = (dtype.bits // 8) * dtype.lanes
         # MAGIC CONSTANT FROM device_api.h
         if align < 64:
@@ -118,7 +118,7 @@ class ManifestAllocPass(ExprMutator):
         return expr.const(align, dtype="int64")
 
     def compute_storage_in_relay(self, shape, dtype):
-        dtype = TVMType(dtype)
+        dtype = DataType(dtype)
         els = op.prod(shape)
         num = expr.const(dtype.bits * dtype.lanes, self.compute_dtype)
         num = num + expr.const(7, self.compute_dtype)
@@ -126,7 +126,7 @@ class ManifestAllocPass(ExprMutator):
         return els * (num / div)
 
     def compute_storage(self, tensor_type):
-        dtype = TVMType(tensor_type.dtype)
+        dtype = DataType(tensor_type.dtype)
         shape = [int(sh) for sh in tensor_type.shape]
         size = 1
         for sh in shape:

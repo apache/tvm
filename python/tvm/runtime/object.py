@@ -17,19 +17,20 @@
 # pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
 import ctypes
+
+from tvm._ffi.base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
 from .. import _api_internal
-from .base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
 
 try:
     # pylint: disable=wrong-import-position,unused-import
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from ._cy3.core import _set_class_object, _set_class_object_generic
-    from ._cy3.core import ObjectBase
+    from tvm._ffi._cy3.core import _set_class_object, _set_class_object_generic
+    from tvm._ffi._cy3.core import ObjectBase
 except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position,unused-import
-    from ._ctypes.packed_func import _set_class_object, _set_class_object_generic
-    from ._ctypes.object import ObjectBase
+    from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
+    from tvm._ffi._ctypes.object import ObjectBase
 
 
 def _new_object(cls):
@@ -89,46 +90,6 @@ class Object(ObjectBase):
         if not isinstance(other, Object):
             return False
         return self.__hash__() == other.__hash__()
-
-
-def getitem_helper(obj, elem_getter, length, idx):
-    """Helper function to implement a pythonic getitem function.
-
-    Parameters
-    ----------
-    obj: object
-        The original object
-
-    elem_getter : function
-        A simple function that takes index and return a single element.
-
-    length : int
-        The size of the array
-
-    idx : int or slice
-        The argument passed to getitem
-
-    Returns
-    -------
-    result : object
-        The result of getitem
-    """
-    if isinstance(idx, slice):
-        start = idx.start if idx.start is not None else 0
-        stop = idx.stop if idx.stop is not None else length
-        step = idx.step if idx.step is not None else 1
-        if start < 0:
-            start += length
-        if stop < 0:
-            stop += length
-        return [elem_getter(obj, i) for i in range(start, stop, step)]
-
-    if idx < -length or idx >= length:
-        raise IndexError("Index out of range. size: {}, got index {}"
-                         .format(length, idx))
-    if idx < 0:
-        idx += length
-    return elem_getter(obj, idx)
 
 
 _set_class_object(Object)

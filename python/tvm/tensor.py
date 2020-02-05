@@ -18,8 +18,7 @@
 # pylint: disable=invalid-name
 import tvm._ffi
 
-from ._ffi.object import Object
-from ._ffi.object_generic import ObjectGeneric, convert_to_object
+from tvm.runtime import Object, ObjectGeneric, convert_to_object
 
 from . import _api_internal
 from . import make as _make
@@ -127,7 +126,6 @@ class Tensor(Object, _expr.ExprOp):
         if op.num_outputs == 1:
             return op.name
         return "%s.v%d" % (op.name, self.value_index)
-
 
 
 class Operation(Object):

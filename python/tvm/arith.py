@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Arithmetic data structure and utility"""
-from __future__ import absolute_import as _abs
 import tvm._ffi
+from tvm.runtime import Object
 
-from ._ffi.object import Object
 from . import _api_internal
 
 class IntSet(Object):

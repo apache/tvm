@@ -28,7 +28,7 @@ def test_shared_memory():
         N = 1024
         M = 128
 
-        tvm_type = tvm.datatype._TVMType(dtype)
+        tvm_type = tvm.runtime.DataType(dtype)
         type_size = tvm_type.bits // 8 * tvm_type.lanes
 
         A = tvm.placeholder((N,), name='A', dtype=dtype)

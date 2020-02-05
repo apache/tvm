@@ -15,19 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
-"""TVM: Low level DSL/IR stack for tensor computation."""
+"""TVM: Open Deep Learning Compiler Stack."""
 import multiprocessing
 import sys
 import traceback
 
-# import ffi related features
+# top-level alias
+# tvm._ffi
 from ._ffi.base import TVMError, __version__
-from ._ffi.runtime_ctypes import TypeCode, TVMType
-from ._ffi.ndarray import TVMContext
-from ._ffi.packed_func import PackedFunc as Function
+from ._ffi.runtime_ctypes import TypeCode, DataType
 from ._ffi.registry import register_object, register_func, register_extension
-from ._ffi.object import Object
 
+# top-level alias
+# tvm.runtime
+from .runtime.object import Object
+from .runtime.packed_func import PackedFunc as Function
+from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
+from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
+from .runtime import module
+from .runtime import ndarray
+# pylint: disable=reimported
+from .runtime import ndarray as nd
+
+# others
 from . import tensor
 from . import arith
 from . import expr
@@ -37,7 +47,7 @@ from . import ir_pass
 from . import codegen
 from . import container
 from . import schedule
-from . import module
+
 from . import attrs
 from . import ir_builder
 from . import target
@@ -47,9 +57,6 @@ from . import testing
 from . import error
 from . import datatype
 
-from . import ndarray as nd
-from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
 
 from .api import *
 from .intrin import *

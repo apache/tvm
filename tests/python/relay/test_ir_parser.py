@@ -132,7 +132,7 @@ def test_comments():
 
 def test_int_literal():
     assert isinstance(parse_text("1"), relay.Constant)
-    assert isinstance(parse_text("1").data, tvm.ndarray.NDArray)
+    assert isinstance(parse_text("1").data, tvm.nd.NDArray)
 
     assert get_scalar(parse_text("1")) == 1
     assert get_scalar(parse_text("10")) == 10

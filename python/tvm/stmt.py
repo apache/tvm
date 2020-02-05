@@ -30,7 +30,8 @@ Each statement node have subfields that can be visited from python side.
     assert(st.buffer_var == a)
 """
 import tvm._ffi
-from ._ffi.object import Object
+
+from tvm.runtime import Object
 from . import make as _make
 
 
