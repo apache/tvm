@@ -160,11 +160,12 @@ def verify_model(model_name, input_data=[]):
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
         baseline_input = baseline_input.cuda()
-    baseline_outputs = baseline_model(baseline_input)
+    with torch.no_grad():
+        baseline_outputs = baseline_model(baseline_input)
     if isinstance(baseline_outputs, tuple):
-        baseline_outputs = tuple(out.detach().cpu().numpy() for out in baseline_outputs)
+        baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
-        baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
+        baseline_outputs = (baseline_outputs.float().cpu().numpy(),)
     output_shapes = [out.shape for out in baseline_outputs]
     dtype = "float32"
     input_name = "input0"
