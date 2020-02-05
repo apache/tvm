@@ -59,7 +59,7 @@ def load_torchvision(model_name):
     """Given a model name, returns a Torchvision model in eval mode as well
     as an example input."""
     with torch.no_grad():
-        if model_name.startswith('inception'):
+        if model_name.startswith("inception"):
             height = width = 299
             mean = [0.5, 0.5, 0.5]
             std = [0.5, 0.5, 0.5]
@@ -96,8 +96,8 @@ def load_model(model_name):
         if hasattr(pretrainedmodels, model_name):
             return load_pretrainedmodels(model_name)
     except ModuleNotFoundError:
-        raise ModuleNotFoundError('Please install pretrainedmodels.pytorch')
-    raise RuntimeError('Model not supported')
+        raise ModuleNotFoundError("Please install pretrainedmodels.pytorch")
+    raise RuntimeError("Model not supported")
 
 
 def confidence_interval(mean, stdev, count, alpha=.01):
@@ -125,14 +125,14 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
         else:
             input_data = {}
             for i, shape in enumerate(input_shapes):
-                name = 'input' + str(i)
-                arr = np.random.random(shape).astype('float32')
+                name = "input" + str(i)
+                arr = np.random.random(shape).astype("float32")
                 input_data[name] = tvm.nd.array(arr)
             t_start = time()
             model.set_input(**input_data)
             model.run()
             for i, shape in enumerate(output_shapes):
-                arr = np.zeros(shape).astype('float32')
+                arr = np.zeros(shape).astype("float32")
                 model.get_output(i, tvm.nd.array(arr))
             t_end = time()
         count += 1
@@ -166,8 +166,8 @@ def verify_model(model_name, input_data=[]):
     else:
         baseline_outputs = (baseline_outputs.detach().float().cpu().numpy(),)
     output_shapes = [out.shape for out in baseline_outputs]
-    dtype = 'float32'
-    input_name = 'input0'
+    dtype = "float32"
+    input_name = "input0"
     input_shapes = {input_name: list(baseline_input.shape)}
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
     if torch.cuda.is_available():
@@ -703,104 +703,104 @@ def test_forward_chunk():
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
-    verify_model('resnet18')
+    verify_model("resnet18")
 
 def test_resnet34():
     torch.set_grad_enabled(False)
-    verify_model('resnet34')
+    verify_model("resnet34")
 
 def test_resnet50():
     torch.set_grad_enabled(False)
-    verify_model('resnet50')
+    verify_model("resnet50")
 
 def test_resnet101():
     torch.set_grad_enabled(False)
-    verify_model('resnet101')
+    verify_model("resnet101")
 
 def test_resnet152():
     torch.set_grad_enabled(False)
-    verify_model('resnet152')
+    verify_model("resnet152")
 
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
-    verify_model('squeezenet1_0')
+    verify_model("squeezenet1_0")
 
 def test_squeezenet1_1():
     torch.set_grad_enabled(False)
-    verify_model('squeezenet1_1')
+    verify_model("squeezenet1_1")
 
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
-    verify_model('mobilenet_v2')
+    verify_model("mobilenet_v2")
 
 def test_densenet121():
     torch.set_grad_enabled(False)
-    verify_model('densenet121')
+    verify_model("densenet121")
 
 def test_densenet161():
     torch.set_grad_enabled(False)
-    verify_model('densenet161')
+    verify_model("densenet161")
 
 def test_densenet169():
     torch.set_grad_enabled(False)
-    verify_model('densenet169')
+    verify_model("densenet169")
 
 def test_densenet201():
     torch.set_grad_enabled(False)
-    verify_model('densenet201')
+    verify_model("densenet201")
 
 def test_inception_v3():
     torch.set_grad_enabled(False)
-    verify_model('inception_v3')
+    verify_model("inception_v3")
 
 def test_googlenet():
     torch.set_grad_enabled(False)
-    verify_model('googlenet')
+    verify_model("googlenet")
 
 def test_mnasnet0_5():
     torch.set_grad_enabled(False)
-    verify_model('mnasnet0_5')
+    verify_model("mnasnet0_5")
 
 def test_mnasnet1_0():
     torch.set_grad_enabled(False)
-    verify_model('mnasnet1_0')
+    verify_model("mnasnet1_0")
 
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
 """
 def test_alexnet():
     torch.set_grad_enabled(False)
-    verify_model('alexnet')
+    verify_model("alexnet")
 
 def test_vgg11():
     torch.set_grad_enabled(False)
-    verify_model('vgg11')
+    verify_model("vgg11")
 
 def test_vgg13():
     torch.set_grad_enabled(False)
-    verify_model('vgg13')
+    verify_model("vgg13")
 
 def test_vgg16():
     torch.set_grad_enabled(False)
-    verify_model('vgg16')
+    verify_model("vgg16")
 
 def test_vgg19():
     torch.set_grad_enabled(False)
-    verify_model('vgg19')
+    verify_model("vgg19")
 
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
-    verify_model('vgg11_bn')
+    verify_model("vgg11_bn")
 
 def test_vgg13_bn():
     torch.set_grad_enabled(False)
-    verify_model('vgg13_bn')
+    verify_model("vgg13_bn")
 
 def test_vgg19_bn():
     torch.set_grad_enabled(False)
-    verify_model('vgg19_bn')
+    verify_model("vgg19_bn")
 """
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Single operator tests
     test_forward_add()

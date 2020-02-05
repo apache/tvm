@@ -28,7 +28,7 @@ from .. import op as _op
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 
-__all__ = ['from_pytorch']
+__all__ = ["from_pytorch"]
 
 # operator implementation
 def _elemwise(name):
@@ -99,7 +99,7 @@ def _select():
         dim = int(inputs[1])
         index = int(inputs[2])
 
-        return _op.transform.take(data, _expr.const(index, dtype='int32'), axis=dim)
+        return _op.transform.take(data, _expr.const(index, dtype="int32"), axis=dim)
     return _impl
 
 def _ones():
@@ -177,7 +177,7 @@ def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
         use_transpose = False
-        if inputs[6] == '1':
+        if inputs[6] == "1":
             use_transpose = True
 
         use_bias = False
@@ -306,46 +306,46 @@ def _batch_norm():
         if scale:
             gamma = weight
         else:
-            if data_type == 'double':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('float64'))
-            elif data_type == 'float':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
-            elif data_type == 'half':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('float16'))
-            elif data_type == 'long':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('int64'))
-            elif data_type == 'int':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('int32'))
-            elif data_type == 'short':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('int16'))
-            elif data_type == 'char':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('int8'))
-            elif data_type == 'byte':
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('uint8'))
+            if data_type == "double":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("float64"))
+            elif data_type == "float":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("float32"))
+            elif data_type == "half":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("float16"))
+            elif data_type == "long":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("int64"))
+            elif data_type == "int":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("int32"))
+            elif data_type == "short":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("int16"))
+            elif data_type == "char":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("int8"))
+            elif data_type == "byte":
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("uint8"))
             else:
-                gamma = _expr.const(np.ones([int(channels[1])]).astype('float32'))
+                gamma = _expr.const(np.ones([int(channels[1])]).astype("float32"))
 
         if center:
             beta = beta
         else:
-            if data_type == 'double':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('float64'))
-            elif data_type == 'float':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
-            elif data_type == 'half':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('float16'))
-            elif data_type == 'long':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('int64'))
-            elif data_type == 'int':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('int32'))
-            elif data_type == 'short':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('int16'))
-            elif data_type == 'char':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('int8'))
-            elif data_type == 'byte':
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('uint8'))
+            if data_type == "double":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("float64"))
+            elif data_type == "float":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("float32"))
+            elif data_type == "half":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("float16"))
+            elif data_type == "long":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("int64"))
+            elif data_type == "int":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("int32"))
+            elif data_type == "short":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("int16"))
+            elif data_type == "char":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("int8"))
+            elif data_type == "byte":
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("uint8"))
             else:
-                beta = _expr.const(np.zeros([int(channels[1])]).astype('float32'))
+                beta = _expr.const(np.zeros([int(channels[1])]).astype("float32"))
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
@@ -420,45 +420,45 @@ def _dense():
         alpha = inputs[4]
 
         if not isinstance(alpha, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
-            if data_type == 'double':
-                alpha = _expr.const(np.float64(alpha), dtype='float64')
-            elif data_type == 'float':
-                alpha = _expr.const(np.float32(alpha), dtype='float32')
-            elif data_type == 'half':
-                alpha = _expr.const(np.float16(alpha), dtype='float16')
-            elif data_type == 'long':
-                alpha = _expr.const(np.int64(alpha), dtype='int64')
-            elif data_type == 'int':
-                alpha = _expr.const(np.int32(alpha), dtype='int32')
-            elif data_type == 'short':
-                alpha = _expr.const(np.int16(alpha), dtype='int16')
-            elif data_type == 'char':
-                alpha = _expr.const(np.int8(alpha), dtype='int8')
-            elif data_type == 'byte':
-                alpha = _expr.const(np.uint8(alpha), dtype='uint8')
+            if data_type == "double":
+                alpha = _expr.const(np.float64(alpha), dtype="float64")
+            elif data_type == "float":
+                alpha = _expr.const(np.float32(alpha), dtype="float32")
+            elif data_type == "half":
+                alpha = _expr.const(np.float16(alpha), dtype="float16")
+            elif data_type == "long":
+                alpha = _expr.const(np.int64(alpha), dtype="int64")
+            elif data_type == "int":
+                alpha = _expr.const(np.int32(alpha), dtype="int32")
+            elif data_type == "short":
+                alpha = _expr.const(np.int16(alpha), dtype="int16")
+            elif data_type == "char":
+                alpha = _expr.const(np.int8(alpha), dtype="int8")
+            elif data_type == "byte":
+                alpha = _expr.const(np.uint8(alpha), dtype="uint8")
             else:
-                alpha = _expr.const(np.float32(alpha), dtype='float32')
+                alpha = _expr.const(np.float32(alpha), dtype="float32")
             data *= alpha
 
         if not isinstance(beta, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
-            if data_type == 'double':
-                beta = _expr.const(np.float64(beta), dtype='float64')
-            elif data_type == 'float':
-                beta = _expr.const(np.float32(beta), dtype='float32')
-            elif data_type == 'half':
-                beta = _expr.const(np.float16(beta), dtype='float16')
-            elif data_type == 'long':
-                beta = _expr.const(np.int64(beta), dtype='int64')
-            elif data_type == 'int':
-                beta = _expr.const(np.int32(beta), dtype='int32')
-            elif data_type == 'short':
-                beta = _expr.const(np.int16(beta), dtype='int16')
-            elif data_type == 'char':
-                beta = _expr.const(np.int8(beta), dtype='int8')
-            elif data_type == 'byte':
-                beta = _expr.const(np.uint8(beta), dtype='uint8')
+            if data_type == "double":
+                beta = _expr.const(np.float64(beta), dtype="float64")
+            elif data_type == "float":
+                beta = _expr.const(np.float32(beta), dtype="float32")
+            elif data_type == "half":
+                beta = _expr.const(np.float16(beta), dtype="float16")
+            elif data_type == "long":
+                beta = _expr.const(np.int64(beta), dtype="int64")
+            elif data_type == "int":
+                beta = _expr.const(np.int32(beta), dtype="int32")
+            elif data_type == "short":
+                beta = _expr.const(np.int16(beta), dtype="int16")
+            elif data_type == "char":
+                beta = _expr.const(np.int8(beta), dtype="int8")
+            elif data_type == "byte":
+                beta = _expr.const(np.uint8(beta), dtype="uint8")
             else:
-                beta = _expr.const(np.float32(beta), dtype='float32')
+                beta = _expr.const(np.float32(beta), dtype="float32")
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
@@ -686,22 +686,22 @@ def _sqrt():
 # Helper functions for operator implementation
 
 def _convert_data_type(input_type):
-    if input_type in ['double', 'torch.float64']:
-        return 'float64'
-    elif input_type in ['float', 'torch.float32']:
-        return 'float32'
-    elif input_type in ['half', 'torch.float16']:
-        return 'float16'
-    elif input_type in ['long', 'torch.int64']:
-        return 'int64'
-    elif input_type in ['int', 'torch.int32']:
-        return 'int32'
-    elif input_type in ['short', 'torch.int16']:
-        return 'int16'
-    elif input_type in ['char', 'torch.int8']:
-        return 'int8'
-    elif input_type in ['byte', 'torch.uint8']:
-        return 'uint8'
+    if input_type in ["double", "torch.float64"]:
+        return "float64"
+    elif input_type in ["float", "torch.float32"]:
+        return "float32"
+    elif input_type in ["half", "torch.float16"]:
+        return "float16"
+    elif input_type in ["long", "torch.int64"]:
+        return "int64"
+    elif input_type in ["int", "torch.int32"]:
+        return "int32"
+    elif input_type in ["short", "torch.int16"]:
+        return "int16"
+    elif input_type in ["char", "torch.int8"]:
+        return "int8"
+    elif input_type in ["byte", "torch.uint8"]:
+        return "uint8"
     else:
         return input_type
 
@@ -718,64 +718,64 @@ def _convert_elemwise_input(data, input_type):
 # Operator mappings
 
 _convert_map = {
-    'aten::device'                          : _none(),
-    'aten::add'                             : _elemwise('add'),
-    'aten::add_'                            : _elemwise('add'),
-    'aten::sub'                             : _elemwise('subtract'),
-    'aten::sub_'                            : _elemwise('subtract'),
-    'aten::max'                             : _elemwise('maximum'),
-    'aten::min'                             : _elemwise('minimum'),
-    'aten::mul'                             : _elemwise('multiply'),
-    'aten::mul_'                            : _elemwise('multiply'),
-    'aten::pow'                             : _elemwise('power'),
-    'aten::div'                             : _elemwise('divide'),
-    'aten::div_'                            : _elemwise('divide'),
-    'aten::ones'                            : _ones(),
-    'aten::zeros'                           : _zeros(),
-    'aten::to'                              : _identity(),
-    'aten::unsqueeze'                       : _unsqueeze(),
-    'aten::cat'                             : _concatenate(),
-    'aten::slice'                           : _slice(),
-    'aten::select'                          : _select(),
-    'aten::relu'                            : _relu(),
-    'aten::relu_'                           : _relu(),
-    'aten::adaptive_avg_pool2d'             : _adaptive_avg_2d(),
-    'aten::adaptive_max_pool2d'             : _adaptive_max_2d(),
-    'aten::max_pool2d'                      : _maxpool_2d(),
-    'aten::max_pool2d_with_indices'         : _maxpool_2d(),
-    'aten::hardtanh'                        : _hardtanh(),
-    'aten::hardtanh_'                       : _hardtanh(),
-    'aten::_convolution'                    : _convolution(),
-    'aten::softmax'                         : _softmax(),
-    'aten::threshold'                       : _threshold(),
-    'aten::threshold_'                      : _threshold(),
-    'aten::contiguous'                      : _contiguous(),
-    'aten::batch_norm'                      : _batch_norm(),
-    'aten::transpose'                       : _transpose(),
-    'aten::transpose_'                      : _transpose(),
-    'aten::t'                               : _transpose(),
-    'aten::flatten'                         : _flatten(),
-    'aten::addmm'                           : _dense(),
-    'aten::size'                            : _size(),
-    'aten::view'                            : _view(),
-    'aten::clone'                           : _clone(),
-    'aten::log_softmax'                     : _log_softmax(),
-    'aten::sigmoid'                         : _sigmoid(),
-    'aten::avg_pool2d'                      : _avg_pool2d(),
-    'aten::dropout'                         : _dropout(),
-    'aten::dropout_'                        : _dropout(),
-    'aten::mean'                            : _mean(),
-    'aten::chunk'                           : _chunk(),
-    'aten::matmul'                          : _matmul(),
-    'aten::expand'                          : _expand(),
-    'aten::Int'                             : _int(),
-    'prim::NumToTensor'                     : _numtotensor(),
-    'prim::ListUnpack'                      : _identity(),
-    'aten::constant_pad_nd'                 : _pad(),
-    'aten::permute'                         : _transpose(),
-    'aten::sum'                             : _reduce('sum'),
-    'aten::prod'                            : _reduce('prod'),
-    'aten::sqrt'                            : _sqrt()
+    "aten::device"                          : _none(),
+    "aten::add"                             : _elemwise("add"),
+    "aten::add_"                            : _elemwise("add"),
+    "aten::sub"                             : _elemwise("subtract"),
+    "aten::sub_"                            : _elemwise("subtract"),
+    "aten::max"                             : _elemwise("maximum"),
+    "aten::min"                             : _elemwise("minimum"),
+    "aten::mul"                             : _elemwise("multiply"),
+    "aten::mul_"                            : _elemwise("multiply"),
+    "aten::pow"                             : _elemwise("power"),
+    "aten::div"                             : _elemwise("divide"),
+    "aten::div_"                            : _elemwise("divide"),
+    "aten::ones"                            : _ones(),
+    "aten::zeros"                           : _zeros(),
+    "aten::to"                              : _identity(),
+    "aten::unsqueeze"                       : _unsqueeze(),
+    "aten::cat"                             : _concatenate(),
+    "aten::slice"                           : _slice(),
+    "aten::select"                          : _select(),
+    "aten::relu"                            : _relu(),
+    "aten::relu_"                           : _relu(),
+    "aten::adaptive_avg_pool2d"             : _adaptive_avg_2d(),
+    "aten::adaptive_max_pool2d"             : _adaptive_max_2d(),
+    "aten::max_pool2d"                      : _maxpool_2d(),
+    "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+    "aten::hardtanh"                        : _hardtanh(),
+    "aten::hardtanh_"                       : _hardtanh(),
+    "aten::_convolution"                    : _convolution(),
+    "aten::softmax"                         : _softmax(),
+    "aten::threshold"                       : _threshold(),
+    "aten::threshold_"                      : _threshold(),
+    "aten::contiguous"                      : _contiguous(),
+    "aten::batch_norm"                      : _batch_norm(),
+    "aten::transpose"                       : _transpose(),
+    "aten::transpose_"                      : _transpose(),
+    "aten::t"                               : _transpose(),
+    "aten::flatten"                         : _flatten(),
+    "aten::addmm"                           : _dense(),
+    "aten::size"                            : _size(),
+    "aten::view"                            : _view(),
+    "aten::clone"                           : _clone(),
+    "aten::log_softmax"                     : _log_softmax(),
+    "aten::sigmoid"                         : _sigmoid(),
+    "aten::avg_pool2d"                      : _avg_pool2d(),
+    "aten::dropout"                         : _dropout(),
+    "aten::dropout_"                        : _dropout(),
+    "aten::mean"                            : _mean(),
+    "aten::chunk"                           : _chunk(),
+    "aten::matmul"                          : _matmul(),
+    "aten::expand"                          : _expand(),
+    "aten::Int"                             : _int(),
+    "prim::NumToTensor"                     : _numtotensor(),
+    "prim::ListUnpack"                      : _identity(),
+    "aten::constant_pad_nd"                 : _pad(),
+    "aten::permute"                         : _transpose(),
+    "aten::sum"                             : _reduce("sum"),
+    "aten::prod"                            : _reduce("prod"),
+    "aten::sqrt"                            : _sqrt()
 }
 
 # Internal graph for parsing
@@ -835,7 +835,7 @@ class Graph(object):
         nid = 0
 
         for op_name, op_node in self._ops.items():
-            if op_node.kind() == 'prim::ListConstruct':
+            if op_node.kind() == "prim::ListConstruct":
                 if any(inp.debugName() in self._parsed_node_names.keys() \
                        for inp in op_node.inputs()):
                     listconstr = []
@@ -843,7 +843,7 @@ class Graph(object):
                         if i.debugName() in self._parsed_node_names.keys():
                             listconstr.append( \
                                 outputs[self._parsed_node_names[i.debugName()]])
-                        elif i.node().kind() == 'prim::Constant':
+                        elif i.node().kind() == "prim::Constant":
                             listconstr.append(int(self._consts[i.debugName()]))
                         elif i.debugName() in self._inputs_r.keys():
                             listconstr.append(int(self._inputs_r[i.debugName()]))
@@ -906,7 +906,7 @@ class Graph(object):
         param_names = []
         for key, value in state_dict.items():
             param_str = str(key)
-            param_name = param_str.split('.')[-1]
+            param_name = param_str.split(".")[-1]
             param_names.append(param_name)
 
         # Get names of all inputs
@@ -968,9 +968,9 @@ class Graph(object):
                     elif ty in ["TensorType", "CompleteTensorType"]:
                         self._consts[node_name] = node.output().toIValue()
                     else:
-                        self._consts[node_name] = '0'
+                        self._consts[node_name] = "0"
                 else:
-                    self._consts[node_name] = '0'
+                    self._consts[node_name] = "0"
             elif node.kind() == "prim::ListConstruct":
                 list_shape = []
                 for input_node in node.inputs():
@@ -1020,29 +1020,29 @@ class Graph(object):
                 input_list_r.append("call/var."+inode_id)
 
                 # If the inputs of a ListConstruct op is a call or var, remove it from inputs
-                if op_node.kind() == 'prim::ListConstruct':
+                if op_node.kind() == "prim::ListConstruct":
                     if node_id in self._inputs_r.keys():
                         self._inputs_r.pop(node_id)
 
             try:
                 input_value_kind = input_value.type().kind()
-                if input_value_kind in ['TensorType', 'CompleteTensorType']:
+                if input_value_kind in ["TensorType", "CompleteTensorType"]:
                     if input_value.type().scalarType() is None:
-                        input_list_types.append('float')
+                        input_list_types.append("float")
                     else:
                         input_list_types.append(input_value.type().scalarType().lower())
-                elif input_value_kind == 'ListType':
+                elif input_value_kind == "ListType":
                     input_list_types.append(str(input_value.type().getElementType()).lower())
-                elif input_value_kind in ['IntType', 'FloatType', 'BoolType', 'StringType',
-                                          'OptionalType']:
+                elif input_value_kind in ["IntType", "FloatType", "BoolType", "StringType",
+                                          "OptionalType"]:
                     input_list_types.append(str(input_value.type()).lower())
                 else:
-                    input_list_types.append('UnsupportedType')
-                    print('UnsupportedType '+str(input_value.type())+' and '+str(input_value_kind))
+                    input_list_types.append("UnsupportedType")
+                    print("UnsupportedType "+str(input_value.type())+" and "+str(input_value_kind))
             except Exception as e:
-                print('Internal PyTorch error. Failed to grab type.')
+                print("Internal PyTorch error. Failed to grab type.")
 
-        if op_node.kind() in ['aten::ones', 'aten::zeros']:
+        if op_node.kind() in ["aten::ones", "aten::zeros"]:
             node_type = op_node.output().type().scalarType()
             input_list_types[0] = node_type.lower()
 
@@ -1061,7 +1061,7 @@ class Graph(object):
         """
         missing_operators = set()
         for node in self._graph.nodes():
-            if not node.kind() in ["prim::Constant", 'prim::ListConstruct', 'prim::GetAttr'] \
+            if not node.kind() in ["prim::Constant", "prim::ListConstruct", "prim::GetAttr"] \
                     and not node.kind() in _convert_map:
                 missing_operators.add(node.kind())
 
