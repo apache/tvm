@@ -710,7 +710,7 @@ class ThresholdedRelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 0.0))
+        alpha = float(attr.get('alpha', 1.0))
         alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
         mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
         return inputs[0] * mask
@@ -1233,6 +1233,18 @@ class Expand(OnnxOpConverter):
 class LSTM(OnnxOpConverter):
     """ Operator converter for LSTM.
     """
+
+    @classmethod
+    def _activation_helper(cls, activation, alpha, beta):
+        convert_map = _get_convert_map()
+        attrs = {}
+        if alpha is not None:
+            attrs['alpha']  = alpha
+        if beta is not None:
+            attrs['beta'] = beta
+        return lambda x: convert_map[activation]([x], attrs, {})
+
+
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
         # Unpack inputs, note that if optional and not provided then value will be None.
@@ -1272,9 +1284,19 @@ class LSTM(OnnxOpConverter):
         C_t = c_0
         h_list = []
 
-        f_act = _op.sigmoid
-        g_act = _op.tanh
-        h_act = _op.tanh
+        if 'activations' in attr:
+            activation_fns = []
+            for i in range(3):
+                if 'activation_alpha' in attr:
+                    alpha = attr['activation_alpha'][i]
+                else:
+                    alpha = None
+                if 'activation_beta' in attr:
+                    beta = attr['activation_beta'][i]
+        else:
+            f_act = _op.sigmoid
+            g_act = _op.tanh
+            h_act = _op.tanh
 
         X_steps = _op.split(X, indices_or_sections=X_shape[0], axis=0)
         for step in X_steps:
