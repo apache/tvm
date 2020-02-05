@@ -21,8 +21,9 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import warnings
+from tvm.runtime import ndarray as nd
+
 from . import util
-from .. import ndarray as nd
 from ..api import register_func
 from .._ffi.base import py_str
 

@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common implementation of object generic related logic"""
-# pylint: disable=unused-import
+# pylint: disable=unused-import, invalid-name
 from numbers import Number, Integral
-from .. import _api_internal
+from tvm._ffi.base import string_types
 
-from .base import string_types
+from .. import _api_internal
 from .object import ObjectBase, _set_class_object_generic
 from .ndarray import NDArrayBase
 from .packed_func import PackedFuncBase, convert_to_tvm_func
-from .module import ModuleBase
+from .module import Module
 
 
 class ObjectGeneric(object):
@@ -33,7 +33,7 @@ class ObjectGeneric(object):
         raise NotImplementedError()
 
 
-_CLASS_OBJECTS = (ObjectBase, NDArrayBase, ModuleBase)
+ObjectTypes = (ObjectBase, NDArrayBase, Module)
 
 
 def convert_to_object(value):
@@ -49,7 +49,7 @@ def convert_to_object(value):
     obj : Object
         The corresponding object value.
     """
-    if isinstance(value, _CLASS_OBJECTS):
+    if isinstance(value, ObjectTypes):
         return value
     if isinstance(value, bool):
         return const(value, 'uint1x1')
@@ -63,7 +63,7 @@ def convert_to_object(value):
     if isinstance(value, dict):
         vlist = []
         for item in value.items():
-            if (not isinstance(item[0], _CLASS_OBJECTS) and
+            if (not isinstance(item[0], ObjectTypes) and
                     not isinstance(item[0], string_types)):
                 raise ValueError("key of map must already been a container type")
             vlist.append(item[0])
