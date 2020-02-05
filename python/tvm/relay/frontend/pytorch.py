@@ -72,13 +72,16 @@ def _slice():
         data = inputs[0]
         strides = []
 
-        inferred_shape = _infer_shape(data)
-        end = []
-        for infer in inferred_shape:
-            end.append(int(infer))
-        if isinstance(data, _expr.Var):
-            end = inferred_shape
-            end = list(end)
+        if isinstance(data, _expr.Expr):
+            inferred_shape = _infer_shape(data)
+            end = []
+            for infer in inferred_shape:
+                end.append(int(infer))
+            if isinstance(data, _expr.Var):
+                end = inferred_shape
+                end = list(end)
+        else:
+            end = data.shape
 
         begin = [0]*len(end)
         dim = int(inputs[1])
@@ -176,56 +179,35 @@ def _convolution():
         if inputs[6] == "1":
             use_transpose = True
 
+        data = inputs[0]
+        weight = inputs[1]
+        bias = inputs[2]
+        strides = inputs[3]
+        padding = inputs[4]
+        dilation = inputs[5]
+
+        if isinstance(weight, _expr.Expr):
+            inferred_shape = _infer_shape(weight)
+            weight_shape = []
+            for infer in inferred_shape:
+                weight_shape.append(infer)
+        else:
+            weight_shape = weight.shape
+        channels = weight_shape[0]
+
+        kernel_size = weight_shape[2:]
+
         use_bias = False
-        if isinstance(inputs[2], _expr.Var):
+        if isinstance(bias, _expr.Expr):
             use_bias = True
 
-            data = inputs[0]
-            weight = inputs[1]
-            bias = inputs[2]
-
-            if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
-                inferred_shape = _infer_shape(weight)
-                weight_shape = []
-                for infer in inferred_shape:
-                    weight_shape.append(infer)
-            else:
-                weight_shape = weight.shape
-            channels = weight_shape[0]
-
-            strides = inputs[3]
-            padding = inputs[4]
-            dilation = inputs[5]
-
-            kernel_size = weight_shape[2:]
-
-        else:
-            data = inputs[0]
-            weight = inputs[1]
-            bias = inputs[2]
-
-            if isinstance(weight, (_expr.Call, _expr.Var, _expr.TupleGetItem)):
-                inferred_shape = _infer_shape(weight)
-                weight_shape = []
-                for infer in inferred_shape:
-                    weight_shape.append(infer)
-            else:
-                weight_shape = weight.shape
-            channels = weight_shape[0]
-
-            strides = inputs[3]
-            padding = inputs[4]
-            dilation = inputs[5]
-
-            kernel_size = weight_shape[2:]
-
-        if isinstance(strides, _expr.Var):
+        if isinstance(strides, _expr.Expr):
             strides = _infer_shape(strides)
 
-        if isinstance(padding, _expr.Var):
+        if isinstance(padding, _expr.Expr):
             padding = _infer_shape(padding)
 
-        if isinstance(dilation, _expr.Var):
+        if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
 
         groups = int(inputs[8])
@@ -292,7 +274,7 @@ def _batch_norm():
 
         channels = _infer_shape(data)
 
-        if isinstance(inputs[1], _expr.Var) and isinstance(inputs[2], _expr.Var):
+        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
@@ -365,7 +347,7 @@ def _transpose():
     def _impl(inputs, input_types):
         data = inputs[0]
 
-        if isinstance(data, _expr.Var):
+        if isinstance(data, _expr.Expr):
             ndims = len(_infer_shape(data))
         elif isinstance(data, (_expr.Call, _expr.TupleGetItem)):
             ndims = _infer_shape(data)
@@ -382,7 +364,7 @@ def _transpose():
             if ndims >= 2:
                 axes[-1] = ndims - 2
                 axes[-2] = ndims - 1
-            if not isinstance(data, _expr.Var):
+            if not isinstance(data, _expr.Expr):
                 data = _expr.const(data)
 
         elif num_inputs == 3:
@@ -405,7 +387,7 @@ def _dense():
     def _impl(inputs, input_types):
         use_bias = False
 
-        if isinstance(inputs[0], _expr.Var):
+        if isinstance(inputs[0], _expr.Expr):
             use_bias = True
 
         data = inputs[1]
@@ -415,7 +397,7 @@ def _dense():
         beta = inputs[3]
         alpha = inputs[4]
 
-        if not isinstance(alpha, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
+        if not isinstance(alpha, _expr.Expr):
             if data_type == "double":
                 alpha = _expr.const(np.float64(alpha), dtype="float64")
             elif data_type == "float":
@@ -436,7 +418,7 @@ def _dense():
                 alpha = _expr.const(np.float32(alpha), dtype="float32")
             data *= alpha
 
-        if not isinstance(beta, (_expr.Var, _expr.Call, _expr.TupleGetItem)):
+        if not isinstance(beta, _expr.Expr):
             if data_type == "double":
                 beta = _expr.const(np.float64(beta), dtype="float64")
             elif data_type == "float":
@@ -574,9 +556,7 @@ def _chunk():
         num_chunks = int(inputs[1])
         axis = int(inputs[2])
 
-        if isinstance(data, _expr.Var):
-            inferred_shape = _infer_shape(data)
-        elif isinstance(data, (_expr.Call, _expr.TupleGetItem)):
+        if isinstance(data, _expr.Expr):
             inferred_shape = _infer_shape(data)
 
         shape = []
@@ -627,9 +607,7 @@ def _matmul():
 def _expand():
     def _impl(inputs, input_types):
         data_in = inputs[0]
-        if isinstance(data_in, _expr.Var):
-            shape = _infer_shape(data_in)
-        elif isinstance(data_in, (_expr.Call, _expr.TupleGetItem)):
+        if isinstance(data_in, _expr.Expr):
             shape = _infer_shape(data_in)
 
         ndims = len(shape)
