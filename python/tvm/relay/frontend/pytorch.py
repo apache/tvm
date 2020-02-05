@@ -284,46 +284,12 @@ def _batch_norm():
         if scale:
             gamma = weight
         else:
-            if data_type == "double":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("float64"))
-            elif data_type == "float":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("float32"))
-            elif data_type == "half":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("float16"))
-            elif data_type == "long":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("int64"))
-            elif data_type == "int":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("int32"))
-            elif data_type == "short":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("int16"))
-            elif data_type == "char":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("int8"))
-            elif data_type == "byte":
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("uint8"))
-            else:
-                gamma = _expr.const(np.ones([int(channels[1])]).astype("float32"))
+            gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
         if center:
             beta = beta
         else:
-            if data_type == "double":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("float64"))
-            elif data_type == "float":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("float32"))
-            elif data_type == "half":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("float16"))
-            elif data_type == "long":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("int64"))
-            elif data_type == "int":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("int32"))
-            elif data_type == "short":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("int16"))
-            elif data_type == "char":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("int8"))
-            elif data_type == "byte":
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("uint8"))
-            else:
-                beta = _expr.const(np.zeros([int(channels[1])]).astype("float32"))
+            beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
@@ -398,45 +364,11 @@ def _dense():
         alpha = inputs[4]
 
         if not isinstance(alpha, _expr.Expr):
-            if data_type == "double":
-                alpha = _expr.const(np.float64(alpha), dtype="float64")
-            elif data_type == "float":
-                alpha = _expr.const(np.float32(alpha), dtype="float32")
-            elif data_type == "half":
-                alpha = _expr.const(np.float16(alpha), dtype="float16")
-            elif data_type == "long":
-                alpha = _expr.const(np.int64(alpha), dtype="int64")
-            elif data_type == "int":
-                alpha = _expr.const(np.int32(alpha), dtype="int32")
-            elif data_type == "short":
-                alpha = _expr.const(np.int16(alpha), dtype="int16")
-            elif data_type == "char":
-                alpha = _expr.const(np.int8(alpha), dtype="int8")
-            elif data_type == "byte":
-                alpha = _expr.const(np.uint8(alpha), dtype="uint8")
-            else:
-                alpha = _expr.const(np.float32(alpha), dtype="float32")
+            alpha = _create_typed_const(alpha, data_type)
             data *= alpha
 
         if not isinstance(beta, _expr.Expr):
-            if data_type == "double":
-                beta = _expr.const(np.float64(beta), dtype="float64")
-            elif data_type == "float":
-                beta = _expr.const(np.float32(beta), dtype="float32")
-            elif data_type == "half":
-                beta = _expr.const(np.float16(beta), dtype="float16")
-            elif data_type == "long":
-                beta = _expr.const(np.int64(beta), dtype="int64")
-            elif data_type == "int":
-                beta = _expr.const(np.int32(beta), dtype="int32")
-            elif data_type == "short":
-                beta = _expr.const(np.int16(beta), dtype="int16")
-            elif data_type == "char":
-                beta = _expr.const(np.int8(beta), dtype="int8")
-            elif data_type == "byte":
-                beta = _expr.const(np.uint8(beta), dtype="uint8")
-            else:
-                beta = _expr.const(np.float32(beta), dtype="float32")
+            beta = _create_typed_const(beta, data_type)
             weight *= beta
 
         weight_out = _op.transform.transpose(weight, axes=[1, 0])
@@ -678,6 +610,30 @@ def _convert_data_type(input_type):
         return "uint8"
     else:
         return input_type
+
+def _create_typed_const(data, data_type):
+    dtype = _convert_data_type(data_type)
+
+    if dtype == "float64":
+        typed_data = _expr.const(np.float64(data), dtype=dtype)
+    elif dtype == "float32":
+        typed_data = _expr.const(np.float32(data), dtype=dtype)
+    elif dtype == "float16":
+        typed_data = _expr.const(np.float16(data), dtype=dtype)
+    elif dtype == "int64":
+        typed_data = _expr.const(np.int64(data), dtype=dtype)
+    elif dtype == "int32":
+        typed_data = _expr.const(np.int32(data), dtype=dtype)
+    elif dtype == "int16":
+        typed_data = _expr.const(np.int16(data), dtype=dtype)
+    elif dtype == "int8":
+        typed_data = _expr.const(np.int8(data), dtype=dtype)
+    elif dtype == "uint8":
+        typed_data = _expr.const(np.uint8(data), dtype=dtype)
+    else:
+        typed_data = _expr.const(np.float32(alpha), dtype="float32")
+
+    return typed_data
 
 # TODO: Fix typing
 def _convert_elemwise_input(data, input_type):
