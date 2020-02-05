@@ -1156,16 +1156,27 @@ def test_forward_squeeze():
 # Pad
 # ---
 
-def _test_pad(data, mode="CONSTANT"):
+def _test_pad(data, mode="CONSTANT", quantized=False):
     """ One iteration of PAD """
 
     assert len(data) == 2
 
     # Test with tensor and constant
     with tf.Graph().as_default():
-        in_data = [array_ops.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in')]
-        out = array_ops.pad(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
-        compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
+        in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in')]
+
+        if quantized:
+            min_value, max_value = -100, 100
+            # fake_quant will keep the tensors in float32 until the conversion in the session
+            inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0],
+                                                                     min=-100,
+                                                                     max=100,
+                                                                     name="inq_0")]
+            out = array_ops.pad(inq_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
+            compare_tflite_with_tvm([data[0]], ['inq_0:0'], inq_data, [out], quantized=True)
+        else:
+            out = array_ops.pad(in_data[0], ops.convert_to_tensor(data[1], dtype=data[1].dtype), mode=mode)
+            compare_tflite_with_tvm([data[0]], ['in:0'], in_data, [out])
 
 
 def test_forward_pad():
@@ -1182,6 +1193,8 @@ def test_forward_pad():
                np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="REFLECT")
     _test_pad([np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 3)),
                np.array([[1, 1], [2, 2]], dtype=np.int32)], mode="SYMMETRIC")
+    _test_pad([np.arange(0, 256, dtype=np.uint8).reshape((1, 256)),
+               np.array([[1, 1], [2, 2]], dtype=np.int32)], quantized=True)
 
 
 #######################################################################
