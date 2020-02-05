@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 import tvm.ndarray as _nd
 from tvm import autotvm, container
-from tvm.object import Object
+from tvm._ffi.object import Object
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base

@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck
 """The base node types for the Relay language."""
-from __future__ import absolute_import as _abs
-from .._ffi.object import register_object as _register_tvm_node
+import tvm._ffi
+
 from .._ffi.object import Object
 from . import _make
 from . import _expr
@@ -34,9 +34,9 @@ def register_relay_node(type_key=None):
         The type key of the node.
     """
     if not isinstance(type_key, str):
-        return _register_tvm_node(
+        return tvm._ffi.register_object(
             "relay." + type_key.__name__)(type_key)
-    return _register_tvm_node(type_key)
+    return tvm._ffi.register_object(type_key)
 
 
 def register_relay_attr_node(type_key=None):
@@ -48,9 +48,9 @@ def register_relay_attr_node(type_key=None):
         The type key of the node.
     """
     if not isinstance(type_key, str):
-        return _register_tvm_node(
+        return tvm._ffi.register_object(
             "relay.attrs." + type_key.__name__)(type_key)
-    return _register_tvm_node(type_key)
+    return tvm._ffi.register_object(type_key)
 
 
 class RelayNode(Object):

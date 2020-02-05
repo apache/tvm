@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Custom datatype functionality"""
-from __future__ import absolute_import as _abs
+import tvm._ffi
 
-from ._ffi.function import register_func as _register_func
 from . import make as _make
 from .api import convert
 from .expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
@@ -111,7 +110,7 @@ def register_op(lower_func, op_name, target, type_name, src_type_name=None):
     else:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." \
                           + type_name
-    _register_func(lower_func_name, lower_func)
+    tvm._ffi.register_func(lower_func_name, lower_func)
 
 
 def create_lower_func(extern_func_name):

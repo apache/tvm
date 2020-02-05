@@ -17,15 +17,12 @@
 # coding: utf-8
 # pylint: disable=invalid-name, protected-access, too-many-branches, global-statement, unused-import
 """Function configuration API."""
-from __future__ import absolute_import
-
 import ctypes
 import traceback
 from numbers import Number, Integral
 
-from ..base import _LIB, get_last_ffi_error, py2cerror
+from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
-from ..object_generic import convert_to_object, ObjectGeneric
 from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
@@ -35,7 +32,7 @@ from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_in
 from .object import ObjectBase, _set_class_object
 from . import object as _object
 
-FunctionHandle = ctypes.c_void_p
+PackedFuncHandle = ctypes.c_void_p
 ModuleHandle = ctypes.c_void_p
 ObjectHandle = ctypes.c_void_p
 TVMRetValueHandle = ctypes.c_void_p
@@ -48,6 +45,15 @@ def _ctypes_free_resource(rhandle):
 # Global callback that is always alive
 TVM_FREE_PYOBJ = TVMCFuncFinalizer(_ctypes_free_resource)
 ctypes.pythonapi.Py_IncRef(ctypes.py_object(TVM_FREE_PYOBJ))
+
+
+def _make_packed_func(handle, is_global):
+    """Make a packed function class"""
+    obj = _CLASS_PACKED_FUNC.__new__(_CLASS_PACKED_FUNC)
+    obj.is_global = is_global
+    obj.handle = handle
+    return obj
+
 
 def convert_to_tvm_func(pyfunc):
     """Convert a python function to TVM function
@@ -89,7 +95,7 @@ def convert_to_tvm_func(pyfunc):
             _ = rv
         return 0
 
-    handle = FunctionHandle()
+    handle = PackedFuncHandle()
     f = TVMPackedCFunc(cfun)
     # NOTE: We will need to use python-api to increase ref count of the f
     # TVM_FREE_PYOBJ will be called after it is no longer needed.
@@ -98,7 +104,7 @@ def convert_to_tvm_func(pyfunc):
     if _LIB.TVMFuncCreateFromCFunc(
             f, pyobj, TVM_FREE_PYOBJ, ctypes.byref(handle)) != 0:
         raise get_last_ffi_error()
-    return _CLASS_FUNCTION(handle, False)
+    return _make_packed_func(handle, False)
 
 
 def _make_tvm_args(args, temp_args):
@@ -144,15 +150,15 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, string_types):
             values[i].v_str = c_str(arg)
             type_codes[i] = TypeCode.STR
-        elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
-            arg = convert_to_object(arg)
+        elif isinstance(arg, (list, tuple, dict, _CLASS_OBJECT_GENERIC)):
+            arg = _FUNC_CONVERT_TO_OBJECT(arg)
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.OBJECT_HANDLE
             temp_args.append(arg)
         elif isinstance(arg, _CLASS_MODULE):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.MODULE_HANDLE
-        elif isinstance(arg, FunctionBase):
+        elif isinstance(arg, PackedFuncBase):
             values[i].v_handle = arg.handle
             type_codes[i] = TypeCode.PACKED_FUNC_HANDLE
         elif isinstance(arg, ctypes.c_void_p):
@@ -168,7 +174,7 @@ def _make_tvm_args(args, temp_args):
     return values, type_codes, num_args
 
 
-class FunctionBase(object):
+class PackedFuncBase(object):
     """Function base."""
     __slots__ = ["handle", "is_global"]
     # pylint: disable=no-member
@@ -177,7 +183,7 @@ class FunctionBase(object):
 
         Parameters
         ----------
-        handle : FunctionHandle
+        handle : PackedFuncHandle
             the handle to the underlying function.
 
         is_global : bool
@@ -238,9 +244,22 @@ def _return_module(x):
 def _handle_return_func(x):
     """Return function"""
     handle = x.v_handle
-    if not isinstance(handle, FunctionHandle):
-        handle = FunctionHandle(handle)
-    return _CLASS_FUNCTION(handle, False)
+    if not isinstance(handle, PackedFuncHandle):
+        handle = PackedFuncHandle(handle)
+    return _CLASS_PACKED_FUNC(handle, False)
+
+
+def _get_global_func(name, allow_missing=False):
+    handle = PackedFuncHandle()
+    check_call(_LIB.TVMFuncGetGlobal(c_str(name), ctypes.byref(handle)))
+
+    if handle.value:
+        return _make_packed_func(handle, False)
+
+    if allow_missing:
+        return None
+
+    raise ValueError("Cannot find global function %s" % name)
 
 # setup return handle for function type
 _object.__init_by_constructor__ = __init_handle_by_constructor__
@@ -255,13 +274,22 @@ C_TO_PY_ARG_SWITCH[TypeCode.DLTENSOR_HANDLE] = lambda x: _make_array(x.v_handle,
 C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_HANDLE] = lambda x: _make_array(x.v_handle, False, True)
 
 _CLASS_MODULE = None
-_CLASS_FUNCTION = None
+_CLASS_PACKED_FUNC = None
+_CLASS_OBJECT_GENERIC = None
+_FUNC_CONVERT_TO_OBJECT = None
+
 
 def _set_class_module(module_class):
     """Initialize the module."""
     global _CLASS_MODULE
     _CLASS_MODULE = module_class
 
-def _set_class_function(func_class):
-    global _CLASS_FUNCTION
-    _CLASS_FUNCTION = func_class
+def _set_class_packed_func(packed_func_class):
+    global _CLASS_PACKED_FUNC
+    _CLASS_PACKED_FUNC = packed_func_class
+
+def _set_class_object_generic(object_generic_class, func_convert_to_object):
+    global _CLASS_OBJECT_GENERIC
+    global _FUNC_CONVERT_TO_OBJECT
+    _CLASS_OBJECT_GENERIC = object_generic_class
+    _FUNC_CONVERT_TO_OBJECT = func_convert_to_object

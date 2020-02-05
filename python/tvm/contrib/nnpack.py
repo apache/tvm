@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to NNPACK libraries."""
-from __future__ import absolute_import as _abs
+import tvm._ffi
 
 from .. import api as _api
 from .. import intrin as _intrin
-from .._ffi.function import _init_api
+
 
 def is_available():
     """Check whether NNPACK is available, that is, `nnp_initialize()`
@@ -202,4 +202,4 @@ def convolution_inference_weight_transform(
             "tvm.contrib.nnpack.convolution_inference_weight_transform",
             ins[0], outs[0], nthreads, algorithm), name="transform_kernel", dtype=dtype)
 
-_init_api("tvm.contrib.nnpack")
+tvm._ffi._init_api("tvm.contrib.nnpack")

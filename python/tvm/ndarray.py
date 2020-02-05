@@ -20,17 +20,15 @@ tvm.ndarray provides a minimum runtime array API to test
 the correctness of the program.
 """
 # pylint: disable=invalid-name,unused-import
-from __future__ import absolute_import as _abs
+import tvm._ffi
 import numpy as _np
 
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
 from ._ffi.ndarray import context, empty, from_dlpack
 from ._ffi.ndarray import _set_class_ndarray
-from ._ffi.ndarray import register_extension
-from ._ffi.object import register_object
 
 
-@register_object
+@tvm._ffi.register_object
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 
