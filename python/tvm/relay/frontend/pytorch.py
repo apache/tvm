@@ -35,11 +35,11 @@ def _elemwise(name):
     def _impl(inputs, input_types):
         # TODO: Figure out a better way to get typing to work for tensor + scalar
         type0 = input_types[0]
-        if isinstance(inputs[1], (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+        if isinstance(inputs[1], (_expr.Expr)):
             type0 = input_types[1]
 
         type1 = input_types[1]
-        if isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+        if isinstance(inputs[0], (_expr.Expr)):
             type1 = input_types[0]
 
         data0 = _convert_elemwise_input(inputs[0], type0)
@@ -61,7 +61,7 @@ def _concatenate():
         data = inputs[0]
         axis = inputs[1]
 
-        if isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+        if isinstance(data, (_expr.Expr)):
             data = [data]
 
         return _op.tensor.concatenate(data, int(axis))
@@ -104,9 +104,7 @@ def _select():
 
 def _ones():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Var):
-            shape = _infer_shape(inputs[0])
-        elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
+        if isinstance(inputs[0], (_expr.Expr)):
             shape = _infer_shape(inputs[0])
         else:
             shape = inputs[0].shape
@@ -116,9 +114,7 @@ def _ones():
 
 def _zeros():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Var):
-            shape = _infer_shape(inputs[0])
-        elif isinstance(inputs[0], (_expr.Call, _expr.TupleGetItem)):
+        if isinstance(inputs[0], _expr.Expr):
             shape = _infer_shape(inputs[0])
         else:
             shape = inputs[0].shape
@@ -653,7 +649,7 @@ def _expand():
 
 def _int():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Call):
+        if isinstance(inputs[0], _expr.Expr):
             return inputs[0]
         return int(inputs[0])
     return _impl
@@ -710,7 +706,7 @@ def _convert_elemwise_input(data, input_type):
     import torch
     if isinstance(data, torch.Tensor):
         return _expr.const(data.item(), dtype=_convert_data_type(input_type))
-    elif not isinstance(data, (_expr.Call, _expr.TupleGetItem, _expr.Var)):
+    elif not isinstance(data, (_expr.Expr)):
         return _expr.const(int(data), dtype=_convert_data_type(input_type))
     else:
         return data
