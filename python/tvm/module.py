@@ -19,9 +19,9 @@ from __future__ import absolute_import as _abs
 
 import struct
 from collections import namedtuple
+import tvm._ffi
 
-from ._ffi.function import ModuleBase, _set_class_module
-from ._ffi.function import _init_api
+from ._ffi.module import ModuleBase, _set_class_module
 from ._ffi.libinfo import find_include_path
 from .contrib import cc as _cc, tar as _tar, util as _util
 
@@ -333,5 +333,5 @@ def enabled(target):
     return _Enabled(target)
 
 
-_init_api("tvm.module")
+tvm._ffi._init_api("tvm.module")
 _set_class_module(Module)
