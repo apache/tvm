@@ -1512,6 +1512,7 @@ def test_forward_ssd_mobilenet_v1():
         "ssd_mobilenet_v1_coco_2018_01_28_nopp.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
+    np.random.seed(0)
     data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=2)
