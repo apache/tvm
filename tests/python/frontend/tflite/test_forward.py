@@ -1166,7 +1166,6 @@ def _test_pad(data, mode="CONSTANT", quantized=False):
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype='float32', name='in')]
 
         if quantized:
-            min_value, max_value = -100, 100
             # fake_quant will keep the tensors in float32 until the conversion in the session
             inq_data = [tf.quantization.fake_quant_with_min_max_args(in_data[0],
                                                                      min=-100,
