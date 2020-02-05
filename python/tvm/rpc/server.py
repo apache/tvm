@@ -25,9 +25,6 @@ Server is TCP based with the following protocol:
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 # pylint: disable=invalid-name
-
-from __future__ import absolute_import
-
 import os
 import ctypes
 import socket
@@ -39,8 +36,8 @@ import subprocess
 import time
 import sys
 import signal
+import tvm._ffi
 
-from .._ffi.function import register_func
 from .._ffi.base import py_str
 from .._ffi.libinfo import find_lib_path
 from ..module import load as _load_module
@@ -58,11 +55,11 @@ def _server_env(load_library, work_path=None):
         temp = util.tempdir()
 
     # pylint: disable=unused-variable
-    @register_func("tvm.rpc.server.workpath")
+    @tvm._ffi.register_func("tvm.rpc.server.workpath")
     def get_workpath(path):
         return temp.relpath(path)
 
-    @register_func("tvm.rpc.server.load_module", override=True)
+    @tvm._ffi.register_func("tvm.rpc.server.load_module", override=True)
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)

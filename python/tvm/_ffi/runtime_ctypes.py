@@ -16,8 +16,6 @@
 # under the License.
 """Common runtime ctypes."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import
-
 import ctypes
 import json
 import numpy as np

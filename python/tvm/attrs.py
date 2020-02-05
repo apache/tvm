@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """ TVM Attribute module, which is mainly used for defining attributes of operators"""
-from ._ffi.object import Object, register_object
-from ._ffi.function import _init_api
+import tvm._ffi
+
+from ._ffi.object import Object
 from . import _api_internal
 
 
-@register_object
+@tvm._ffi.register_object
 class Attrs(Object):
     """Attribute node, which is mainly use for defining attributes of relay operators.
 
@@ -92,4 +93,4 @@ class Attrs(Object):
         return self.__getattr__(item)
 
 
-_init_api("tvm.attrs")
+tvm._ffi._init_api("tvm.attrs")

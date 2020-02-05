@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for CUDA TOPI ops and schedules"""
+import tvm._ffi
 
-from tvm._ffi.function import _init_api_prefix
-
-_init_api_prefix("topi.cpp.cuda", "topi.cuda")
+tvm._ffi._init_api("topi.cuda", "topi.cpp.cuda")

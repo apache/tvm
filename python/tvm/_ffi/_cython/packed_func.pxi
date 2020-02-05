@@ -20,7 +20,6 @@ import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
-from ..object_generic import convert_to_object, ObjectGeneric
 from ..runtime_ctypes import TVMType, TVMContext, TVMByteArray
 
 
@@ -67,6 +66,13 @@ cdef int tvm_callback(TVMValue* args,
     return 0
 
 
+cdef object make_packed_func(TVMPackedFuncHandle chandle, int is_global):
+    obj = _CLASS_PACKED_FUNC.__new__(_CLASS_PACKED_FUNC)
+    (<PackedFuncBase>obj).chandle = chandle
+    (<PackedFuncBase>obj).is_global = is_global
+    return obj
+
+
 def convert_to_tvm_func(object pyfunc):
     """Convert a python function to TVM function
 
@@ -80,15 +86,13 @@ def convert_to_tvm_func(object pyfunc):
     tvmfunc: tvm.Function
         The converted tvm function.
     """
-    cdef TVMFunctionHandle chandle
+    cdef TVMPackedFuncHandle chandle
     Py_INCREF(pyfunc)
     CALL(TVMFuncCreateFromCFunc(tvm_callback,
                                 <void*>(pyfunc),
                                 tvm_callback_finalize,
                                 &chandle))
-    ret = _CLASS_FUNCTION(None, False)
-    (<FunctionBase>ret).chandle = chandle
-    return ret
+    return make_packed_func(chandle, False)
 
 
 cdef inline int make_arg(object arg,
@@ -149,28 +153,29 @@ cdef inline int make_arg(object arg,
         value[0].v_str = tstr
         tcode[0] = kTVMStr
         temp_args.append(tstr)
-    elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
-        arg = convert_to_object(arg)
+    elif isinstance(arg, (list, tuple, dict, _CLASS_OBJECT_GENERIC)):
+        arg = _FUNC_CONVERT_TO_OBJECT(arg)
         value[0].v_handle = (<ObjectBase>arg).chandle
         tcode[0] = kTVMObjectHandle
         temp_args.append(arg)
     elif isinstance(arg, _CLASS_MODULE):
         value[0].v_handle = c_handle(arg.handle)
         tcode[0] = kTVMModuleHandle
-    elif isinstance(arg, FunctionBase):
-        value[0].v_handle = (<FunctionBase>arg).chandle
+    elif isinstance(arg, PackedFuncBase):
+        value[0].v_handle = (<PackedFuncBase>arg).chandle
         tcode[0] = kTVMPackedFuncHandle
     elif isinstance(arg, ctypes.c_void_p):
         value[0].v_handle = c_handle(arg)
         tcode[0] = kTVMOpaqueHandle
     elif callable(arg):
         arg = convert_to_tvm_func(arg)
-        value[0].v_handle = (<FunctionBase>arg).chandle
+        value[0].v_handle = (<PackedFuncBase>arg).chandle
         tcode[0] = kTVMPackedFuncHandle
         temp_args.append(arg)
     else:
         raise TypeError("Don't know how to handle type %s" % type(arg))
     return 0
+
 
 cdef inline bytearray make_ret_bytes(void* chandle):
     handle = ctypes_handle(chandle)
@@ -181,6 +186,7 @@ cdef inline bytearray make_ret_bytes(void* chandle):
     if not ctypes.memmove(rptr, arr.data, size):
         raise RuntimeError('memmove failed')
     return res
+
 
 cdef inline object make_ret(TVMValue value, int tcode):
     """convert result to return value."""
@@ -205,9 +211,7 @@ cdef inline object make_ret(TVMValue value, int tcode):
     elif tcode == kTVMModuleHandle:
         return _CLASS_MODULE(ctypes_handle(value.v_handle))
     elif tcode == kTVMPackedFuncHandle:
-        fobj = _CLASS_FUNCTION(None, False)
-        (<FunctionBase>fobj).chandle = value.v_handle
-        return fobj
+        return make_packed_func(value.v_handle, False)
     elif tcode in _TVM_EXT_RET:
         return _TVM_EXT_RET[tcode](ctypes_handle(value.v_handle))
 
@@ -264,8 +268,8 @@ cdef inline int ConstructorCall(void* constructor_handle,
     return 0
 
 
-cdef class FunctionBase:
-    cdef TVMFunctionHandle chandle
+cdef class PackedFuncBase:
+    cdef TVMPackedFuncHandle chandle
     cdef int is_global
 
     cdef inline _set_handle(self, handle):
@@ -305,19 +309,39 @@ cdef class FunctionBase:
         return make_ret(ret_val, ret_tcode)
 
 
-_CLASS_FUNCTION = None
+def _get_global_func(name, allow_missing):
+    cdef TVMPackedFuncHandle chandle
+    CALL(TVMFuncGetGlobal(c_str(name), &chandle))
+    if chandle != NULL:
+        return make_packed_func(chandle, True)
+
+    if allow_missing:
+       return None
+
+    raise ValueError("Cannot find global function %s" % name)
+
+
+_CLASS_PACKED_FUNC = None
 _CLASS_MODULE = None
 _CLASS_OBJECT = None
+_CLASS_OBJECT_GENERIC = None
+_FUNC_CONVERT_TO_OBJECT = None
 
 def _set_class_module(module_class):
     """Initialize the module."""
     global _CLASS_MODULE
     _CLASS_MODULE = module_class
 
-def _set_class_function(func_class):
-    global _CLASS_FUNCTION
-    _CLASS_FUNCTION = func_class
+def _set_class_packed_func(func_class):
+    global _CLASS_PACKED_FUNC
+    _CLASS_PACKED_FUNC = func_class
 
 def _set_class_object(obj_class):
     global _CLASS_OBJECT
     _CLASS_OBJECT = obj_class
+
+def _set_class_object_generic(object_generic_class, func_convert_to_object):
+    global _CLASS_OBJECT_GENERIC
+    global _FUNC_CONVERT_TO_OBJECT
+    _CLASS_OBJECT_GENERIC = object_generic_class
+    _FUNC_CONVERT_TO_OBJECT = func_convert_to_object

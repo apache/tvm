@@ -17,8 +17,7 @@
 #pylint: disable=unused-argument
 """The base node types for the Relay language."""
 import topi
-
-from ..._ffi.function import _init_api
+import tvm._ffi
 
 from ..base import register_relay_node
 from ..expr import Expr
@@ -283,8 +282,6 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
 
-_init_api("relay.op", __name__)
-
 @register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
     return lower(schedule, list(inputs) + list(outputs), name=name)
@@ -320,3 +317,5 @@ def debug(expr, debug_func=None):
         name = ''
 
     return _make.debug(expr, name)
+
+tvm._ffi._init_api("relay.op", __name__)

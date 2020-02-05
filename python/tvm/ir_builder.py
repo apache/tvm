@@ -24,7 +24,7 @@ from . import make as _make
 from . import ir_pass as _pass
 from . import container as _container
 from ._ffi.base import string_types
-from ._ffi.object import ObjectGeneric
+from ._ffi.object_generic import ObjectGeneric
 from ._ffi.runtime_ctypes import TVMType
 from .expr import Call as _Call
 
