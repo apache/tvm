@@ -18,12 +18,11 @@
 """The base node types for the Relay language."""
 import tvm._ffi
 
-from .._ffi.object import Object
+from tvm.runtime import Object
 from . import _make
 from . import _expr
 from . import _base
 
-Object = Object
 
 def register_relay_node(type_key=None):
     """Register a Relay node type.

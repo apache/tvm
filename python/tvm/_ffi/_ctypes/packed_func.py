@@ -23,7 +23,7 @@ from numbers import Number, Integral
 
 from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
-from ..runtime_ctypes import TVMType, TVMByteArray, TVMContext
+from ..runtime_ctypes import DataType, TVMByteArray, TVMContext
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
@@ -132,7 +132,7 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, Number):
             values[i].v_float64 = arg
             type_codes[i] = TypeCode.FLOAT
-        elif isinstance(arg, TVMType):
+        elif isinstance(arg, DataType):
             values[i].v_str = c_str(str(arg))
             type_codes[i] = TypeCode.STR
         elif isinstance(arg, TVMContext):

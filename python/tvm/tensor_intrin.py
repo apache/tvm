@@ -17,6 +17,7 @@
 """Tensor intrinsics"""
 import tvm._ffi
 
+from tvm.runtime import Object
 from . import _api_internal
 from . import api as _api
 from . import expr as _expr
@@ -25,7 +26,6 @@ from . import make as _make
 from . import tensor as _tensor
 from . import schedule as _schedule
 from .build_module import current_build_config
-from ._ffi.object import Object
 
 
 def _get_region(tslice):

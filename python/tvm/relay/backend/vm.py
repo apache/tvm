@@ -23,9 +23,9 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
-import tvm.ndarray as _nd
+import tvm.runtime.ndarray as _nd
+from tvm.runtime import Object
 from tvm import autotvm, container
-from tvm._ffi.object import Object
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
