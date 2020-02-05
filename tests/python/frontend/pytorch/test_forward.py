@@ -705,22 +705,6 @@ def test_resnet18():
     torch.set_grad_enabled(False)
     verify_model("resnet18")
 
-def test_resnet34():
-    torch.set_grad_enabled(False)
-    verify_model("resnet34")
-
-def test_resnet50():
-    torch.set_grad_enabled(False)
-    verify_model("resnet50")
-
-def test_resnet101():
-    torch.set_grad_enabled(False)
-    verify_model("resnet101")
-
-def test_resnet152():
-    torch.set_grad_enabled(False)
-    verify_model("resnet152")
-
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_0")
@@ -737,18 +721,6 @@ def test_densenet121():
     torch.set_grad_enabled(False)
     verify_model("densenet121")
 
-def test_densenet161():
-    torch.set_grad_enabled(False)
-    verify_model("densenet161")
-
-def test_densenet169():
-    torch.set_grad_enabled(False)
-    verify_model("densenet169")
-
-def test_densenet201():
-    torch.set_grad_enabled(False)
-    verify_model("densenet201")
-
 def test_inception_v3():
     torch.set_grad_enabled(False)
     verify_model("inception_v3")
@@ -761,10 +733,6 @@ def test_mnasnet0_5():
     torch.set_grad_enabled(False)
     verify_model("mnasnet0_5")
 
-def test_mnasnet1_0():
-    torch.set_grad_enabled(False)
-    verify_model("mnasnet1_0")
-
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
 """
 def test_alexnet():
@@ -775,29 +743,9 @@ def test_vgg11():
     torch.set_grad_enabled(False)
     verify_model("vgg11")
 
-def test_vgg13():
-    torch.set_grad_enabled(False)
-    verify_model("vgg13")
-
-def test_vgg16():
-    torch.set_grad_enabled(False)
-    verify_model("vgg16")
-
-def test_vgg19():
-    torch.set_grad_enabled(False)
-    verify_model("vgg19")
-
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
     verify_model("vgg11_bn")
-
-def test_vgg13_bn():
-    torch.set_grad_enabled(False)
-    verify_model("vgg13_bn")
-
-def test_vgg19_bn():
-    torch.set_grad_enabled(False)
-    verify_model("vgg19_bn")
 """
 
 if __name__ == "__main__":
@@ -834,18 +782,10 @@ if __name__ == "__main__":
 
     # Model tests
     test_resnet18()
-    test_resnet34()
-    test_resnet50()
-    test_resnet101()
-    test_resnet152()
     test_squeezenet1_0()
     test_squeezenet1_1()
     test_mobilenet_v2()
     test_densenet121()
-    test_densenet161()
-    test_densenet169()
-    test_densenet201()
     test_inception_v3()
     test_googlenet()
     test_mnasnet0_5()
-    test_mnasnet1_0()
