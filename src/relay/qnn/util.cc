@@ -149,6 +149,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   // 1) Calculating the integer multiplier and integer shift. These are calculated per axis/per
   // channel.
   std::vector<int32_t> fixed_pt_multipliers, lshifts, rshifts;
+  bool is_lshift_required = false;
   for (auto multiplier : multipliers) {
     int32_t fixed_pt_multiplier, shift;
     std::tie(fixed_pt_multiplier, shift) = GetFixedPointMultiplierShift(multiplier);
@@ -157,12 +158,15 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
     fixed_pt_multipliers.push_back(fixed_pt_multiplier);
     lshifts.push_back(lshift);
     rshifts.push_back(rshift);
+    is_lshift_required = is_lshift_required | (lshift != 0);
   }
 
   // 2) Multiply the integer multiplier. Convert lefts shifts into expr and multiply.
-  auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
-  auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
-  tensor = LeftShift(tensor, exp_lshift_expr);
+  if (is_lshift_required) {
+    auto lshift_expr = MakeConstantTensor(hp_dtype, {n_channels}, lshifts);
+    auto exp_lshift_expr = ExpandBiasToMatchAxis(lshift_expr, n_dim, {channel_axis});
+    tensor = LeftShift(tensor, exp_lshift_expr);
+  }
 
   // 3) Perform the multiplication in higher precision.
   // The scalar is a fixed point value of int32 where the decimal point is
