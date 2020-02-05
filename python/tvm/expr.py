@@ -31,12 +31,9 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 # pylint: disable=missing-docstring
-from __future__ import absolute_import as _abs
 import tvm._ffi
+from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode
 
-from ._ffi.object import Object
-from ._ffi.object_generic import ObjectGeneric
-from ._ffi.runtime_ctypes import TVMType, TypeCode
 from . import make as _make
 from . import generic as _generic
 from . import _api_internal
@@ -52,7 +49,7 @@ def _dtype_is_int(value):
     if isinstance(value, int):
         return True
     return (isinstance(value, ExprOp) and
-            TVMType(value.dtype).type_code == TypeCode.INT)
+            DataType(value.dtype).type_code == TypeCode.INT)
 
 
 class ExprOp(object):
