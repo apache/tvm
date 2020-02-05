@@ -132,7 +132,7 @@ set(USE_BLAS none)
 # set(USE_MKL_PATH <path to venv or site-packages directory>) if using `pip install mkl`
 set(USE_MKL_PATH none)
 
-# Whether use MKLDNN library
+# Whether use MKLDNN library, choices: ON, OFF, path to mkldnn library
 set(USE_MKLDNN OFF)
 
 # Whether use OpenMP thread pool, choices: gnu, intel
