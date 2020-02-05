@@ -77,7 +77,7 @@ def _slice():
         for infer in inferred_shape:
             end.append(int(infer))
         if isinstance(data, _expr.Var):
-            end = _infer_shape(data)
+            end = inferred_shape
             end = list(end)
 
         begin = [0]*len(end)
