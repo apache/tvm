@@ -315,8 +315,6 @@ def _transpose():
 
         if isinstance(data, _expr.Expr):
             ndims = len(_infer_shape(data))
-        elif isinstance(data, (_expr.Call, _expr.TupleGetItem)):
-            ndims = _infer_shape(data)
         else:
             ndims = data.shape
 
