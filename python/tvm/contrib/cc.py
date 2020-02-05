@@ -128,7 +128,8 @@ def cross_compiler(compile_func,
                           cc.cross_compiler("arm-linux-gnueabihf-gcc"))
        # specialize ndk compilation options.
        specialized_ndk = cc.cross_compiler(
-           ndk.create_shared, ["--sysroot=/path/to/sysroot"])
+           ndk.create_shared,
+           ["--sysroot=/path/to/sysroot", "-shared", "-fPIC", "-lm"])
        mod.export_library(path_dso, specialized_ndk)
     """
     base_options = [] if options is None else options
