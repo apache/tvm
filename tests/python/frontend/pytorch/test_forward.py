@@ -118,7 +118,8 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
                 input_data = list(map(lambda x: x.cuda(), input_data))
                 model = model.cuda()
             t_start = time()
-            model(*input_data)
+            with torch.no_grad():
+                model(*input_data)
             t_end = time()
             latencies.append(t_end - t_start)
         else:
@@ -168,7 +169,6 @@ def verify_model(model_name, input_data=[]):
     dtype = 'float32'
     input_name = 'input0'
     input_shapes = {input_name: list(baseline_input.shape)}
-    baseline_model(baseline_input)
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
     if torch.cuda.is_available():
         trace = trace.cuda()
