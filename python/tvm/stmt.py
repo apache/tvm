@@ -29,15 +29,15 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.stmt.Store)
     assert(st.buffer_var == a)
 """
-from __future__ import absolute_import as _abs
-from ._ffi.object import Object, register_object
+import tvm._ffi
+from ._ffi.object import Object
 from . import make as _make
 
 
 class Stmt(Object):
     pass
 
-@register_object
+@tvm._ffi.register_object
 class LetStmt(Stmt):
     """LetStmt node.
 
@@ -57,7 +57,7 @@ class LetStmt(Stmt):
             _make.LetStmt, var, value, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class AssertStmt(Stmt):
     """AssertStmt node.
 
@@ -77,7 +77,7 @@ class AssertStmt(Stmt):
             _make.AssertStmt, condition, message, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class ProducerConsumer(Stmt):
     """ProducerConsumer node.
 
@@ -97,7 +97,7 @@ class ProducerConsumer(Stmt):
             _make.ProducerConsumer, func, is_producer, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class For(Stmt):
     """For node.
 
@@ -137,7 +137,7 @@ class For(Stmt):
             for_type, device_api, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class Store(Stmt):
     """Store node.
 
@@ -160,7 +160,7 @@ class Store(Stmt):
             _make.Store, buffer_var, value, index, predicate)
 
 
-@register_object
+@tvm._ffi.register_object
 class Provide(Stmt):
     """Provide node.
 
@@ -183,7 +183,7 @@ class Provide(Stmt):
             _make.Provide, func, value_index, value, args)
 
 
-@register_object
+@tvm._ffi.register_object
 class Allocate(Stmt):
     """Allocate node.
 
@@ -215,7 +215,7 @@ class Allocate(Stmt):
             extents, condition, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class AttrStmt(Stmt):
     """AttrStmt node.
 
@@ -238,7 +238,7 @@ class AttrStmt(Stmt):
             _make.AttrStmt, node, attr_key, value, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class Free(Stmt):
     """Free node.
 
@@ -252,7 +252,7 @@ class Free(Stmt):
             _make.Free, buffer_var)
 
 
-@register_object
+@tvm._ffi.register_object
 class Realize(Stmt):
     """Realize node.
 
@@ -288,7 +288,7 @@ class Realize(Stmt):
             bounds, condition, body)
 
 
-@register_object
+@tvm._ffi.register_object
 class SeqStmt(Stmt):
     """Sequence of statements.
 
@@ -308,7 +308,7 @@ class SeqStmt(Stmt):
         return len(self.seq)
 
 
-@register_object
+@tvm._ffi.register_object
 class IfThenElse(Stmt):
     """IfThenElse node.
 
@@ -328,7 +328,7 @@ class IfThenElse(Stmt):
             _make.IfThenElse, condition, then_case, else_case)
 
 
-@register_object
+@tvm._ffi.register_object
 class Evaluate(Stmt):
     """Evaluate node.
 
@@ -342,7 +342,7 @@ class Evaluate(Stmt):
             _make.Evaluate, value)
 
 
-@register_object
+@tvm._ffi.register_object
 class Prefetch(Stmt):
     """Prefetch node.
 

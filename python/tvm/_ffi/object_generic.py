@@ -16,35 +16,14 @@
 # under the License.
 """Common implementation of object generic related logic"""
 # pylint: disable=unused-import
-from __future__ import absolute_import
-
 from numbers import Number, Integral
 from .. import _api_internal
+
 from .base import string_types
-
-# Object base class
-_CLASS_OBJECTS = None
-
-def _set_class_objects(cls):
-    global _CLASS_OBJECTS
-    _CLASS_OBJECTS = cls
-
-
-def _scalar_type_inference(value):
-    if hasattr(value, 'dtype'):
-        dtype = str(value.dtype)
-    elif isinstance(value, bool):
-        dtype = 'bool'
-    elif isinstance(value, float):
-        # We intentionally convert the float to float32 since it's more common in DL.
-        dtype = 'float32'
-    elif isinstance(value, int):
-        # We intentionally convert the python int to int32 since it's more common in DL.
-        dtype = 'int32'
-    else:
-        raise NotImplementedError('Cannot automatically inference the type.'
-                                  ' value={}'.format(value))
-    return dtype
+from .object import ObjectBase, _set_class_object_generic
+from .ndarray import NDArrayBase
+from .packed_func import PackedFuncBase, convert_to_tvm_func
+from .module import ModuleBase
 
 
 class ObjectGeneric(object):
@@ -52,6 +31,9 @@ class ObjectGeneric(object):
     def asobject(self):
         """Convert value to object"""
         raise NotImplementedError()
+
+
+_CLASS_OBJECTS = (ObjectBase, NDArrayBase, ModuleBase)
 
 
 def convert_to_object(value):
@@ -95,22 +77,65 @@ def convert_to_object(value):
     raise ValueError("don't know how to convert type %s to object" % type(value))
 
 
-def const(value, dtype=None):
-    """Construct a constant value for a given type.
+def convert(value):
+    """Convert value to TVM object or function.
 
     Parameters
     ----------
-    value : int or float
-        The input value
+    value : python value
+
+    Returns
+    -------
+    tvm_val : Object or Function
+        Converted value in TVM
+    """
+    if isinstance(value, (PackedFuncBase, ObjectBase)):
+        return value
+
+    if callable(value):
+        return convert_to_tvm_func(value)
+
+    return convert_to_object(value)
+
+
+def _scalar_type_inference(value):
+    if hasattr(value, 'dtype'):
+        dtype = str(value.dtype)
+    elif isinstance(value, bool):
+        dtype = 'bool'
+    elif isinstance(value, float):
+        # We intentionally convert the float to float32 since it's more common in DL.
+        dtype = 'float32'
+    elif isinstance(value, int):
+        # We intentionally convert the python int to int32 since it's more common in DL.
+        dtype = 'int32'
+    else:
+        raise NotImplementedError('Cannot automatically inference the type.'
+                                  ' value={}'.format(value))
+    return dtype
+
+def const(value, dtype=None):
+    """construct a constant
+
+    Parameters
+    ----------
+    value : number
+        The content of the constant number.
 
     dtype : str or None, optional
         The data type.
 
     Returns
     -------
-    expr : Expr
-        Constant expression corresponds to the value.
+    const_val: tvm.Expr
+        The result expression.
     """
     if dtype is None:
         dtype = _scalar_type_inference(value)
+    if dtype == "uint64" and value >= (1 << 63):
+        return _api_internal._LargeUIntImm(
+            dtype, value & ((1 << 32) - 1), value >> 32)
     return _api_internal._const(value, dtype)
+
+
+_set_class_object_generic(ObjectGeneric, convert_to_object)
