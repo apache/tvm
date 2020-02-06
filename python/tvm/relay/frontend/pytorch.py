@@ -1027,7 +1027,7 @@ def from_pytorch(script_module, input_shapes):
     ----------
     script_module : TopLevelTracedModule object
         TorchScripted PyTorch graph
-        Note: We currently only support traces (ie: torch.jit.trace(model, input)
+        Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
     shape : Dictionary of input dimensions
         Graph level input shape dictionary
