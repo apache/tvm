@@ -60,7 +60,7 @@ class onnx_input():
                 self.input_keys.append(item)
             self.input_dict[item] = value
         else:
-            raise ValueError("Only integer and string accesses allowed.")
+            raise ValueError("Only integer and string indexed writes allowed.")
 
     def keys(self):
         return self.input_keys
@@ -1299,7 +1299,7 @@ class LSTM(OnnxOpConverter):
         P = inputs['P']
 
         num_directions = infer_shape(W)[0]
-        W_dtype = W.type_annotation.dtype
+        W_dtype = infer_type(W).type_annotation.dtype
 
         if num_directions != 1:
             raise NotImplementedError("Bidirectional LSTMs not yet supported.")
@@ -1314,12 +1314,18 @@ class LSTM(OnnxOpConverter):
         batch_size = X_shape[1]
 
         # Initialize state if not provided.
+        # Otherwise remove bidirectional axis.
         if h_0 is None:
             h_0 = _op.zeros((batch_size, hidden_size), W_dtype)
+        else:
+            h_0 = _op.squeeze(h_0, axis=[0])
         if c_0 is None:
             c_0 = _op.zeros((batch_size, hidden_size), W_dtype)
+        else:
+            c_0 = _op.squeeze(c_0, axis=[0])
 
         if P is not None:
+            P = _op.squeeze(P, axis=[0])
             p_i, p_o, p_f = _op.split(P, 3)
         H_t = h_0
         C_t = c_0
