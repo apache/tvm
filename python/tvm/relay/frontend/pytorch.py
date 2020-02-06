@@ -189,9 +189,7 @@ def _hardtanh():
 def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
-        use_transpose = False
-        if inputs[6] == "1":
-            use_transpose = True
+        use_transpose = True if inputs[6] == "1" else False
 
         data = inputs[0]
         weight = inputs[1]
@@ -212,13 +210,10 @@ def _convolution():
             weight_shape = data.shape
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
+
         channels = weight_shape[0]
-
         kernel_size = weight_shape[2:]
-
-        use_bias = False
-        if isinstance(bias, _expr.Expr):
-            use_bias = True
+        use_bias = True if isinstance(bias, _expr.Expr) else False
 
         if isinstance(strides, _expr.Expr):
             strides = _infer_shape(strides)
@@ -373,10 +368,7 @@ def _flatten():
 
 def _dense():
     def _impl(inputs, input_types):
-        use_bias = False
-
-        if isinstance(inputs[0], _expr.Expr):
-            use_bias = True
+        use_bias = True if isinstance(inputs[0], _expr.Expr) else False
 
         data = inputs[1]
         data_type = input_types[1]
