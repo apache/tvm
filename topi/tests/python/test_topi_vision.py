@@ -26,6 +26,42 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from topi.vision import ssd, non_max_suppression, get_valid_counts
 
+from common import get_schedule
+
+_get_valid_counts_schedule = {
+    "generic": topi.generic.schedule_get_valid_counts,
+    "gpu": topi.cuda.schedule_get_valid_counts,
+}
+
+_nms_schedule = {
+    "generic": topi.generic.schedule_nms,
+    "gpu": topi.cuda.schedule_nms,
+}
+
+_multibox_prior_schedule = {
+    "generic": topi.generic.schedule_multibox_prior,
+    "gpu": topi.cuda.schedule_multibox_prior,
+}
+
+_multibox_detection_schedule = {
+    "generic": topi.generic.schedule_multibox_detection,
+    "gpu": topi.cuda.schedule_multibox_detection,
+}
+
+_roi_align_schedule = {
+    "generic": topi.generic.schedule_roi_align,
+    "gpu": topi.cuda.schedule_roi_align,
+}
+
+_roi_pool_schedule = {
+    "generic": topi.generic.schedule_roi_pool,
+    "gpu": topi.cuda.schedule_roi_pool,
+}
+
+_proposal_schedule = {
+    "generic": topi.generic.schedule_proposal,
+    "gpu": topi.cuda.schedule_proposal,
+}
 
 def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
     dtype = "float32"
@@ -56,7 +92,8 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         with tvm.target.create(device):
             data = tvm.placeholder(dshape, name="data", dtype=dtype)
             outs = get_valid_counts(data, score_threshold, id_index, score_index)
-            s = topi.generic.schedule_get_valid_counts(outs)
+            s_func = get_schedule(device, _get_valid_counts_schedule)
+            s = s_func(outs)
 
         tvm_input_data = tvm.nd.array(np_data, ctx)
         tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
@@ -107,7 +144,8 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
                                                     return_indices=False)
                 indices_out = topi.cuda.non_max_suppression(data, valid_count, -1, iou_threshold, force_suppress, top_k,
                                                             coord_start=coord_start, score_index=score_index, id_index=id_index)
-            s = topi.generic.schedule_nms(out)
+            s_func = get_schedule(device, _nms_schedule)
+            s = s_func(out)
             indices_s = topi.generic.schedule_nms(indices_out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
@@ -198,7 +236,8 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
                 out = ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
             else:
                 out = topi.cuda.ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
-            s = topi.generic.schedule_multibox_prior(out)
+            s_func = get_schedule(device, _multibox_prior_schedule)
+            s = s_func(out)
 
         tvm_input_data = tvm.nd.array(input_data, ctx)
         tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), ctx)
@@ -244,7 +283,8 @@ def test_multibox_detection():
                 out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
             else:
                 out = topi.cuda.ssd.multibox_detection(cls_prob, loc_preds, anchors)
-            s = topi.generic.schedule_multibox_detection(out)
+            s_func = get_schedule(device, _multibox_detection_schedule)
+            s = s_func(out)
 
         tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
         tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), ctx)
@@ -289,7 +329,8 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
             b = topi.vision.rcnn.roi_align_nchw(a, rois, pooled_size=pooled_size,
                                                 spatial_scale=spatial_scale,
                                                 sample_ratio=sample_ratio)
-            s = topi.generic.schedule_roi_align(b)
+            s_func = get_schedule(device, _roi_align_schedule)
+            s = s_func(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
         tvm_rois = tvm.nd.array(rois_np, ctx)
@@ -338,7 +379,8 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
         with tvm.target.create(device):
             b = topi.vision.rcnn.roi_pool_nchw(a, rois, pooled_size=pooled_size,
                                                 spatial_scale=spatial_scale)
-            s = topi.generic.schedule_roi_pool(b)
+            s_func = get_schedule(device, _roi_pool_schedule)
+            s = s_func(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
         tvm_rois = tvm.nd.array(rois_np, ctx)
@@ -369,7 +411,8 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             out = topi.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
-            s = topi.generic.schedule_proposal(out)
+            s_func = get_schedule(device, _proposal_schedule)
+            s = s_func(out)
             f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], device)
             tvm_cls_prob = tvm.nd.array(np_cls_prob, ctx=ctx)
             tvm_bbox_pred = tvm.nd.array(np_bbox_pred, ctx=ctx)

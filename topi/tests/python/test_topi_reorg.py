@@ -20,6 +20,12 @@ import topi
 from topi.util import get_const_tuple
 import tvm
 import topi.testing
+from common import get_schedule
+
+_reorg_schedule = {
+    "generic": topi.generic.schedule_reorg,
+    "gpu": topi.cuda.schedule_reorg,
+}
 
 def verify_reorg(batch, in_size, in_channel, stride):
     '''Verify reorg operator by comparing outputs from tvm and numpy implementation'''
@@ -46,10 +52,8 @@ def verify_reorg(batch, in_size, in_channel, stride):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            if device == 'llvm':
-                s = topi.generic.schedule_reorg([B])
-            else:
-                s = topi.cuda.schedule_reorg([B])
+            s_func = get_schedule(device, _reorg_schedule)
+            s = s_func([B])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         func = tvm.build(s, [A, B], device)
