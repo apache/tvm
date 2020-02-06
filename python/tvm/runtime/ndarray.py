@@ -315,7 +315,7 @@ def cpu(dev_id=0):
 
 
 def gpu(dev_id=0):
-    """Construct a CPU device
+    """Construct a GPU device
 
     Parameters
     ----------
