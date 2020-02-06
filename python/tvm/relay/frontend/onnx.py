@@ -34,19 +34,24 @@ __all__ = ['from_onnx']
 
 class onnx_input():
     """ Dual purpose list or dictionary access object."""
+
     def __init__(self):
         self.input_keys = []
         self.input_dict = {}
+
     def __getitem__(self, item):
         if isinstance(item, int):
             return self.input_dict[self.input_keys[item]]
-        elif isinstance(item, str): 
+        if isinstance(item, str):
             if item not in self.input_keys:
                 return None
             return self.input_dict[item]
-        elif isinstance(item, slice):
+        if isinstance(item, slice):
             keys = self.input_keys[item]
             return [self.input_dict[key] for key in keys]
+
+        raise ValueError("Only integer, string, and slice accesses allowed.")
+
     def __setitem__(self, item, value):
         if isinstance(item, int):
             self.input_dict[self.input_keys[item]] = value
@@ -55,21 +60,25 @@ class onnx_input():
                 self.input_keys.append(item)
             self.input_dict[item] = value
         else:
-            raise NotImplementedError
+            raise ValueError("Only integer and string accesses allowed.")
+
     def keys(self):
         return self.input_keys
+
     def __len__(self):
         return len(self.input_keys)
+
     def __iter__(self):
         self.n = 0
         return self
+
     def __next__(self):
         if self.n < len(self.input_keys):
             output = self.input_dict[self.input_keys[self.n]]
             self.n += 1
             return output
-        else:
-            raise StopIteration
+
+        raise StopIteration
 
 
 def get_numpy(tensor_proto):
@@ -704,6 +713,17 @@ class Sum(OnnxOpConverter):
         return inputs[len(inputs) - 1]
 
 
+class Affine(OnnxOpConverter):
+    """ Operator converter for Affine transformation.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        alpha = _expr.const(attr.get('alpha', 1.0))
+        beta = _expr.const(attr.get('beta', 0.0))
+        return (alpha * inputs[0]) + beta
+
+
 class ThresholdedRelu(OnnxOpConverter):
     """ Operator converter for ThresholdedRelu.
     """
@@ -933,7 +953,7 @@ class Maximum(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not (isinstance(inputs, list) or isinstance(inputs, onnx_input)) or len(inputs) < 2:
+        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         _max = inputs[0]
         for i in range(1, len(inputs)):
@@ -945,7 +965,7 @@ class Minimum(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not (isinstance(inputs, list) or isinstance(inputs, onnx_input)) or len(inputs) < 2:
+        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         _min = inputs[0]
         for i in range(1, len(inputs)):
@@ -957,7 +977,7 @@ class Mean(OnnxOpConverter):
     """
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        if not (isinstance(inputs, list) or isinstance(inputs, onnx_input)) or len(inputs) < 2:
+        if not isinstance(inputs, (list, onnx_input)) or len(inputs) < 2:
             raise ValueError("Expect minimum 2 inputs")
         # avoid overflow
         concat = _op.concatenate([_op.expand_dims(x, axis=0) for x in inputs], axis=0)
@@ -1239,7 +1259,7 @@ class LSTM(OnnxOpConverter):
         convert_map = _get_convert_map(1)
         attrs = {}
         if alpha is not None:
-            attrs['alpha']  = alpha
+            attrs['alpha'] = alpha
         if beta is not None:
             attrs['beta'] = beta
         return lambda x: convert_map[activation.decode("utf-8")]([x], attrs, {})
@@ -1247,23 +1267,23 @@ class LSTM(OnnxOpConverter):
     @classmethod
     def _activation_needs_alpha(cls, activation):
         needs_alpha = [
-                "Affine",
-                "LeakyRelu",
-                "ThresholdedRelu",
-                "ScaledTanh",
-                "HardSigmoid",
-                "Elu"
+            "Affine",
+            "LeakyRelu",
+            "ThresholdedRelu",
+            "ScaledTanh",
+            "HardSigmoid",
+            "Elu",
         ]
-        return activation in needs_alpha
+        return activation.decode("utf-8") in needs_alpha
 
     @classmethod
     def _activation_needs_beta(cls, activation):
         needs_beta = [
-                "Affine",
-                "ScaledTanh",
-                "HardSigmoid",
+            "Affine",
+            "ScaledTanh",
+            "HardSigmoid",
         ]
-        return activation in needs_beta
+        return activation.decode("utf-8") in needs_beta
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -1272,14 +1292,15 @@ class LSTM(OnnxOpConverter):
         W = inputs[1]
         R = inputs[2]
         B = inputs['B']
-        sequence_lens = inputs['sequence_lens']
+        # Sequence length currently unused as it can be inferred from shapes.
+        #sequence_lens = inputs['sequence_lens']
         h_0 = inputs['initial_h']
         c_0 = inputs['initial_c']
         P = inputs['P']
 
         num_directions = infer_shape(W)[0]
         W_dtype = W.type_annotation.dtype
-        
+
         if num_directions != 1:
             raise NotImplementedError("Bidirectional LSTMs not yet supported.")
         # Remove num_directions axis from weights.
@@ -1381,7 +1402,7 @@ def _get_convert_map(opset):
     return {
         # defs/experimental
         'Identity': Renamer('copy'),
-        # 'Affine'
+        'Affine': Affine.get_converter(opset),
         'ThresholdedRelu': ThresholdedRelu.get_converter(opset),
         'ScaledTanh': ScaledTanh.get_converter(opset),
         'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
@@ -1594,9 +1615,10 @@ class GraphProto(object):
         for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
+            # Create and populate onnx input object.
             inputs = onnx_input()
             for i in node.input:
-                if i is not '':
+                if i != '':
                     inputs[i] = self._nodes[self._renames.get(i, i)]
             if op_name == "Constant":
                 t_proto = self._parse_attr(node.attribute)["value"]

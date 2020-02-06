@@ -1962,79 +1962,125 @@ def test_pooling():
                        auto_pad='SAME_UPPER')
 
 
-def verify_lstm(seq_length, batch_size, input_size, hidden_size, use_bias=False):
+def verify_lstm(seq_length,
+                batch_size,
+                input_size,
+                hidden_size,
+                use_bias=False,
+                activations=None,
+                alphas=None,
+                betas=None):
     x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype('float32')
-    w_np = np.random.uniform(size=(1, 4*hidden_size, input_size)).astype('float32')
-    r_np = np.random.uniform(size=(1, 4*hidden_size, hidden_size)).astype('float32')
+    w_np = np.random.uniform(size=(1, 4 * hidden_size, input_size)).astype('float32')
+    r_np = np.random.uniform(size=(1, 4 * hidden_size, hidden_size)).astype('float32')
+    input_names = ["X", "W", "R"]
+    input_tensors = [
+        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
+        helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
+        helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape))
+    ]
+    input_values = [x_np, w_np, r_np]
     if use_bias:
-        b_np = np.random.uniform(size=(1, 8*hidden_size)).astype('float32')
+        b_np = np.random.uniform(size=(1, 8 * hidden_size)).astype('float32')
+        input_names.append("B")
+        input_tensors.append(
+            helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, 8 * hidden_size]))
+        input_values.append(b_np)
 
     Y_shape = [seq_length, 1, batch_size, hidden_size]
     Y_h_shape = [1, batch_size, hidden_size]
     Y_c_shape = [1, batch_size, hidden_size]
 
-    lstm_node = helper.make_node('LSTM',
-                                 inputs=["X", "W", "R"],
-                                 outputs=["Y", "Y_h", "Y_c"],
-                                 hidden_size=hidden_size)
+    if activations is None:
+        lstm_node = helper.make_node(
+            'LSTM', inputs=input_names, outputs=["Y", "Y_h", "Y_c"], hidden_size=hidden_size)
+    elif alphas is None:
+        lstm_node = helper.make_node(
+            'LSTM',
+            inputs=input_names,
+            outputs=["Y", "Y_h", "Y_c"],
+            hidden_size=hidden_size,
+            activations=activations)
+    else:
+        lstm_node = helper.make_node(
+            'LSTM',
+            inputs=input_names,
+            outputs=["Y", "Y_h", "Y_c"],
+            hidden_size=hidden_size,
+            activations=activations,
+            activation_alpha=alphas,
+            activation_beta=betas)
 
     graph = helper.make_graph([lstm_node],
                               "lstm_test",
-                              inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
-                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
-                                      helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape))],
-                              outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, list(Y_shape)),
-                                       helper.make_tensor_value_info("Y_h", TensorProto.FLOAT, list(Y_h_shape)),
-                                       helper.make_tensor_value_info("Y_c", TensorProto.FLOAT, list(Y_c_shape))])
+                              inputs=input_tensors,
+                              outputs=[
+                                  helper.make_tensor_value_info("Y", TensorProto.FLOAT,
+                                                                list(Y_shape)),
+                                  helper.make_tensor_value_info("Y_h", TensorProto.FLOAT,
+                                                                list(Y_h_shape)),
+                                  helper.make_tensor_value_info("Y_c", TensorProto.FLOAT,
+                                                                list(Y_c_shape))
+                              ])
 
     model = helper.make_model(graph, producer_name='lstm_test')
 
     for target, ctx in ctx_list():
-        onnx_out = get_onnxruntime_output(model, [x_np, w_np, r_np], 'float32')
+        onnx_out = get_onnxruntime_output(model, input_values, 'float32')
         tvm_out = get_tvm_output(
-            model, [x_np, w_np, r_np], target, ctx, [Y_shape, Y_h_shape, Y_c_shape], output_dtype=['float32', 'float32', 'float32'])
+            model,
+            input_values,
+            target,
+            ctx, [Y_shape, Y_h_shape, Y_c_shape],
+            output_dtype=['float32', 'float32', 'float32'])
         for o_out, t_out in zip(onnx_out, tvm_out):
-            tvm.testing.assert_allclose(o_out, t_out, rtol=1e-4, atol=1e-4)
+            tvm.testing.assert_allclose(o_out, t_out, rtol=5e-3, atol=5e-3)
 
 
 def test_lstm():
     # No bias.
-    verify_lstm(seq_length=2,
-                batch_size=1,
-                input_size=16,
-                hidden_size=32,
-                use_bias=False)
+    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False)
     # large batch.
-    verify_lstm(seq_length=4,
-                batch_size=8,
-                input_size=16,
-                hidden_size=32,
-                use_bias=True)
+    verify_lstm(seq_length=4, batch_size=8, input_size=16, hidden_size=32, use_bias=True)
     # Non power of two.
-    verify_lstm(seq_length=3,
-                batch_size=3,
-                input_size=16,
-                hidden_size=40,
-                use_bias=True)
+    verify_lstm(seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True)
     # Long sequence.
-    verify_lstm(seq_length=8,
-                batch_size=1,
-                input_size=16,
-                hidden_size=32,
-                use_bias=True)
+    verify_lstm(seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True)
     # Large hidden.
-    verify_lstm(seq_length=2,
-                batch_size=1,
-                input_size=16,
-                hidden_size=128,
-                use_bias=True)
+    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True)
     # Large input.
-    verify_lstm(seq_length=2,
-                batch_size=1,
-                input_size=64,
-                hidden_size=32,
-                use_bias=True)
-        
+    verify_lstm(seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True)
+
+    # Different activation testing.
+    # Default value hardsigmoid.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'Tanh', 'Tanh'])
+    # Multiple parameterized activations.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'LeakyRelu', 'Tanh'],
+        alphas=[2.0, 0.5],
+        betas=[.3])
+    # All parameterized with new Affine activation.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'LeakyRelu', 'Affine'],
+        alphas=[2.0, 0.5, 0.8],
+        betas=[.3, 0.1])
+
 
 if __name__ == '__main__':
     test_flatten()
