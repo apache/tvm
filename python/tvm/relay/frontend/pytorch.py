@@ -753,7 +753,7 @@ class Graph(object):
         missing_operators = self._parse_import_prerequisites()
 
         if missing_operators:
-            raise NotImplementedError( \
+            raise tvm.error.OpNotImplemented( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
         # Translate PyTorch graph to by decorating Graph with state dict and inputs into each op
@@ -768,21 +768,21 @@ class Graph(object):
             if op_node.kind() == "prim::ListConstruct":
                 if any(inp.debugName() in self._parsed_node_names.keys() \
                        for inp in op_node.inputs()):
-                    listconstr = []
+                    list_constr = []
                     for i in op_node.inputs():
                         if i.debugName() in self._parsed_node_names.keys():
-                            listconstr.append( \
+                            list_constr.append( \
                                 outputs[self._parsed_node_names[i.debugName()]])
                         elif i.node().kind() == "prim::Constant":
-                            listconstr.append(int(self._consts[i.debugName()]))
+                            list_constr.append(int(self._consts[i.debugName()]))
                         elif i.debugName() in self._inputs_r.keys():
-                            listconstr.append(int(self._inputs_r[i.debugName()]))
+                            list_constr.append(int(self._inputs_r[i.debugName()]))
 
                     # Unwrap for tensors
-                    if len(listconstr) == 1:
-                        listconstr = listconstr[0]
+                    if len(list_constr) == 1:
+                        list_constr = list_constr[0]
 
-                    outputs.append(listconstr)
+                    outputs.append(list_constr)
                     self._parsed_node_names[op_name] = nid
                     nid = nid+1
             elif op_node.kind() != "prim::Constant":
@@ -823,11 +823,9 @@ class Graph(object):
                                                    shape=self._input_shapes[input_name],
                                                    dtype=ir_dtype)
 
-        # Add self (first input of a PyTorch graph) to inputs
-        input_shape = [3]
-        tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
+        # Add self (first input of a PyTorch graph) to inputs, the value doesn't matter here
         input_name = ir_inputs[0].debugName()
-        self._inputs_r[input_name] = tensor
+        self._inputs_r[input_name] = "self"
 
     def _parse_params(self):
         """ Map state dictionary values to corresponding prim::GetAttr op node. """
