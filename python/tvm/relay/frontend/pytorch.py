@@ -107,20 +107,34 @@ def _select():
 
 def _ones():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Expr):
-            shape = _infer_shape(inputs[0])
+        data = inputs[0]
+
+        import torch
+        if isinstance(data, _expr.Expr):
+            shape = _infer_shape(data)
+        elif isinstance(data, list):
+            shape = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
+            shape = data.shape
         else:
-            shape = inputs[0].shape
+            assert "data type {} could not be parsed in ones op" % (type(data))
 
         return _op.full(_expr.const(1), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
 
 def _zeros():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Expr):
-            shape = _infer_shape(inputs[0])
+        data = inputs[0]
+
+        import torch
+        if isinstance(data, _expr.Expr):
+            shape = _infer_shape(data)
+        elif isinstance(data, list):
+            shape = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
+            shape = data.shape
         else:
-            shape = inputs[0].shape
+            assert "data type {} could not be parsed in zeros op" % (type(data))
 
         return _op.full(_expr.const(0), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
@@ -607,7 +621,7 @@ def _convert_data_type(input_type):
     elif input_type in ["byte", "torch.uint8"]:
         return "uint8"
     else:
-        assert "data_type {} is not handled yet" % (data_type)
+        assert "input_type {} is not handled yet" % (data_type)
         return "float32"
 
 def _create_typed_const(data, data_type):

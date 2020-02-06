@@ -229,13 +229,6 @@ def test_forward_add():
 
     class Add4(Module):
         def forward(self, *args):
-            ones = torch.ones(input_shape, dtype=torch.float)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] + ones
-
-    class Add5(Module):
-        def forward(self, *args):
             ones = torch.ones([], dtype=torch.float)
             if torch.cuda.is_available():
                 ones = ones.cuda()
@@ -247,7 +240,6 @@ def test_forward_add():
         verify_model(Add2().float().eval(), input_data=input_data)
         verify_model(Add3().float().eval(), input_data=input_data)
         verify_model(Add4().float().eval(), input_data=input_data)
-        verify_model(Add5().float().eval(), input_data=input_data)
 
 def test_forward_subtract():
     torch.set_grad_enabled(False)
@@ -270,13 +262,6 @@ def test_forward_subtract():
 
     class Subtract4(Module):
         def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] - ones
-
-    class Subtract5(Module):
-        def forward(self, *args):
             ones = torch.ones([])
             if torch.cuda.is_available():
                 ones = ones.cuda()
@@ -288,7 +273,6 @@ def test_forward_subtract():
         verify_model(Subtract2().float().eval(), input_data=input_data)
         verify_model(Subtract3().float().eval(), input_data=input_data)
         verify_model(Subtract4().float().eval(), input_data=input_data)
-        verify_model(Subtract5().float().eval(), input_data=input_data)
 
 def test_forward_multiply():
     torch.set_grad_enabled(False)
@@ -311,13 +295,6 @@ def test_forward_multiply():
 
     class Multiply4(Module):
         def forward(self, *args):
-            ones = torch.ones(input_shape)
-            if torch.cuda.is_available():
-                ones = ones.cuda()
-            return args[0] * ones
-
-    class Multiply5(Module):
-        def forward(self, *args):
             ones = torch.ones([])
             if torch.cuda.is_available():
                 ones = ones.cuda()
@@ -329,7 +306,6 @@ def test_forward_multiply():
         verify_model(Multiply2().float().eval(), input_data=input_data)
         verify_model(Multiply3().float().eval(), input_data=input_data)
         verify_model(Multiply4().float().eval(), input_data=input_data)
-        verify_model(Multiply5().float().eval(), input_data=input_data)
 
 def test_forward_unsqueeze():
     torch.set_grad_enabled(False)
@@ -750,7 +726,6 @@ def test_vgg11_bn():
 """
 
 if __name__ == "__main__":
-
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
