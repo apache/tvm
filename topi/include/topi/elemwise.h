@@ -179,6 +179,23 @@ inline Tensor logical_not(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation that returns the bitwise NOT of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the bitwise NOT operation
+*/
+inline Tensor bitwise_not(const Tensor& x,
+                          std::string name = "T_bitwise_not",
+                          std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return ~x(i);
+  }, name, tag);
+}
+
+/*!
 * \brief Returns the sign of the tensor
 *
 * \param x The input tensor
