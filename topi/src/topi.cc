@@ -133,6 +133,9 @@ TOPI_REGISTER_BCAST_OP("topi.power", topi::power);
 TOPI_REGISTER_BCAST_OP("topi.left_shift", topi::left_shift);
 TOPI_REGISTER_BCAST_OP("topi.logical_and", topi::logical_and);
 TOPI_REGISTER_BCAST_OP("topi.logical_or", topi::logical_or);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_and", topi::bitwise_and);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_or", topi::bitwise_or);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_xor", topi::bitwise_xor);
 TOPI_REGISTER_BCAST_OP("topi.right_shift", topi::right_shift);
 TOPI_REGISTER_BCAST_OP("topi.greater", topi::greater);
 TOPI_REGISTER_BCAST_OP("topi.less", topi::less);
@@ -149,6 +152,11 @@ TVM_REGISTER_GLOBAL("topi.broadcast_to")
 TVM_REGISTER_GLOBAL("topi.logical_not")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = logical_not(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.bitwise_not")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = bitwise_not(args[0]);
   });
 
 /* Ops from elemwise.h */
