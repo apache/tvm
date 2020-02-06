@@ -16,8 +16,6 @@
 # under the License.
 import numpy as np
 import math
-import onnx
-from onnx import helper, TensorProto, mapping
 import torch
 import torchvision
 import topi
@@ -26,6 +24,8 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
+import onnx
+from onnx import helper, TensorProto, mapping
 import scipy
 
 
