@@ -19,6 +19,9 @@
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
 from . import _make
+from ....make import node
+from ..op import get as get_op
+from ...expr import Call
 
 
 def conv1d(data,
@@ -2395,3 +2398,8 @@ def space_to_depth(data, block_size, layout='NCHW'):
                            in_height / block_size, in_width / block_size]
     """
     return _make.space_to_depth(data, block_size, layout)
+
+def conv2d_vnni(x, w, strides=(1, 1), padding=(0, 0)):
+    op = get_op('relay.op.nn.conv2d_vnni')
+    attr = node('relay.attrs.Conv2DAttrs', strides=(1, 1), padding=(0, 0))
+    return  Call(op, [x, w], attr, None)

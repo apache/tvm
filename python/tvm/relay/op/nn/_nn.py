@@ -1198,3 +1198,45 @@ def pad_shape_func(attrs, inputs, _):
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
 reg.register_shape_func("nn.relu", False, elemwise_shape_func)
+
+from ....api import compute, reduce_axis
+from ....api import sum as _sum
+from ....schedule import create_schedule
+
+@reg.register_compute("relay.op.nn.conv2d_vnni")
+def conv2d_vnni_compute(attr, inputs, out_type, target):
+    img = inputs[0]
+    knl = inputs[1]
+    stride_h = attr.strides[0]
+    stride_w = attr.strides[1]
+    n, h, w, c = img.shape
+    kc = c
+    kh, kw, o_, _, xo, _ = knl.shape
+    o = o_ * xo
+    rc, rh, rw = reduce_axis((0, kc), 'rc'), reduce_axis((0, kh), 'rh'), reduce_axis((0, kw), 'rw')
+    conv = compute(
+            (n, h - kh + 1, w - kw + 1, o),
+            lambda bn, x, y, oc:
+                _sum(img[bn, x * stride_h + rh, y * stride_w + rw, rc].astype('int32') *
+                knl[rh, rw, oc // 16, rc // 4, oc % 16, rc % 4],
+            axis=[rc, rh, rw]),
+            'conv')
+    return [conv]
+
+@reg.register_schedule("relay.op.nn.conv2d_vnni")
+def conv2d_vnni_schedule(attrs, outputs, target):
+    conv = outputs[0]
+    sch = create_schedule(conv.op)
+    sch = create_schedule(conv.op)
+
+    bn, x, y, oc = conv.op.axis
+    rc, rh, rw = conv.op.reduce_axis
+
+    oco, oci = sch[conv].split(oc, 16)
+    rco, rci = sch[conv].split(rc, 4)
+
+    sch[conv].reorder(bn, x, rh, rw, y, rco, oco, oci, rci)
+    sch[conv].pragma(oci, 'vnni')
+    return sch
+
+reg.register_pattern("relay.op.nn.conv2d_vnni", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
