@@ -1236,14 +1236,34 @@ class LSTM(OnnxOpConverter):
 
     @classmethod
     def _activation_helper(cls, activation, alpha, beta):
-        convert_map = _get_convert_map()
+        convert_map = _get_convert_map(1)
         attrs = {}
         if alpha is not None:
             attrs['alpha']  = alpha
         if beta is not None:
             attrs['beta'] = beta
-        return lambda x: convert_map[activation]([x], attrs, {})
+        return lambda x: convert_map[activation.decode("utf-8")]([x], attrs, {})
 
+    @classmethod
+    def _activation_needs_alpha(cls, activation):
+        needs_alpha = [
+                "Affine",
+                "LeakyRelu",
+                "ThresholdedRelu",
+                "ScaledTanh",
+                "HardSigmoid",
+                "Elu"
+        ]
+        return activation in needs_alpha
+
+    @classmethod
+    def _activation_needs_beta(cls, activation):
+        needs_beta = [
+                "Affine",
+                "ScaledTanh",
+                "HardSigmoid",
+        ]
+        return activation in needs_beta
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
@@ -1285,14 +1305,30 @@ class LSTM(OnnxOpConverter):
         h_list = []
 
         if 'activations' in attr:
-            activation_fns = []
+            activations = attr['activations']
+            if len(activations) != 3:
+                raise NotImplementedError("LSTM assumes 3 activation functions are provided")
+            alpha_loc = 0
+            alphas = attr.get('activation_alpha', [])
+            if isinstance(alphas, float):
+                alphas = [alphas]
+            beta_loc = 0
+            betas = attr.get('activation_beta', [])
+            if isinstance(betas, float):
+                betas = [betas]
+            acts = []
             for i in range(3):
-                if 'activation_alpha' in attr:
-                    alpha = attr['activation_alpha'][i]
-                else:
-                    alpha = None
-                if 'activation_beta' in attr:
-                    beta = attr['activation_beta'][i]
+                alpha = None
+                beta = None
+                activation = activations[i]
+                if cls._activation_needs_alpha(activation) and len(alphas) > alpha_loc:
+                    alpha = alphas[alpha_loc]
+                    alpha_loc += 1
+                if cls._activation_needs_beta(activation) and len(betas) > beta_loc:
+                    beta = betas[beta_loc]
+                    beta_loc += 1
+                acts.append(cls._activation_helper(activation, alpha, beta))
+            f_act, g_act, h_act = acts
         else:
             f_act = _op.sigmoid
             g_act = _op.tanh
