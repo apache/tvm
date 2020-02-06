@@ -200,13 +200,18 @@ def _convolution():
         padding = inputs[4]
         dilation = inputs[5]
 
+        import torch
         if isinstance(weight, _expr.Expr):
             inferred_shape = _infer_shape(weight)
             weight_shape = []
             for infer in inferred_shape:
                 weight_shape.append(infer)
+        elif isinstance(weight, list):
+            weight_shape = data
+        elif isinstance(weight, (torch.Tensor, np.ndarray)):
+            weight_shape = data.shape
         else:
-            weight_shape = weight.shape
+            assert "data type {} could not be parsed in conv op" % (type(weight))
         channels = weight_shape[0]
 
         kernel_size = weight_shape[2:]
@@ -327,10 +332,15 @@ def _transpose():
     def _impl(inputs, input_types):
         data = inputs[0]
 
+        import torch
         if isinstance(data, _expr.Expr):
             ndims = len(_infer_shape(data))
-        else:
+        elif isinstance(data, list):
+            ndims = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
             ndims = data.shape
+        else:
+            assert "data type {} could not be parsed in transpose op" % (type(data))
 
         if isinstance(data, tvm.ndarray.NDArray):
             ndims = len(data.shape)
