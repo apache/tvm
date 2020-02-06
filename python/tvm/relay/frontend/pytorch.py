@@ -623,8 +623,8 @@ def _convert_data_type(input_type):
     elif input_type in ["byte", "torch.uint8"]:
         return "uint8"
     else:
-        assert "input_type {} is not handled yet" % (data_type)
-        return "float32"
+        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
+    return "float32"
 
 def _create_typed_const(data, data_type):
     dtype = _convert_data_type(data_type)
@@ -646,9 +646,7 @@ def _create_typed_const(data, data_type):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        assert "data_type {} is not handled yet" % (data_type)
-        return _expr.const(np.float32(data), dtype="float32")
-
+        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
     return typed_data
 
 # TODO: Fix typing
