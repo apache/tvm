@@ -92,3 +92,22 @@ class ObjectBase(object):
         if not isinstance(handle, ObjectHandle):
             handle = ObjectHandle(handle)
         self.handle = handle
+
+    def same_as(self, other):
+        """Check object identity.
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare against.
+
+        Returns
+        -------
+        result : bool
+             The comparison result.
+        """
+        if not isinstance(other, ObjectBase):
+            return False
+        if self.handle is None:
+            return other.handle is None
+        return self.handle.value == other.handle.value

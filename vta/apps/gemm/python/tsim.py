@@ -62,7 +62,7 @@ def init(hw_backend):
     if hw_backend in ("verilog", "chisel"):
         hw_lib = osp.join(cur_path, "..", "hardware", hw_backend, "build", hw_libname)
     load_sw()
-    m = tvm.module.load(hw_lib, "vta-tsim")
+    m = tvm.runtime.load_module(hw_lib, "vta-tsim")
     f = tvm.get_global_func("tvm.vta.tsim.init")
     f(m)
 

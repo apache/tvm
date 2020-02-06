@@ -30,7 +30,7 @@ def test_ext_dev():
     B = tvm.compute((n,), lambda *i: A(*i) + 1.0, name='B')
     s = tvm.create_schedule(B.op)
     def check_llvm():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "ext_dev", "llvm")
         ctx = tvm.ext_dev(0)
@@ -74,7 +74,7 @@ def test_extern_call():
     s = tvm.create_schedule(B.op)
 
     def check_llvm():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         f = tvm.build(s, [A, B], "llvm")
         ctx = tvm.cpu(0)

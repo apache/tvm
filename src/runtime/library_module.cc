@@ -148,7 +148,7 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
       CHECK(stream->Read(&import_tree_row_ptr));
       CHECK(stream->Read(&import_tree_child_indices));
     } else {
-      std::string fkey = "module.loadbinary_" + tkey;
+      std::string fkey = "runtime.module.loadbinary_" + tkey;
       const PackedFunc* f = Registry::Get(fkey);
       CHECK(f != nullptr)
         << "Loader of " << tkey << "("

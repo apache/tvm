@@ -33,7 +33,7 @@ def test_exp():
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -115,7 +115,7 @@ def test_multiple_cache_write():
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     # one line to build the function.
     def check_device(device, host="stackvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -147,7 +147,7 @@ def test_log_pow_llvm():
     # create iter var and assign them tags.
     bx, tx = s[B].split(B.op.axis[0], factor=32)
     # one line to build the function.
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
 
     flog = tvm.build(s, [A, B],

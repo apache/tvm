@@ -305,13 +305,13 @@ Module CUDAModuleLoadBinary(void* strm) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_cubin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_cubin")
 .set_body_typed(CUDAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadfile_ptx")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_ptx")
 .set_body_typed(CUDAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadbinary_cuda")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cuda")
 .set_body_typed(CUDAModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

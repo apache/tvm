@@ -21,7 +21,7 @@ import os
 
 def prepare_test_libs(base_path):
     target = "llvm -target=asmjs-unknown-emscripten -system-lib"
-    if not tvm.module.enabled(target):
+    if not tvm.runtime.enabled(target):
         raise RuntimeError("Target %s is not enbaled" % target)
     n = tvm.var("n")
     A = tvm.placeholder((n,), name='A')

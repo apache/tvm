@@ -51,15 +51,16 @@ def generate_engine_module():
             Engine engine;
         }
         '''
+    import tvm.runtime._ffi_api
     gen_engine_header()
-    csource_module = tvm.module.csource_module_create(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
     return csource_module
 
 
 def test_mod_export():
     def verify_gpu_mod_export(obj_format):
         for device in ["llvm", "cuda"]:
-            if not tvm.module.enabled(device):
+            if not tvm.runtime.enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -79,14 +80,14 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         resnet18_gpu_lib.imported_modules[0].import_module(resnet50_cpu_lib)
         resnet18_gpu_lib.export_library(path_lib)
-        loaded_lib = tvm.module.load(path_lib)
+        loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "cuda"
         assert loaded_lib.imported_modules[0].imported_modules[0].type_key == "library"
 
     def verify_multi_dso_mod_export(obj_format):
         for device in ["llvm"]:
-            if not tvm.module.enabled(device):
+            if not tvm.runtime.enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -108,13 +109,13 @@ def test_mod_export():
         path_lib = temp.relpath(file_name)
         resnet18_cpu_lib.import_module(f)
         resnet18_cpu_lib.export_library(path_lib)
-        loaded_lib = tvm.module.load(path_lib)
+        loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "library"
 
     def verify_json_import_dso(obj_format):
         for device in ["llvm"]:
-            if not tvm.module.enabled(device):
+            if not tvm.runtime.enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -148,7 +149,7 @@ def test_mod_export():
         s = tvm.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         try:
-            ext_lib = tvm.module.load(subgraph_path, "examplejson")
+            ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
         except:
             print("skip because Loader of examplejson is not presented")
             return
@@ -160,7 +161,7 @@ def test_mod_export():
             file_name = "deploy_lib.tar"
         path_lib = temp.relpath(file_name)
         ext_lib.export_library(path_lib)
-        lib = tvm.module.load(path_lib)
+        lib = tvm.runtime.load_module(path_lib)
         assert lib.type_key == "examplejson"
         assert lib.imported_modules[0].type_key == "library"
 
@@ -170,7 +171,7 @@ def test_mod_export():
             print("Skip test because gcc is not available.")
 
         for device in ["llvm"]:
-            if not tvm.module.enabled(device):
+            if not tvm.runtime.enabled(device):
                 print("skip because %s is not enabled..." % device)
                 return
 
@@ -191,7 +192,7 @@ def test_mod_export():
         resnet18_cpu_lib.import_module(engine_module)
         kwargs = {"options": ["-O2", "-std=c++11", "-I" + header_file_dir_path.relpath("")]}
         resnet18_cpu_lib.export_library(path_lib, fcompile=False, **kwargs)
-        loaded_lib = tvm.module.load(path_lib)
+        loaded_lib = tvm.runtime.load_module(path_lib)
         assert loaded_lib.type_key == "library"
         assert loaded_lib.imported_modules[0].type_key == "library"
         assert loaded_lib.imported_modules[1].type_key == "library"

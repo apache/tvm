@@ -23,7 +23,7 @@ CWD = osp.abspath(osp.dirname(__file__))
 
 def main():
     ctx = tvm.context('cpu', 0)
-    model = tvm.module.load(osp.join(CWD, 'build', 'enclave.signed.so'))
+    model = tvm.runtime.load_module(osp.join(CWD, 'build', 'enclave.signed.so'))
     inp = tvm.nd.array(np.ones((1, 3, 224, 224), dtype='float32'), ctx)
     out = tvm.nd.array(np.empty((1, 1000), dtype='float32'), ctx)
     model(inp, out)

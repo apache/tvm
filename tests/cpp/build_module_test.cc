@@ -76,8 +76,7 @@ TEST(BuildModule, Heterogeneous) {
 
   using namespace tvm;
   using namespace tvm::te;
-  const runtime::PackedFunc* pf = runtime::Registry::Get("module._Enabled");
-  bool enabled = (*pf)("cuda");
+  bool enabled = tvm::runtime::RuntimeEnabled("cuda");
   if (!enabled) {
     LOG(INFO) << "Skip heterogeneous test because cuda is not enabled."
               << "\n";

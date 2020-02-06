@@ -19,7 +19,7 @@ import numpy as np
 
 def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             continue
         f = tvm.codegen.build_module(fapi, target)
         s = f.get_source()

@@ -32,7 +32,7 @@ def test_conv2d():
     dilation_w = 1
 
     xshape = [1, in_channel, 128, 128]
-    if not tvm.module.enabled("rocm"):
+    if not tvm.runtime.enabled("rocm"):
         print("skip because rocm is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.miopen.conv2d.setup", True):

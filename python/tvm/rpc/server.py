@@ -41,7 +41,7 @@ import tvm._ffi
 
 from tvm._ffi.base import py_str
 from tvm._ffi.libinfo import find_lib_path
-from tvm.runtime.module import load as _load_module
+from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import util
 from . import base
 from . base import TrackerCode

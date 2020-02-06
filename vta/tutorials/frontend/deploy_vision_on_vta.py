@@ -60,7 +60,7 @@ from vta.testing import simulator
 from vta.top import graph_pack
 
 # Make sure that TVM was compiled with RPC=1
-assert tvm.module.enabled("rpc")
+assert tvm.runtime.enabled("rpc")
 
 ######################################################################
 # Define the platform and model targets
@@ -243,7 +243,7 @@ m.set_input(**params)
 m.set_input('data', image)
 
 # Perform inference and gather execution statistics
-# More on: https://docs.tvm.ai/api/python/module.html#tvm.module.Module.time_evaluator
+# More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)

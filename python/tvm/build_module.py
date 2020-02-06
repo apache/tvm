@@ -21,6 +21,7 @@ LoweredFunc and compiled Module.
 """
 import warnings
 import tvm._ffi
+import tvm.runtime
 
 from tvm.runtime import Object, ndarray
 from . import api
@@ -31,7 +32,6 @@ from . import expr
 from . import ir_pass
 from . import stmt as _stmt
 from . import container
-from . import module
 from . import codegen
 from . import target as _target
 from . import make
@@ -628,7 +628,7 @@ def build(inputs,
                 target_host = tar
                 break
     if not target_host:
-        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+        target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
     fhost_all = []
     device_modules = []

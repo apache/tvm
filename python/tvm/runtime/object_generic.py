@@ -19,7 +19,7 @@
 from numbers import Number, Integral
 from tvm._ffi.base import string_types
 
-from .. import _api_internal
+from . import _ffi_node_api
 from .object import ObjectBase, _set_class_object_generic
 from .ndarray import NDArrayBase
 from .packed_func import PackedFuncBase, convert_to_tvm_func
@@ -56,10 +56,10 @@ def convert_to_object(value):
     if isinstance(value, Number):
         return const(value)
     if isinstance(value, string_types):
-        return _api_internal._str(value)
+        return _ffi_node_api.String(value)
     if isinstance(value, (list, tuple)):
         value = [convert_to_object(x) for x in value]
-        return _api_internal._Array(*value)
+        return _ffi_node_api.Array(*value)
     if isinstance(value, dict):
         vlist = []
         for item in value.items():
@@ -68,7 +68,7 @@ def convert_to_object(value):
                 raise ValueError("key of map must already been a container type")
             vlist.append(item[0])
             vlist.append(convert_to_object(item[1]))
-        return _api_internal._Map(*vlist)
+        return _ffi_node_api.Map(*vlist)
     if isinstance(value, ObjectGeneric):
         return value.asobject()
     if value is None:
@@ -133,9 +133,9 @@ def const(value, dtype=None):
     if dtype is None:
         dtype = _scalar_type_inference(value)
     if dtype == "uint64" and value >= (1 << 63):
-        return _api_internal._LargeUIntImm(
+        return _ffi_node_api.LargeUIntImm(
             dtype, value & ((1 << 32) - 1), value >> 32)
-    return _api_internal._const(value, dtype)
+    return _ffi_node_api._const(value, dtype)
 
 
 _set_class_object_generic(ObjectGeneric, convert_to_object)

@@ -61,7 +61,7 @@ def test_basic_build():
 def test_fp16_build():
     dtype = "float16"
 
-    if not tvm.module.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
         print("skip because cuda is not enabled.")
         return
 
@@ -96,7 +96,7 @@ def test_fp16_build():
 
 def test_fp16_conversion():
     def check_conversion(tgt, ctx):
-        if not tvm.module.enabled(tgt):
+        if not tvm.runtime.enabled(tgt):
             print("skip because {} is not enabled.".format(tgt))
             return
         elif tgt == "cuda" and ctx.exist and not have_fp16(ctx.compute_version):

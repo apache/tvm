@@ -35,7 +35,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
     height = 32
     weight = 32
 
-    if not tvm.module.enabled("cuda"):
+    if not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
@@ -110,7 +110,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
     height = 32
     weight = 32
 
-    if not tvm.module.enabled("cuda"):
+    if not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):

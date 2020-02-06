@@ -32,7 +32,7 @@ import tvm
 import numpy as np
 path_dso = sys.argv[1]
 dtype = sys.argv[2]
-ff = tvm.module.load(path_dso)
+ff = tvm.runtime.load_module(path_dso)
 a = tvm.nd.array(np.zeros(10, dtype=dtype))
 ff(a)
 np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
@@ -40,7 +40,7 @@ print("Finish runtime checking...")
 """
 
 def test_dso_module_load():
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
     dtype = 'int64'
     temp = util.tempdir()
@@ -68,8 +68,8 @@ def test_dso_module_load():
     save_object([path_obj, path_ll, path_bc])
     cc.create_shared(path_dso, [path_obj])
 
-    f1 = tvm.module.load(path_dso)
-    f2 = tvm.module.load(path_ll)
+    f1 = tvm.runtime.load_module(path_dso)
+    f2 = tvm.runtime.load_module(path_ll)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f1(a)
     np.testing.assert_equal(a.asnumpy(), np.arange(a.shape[0]))
@@ -116,13 +116,13 @@ def test_device_module_dump():
         # test cross compiler function
         f.export_library(path_dso, cc.cross_compiler("g++"))
 
-        f1 = tvm.module.load(path_dso)
+        f1 = tvm.runtime.load_module(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         f1(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         if sys.platform != "win32":
-            f2 = tvm.module.system_lib()
+            f2 = tvm.runtime.system_lib()
             f2[name](a, b)
             np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
@@ -136,7 +136,7 @@ def test_device_module_dump():
         f = tvm.build(s, [A, B], device, "stackvm", name=name)
         path_dso = temp.relpath("dev_lib.stackvm")
         f.export_library(path_dso)
-        f1 = tvm.module.load(path_dso)
+        f1 = tvm.runtime.load_module(path_dso)
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
         f(a, b)
@@ -157,7 +157,7 @@ def test_combine_module_llvm():
 
     def check_llvm():
         ctx = tvm.cpu(0)
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled" )
             return
         temp = util.tempdir()
@@ -170,7 +170,7 @@ def test_combine_module_llvm():
         fadd2.save(path2)
         # create shared library with multiple functions
         cc.create_shared(path_dso, [path1, path2])
-        m = tvm.module.load(path_dso)
+        m = tvm.runtime.load_module(path_dso)
         fadd1 = m['myadd1']
         fadd2 = m['myadd2']
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
@@ -182,7 +182,7 @@ def test_combine_module_llvm():
 
     def check_system_lib():
         ctx = tvm.cpu(0)
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled" )
             return
         temp = util.tempdir()
@@ -197,7 +197,7 @@ def test_combine_module_llvm():
         # Load dll, will trigger system library registration
         dll = ctypes.CDLL(path_dso)
         # Load the system wide library
-        mm = tvm.module.system_lib()
+        mm = tvm.runtime.system_lib()
         a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
         mm['myadd1'](a, b)

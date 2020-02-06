@@ -33,7 +33,7 @@ def benchmark_fc_int8_acc16():
     print("Peak {} Gops/s \n".format(peak))
 
     def verify(target="llvm -mcpu=skylake-avx512"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
 

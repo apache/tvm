@@ -52,7 +52,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
