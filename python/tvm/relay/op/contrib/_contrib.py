@@ -33,4 +33,4 @@ reg.register_schedule("contrib.adaptive_avg_pool2d", strategy.schedule_adaptive_
 reg.register_pattern("contrib.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # relay.contrib.ndarray_size
-reg.register_strategy_injective("contrib.ndarray_size")
+reg.register_injective_schedule("contrib.ndarray_size")

@@ -304,7 +304,7 @@ def conv2d_nchw_winograd_without_weight_transform(cfg, data, kernel, strides,
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform.cuda")
-def schedule_conv2d_nchw_winograd_without_weight_transform_cuda(cfg, outs):
+def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
 

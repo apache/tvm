@@ -16,8 +16,6 @@
 # under the License.
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -91,30 +89,35 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.conv2d_nchw),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw))
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
+                name="conv2d_nchw.cuda")
             _, _, kh, kw = get_const_tuple(kernel.shape)
             if kh <= 7 and kw <= 7 and kh == kw and stride_h == 1 and stride_w == 1 and \
                 dilation_h == 1 and dilation_w == 1:
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_winograd),
-                    15)
+                    name="conv2d_nchw_winograd.cuda",
+                    plevel=15)
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.conv2d_hwcn),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_hwcn))
-        # Re-enable this after @alexgl-github fix the conv2d_nhwc for cuda
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_hwcn),
+                name="conv2d_hwcn.cuda")
+        # TODO(@alexgl-github): Re-enable this after fix the conv2d_nhwc for cuda
         # elif layout == "NHWC":
         #     assert kernel_layout == "HWIO"
         #     strategy.add_implement(
         #         wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-        #         wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc))
+        #         wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
+        #         name="conv2d_nhwc.cuda")
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.conv2d_NCHWc_int8, True),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8))
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8),
+                name="conv2d_NCHWc_int8.cuda")
         else:
             raise RuntimeError("Unsupported conv2d layout {} for CUDA".format(layout))
         # add cudnn implementation
@@ -123,18 +126,22 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     padding[1] == padding[3]:
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.cuda.conv2d_cudnn, True),
-                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn), 5)
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
+                    name="conv2d_cudnn.cuda",
+                    plevel=5)
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
+                name="dpethwise_nchw.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc))
+                wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_conv2d_nhwc.cuda")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
@@ -143,12 +150,14 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw))
+                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
+                name="group_conv2d_nchw.cuda")
         elif layout == 'NCHW4c' and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
-                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8))
+                wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
+                name="group_conv2d_NCHWc_int8.cuda")
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
@@ -166,7 +175,8 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         strategy.add_implement(
             wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd_without_weight_transform),
             wrap_topi_schedule(
-                topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform_cuda))
+                topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform),
+            name="conv2d_nchw_winograd_without_weight_transform.cuda")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
@@ -175,9 +185,13 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
 @deformable_conv2d_strategy.register(["cuda", "gpu"])
 def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """deformable_conv2d cuda strategy"""
+    layout = attrs.data_layout
+    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
-                           wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw))
+    strategy.add_implement(
+        wrap_compute_deformable_conv2d(topi.cuda.deformable_conv2d_nchw),
+        wrap_topi_schedule(topi.cuda.schedule_deformable_conv2d_nchw),
+        name="deformable_conv2d_nchw.cuda")
     return strategy
 
 @conv2d_transpose_strategy.register(["cuda", "gpu"])
@@ -192,7 +206,8 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw))
+        wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+        name="conv2d_transpose_nchw.cuda")
     return strategy
 
 @conv3d_strategy.register(["cuda", "gpu"])
@@ -204,15 +219,18 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     if layout == "NCDHW":
         strategy.add_implement(wrap_compute_conv3d(topi.cuda.conv3d_ncdhw),
                                wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw),
-                               10)
+                               name="conv3d_ncdhw.cuda",
+                               plevel=10)
     else: # layout == "NDHWC":
         strategy.add_implement(wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
                                wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc),
-                               10)
+                               name="conv3d_ndhwc.cuda",
+                               plevel=10)
     if target.target_name == "cuda" and "cudnn" in target.libs:
         strategy.add_implement(wrap_compute_conv3d(topi.cuda.conv3d_cudnn),
                                wrap_topi_schedule(topi.cuda.schedule_conv3d_cudnn),
-                               15)
+                               name="conv3d_cudnn.cuda",
+                               plevel=15)
     return strategy
 
 @conv1d_strategy.register(["cuda", "gpu"])
@@ -225,10 +243,12 @@ def conv1d_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if layout == "NCW":
         strategy.add_implement(wrap_compute_conv1d(topi.cuda.conv1d_ncw),
-                               wrap_topi_schedule(topi.cuda.schedule_conv1d_ncw))
+                               wrap_topi_schedule(topi.cuda.schedule_conv1d_ncw),
+                               name="conv1d_ncw.cuda")
     elif layout == "NWC":
         strategy.add_implement(wrap_compute_conv1d(topi.cuda.conv1d_nwc),
-                               wrap_topi_schedule(topi.cuda.schedule_conv1d_nwc))
+                               wrap_topi_schedule(topi.cuda.schedule_conv1d_nwc),
+                               name="conv1d_nwc.cuda")
     else:
         raise ValueError("Unsupported conv1d layout {}".format(layout))
     return strategy
@@ -244,7 +264,8 @@ def conv1d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     assert dilation == (1,), "conv1d_transpose dilation is not supported"
     assert groups == 1, "conv1d_transpose groups == 1 only supported"
     strategy.add_implement(wrap_compute_conv1d_transpose(topi.cuda.conv1d_transpose_ncw),
-                           wrap_topi_schedule(topi.cuda.schedule_conv1d_transpose_ncw))
+                           wrap_topi_schedule(topi.cuda.schedule_conv1d_transpose_ncw),
+                           name="conv1d_transpose_ncw.cuda")
     return strategy
 
 @dense_strategy.register(["cuda", "gpu"])
@@ -253,17 +274,23 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if out_type.dtype == "int8":
         strategy.add_implement(wrap_compute_dense(topi.cuda.dense_int8),
-                               wrap_topi_schedule(topi.cuda.schedule_dense_int8))
+                               wrap_topi_schedule(topi.cuda.schedule_dense_int8),
+                               name="dense_int8.cuda")
     else:
         strategy.add_implement(wrap_compute_dense(topi.cuda.dense_small_batch),
-                               wrap_topi_schedule(topi.cuda.schedule_dense_small_batch))
+                               wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
+                               name="dense_small_batch.cuda")
         b = inputs[0].shape[0]
         with SpecializedCondition(b >= 32):
             strategy.add_implement(wrap_compute_dense(topi.cuda.dense_large_batch),
-                                   wrap_topi_schedule(topi.cuda.schedule_dense_large_batch))
+                                   wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
+                                   name="dense_large_batch.cuda",
+                                   plevel=15)
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implement(wrap_compute_dense(topi.cuda.dense_cublas),
-                               wrap_topi_schedule(topi.cuda.schedule_dense_cublas), 5)
+                               wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
+                               name="dense_cublas.cuda",
+                               plevel=20)
     return strategy
 
 @batch_matmul_strategy.register(["cuda", "gpu"])
@@ -272,27 +299,31 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_batch_matmul(topi.nn.batch_matmul),
                            wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
-                           10)
+                           name="batch_matmul.cuda",
+                           plevel=10)
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implement(wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
                                wrap_topi_schedule(topi.generic.schedule_extern),
-                               15)
+                               name="batch_matmul_cublas.cuda",
+                               plevel=15)
     return strategy
 
 @argsort_strategy.register(["cuda", "gpu"])
 def argsort_strategy_cuda(attrs, inputs, out_type, target):
     """argsort cuda strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_argsort(topi.cuda.argsort_gpu),
-                           wrap_topi_schedule(topi.cuda.schedule_argsort))
+    strategy.add_implement(wrap_compute_argsort(topi.cuda.argsort),
+                           wrap_topi_schedule(topi.cuda.schedule_argsort),
+                           name="argsort.cuda")
     return strategy
 
 @topk_strategy.register(["cuda", "gpu"])
 def topk_strategy_cuda(attrs, inputs, out_type, target):
     """topk cuda strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_topk(topi.cuda.topk_gpu),
-                           wrap_topi_schedule(topi.cuda.schedule_topk))
+    strategy.add_implement(wrap_compute_topk(topi.cuda.topk),
+                           wrap_topi_schedule(topi.cuda.schedule_topk),
+                           name="topk.cuda")
     return strategy
 
 @schedule_multibox_prior.register(["cuda", "gpu"])
@@ -312,7 +343,8 @@ def get_valid_counts_strategy_cuda(attrs, inputs, out_type, target):
     """get_valid_counts cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_get_valid_counts(topi.cuda.get_valid_counts),
-                           wrap_topi_schedule(topi.cuda.schedule_get_valid_counts))
+                           wrap_topi_schedule(topi.cuda.schedule_get_valid_counts),
+                           name="get_valid_counts.cuda")
     return strategy
 
 @nms_strategy.register(["cuda", "gpu"])
@@ -320,7 +352,8 @@ def nms_strategy_cuda(attrs, inputs, out_type, target):
     """nms cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_nms(topi.cuda.non_max_suppression),
-                           wrap_topi_schedule(topi.cuda.schedule_nms))
+                           wrap_topi_schedule(topi.cuda.schedule_nms),
+                           name="nms.cuda")
     return strategy
 
 @roi_align_strategy.register(["cuda", "gpu"])
@@ -328,7 +361,8 @@ def roi_align_strategy_cuda(attrs, inputs, out_type, target):
     """roi_align cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
-                           wrap_topi_schedule(topi.cuda.schedule_roi_align))
+                           wrap_topi_schedule(topi.cuda.schedule_roi_align),
+                           name="roi_align_nchw.cuda")
     return strategy
 
 @schedule_roi_pool.register(["cuda", "gpu"])
@@ -342,5 +376,6 @@ def proposal_strategy_cuda(attrs, inputs, out_type, target):
     """proposal cuda strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_proposal(topi.cuda.proposal),
-                           wrap_topi_schedule(topi.cuda.schedule_proposal))
+                           wrap_topi_schedule(topi.cuda.schedule_proposal),
+                           name="proposal.cuda")
     return strategy

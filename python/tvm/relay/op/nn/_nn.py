@@ -28,7 +28,7 @@ from ....api import convert
 from ....hybrid import script
 
 # relu
-reg.register_strategy_broadcast("nn.relu")
+reg.register_broadcast_schedule("nn.relu")
 reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 
@@ -52,7 +52,7 @@ reg.register_pattern("nn.dense", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 def compute_fifo_buffer(attrs, inputs, out_type):
     return [topi.nn.fifo_buffer(inputs[0], inputs[1], axis=attrs.get_int('axis'))]
 
-reg.register_strategy_injective("nn.fifo_buffer")
+reg.register_injective_schedule("nn.fifo_buffer")
 reg.register_pattern("nn.fifo_buffer", OpPattern.OPAQUE)
 
 
@@ -192,7 +192,7 @@ reg.register_pattern("nn.conv1d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # bias_add
-reg.register_strategy_injective("nn.bias_add")
+reg.register_injective_schedule("nn.bias_add")
 reg.register_pattern("nn.bias_add", OpPattern.BROADCAST)
 
 
@@ -247,17 +247,17 @@ reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # leaky_relu
-reg.register_strategy_broadcast("nn.leaky_relu")
+reg.register_broadcast_schedule("nn.leaky_relu")
 reg.register_pattern("nn.leaky_relu", OpPattern.ELEMWISE)
 
 
 # prelu
-reg.register_strategy_broadcast("nn.prelu")
+reg.register_broadcast_schedule("nn.prelu")
 reg.register_pattern("nn.prelu", OpPattern.BROADCAST)
 
 
 # flatten
-reg.register_strategy_broadcast("nn.batch_flatten")
+reg.register_broadcast_schedule("nn.batch_flatten")
 reg.register_pattern("nn.batch_flatten", OpPattern.INJECTIVE)
 
 
@@ -283,7 +283,7 @@ def compute_upsampling(attrs, inputs, out_dtype):
     align_corners = attrs.align_corners
     return [topi.nn.upsampling(inputs[0], scale_h, scale_w, layout, method, align_corners)]
 
-reg.register_strategy_injective("nn.upsampling")
+reg.register_injective_schedule("nn.upsampling")
 
 
 # upsampling3d
@@ -298,11 +298,11 @@ def compute_upsampling3d(attrs, inputs, out_dtype):
     return [topi.nn.upsampling3d(inputs[0], scale_d, scale_h, scale_w, layout, method,\
         coordinate_transformation_mode)]
 
-reg.register_strategy_injective("nn.upsampling3d")
+reg.register_injective_schedule("nn.upsampling3d")
 
 
 # pad
-reg.register_strategy_broadcast("nn.pad")
+reg.register_broadcast_schedule("nn.pad")
 
 
 # mirror_pad
@@ -313,7 +313,7 @@ def compute_mirror_pad(attrs, inputs, out_dtype):
     out = topi.nn.mirror_pad(inputs[0], pad_before=pad_before, pad_after=pad_after, mode=mode)
     return [out]
 
-reg.register_strategy_broadcast("nn.mirror_pad")
+reg.register_broadcast_schedule("nn.mirror_pad")
 
 
 # conv2d_winograd related operators
@@ -418,7 +418,7 @@ def compute_cross_entropy(attrs, inputs, out_dtype):
     x, y = inputs
     return [-topi.sum(topi.log(x) * y) / x.shape[0]]
 
-reg.register_strategy_reduce("nn.cross_entropy")
+reg.register_reduce_schedule("nn.cross_entropy")
 reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
 
@@ -428,7 +428,7 @@ def compute_cross_entropy_with_logits(attrs, inputs, out_dtype):
     x, y = inputs
     return [-topi.sum(x * y) / x.shape[0]]
 
-reg.register_strategy_reduce("nn.cross_entropy_with_logits")
+reg.register_reduce_schedule("nn.cross_entropy_with_logits")
 reg.register_pattern("nn.cross_entropy_with_logits", OpPattern.OPAQUE)
 
 
@@ -440,7 +440,7 @@ def compute_depth_to_space(attrs, inputs, out_dtype):
     mode = attrs.mode
     return [topi.nn.depth_to_space(inputs[0], block_size, layout=layout, mode=mode)]
 
-reg.register_strategy_injective("nn.depth_to_space")
+reg.register_injective_schedule("nn.depth_to_space")
 reg.register_pattern("nn.depth_to_space", OpPattern.INJECTIVE)
 
 
@@ -451,7 +451,7 @@ def compute_space_to_depth(attrs, inputs, out_dtype):
     layout = attrs.layout
     return [topi.nn.space_to_depth(inputs[0], block_size, layout=layout)]
 
-reg.register_strategy_injective("nn.space_to_depth")
+reg.register_injective_schedule("nn.space_to_depth")
 reg.register_pattern("nn.space_to_depth", OpPattern.INJECTIVE)
 
 

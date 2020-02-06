@@ -41,16 +41,19 @@ te::Schedule OpImplement::Schedule(const Attrs& attrs,
 
 void OpSpecialization::AddImplement(tvm::relay::FTVMCompute fcompute,
                                     tvm::relay::FTVMSchedule fschedule,
+                                    std::string name,
                                     int plevel) {
   auto n = make_object<OpImplementNode>();
   n->fcompute = fcompute;
   n->fschedule = fschedule;
-  n->plevel = IntImm(DataType::Int(32), plevel);
+  n->name = name;
+  n->plevel = plevel;
   (*this)->implements.push_back(OpImplement(n));
 }
 
 void OpStrategy::AddImplement(FTVMCompute fcompute,
                               FTVMSchedule fschedule,
+                              std::string name,
                               int plevel) {
   auto curr_cond = te::SpecializedCondition::Current();
   auto specializations = (*this)->specializations;
@@ -62,12 +65,12 @@ void OpStrategy::AddImplement(FTVMCompute fcompute,
     }
   }
   if (op_spec.defined()) {
-    op_spec.AddImplement(fcompute, fschedule, plevel);
+    op_spec.AddImplement(fcompute, fschedule, name, plevel);
   } else {
     ObjectPtr<OpSpecializationNode> n = make_object<OpSpecializationNode>();
     n->condition = curr_cond;
     op_spec = OpSpecialization(n);
-    op_spec.AddImplement(fcompute, fschedule, plevel);
+    op_spec.AddImplement(fcompute, fschedule, name, plevel);
     (*this)->specializations.push_back(op_spec);
   }
 }
@@ -101,8 +104,9 @@ TVM_REGISTER_GLOBAL("relay.op._OpStrategyAddImplement")
     OpStrategy strategy = args[0];
     FTVMCompute compute = args[1];
     FTVMSchedule schedule = args[2];
-    int plevel = args[3];
-    strategy.AddImplement(compute, schedule, plevel);
+    std::string name = args[3];
+    int plevel = args[4];
+    strategy.AddImplement(compute, schedule, name, plevel);
 });
 
 

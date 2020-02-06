@@ -31,7 +31,7 @@ def compute_resize(attrs, inputs, out_type):
     out_dtype = attrs.out_dtype
     return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]
 
-reg.register_strategy_injective("image.resize")
+reg.register_injective_schedule("image.resize")
 
 
 # crop and resize
@@ -46,4 +46,4 @@ def compute_crop_and_resize(attrs, inputs, out_type):
                                        crop_size, layout, method,
                                        extrapolation_value, out_dtype)]
 
-reg.register_strategy_injective("image.crop_and_resize")
+reg.register_injective_schedule("image.crop_and_resize")

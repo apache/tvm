@@ -26,33 +26,33 @@ from .op import OpPattern
 from ...hybrid import script
 from ...api import convert
 
-_reg.register_strategy_broadcast("broadcast_to")
-_reg.register_strategy_broadcast("broadcast_to_like")
-_reg.register_strategy_broadcast("expand_dims")
-_reg.register_strategy_broadcast("repeat")
-_reg.register_strategy_broadcast("tile")
-_reg.register_strategy_broadcast("where")
-_reg.register_strategy_injective("squeeze")
-_reg.register_strategy_injective("reshape")
-_reg.register_strategy_injective("reshape_like")
-_reg.register_strategy_injective("full")
-_reg.register_strategy_injective("full_like")
-_reg.register_strategy_injective("arange")
-_reg.register_strategy_injective("reverse")
-_reg.register_strategy_injective("cast")
-_reg.register_strategy_injective("cast_like")
-_reg.register_strategy_injective("reinterpret")
-_reg.register_strategy_injective("strided_slice")
-_reg.register_strategy_injective("slice_like")
-_reg.register_strategy_injective("split")
-_reg.register_strategy_injective("take")
-_reg.register_strategy_injective("transpose")
-_reg.register_strategy_injective("stack")
-_reg.register_strategy_injective("_contrib_reverse_reshape")
-_reg.register_strategy_injective("gather_nd")
-_reg.register_strategy_injective("sequence_mask")
-_reg.register_strategy_injective("one_hot")
-_reg.register_strategy_reduce("collapse_sum_like")
+_reg.register_broadcast_schedule("broadcast_to")
+_reg.register_broadcast_schedule("broadcast_to_like")
+_reg.register_broadcast_schedule("expand_dims")
+_reg.register_broadcast_schedule("repeat")
+_reg.register_broadcast_schedule("tile")
+_reg.register_broadcast_schedule("where")
+_reg.register_injective_schedule("squeeze")
+_reg.register_injective_schedule("reshape")
+_reg.register_injective_schedule("reshape_like")
+_reg.register_injective_schedule("full")
+_reg.register_injective_schedule("full_like")
+_reg.register_injective_schedule("arange")
+_reg.register_injective_schedule("reverse")
+_reg.register_injective_schedule("cast")
+_reg.register_injective_schedule("cast_like")
+_reg.register_injective_schedule("reinterpret")
+_reg.register_injective_schedule("strided_slice")
+_reg.register_injective_schedule("slice_like")
+_reg.register_injective_schedule("split")
+_reg.register_injective_schedule("take")
+_reg.register_injective_schedule("transpose")
+_reg.register_injective_schedule("stack")
+_reg.register_injective_schedule("_contrib_reverse_reshape")
+_reg.register_injective_schedule("gather_nd")
+_reg.register_injective_schedule("sequence_mask")
+_reg.register_injective_schedule("one_hot")
+_reg.register_reduce_schedule("collapse_sum_like")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
@@ -63,10 +63,10 @@ def compute_strided_set(attrs, inputs, output_type):
     """Compute definition of strided_set"""
     return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
-_reg.register_strategy_injective("strided_set")
+_reg.register_injective_schedule("strided_set")
 
 # layout_transform
-_reg.register_strategy_injective("layout_transform")
+_reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 
 # argwhere

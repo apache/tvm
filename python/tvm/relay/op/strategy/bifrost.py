@@ -16,9 +16,6 @@
 # under the License.
 """Definition of bifrost operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -42,7 +39,8 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack))
+                wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
+                name="conv2d_nchw_spatial_pack.bifrost")
 
             _, _, kh, kw = get_const_tuple(kernel.shape)
             if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
@@ -50,7 +48,8 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
-                    15)
+                    name="conv2d_nchw_winograd.bifrost",
+                    plevel=15)
         else:
             raise RuntimeError("Unsupported conv2d layout {} for Mali(Bifrost)".
                                format(layout))
@@ -59,7 +58,8 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.bifrost.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.bifrost.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.bifrost")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for Mali(Bifrost)".
                                format(layout))
@@ -82,7 +82,8 @@ def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out
         assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
         strategy.add_implement(
             wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
-            wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd))
+            wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
+            name="conv2d_nchw_winograd.bifrost")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
@@ -93,5 +94,6 @@ def dense_strategy_bifrost(attrs, inputs, out_type, target):
     """dense mali(bifrost) strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_dense(topi.bifrost.dense),
-                           wrap_topi_schedule(topi.bifrost.schedule_dense))
+                           wrap_topi_schedule(topi.bifrost.schedule_dense),
+                           name="dense.bifrost")
     return strategy

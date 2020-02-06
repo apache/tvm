@@ -16,8 +16,6 @@
 # under the License.
 """Definition of HLS operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -76,12 +74,14 @@ def conv2d_strategy_hls(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.conv2d_nchw),
-                wrap_topi_schedule(topi.hls.schedule_conv2d_nchw))
+                wrap_topi_schedule(topi.hls.schedule_conv2d_nchw),
+                name="conv2d_nchw.hls")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-                wrap_topi_schedule(topi.hls.schedule_conv2d_nhwc))
+                wrap_topi_schedule(topi.hls.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.hls")
         else:
             raise RuntimeError("Unsupported conv2d layout {}".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -89,12 +89,14 @@ def conv2d_strategy_hls(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.hls.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.hls.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.hls")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.hls.schedule_depthwise_conv2d_nhwc))
+                wrap_topi_schedule(topi.hls.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_nhwc.hls")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
@@ -107,7 +109,8 @@ def conv2d_NCHWc_strategy_hls(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d(topi.nn.conv2d_NCHWc, True, True),
-        wrap_topi_schedule(topi.hls.schedule_conv2d_NCHWc))
+        wrap_topi_schedule(topi.hls.schedule_conv2d_NCHWc),
+        name="conv2d_NCHWc.hls")
     return strategy
 
 @conv2d_transpose_strategy.register("hls")
@@ -122,7 +125,8 @@ def conv2d_transpose_strategy_hls(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.hls.schedule_conv2d_transpose_nchw))
+        wrap_topi_schedule(topi.hls.schedule_conv2d_transpose_nchw),
+        name="conv2d_transpose_nchw.hls")
     return strategy
 
 @dense_strategy.register("hls")
@@ -130,7 +134,8 @@ def dense_strategy_hls(attrs, inputs, out_type, target):
     """dense hls strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_dense(topi.nn.dense),
-                           wrap_topi_schedule(topi.hls.schedule_dense))
+                           wrap_topi_schedule(topi.hls.schedule_dense),
+                           name="dense.hls")
     return strategy
 
 @bitserial_conv2d_strategy.register("hls")
@@ -141,11 +146,13 @@ def bitserial_conv2d_strategy_hls(attrs, inputs, out_type, target):
     if layout == "NCHW":
         strategy.add_implement(
             wrap_compute_bitserial_conv2d(topi.nn.bitserial_conv2d_nchw),
-            wrap_topi_schedule(topi.hls.schedule_bitserial_conv2d_nchw))
+            wrap_topi_schedule(topi.hls.schedule_bitserial_conv2d_nchw),
+            name="bitserial_conv2d_nchw.hls")
     elif layout == "NHWC":
         strategy.add_implement(
             wrap_compute_bitserial_conv2d(topi.nn.bitserial_conv2d_nhwc),
-            wrap_topi_schedule(topi.hls.schedule_bitserial_conv2d_nhwc))
+            wrap_topi_schedule(topi.hls.schedule_bitserial_conv2d_nhwc),
+            name="bitserial_conv2d_nhwc.hls")
     else:
         raise ValueError("Data layout {} not supported.".format(layout))
     return strategy

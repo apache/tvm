@@ -22,16 +22,16 @@ from . import op as _reg
 from ...api import convert
 from ...hybrid import script
 
-_reg.register_strategy_reduce("argmax")
-_reg.register_strategy_reduce("argmin")
-_reg.register_strategy_reduce("sum")
-_reg.register_strategy_reduce("all")
-_reg.register_strategy_reduce("any")
-_reg.register_strategy_reduce("max")
-_reg.register_strategy_reduce("min")
-_reg.register_strategy_reduce("prod")
-_reg.register_strategy_reduce("mean")
-_reg.register_strategy_reduce("variance")
+_reg.register_reduce_schedule("argmax")
+_reg.register_reduce_schedule("argmin")
+_reg.register_reduce_schedule("sum")
+_reg.register_reduce_schedule("all")
+_reg.register_reduce_schedule("any")
+_reg.register_reduce_schedule("max")
+_reg.register_reduce_schedule("min")
+_reg.register_reduce_schedule("prod")
+_reg.register_reduce_schedule("mean")
+_reg.register_reduce_schedule("variance")
 
 def _create_axis_record(attrs, inputs):
     axes = attrs.axis if attrs.axis is None else list(get_const_tuple(attrs.axis))

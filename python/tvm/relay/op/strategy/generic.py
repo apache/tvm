@@ -16,13 +16,15 @@
 # under the License.
 """Definition of generic operator strategy."""
 # pylint: disable=invalid-name,unused-argument
-from __future__ import absolute_import
+import logging
 
 import re
 import topi
 from topi.util import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from .. import op as _op
 from ....target import generic_func, override_native_generic_func
+
+logger = logging.getLogger('strategy')
 
 def wrap_topi_schedule(topi_schedule):
     """Wrap TOPI schedule which doesn't use attrs"""
@@ -154,6 +156,7 @@ def wrap_compute_conv2d(topi_compute, need_data_layout=False, need_out_layout=Fa
 @override_native_generic_func("conv2d_strategy")
 def conv2d_strategy(attrs, inputs, out_type, target):
     """conv2d generic strategy"""
+    logger.warning("conv2d is not optimized for this platform.")
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation = get_const_tuple(attrs.dilation)
@@ -169,17 +172,20 @@ def conv2d_strategy(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.conv2d_nchw),
-                wrap_topi_schedule(topi.generic.schedule_conv2d_nchw))
+                wrap_topi_schedule(topi.generic.schedule_conv2d_nchw),
+                name="conv2d_nchw.generic")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-                wrap_topi_schedule(topi.generic.schedule_conv2d_nhwc))
+                wrap_topi_schedule(topi.generic.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.generic")
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.conv2d_hwcn),
-                wrap_topi_schedule(topi.generic.schedule_conv2d_hwcn))
+                wrap_topi_schedule(topi.generic.schedule_conv2d_hwcn),
+                name="conv2d_hwcn.generic")
         else:
             raise RuntimeError("Unsupported conv2d layout {}".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -187,12 +193,14 @@ def conv2d_strategy(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.generic")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
-                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc))
+                wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
+                name="depthwise_conv2d_nhwc.generic")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
@@ -200,7 +208,8 @@ def conv2d_strategy(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
-                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw))
+                wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
+                name="group_conv2d_nchw.generic")
         else:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
@@ -209,25 +218,30 @@ def conv2d_strategy(attrs, inputs, out_type, target):
 @override_native_generic_func("conv2d_NCHWc_strategy")
 def conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     """conv2d_NCHWc generic strategy"""
+    logger.warning("conv2d_NCHWc is not optimized for this platform.")
     strategy = _op.OpStrategy()
     if inputs[0].dtype == "int8" or inputs[0].dtype == "uint8":
         strategy.add_implement(
             wrap_compute_conv2d(topi.nn.conv2d_NCHWc_int8, True, True),
-            wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc_int8))
+            wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc_int8),
+            name="conv2d_NCHWc_int8.generic")
     else:
         strategy.add_implement(
             wrap_compute_conv2d(topi.nn.conv2d_NCHWc, True, True),
-            wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc))
+            wrap_topi_schedule(topi.generic.schedule_conv2d_NCHWc),
+            name="conv2d_NCHWc.generic")
     return strategy
 
 # depthwise_conv2d_NCHWc
 @override_native_generic_func("depthwise_conv2d_NCHWc_strategy")
 def depthwise_conv2d_NCHWc_strategy(attrs, inputs, out_type, target):
     """depthwise_conv2d generic strategy"""
+    logger.warning("depthwise_conv2d_NCHWc is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d(topi.nn.depthwise_conv2d_NCHWc, True, True),
-        wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_NCHWc))
+        wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_NCHWc),
+        name="depthwise_conv2d_NCHWc.generic")
     return strategy
 
 # conv2d_winograd_without_weight_transform
@@ -270,9 +284,14 @@ def wrap_compute_deformable_conv2d(topi_compute):
 @override_native_generic_func("deformable_conv2d_strategy")
 def deformable_conv2d_strategy(attrs, inputs, out_type, target):
     """deformable_conv2d generic strategy"""
+    logger.warning("deformable_conv2d is not optimized for this platform.")
+    layout = attrs.data_layout
+    assert layout == "NCHW"
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
-                           wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw))
+    strategy.add_implement(
+        wrap_compute_deformable_conv2d(topi.nn.deformable_conv2d_nchw),
+        wrap_topi_schedule(topi.generic.schedule_deformable_conv2d_nchw),
+        name="deformable_conv2d.generic")
     return strategy
 
 # conv2d_transpose
@@ -296,6 +315,7 @@ def wrap_compute_conv2d_transpose(topi_compute):
 @override_native_generic_func("conv2d_transpose_strategy")
 def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     """conv2d_transpose generic strategy"""
+    logger.warning("conv2d_transpose is not optimized for this platform.")
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
@@ -305,7 +325,8 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw))
+        wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
+        name="conv2d_transpose_nchw.generic")
     return strategy
 
 # conv3d
@@ -336,14 +357,17 @@ def wrap_compute_conv3d(topi_compute):
 @override_native_generic_func("conv3d_strategy")
 def conv3d_strategy(attrs, inputs, out_type, target):
     """conv3d generic strategy"""
+    logger.warning("conv3d is not optimized for this platform.")
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     if layout == "NCDHW":
         strategy.add_implement(wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                               wrap_topi_schedule(topi.generic.schedule_conv3d_ncdhw))
+                               wrap_topi_schedule(topi.generic.schedule_conv3d_ncdhw),
+                               name="conv3d_ncdhw.generic")
     elif layout == "NDHWC":
         strategy.add_implement(wrap_compute_conv3d(topi.nn.conv3d_ndhwc),
-                               wrap_topi_schedule(topi.generic.schedule_conv3d_ndhwc))
+                               wrap_topi_schedule(topi.generic.schedule_conv3d_ndhwc),
+                               name="conv3d_ndhwc.generic")
     else:
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
@@ -366,6 +390,7 @@ def wrap_compute_conv1d(topi_compute):
 @override_native_generic_func("conv1d_strategy")
 def conv1d_strategy(attrs, inputs, out_type, target):
     """conv1d generic strategy"""
+    logger.warning("conv1d is not optimized for this platform.")
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
     if dilation[0] < 1:
@@ -373,10 +398,12 @@ def conv1d_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if layout == "NCW":
         strategy.add_implement(wrap_compute_conv1d(topi.nn.conv1d_ncw),
-                               wrap_topi_schedule(topi.generic.schedule_conv1d_ncw))
+                               wrap_topi_schedule(topi.generic.schedule_conv1d_ncw),
+                               name="conv1d_ncw.generic")
     elif layout == "NWC":
         strategy.add_implement(wrap_compute_conv1d(topi.nn.conv1d_nwc),
-                               wrap_topi_schedule(topi.generic.schedule_conv1d_nwc))
+                               wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
+                               name="conv1d_nwc.generic")
     else:
         raise ValueError("Unsupported conv1d layout {}".format(layout))
     return strategy
@@ -398,6 +425,7 @@ def wrap_compute_conv1d_transpose(topi_compute):
 @override_native_generic_func("conv1d_transpose_strategy")
 def conv1d_transpose_strategy(attrs, inputs, out_type, target):
     """conv1d_transpose generic strategy"""
+    logger.warning("conv1d_transpose is not optimized for this platform.")
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
@@ -406,7 +434,8 @@ def conv1d_transpose_strategy(attrs, inputs, out_type, target):
     assert dilation == (1,), "conv1d_transpose dilation is not supported"
     assert groups == 1, "conv1d_transpose groups == 1 only supported"
     strategy.add_implement(wrap_compute_conv1d_transpose(topi.nn.conv1d_transpose_ncw),
-                           wrap_topi_schedule(topi.generic.schedule_conv1d_transpose_ncw))
+                           wrap_topi_schedule(topi.generic.schedule_conv1d_transpose_ncw),
+                           name="conv1d_transpose_ncw.generic")
     return strategy
 
 # dense
@@ -422,9 +451,11 @@ def wrap_compute_dense(topi_compute):
 @override_native_generic_func("dense_strategy")
 def dense_strategy(attrs, inputs, out_type, target):
     """dense generic strategy"""
+    logger.warning("dense is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_dense(topi.nn.dense),
-                           wrap_topi_schedule(topi.generic.schedule_dense))
+                           wrap_topi_schedule(topi.generic.schedule_dense),
+                           name="dense.generic")
     return strategy
 
 # batch_matmul
@@ -437,9 +468,11 @@ def wrap_compute_batch_matmul(topi_func):
 @override_native_generic_func("batch_matmul_strategy")
 def batch_matmul_strategy(attrs, inputs, out_type, target):
     """batch_matmul generic strategy"""
+    logger.warning("batch_matmul is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_batch_matmul(topi.nn.batch_matmul),
-                           wrap_topi_schedule(topi.generic.schedule_batch_matmul))
+                           wrap_topi_schedule(topi.generic.schedule_batch_matmul),
+                           name="batch_matmul.generic")
     return strategy
 
 # sparse_dense
@@ -471,7 +504,8 @@ def argsort_strategy(attrs, inputs, out_type, target):
     """argsort generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_argsort(topi.argsort),
-                           wrap_topi_schedule(topi.generic.schedule_argsort))
+                           wrap_topi_schedule(topi.generic.schedule_argsort),
+                           name="argsort.generic")
     return strategy
 
 # topk
@@ -493,7 +527,8 @@ def topk_strategy(attrs, inputs, out_type, target):
     """topk generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_topk(topi.topk),
-                           wrap_topi_schedule(topi.generic.schedule_topk))
+                           wrap_topi_schedule(topi.generic.schedule_topk),
+                           name="topk.generic")
     return strategy
 
 # multibox_prior
@@ -525,7 +560,8 @@ def get_valid_counts_strategy(attrs, inputs, out_type, target):
     """get_valid_counts generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_get_valid_counts(topi.vision.get_valid_counts),
-                           wrap_topi_schedule(topi.generic.schedule_get_valid_counts))
+                           wrap_topi_schedule(topi.generic.schedule_get_valid_counts),
+                           name="get_valid_counts.generic")
     return strategy
 
 # non-maximum suppression
@@ -551,7 +587,8 @@ def nms_strategy(attrs, inputs, out_type, target):
     """nms generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_nms(topi.vision.non_max_suppression),
-                           wrap_topi_schedule(topi.generic.schedule_nms))
+                           wrap_topi_schedule(topi.generic.schedule_nms),
+                           name="nms.generic")
     return strategy
 
 # roi_align
@@ -571,7 +608,8 @@ def roi_align_strategy(attrs, inputs, out_type, target):
     """roi_align generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_roi_align(topi.vision.rcnn.roi_align_nchw),
-                           wrap_topi_schedule(topi.generic.schedule_roi_align))
+                           wrap_topi_schedule(topi.generic.schedule_roi_align),
+                           name="roi_align.generic")
     return strategy
 
 # roi_pool
@@ -603,7 +641,8 @@ def proposal_strategy(attrs, inputs, out_type, target):
     """proposal generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_proposal(topi.vision.rcnn.proposal),
-                           wrap_topi_schedule(topi.generic.schedule_proposal))
+                           wrap_topi_schedule(topi.generic.schedule_proposal),
+                           name="proposal.generic")
     return strategy
 
 # argwhere
@@ -632,16 +671,19 @@ def wrap_compute_bitserial_conv2d(topi_compute):
 @override_native_generic_func("bitserial_conv2d_strategy")
 def bitserial_conv2d_strategy(attrs, inputs, out_type, target):
     """bitserial_conv2d generic strategy"""
+    logger.warning("bitserial_conv2d is not optimized for this platform.")
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     if layout == "NCHW":
         strategy.add_implement(
             wrap_compute_bitserial_conv2d(topi.nn.bitserial_conv2d_nchw),
-            wrap_topi_schedule(topi.generic.schedule_bitserial_conv2d_nchw))
+            wrap_topi_schedule(topi.generic.schedule_bitserial_conv2d_nchw),
+            name="bitserial_conv2d_nchw.generic")
     elif layout == "NHWC":
         strategy.add_implement(
             wrap_compute_bitserial_conv2d(topi.nn.bitserial_conv2d_nhwc),
-            wrap_topi_schedule(topi.generic.schedule_bitserial_conv2d_nhwc))
+            wrap_topi_schedule(topi.generic.schedule_bitserial_conv2d_nhwc),
+            name="bitserial_conv2d_nhwc.generic")
     else:
         raise ValueError("Data layout {} not supported.".format(layout))
     return strategy
@@ -664,8 +706,10 @@ def wrap_compute_bitserial_dense(topi_compute):
 @override_native_generic_func("bitserial_dense_strategy")
 def bitserial_dense_strategy(attrs, inputs, out_type, target):
     """bitserial_dense generic strategy"""
+    logger.warning("bitserial_dense is not optimized for this platform.")
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_bitserial_dense(topi.nn.bitserial_dense),
-        wrap_topi_schedule(topi.generic.schedule_bitserial_dense))
+        wrap_topi_schedule(topi.generic.schedule_bitserial_dense),
+        name="bitserial_dense.generic")
     return strategy

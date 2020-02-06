@@ -79,7 +79,7 @@ def checkpoint(data):
     """
     return _make.checkpoint(data)
 
-reg.register_strategy_injective("annotation.checkpoint")
+reg.register_injective_schedule("annotation.checkpoint")
 
 
 def compiler_begin(data, compiler):

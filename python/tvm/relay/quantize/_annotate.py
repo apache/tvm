@@ -52,10 +52,10 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     return [rdata]
 
 
-_reg.register_strategy_injective("relay.op.annotation.simulated_quantize")
+_reg.register_injective_schedule("relay.op.annotation.simulated_quantize")
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
                       _reg.OpPattern.ELEMWISE)
-_reg.register_strategy_injective("annotation.cast_hint")
+_reg.register_injective_schedule("annotation.cast_hint")
 
 
 @register_relay_node

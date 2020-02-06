@@ -221,8 +221,8 @@ using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
-                     const Array<te::Tensor>& inputs,
-                     const Array<IndexExpr>& out_ndims)>;
+                    const Array<te::Tensor>& inputs,
+                    const Array<IndexExpr>& out_ndims)>;
 
 /*!
  * \brief Operator implementation in TVM.
@@ -233,10 +233,13 @@ class OpImplementNode : public Object {
   FTVMCompute fcompute;
   /*! \brief Schedule function */
   FTVMSchedule fschedule;
+  /*! \brief Name of the implementation */
+  std::string name;
   /*! \brief Priority level */
-  Integer plevel;
+  int plevel;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
     v->Visit("plevel", &plevel);
   }
 
@@ -302,10 +305,11 @@ class OpSpecialization : public ObjectRef {
    * \brief Add an implementation.
    * \param compute Compute function
    * \param schedule Schedule function
-   * \param plevel Priority level of this implemntation.
+   * \param name Name of the implementation
+   * \param plevel Priority level of the implementation
    */
   void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
-                    int plevel);
+                    std::string name, int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpSpecialization, ObjectRef, OpSpecializationNode);
 };
@@ -335,9 +339,11 @@ class OpStrategy : public ObjectRef {
    * \brief Add an implementation.
    * \param compute Compute function
    * \param schedule Schedule function
-   * \param plevel Priority level of this implementation.
+   * \param name Name of the implementation
+   * \param plevel Priority level of the implementation
    */
-  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule, int plevel);
+  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
+                    int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpStrategy, ObjectRef, OpStrategyNode);
 };

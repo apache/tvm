@@ -18,6 +18,7 @@
 """Backend code generation engine."""
 from __future__ import absolute_import
 
+import logging
 import hashlib
 import numpy as np
 import tvm
@@ -31,6 +32,8 @@ from .. import op as _op
 from .. import ty as _ty
 from ..expr_functor import ExprVisitor
 from . import _backend
+
+logger = logging.getLogger('compile_engine')
 
 @register_relay_node
 class CachedFunc(Object):
@@ -189,7 +192,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
 
     best_plevel_impl = None
     for impl in all_impls:
-        if best_plevel_impl is None or int(impl.plevel) > int(best_plevel_impl.plevel):
+        if best_plevel_impl is None or impl.plevel > best_plevel_impl.plevel:
             best_plevel_impl = impl
     if not use_autotvm:
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
@@ -266,7 +269,6 @@ class ScheduleGetter(ExprVisitor):
                 tensor_outs.append(tensor)
         sch = None
         if not isinstance(self.master_attrs, _op.op_attrs.DeviceCopyAttrs):
-            # print('master op:', self.master_op.name)
             sch = self.master_implement.schedule(self.master_attrs, tensor_outs, self.target)
             for scalar in self.scalars:
                 if scalar in sch.stage_map:
@@ -336,6 +338,7 @@ class ScheduleGetter(ExprVisitor):
             if not is_dyn:
                 best_impl, outputs = select_implement(
                     op, call.attrs, inputs, ret_type, self.target)
+                logger.debug("Use implementation %s for op %s" % (best_impl.name, op.name))
             else:
                 # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes
                 # for dynamic case, we currently use the implementation with highest plevel

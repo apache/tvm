@@ -16,8 +16,6 @@
 # under the License.
 """Definition of OpenGL operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -54,20 +52,22 @@ def schedule_softmax_opengl(attrs, outs, target):
 
 @conv2d_strategy.register("opengl")
 def conv2d_strategy_opengl(attrs, inputs, out_type, target):
-    """conv2d hls strategy"""
+    """conv2d opengl strategy"""
     strategy = _op.OpStrategy()
     groups = attrs.groups
     layout = attrs.data_layout
     assert groups == 1, "Don't support group conv2d on OpenGL"
     assert layout == "NCHW", "Only support conv2d layout NCHW for OpenGL"
     strategy.add_implement(wrap_compute_conv2d(topi.nn.conv2d),
-                           wrap_topi_schedule(topi.opengl.schedule_conv2d_nchw))
+                           wrap_topi_schedule(topi.opengl.schedule_conv2d_nchw),
+                           name="conv2d_nchw.opengl")
     return strategy
 
 @dense_strategy.register("opengl")
 def dense_strategy_opengl(attrs, inputs, out_type, target):
-    """dense hls strategy"""
+    """dense opengl strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_dense(topi.nn.dense),
-                           wrap_topi_schedule(topi.opengl.schedule_dense))
+                           wrap_topi_schedule(topi.opengl.schedule_dense),
+                           name="dense.opengl")
     return strategy

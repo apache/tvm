@@ -16,9 +16,6 @@
 # under the License.
 """Definition of mali operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -41,7 +38,8 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack))
+                wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_spatial_pack),
+                name="conv2d_nchw_spatial_pack.mali")
 
             _, _, kh, kw = get_const_tuple(kernel.shape)
             if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
@@ -49,7 +47,8 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
-                    15)
+                    name="conv2d_nchw_winograd.mali",
+                    plevel=15)
         else:
             raise RuntimeError("Unsupported conv2d layout {} for mali".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
@@ -57,7 +56,8 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.mali.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.mali.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.mali.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.mali")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {} for mali".format(layout))
     else: # group_conv2d
@@ -79,7 +79,8 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
         assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
         strategy.add_implement(
             wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
-            wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd))
+            wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
+            name="conv2d_nchw_winograd.mali")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))
@@ -90,5 +91,6 @@ def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implement(wrap_compute_dense(topi.mali.dense),
-                           wrap_topi_schedule(topi.mali.schedule_dense))
+                           wrap_topi_schedule(topi.mali.schedule_dense),
+                           name="dense.mali")
     return strategy

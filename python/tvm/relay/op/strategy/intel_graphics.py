@@ -16,8 +16,6 @@
 # under the License.
 """Definition of x86 operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
-from __future__ import absolute_import
-
 import topi
 from .generic import *
 from .. import op as _op
@@ -40,13 +38,15 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_nchw),
-                wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_nchw))
+                wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_nchw),
+                name="conv2d_nchw.intel_graphics")
             # conv2d_NCHWc won't work without alter op layout pass
             # TODO(@Laurawly): fix this
             strategy.add_implement(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
-                5)
+                name="conv2d_NCHWc.intel_graphics",
+                plevel=5)
         else:
             raise RuntimeError("Unsupported conv2d layout {} for intel graphics".
                                format(layout))
@@ -55,7 +55,8 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
             assert kernel_layout == "OIHW"
             strategy.add_implement(
                 wrap_compute_conv2d(topi.intel_graphics.depthwise_conv2d_nchw),
-                wrap_topi_schedule(topi.intel_graphics.schedule_depthwise_conv2d_nchw))
+                wrap_topi_schedule(topi.intel_graphics.schedule_depthwise_conv2d_nchw),
+                name="depthwise_conv2d_nchw.intel_graphics")
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
@@ -68,5 +69,6 @@ def conv2d_NCHWc_strategy_intel_graphics(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implement(
         wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
-        wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc))
+        wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
+        name="conv2d_NCHWc.intel_graphics")
     return strategy

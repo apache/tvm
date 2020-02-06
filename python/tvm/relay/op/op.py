@@ -147,9 +147,45 @@ class OpPattern(object):
 class OpImplement(Expr):
     """Operator implementation"""
     def compute(self, attrs, inputs, out_type):
+        """Call compute function.
+
+        Parameters
+        ----------
+        attrs : Attrs
+            Op attributes.
+
+        inputs : list[tvm.Tensor]
+            The input tensors.
+
+        out_type : relay.Type
+            The output type.
+
+        Returns
+        -------
+        outs : list[tvm.Tensor]
+            The output tensors.
+        """
         return _OpImplementCompute(self, attrs, inputs, out_type)
 
     def schedule(self, attrs, outs, target):
+        """Call schedule function.
+
+        Parameters
+        ----------
+        attrs : Attrs
+            Op attributes.
+
+        outs : list[tvm.Tensor]
+            The output tensors.
+
+        target : tvm.Target
+            The target to schedule the op.
+
+        Returns
+        -------
+        schedule : tvm.Schedule
+            The schedule.
+        """
         return _OpImplementSchedule(self, attrs, outs, target)
 
 
@@ -160,29 +196,51 @@ class OpSpecialization(Expr):
 
 @register_relay_node
 class OpStrategy(Expr):
+    """Operator strategy"""
     def __init__(self):
         self.__init_handle_by_constructor__(_make.OpStrategy)
 
-    def add_implement(self, compute, schedule, plevel=10):
-        _OpStrategyAddImplement(self, compute, schedule, plevel)
+    def add_implement(self, compute, schedule, name="default", plevel=10):
+        """Add an implementation to the strategy
+
+        Parameters
+        ----------
+        compute : function (attrs: Attrs, inputs: List[Tensor], out_type: Type)
+                           -> List[Tensor]
+            The compute function.
+
+        schedule : function (attrs: Attrs, outs: List[Tensor], target:Target) -> Schedule
+            The schedule function.
+
+        name : str
+            The name of implementation.
+
+        plevel : int
+            The priority level of implementation.
+        """
+        _OpStrategyAddImplement(self, compute, schedule, name, plevel)
 
 
-def wrap_fstrategy(compute, schedule):
-    def fstrategy(attrs, inputs, out_type, target):
+def _wrap_default_fstrategy(compute, schedule, name):
+    def _fstrategy(attrs, inputs, out_type, target):
         strategy = OpStrategy()
-        strategy.add_implement(compute, schedule)
+        strategy.add_implement(compute, schedule, name=name)
         return strategy
-    return fstrategy
+    return _fstrategy
 
 
-def create_simple_fstrategy(op_name, schedule):
+def _create_fstrategy_from_schedule(op_name, schedule):
     assert hasattr(schedule, "dispatch_dict")
     compute = get(op_name).get_attr("FTVMCompute")
     assert compute is not None, "FTVMCompute is not registered for op %s" % op_name
     fstrategy = get_native_generic_func("{}_strategy".format(op_name))
-    fstrategy.set_default(wrap_fstrategy(compute, schedule.fdefault))
+    name_pfx = schedule.__name__
+    name_pfx = name_pfx[name_pfx.index('_')+1:]
+    fstrategy.set_default(
+        _wrap_default_fstrategy(compute, schedule.fdefault, "%s.generic" % name_pfx))
     for key, sch in schedule.dispatch_dict.items():
-        fstrategy.register(wrap_fstrategy(compute, sch), [key])
+        fstrategy.register(
+            _wrap_default_fstrategy(compute, sch, "%s.%s" % (name_pfx, key)), [key])
     return fstrategy
 
 
@@ -194,7 +252,7 @@ def register_compute(op_name, compute=None, level=10):
     op_name : str
         The name of the op.
 
-    compute : function (attrs: Attrs, inputs: List[Tensor], out_type: Type, target:Target)
+    compute : function (attrs: Attrs, inputs: List[Tensor], out_type: Type)
                        -> List[Tensor]
         The compute function.
 
@@ -205,6 +263,20 @@ def register_compute(op_name, compute=None, level=10):
 
 
 def register_strategy(op_name, fstrategy=None, level=10):
+    """Register strategy function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    fstrategy : function (attrs: Attrs, inputs: List[Tensor], out_type: Type,
+                          target:Target) -> OpStrategy
+        The strategy function. Need to be native GenericFunc.
+
+    level : int
+        The priority level
+    """
     if not isinstance(fstrategy, GenericFunc):
         assert hasattr(fstrategy, "generic_func_node")
         fstrategy = fstrategy.generic_func_node
@@ -212,19 +284,66 @@ def register_strategy(op_name, fstrategy=None, level=10):
 
 
 def register_schedule(op_name, schedule, level=10):
-    fstrategy = create_simple_fstrategy(op_name, schedule)
+    """Register schedule function for an op.
+
+    This is used when compute function is the same for all targets and only
+    schedule is different. It requires FTVMCompute is already registered to
+    the op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    schedule : function (attrs: Attrs, outs: List[Tensor], target:Target) -> Schedule
+        The schedule function. Need to be target.generic_func.
+
+    level : int
+        The priority level
+    """
+    fstrategy = _create_fstrategy_from_schedule(op_name, schedule)
     return register_strategy(op_name, fstrategy, level)
 
 
-def register_strategy_injective(op_name, level=10):
+def register_injective_schedule(op_name, level=10):
+    """Register injective schedule function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    level : int
+        The priority level
+    """
     return register_schedule(op_name, _schedule_injective, level)
 
 
-def register_strategy_broadcast(op_name, level=10):
+def register_broadcast_schedule(op_name, level=10):
+    """Register broadcast schedule function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    level : int
+        The priority level
+    """
     return register_schedule(op_name, _schedule_injective, level)
 
 
-def register_strategy_reduce(op_name, level=10):
+def register_reduce_schedule(op_name, level=10):
+    """Register reduce schedule function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    level : int
+        The priority level
+    """
     return register_schedule(op_name, _schedule_reduce, level)
 
 
