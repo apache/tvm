@@ -226,7 +226,11 @@ ConvertLayout pass is extremely easy to use. The pass is not a part of default r
                                              dtype_dict=dtype_dict)
 
     # Convert the layout to NCHW
-    mod = relay.transform.ConvertLayout('NCHW')(mod)
+    # RemoveUnunsedFunctions is used to clean up the graph.
+    seq = relay.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                      relay.transform.ConvertLayout('NCHW')])
+    with relay.transform.PassContext(opt_level=3):
+        mod = seq(mod)
 
     # Call relay compilation
     with relay.build_config(opt_level=3):
