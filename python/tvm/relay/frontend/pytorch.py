@@ -1007,7 +1007,7 @@ class Graph(object):
         Returns
         -------
         missing_operators : set object
-            Set of operator names which don't have their mapping in TVM,
+            Set of operator names which don't have their mapping in TVM
             i.e. which are not supported
 
         """
