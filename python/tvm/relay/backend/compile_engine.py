@@ -25,7 +25,6 @@ from topi import tag
 from ..base import register_relay_node, Object
 from ... import _api_internal
 from ... import target as _target
-from ..._ffi.function import register_func
 from ... import autotvm
 from .. import expr as _expr
 from .. import op as _op
@@ -389,7 +388,7 @@ class ScheduleGetter(ExprVisitor):
         return [tup[t.index]]
 
 
-@register_func("relay.backend.create_schedule")
+@tvm._ffi.register_func("relay.backend.create_schedule")
 def create_schedule(src_func, target):
     return ScheduleGetter(target).create(src_func)
 

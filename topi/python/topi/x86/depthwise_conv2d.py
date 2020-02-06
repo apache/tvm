@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=no-value-for-parameter
 """Depthwise Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
@@ -79,8 +80,8 @@ def schedule_depthwise_conv2d_nchw(outs):
 
 def _pack_data(cfg, data, kernel):
     n, ic, ih, iw = get_const_tuple(data.shape)
-    filter, cm, kh, kw = get_const_tuple(kernel.shape)
-    oc = filter * cm
+    filters, cm, kh, kw = get_const_tuple(kernel.shape)
+    oc = filters * cm
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
 
     ic_chunk = ic // ic_bn

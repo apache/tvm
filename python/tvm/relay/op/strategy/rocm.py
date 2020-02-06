@@ -28,12 +28,6 @@ def schedule_lrn_rocm(attrs, outs, target):
     with target:
         return topi.rocm.schedule_lrn(outs)
 
-@schedule_l2_normalize.register("rocm")
-def schedule_l2_normalize_rocm(attrs, outs, target):
-    """schedule L2 normalize for rocm"""
-    with target:
-        return topi.rocm.schedule_l2_normalize(outs)
-
 @conv2d_strategy.register("rocm")
 def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d cuda strategy"""

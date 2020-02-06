@@ -121,7 +121,7 @@ def conv2d_transpose_strategy_hls(attrs, inputs, out_type, target):
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
     strategy.add_implement(
-        wrap_comptue_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+        wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
         wrap_topi_schedule(topi.hls.schedule_conv2d_transpose_nchw))
     return strategy
 

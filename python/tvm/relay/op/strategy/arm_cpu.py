@@ -172,7 +172,7 @@ def conv2d_transpose_strategy_arm_cpu(attrs, inputs, out_type, target):
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
     strategy.add_implement(
-        wrap_comptue_conv2d_transpose(topi.arm_cpu.conv2d_transpose_nchw),
+        wrap_compute_conv2d_transpose(topi.arm_cpu.conv2d_transpose_nchw),
         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_transpose_nchw))
     return strategy
 

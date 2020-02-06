@@ -249,15 +249,6 @@ class OpImplementNode : public Object {
  */
 class OpImplement : public ObjectRef {
  public:
-  /*! \brief default constructor  */
-  OpImplement() {}
-  /*! \brief constructor from node pointer */
-  explicit OpImplement(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OpImplementNode* operator->() const;
   /*!
    * \brief Invoke the operator compute function.
    * \param attrs The attribute of the primitive
@@ -278,6 +269,8 @@ class OpImplement : public ObjectRef {
   te::Schedule Schedule(const Attrs& attrs,
                         const Array<te::Tensor>& outs,
                         const Target& target);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(OpImplement, ObjectRef, OpImplementNode);
 };
 
 /*!
@@ -305,18 +298,6 @@ class OpSpecializationNode : public Object {
  */
 class OpSpecialization : public ObjectRef {
  public:
-  OpSpecialization() {}
-  explicit OpSpecialization(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OpSpecializationNode* operator->() const;
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline OpSpecializationNode* operator->();
   /*!
    * \brief Add an implementation.
    * \param compute Compute function
@@ -325,6 +306,8 @@ class OpSpecialization : public ObjectRef {
    */
   void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
                     int plevel);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpSpecialization, ObjectRef, OpSpecializationNode);
 };
 
 /*!
@@ -348,20 +331,6 @@ class OpStrategyNode : public Object {
  */
 class OpStrategy : public ObjectRef {
  public:
-  /*! \brief default constructor  */
-  OpStrategy() {}
-  /*! \brief constructor from node pointer */
-  explicit OpStrategy(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline const OpStrategyNode* operator->() const;
-  /*!
-   * \brief access the internal node container
-   * \return the pointer to the internal node container
-   */
-  inline OpStrategyNode* operator->();
   /*!
    * \brief Add an implementation.
    * \param compute Compute function
@@ -369,28 +338,9 @@ class OpStrategy : public ObjectRef {
    * \param plevel Priority level of this implementation.
    */
   void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule, int plevel);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpStrategy, ObjectRef, OpStrategyNode);
 };
-
-// implementations
-inline const OpImplementNode* OpImplement::operator->() const {
-  return static_cast<const OpImplementNode*>(get());
-}
-
-inline const OpSpecializationNode* OpSpecialization::operator->() const {
-  return static_cast<const OpSpecializationNode*>(get());
-}
-
-inline OpSpecializationNode* OpSpecialization::operator->() {
-  return static_cast<OpSpecializationNode*>(get_mutable());
-}
-
-inline const OpStrategyNode* OpStrategy::operator->() const {
-  return static_cast<const OpStrategyNode*>(get());
-}
-
-inline OpStrategyNode* OpStrategy::operator->() {
-  return static_cast<OpStrategyNode*>(get_mutable());
-}
 
 }  // namespace relay
 }  // namespace tvm

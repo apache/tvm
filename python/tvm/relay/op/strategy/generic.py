@@ -120,13 +120,6 @@ def schedule_lrn(attrs, outs, target):
     with target:
         return topi.generic.schedule_lrn(outs)
 
-# l2_normalize
-@generic_func
-def schedule_l2_normalize(attrs, outs, target):
-    """Schedule L2 normalize op"""
-    with target:
-        return topi.generic.schedule_l2_normalize(outs)
-
 # bitpack
 @generic_func
 def schedule_bitpack(attrs, outs, target):
@@ -283,7 +276,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
     return strategy
 
 # conv2d_transpose
-def wrap_comptue_conv2d_transpose(topi_compute):
+def wrap_compute_conv2d_transpose(topi_compute):
     """wrap conv2d_transpose topi compute"""
     def compute_conv2d_transpose(attrs, inputs, out_dtype):
         """Compute definition of conv2d_transpose"""
@@ -311,7 +304,7 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
     strategy.add_implement(
-        wrap_comptue_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+        wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
         wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw))
     return strategy
 

@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member, import-outside-toplevel
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=no-value-for-parameter,import-outside-toplevel
 """Conv2D int8 schedule on x86"""
 
 import tvm
