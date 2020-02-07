@@ -82,7 +82,7 @@ def test_add_pipeline():
         ctx = tvm.context(device, 0)
         if not ctx.exist:
             return
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
@@ -102,7 +102,7 @@ def test_add_pipeline():
         ctx = tvm.context(device, 0)
         if not ctx.exist:
             return
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         if device == "cuda":
             fmt = "ptx"
@@ -115,7 +115,7 @@ def test_add_pipeline():
         temp = util.tempdir()
         mpath = temp.relpath("test.%s" % fmt)
         mdev.save(mpath)
-        mdev2 = tvm.module.load(mpath)
+        mdev2 = tvm.runtime.load_module(mpath)
         mhost.import_module(mdev2)
         f = mhost.entry_func
         # launch the kernel.

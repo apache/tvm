@@ -244,5 +244,21 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
+TVM_REGISTER_GLOBAL("codegen._Build")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
+      *ret = Build({args[0]}, args[1]);
+    } else {
+      *ret = Build(args[0], args[1]);
+    }
+  });
+
+// Export two auxiliary function to the runtime namespace.
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")
+.set_body_typed(PackImportsToC);
+
+TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM")
+.set_body_typed(PackImportsToLLVM);
+
 }  // namespace codegen
 }  // namespace tvm

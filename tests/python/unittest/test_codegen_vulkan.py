@@ -20,7 +20,7 @@ import numpy as np
 
 
 def test_vector_comparison():
-    if not tvm.module.enabled("vulkan"):
+    if not tvm.runtime.enabled("vulkan"):
         print("Skipping due to no Vulkan module")
         return
 
@@ -62,7 +62,7 @@ bx = tvm.thread_axis("blockIdx.x")
 def test_vulkan_copy():
 
     def check_vulkan(dtype, n):
-        if not tvm.vulkan(0).exist or not tvm.module.enabled("vulkan"):
+        if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
             print("skip because vulkan is not enabled..")
             return
         A = tvm.placeholder((n,), name='A', dtype=dtype)
@@ -84,7 +84,7 @@ def test_vulkan_vectorize_add():
     num_thread = 8
 
     def check_vulkan(dtype, n, lanes):
-        if not tvm.vulkan(0).exist or not tvm.module.enabled("vulkan"):
+        if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
             print("skip because vulkan is not enabled..")
             return
         A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
@@ -117,7 +117,7 @@ def test_vulkan_stress():
 
     def run_stress():
         def worker():
-            if not tvm.vulkan(0).exist or not tvm.module.enabled("vulkan"):
+            if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
                 print("skip because vulkan is not enabled..")
                 return
             A = tvm.placeholder((n,), name='A', dtype="float32")

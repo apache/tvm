@@ -29,7 +29,7 @@ def test_cmp_load_store():
 
 
     def check_llvm():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         s = tvm.create_schedule(D.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)

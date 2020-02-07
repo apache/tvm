@@ -84,7 +84,7 @@ Module Module::LoadFromFile(const std::string& file_name,
   if (fmt == "dll" || fmt == "dylib" || fmt == "dso") {
     fmt = "so";
   }
-  std::string load_f_name = "module.loadfile_" + fmt;
+  std::string load_f_name = "runtime.module.loadfile_" + fmt;
   const PackedFunc* f = Registry::Get(load_f_name);
   CHECK(f != nullptr)
       << "Loader of " << format << "("
@@ -164,42 +164,35 @@ bool RuntimeEnabled(const std::string& target) {
   return runtime::Registry::Get(f_name) != nullptr;
 }
 
-TVM_REGISTER_GLOBAL("module._Enabled")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = RuntimeEnabled(args[0]);
-    });
+TVM_REGISTER_GLOBAL("runtime.RuntimeEnabled")
+.set_body_typed(RuntimeEnabled);
 
-TVM_REGISTER_GLOBAL("module._GetSource")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator Module()->GetSource(args[1]);
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleGetSource")
+.set_body_typed([](Module mod, std::string fmt) {
+  return mod->GetSource(fmt);
+});
 
-TVM_REGISTER_GLOBAL("module._ImportsSize")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = static_cast<int64_t>(
-        args[0].operator Module()->imports().size());
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleImportsSize")
+.set_body_typed([](Module mod) {
+  return static_cast<int64_t>(mod->imports().size());
+});
 
-TVM_REGISTER_GLOBAL("module._GetImport")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator Module()->
-        imports().at(args[1].operator int());
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleGetImport")
+.set_body_typed([](Module mod, int index) {
+  return mod->imports().at(index);
+});
 
-TVM_REGISTER_GLOBAL("module._GetTypeKey")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = std::string(args[0].operator Module()->type_key());
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey")
+.set_body_typed([](Module mod) {
+  return std::string(mod->type_key());
+});
 
-TVM_REGISTER_GLOBAL("module._LoadFromFile")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = Module::LoadFromFile(args[0], args[1]);
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile")
+.set_body_typed(Module::LoadFromFile);
 
-TVM_REGISTER_GLOBAL("module._SaveToFile")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    args[0].operator Module()->
-        SaveToFile(args[1], args[2]);
-    });
+TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
+.set_body_typed([](Module mod, std::string name, std::string fmt) {
+  mod->SaveToFile(name, fmt);
+});
 }  // namespace runtime
 }  // namespace tvm

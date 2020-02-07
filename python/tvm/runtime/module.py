@@ -26,6 +26,8 @@ from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
 from tvm._ffi.libinfo import find_include_path
 from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 
+from . import _ffi_api
+
 
 # profile result of time evaluator
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
@@ -52,7 +54,7 @@ class Module(object):
 
         Returns
         -------
-        f : Function
+        f : tvm.runtime.PackedFunc
             The entry function if exist
         """
         if self._entry:
@@ -73,7 +75,7 @@ class Module(object):
 
         Returns
         -------
-        f : Function
+        f : tvm.runtime.PackedFunc
             The result function.
         """
         ret_handle = PackedFuncHandle()
@@ -91,7 +93,7 @@ class Module(object):
 
         Parameters
         ----------
-        module : Module
+        module : tvm.runtime.Module
             The other module.
         """
         check_call(_LIB.TVMModImport(self.handle, module.handle))
@@ -114,7 +116,7 @@ class Module(object):
     @property
     def type_key(self):
         """Get type key of the module."""
-        return _GetTypeKey(self)
+        return _ffi_api.ModuleGetTypeKey(self)
 
     def get_source(self, fmt=""):
         """Get source code from module, if available.
@@ -129,7 +131,7 @@ class Module(object):
         source : str
             The result source code.
         """
-        return _GetSource(self, fmt)
+        return _ffi_api.ModuleGetSource(self, fmt)
 
     @property
     def imported_modules(self):
@@ -140,8 +142,8 @@ class Module(object):
         modules : list of Module
             The module
         """
-        nmod = _ImportsSize(self)
-        return [_GetImport(self, i) for i in range(nmod)]
+        nmod = _ffi_api.ModuleImportsSize(self)
+        return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -158,9 +160,9 @@ class Module(object):
 
         See Also
         --------
-        Module.export_library : export the module to shared library.
+        runtime.Module.export_library : export the module to shared library.
         """
-        _SaveToFile(self, file_name, fmt)
+        _ffi_api.ModuleSaveToFile(self, file_name, fmt)
 
     def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
         """Get an evaluator that measures time cost of running function.
@@ -199,13 +201,14 @@ class Module(object):
 
         Returns
         -------
-        ftimer : Function
+        ftimer : function
             The function that takes same argument as func and returns a ProfileResult.
             The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
-            feval = _RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id, number, repeat, min_repeat_ms)
+            feval = _ffi_api.RPCTimeEvaluator(
+                self, func_name, ctx.device_type, ctx.device_id,
+                number, repeat, min_repeat_ms)
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
@@ -314,13 +317,13 @@ class Module(object):
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:
                 path_obj = temp.relpath("devc.o")
-                m = _PackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
                 m.save(path_obj)
                 files.append(path_obj)
             else:
                 path_cc = temp.relpath("devc.cc")
                 with open(path_cc, "w") as f:
-                    f.write(_PackImportsToC(self, is_system_lib))
+                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)
 
         if has_c_module:
@@ -349,13 +352,13 @@ def system_lib():
 
     Returns
     -------
-    module : Module
+    module : runtime.Module
         The system-wide library module.
     """
-    return _GetSystemLib()
+    return _ffi_api.SystemLib()
 
 
-def load(path, fmt=""):
+def load_module(path, fmt=""):
     """Load module from file.
 
     Parameters
@@ -369,7 +372,7 @@ def load(path, fmt=""):
 
     Returns
     -------
-    module : Module
+    module : runtime.Module
         The loaded module
 
     Note
@@ -396,7 +399,7 @@ def load(path, fmt=""):
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API
-    return _LoadFromFile(path, fmt)
+    return _ffi_api.ModuleLoadFromFile(path, fmt)
 
 
 def enabled(target):
@@ -416,11 +419,9 @@ def enabled(target):
     --------
     The following code checks if gpu is enabled.
 
-    >>> tvm.module.enabled("gpu")
+    >>> tvm.runtime.enabled("gpu")
     """
-    return _Enabled(target)
+    return _ffi_api.RuntimeEnabled(target)
 
 
 _set_class_module(Module)
-
-tvm._ffi._init_api("tvm.module", "tvm.runtime.module")

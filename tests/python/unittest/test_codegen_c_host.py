@@ -31,7 +31,7 @@ def test_add():
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
-        m = tvm.module.load(path_dso)
+        m = tvm.runtime.load_module(path_dso)
         fadd = m['fadd']
         ctx = tvm.cpu(0)
         # launch the kernel.
@@ -79,7 +79,7 @@ def test_add_pipeline():
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
-        m = tvm.module.load(path_dso)
+        m = tvm.runtime.load_module(path_dso)
         fadd = m["fadd_pipeline"]
         ctx = tvm.cpu(0)
         # launch the kernel.
@@ -107,7 +107,7 @@ def test_reinterpret():
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
-        m = tvm.module.load(path_dso)
+        m = tvm.runtime.load_module(path_dso)
         fadd = m['reinterpret']
         ctx = tvm.cpu(0)
         n = nn

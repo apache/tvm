@@ -27,7 +27,7 @@ bx = tvm.thread_axis("blockIdx.x")
 def test_cuda_vectorize_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
         if dtype == "float16":
@@ -65,7 +65,7 @@ def test_cuda_vectorize_add():
 def test_cuda_multiply_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
@@ -97,7 +97,7 @@ def test_cuda_multiply_add():
 def test_cuda_vectorize_load():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
-        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
         ctx = tvm.gpu(0)
@@ -118,7 +118,7 @@ def test_cuda_vectorize_load():
 
 def test_cuda_make_int8x4():
     def check_cuda(n, value):
-        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
         lanes = 4
@@ -153,7 +153,7 @@ def test_cuda_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
 
@@ -168,7 +168,7 @@ def test_cuda_inf_nan():
 
 
 def test_cuda_shuffle():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
 
@@ -213,7 +213,7 @@ def test_cuda_shuffle():
 
 
 def test_cuda_reducition_binding():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
 
@@ -232,7 +232,7 @@ def test_cuda_reducition_binding():
     fcuda = tvm.build(s, [A, B], "cuda")
 
 def test_rfactor_predicates():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
 
@@ -266,7 +266,7 @@ def test_rfactor_predicates():
     fcuda = tvm.build(s, [A, B], "cuda")
 
 
-@unittest.skipIf(not tvm.gpu(0).exist or not tvm.module.enabled("cuda"), "skip because cuda is not enabled..")
+@unittest.skipIf(not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"), "skip because cuda is not enabled..")
 def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
