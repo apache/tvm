@@ -64,13 +64,21 @@ def get_schedule_reduce(target):
             return _reduce_schedule[key]
     return _reduce_schedule["generic"]
 
-def get_schedule(target, schedule):
+def get_schedule(target, schedule_map):
     if isinstance(target, str):
         target = tvm.target.create(target)
     for key in target.keys:
-        if key in schedule:
-            return schedule[key]
-    return schedule["generic"]
+        if key in schedule_map:
+            return schedule_map[key]
+    return schedule_map["generic"]
+
+def get_implement(target, implement_map):
+    if isinstance(target, str):
+        target = tvm.target.create(target)
+    for key in target.keys:
+        if key in implement_map:
+            return implement_map[key]
+    return implement_map["generic"]
 
 get_schedule_broadcast = get_schedule_injective
 get_schedule_elemwise = get_schedule_injective

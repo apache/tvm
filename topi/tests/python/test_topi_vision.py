@@ -26,16 +26,16 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from topi.vision import ssd, non_max_suppression, get_valid_counts
 
-from common import get_schedule
+from common import get_schedule, get_implement
 
-_get_valid_counts_schedule = {
-    "generic": topi.generic.schedule_get_valid_counts,
-    "gpu": topi.cuda.schedule_get_valid_counts,
+_get_valid_counts_implement = {
+    "generic": (topi.vision.get_valid_counts, topi.generic.schedule_get_valid_counts),
+    "gpu": (topi.cuda.get_valid_counts, topi.cuda.schedule_get_valid_counts),
 }
 
-_nms_schedule = {
-    "generic": topi.generic.schedule_nms,
-    "gpu": topi.cuda.schedule_nms,
+_nms_implement = {
+    "generic": (topi.vision.non_max_suppression, topi.generic.schedule_nms),
+    "gpu": (topi.cuda.non_max_suppression, topi.cuda.schedule_nms),
 }
 
 _multibox_prior_schedule = {
@@ -48,9 +48,10 @@ _multibox_detection_schedule = {
     "gpu": topi.cuda.schedule_multibox_detection,
 }
 
-_roi_align_schedule = {
-    "generic": topi.generic.schedule_roi_align,
-    "gpu": topi.cuda.schedule_roi_align,
+_roi_align_implement = {
+    "generic": (topi.vision.roi_align_nchw, topi.generic.schedule_roi_align),
+    "cpu": (topi.x86.roi_align_nchw, topi.generic.schedule_roi_align),
+    "gpu": (topi.vision.roi_align_nchw, topi.cuda.schedule_roi_align),
 }
 
 _roi_pool_schedule = {
@@ -58,9 +59,9 @@ _roi_pool_schedule = {
     "gpu": topi.cuda.schedule_roi_pool,
 }
 
-_proposal_schedule = {
-    "generic": topi.generic.schedule_proposal,
-    "gpu": topi.cuda.schedule_proposal,
+_proposal_implement = {
+    "generic": (topi.vision.rcnn.proposal, topi.generic.schedule_proposal),
+    "gpu": (topi.cuda.proposal, topi.cuda.schedule_proposal),
 }
 
 def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
@@ -90,10 +91,10 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            fcompute, fschedule = get_implement(device, _get_valid_counts_implement)
             data = tvm.placeholder(dshape, name="data", dtype=dtype)
-            outs = get_valid_counts(data, score_threshold, id_index, score_index)
-            s_func = get_schedule(device, _get_valid_counts_schedule)
-            s = s_func(outs)
+            outs = fcompute(data, score_threshold, id_index, score_index)
+            s = fschedule(outs)
 
         tvm_input_data = tvm.nd.array(np_data, ctx)
         tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
@@ -132,21 +133,14 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            if device == 'llvm':
-                out = non_max_suppression(data, valid_count, -1, iou_threshold, force_suppress, top_k,
-                                          coord_start=coord_start, score_index=score_index, id_index=id_index,
-                                          return_indices=False)
-                indices_out = non_max_suppression(data, valid_count, -1, iou_threshold, force_suppress, top_k,
-                                                  coord_start=coord_start, score_index=score_index, id_index=id_index)
-            else:
-                out = topi.cuda.non_max_suppression(data, valid_count, -1, iou_threshold, force_suppress, top_k,
-                                                    coord_start=coord_start, score_index=score_index, id_index=id_index,
-                                                    return_indices=False)
-                indices_out = topi.cuda.non_max_suppression(data, valid_count, -1, iou_threshold, force_suppress, top_k,
-                                                            coord_start=coord_start, score_index=score_index, id_index=id_index)
-            s_func = get_schedule(device, _nms_schedule)
-            s = s_func(out)
-            indices_s = topi.generic.schedule_nms(indices_out)
+            fcompute, fschedule = get_implement(device, _nms_implement)
+            out = fcompute(data, valid_count, -1, iou_threshold, force_suppress, top_k,
+                           coord_start=coord_start, score_index=score_index, id_index=id_index,
+                           return_indices=False)
+            indices_out = fcompute(data, valid_count, -1, iou_threshold, force_suppress, top_k,
+                                   coord_start=coord_start, score_index=score_index, id_index=id_index)
+            s = fschedule(out)
+            indices_s = fschedule(indices_out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_valid_count = tvm.nd.array(np_valid_count, ctx)
@@ -326,11 +320,11 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         print("Running on target: %s" % device)
 
         with tvm.target.create(device):
-            b = topi.vision.rcnn.roi_align_nchw(a, rois, pooled_size=pooled_size,
-                                                spatial_scale=spatial_scale,
-                                                sample_ratio=sample_ratio)
-            s_func = get_schedule(device, _roi_align_schedule)
-            s = s_func(b)
+            fcompute, fschedule = get_implement(device, _roi_align_implement)
+            b = fcompute(a, rois, pooled_size=pooled_size,
+                         spatial_scale=spatial_scale,
+                         sample_ratio=sample_ratio)
+            s = fschedule(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
         tvm_rois = tvm.nd.array(rois_np, ctx)
@@ -410,9 +404,9 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.vision.proposal(cls_prob, bbox_pred, im_info, **attrs)
-            s_func = get_schedule(device, _proposal_schedule)
-            s = s_func(out)
+            fcompute, fschedule = get_schedule(device, _proposal_implement)
+            out = fcompute(cls_prob, bbox_pred, im_info, **attrs)
+            s = fschedule(out)
             f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], device)
             tvm_cls_prob = tvm.nd.array(np_cls_prob, ctx=ctx)
             tvm_bbox_pred = tvm.nd.array(np_bbox_pred, ctx=ctx)
@@ -471,4 +465,5 @@ if __name__ == "__main__":
     test_multibox_prior()
     test_multibox_detection()
     test_roi_align()
+    test_roi_pool()
     test_proposal()

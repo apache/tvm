@@ -374,7 +374,7 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = _pool_schedule[device] if device in _pool_schedule else _pool_schedule["generic"]
+            s_func = get_schedule(device, _pool_schedule)
             s = s_func(B, layout)
 
         a = tvm.nd.array(input_np, ctx)
