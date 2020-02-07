@@ -352,7 +352,7 @@ def test_forward_relu():
 
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 100, 100]
+    input_shape = [1, 3, 10, 10]
 
     class AdaptiveAvgPool2D1(Module):
         def forward(self, *args):
@@ -360,7 +360,7 @@ def test_forward_adaptiveavgpool():
 
     class AdaptiveAvgPool2D2(Module):
         def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([100, 100])(args[0])
+            return torch.nn.AdaptiveAvgPool2d([10, 10])(args[0])
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
@@ -369,7 +369,7 @@ def test_forward_adaptiveavgpool():
 
 def test_forward_maxpool():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 100, 100]
+    input_shape = [1, 3, 10, 10]
 
     class MaxPool2D1(Module):
         def forward(self, *args):
@@ -377,7 +377,7 @@ def test_forward_maxpool():
 
     class MaxPool2D2(Module):
         def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[100, 100])(args[0])
+            return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
@@ -386,11 +386,11 @@ def test_forward_maxpool():
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 100, 100]
+    input_shape = [1, 3, 10, 10]
 
     class AvgPool2D1(Module):
         def forward(self, *args):
-            return torch.nn.AvgPool2d(kernel_size=[100, 100])(args[0])
+            return torch.nn.AvgPool2d(kernel_size=[10, 10])(args[0])
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
@@ -410,12 +410,12 @@ def test_forward_hardtanh():
 
 def test_forward_conv():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 100, 100]
+    input_shape = [1, 3, 10, 10]
 
     class Conv2D1(Module):
         def __init__(self):
             super(Conv2D1, self).__init__()
-            self.conv = torch.nn.Conv2d(3, 64, 7, bias=True)
+            self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
             self.softmax = torch.nn.Softmax()
 
         def forward(self, *args):
@@ -424,7 +424,7 @@ def test_forward_conv():
     class Conv2D2(Module):
         def __init__(self):
             super(Conv2D2, self).__init__()
-            self.conv = torch.nn.Conv2d(3, 64, 7, bias=False)
+            self.conv = torch.nn.Conv2d(3, 6, 7, bias=False)
             self.softmax = torch.nn.Softmax()
 
         def forward(self, *args):
@@ -513,11 +513,11 @@ def test_forward_size():
 
 def test_forward_view():
     torch.set_grad_enabled(False)
-    input_shape = [1, 3, 224, 224]
+    input_shape = [1, 3, 10, 10]
 
     class View1(Module):
         def forward(self, *args):
-            return args[0].view((1, 3 * 224 * 224))
+            return args[0].view((1, 3 * 10 * 10))
 
     class View2(Module):
         def forward(self, *args):
