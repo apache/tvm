@@ -60,7 +60,7 @@ def build(target_dir):
     if args.pretrained:
         # needs mxnet installed
         from mxnet.gluon.model_zoo.vision import get_model
-        
+
         # if `--pretrained` is enabled, it downloads a pretrained
         # resnet18 trained on imagenet1k dataset for image classification task
         block = get_model('resnet18_v1', pretrained=True)
@@ -111,7 +111,7 @@ def download_img_labels():
 def test_build(build_dir):
     """ Sanity check with random input"""
     graph = open(osp.join(build_dir, "deploy_graph.json")).read()
-    lib = tvm.module.load(osp.join(build_dir, "deploy_lib.so"))
+    lib = tvm.runtime.load(osp.join(build_dir, "deploy_lib.so"))
     params = bytearray(open(osp.join(build_dir,"deploy_param.params"), "rb").read())
     input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
     ctx = tvm.cpu()
