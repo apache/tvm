@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime."""
+"""TVM runtime namespace."""
 
 # class exposures
 from .packed_func import PackedFunc
@@ -27,6 +27,4 @@ from .module import Module
 from .object_generic import convert_to_object, convert, const
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
-from .module import load as load_module
-
-DataType = DataType
+from .module import load_module, enabled, system_lib

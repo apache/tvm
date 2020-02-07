@@ -184,10 +184,10 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("module.source_module_create")
+TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate")
 .set_body_typed(SourceModuleCreate);
 
-TVM_REGISTER_GLOBAL("module.csource_module_create")
+TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
 .set_body_typed(CSourceModuleCreate);
 }  // namespace codegen
 }  // namespace tvm

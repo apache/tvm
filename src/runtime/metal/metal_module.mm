@@ -307,10 +307,10 @@ Module MetalModuleLoadBinary(void* strm) {
   return MetalModuleCreate(data, fmt, fmap, "");
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_metal")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_metal")
 .set_body_typed(MetalModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadbinary_metal")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal")
 .set_body_typed(MetalModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

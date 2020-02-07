@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import
-"""Runtime NDArray api"""
+"""Runtime NDArray API"""
 import ctypes
 import numpy as np
 import tvm._ffi
@@ -146,7 +146,7 @@ class NDArray(NDArrayBase):
         return self
 
     def __repr__(self):
-        res = "<tvm.NDArray shape={0}, {1}>\n".format(self.shape, self.context)
+        res = "<tvm.nd.NDArray shape={0}, {1}>\n".format(self.shape, self.context)
         res += self.asnumpy().__repr__()
         return res
 
@@ -203,7 +203,7 @@ def context(dev_type, dev_id=0):
 
     Returns
     -------
-    ctx: TVMContext
+    ctx: tvm.runtime.TVMContext
         The corresponding context.
 
     Examples

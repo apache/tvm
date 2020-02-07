@@ -278,13 +278,13 @@ Module OpenCLModuleLoadBinary(void* strm) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_cl")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_cl")
 .set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadfile_clbin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_clbin")
 .set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_opencl")
 .set_body_typed(OpenCLModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

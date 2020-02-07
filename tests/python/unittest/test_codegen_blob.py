@@ -24,7 +24,7 @@ import ctypes
 
 def test_resnet18():
     for device in ["llvm", "cuda"]:
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("skip because %s is not enabled..." % device)
             return
 
@@ -53,7 +53,7 @@ def test_resnet18():
     with open(temp.relpath("deploy_param.params"), "wb") as fo:
         fo.write(relay.save_param_dict(graph_params))
 
-    loaded_lib = tvm.module.load(path_lib)
+    loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_json = open(temp.relpath("deploy_graph.json")).read()
     loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
     data = np.random.uniform(-1, 1, size=(1, 3, 224, 224)).astype("float32")
@@ -70,7 +70,7 @@ def test_resnet18():
 def test_system_lib():
     ctx = tvm.gpu(0)
     for device in ["llvm", "cuda"]:
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("skip because %s is not enabled..." % device)
             return
     nn = 12
@@ -92,7 +92,7 @@ def test_system_lib():
     # Load dll, will trigger system library registration
     dll = ctypes.CDLL(path_lib)
     # Load the system wide library
-    m = tvm.module.system_lib()
+    m = tvm.runtime.system_lib()
     a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
     b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
     m['add'](a, b)

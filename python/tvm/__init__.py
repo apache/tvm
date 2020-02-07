@@ -29,12 +29,8 @@ from ._ffi.registry import register_object, register_func, register_extension
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.packed_func import PackedFunc as Function
 from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
-from .runtime import module
-from .runtime import ndarray
-# pylint: disable=reimported
 from .runtime import ndarray as nd
 
 # others
