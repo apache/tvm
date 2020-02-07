@@ -274,6 +274,23 @@ class OperatorConverter(object):
         first_tensor = input_tensors[0]
         return first_tensor.qnn_params is not None
 
+    def quantize(self, expr, tensor_to_quantize):
+        """ Helper function to quantize a tensor with Relay """
+        tensor_type = tensor_to_quantize.tensor.Type()
+        tensor_type_str = self.get_tensor_type_str(tensor_type)
+        quantized = _qnn.op.quantize(data=expr,
+                                     output_scale=tensor_to_quantize.qnn_params['scale'],
+                                     output_zero_point=tensor_to_quantize.qnn_params['zero_point'],
+                                     out_dtype=tensor_type_str)
+        return quantized
+
+    def dequantize(self, expr, tensor):
+        """ Helper function to dequantize a tensor with Relay """
+        dequantized = _qnn.op.dequantize(data=expr,
+                                         input_scale=tensor.qnn_params['scale'],
+                                         input_zero_point=tensor.qnn_params['zero_point'])
+        return dequantized
+
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
         return self.convert_conv(op, "conv2d")
@@ -391,7 +408,16 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.sigmoid(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
         return out
 
     def convert_softmax(self, op):

@@ -1223,17 +1223,25 @@ def test_forward_unpack():
 # Logistic
 # --------
 
-def _test_logistic(data):
+def _test_logistic(data, quantized=False):
     """ One iteration of LOGISTIC """
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-        out = math_ops.sigmoid(in_data)
-        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+
+        if quantized:
+            inq_data = tf.quantization.fake_quant_with_min_max_args(in_data, min=-5, max=5, name="inq_0")
+            input_range = {'inq_0': (-5, 5)}
+            out = math_ops.sigmoid(inq_data)
+            out = tf.quantization.fake_quant_with_min_max_args(out, min=0, max=1, name="out")
+            compare_tflite_with_tvm(data, 'inq_0:0', [inq_data], [out], quantized=True, input_range=input_range)
+        else:
+            out = math_ops.sigmoid(in_data)
+            compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
 
 def test_forward_logistic():
     """ LOGISTIC """
     _test_logistic(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
-
+    _test_logistic(np.random.uniform(0, 255, (3, 6)).astype(np.uint8), quantized=True)
 
 #######################################################################
 # Softmax
