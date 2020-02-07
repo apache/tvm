@@ -204,10 +204,6 @@ def _convolution():
             weight_shape = []
             for infer in inferred_shape:
                 weight_shape.append(infer)
-        elif isinstance(weight, list):
-            weight_shape = data
-        elif isinstance(weight, (torch.Tensor, np.ndarray)):
-            weight_shape = data.shape
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
 
