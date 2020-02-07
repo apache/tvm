@@ -85,7 +85,7 @@ class Executable(object):
             can then be saved to disk and later deserialized into a new
             Executable.
 
-        lib : :py:class:`~tvm.module.Module`
+        lib : :py:class:`~tvm.runtime.Module`
             The runtime module that contains the generated code. It is
             basically a library that is composed of hardware dependent code.
 
@@ -125,7 +125,7 @@ class Executable(object):
             lib.export_library(path_lib)
             with open(tmp.relpath("code.ro"), "wb") as fo:
                 fo.write(code)
-            loaded_lib = tvm.module.load(path_lib)
+            loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
             # deserialize.
             des_exec = relay.vm.Executable.load_exec(loaded_code, loaded_code)
@@ -147,7 +147,7 @@ class Executable(object):
         bytecode : bytearray
             The binary blob representing a the Relay VM bytecode.
 
-        lib : :py:class:`~tvm.module.Module`
+        lib : :py:class:`~tvm.runtime.Module`
             The runtime module that contains the generated code.
 
         Returns
@@ -161,8 +161,8 @@ class Executable(object):
             raise TypeError("bytecode is expected to be the type of bytearray " +
                             "or TVMByteArray, but received {}".format(type(code)))
 
-        if lib is not None and not isinstance(lib, tvm.module.Module):
-            raise TypeError("lib is expected to be the type of tvm.module.Module" +
+        if lib is not None and not isinstance(lib, tvm.runtime.Module):
+            raise TypeError("lib is expected to be the type of tvm.runtime.Module" +
                             ", but received {}".format(type(lib)))
 
         return Executable(_vm.Load_Executable(bytecode, lib))
@@ -270,7 +270,7 @@ class Executable(object):
 class VirtualMachine(object):
     """Relay VM runtime."""
     def __init__(self, mod):
-        if not isinstance(mod, (Executable, tvm.module.Module)):
+        if not isinstance(mod, (Executable, tvm.runtime.Module)):
             raise TypeError("mod is expected to be the type of Executable or " +
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
@@ -534,7 +534,7 @@ class VMCompiler(object):
                     target_host = tgt
                     break
         if not target_host:
-            target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
+            target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
         if isinstance(target_host, str):
             target_host = tvm.target.create(target_host)
         return target_host

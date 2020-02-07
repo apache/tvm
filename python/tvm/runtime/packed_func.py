@@ -47,7 +47,7 @@ class PackedFunc(PackedFuncBase):
     For example, the developer function exposed in tvm.ir_pass are actually
     C++ functions that are registered as PackedFunc
 
-    The following are list of common usage scenario of tvm.Function.
+    The following are list of common usage scenario of tvm.runtime.PackedFunc.
 
     - Automatic exposure of C++ API into python
     - To call PackedFunc from python side

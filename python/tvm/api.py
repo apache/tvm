@@ -19,6 +19,7 @@
 from numbers import Integral as _Integral
 
 import tvm._ffi
+import tvm.runtime._ffi_node_api
 
 from tvm.runtime import convert, const, DataType
 from ._ffi.base import string_types, TVMError
@@ -108,10 +109,10 @@ def load_json(json_str):
     """
 
     try:
-        return _api_internal._load_json(json_str)
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
     except TVMError:
         json_str = json_compact.upgrade_json(json_str)
-        return _api_internal._load_json(json_str)
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
 
 
 def save_json(node):
@@ -127,7 +128,7 @@ def save_json(node):
     json_str : str
         Saved json string.
     """
-    return _api_internal._save_json(node)
+    return tvm.runtime._ffi_node_api.SaveJSON(node)
 
 
 def var(name="tindex", dtype=int32):

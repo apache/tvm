@@ -449,7 +449,7 @@ def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
     n = 64
     A = tvm.placeholder((n, ), name='A')

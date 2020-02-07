@@ -32,7 +32,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 """
 # pylint: disable=missing-docstring
 import tvm._ffi
-from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode
+from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode, const
 
 from . import make as _make
 from . import generic as _generic
@@ -101,7 +101,7 @@ class ExprOp(object):
         return _make._OpFloorMod(self, other)
 
     def __neg__(self):
-        neg_one = _api_internal._const(-1, self.dtype)
+        neg_one = const(-1, self.dtype)
         return self.__mul__(neg_one)
 
     def __lshift__(self, other):

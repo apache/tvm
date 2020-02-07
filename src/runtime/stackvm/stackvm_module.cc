@@ -106,7 +106,7 @@ class StackVMModuleNode : public runtime::ModuleNode {
     for (uint64_t i = 0; i < num_imports; ++i) {
       std::string tkey;
       CHECK(strm->Read(&tkey));
-      std::string fkey = "module.loadbinary_" + tkey;
+      std::string fkey = "runtime.module.loadbinary_" + tkey;
       const PackedFunc* f = Registry::Get(fkey);
       CHECK(f != nullptr)
           << "Loader of " << tkey << "("
@@ -137,7 +137,7 @@ Module StackVMModuleCreate(std::unordered_map<std::string, StackVM> fmap,
   return StackVMModuleNode::Create(fmap, entry_func);
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_stackvm")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_stackvm")
 .set_body_typed(StackVMModuleNode::LoadFromFile);
 
 }  // namespace runtime

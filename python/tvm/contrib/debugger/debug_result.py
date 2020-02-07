@@ -269,7 +269,7 @@ def save_tensors(params):
     param_bytes: bytearray
         Serialized parameters.
     """
-    _save_tensors = tvm.get_global_func("_save_param_dict")
+    _save_tensors = tvm.get_global_func("tvm.relay._save_param_dict")
 
     args = []
     for k, v in params.items():

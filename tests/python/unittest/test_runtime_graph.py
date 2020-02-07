@@ -51,7 +51,7 @@ def test_graph_simple():
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -62,7 +62,7 @@ def test_graph_simple():
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
     def check_remote():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -92,7 +92,7 @@ def test_graph_simple():
         params = {'x': x_in}
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))

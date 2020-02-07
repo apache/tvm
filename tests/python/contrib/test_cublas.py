@@ -29,7 +29,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
@@ -63,7 +63,7 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cublaslt.matmul", True):
@@ -114,7 +114,7 @@ def verify_batch_matmul(in_dtype, out_dtype, rtol=1e-5):
     s = tvm.create_schedule(C.op)
 
     def verify(target="cuda"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):

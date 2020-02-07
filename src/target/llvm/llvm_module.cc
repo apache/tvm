@@ -368,7 +368,7 @@ TVM_REGISTER_GLOBAL("codegen.llvm_version_major")
     *rv = major;
   });
 
-TVM_REGISTER_GLOBAL("module.loadfile_ll")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
     n->LoadIR(args[0]);

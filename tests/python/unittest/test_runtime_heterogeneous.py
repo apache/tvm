@@ -118,12 +118,12 @@ def test_simplex_data_transferring():
     host = "cpu"
     target_host = "llvm"
     host_ctx = tvm.context(host)
-    if not tvm.module.enabled(target_host):
+    if not tvm.runtime.enabled(target_host):
         print("Skip test because llvm is not enabled.")
         return
 
     def check_device(device, target_device):
-        if not tvm.module.enabled(target_device):
+        if not tvm.runtime.enabled(target_device):
             print("Skip test because {} is not enabled.".format(target_device))
             return
 
@@ -306,12 +306,12 @@ def test_duplex_data_transferring():
     host = "cpu"
     target_host = "llvm"
     host_ctx = tvm.context(host)
-    if not tvm.module.enabled(target_host):
+    if not tvm.runtime.enabled(target_host):
         print("Skip test because llvm is not enabled.")
         return
 
     def check_device(device, target_device):
-        if not tvm.module.enabled(target_device):
+        if not tvm.runtime.enabled(target_device):
             print("Skip test because {} is not enabled.".format(target_device))
             return
 
@@ -381,7 +381,7 @@ def test_duplex_data_transferring():
             mhost.export_library(path_lib)
             with open(temp.relpath("deploy.json"), "w") as out_file:
                 out_file.write(graph)
-            loaded_lib = tvm.module.load(path_lib)
+            loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_graph = open(temp.relpath("deploy.json")).read()
             mod = graph_runtime.create(loaded_graph, loaded_lib, ctx)
             mod.set_input(**params)

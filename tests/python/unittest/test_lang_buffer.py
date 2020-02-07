@@ -137,7 +137,7 @@ def test_buffer_broadcast():
     s = tvm.create_schedule(C.op)
 
     def check():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
         ctx = tvm.cpu(0)
@@ -165,7 +165,7 @@ def test_buffer_broadcast_expr():
     s = tvm.create_schedule(C.op)
 
     def check_stride():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
                          binds={A:Ab, B:Bb, C:Cc})
@@ -177,7 +177,7 @@ def test_buffer_broadcast_expr():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     def check_no_stride():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add',
                          binds={A: Ab, B: Bb, C: Cc})
@@ -189,7 +189,7 @@ def test_buffer_broadcast_expr():
         tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     def check_auto_bind():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             return
         # Let build bind buffers
         fadd = tvm.build(s, [A, B, C, o1, x], target='llvm', name='bcast_add')

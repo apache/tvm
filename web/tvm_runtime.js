@@ -858,7 +858,7 @@ var tvm_runtime = tvm_runtime || {};
      */
     this.systemLib = function() {
       if (typeof systemFunc.fGetSystemLib === "undefined") {
-        systemFunc.fGetSystemLib = getGlobalFunc("module._GetSystemLib");
+        systemFunc.fGetSystemLib = getGlobalFunc("runtime.SystemLib");
       }
       return systemFunc.fGetSystemLib();
     };

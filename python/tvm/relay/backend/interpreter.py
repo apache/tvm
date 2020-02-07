@@ -84,14 +84,14 @@ class Executor(object):
         expr: relay.Expr
             The expression to evaluate
 
-        args: List[tvm.NDArray]
+        args: List[tvm.nd.NDArray]
             The arguments to pass to the evaluator.
 
         kwargs: Dict[str, tvm.NDArrray]
             The keyword arguments to pass to the evaluator.
 
         Returns:
-            args: List[tvm.NDArray]
+            args: List[tvm.nd.NDArray]
                 The new arguments with all keyword arguments placed in the correct slot.
         """
         assert expr is not None

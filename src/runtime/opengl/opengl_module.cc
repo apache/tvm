@@ -278,17 +278,17 @@ Module OpenGLModuleLoadBinary(void* strm) {
   return OpenGLModuleCreate(FromJSON(data), fmt, fmap);
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_gl")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_gl")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenGLModuleLoadFile(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("module.loadfile_glbin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_glbin")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenGLModuleLoadFile(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("module.loadbinary_opengl")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_opengl")
   .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = OpenGLModuleLoadBinary(args[0]);
   });

@@ -103,7 +103,7 @@ def intrin_wmma_store_matrix(shape):
 
 
 def test_tensor_core_batch_matmal():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
     if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
@@ -216,7 +216,7 @@ def test_tensor_core_batch_matmal():
 
 
 def test_tensor_core_batch_conv():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
     if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):

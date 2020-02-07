@@ -21,8 +21,8 @@ import sys
 import numpy as np
 
 import tvm
+import tvm.runtime._ffi_api
 from tvm import relay
-from tvm import module as _tvm_module
 from tvm.contrib import util
 
 tmp_path = util.tempdir()
@@ -108,7 +108,7 @@ def generate_csource_module():
     TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, ccompiler_wrapper_0_);
 
     '''
-    csource_module = _tvm_module.csource_module_create(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
     return csource_module
 
 
@@ -126,7 +126,7 @@ def generate_engine_module():
 
     extern "C" void json_1_(float* json_input4, float* json_input5,
                             float* json_input6, float* json_input7, float* out) {
-            
+
         std::string graph =
             "add_2d,10,10\n"
             "sub_2d,10,10\n"
@@ -149,7 +149,7 @@ def generate_engine_module():
 
     extern "C" void json_0_(float* json_input0, float* json_input1,
                             float* json_input2, float* json_input3, float* out) {
-            
+
         std::string graph =
             "add_2d,10,10\n"
             "sub_2d,10,10\n"
@@ -174,7 +174,7 @@ def generate_engine_module():
     '''
 
     gen_json_engine()
-    csource_module = _tvm_module.csource_module_create(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
     return csource_module
 
 
@@ -444,7 +444,7 @@ def run_extern(label, get_extern_src, **kwargs):
     lib_path = tmp_path.relpath(lib_name)
     csource_module.export_library(lib_path, fcompile=False, **kwargs)
     # load module for execution.
-    lib = tvm.module.load(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
     mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
@@ -507,14 +507,14 @@ def test_json_extern():
 
 
     lib = get_synthetic_lib()
-    ext_lib = tvm.module.load(subgraph_path, "examplejson")
+    ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
     lib.import_module(ext_lib)
     lib_name = 'external.so'
     lib_path = tmp_path.relpath(lib_name)
     lib.export_library(lib_path)
 
     # load module for execution.
-    lib = tvm.module.load(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
     mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')

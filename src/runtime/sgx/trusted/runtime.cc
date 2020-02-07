@@ -84,7 +84,7 @@ void tvm_ecall_packed_func(int func_id,
 
 TVM_REGISTER_ENCLAVE_FUNC("__tvm_main__")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-  Module mod = (*Registry::Get("module._GetSystemLib"))();
+  Module mod = (*Registry::Get("runtime.SystemLib"))();
   mod.GetFunction("default_function").CallPacked(args, rv);
 });
 

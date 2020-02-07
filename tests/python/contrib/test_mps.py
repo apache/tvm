@@ -19,7 +19,7 @@ import numpy as np
 from tvm.contrib import mps
 
 def test_matmul():
-    if not tvm.module.enabled("metal"):
+    if not tvm.runtime.enabled("metal"):
         print("skip because %s is not enabled..." % "metal")
         return
     n = 1024
@@ -62,7 +62,7 @@ def test_matmul():
     verify(A, B, D, s)
 
 def test_conv2d():
-    if not tvm.module.enabled("metal"):
+    if not tvm.runtime.enabled("metal"):
         print("skip because %s is not enabled..." % "metal")
         return
     n = 1

@@ -1791,7 +1791,7 @@ def from_onnx(model,
     mod : tvm.relay.Module
         The relay module for compilation
 
-    params : dict of str to tvm.NDArray
+    params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relay
     """
     try:

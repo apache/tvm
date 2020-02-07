@@ -91,7 +91,7 @@ def test_cpu():
                    name="vector_add", dtype=dtype)
     s = tvm.create_schedule(C.op)
     def check_target(target):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)
@@ -134,7 +134,7 @@ def test_gpu():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     def check_target(target):
         n = 1024
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         # build and invoke the kernel.
         fadd = tvm.build(s, [A, B, C], target)

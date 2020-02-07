@@ -97,7 +97,7 @@ class DSOLibrary final : public Library {
 #endif
 };
 
-TVM_REGISTER_GLOBAL("module.loadfile_so")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_so")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<DSOLibrary>();
     n->Init(args[0]);

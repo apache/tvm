@@ -14,17 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime namespace."""
+"""FFI APIs for tvm.runtime"""
+import tvm._ffi
 
-# class exposures
-from .packed_func import PackedFunc
-from .object import Object
-from .object_generic import ObjectGeneric, ObjectTypes
-from .ndarray import NDArray, DataType, TypeCode, TVMContext
-from .module import Module
-
-# function exposures
-from .object_generic import convert_to_object, convert, const
-from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
-from .module import load_module, enabled, system_lib
+# Exports functions registered via TVM_REGISTER_GLOBAL with the "runtime" prefix.
+# e.g. TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile")
+tvm._ffi._init_api("runtime", __name__)

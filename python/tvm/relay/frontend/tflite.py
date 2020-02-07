@@ -1896,7 +1896,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     mod : tvm.relay.Module
         The relay module for compilation.
 
-    params : dict of str to tvm.NDArray
+    params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relay
     """
     try:

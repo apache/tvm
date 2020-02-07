@@ -19,6 +19,7 @@ import tvm._ffi
 
 from tvm.runtime import Object, ObjectTypes
 from tvm.runtime.container import getitem_helper
+from tvm.runtime import _ffi_node_api
 from . import _api_internal
 
 
@@ -33,10 +34,10 @@ class Array(Object):
     """
     def __getitem__(self, idx):
         return getitem_helper(
-            self, _api_internal._ArrayGetItem, len(self), idx)
+            self, _ffi_node_api.ArrayGetItem, len(self), idx)
 
     def __len__(self):
-        return _api_internal._ArraySize(self)
+        return _ffi_node_api.ArraySize(self)
 
 
 @tvm._ffi.register_object
@@ -62,18 +63,18 @@ class Map(Object):
     You can use convert to create a dict[Object-> Object] into a Map
     """
     def __getitem__(self, k):
-        return _api_internal._MapGetItem(self, k)
+        return _ffi_node_api.MapGetItem(self, k)
 
     def __contains__(self, k):
-        return _api_internal._MapCount(self, k) != 0
+        return _ffi_node_api.MapCount(self, k) != 0
 
     def items(self):
         """Get the items from the map"""
-        akvs = _api_internal._MapItems(self)
+        akvs = _ffi_node_api.MapItems(self)
         return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
-        return _api_internal._MapSize(self)
+        return _ffi_node_api.MapSize(self)
 
 
 @tvm._ffi.register_object
@@ -84,7 +85,7 @@ class StrMap(Map):
     """
     def items(self):
         """Get the items from the map"""
-        akvs = _api_internal._MapItems(self)
+        akvs = _ffi_node_api.MapItems(self)
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
 
 

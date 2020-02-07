@@ -235,7 +235,7 @@ TEST(PackedFunc, ObjectConversion) {
   pf1(ObjectRef(x), NDArray());
 
   // testcases for modules
-  auto* pf = tvm::runtime::Registry::Get("module.source_module_create");
+  auto* pf = tvm::runtime::Registry::Get("runtime.SourceModuleCreate");
   CHECK(pf != nullptr);
   Module m = (*pf)("", "xyz");
   rv = m;
