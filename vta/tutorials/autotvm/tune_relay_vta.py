@@ -74,6 +74,7 @@ from vta.top import graph_pack
 # ---------------
 # Perform vta-specific compilation with Relay from a Gluon model
 
+
 def compile_network(env, target, model, start_pack, stop_pack):
 
     # Populate the shape and data type dictionary
@@ -91,20 +92,18 @@ def compile_network(env, target, model, start_pack, stop_pack):
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
     with relay.build_config(opt_level=3):
-        with relay.quantize.qconfig(global_scale=8.0,
-                                    skip_conv_layers=[0]):
+        with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
             mod = relay.quantize.quantize(mod, params=params)
 
     # Perform graph packing and constant folding for VTA target
     if target.device_name == "vta":
         assert env.BLOCK_IN == env.BLOCK_OUT
-        relay_prog = graph_pack(
-            mod["main"],
-            env.BATCH,
-            env.BLOCK_OUT,
-            env.WGT_WIDTH,
-            start_name=start_pack,
-            stop_name=stop_pack)
+        relay_prog = graph_pack(mod["main"],
+                                env.BATCH,
+                                env.BLOCK_OUT,
+                                env.WGT_WIDTH,
+                                start_name=start_pack,
+                                stop_name=stop_pack)
 
     return relay_prog, params
 
@@ -195,8 +194,8 @@ target = env.target if device == "vta" else env.target_vta_cpu
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
 network = "resnet18_v1"
-start_pack="nn.max_pool2d"
-stop_pack="nn.global_avg_pool2d"
+start_pack = "nn.max_pool2d"
+stop_pack = "nn.global_avg_pool2d"
 
 # Tuning option
 log_file = "%s.%s.log" % (device, network)
@@ -209,12 +208,12 @@ tuning_option = {
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(),
-        runner=autotvm.RPCRunner(
-            env.TARGET, host=tracker_host, port=tracker_port,
-            number=5,
-            timeout=60,
-            check_correctness=True
-        ),
+        runner=autotvm.RPCRunner(env.TARGET,
+                                 host=tracker_host,
+                                 port=tracker_port,
+                                 number=5,
+                                 timeout=60,
+                                 check_correctness=True),
     ),
 }
 
@@ -240,6 +239,7 @@ tuning_option = {
 # Given that the tuning will be done on Pynq FPGA boards, make sure that
 # the ```TARGET`` entry in the ``vta_config.json`` file is set to ``pynq``.
 
+
 # You can skip the implementation of this function for this tutorial.
 def tune_tasks(tasks,
                measure_option,
@@ -255,7 +255,7 @@ def tune_tasks(tasks,
         os.remove(tmp_log_file)
 
     for i, tsk in enumerate(reversed(tasks)):
-        prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
+        prefix = "[Task %2d/%2d] " % (i + 1, len(tasks))
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
@@ -276,22 +276,23 @@ def tune_tasks(tasks,
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
-        n_trial = min(n_trial, len(tsk.config_space))
-        tuner_obj.tune(n_trial=n_trial,
+        tsk_trial = min(n_trial, len(tsk.config_space))
+        tuner_obj.tune(n_trial=tsk_trial,
                        early_stopping=early_stopping,
                        measure_option=measure_option,
                        callbacks=[
-                           autotvm.callback.progress_bar(n_trial, prefix=prefix),
-                           autotvm.callback.log_to_file(tmp_log_file)])
+                           autotvm.callback.progress_bar(tsk_trial, prefix=prefix),
+                           autotvm.callback.log_to_file(tmp_log_file)
+                       ])
 
     # pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_filename)
     os.remove(tmp_log_file)
 
 
-
 ########################################################################
 # Register VTA-specific tuning tasks
+
 
 def register_vta_tuning_tasks():
     from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
@@ -330,11 +331,15 @@ def register_vta_tuning_tasks():
 ########################################################################
 # Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
+
 def tune_and_evaluate(tuning_opt):
 
     if env.TARGET != "sim":
         # Get remote from fleet node
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, tracker_port, timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET,
+                                                tracker_host,
+                                                tracker_port,
+                                                timeout=10000)
         # Reconfigure the JIT runtime and FPGA.
         vta.reconfig_runtime(remote)
         vta.program_fpga(remote, bitstream=None)
@@ -351,7 +356,7 @@ def tune_and_evaluate(tuning_opt):
     mod = relay.Module.from_expr(relay_prog)
     tasks = autotvm.task.extract_from_program(mod,
                                               params=params,
-                                              ops=(tvm.relay.op.nn.conv2d,),
+                                              ops=(tvm.relay.op.nn.conv2d, ),
                                               target=target,
                                               target_host=env.target_host)
 
@@ -361,17 +366,16 @@ def tune_and_evaluate(tuning_opt):
     for tsk in tasks:
         inp = tsk.args[0][1]
         wgt = tsk.args[1][1]
-        batch = inp[0]*inp[4]
-        in_filter = inp[1]*inp[5]
-        out_filter = wgt[0]*wgt[4]
+        batch = inp[0] * inp[4]
+        in_filter = inp[1] * inp[5]
+        out_filter = wgt[0] * wgt[4]
         height, width = inp[2], inp[3]
         hkernel, wkernel = wgt[2], wgt[3]
         hstride, wstride = tsk.args[2][0], tsk.args[2][1]
         hpad, wpad = tsk.args[3][0], tsk.args[3][1]
         print("({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})".format(
-                batch, height, width, in_filter, out_filter,
-                hkernel, wkernel, hpad, wpad, hstride, wstride
-        ))
+            batch, height, width, in_filter, out_filter, hkernel, wkernel,
+            hpad, wpad, hstride, wstride))
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Comment the following line to run it by yourself.
@@ -387,14 +391,17 @@ def tune_and_evaluate(tuning_opt):
         print("Compile...")
         with relay.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             if target.device_name != "vta":
-                graph, lib, params = relay.build(
-                    relay_prog, target=target,
-                    params=params, target_host=env.target_host)
+                graph, lib, params = relay.build(relay_prog,
+                                                 target=target,
+                                                 params=params,
+                                                 target_host=env.target_host)
             else:
                 with vta.build_config():
                     graph, lib, params = relay.build(
-                        relay_prog, target=target,
-                        params=params, target_host=env.target_host)
+                        relay_prog,
+                        target=target,
+                        params=params,
+                        target_host=env.target_host)
 
         # Export library
         print("Upload...")
@@ -420,6 +427,7 @@ def tune_and_evaluate(tuning_opt):
         prof_res = np.array(tcost.results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
+
 
 # Run the tuning and evaluate the results
 tune_and_evaluate(tuning_option)
