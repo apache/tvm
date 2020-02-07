@@ -145,7 +145,7 @@ print(temp.listdir())
 
 # load the module back.
 loaded_json = open(temp.relpath("deploy_graph.json")).read()
-loaded_lib = tvm.module.load(path_lib)
+loaded_lib = tvm.runtime.load_module(path_lib)
 loaded_params = bytearray(open(temp.relpath("deploy_param.params"), "rb").read())
 input_data = tvm.nd.array(np.random.uniform(size=data_shape).astype("float32"))
 

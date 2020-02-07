@@ -47,7 +47,7 @@ The list of options include:
 
    Build TVM system library module. System lib is a global module that contains
    self registered functions in program startup. User can get the module using
-   :any:`tvm.module.system_lib`.
+   :any:`tvm.runtime.system_lib`.
    It is useful in environments where dynamic loading api like dlopen is banned.
    The system lib will be available as long as the result code is linked by the program.
 

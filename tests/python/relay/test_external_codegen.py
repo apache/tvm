@@ -43,7 +43,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.module.load(lib_path)
+        lib = tvm.runtime.load_module(lib_path)
 
         return lib
 

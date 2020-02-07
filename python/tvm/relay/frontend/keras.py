@@ -756,7 +756,7 @@ def from_keras(model, shape=None):
     mod : tvm.relay.Module
         The relay module for compilation.
 
-    params : dict of str to tvm.NDArray
+    params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by Relay.
     """
     def _check_model_is_tf_keras():

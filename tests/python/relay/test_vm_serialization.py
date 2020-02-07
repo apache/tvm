@@ -113,7 +113,7 @@ def test_serializer():
 
     code, lib = exe.save()
     assert isinstance(code, bytearray)
-    assert isinstance(lib, tvm.module.Module)
+    assert isinstance(lib, tvm.runtime.Module)
 
 
 def test_save_load():
@@ -133,7 +133,7 @@ def test_save_load():
     with open(tmp.relpath("code.ro"), "wb") as fo:
         fo.write(code)
 
-    loaded_lib = tvm.module.load(path_lib)
+    loaded_lib = tvm.runtime.load_module(path_lib)
     loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
 
     # deserialize.

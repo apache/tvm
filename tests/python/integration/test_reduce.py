@@ -39,7 +39,7 @@ def test_reduce_prims():
         # one line to build the function.
         def check_device(device, host="llvm"):
             ctx = tvm.context(device, 0)
-            if not tvm.module.enabled(host):
+            if not tvm.runtime.enabled(host):
                 return
             if not ctx.exist:
                 print("skip because %s is not enabled.." % device)
@@ -81,7 +81,7 @@ def test_rfactor():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -111,7 +111,7 @@ def test_rfactor_factor_axis():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -252,7 +252,7 @@ def test_argmax():
 
     def check_target():
         device = 'cpu'
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         ctx = tvm.context(device, 0)

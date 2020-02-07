@@ -37,7 +37,7 @@ def verify_matmul_add(m, l, n, transa=False, transb=False, dtype=tvm.float32):
         return np.dot(a, b) + bb
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):
@@ -81,7 +81,7 @@ def verify_batch_matmul(batch, m, l, n, transa=False, transb=False, iterative=Fa
         return topi.testing.batch_matmul(a, b)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cblas.matmul", True):

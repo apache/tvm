@@ -53,7 +53,7 @@ Let us build one ResNet-18 workload for GPU as an example first.
    resnet18_lib.export_library(path_lib)
 
    # load it back
-   loaded_lib = tvm.module.load(path_lib)
+   loaded_lib = tvm.runtime.load(path_lib)
    assert loaded_lib.type_key == "library"
    assert loaded_lib.imported_modules[0].type_key == "cuda"
 
@@ -177,7 +177,7 @@ support arbitrary modules to import ideally.
 Deserialization
 ****************
 
-The entrance API is ``tvm.module.load``. This function
+The entrance API is ``tvm.runtime.load``. This function
 is to call ``_LoadFromFile`` in fact. If we dig it a little deeper, this is
 ``Module::LoadFromFile``. In our example, the file is ``deploy.so``,
 according to the function logic, we will call ``module.loadfile_so`` in

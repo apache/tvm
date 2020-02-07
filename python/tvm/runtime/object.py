@@ -19,7 +19,7 @@
 import ctypes
 
 from tvm._ffi.base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
-from .. import _api_internal
+from . import _ffi_api, _ffi_node_api
 
 try:
     # pylint: disable=wrong-import-position,unused-import
@@ -41,22 +41,22 @@ def _new_object(cls):
 class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
     def __repr__(self):
-        return _api_internal._format_str(self)
+        return _ffi_node_api.AsRepr(self)
 
     def __dir__(self):
-        fnames = _api_internal._NodeListAttrNames(self)
+        fnames = _ffi_node_api.NodeListAttrNames(self)
         size = fnames(-1)
         return [fnames(i) for i in range(size)]
 
     def __getattr__(self, name):
         try:
-            return _api_internal._NodeGetAttr(self, name)
+            return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
             raise AttributeError(
                 "%s has no attribute %s" % (str(type(self)), name))
 
     def __hash__(self):
-        return _api_internal._raw_ptr(self)
+        return _ffi_api.ObjectHash(self)
 
     def __eq__(self, other):
         return self.same_as(other)
@@ -71,25 +71,19 @@ class Object(ObjectBase):
     def __getstate__(self):
         handle = self.handle
         if handle is not None:
-            return {'handle': _api_internal._save_json(self)}
+            return {'handle': _ffi_node_api.SaveJSON(self)}
         return {'handle': None}
 
     def __setstate__(self, state):
-        # pylint: disable=assigning-non-slot
+        # pylint: disable=assigning-non-slot, assignment-from-no-return
         handle = state['handle']
         if handle is not None:
             json_str = handle
-            other = _api_internal._load_json(json_str)
+            other = _ffi_node_api.LoadJSON(json_str)
             self.handle = other.handle
             other.handle = None
         else:
             self.handle = None
-
-    def same_as(self, other):
-        """check object identity equality"""
-        if not isinstance(other, Object):
-            return False
-        return self.__hash__() == other.__hash__()
 
 
 _set_class_object(Object)

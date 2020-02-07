@@ -211,6 +211,13 @@ class TVM_DLL ModuleNode : public Object {
                      std::shared_ptr<PackedFunc> > import_cache_;
 };
 
+/*!
+ * \brief Check if runtime module is enabled for target.
+ * \param target The target module name.
+ * \return Whether runtime is enabled.
+ */
+TVM_DLL bool RuntimeEnabled(const std::string& target);
+
 /*! \brief namespace for constant symbols */
 namespace symbol {
 /*! \brief Global variable to store module context. */

@@ -630,3 +630,7 @@ TVM_REGISTER_GLOBAL("_GetDeviceAttr")
       DeviceAPIManager::Get(ctx)->GetAttr(ctx, kind, ret);
     }
   });
+
+
+TVM_REGISTER_GLOBAL("runtime.TVMSetStream")
+.set_body_typed(TVMSetStream);

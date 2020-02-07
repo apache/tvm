@@ -20,7 +20,7 @@ import tvm
 from tvm.contrib import cc, util
 
 def test_add(target_dir):
-    if not tvm.module.enabled("cuda"):
+    if not tvm.runtime.enabled("cuda"):
         print("skip %s because cuda is not enabled..." % __file__)
         return
     n = tvm.var("n")

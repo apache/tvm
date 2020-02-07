@@ -40,7 +40,7 @@ def _load_sw():
         assert lib_hw # make sure to build vta/hardware/chisel
         try:
             f = tvm.get_global_func("vta.tsim.init")
-            m = tvm.module.load(lib_hw[0], "vta-tsim")
+            m = tvm.runtime.load_module(lib_hw[0], "vta-tsim")
             f(m)
             return lib_hw
         except OSError:
