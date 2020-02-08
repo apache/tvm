@@ -403,7 +403,10 @@ class Server(object):
         """Terminate the server process"""
         if self.use_popen:
             if self.proc:
-                os.killpg(self.proc.pid, signal.SIGTERM)
+                if platform.system() == "Windows":
+                    os.kill(self.proc.pid, signal.CTRL_C_EVENT)
+                else:
+                    os.killpg(self.proc.pid, signal.SIGTERM)
                 self.proc = None
         else:
             if self.proc:
