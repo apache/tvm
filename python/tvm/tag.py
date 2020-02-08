@@ -16,7 +16,8 @@
 # under the License.
 """Tag class for TVM operators."""
 import warnings
-from ._ffi.base import decorate
+import functools
+
 
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context
@@ -49,10 +50,11 @@ class TagScope(object):
         TagScope._current = self._old_scope
 
     def __call__(self, fdecl):
-        def tagged_fdecl(func, *args, **kwargs):
+        @functools.wraps(fdecl)
+        def tagged_fdecl(*args, **kwargs):
             with self:
-                return func(*args, **kwargs)
-        return decorate(fdecl, tagged_fdecl)
+                return fdecl(*args, **kwargs)
+        return tagged_fdecl
 
 
 def tag_scope(tag):

@@ -55,18 +55,11 @@ We can use :any:`tvm.target.create` to create a tvm.target.Target from the targe
 We can also use other specific function in this module to create specific targets.
 """
 import warnings
+import functools
 import tvm._ffi
 
 from tvm.runtime import Object
-from ._ffi.base import _LIB_NAME
 from . import _api_internal
-
-try:
-    from decorator import decorate
-except ImportError as err_msg:
-    # Allow decorator to be missing in runtime
-    if _LIB_NAME != "libtvm_runtime.so":
-        raise err_msg
 
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
@@ -289,17 +282,18 @@ def override_native_generic_func(func_name):
                 return _do_reg(func)
             return _do_reg
 
-        def dispatch_func(func, *args, **kwargs):
+        @functools.wraps(fdefault)
+        def dispatch_func(*args, **kwargs):
             #pylint: disable=unused-argument
             """The wrapped dispath function"""
             if kwargs:
                 raise RuntimeError(
                     "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
             return generic_func_node(*args)
-        fresult = decorate(fdefault, dispatch_func)
-        fresult.fdefault = fdefault
-        fresult.register = register
-        return fresult
+
+        dispatch_func.fdefault = fdefault
+        dispatch_func.register = register
+        return dispatch_func
     return fdecorate
 
 def generic_func(fdefault):
@@ -371,19 +365,20 @@ def generic_func(fdefault):
             return _do_reg(func)
         return _do_reg
 
-    def dispatch_func(func, *args, **kwargs):
+    @functools.wraps(fdefault)
+    def dispatch_func(*args, **kwargs):
         """The wrapped dispath function"""
         target = current_target()
         if target is None:
-            return func(*args, **kwargs)
+            return fdefault(*args, **kwargs)
         for k in target.keys:
             if k in dispatch_dict:
                 return dispatch_dict[k](*args, **kwargs)
-        return func(*args, **kwargs)
-    fdecorate = decorate(fdefault, dispatch_func)
-    fdecorate.register = register
-    fdecorate.fdefault = fdefault
-    return fdecorate
+        return fdefault(*args, **kwargs)
+
+    dispatch_func.register = register
+    dispatch_func.fdefault = fdefault
+    return dispatch_func
 
 
 def cuda(model='unknown', options=None):

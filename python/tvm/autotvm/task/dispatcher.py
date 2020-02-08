@@ -31,9 +31,8 @@ of the DispatchContext base class.
 from __future__ import absolute_import as _abs
 
 import logging
-
+import functools
 import numpy as np
-from decorator import decorate
 
 from tvm import target as _target
 
@@ -205,10 +204,11 @@ def dispatcher(fworkload):
             return _do_reg(func)
         return _do_reg
 
-    def dispatch_func(func, *args, **kwargs):
+    @functools.wraps(fworkload)
+    def dispatch_func(*args, **kwargs):
         """The wrapped dispatch function"""
         tgt = _target.current_target()
-        workload = func(*args, **kwargs)
+        workload = fworkload(*args, **kwargs)
         cfg = DispatchContext.current.query(tgt, workload)
         if cfg.is_fallback and not cfg.template_key:
             # first try 'direct' template
@@ -220,9 +220,8 @@ def dispatcher(fworkload):
         else:
             return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
 
-    fdecorate = decorate(fworkload, dispatch_func)
-    fdecorate.register = register
-    return fdecorate
+    dispatch_func.register = register
+    return dispatch_func
 
 
 class ApplyConfig(DispatchContext):

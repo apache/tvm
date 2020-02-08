@@ -29,9 +29,9 @@ HalideIR.
 # 1. Support HalideIR dumping to Hybrid Script
 # 2. Support multi-level HalideIR
 import inspect
+import functools
 import tvm._ffi
 
-from .._ffi.base import decorate
 from ..build_module import form_body
 
 from .module import HybridModule
@@ -50,21 +50,22 @@ def script(pyfunc):
     hybrid_func : function
         A decorated hybrid script function.
     """
-    def wrapped_func(func, *args, **kwargs): #pylint: disable=missing-docstring
+    @functools.wraps(pyfunc)
+    def wrapped_func(*args, **kwargs): #pylint: disable=missing-docstring
         from .util import _is_tvm_arg_types
         if _is_tvm_arg_types(args):
-            src = _pruned_source(func)
-            closure_vars = inspect.getclosurevars(func).nonlocals
-            closure_vars.update(inspect.getclosurevars(func).globals)
-            return source_to_op(src, args, func.__globals__, closure_vars)
+            src = _pruned_source(pyfunc)
+            closure_vars = inspect.getclosurevars(pyfunc).nonlocals
+            closure_vars.update(inspect.getclosurevars(pyfunc).globals)
+            return source_to_op(src, args, pyfunc.__globals__, closure_vars)
 
         from .runtime import _enter_hybrid_runtime, _restore_runtime
-        intersect = _enter_hybrid_runtime(func)
+        intersect = _enter_hybrid_runtime(pyfunc)
         value = func(*args, **kwargs)
-        _restore_runtime(func, intersect)
+        _restore_runtime(pyfunc, intersect)
         return value
 
-    return decorate(pyfunc, wrapped_func)
+    return wrapped_func
 
 
 def build(sch, inputs, outputs, name="hybrid_func"):
