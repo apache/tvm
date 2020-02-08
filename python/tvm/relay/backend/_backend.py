@@ -44,8 +44,9 @@ def lower(sch, inputs, func_name, source_func):
     lowered_funcs : List[tvm.LoweredFunc]
         The result of lowering.
     """
+    # pylint: disable=broad-except, import-outside-toplevel
     import traceback
-    # pylint: disable=broad-except
+
     try:
         f = _build.lower(sch, inputs, name=func_name)
         # logging.debug("lower function %s", func_name)

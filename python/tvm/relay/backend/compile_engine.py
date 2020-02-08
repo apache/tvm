@@ -86,7 +86,7 @@ class CompileEngine(Object):
         cached_func: CachedFunc
             The result of lowering.
         """
-        # pylint: disable=broad-except
+        # pylint: disable=broad-except, import-outside-toplevel
         try:
             key = _get_cache_key(source_func, target)
             return _backend._CompileEngineLower(self, key)

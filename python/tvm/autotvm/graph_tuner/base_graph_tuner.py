@@ -539,4 +539,3 @@ class BaseGraphTuner(object):
     @abstractmethod
     def run(self, **kwargs):
         """Run graph tuning."""
-        pass

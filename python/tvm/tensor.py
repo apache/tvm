@@ -179,7 +179,6 @@ class BaseComputeOp(Operation):
 @tvm._ffi.register_object
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
-    pass
 
 
 @tvm._ffi.register_object

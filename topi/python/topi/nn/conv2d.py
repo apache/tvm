@@ -66,9 +66,9 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
     # default declaration
     if layout == 'NCHW':
         return conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'HWCN':
+    if layout == 'HWCN':
         return conv2d_hwcn(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return conv2d_nhwc(input, filter, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
@@ -764,6 +764,7 @@ def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_d
     output : tvm.Tensor
         4-D with shape [alpha, alpha, CO, CI]
     """
+    # pylint: disable=import-outside-toplevel
     from tvm.contrib import nnpack
     return nnpack.convolution_inference_weight_transform(
         kernel, algorithm=convolution_algorithm, dtype=out_dtype)

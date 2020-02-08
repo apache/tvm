@@ -147,6 +147,7 @@ def check_backend(tophub_location, backend):
     if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
         return True
 
+    # pylint: disable=import-outside-toplevel
     if sys.version_info >= (3,):
         import urllib.request as urllib2
     else:

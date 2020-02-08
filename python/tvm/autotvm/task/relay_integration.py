@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-variable,invalid-name
+# pylint: disable=unused-variable,invalid-name, not-context-manager
 """
 Decorator and utilities for the integration with TOPI and Relay
 99.9% copy-paste of implementation by @MerryMercy
@@ -37,7 +37,7 @@ def _lower(mod,
            params):
     """ Helper to lower VTA properly.
     """
-
+    # pylint: disable=import-outside-toplevel
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
 
@@ -114,6 +114,7 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
     task: Array of autotvm.task.Task
         collected tasks
     """
+    # pylint: disable=import-outside-toplevel
     import tvm.relay.op
     from tvm import relay
     import topi

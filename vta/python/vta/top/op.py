@@ -127,10 +127,9 @@ def compute_conv2d_transpose(attrs, inputs, output_type, target):
         if is_packed_layout(layout):
             return [topi.nn.conv2d_transpose_nchw(
                 inputs[0], inputs[1], strides, padding, out_dtype)]
-        else:
-            # If it's not packed, run on ARM CPU
-            with tvm.target.arm_cpu(tvm.target.current_target().model):
-                return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
+        # If it's not packed, run on ARM CPU
+        with tvm.target.arm_cpu(tvm.target.current_target().model):
+            return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
 
     # If VTA is not the target, default to _nn def
     return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
@@ -145,10 +144,9 @@ def schedule_conv2d_transpose(attrs, outputs, target):
     if target.device_name == "vta":
         if is_packed_layout(layout):
             return topi.nn.schedule_conv2d_transpose_nchw(outputs)
-        else:
-            # If it's not packed, run on ARM CPU
-            with tvm.target.arm_cpu(tvm.target.current_target().model):
-                return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
+        # If it's not packed, run on ARM CPU
+        with tvm.target.arm_cpu(tvm.target.current_target().model):
+            return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
 
     # If VTA is not the target, default to _nn def
     return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())

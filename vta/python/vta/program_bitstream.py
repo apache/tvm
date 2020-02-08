@@ -43,6 +43,7 @@ def main():
     bitstream_program(args.target, args.bitstream)
 
 def pynq_bitstream_program(bitstream_path):
+    # pylint: disable=import-outside-toplevel
     from pynq import Bitstream
     bitstream = Bitstream(bitstream_path)
     bitstream.download()

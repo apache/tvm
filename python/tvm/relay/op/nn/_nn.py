@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -265,6 +265,7 @@ def schedule_conv2d(attrs, outs, target):
 @reg.register_alter_op_layout("nn.conv2d")
 def alter_op_layout_conv2d(attrs, inputs, tinfos):
     """Alternate the layout of conv2d"""
+    # pylint: disable=import-outside-toplevel
     from ... import op
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
@@ -309,7 +310,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
     result : tvm.relay.Expr
         The transformed expr
     """
-
+    # pylint: disable=import-outside-toplevel
     from tvm import relay
     data_layout = attrs['data_layout']
     kernel_layout = attrs['kernel_layout']

@@ -74,8 +74,7 @@ def conv2d_bifrost(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     if layout == 'NCHW':
         return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
                                         dilation, out_dtype, num_tile=3)
-    else:
-        raise ValueError("Unsupported layout {}".format(layout))
+    raise ValueError("Unsupported layout {}".format(layout))
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'bifrost', ['direct', 'winograd'])

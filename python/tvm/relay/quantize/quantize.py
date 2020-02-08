@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=unused-argument
+#pylint: disable=unused-argument, not-context-manager
 """Automatic quantization toolkit."""
 from __future__ import absolute_import
 from . import _quantize

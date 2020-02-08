@@ -60,7 +60,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
             for i in range(n+1):
                 if i == bit_axis:
                     continue
-                elif i == pack_axis:
+                if i == pack_axis:
                     idx[j] = indices[i] * data_width + k
                 else:
                     idx[j] = indices[i]
@@ -88,4 +88,3 @@ def binary_op_multiplier(pack_dtype):
     pack_dtype: string
         pack type for the operator (must be a uint)"""
     return int(pack_dtype[4:])
-    
