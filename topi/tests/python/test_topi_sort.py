@@ -21,6 +21,15 @@ import tvm
 import topi
 import topi.testing
 
+_argsort_implement = {
+    "generic": (topi.argsort, topi.generic.schedule_argsort),
+    "gpu": (topi.cuda.argsort, topi.cuda.schedule_argsort),
+}
+
+_topk_implement = {
+    "generic": (topi.topk, topi.generic.schedule_topk),
+    "gpu": (topi.cuda.topk, topi.cuda.schedule_topk),
+}
 
 def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
@@ -48,8 +57,9 @@ def verify_argsort(axis, is_ascend):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, axis=axis, is_ascend=is_ascend)
-            s = topi.generic.schedule_argsort(out)
+            fcompute, fschedule = topi.testing.dispatch(device, _argsort_implement)
+            out = fcompute(data, axis=axis, is_ascend=is_ascend)
+            s = fschedule(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
@@ -91,9 +101,10 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            outs = topi.topk(data, k, axis, ret_type, is_ascend, dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _topk_implement)
+            outs = fcompute(data, k, axis, ret_type, is_ascend, dtype)
             outs = outs if isinstance(outs, list) else [outs]
-            s = topi.generic.schedule_topk(outs)
+            s = fschedule(outs)
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_res = []
         for t in outs:

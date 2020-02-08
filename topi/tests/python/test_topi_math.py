@@ -20,7 +20,7 @@ import tvm
 import topi
 import topi.testing
 from topi import util
-from common import get_all_backend, get_schedule_injective
+from common import get_all_backend
 
 
 def test_util():
@@ -62,7 +62,7 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = get_schedule_injective(device)(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
@@ -102,7 +102,7 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = get_schedule_injective(device)(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name="isnan")
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
@@ -152,7 +152,7 @@ def test_cast():
                 continue
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = get_schedule_injective(device)(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)

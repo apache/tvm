@@ -26,8 +26,7 @@ from .conv3d_direct import schedule_direct_conv3d_cuda
 
 
 @autotvm.register_topi_compute("conv3d_ncdhw.cuda")
-def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout='NCDHW',
-                 out_dtype='float32'):
+def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
     """Conv3D operator for cuda backend.
 
     Parameters
@@ -50,9 +49,6 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout='NCDHW',
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
-    layout : str
-        layout of data
-
     out_dtype: str
         The output type. This is used for mixed precision.
 
@@ -61,7 +57,7 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, layout='NCDHW',
     output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, layout, out_dtype)
+    return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv3d_ncdhw.cuda")
@@ -95,8 +91,7 @@ def schedule_conv3d_ncdhw(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv3d_ndhwc.cuda")
-def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout='NDHWC',
-                 out_dtype='float32'):
+def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
     """Conv3D operator for cuda backend.
 
     Parameters
@@ -119,9 +114,6 @@ def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout='NDHWC',
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
-    layout : str
-        layout of data
-
     out_dtype: str
         The output type. This is used for mixed precision.
 
@@ -130,7 +122,7 @@ def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout='NDHWC',
     output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, layout, out_dtype)
+    return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv3d_ndhwc.cuda")

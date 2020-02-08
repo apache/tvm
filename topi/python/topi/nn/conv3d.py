@@ -25,7 +25,7 @@ from .util import get_pad_tuple3d
 from ..util import simplify
 
 
-def conv3d_ncdhw(Input, Filter, stride, padding, dilation, layout='NCDHW', out_dtype=None):
+def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Conv3D operator in NCDHW layout.
 
     Parameters
@@ -50,7 +50,6 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, layout='NCDHW', out_d
     Output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    assert layout == "NCDHW"
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 3
@@ -95,7 +94,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, layout='NCDHW', out_d
             axis=[rc, rz, ry, rx]), tag="conv3d_ncdhw")
 
 
-def conv3d_ndhwc(Input, Filter, stride, padding, dilation, layout='NDHWC', out_dtype='float32'):
+def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     """Convolution operator in NDHWC layout.
 
     Parameters
@@ -120,7 +119,6 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, layout='NDHWC', out_d
     Output : tvm.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    assert layout == "NDHWC"
     assert isinstance(stride, int) or len(stride) == 3
     assert isinstance(dilation, int) or len(dilation) == 3
 

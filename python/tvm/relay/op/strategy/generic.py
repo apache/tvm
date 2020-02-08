@@ -330,7 +330,7 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     return strategy
 
 # conv3d
-def wrap_compute_conv3d(topi_compute):
+def wrap_compute_conv3d(topi_compute, need_layout=False):
     """wrap conv3d topi compute"""
     def _compute_conv3d(attrs, inputs, out_type):
         padding = get_const_tuple(attrs.padding)
@@ -345,12 +345,14 @@ def wrap_compute_conv3d(topi_compute):
         (dilation_d, dilation_h, dilation_w) = dilation
         if dilation_d < 1 or dilation_h < 1 or dilation_w < 1:
             raise ValueError("Dilation should be positive value")
-
-        if groups == 1:
+        if groups != 1:
+            raise ValueError("Not support arbitrary group number for conv3d")
+        if need_layout:
             out = topi_compute(inputs[0], inputs[1], strides, padding, dilation,
                                layout, out_dtype)
         else:
-            raise ValueError("Not support arbitrary group number for now")
+            out = topi_compute(inputs[0], inputs[1], strides, padding, dilation,
+                               out_dtype)
         return [out]
     return _compute_conv3d
 

@@ -20,7 +20,7 @@ import tvm
 import topi
 import topi.testing
 
-from common import get_all_backend, get_schedule_injective
+from common import get_all_backend
 
 
 def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, layout='NCHW', mode='DCR'):
@@ -56,7 +56,7 @@ def verify_depth_to_space(block_size, batch, in_channel, in_height, in_width, la
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = get_schedule_injective(device)(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)

@@ -101,4 +101,4 @@ def test_system_lib():
 
 if __name__ == "__main__":
     test_resnet18()
-    test_system_lib()
+    #test_system_lib()

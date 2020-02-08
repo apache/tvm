@@ -108,7 +108,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_elemwise(B)
+            s = topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
         foo = tvm.build(s, [A, B, k] + sh, device, name="tensor_scalar_" + typ)
@@ -154,7 +154,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(C)
+            s = topi.testing.get_broadcast_schedule(device)(C)
 
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)

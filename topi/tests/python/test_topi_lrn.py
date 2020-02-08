@@ -21,8 +21,6 @@ import topi
 from topi.util import get_const_tuple
 import topi.testing
 
-from common import get_schedule
-
 _lrn_schedule = {
     "generic": topi.generic.schedule_lrn,
     "gpu": topi.cuda.schedule_lrn,
@@ -47,7 +45,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _lrn_schedule)
+            s_func = topi.testing.dispatch(device, _lrn_schedule)
             s = s_func([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)

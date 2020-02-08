@@ -26,8 +26,6 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from topi.vision import ssd, non_max_suppression, get_valid_counts
 
-from common import get_schedule, get_implement
-
 _get_valid_counts_implement = {
     "generic": (topi.vision.get_valid_counts, topi.generic.schedule_get_valid_counts),
     "gpu": (topi.cuda.get_valid_counts, topi.cuda.schedule_get_valid_counts),
@@ -91,7 +89,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            fcompute, fschedule = get_implement(device, _get_valid_counts_implement)
+            fcompute, fschedule = topi.testing.dispatch(device, _get_valid_counts_implement)
             data = tvm.placeholder(dshape, name="data", dtype=dtype)
             outs = fcompute(data, score_threshold, id_index, score_index)
             s = fschedule(outs)
@@ -133,7 +131,7 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            fcompute, fschedule = get_implement(device, _nms_implement)
+            fcompute, fschedule = topi.testing.dispatch(device, _nms_implement)
             out = fcompute(data, valid_count, -1, iou_threshold, force_suppress, top_k,
                            coord_start=coord_start, score_index=score_index, id_index=id_index,
                            return_indices=False)
@@ -230,7 +228,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
                 out = ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
             else:
                 out = topi.cuda.ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
-            s_func = get_schedule(device, _multibox_prior_schedule)
+            s_func = topi.testing.dispatch(device, _multibox_prior_schedule)
             s = s_func(out)
 
         tvm_input_data = tvm.nd.array(input_data, ctx)
@@ -277,7 +275,7 @@ def test_multibox_detection():
                 out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
             else:
                 out = topi.cuda.ssd.multibox_detection(cls_prob, loc_preds, anchors)
-            s_func = get_schedule(device, _multibox_detection_schedule)
+            s_func = topi.testing.dispatch(device, _multibox_detection_schedule)
             s = s_func(out)
 
         tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
@@ -320,7 +318,7 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         print("Running on target: %s" % device)
 
         with tvm.target.create(device):
-            fcompute, fschedule = get_implement(device, _roi_align_implement)
+            fcompute, fschedule = topi.testing.dispatch(device, _roi_align_implement)
             b = fcompute(a, rois, pooled_size=pooled_size,
                          spatial_scale=spatial_scale,
                          sample_ratio=sample_ratio)
@@ -373,7 +371,7 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
         with tvm.target.create(device):
             b = topi.vision.rcnn.roi_pool_nchw(a, rois, pooled_size=pooled_size,
                                                 spatial_scale=spatial_scale)
-            s_func = get_schedule(device, _roi_pool_schedule)
+            s_func = topi.testing.dispatch(device, _roi_pool_schedule)
             s = s_func(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
@@ -404,7 +402,7 @@ def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            fcompute, fschedule = get_schedule(device, _proposal_implement)
+            fcompute, fschedule = topi.testing.dispatch(device, _proposal_implement)
             out = fcompute(cls_prob, bbox_pred, im_info, **attrs)
             s = fschedule(out)
             f = tvm.build(s, [cls_prob, bbox_pred, im_info, out], device)

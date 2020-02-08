@@ -21,7 +21,7 @@ import tvm
 import topi
 import topi.testing
 from topi.util import get_const_tuple
-from common import get_all_backend, get_schedule
+from common import get_all_backend
 
 _pool_schedule = {
     "generic": topi.generic.schedule_pool,
@@ -93,7 +93,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _pool_schedule)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 
         a = tvm.nd.array(a_np, ctx)
@@ -149,7 +149,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _pool_grad_schedule)
+            s_func = topi.testing.dispatch(device, _pool_grad_schedule)
             s = s_func(PoolGrad)
 
         a = tvm.nd.array(a_np, ctx)
@@ -222,7 +222,7 @@ def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _adaptive_pool_schedule)
+            s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
             s = s_func(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -277,7 +277,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _adaptive_pool_schedule)
+            s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
             s = s_func(out)
         a = tvm.nd.array(np_data, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
@@ -321,7 +321,7 @@ def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _pool_schedule)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 
         a = tvm.nd.array(input_np, ctx)
@@ -374,7 +374,7 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s_func = get_schedule(device, _pool_schedule)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
             s = s_func(B, layout)
 
         a = tvm.nd.array(input_np, ctx)

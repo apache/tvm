@@ -18,9 +18,11 @@
 
 import tvm
 import topi
+import topi.testing
 import numpy as np
-from common import get_all_backend, get_schedule_injective
 from tvm.contrib.pickle_memoize import memoize
+
+from common import get_all_backend
 
 def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
     buffer = tvm.placeholder(buffer_shape, name='buffer', dtype=dtype)
@@ -52,7 +54,7 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
 
         with tvm.target.create(device):
             out = topi.nn.fifo_buffer(data, buffer, axis=axis)
-            s = get_schedule_injective(device)([out])
+            s = topi.testing.get_injective_schedule(device)([out])
 
         buffer_tvm = tvm.nd.array(buffer_np, ctx=ctx)
         data_tvm = tvm.nd.array(data_np, ctx=ctx)
@@ -128,7 +130,7 @@ def verify_conv1d_integration():
 
         with tvm.target.create(device):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
-            s = get_schedule_injective(device)([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_context = tvm.build(s, [inc_input, context, out], device, name='update_context')
 
             out = topi.nn.conv2d(context, kernel, strides=stride, padding=padding, dilation=dilate,
@@ -137,12 +139,12 @@ def verify_conv1d_integration():
             conv2d_inc = tvm.build(s, [context, kernel, out], device, name='conv2d_inc')
 
             out = topi.nn.fifo_buffer(inc_output, output_window, axis=buffer_axis)
-            s = get_schedule_injective(device)([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_output_window = tvm.build(s, [inc_output, output_window, out], device,
                  name='update_output_window')
 
             out = topi.nn.fifo_buffer(inc_input, input_window, axis=buffer_axis)
-            s = get_schedule_injective(device)([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_input_window = tvm.build(s, [inc_input, input_window, out], device,
                                             name='update_input_window')
 

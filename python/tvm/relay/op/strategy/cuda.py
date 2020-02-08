@@ -92,7 +92,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
                 name="conv2d_nchw.cuda")
             _, _, kh, kw = get_const_tuple(kernel.shape)
-            if kh <= 7 and kw <= 7 and kh == kw and stride_h == 1 and stride_w == 1 and \
+            if 2 < kh < 8 and 2 < kw < 8 and kh == kw and stride_h == 1 and stride_w == 1 and \
                 dilation_h == 1 and dilation_w == 1:
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd),
@@ -227,7 +227,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                                name="conv3d_ndhwc.cuda",
                                plevel=10)
     if target.target_name == "cuda" and "cudnn" in target.libs:
-        strategy.add_implement(wrap_compute_conv3d(topi.cuda.conv3d_cudnn),
+        strategy.add_implement(wrap_compute_conv3d(topi.cuda.conv3d_cudnn, True),
                                wrap_topi_schedule(topi.cuda.schedule_conv3d_cudnn),
                                name="conv3d_cudnn.cuda",
                                plevel=15)

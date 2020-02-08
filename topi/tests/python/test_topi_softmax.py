@@ -23,7 +23,7 @@ import topi.testing
 import logging
 from topi.util import get_const_tuple
 
-from common import get_all_backend, get_schedule
+from common import get_all_backend
 
 _softmax_schedule = {
     "generic": topi.generic.schedule_softmax,
@@ -40,7 +40,7 @@ def check_device(A, B, a_np, b_np, device, name):
         return
     print("Running on target: %s" % device)
     with tvm.target.create(device):
-        s_func = get_schedule(device, _softmax_schedule)
+        s_func = topi.testing.dispatch(device, _softmax_schedule)
         s = s_func(B)
 
     a = tvm.nd.array(a_np, ctx)

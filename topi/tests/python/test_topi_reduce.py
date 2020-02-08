@@ -19,8 +19,9 @@ import os
 import numpy as np
 import tvm
 import topi
+import topi.testing
 
-from common import get_all_backend, get_schedule_reduce
+from common import get_all_backend
 
 def _my_npy_argmax(arr, axis, keepdims):
     if not keepdims:
@@ -74,7 +75,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = get_schedule_reduce(device)(B)
+            s = topi.testing.get_reduce_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name=type)
         # Test
