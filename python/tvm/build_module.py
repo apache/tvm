@@ -467,7 +467,7 @@ def _build_for_device(flist, target, target_host):
             func = ir_pass.InferFragment(func)
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
-            fsplits = [s for s in ir_pass.SplitHostDevice(func)]
+            fsplits = list(ir_pass.SplitHostDevice(func))
             fhost.append(fsplits[0])
             for x in fsplits[1:]:
                 fdevice.append(x)

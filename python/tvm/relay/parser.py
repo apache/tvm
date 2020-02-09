@@ -22,6 +22,7 @@ from .. import register_func
 @register_func("relay.fromtext")
 def fromtext(data, source_name=None):
     """Parse a Relay program."""
+    # pylint: disable=import-outside-toplevel
     from tvm.relay import _parser
     x = _parser.fromtext(data + "\n", source_name)
     if x is None:

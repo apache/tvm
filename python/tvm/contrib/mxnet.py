@@ -49,7 +49,7 @@ def to_mxnet_func(func, const_loc=None):
         Run asynchrously in MXNet's async engine.
     """
     # only import mxnet when wrap get called.
-    # pylint: disable=import-self
+    # pylint: disable=import-self, import-outside-toplevel
     import mxnet
     if isinstance(func, Module):
         func = func.entry_func

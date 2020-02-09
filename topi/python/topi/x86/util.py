@@ -21,6 +21,6 @@ import tvm
 def get_fp32_len():
     mcpu = tvm.target.current_target().mcpu
     fp32_vec_len = 8
-    if mcpu == 'skylake-avx512' or mcpu == 'cascadelake':
+    if mcpu in ('skylake-avx512', 'cascadelake'):
         fp32_vec_len = 16
     return fp32_vec_len

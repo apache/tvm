@@ -125,8 +125,7 @@ class Expr(RelayNode):
     def __rsub__(self, other):
         if isinstance(other, _Number):
             raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
+        raise TypeError("type %s not supported" % str(type(other)))
 
     def __mul__(self, other):
         if isinstance(other, Expr):
@@ -150,8 +149,7 @@ class Expr(RelayNode):
     def __rdiv__(self, other):
         if isinstance(other, _Number):
             raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
+        raise TypeError("type %s not supported" % str(type(other)))
 
     def __truediv__(self, other):
         return self.__div__(other)

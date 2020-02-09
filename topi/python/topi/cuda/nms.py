@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
+# pylint: disable=bad-continuation, unused-argument
 """Non-maximum suppression operator"""
 import math
 import tvm
@@ -397,7 +398,7 @@ def get_valid_counts_gpu(data, score_threshold=0, id_index=0, score_index=1):
                    name="get_valid_counts_phase_four")
     valid_count, out_tensor = \
 	tvm.extern([(batch_size,), data.shape], [data, temp_flag, temp_idx_final],
-            lambda ins, outs: get_valid_counts_ir(
+               lambda ins, outs: get_valid_counts_ir(
                 ins[0], ins[1], ins[2], outs[0], outs[1]),
             dtype=["int32", data.dtype],
             in_buffers=[data_buf, temp_flag_buf, temp_idx_buf],

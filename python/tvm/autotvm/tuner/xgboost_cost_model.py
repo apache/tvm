@@ -420,6 +420,7 @@ def _extract_curve_feature_log(arg):
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                     maximize=False, verbose_eval=True):
     """callback function for xgboost to support multiple custom evaluation functions"""
+    # pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
     from xgboost.training import aggcv

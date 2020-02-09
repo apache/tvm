@@ -63,7 +63,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     is_depthwise = groups == kshape[0] and kshape[1] == 1
 
     # Save the input exprs.
-    copy_inputs = [s for s in inputs]
+    copy_inputs = list(inputs)
 
     # Set the new attrs
     new_attrs = {k : attrs[k] for k in attrs.keys()}

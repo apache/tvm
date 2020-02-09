@@ -198,7 +198,7 @@ class HybridParser(ast.NodeVisitor):
             ty, entry = self.symbols[key] #pylint: disable=invalid-name
             if ty in [Symbol.Input, Symbol.OutputBuffer]:
                 continue
-            elif 'Buffer' in ty.name:
+            if 'Buffer' in ty.name:
                 _buf = entry
                 _scope = 'global' if ty is Symbol.BufferVar else ty.name[:-6].lower()
                 to_pop.append(key)

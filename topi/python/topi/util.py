@@ -25,7 +25,6 @@ from . import tag, cpp
 
 class InvalidShapeError(ValueError):
     """Invalid shape for a topi function. i.e. call winograd template for non-3x3 kernel)"""
-    pass
 
 def nchw_pack_layout(layout_info):
     """Check whether the layout type is NCHWinic"""
@@ -350,7 +349,7 @@ def get_shape(src_shape, src_layout, dst_layout):
 
     layout_mapping = bijective_layout(src_layout, dst_layout)
     dst_indices = layout_mapping.forward_index(
-        tvm.convert([i for i in range(len(src_layout))]))
+        tvm.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 

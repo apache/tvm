@@ -50,7 +50,8 @@ def script(pyfunc):
     hybrid_func : function
         A decorated hybrid script function.
     """
-    def wrapped_func(func, *args, **kwargs): #pylint: disable=missing-docstring
+    # pylint: disable=import-outside-toplevel, missing-docstring
+    def wrapped_func(func, *args, **kwargs):
         from .util import _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)

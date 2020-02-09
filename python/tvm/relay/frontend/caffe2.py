@@ -401,6 +401,7 @@ class Caffe2NetDef(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        # pylint: disable=import-outside-toplevel
         from caffe2.python import workspace
         workspace.RunNetOnce(init_net)
 

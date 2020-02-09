@@ -238,13 +238,10 @@ def strided_set(a, v, begin, end, strides=None):
         from_val = []
         index_tuple = []
         for i in range(n):
-            from_val.append(
-       	        within_index(begin[i], end[i], strides[i], indices[i]))
+            from_val.append(within_index(begin[i], end[i], strides[i], indices[i]))
             index_tuple.append(
                 make_idx(begin[i], end[i], strides[i], a.shape[i], indices[i]))
-        return tvm.if_then_else(tvm.all(*from_val),
-       	       	                v(*index_tuple),
-                                a(*indices))
+        return tvm.if_then_else(tvm.all(*from_val), v(*index_tuple), a(*indices))
 
     return tvm.compute(a.shape, _select, name="strided_set")
 
@@ -568,7 +565,7 @@ def sequence_mask(data, valid_length, mask_value=0, axis=0):
 
     assert len(data.shape) >= 2,\
         "only support data.ndim >= 2, received data.shape = {}".format(data.shape)
-    assert axis == 0 or axis == 1, "only support axis = 0, 1, received axis = {}".format(axis)
+    assert axis in (0, 1), "only support axis = 0, 1, received axis = {}".format(axis)
     return cpp.sequence_mask(data, valid_length, mask_value, axis)
 
 

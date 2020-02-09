@@ -104,6 +104,7 @@ class RedisDatabase(Database):
     MAGIC_SPLIT = "$"
 
     def __init__(self, db_index=REDIS_PROD):
+        # pylint: disable=import-outside-toplevel
         import redis
 
         if db_index == RedisDatabase.REDIS_TEST:

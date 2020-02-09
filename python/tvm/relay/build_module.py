@@ -407,7 +407,6 @@ def create_executor(kind="debug",
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    elif kind == "vm":
+    if kind == "vm":
         return VMExecutor(mod, ctx, target)
-    else:
-        raise RuntimeError("unknown execution strategy: {0}".format(kind))
+    raise RuntimeError("unknown execution strategy: {0}".format(kind))

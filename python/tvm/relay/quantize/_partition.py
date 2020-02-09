@@ -88,7 +88,7 @@ def add_partition_generic(ref_call, new_args, ctx):
         lhs = new_args[0].realize()
         rhs = new_args[1].realize()
         return _forward_op(ref_call, [lhs, rhs])
-    elif not lhs_cond and rhs_cond:
+    if not lhs_cond and rhs_cond:
         # - introduced by residual connection in ResNet
         #     ...
         #     %13 = nn.conv2d(%12, %meta[relay.Constant])
@@ -104,7 +104,7 @@ def add_partition_generic(ref_call, new_args, ctx):
         #     ...
         rhs = new_args[1].realize()
         return _forward_op(ref_call, [lhs, rhs])
-    elif lhs_cond and not rhs_cond:
+    if lhs_cond and not rhs_cond:
         if _analysis.check_constant(rhs):
             # - introduced by batch_norm: add(out, bias)
             return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
@@ -121,11 +121,11 @@ def add_partition_generic(ref_call, new_args, ctx):
         #     ...
         lhs = new_args[0].realize()
         return _forward_op(ref_call, [lhs, rhs])
-    elif not lhs_cond and not rhs_cond:
+    if not lhs_cond and not rhs_cond:
         # trivial case
         return None
-    else:
-        raise ValueError
+
+    raise ValueError
 
 
 # TODO(ziheng) enhance `register_partition_function` to dispatch

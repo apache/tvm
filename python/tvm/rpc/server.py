@@ -161,11 +161,10 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 conn.close()
                 logger.warning("mismatch key from %s", addr)
                 continue
-            else:
-                conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
-                conn.sendall(struct.pack("<i", len(server_key)))
-                conn.sendall(server_key.encode("utf-8"))
-                return conn, addr, _parse_server_opt(arr[1:])
+            conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
+            conn.sendall(struct.pack("<i", len(server_key)))
+            conn.sendall(server_key.encode("utf-8"))
+            return conn, addr, _parse_server_opt(arr[1:])
 
     # Server logic
     tracker_conn = None
@@ -208,6 +207,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         server_proc.join(opts.get("timeout", None))
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
+            # pylint: disable=import-outside-toplevel
             import psutil
             parent = psutil.Process(server_proc.pid)
             # terminate worker childs
@@ -233,7 +233,8 @@ def _connect_proxy_loop(addr, key, load_library):
             magic = struct.unpack("<i", base.recvall(sock, 4))[0]
             if magic == base.RPC_CODE_DUPLICATE:
                 raise RuntimeError("key: %s has already been used in proxy" % key)
-            elif magic == base.RPC_CODE_MISMATCH:
+
+            if magic == base.RPC_CODE_MISMATCH:
                 logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError("%s is not RPC Proxy" % str(addr))
@@ -380,8 +381,7 @@ class Server(object):
                 except socket.error as sock_err:
                     if sock_err.errno in [98, 48]:
                         continue
-                    else:
-                        raise sock_err
+                    raise sock_err
             if not self.port:
                 raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
             logger.info("bind to %s:%d", host, self.port)
