@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, singleton-comparison
+# pylint: disable=invalid-name, singleton-comparison, bad-continuation
 """Proposal operator"""
 import math
 import tvm
@@ -177,7 +177,7 @@ def argsort_ir(data_buf, out_index_buf):
         with ib.for_range(0, num_bbox) as k:
             offset = start + 2 * tid + idxm(k, 2)
             with ib.if_scope(
-                tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
+                    tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
                 temp_data[0] = p_data[offset]
                 p_data[offset] = p_data[offset + 1]
                 p_data[offset + 1] = temp_data[0]

@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines
+# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+
 """Tensorflow lite frontend."""
 from __future__ import absolute_import as _abs
 import math
@@ -1458,8 +1459,7 @@ class OperatorConverter(object):
                 raise tvm.error.OpNotImplemented(
                     'Operator {} with fused activation is not supported yet.'
                     .format('qnn.op.pool2d'))
-            else:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_pad(self, op):

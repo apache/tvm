@@ -41,8 +41,7 @@ class WithScope(object):
     def __exit__(self, ptype, value, trace):
         if value:
             raise value
-        else:
-            self._exit_cb()
+        self._exit_cb()
 
 def _make_lets(bindings, ret_value):
     """Make a nested let expressions.

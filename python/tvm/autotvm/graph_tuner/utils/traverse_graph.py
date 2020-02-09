@@ -65,6 +65,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
                                % op_name)
         topi_funcs += OP2COMPUTE[op_name]
     env.reset(topi_funcs)
+    # pylint: disable=not-context-manager
     with env:
         _expr2graph_impl(expr, target_ops, node_dict, node_list)
         task_pos = 0

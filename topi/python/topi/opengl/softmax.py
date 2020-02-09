@@ -51,7 +51,7 @@ def schedule_softmax(outs):
         raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
                          Got {0}'.format(op_tag))
 
-    if exp != None:
+    if exp is not None:
         s[exp].opengl()
 
     s[max_elem].opengl()

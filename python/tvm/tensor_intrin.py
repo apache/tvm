@@ -112,7 +112,7 @@ def decl_tensor_intrin(op,
         raise TypeError("expect Operation")
     inputs = op.input_tensors
     binds = binds if binds else {}
-    tensors = [x for x in inputs]
+    tensors = list(inputs)
     for i in range(op.num_outputs):
         tensors.append(op.output(i))
 

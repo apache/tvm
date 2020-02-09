@@ -79,11 +79,10 @@ compilation guide to get Xilinx toolchains setup) and add it to your \
 $VTA_CACHE_PATH. Alternatively edit your config.json back to its default \
 settings. You can see the list of available bitstreams under {}"
                 .format(url, BITSTREAM_URL))
-        else:
-            raise RuntimeError(
-                # This could happen when trying to access the URL behind a proxy
-                "Something went wrong when trying to access {}. Check your \
+        raise RuntimeError(
+            # This could happen when trying to access the URL behind a proxy
+            "Something went wrong when trying to access {}. Check your \
 internet connection or proxy settings."
-                .format(url))
+            .format(url))
 
     return success

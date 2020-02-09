@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self, unused-argument, unused-variable, inconsistent-return-statements
+# pylint: disable=invalid-name, import-self, unused-argument, unused-variable
+# pylint: disable=inconsistent-return-statements, import-outside-toplevel
 """CoreML frontend."""
 from __future__ import absolute_import as _abs
 import math
@@ -111,14 +112,13 @@ def _BatchnormLayerParams(op, inexpr, etab):
     if op.instanceNormalization:
         raise tvm.error.OpNotImplemented(
             'Operator "instance normalization" is not supported in frontend CoreML.')
-    else:
-        params = {'gamma':etab.new_const(list(op.gamma.floatValue)),
-                  'beta':etab.new_const(list(op.beta.floatValue)),
-                  'moving_mean':etab.new_const(list(op.mean.floatValue)),
-                  'moving_var': etab.new_const(list(op.variance.floatValue)),
-                  'epsilon': op.epsilon}
-        result, moving_mean, moving_var = _op.nn.batch_norm(data=inexpr, **params)
-        return result
+    params = {'gamma':etab.new_const(list(op.gamma.floatValue)),
+              'beta':etab.new_const(list(op.beta.floatValue)),
+              'moving_mean':etab.new_const(list(op.mean.floatValue)),
+              'moving_var': etab.new_const(list(op.variance.floatValue)),
+              'epsilon': op.epsilon}
+    result, moving_mean, moving_var = _op.nn.batch_norm(data=inexpr, **params)
+    return result
 
 
 def _ActivationParams(op, inexpr, etab):
@@ -197,37 +197,36 @@ def _PoolingLayerParams(op, inexpr, etab):
         raise tvm.error.OpNotImplemented(
             'Only Max and Average Pooling are supported in frontend CoreML.')
 
+    params = {'pool_size':list(op.kernelSize),
+              'strides':list(op.stride)}
+
+    if op.WhichOneof('PoolingPaddingType') == 'valid':
+        valid = op.valid
+        if valid.paddingAmounts.borderAmounts:
+            assert len(valid.paddingAmounts.borderAmounts) == 2
+            pad_t = valid.paddingAmounts.borderAmounts[0].startEdgeSize
+            pad_l = valid.paddingAmounts.borderAmounts[1].startEdgeSize
+            pad_b = valid.paddingAmounts.borderAmounts[0].endEdgeSize
+            pad_r = valid.paddingAmounts.borderAmounts[1].endEdgeSize
+            if not all(v == 0 for v in (pad_t, pad_l, pad_b, pad_r)):
+                params['padding'] = [pad_t, pad_l, pad_b, pad_r]
+    elif op.WhichOneof('PoolingPaddingType') == 'includeLastPixel':
+        # I don't know if this is correct
+        valid = op.includeLastPixel
+        padding = list(valid.paddingAmounts)
+        params['padding'] = padding
+        params['ceil_mode'] = True
     else:
-        params = {'pool_size':list(op.kernelSize),
-                  'strides':list(op.stride)}
+        msg = 'PoolingPaddingType {} is not supported in operator Pooling.'
+        op_name = op.WhichOneof('PoolingPaddingType')
+        raise tvm.error.OpAttributeUnImplemented(msg.format(op_name))
 
-        if op.WhichOneof('PoolingPaddingType') == 'valid':
-            valid = op.valid
-            if valid.paddingAmounts.borderAmounts:
-                assert len(valid.paddingAmounts.borderAmounts) == 2
-                pad_t = valid.paddingAmounts.borderAmounts[0].startEdgeSize
-                pad_l = valid.paddingAmounts.borderAmounts[1].startEdgeSize
-                pad_b = valid.paddingAmounts.borderAmounts[0].endEdgeSize
-                pad_r = valid.paddingAmounts.borderAmounts[1].endEdgeSize
-                if not all(v == 0 for v in (pad_t, pad_l, pad_b, pad_r)):
-                    params['padding'] = [pad_t, pad_l, pad_b, pad_r]
-        elif op.WhichOneof('PoolingPaddingType') == 'includeLastPixel':
-            # I don't know if this is correct
-            valid = op.includeLastPixel
-            padding = list(valid.paddingAmounts)
-            params['padding'] = padding
-            params['ceil_mode'] = True
-        else:
-            msg = 'PoolingPaddingType {} is not supported in operator Pooling.'
-            op_name = op.WhichOneof('PoolingPaddingType')
-            raise tvm.error.OpAttributeUnImplemented(msg.format(op_name))
-
-        if op.type == 0:
-            return _op.nn.max_pool2d(inexpr, **params)
-        if op.type == 1:
-            return _op.nn.avg_pool2d(inexpr, **params)
-        raise tvm.error.OpNotImplemented(
-            'Only Max and Average Pooling are supported in CoreML.')
+    if op.type == 0:
+        return _op.nn.max_pool2d(inexpr, **params)
+    if op.type == 1:
+        return _op.nn.avg_pool2d(inexpr, **params)
+    raise tvm.error.OpNotImplemented(
+        'Only Max and Average Pooling are supported in CoreML.')
 
 
 def _SoftmaxLayerParams(op, inexpr, etab):
@@ -297,10 +296,8 @@ def _PaddingLayerParams(op, inexpr, etab):
                                                   (0, 0),
                                                   (pad_t, pad_b),
                                                   (pad_l, pad_r)))
-
-    else:
-        raise tvm.error.OpNotImplemented(
-            'Non-constant padding is not supported in frontend CoreML.')
+    raise tvm.error.OpNotImplemented(
+        'Non-constant padding is not supported in frontend CoreML.')
 
 
 def _PermuteLayerParams(op, inexpr, etab):

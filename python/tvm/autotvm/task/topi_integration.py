@@ -76,6 +76,7 @@ class TaskExtractEnv:
     registered = None
 
     def __init__(self, allow_duplicate=False):
+        # pylint: disable=import-outside-toplevel
         import topi
 
         # topi compute -> autotvm task name
@@ -168,6 +169,7 @@ class TaskExtractEnv:
 
     def _register_topi_task(self):
         """register tuning wrapper for topi function"""
+        # pylint: disable=import-outside-toplevel
         import topi
 
         # Avoid double registration for certain targets

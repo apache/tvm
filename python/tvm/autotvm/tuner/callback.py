@@ -53,6 +53,7 @@ def log_to_file(file_out, protocol='json'):
             for inp, result in zip(inputs, results):
                 file_out.write(record.encode(inp, result, protocol) + "\n")
 
+    # pylint: disable=import-outside-toplevel
     from pathlib import Path
     if isinstance(file_out, Path):
         file_out = str(file_out)

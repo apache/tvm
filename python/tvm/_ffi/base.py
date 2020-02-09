@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM FFI."""
 import sys
 import os
@@ -204,14 +204,14 @@ def _find_error_type(line):
         if _valid_error_name(err_name):
             return err_name
         return None
-    else:
-        end_pos = line.find(":")
-        if end_pos == -1:
-            return None
-        err_name = line[:end_pos]
-        if _valid_error_name(err_name):
-            return err_name
+
+    end_pos = line.find(":")
+    if end_pos == -1:
         return None
+    err_name = line[:end_pos]
+    if _valid_error_name(err_name):
+        return err_name
+    return None
 
 
 def c2pyerror(err_msg):

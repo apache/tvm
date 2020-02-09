@@ -70,6 +70,7 @@ def _pruned_source(func):
 
 def replace_io(body, rmap):
     """Replacing tensors usage according to the dict given"""
+    # pylint: disable=import-outside-toplevel
     from .. import ir_pass
 
     def replace(op):

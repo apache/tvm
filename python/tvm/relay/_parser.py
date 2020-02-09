@@ -78,7 +78,7 @@ class ParseError(Exception):
 
 class OpWrapper:
     """Overload the __call__ for op."""
-    pass
+
 
 class ExprOp(OpWrapper):
     """Call an expr. The default, but does not handle attrs well."""
@@ -273,7 +273,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def _type_expr_name(self, e):
         if isinstance(e, adt.Constructor):
             return "`{0}` ADT constructor".format(e.belong_to.name_hint)
-        elif isinstance(e, ty.GlobalTypeVar):
+        if isinstance(e, ty.GlobalTypeVar):
             if e.kind == ty.Kind.AdtHandle:
                 return "ADT definition"
         return "function definition"
@@ -623,7 +623,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
             return func(args, attrs, type_args)
-        elif isinstance(func, adt.Constructor):
+        if isinstance(func, adt.Constructor):
             return func(*args)
         return expr.Call(func, args, attrs, type_args)
 

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member,import-outside-toplevel
 """Conv2D schedule on x86"""
 
 import logging
@@ -126,7 +126,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     #     # specialize for INT8 1X1 conv on X86
     #     return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
     #                                                       padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
