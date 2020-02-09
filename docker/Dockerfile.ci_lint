@@ -17,7 +17,7 @@
 
 # For lint test
 # CI docker lint env
-# tag: v0.51
+# tag: v0.60
 FROM ubuntu:16.04
 
 RUN apt-get update && apt-get install -y sudo wget
@@ -25,7 +25,7 @@ COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
 
 RUN apt-get install -y doxygen graphviz git
-RUN pip3 install cpplint pylint==1.9.4 mypy
+RUN pip3 install cpplint pylint==2.4.4 mypy
 
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
