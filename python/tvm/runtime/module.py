@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-import
+# pylint: disable=invalid-name, unused-import, import-outside-toplevel
 """Runtime Module namespace."""
 import ctypes
 import struct
