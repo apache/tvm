@@ -184,7 +184,7 @@ class NDArray(NDArrayBase):
         """
         if isinstance(target, NDArrayBase):
             return self._copyto(target)
-        elif isinstance(target, TVMContext):
+        if isinstance(target, TVMContext):
             res = empty(self.shape, self.dtype, target)
             return self._copyto(res)
         raise ValueError("Unsupported target type %s" % str(type(target)))

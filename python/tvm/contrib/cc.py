@@ -76,8 +76,7 @@ def get_target_by_dump_machine(compiler):
                 msg += py_str(out)
                 return None
             return py_str(out)
-        else:
-            return None
+        return None
 
     return get_target_triple
 

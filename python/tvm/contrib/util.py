@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common system utilities"""
-from __future__ import absolute_import as _abs
 import os
 import tempfile
 import shutil
@@ -167,35 +166,3 @@ def which(exec_name):
         if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
             return full_path
     return None
-
-def get_lower_ir(s):
-    """Get lower ir code of a schedule.
-    This is useful for debug, since you don't have to find all inputs/outputs
-    for a schedule in a fused subgraph.
-
-    Parameters
-    ----------
-    s: Schedule
-
-    Returns
-    -------
-    ir: str
-        The lower ir
-    """
-    from .. import tensor
-    from ..build_module import lower
-
-    outputs = s.outputs
-
-    inputs = []
-    def find_all(op):
-        if isinstance(op, tensor.PlaceholderOp):
-            inputs.append(op.output(0))
-        else:
-            for x in op.input_tensors:
-                find_all(x.op)
-
-    for out in outputs:
-        find_all(out)
-
-    return lower(s, inputs, simple_mode=True)
