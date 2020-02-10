@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-outside-toplevel
 """Tensor Expression Debug Display (TEDD), visualizing Tensor Expression"""
 import html
 import json
 import warnings
 from graphviz import Digraph
 from graphviz import Source
-from IPython.display import display
-from IPython.display import SVG
 import tvm
 
 TVMDD_TABLE_BODY_WIDTH = 30
@@ -208,6 +207,8 @@ def dump_graph(dot_string,
         except IOError:
             print('Cannot open file: ' + dot_file_path)
     if show_svg:
+        from IPython.display import display
+        from IPython.display import SVG
         src = Source(dot_string)
         display(SVG(src.pipe(format='svg')))
     if output_dot_string:

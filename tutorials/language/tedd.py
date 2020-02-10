@@ -16,7 +16,7 @@
 # under the License. 
 """ 
 Use Tensor Expression Debug Display (TEDD) for Visualization 
-============================================= 
+============================================================ 
 **Author**: `Yongfeng Gu <https://github.com/yongfeng-nv>`_
 
 This is an introduction about using TEDD to visualize tensor expressions. 
@@ -47,10 +47,11 @@ from tvm.contrib import tedd
 
 ######################################################################
 # Define and Schedule Convolution with Bias and ReLU
-# ----------------------------
+# --------------------------------------------------
 # Let's build an example Tensor Expression for a convolution followed by Bias and ReLU.
 # We first connect conv2d, add, and relu TOPIs.  Then, we create a TOPI generic schedule.
 #
+
 batch = 1
 in_channel = 256
 in_size = 32
@@ -70,11 +71,12 @@ with tvm.target.create("cuda"):
  
 ###################################################################### 
 # Render Graphs with TEDD
-# ------------------- 
+# -----------------------
 # We render graphs to see the computation  
 # and how it is scheduled.   
 # If you run the tutorial in a Jupyter notebook, you can use the following commented lines  
 # to render SVG figures showing in notebook directly.
+#
 
 tedd.viz_dataflow_graph(s, dot_file_path = '/tmp/dfg.dot') 
 #tedd.viz_dataflow_graph(s, show_svg = True) 
@@ -83,18 +85,22 @@ tedd.viz_dataflow_graph(s, dot_file_path = '/tmp/dfg.dot')
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_dfg.png
 #      :align: center
 #      :scale: 100%
+#
 # The first one is a dataflow graph.  Every node represents a stage with name and memory  
 # scope shown in the middle and inputs/outputs information on the sides.   
 # Edges show nodes' dependency.   
+#
 
 tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree.dot') 
 #tedd.viz_schedule_tree(s, show_svg = True) 
+
 ######################################################################
 # We just rendered the schedule tree graph.  You may notice an warning about ranges not 
 # available.
 # The message also suggests to call normalize() to infer range information.  We will
 # skip inspecting the first schedule tree and encourage you to compare the graphs before
-# and and after normalize() for its impact.
+# and after normalize() for its impact.
+#
 
 s = s.normalize()
 tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot') 
@@ -104,6 +110,7 @@ tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot')
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_st.png
 #      :align: center
 #      :scale: 100%
+#
 # Now, let us take a close look at the second schedule tree.  Every block under ROOT 
 # represents a  
 # stage.  Stage name shows in the top row and compute shows in the bottom row.   
@@ -120,6 +127,7 @@ tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot')
 # If a stage doesn't compute_at any other stage, it has an edge directly to the  
 # ROOT node.  Otherwise, it has an edge pointing to the IterVar it attaches to,  
 # such as W.shared attaches to rx.outer in the middle compute stage. 
+#
 
 ###################################################################### 
 # .. note:: 
@@ -127,6 +135,7 @@ tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot')
 #   By definition, IterVars are internal nodes and computes are leaf nodes in 
 #   a schedule tree.   The edges among IterVars and compute within one stage are 
 #   omitted, making every stage a block, for better readability.
+#
 
 tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot') 
 #tedd.viz_itervar_relationship_graph(s, show_svg = True) 
@@ -135,6 +144,7 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_itervar_rel.png
 #      :align: center
 #      :scale: 100%
+#
 # The last one is an IterVar Relationship Graph.  Every subgraph represents a  
 # stage and contains IterVar nodes and transformation nodes.  For example,   
 # W.shared has three split nodes and three fuse nodes.  The rest are IterVar  
@@ -142,6 +152,7 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 # IterVars are those not driven by any transformation node, such as ax0; leaf  
 # IterVars don't drive any transformation node and have non-negative indices,  
 # such as ax0.ax1.fused.ax2.fused.ax3.fused.outer with index of 0.
+#
 
 
 ###################################################################### 
@@ -149,4 +160,5 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 # ------- 
 # This tutorial demonstrates the usage of TEDD.  We use an example built 
 # with TOPI to show the schedules under the hood.  You can also use 
-# it before and after any schedule primitive to inspect the impact.
+# it before and after any schedule primitive to inspect its effect.
+#

@@ -28,7 +28,7 @@ def findany(pattern, str):
 
 def checkdepdency():
     import pkg_resources
-    return not {'graphviz', 'IPython'} - {pkg.key for pkg in pkg_resources.working_set}
+    return not {'graphviz', 'ipython'} - {pkg.key for pkg in pkg_resources.working_set}
 
 def test_dfg():
     A = tvm.placeholder((1024, 4096), dtype='float32', name='A')
