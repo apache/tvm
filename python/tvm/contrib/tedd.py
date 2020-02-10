@@ -77,7 +77,8 @@ class ObjectManager:
             for rel_idx, rel in enumerate(stage.relations):
                 self.dict[rel] = [stage_idx, rel_idx]
             for tensor_idx in range(stage.op.num_outputs):
-                self.dict[frozenset({stage.op.name, tensor_idx})] = [stage_idx, tensor_idx]
+                self.dict[frozenset({stage.op.name,
+                                     tensor_idx})] = [stage_idx, tensor_idx]
 
     def get_dom_path(self, obj):
         if obj is None:
@@ -187,8 +188,8 @@ def legend_dot(g):
         subgraph.node('legend', label, shape='none', margin='0')
 
 
-def extract_dom_for_viz(sch):
-    json_str = dump_json(sch)
+def extract_dom_for_viz(sch, need_range=True):
+    json_str = dump_json(sch, need_range)
     s = json.loads(json_str)
     s = insert_dot_id(s)
     return s
@@ -214,7 +215,7 @@ def dump_graph(dot_string,
     return None
 
 
-def dump_json(sch):
+def dump_json(sch, need_range):
     """Serialize data for visualization from a schedule in JSON format.
 
         Parameters
@@ -229,7 +230,8 @@ def dump_json(sch):
     """
     def encode_itervar(itervar, stage, index, range_map):
         """Extract and encode IterVar visualization data to a dictionary"""
-        ivrange = range_map[itervar] if range_map is not None and itervar in range_map else None
+        ivrange = range_map[
+            itervar] if range_map is not None and itervar in range_map else None
         bind_thread = None
         tensor_intrin = None
         if itervar in stage.iter_var_attrs:
@@ -273,8 +275,7 @@ def dump_json(sch):
         for itervar in stage.all_iter_vars:
             leaf_index = get_leaf_itervar_index(itervar, stage.leaf_iter_vars)
             itervars.append(
-                encode_itervar(itervar, stage, leaf_index,
-                               range_map))
+                encode_itervar(itervar, stage, leaf_index, range_map))
         return itervars
 
     def encode_itervar_relation(obj_manager, rel):
@@ -329,8 +330,7 @@ def dump_json(sch):
         tensors = []
         for i in range(stage.op.num_outputs):
             tensor = stage.op.output(i)
-            tensors.append(
-                encode_tensor(obj_manager, tensor, stage))
+            tensors.append(encode_tensor(obj_manager, tensor, stage))
         tensors.sort(key=lambda tensor: tensor["value_index"])
         return tensors
 
@@ -362,7 +362,7 @@ def dump_json(sch):
         }
         return stage_dict
 
-    def encode_schedule(sch):
+    def encode_schedule(sch, need_range):
         """Extract and encode data from a schedule for visualization to a nested dictionary.
         It is useful for JSON to serialize schedule.
 
@@ -378,13 +378,15 @@ def dump_json(sch):
         """
         assert isinstance(sch, tvm.schedule.Schedule
                           ), 'Input is not a tvm.schedule.Schedule object.'
-        try:
-            range_map = tvm.schedule.InferBound(sch)
-        except tvm._ffi.base.TVMError as expt:
-            warnings.warn(
-                'Ranges are not available, because InferBound fails with the following error:\n'
-                + str(expt))
-            range_map = None
+        range_map = None
+        if need_range:
+            try:
+                range_map = tvm.schedule.InferBound(sch)
+            except tvm._ffi.base.TVMError as expt:
+                warnings.warn(
+                    'Ranges are not available, because InferBound fails with the following error:\n'
+                    + str(expt))
+
         obj_manager = ObjectManager(sch)
         stages = []
         for stage in sch.stages:
@@ -394,7 +396,7 @@ def dump_json(sch):
             "stages": stages,
         }
 
-    return json.dumps(sch, default=encode_schedule)
+    return json.dumps(sch, default=lambda s: encode_schedule(s, need_range))
 
 
 def viz_schedule_tree(sch,
@@ -724,7 +726,7 @@ def viz_dataflow_graph(sch,
                 g.edge(src, dst)
 
     graph = create_dataflow_graph("Dataflow Graph")
-    s = extract_dom_for_viz(sch)
+    s = extract_dom_for_viz(sch, need_range=False)
     for stage in s['stages']:
         stage_node_dot(graph, stage)
         for tensor in stage["output_tensors"]:

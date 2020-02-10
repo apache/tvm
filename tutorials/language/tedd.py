@@ -67,8 +67,7 @@ with tvm.target.create("cuda"):
     t_bias = topi.add(t_conv, B)
     t_relu = topi.nn.relu(t_bias)
     s = topi.generic.schedule_conv2d_hwcn([t_relu]) 
-    s = s.normalize()
-
+ 
 ###################################################################### 
 # Render Graphs with TEDD
 # ------------------- 
@@ -78,11 +77,7 @@ with tvm.target.create("cuda"):
 # to render SVG figures showing in notebook directly.
 
 tedd.viz_dataflow_graph(s, dot_file_path = '/tmp/dfg.dot') 
-tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree.dot') 
-tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot') 
 #tedd.viz_dataflow_graph(s, show_svg = True) 
-#tedd.viz_schedule_tree(s, show_svg = True) 
-#tedd.viz_itervar_relationship_graph(s, show_svg = True) 
 
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_dfg.png
@@ -92,11 +87,25 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 # scope shown in the middle and inputs/outputs information on the sides.   
 # Edges show nodes' dependency.   
 
+tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree.dot') 
+#tedd.viz_schedule_tree(s, show_svg = True) 
+######################################################################
+# We just rendered the schedule tree graph.  You may notice an warning about ranges not 
+# available.
+# The message also suggests to call normalize() to infer range information.  We will
+# skip inspecting the first schedule tree and encourage you to compare the graphs before
+# and and after normalize() for its impact.
+
+s = s.normalize()
+tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot') 
+#tedd.viz_schedule_tree(s, show_svg = True) 
+
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_st.png
 #      :align: center
 #      :scale: 100%
-# The second one is a schedule tree.  Every block under ROOT represents a  
+# Now, let us take a close look at the second schedule tree.  Every block under ROOT 
+# represents a  
 # stage.  Stage name shows in the top row and compute shows in the bottom row.   
 # The middle rows are for IterVars, the higher the outer, the lower the inner. 
 # An IterVar row contains its index, name, type, and other optional information. 
@@ -119,6 +128,9 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 #   a schedule tree.   The edges among IterVars and compute within one stage are 
 #   omitted, making every stage a block, for better readability.
 
+tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot') 
+#tedd.viz_itervar_relationship_graph(s, show_svg = True) 
+
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_itervar_rel.png
 #      :align: center
@@ -130,6 +142,7 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 # IterVars are those not driven by any transformation node, such as ax0; leaf  
 # IterVars don't drive any transformation node and have non-negative indices,  
 # such as ax0.ax1.fused.ax2.fused.ax3.fused.outer with index of 0.
+
 
 ###################################################################### 
 # Summary 
