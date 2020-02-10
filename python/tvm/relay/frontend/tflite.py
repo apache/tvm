@@ -2060,7 +2060,7 @@ def get_custom_options(op, option_names):
         value_offset = -value_vector_offset + i*num_bytes
         value_bytes = buffer[value_offset:value_offset+num_bytes]
         if flex_type == _FlexBufferType.FBT_BOOL:
-            value = True if value_bytes[0] else False
+            value = bool(value_bytes[0])
         if flex_type == _FlexBufferType.FBT_INT:
             value = struct.unpack("<i", value_bytes)[0]
         if flex_type == _FlexBufferType.FBT_UINT:
