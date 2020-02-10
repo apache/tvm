@@ -169,7 +169,7 @@ class MergeCompositeWrapper : public ExprMutator {
 
 Expr MergeComposite(const Expr& expr,
     const Array<tir::StringImm>& pattern_names, const Array<Expr>& patterns) {
-  CHECK(pattern_names.size() == patterns.size());
+  CHECK_EQ(pattern_names.size(), patterns.size());
   Expr merged_expr = expr;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
