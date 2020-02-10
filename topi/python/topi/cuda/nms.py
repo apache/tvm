@@ -185,7 +185,7 @@ def get_valid_counts_scan(data, partial_in, partial):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     var = tvm.make.node("FloatImm", dtype="float32", value=2)
     new_range = num_anchors // elem_per_thread + 1
-    iteration = log(cast(new_range, "float32")) // math.log(2)
+    iteration = cast(log(cast(new_range, "float32")) / math.log(2), "int32")
     # Scan: Kogge-Stone adder
     with ib.if_scope(tvm.all(bx < batch_size, tx < tvm.min(new_range, num_anchors))):
         with ib.for_range(0, iteration) as k:
@@ -243,14 +243,16 @@ def get_valid_counts_downsweep(data, idx_in, partial, idx):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
     new_range = num_anchors // elem_per_thread + 1
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
     # Scan: Downsweep:
     with ib. if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors # number of batches
-        j = tid % num_anchors # number of anchors
+        i = idxd(tid, num_anchors) # number of batches
+        j = idxm(tid, num_anchors) # number of anchors
         with ib.if_scope(j < elem_per_thread):
             idx[tid] = idx_in[tid]
         with ib.else_scope():
-            idx[tid] = idx_in[tid] + partial[i * new_range + j // elem_per_thread - 1]
+            idx[tid] = idx_in[tid] + partial[i * new_range + idxd(j, elem_per_thread) - 1]
 
     return ib.get()
 
@@ -303,9 +305,12 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     with ib.if_scope(tid < batch_size * num_anchors):
-        i = tid / num_anchors
-        j = tid % num_anchors
+        i = idxd(tid, num_anchors)
+        j = idxm(tid, num_anchors)
         base_idx = i * num_anchors * elem_length
         with ib.if_scope(flag[tid] > 0):
             with ib.for_range(0, elem_length) as k:

@@ -16,12 +16,21 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
 """A global module storing everything needed to interpret or compile a Relay program."""
+import os
 from .base import register_relay_node, RelayNode
+from .. import register_func
 from .._ffi import base as _base
 from . import _make
 from . import _module
 from . import expr as _expr
 from . import ty as _ty
+
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
+@register_func("tvm.relay.std_path")
+def _std_path():
+    global __STD_PATH__
+    return __STD_PATH__
 
 @register_relay_node
 class Module(RelayNode):
@@ -87,7 +96,7 @@ class Module(RelayNode):
             assert isinstance(val, _ty.Type)
             if isinstance(var, _base.string_types):
                 var = _ty.GlobalTypeVar(var)
-            _module.Module_AddDef(self, var, val)
+            _module.Module_AddDef(self, var, val, update)
 
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
@@ -139,6 +148,26 @@ class Module(RelayNode):
         tvm.TVMError if we cannot find corresponding global var.
         """
         return _module.Module_GetGlobalVar(self, name)
+
+    def get_global_vars(self):
+        """Collect all global vars defined in this module.
+
+        Returns
+        -------
+        global_vars: tvm.Array[GlobalVar]
+            An array of global vars.
+        """
+        return _module.Module_GetGlobalVars(self)
+
+    def get_global_type_vars(self):
+        """Collect all global type vars defined in this module.
+
+        Returns
+        -------
+        global_type_vars: tvm.Array[GlobalTypeVar]
+            An array of global type vars.
+        """
+        return _module.Module_GetGlobalTypeVars(self)
 
     def get_global_type_var(self, name):
         """Get a global type variable in the function by name.
@@ -202,3 +231,9 @@ class Module(RelayNode):
         funcs = functions if functions is not None else {}
         defs = type_defs if type_defs is not None else {}
         return _module.Module_FromExpr(expr, funcs, defs)
+
+    def _import(self, file_to_import):
+        return _module.Module_Import(self, file_to_import)
+
+    def import_from_std(self, file_to_import):
+        return _module.Module_ImportFromStd(self, file_to_import)

@@ -22,7 +22,7 @@ Perform Code Reviews
 
 This is a general guideline for code reviewers. First of all, while it is great to add new features to a project, we must also be aware that each line of code we introduce also brings **technical debt** that we may have to eventually pay.
 
-Open source code is maintained by a community with diverse backend, and it is even more important to bring clear, documented and maintainable code. Code reviews are shepherding process to spot potential problems, improve quality of the code. We should, however, not rely on code review process to get the code into a ready state. Contributors are encouraged to polish the code to a ready state before requesting reviews. This is especially expected for code owner and comitter candidates.
+Open source code is maintained by a community with diverse backend, and it is even more important to bring clear, documented and maintainable code. Code reviews are shepherding process to spot potential problems, improve quality of the code. We should, however, not rely on code review process to get the code into a ready state. Contributors are encouraged to polish the code to a ready state before requesting reviews. This is especially expected for code owner and committer candidates.
 
 Here are some checklists for code reviews, it is also helpful reference for contributors
 

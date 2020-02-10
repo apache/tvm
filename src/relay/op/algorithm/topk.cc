@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file topk.cc
  * \brief TopK operators
  */
@@ -56,7 +55,7 @@ bool TopKRel(const Array<Type>& types,
   auto values_ty = TensorTypeNode::make(out_shape, data->dtype);
   auto indices_ty = TensorTypeNode::make(out_shape, param->dtype);
   if (param->ret_type == "both") {
-    reporter->Assign(types[1], TupleTypeNode::make({values_ty, indices_ty}));
+    reporter->Assign(types[1], TupleType({values_ty, indices_ty}));
   } else if (param->ret_type == "values") {
     reporter->Assign(types[1], values_ty);
   } else if (param->ret_type == "indices") {
@@ -73,7 +72,7 @@ Expr MakeTopK(Expr data,
               std::string ret_type,
               bool is_ascend,
               DataType dtype) {
-  auto attrs = make_node<TopKAttrs>();
+  auto attrs = make_object<TopKAttrs>();
   attrs->k = k;
   attrs->axis = axis;
   attrs->ret_type = ret_type;
@@ -84,14 +83,14 @@ Expr MakeTopK(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.topk")
+TVM_REGISTER_GLOBAL("relay.op._make.topk")
 .set_body_typed(MakeTopK);
 
 RELAY_REGISTER_OP("topk")
 .describe(R"doc(Get the top k elements in an input tensor along the given axis.
 )doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.TopKAttrs")
+.set_attrs_type<TopKAttrs>()
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(6)
 .add_type_rel("TopK", TopKRel);

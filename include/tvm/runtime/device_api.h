@@ -24,9 +24,9 @@
 #ifndef TVM_RUNTIME_DEVICE_API_H_
 #define TVM_RUNTIME_DEVICE_API_H_
 
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/packed_func.h>
 #include <string>
-#include "packed_func.h"
-#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -42,7 +42,8 @@ enum DeviceAttrKind : int {
   kDeviceName = 5,
   kMaxClockRate = 6,
   kMultiProcessorCount = 7,
-  kMaxThreadDimensions = 8
+  kMaxThreadDimensions = 8,
+  kGcnArch = 9
 };
 
 /*! \brief Number of bytes each allocation must align to */
@@ -87,7 +88,7 @@ class TVM_DLL DeviceAPI {
   virtual void* AllocDataSpace(TVMContext ctx,
                                size_t nbytes,
                                size_t alignment,
-                               TVMType type_hint) = 0;
+                               DLDataType type_hint) = 0;
   /*!
    * \brief Free a data space on device.
    * \param ctx The device context to perform operation.
@@ -114,7 +115,7 @@ class TVM_DLL DeviceAPI {
                               size_t num_bytes,
                               TVMContext ctx_from,
                               TVMContext ctx_to,
-                              TVMType type_hint,
+                              DLDataType type_hint,
                               TVMStreamHandle stream) = 0;
     /*!
    * \brief Create a new stream of execution.
@@ -176,7 +177,7 @@ class TVM_DLL DeviceAPI {
    */
   virtual void* AllocWorkspace(TVMContext ctx,
                                        size_t nbytes,
-                                       TVMType type_hint = {});
+                                       DLDataType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *
@@ -230,6 +231,7 @@ inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
   return os;
 }
+
 #endif
 }  // namespace runtime
 }  // namespace tvm

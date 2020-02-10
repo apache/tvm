@@ -19,14 +19,14 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 
 TEST(Expr, Basic) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  NodeRef tmp = z;
-  Expr zz(tmp.node_);
+  ObjectRef tmp = z;
+  PrimExpr zz = Downcast<PrimExpr>(tmp);
   std::ostringstream os;
   os << z;
   CHECK(zz.same_as(z));
@@ -37,9 +37,9 @@ TEST(Expr, Basic) {
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   Var x("x");
-  Expr z = max(x + 1 + 2, 100);
-  const ir::Max* op = z.as<ir::Max>();
-  CHECK(NodeRef(op->GetNodePtr()).same_as(z));
+  PrimExpr z = max(x + 1 + 2, 100);
+  const ir::MaxNode* op = z.as<ir::MaxNode>();
+  CHECK(GetRef<ObjectRef>(op).same_as(z));
 }
 
 

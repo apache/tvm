@@ -19,7 +19,7 @@
 import tvm
 from tvm import autotvm
 
-from .injective import _schedule_injective
+from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
@@ -201,8 +201,8 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
         if isinstance(packed_kernel.op, tvm.tensor.ComputeOp) and\
                 packed_kernel.name == 'packed_kernel':
             # data and kernel are not pre-computed, schedule layout transform here
-            _schedule_injective(packed_data.op, s)
-            _schedule_injective(packed_kernel.op, s)
+            schedule_injective_from_existing(s, packed_data)
+            schedule_injective_from_existing(s, packed_kernel)
 
     if pad_data != packed_data:
         s[pad_data].compute_inline()

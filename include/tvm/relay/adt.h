@@ -24,7 +24,8 @@
 #ifndef TVM_RELAY_ADT_H_
 #define TVM_RELAY_ADT_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
+#include <tvm/ir/adt.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -34,11 +35,17 @@
 namespace tvm {
 namespace relay {
 
+using Constructor = tvm::Constructor;
+using ConstructorNode = tvm::ConstructorNode;
+
+using TypeData = tvm::TypeData;
+using TypeDataNode = tvm::TypeDataNode;
+
 /*! \brief Base type for declaring relay pattern. */
 class PatternNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Pattern";
-  TVM_DECLARE_BASE_NODE_INFO(PatternNode, Node);
+  TVM_DECLARE_BASE_OBJECT_INFO(PatternNode, Object);
 };
 
 /*!
@@ -49,10 +56,10 @@ class PatternNode : public RelayNode {
  *
  * ADT pattern matching thus takes a list of values and binds to the first that accepts the value.
  */
-class Pattern : public NodeRef {
+class Pattern : public ObjectRef {
  public:
   Pattern() {}
-  explicit Pattern(NodePtr<tvm::Node> p) : NodeRef(p) {}
+  explicit Pattern(ObjectPtr<tvm::Object> p) : ObjectRef(p) {}
 
   using ContainerType = PatternNode;
 };
@@ -66,15 +73,18 @@ class PatternWildcardNode : public PatternNode {
 
   TVM_DLL static PatternWildcard make();
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("span", &span);
   }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternWildcardNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternWildcardNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternWildcard, PatternWildcardNode, Pattern);
+class PatternWildcard : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternWildcard, Pattern, PatternWildcardNode);
+};
 
 /*! \brief A var pattern. Accept all input and bind to a var. */
 class PatternVar;
@@ -88,54 +98,19 @@ class PatternVarNode : public PatternNode {
 
   TVM_DLL static PatternVar make(tvm::relay::Var var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("span", &span);
   }
 
   static constexpr const char* _type_key = "relay.PatternVar";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternVarNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternVar, PatternVarNode, Pattern);
-
-/*!
- * \brief ADT constructor.
- * Constructors compare by pointer equality.
- */
-class Constructor;
-/*! \brief Constructor container node. */
-class ConstructorNode : public ExprNode {
+class PatternVar : public Pattern {
  public:
-  /*! \brief The name (only a hint) */
-  std::string name_hint;
-  /*! \brief Input to the constructor. */
-  tvm::Array<Type> inputs;
-  /*! \brief The datatype the constructor will construct. */
-  GlobalTypeVar belong_to;
-  /*! \brief Index in the table of constructors (set when the type is registered). */
-  mutable int32_t tag = -1;
-
-  ConstructorNode() {}
-
-  TVM_DLL static Constructor make(std::string name_hint,
-                                  tvm::Array<Type> inputs,
-                                  GlobalTypeVar belong_to);
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("inputs", &inputs);
-    v->Visit("belong_to", &belong_to);
-    v->Visit("tag", &tag);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-  }
-
-  static constexpr const char* _type_key = "relay.Constructor";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstructorNode, ExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternVar, Pattern, PatternVarNode);
 };
-
-RELAY_DEFINE_NODE_REF(Constructor, ConstructorNode, Expr);
 
 /*! \brief A constructor pattern. Matches a value with the given constructor, binds recursively. */
 class PatternConstructor;
@@ -151,17 +126,20 @@ class PatternConstructorNode : public PatternNode {
 
   TVM_DLL static PatternConstructor make(Constructor constructor, tvm::Array<Pattern> var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("constructor", &constructor);
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
   }
 
   static constexpr const char* _type_key = "relay.PatternConstructor";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternConstructorNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternConstructorNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternConstructor, PatternConstructorNode, Pattern);
+class PatternConstructor : public Pattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternConstructor, Pattern, PatternConstructorNode);
+};
 
 /*! \brief A tuple pattern. Matches a tuple, binds recursively. */
 class PatternTuple;
@@ -175,72 +153,31 @@ class PatternTupleNode : public PatternNode {
 
   TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
   }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
-  TVM_DECLARE_NODE_TYPE_INFO(PatternTupleNode, PatternNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternTupleNode, PatternNode);
 };
 
-RELAY_DEFINE_NODE_REF(PatternTuple, PatternTupleNode, Pattern);
-
-/*!
- * \brief Stores all data for an Algebraic Data Type (ADT).
- *
- * In particular, it stores the handle (global type var) for an ADT
- * and the constructors used to build it and is kept in the module. Note
- * that type parameters are also indicated in the type data: this means that
- * for any instance of an ADT, the type parameters must be indicated. That is,
- * an ADT definition is treated as a type-level function, so an ADT handle
- * must be wrapped in a TypeCall node that instantiates the type-level arguments.
- * The kind checker enforces this.
- */
-class TypeData;
-/*! \brief TypeData container node */
-class TypeDataNode : public TypeNode {
+class PatternTuple : public Pattern {
  public:
-  /*!
-   * \brief The header is simply the name of the ADT.
-   * We adopt nominal typing for ADT definitions;
-   * that is, differently-named ADT definitions with same constructors
-   * have different types.
-   */
-  GlobalTypeVar header;
-  /*! \brief The type variables (to allow for polymorphism). */
-  tvm::Array<TypeVar> type_vars;
-  /*! \brief The constructors. */
-  tvm::Array<Constructor> constructors;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("header", &header);
-    v->Visit("type_vars", &type_vars);
-    v->Visit("constructors", &constructors);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static TypeData make(GlobalTypeVar header,
-                               tvm::Array<TypeVar> type_vars,
-                               tvm::Array<Constructor> constructors);
-
-  static constexpr const char* _type_key = "relay.TypeData";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeDataNode, TypeNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternTuple, Pattern, PatternTupleNode);
 };
-
-RELAY_DEFINE_NODE_REF(TypeData, TypeDataNode, Type);
 
 /*! \brief A clause in a match expression. */
 class Clause;
 /*! \brief Clause container node. */
-class ClauseNode : public Node {
+class ClauseNode : public Object {
  public:
   /*! \brief The pattern the clause matches. */
   Pattern lhs;
   /*! \brief The resulting value. */
   Expr rhs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("lhs", &lhs);
     v->Visit("rhs", &rhs);
   }
@@ -248,10 +185,13 @@ class ClauseNode : public Node {
   TVM_DLL static Clause make(Pattern lhs, Expr rhs);
 
   static constexpr const char* _type_key = "relay.Clause";
-  TVM_DECLARE_NODE_TYPE_INFO(ClauseNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(Clause, ClauseNode, NodeRef);
+class Clause : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
+};
 
 /*! \brief ADT pattern matching exression. */
 class Match;
@@ -269,7 +209,7 @@ class MatchNode : public ExprNode {
    */
   bool complete;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("clauses", &clauses);
     v->Visit("complete", &complete);
@@ -280,10 +220,13 @@ class MatchNode : public ExprNode {
   TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
 
   static constexpr const char* _type_key = "relay.Match";
-  TVM_DECLARE_NODE_TYPE_INFO(MatchNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(MatchNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Match, MatchNode, Expr);
+class Match : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
+};
 
 }  // namespace relay
 }  // namespace tvm

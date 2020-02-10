@@ -83,7 +83,7 @@ In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, ``parallel``
 Variables
 ~~~~~~~~~
 
-Because there is no variables in ``HalideIR``, all the mutatable variables will be lowered to an array with size 1.
+Because there is no variables in ``HalideIR``, all the mutable variables will be lowered to an array with size 1.
 It takes the first store of a variable as its declaration.
 
 Math Intrinsics

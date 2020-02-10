@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file file_util.h
  * \brief Minimum file manipulation util for runtime.
  */

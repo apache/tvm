@@ -26,13 +26,27 @@
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace generic {
+
+/*!
+ * \brief Updates an existing schedule for the given injective ops.
+ *
+ * \param sch The schedule to update.
+ * \param out The tensor representing the injective op.
+ *
+ * \return The updated schedule.
+ */
+inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
+  detail::Fuse(sch[out], sch[out]->op.as<ComputeOpNode>()->axis);
+  return sch;
+}
 
 /*!
  * \brief Create a generic schedule for the given injective ops.
@@ -48,9 +62,9 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
     out_ops.push_back(t->op);
   }
   auto s = create_schedule(out_ops);
-  tvm::schedule::AutoInlineInjective(s);
+  tvm::top::AutoInlineInjective(s);
   auto x = outs[0];
-  detail::Fuse(s[x], s[x]->op.as<ComputeOpNode>()->axis);
+  schedule_injective_from_existing(s, x);
 
   return s;
 }

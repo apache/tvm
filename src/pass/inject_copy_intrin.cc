@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,22 +18,22 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Replace certain copy with copy intrinsics.
  * \file copy_intrin_rewrite.cc
  */
+#include <tvm/arith/pattern.h>
 #include <tvm/ir.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
-#include "../arithmetic/pattern_match.h"
+#include "../arith/pattern_match.h"
 
 namespace tvm {
 namespace ir {
 
 using runtime::PackedFunc;
 
-class CopyIntrinInjector : public IRMutator {
+class CopyIntrinInjector : public StmtMutator {
  public:
   CopyIntrinInjector(const std::string& pragma_key,
                      const PackedFunc& flower_copy_fromto)
@@ -41,17 +41,17 @@ class CopyIntrinInjector : public IRMutator {
         flower_copy_fromto_(flower_copy_fromto) {
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      const Variable* buf = op->node.as<Variable>();
-      storage_scope_[buf] = op->value.as<StringImm>()->value;
+      const VarNode* buf = op->node.as<VarNode>();
+      storage_scope_[buf] = op->value.as<StringImmNode>()->value;
     } else if (op->attr_key == pragma_key_) {
       Stmt ret;
       CHECK(MatchCopyPattern(op->body, &ret))
           << "Cannot match copy pattern of " << op->body;
       return ret;
     }
-    return IRMutator::Mutate_(op, s);
+    return StmtMutator::VisitStmt_(op);
   }
 
  private:
@@ -60,72 +60,72 @@ class CopyIntrinInjector : public IRMutator {
     Stmt body = stmt;
 
     // strip the loops
-    std::vector<const For*> loops;
-    while (const For* op = body.as<For>()) {
+    std::vector<const ForNode*> loops;
+    while (const ForNode* op = body.as<ForNode>()) {
       if (!is_zero(op->min)) return false;
       loops.push_back(op);
       body = op->body;
     }
-    const Store* store = body.as<Store>();
+    const StoreNode* store = body.as<StoreNode>();
     if (store == nullptr) return false;
     // Expr sel_cond, sel_true_value, sel_false_value;
     // match select or if
-    PVar<Expr> sel_cond, sel_true_value, sel_false_value;
+    PVar<PrimExpr> sel_cond, sel_true_value, sel_false_value;
     bool has_cond =
         if_then_else(sel_cond, sel_true_value, sel_false_value).Match(store->value) ||
         select(sel_cond, sel_true_value, sel_false_value).Match(store->value);
 
-    const Cast* cast = store->value.as<Cast>();
-    const Load* load = store->value.as<Load>();
+    const CastNode* cast = store->value.as<CastNode>();
+    const LoadNode* load = store->value.as<LoadNode>();
     if (0 == loops.size()) {
       CHECK(!has_cond);
     }
     // for now only support true condition matching
     if (has_cond) {
-      load = sel_true_value.Eval().as<Load>();
+      load = sel_true_value.Eval().as<LoadNode>();
     }
     // cast can be part of the pattern
     if (cast != nullptr) {
-      load = cast->value.as<Load>();
+      load = cast->value.as<LoadNode>();
     }
     if (load == nullptr) return false;
-    if (load->type.lanes() != 1) return false;
+    if (load->dtype.lanes() != 1) return false;
     Array<Var> loop_vars;
-    for (const For* op : loops) {
-      loop_vars.push_back(Var(op->loop_var.node_));
+    for (const ForNode* op : loops) {
+      loop_vars.push_back(op->loop_var);
     }
-    Array<Expr> store_strides =
+    Array<PrimExpr> store_strides =
         arith::DetectLinearEquation(store->index, loop_vars);
-    Array<Expr> load_strides =
+    Array<PrimExpr> load_strides =
         arith::DetectLinearEquation(load->index, loop_vars);
     if (load_strides.size()  == 0 || store_strides.size() == 0) return false;
-    Array<Expr> dst_shape;
+    Array<PrimExpr> dst_shape;
     const size_t loop_var_size = loop_vars.size();
     if (loop_var_size == 0) {
-      dst_shape.push_back(make_const(Int(32), 1));
+      dst_shape.push_back(make_const(DataType::Int(32), 1));
     } else {
-      for (const For* op : loops) {
+      for (const ForNode* op : loops) {
         dst_shape.push_back(op->extent);
       }
     }
-    Array<Expr> src_shape = dst_shape;
-    Array<Expr> pad_before, pad_after;
-    Expr pad_value;
-    Expr src_elem_offset = load_strides[loop_var_size];
+    Array<PrimExpr> src_shape = dst_shape;
+    Array<PrimExpr> pad_before, pad_after;
+    PrimExpr pad_value;
+    PrimExpr src_elem_offset = load_strides[loop_var_size];
     if (has_cond) {
-      Array<Expr> clip_bound =
+      Array<PrimExpr> clip_bound =
           arith::DetectClipBound(sel_cond.Eval(), loop_vars);
       pad_value = sel_false_value.Eval();
       if (clip_bound.size() == 0) return false;
       CHECK_EQ(src_shape.size(), loop_vars.size());
       CHECK_EQ(clip_bound.size(), loop_vars.size() * 2);
       for (size_t i = 0; i < src_shape.size(); ++i) {
-        Expr min_value = clip_bound[2 * i];
-        Expr max_value = clip_bound[2 * i + 1];
-        Type t = loop_vars[i].type();
-        Expr svalue = src_shape[i];
+        PrimExpr min_value = clip_bound[2 * i];
+        PrimExpr max_value = clip_bound[2 * i + 1];
+        DataType t = loop_vars[i].dtype();
+        PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          Expr pbefore = Simplify(Max::make(min_value, make_zero(t)));
+          PrimExpr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -133,7 +133,7 @@ class CopyIntrinInjector : public IRMutator {
           pad_before.push_back(make_zero(t));
         }
         if (max_value.defined()) {
-          Expr pafter = Simplify(Max::make(loops[i]->extent - max_value - make_const(t, 1),
+          PrimExpr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
                                            make_zero(t)));
           svalue = svalue - pafter;
           pad_after.push_back(pafter);
@@ -146,15 +146,15 @@ class CopyIntrinInjector : public IRMutator {
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
-    Array<Expr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
-    Array<Expr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
+    Array<PrimExpr> src_strides(load_strides.begin(), load_strides.begin() + loop_var_size);
+    Array<PrimExpr> dst_strides(store_strides.begin(), store_strides.begin() + loop_var_size);
     if (loop_var_size == 0) {
-        src_strides.push_back(make_const(Int(32), 1));
-        dst_strides.push_back(make_const(Int(32), 1));
+        src_strides.push_back(make_const(DataType::Int(32), 1));
+        dst_strides.push_back(make_const(DataType::Int(32), 1));
     }
     Buffer dst = BufferNode::make(
-        Var(store->buffer_var.node_),
-        store->value.type(),
+        store->buffer_var,
+        store->value.dtype(),
         dst_shape,
         dst_strides,
         store_strides[loop_var_size],
@@ -162,8 +162,8 @@ class CopyIntrinInjector : public IRMutator {
         GetStorageScope(store->buffer_var.get()),
         0, 0, kDefault);
     Buffer src = BufferNode::make(
-        Var(load->buffer_var.node_),
-        load->type,
+        load->buffer_var,
+        load->dtype,
         src_shape,
         src_strides,
         src_elem_offset,
@@ -175,7 +175,7 @@ class CopyIntrinInjector : public IRMutator {
     return true;
   }
   // Get storage scope
-  std::string GetStorageScope(const Variable* var) const {
+  std::string GetStorageScope(const VarNode* var) const {
     auto it = storage_scope_.find(var);
     if (it != storage_scope_.end()) {
       return it->second;
@@ -188,14 +188,13 @@ class CopyIntrinInjector : public IRMutator {
   // function to lower copy intrinsics.
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
-  std::unordered_map<const Variable*, std::string> storage_scope_;
+  std::unordered_map<const VarNode*, std::string> storage_scope_;
 };
 
 Stmt InjectCopyIntrin(Stmt stmt,
                       const std::string& pragma_key,
                       const PackedFunc& flower_copy_fromto) {
-  return CopyIntrinInjector(pragma_key, flower_copy_fromto)
-      .Mutate(stmt);
+  return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
 
 }  // namespace ir

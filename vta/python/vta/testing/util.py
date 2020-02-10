@@ -37,7 +37,7 @@ def run(run_func):
         # Compile vta on your host with make at the root.
         # Make sure TARGET is set to "sim" in the config.json file.
         # Then launch the RPC server on the host machine
-        # with ./apps/pynq_rpc/start_rpc_server.sh
+        # with ./apps/vta_rpc/start_rpc_server.sh
         # Set your VTA_LOCAL_SIM_RPC environment variable to
         # the port it's listening to, e.g. 9090
         local_rpc = int(os.environ.get("VTA_LOCAL_SIM_RPC", "0"))

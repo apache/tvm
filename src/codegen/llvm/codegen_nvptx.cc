@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_nvptx.cc
  * \brief NVPTX code generator.
  */
@@ -47,7 +46,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
               llvm::ValueAsMetadata::get(ConstInt32(1)) }));
   }
 
-  void VisitStmt_(const Allocate* op) final {
+  void VisitStmt_(const AllocateNode* op) final {
     CHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
     if (op->new_expr.defined()) {
@@ -59,7 +58,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
           << "Can only handle constant size stack allocation in GPU";
       StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->type, constant_size);
+        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
       }
       // maximum necessary alignment in the NV devices
       if (info.alignment > 16) {
@@ -70,10 +69,14 @@ class CodeGenNVPTX : public CodeGenLLVM {
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
             return builder_->CreateAlloca(
-                LLVMType(op->type), ConstInt32(constant_size));
+                LLVMType(op->dtype), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
+#if TVM_LLVM_VERSION >= 100
+          alloca->setAlignment(llvm::Align(info.alignment));
+#else
           alloca->setAlignment(info.alignment);
+#endif
         }
         buf = alloca;
       } else {
@@ -81,17 +84,21 @@ class CodeGenNVPTX : public CodeGenLLVM {
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->type), constant_size);
+        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->dtype), constant_size);
         // Allocate shared memory in global, address_space = 3
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
             nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
+#if TVM_LLVM_VERSION >= 100
+        global->setAlignment(llvm::Align(info.alignment));
+#else
         global->setAlignment(info.alignment);
+#endif
         buf = global;
       }
     }
     buf = builder_->CreatePointerCast(
-        buf, LLVMType(op->type)->getPointerTo(
+        buf, LLVMType(op->dtype)->getPointerTo(
             buf->getType()->getPointerAddressSpace()));
     CHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
@@ -122,8 +129,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
     return builder_->CreateCall(f, {});
   }
 
-  llvm::Value* CreateStorageSync(const Call* op) final {
-    const std::string& sync = op->args[0].as<StringImm>()->value;
+  llvm::Value* CreateStorageSync(const CallNode* op) final {
+    const std::string& sync = op->args[0].as<StringImmNode>()->value;
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;
@@ -232,9 +239,13 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
-#else
+#elif TVM_LLVM_VERSION <= 90
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+      pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #endif
   pass.run(*module);
@@ -242,7 +253,7 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
 }
 
-TVM_REGISTER_API("codegen.build_nvptx")
+TVM_REGISTER_GLOBAL("codegen.build_nvptx")
 .set_body_typed(BuildNVPTX);
 
 }  // namespace codegen

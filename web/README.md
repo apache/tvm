@@ -82,7 +82,7 @@ This will create ```build/libtvm_web_runtime.bc``` and ```build/libtvm_web_runti
 
 The general idea is to use TVM as normally and set target to be ```llvm -target=asmjs-unknown-emscripten -system-lib```.
 
-The following code snippet from [tests/web/prepare_test_libs.py](https://github.com/dmlc/tvm/tree/master/tests/web/prepare_test_libs.py) demonstrate
+The following code snippet from [tests/web/prepare_test_libs.py](https://github.com/apache/incubator-tvm/tree/master/tests/web/prepare_test_libs.py) demonstrate
 the compilation process.
 
 ```python
@@ -114,7 +114,7 @@ The result js library is a library that contains both TVM runtime and the compil
 
 ## Run the Generated Library
 
-The following code snippet from [tests/web/test_module_load.js](https://github.com/dmlc/tvm/tree/master/tests/web/test_module_load.js) demonstrate
+The following code snippet from [tests/web/test_module_load.js](https://github.com/apache/incubator-tvm/tree/master/tests/web/test_module_load.js) demonstrate
 how to run the compiled library.
 
 ```js

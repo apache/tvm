@@ -184,8 +184,23 @@ class RelayVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by RelayParser#pattern.
-    def visitPattern(self, ctx:RelayParser.PatternContext):
+    # Visit a parse tree produced by RelayParser#wildcardPattern.
+    def visitWildcardPattern(self, ctx:RelayParser.WildcardPatternContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#varPattern.
+    def visitVarPattern(self, ctx:RelayParser.VarPatternContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#constructorPattern.
+    def visitConstructorPattern(self, ctx:RelayParser.ConstructorPatternContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#tuplePattern.
+    def visitTuplePattern(self, ctx:RelayParser.TuplePatternContext):
         return self.visitChildren(ctx)
 
 
@@ -236,6 +251,11 @@ class RelayVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by RelayParser#tupleType.
     def visitTupleType(self, ctx:RelayParser.TupleTypeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by RelayParser#typeParen.
+    def visitTypeParen(self, ctx:RelayParser.TypeParenContext):
         return self.visitChildren(ctx)
 
 

@@ -70,7 +70,7 @@ def test_env():
 
 
 def test_meta_data():
-    n, c, h, w = tvm.var("n"), 10, 224, 224
+    n, c, h, w = tvm.size_var("n"), 10, 224, 224
     x = relay.var("x", shape=(n, c, h, w))
     w = relay.var("w")
     z = relay.nn.conv2d(x, w,
@@ -82,8 +82,8 @@ def test_meta_data():
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
-    assert "meta[Variable][0]" in text
-    assert "meta[Variable][0]" in text_no_meta
+    assert "meta[SizeVar][0]" in text
+    assert "meta[SizeVar][0]" in text_no_meta
     assert "type_key" in text
     assert "type_key" not in text_no_meta
 
@@ -218,6 +218,27 @@ def test_zeros():
     x = relay.op.zeros([], "float32")
     astext(x)
 
+
+def test_unapplied_constructor():
+    type_def_str = r"""
+type List[A] {
+  Cons(A, List[A]),
+  Nil,
+}
+    """
+    main_def_str = r"""
+def @main[A]() -> fn (A, List[A]) -> List[A] {
+  Cons
+}
+    """
+    mod = relay.fromtext(SEMVER + type_def_str + main_def_str)
+    mod_str = str(mod)
+    # ensure constructors are printed correctly in type definitions (with their
+    # signature) and as exprs (without their signature)
+    assert type_def_str.strip() in mod_str
+    assert main_def_str.strip() in mod_str
+
+
 if __name__ == "__main__":
     do_print[0] = True
     test_lstm()
@@ -239,3 +260,4 @@ if __name__ == "__main__":
     test_let_if_scope()
     test_variable_name()
     test_call_node_order()
+    test_unapplied_constructor()

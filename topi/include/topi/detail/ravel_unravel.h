@@ -18,7 +18,6 @@
  */
 
 /*!
-*  Copyright (c) 2017 by Contributors
 * \file ravel_unravel.h
 * \brief Index ravel and unraval operations
 */
@@ -27,12 +26,13 @@
 
 #include <vector>
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Flatten the indices to 1D
@@ -42,10 +42,10 @@ using namespace tvm;
 *
 * \return The index after flattening
 */
-inline Expr RavelIndex(Array<Expr> indices, Array<Expr> shape) {
+inline PrimExpr RavelIndex(Array<PrimExpr> indices, Array<PrimExpr> shape) {
   CHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   CHECK_GT(indices.size(), 0) << "indices must not be empty";
-  Expr idx;
+  PrimExpr idx;
   for (size_t i = 0; i < indices.size(); ++i) {
     if (i == 0) {
       idx = indices[i];
@@ -64,12 +64,12 @@ inline Expr RavelIndex(Array<Expr> indices, Array<Expr> shape) {
 *
 * \return The coordinate corresponding to the 1D index
 */
-inline Array<Expr> UnravelIndex(Expr idx, Array<Expr> shape) {
-  std::vector<Expr> indices;
+inline Array<PrimExpr> UnravelIndex(PrimExpr idx, Array<PrimExpr> shape) {
+  std::vector<PrimExpr> indices;
 
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
-    indices.push_back(idx % shape[i]);
-    idx = idx / shape[i];
+    indices.push_back(indexmod(idx, shape[i]));
+    idx = indexdiv(idx, shape[i]);
   }
   std::reverse(indices.begin(), indices.end());
   return indices;

@@ -18,8 +18,34 @@ import tvm
 from tvm.contrib import util
 import numpy as np
 
+def test_large_uint_imm():
+    value =  (1 << 63) + 123
+    other = tvm.const(3, "uint64")
+    n = 12
+    num_thread = 2
+
+    A = tvm.compute((n,), lambda *i: tvm.const(value, "uint64") + other, name='A')
+    s = tvm.create_schedule(A.op)
+    xo, xi = s[A].split(A.op.axis[0], factor=num_thread)
+    s[A].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[A].bind(xo, tvm.thread_axis("blockIdx.x"))
+
+    def check_target(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            return
+        f = tvm.build(s, [A], device)
+        # launch the kernel.
+        a = tvm.nd.empty((n, ), dtype=A.dtype, ctx=ctx)
+        f(a)
+        assert a.asnumpy()[0] == value + 3
+
+    check_target("cuda")
+    check_target("vulkan")
+
+
 def test_add_pipeline():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(), name='C')
@@ -48,6 +74,8 @@ def test_add_pipeline():
     stmt = tvm.ir_pass.Simplify(stmt)
     fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
     fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    # lower the floordiv(use stackvm rules so it works for all targets)
+    fsplits = [tvm.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
     fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
@@ -110,4 +138,5 @@ def test_add_pipeline():
 
 
 if __name__ == "__main__":
+    test_large_uint_imm()
     test_add_pipeline()

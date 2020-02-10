@@ -18,76 +18,81 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  *  Lower TVM related buildin intrinsics such as packed call.
  * \file lower_tvm_buildin.cc
  */
 #include <tvm/ir.h>
-#include <tvm/ir_mutator.h>
+#include <tvm/ir_functor_ext.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
 #include "ir_util.h"
-#include "../arithmetic/compute_expr.h"
+#include "../arith/compute_expr.h"
 
 namespace tvm {
 namespace ir {
 
-inline Expr ConstInt32(size_t index) {
+inline PrimExpr ConstInt32(size_t index) {
   CHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(Int(32), static_cast<int>(index));
+  return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
-inline Expr StackAlloca(std::string type, size_t num) {
-  Array<Expr> args = {StringImm::make(type), ConstInt32(num)};
-  return Call::make(Handle(), intrinsic::tvm_stack_alloca, args, Call::Intrinsic);
+inline PrimExpr StackAlloca(std::string type, size_t num) {
+  Array<PrimExpr> args = {StringImmNode::make(type), ConstInt32(num)};
+  return CallNode::make(
+      DataType::Handle(),
+      intrinsic::tvm_stack_alloca,
+      args, CallNode::Intrinsic);
 }
 
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
-class BuiltinLower : public IRMutator {
+class BuiltinLower : public StmtExprMutator {
  public:
   Stmt Build(Stmt stmt) {
-    stack_shape_ = Var("stack_shape", Handle());
-    stack_array_ = Var("stack_array", Handle());
-    stack_value_ = Var("stack_value", Handle());
-    stack_tcode_ = Var("stack_tcode", Handle());
-    stmt = this->Mutate(stmt);
+    stack_shape_ = Var("stack_shape", DataType::Handle());
+    stack_array_ = Var("stack_array", DataType::Handle());
+    stack_value_ = Var("stack_value", DataType::Handle());
+    stack_tcode_ = Var("stack_tcode", DataType::Handle());
+    stmt = this->VisitStmt(stmt);
     if (max_shape_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_shape_, StackAlloca("shape", max_shape_stack_), stmt);
     }
     if (max_array_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_array_, StackAlloca("array", max_array_stack_), stmt);
     }
     if (max_arg_stack_ != 0) {
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_value_, StackAlloca("arg_value", max_arg_stack_), stmt);
-      stmt = LetStmt::make(
+      stmt = LetStmtNode::make(
           stack_tcode_, StackAlloca("arg_tcode", max_arg_stack_), stmt);
     }
     return stmt;
   }
 
-  Stmt Mutate(Stmt stmt) final {
-    stmt = IRMutator::Mutate(stmt);
+  Stmt VisitStmt(const Stmt& s) final {
+    auto stmt = StmtExprMutator::VisitStmt(s);
     CHECK_EQ(run_shape_stack_, 0);
     CHECK_EQ(run_array_stack_, 0);
-    while (prep_seq_.size() != 0) {
-      stmt = Block::make(prep_seq_.back(), stmt);
-      prep_seq_.pop_back();
+
+    if (prep_seq_.size() != 0) {
+      Stmt ret = SeqStmt::Flatten(prep_seq_, stmt);
+      prep_seq_.clear();
+      return ret;
+    } else {
+      return stmt;
     }
-    return stmt;
   }
 
-  Stmt Mutate_(const Allocate* op, const Stmt& s) {
+  Stmt VisitStmt_(const AllocateNode* op) {
     // Lower allocate to device allocate when needed.
-    Stmt stmt = IRMutator::Mutate_(op, s);
-    op = stmt.as<Allocate>();
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocateNode>();
     if (op->new_expr.defined()) return stmt;
     // Get constant allocation bound.
     int64_t dev_type;
-    int64_t nbytes = GetVectorBytes(op->type);
+    int64_t nbytes = GetVectorBytes(op->dtype);
     if (device_type_.defined()) {
       if (arith::GetConst(device_type_, &dev_type)) {
         if (dev_type == kDLCPU) {
@@ -98,165 +103,168 @@ class BuiltinLower : public IRMutator {
         }
       }
     }
-    Expr total_bytes = make_const(op->extents[0].type(), nbytes);
+    PrimExpr total_bytes = make_const(op->extents[0].dtype(), nbytes);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
     }
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
-    Stmt throw_last_error = Evaluate::make(Call::make(Int(32),
-                                           intrinsic::tvm_throw_last_error, {},
-                                           Call::Intrinsic));
+    Stmt throw_last_error = EvaluateNode::make(
+        CallNode::make(DataType::Int(32),
+                       intrinsic::tvm_throw_last_error, {},
+                       CallNode::Intrinsic));
 
-    Stmt body = Block::make(
-        IfThenElse::make(Call::make(Bool(1),
-                                    intrinsic::tvm_handle_is_null,
-                                    {op->buffer_var}, Call::PureIntrinsic),
-                         throw_last_error),
-        op->body);
+    Stmt body = SeqStmt({
+        IfThenElseNode::make(
+            CallNode::make(DataType::Bool(1),
+                           intrinsic::tvm_handle_is_null,
+                           {op->buffer_var}, CallNode::PureIntrinsic),
+            throw_last_error),
+        op->body});
 
-    Stmt alloca = LetStmt::make(
+    Stmt alloca = LetStmtNode::make(
         op->buffer_var,
-        Call::make(op->buffer_var.type(),
-                   "TVMBackendAllocWorkspace",
-                   {cast(Int(32), device_type_),
-                    cast(Int(32), device_id_),
-                    cast(UInt(64), total_bytes),
-                    IntImm::make(Int(32), op->type.code()),
-                    IntImm::make(Int(32), op->type.bits())},
-                   Call::Extern),
+        CallNode::make(op->buffer_var.dtype(),
+                       "TVMBackendAllocWorkspace",
+                       {cast(DataType::Int(32), device_type_),
+                        cast(DataType::Int(32), device_id_),
+                        cast(DataType::UInt(64), total_bytes),
+                        IntImm(DataType::Int(32), op->dtype.code()),
+                        IntImm(DataType::Int(32), op->dtype.bits())},
+                       CallNode::Extern),
         body);
 
-    Expr free_op = Call::make(Int(32),
-                              "TVMBackendFreeWorkspace",
-                              {cast(Int(32), device_type_),
-                                    cast(Int(32), device_id_),
-                                    op->buffer_var},
-                              Call::Extern);
-    Stmt free_stmt = IfThenElse::make(free_op != make_zero(Int(32)), throw_last_error);
-    body = Block::make(alloca, free_stmt);
-    body = AttrStmt::make(
+    PrimExpr free_op = CallNode::make(DataType::Int(32),
+                                  "TVMBackendFreeWorkspace",
+                                  {cast(DataType::Int(32), device_type_),
+                                   cast(DataType::Int(32), device_id_),
+                                   op->buffer_var},
+                                  CallNode::Extern);
+    Stmt free_stmt = IfThenElseNode::make(
+        free_op != make_zero(DataType::Int(32)), throw_last_error);
+    body = SeqStmt({alloca, free_stmt});
+    body = AttrStmtNode::make(
         op->buffer_var, attr::storage_alignment,
-        make_const(Int(32), runtime::kTempAllocaAlignment),
+        make_const(DataType::Int(32), runtime::kTempAllocaAlignment),
         body);
     return body;
   }
 
-  Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::device_context_id) {
       CHECK(!device_id_.defined());
       device_id_ = op->value;
-      return Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else if (op->attr_key == attr::device_context_type) {
       CHECK(!device_type_.defined());
       device_type_ = op->value;
-      return Mutate(op->body);
+      return this->VisitStmt(op->body);
     } else {
-      return IRMutator::Mutate_(op, s);
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
-  Expr Mutate_(const Call* op, const Expr &e) final {
+  PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_call_packed)) {
-      return MakeCallPacked(op, e);
+      return MakeCallPacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_call_trace_packed)) {
-      return MakeCallTracePacked(op, e);
+      return MakeCallTracePacked(op);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_shape)) {
-      return MakeShape(op, e);
+      return MakeShape(op);
     } else if (op->is_intrinsic(intrinsic::tvm_stack_make_array)) {
-      return MakeArray(op, e);
+      return MakeArray(op);
     } else if (op->is_intrinsic(intrinsic::tvm_context_id)) {
-      return make_zero(op->type);
+      return make_zero(op->dtype);
     } else {
-      return IRMutator::Mutate_(op, e);
+      return StmtExprMutator::VisitExpr_(op);
     }
   }
   // call shape
-  Expr MakeShape(const Call* op, const Expr& e) {
+  PrimExpr MakeShape(const CallNode* op) {
     size_t stack_begin = run_shape_stack_;
     run_shape_stack_ += op->args.size();
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Call>();
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<CallNode>();
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq_.emplace_back(
-          Store::make(stack_shape_, cast(Int(64), op->args[i]),
+          StoreNode::make(stack_shape_, cast(DataType::Int(64), op->args[i]),
                       ConstInt32(stack_begin +i), const_true(1)));
     }
-    return AddressOffset(stack_shape_, Int(64), stack_begin);
+    return AddressOffset(stack_shape_, DataType::Int(64), stack_begin);
   }
   // make array
-  Expr MakeArray(const Call* op, const Expr& e) {
+  PrimExpr MakeArray(const CallNode* op) {
     size_t idx = run_array_stack_;
     run_array_stack_ += 1;
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Call>();
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<CallNode>();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrData, op->args[0]));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrShape, op->args[1]));
-    Expr strides = op->args[2];
+    PrimExpr strides = op->args[2];
     if (!strides.defined() || is_zero(strides)) {
-      strides = make_zero(Handle());
+      strides = make_zero(DataType::Handle());
     }
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrStrides, strides));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrNDim, op->args[3]));
-    Type dtype = op->args[4].type();
+    DataType dtype = op->args[4].dtype();
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeCode,
-                     make_const(UInt(8), static_cast<int>(dtype.code()))));
+                     make_const(DataType::UInt(8), static_cast<int>(dtype.code()))));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeBits,
-                     make_const(UInt(8), dtype.bits())));
+                     make_const(DataType::UInt(8), dtype.bits())));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrTypeLanes,
-                     make_const(UInt(16), dtype.lanes())));
+                     make_const(DataType::UInt(16), dtype.lanes())));
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
-    Expr byte_offset = op->args[5];
+    PrimExpr byte_offset = op->args[5];
     if (!is_zero(byte_offset)) {
-      byte_offset = byte_offset * make_const(byte_offset.type(), data_bytes);
+      byte_offset = byte_offset * make_const(byte_offset.dtype(), data_bytes);
     }
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrByteOffset,
-                     cast(UInt(64), byte_offset)));
+                     cast(DataType::UInt(64), byte_offset)));
     CHECK(device_type_.defined()) << "Unknown device type in current IR";
     CHECK(device_id_.defined()) << "Unknown device id in current IR";
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrDeviceId,
-                     cast(Int(32), device_id_)));
+                     cast(DataType::Int(32), device_id_)));
     prep_seq_.emplace_back(
         TVMStructSet(stack_array_, idx, intrinsic::kArrDeviceType,
-                     cast(Int(32), device_type_)));
-    return TVMStructGet(Handle(), stack_array_, idx, intrinsic::kArrAddr);
+                     cast(DataType::Int(32), device_type_)));
+    return TVMStructGet(DataType::Handle(), stack_array_, idx, intrinsic::kArrAddr);
   }
-  // call packled.
-  Expr MakeCallPacked(const Call* op, const Expr& e) {
+  // call packed.
+  PrimExpr MakeCallPacked(const CallNode* op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     // Specially handle the buffer packed intrinsic
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Call>();
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
-      Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      Expr arg = op->args[i];
-      Type t = arg.type();
-      Type api_type = APIType(t);
+      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
+      PrimExpr arg = op->args[i];
+      DataType t = arg.dtype();
+      DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = Cast::make(api_type, arg);
+        arg = CastNode::make(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),
           intrinsic::kTVMValueContent, arg));
       int arg_tcode = api_type.code();
-      if (api_type.is_handle() && arg.as<StringImm>()) {
-        arg_tcode = kStr;
+      if (api_type.is_handle() && arg.as<StringImmNode>()) {
+        arg_tcode = kTVMStr;
       }
-      if (IsArrayHandle(arg)) arg_tcode = kArrayHandle;
+      if (IsArrayHandle(arg)) arg_tcode = kTVMDLTensorHandle;
       prep_seq_.emplace_back(
-          Store::make(stack_tcode_,
+          StoreNode::make(stack_tcode_,
                       ConstInt32(arg_tcode),
                       stack_index, const_true(1)));
     }
@@ -267,34 +275,34 @@ class BuiltinLower : public IRMutator {
     run_shape_stack_ = restore_shape_stack;
     run_array_stack_ = restore_array_stack;
     run_arg_stack_ = arg_stack_begin;
-    Array<Expr> packed_args = {
+    Array<PrimExpr> packed_args = {
       op->args[0],
       stack_value_,
       stack_tcode_,
       ConstInt32(arg_stack_begin),
       ConstInt32(arg_stack_begin + op->args.size() - 1)
     };
-    return Call::make(
-        Int(32), intrinsic::tvm_call_packed_lowered,
-        packed_args, Call::Intrinsic);
+    return CallNode::make(
+        DataType::Int(32), intrinsic::tvm_call_packed_lowered,
+        packed_args, CallNode::Intrinsic);
   }
 
-  Expr MakeCallTracePacked(const Call *op, const Expr &e) {
+  PrimExpr MakeCallTracePacked(const CallNode *op) {
     size_t restore_shape_stack = run_shape_stack_;
     size_t restore_array_stack = run_array_stack_;
     size_t arg_stack_begin = run_arg_stack_;
     run_arg_stack_ += op->args.size();
     size_t args_size = op->args.size();
     CHECK_GT(args_size, 0);
-    Expr expr = IRMutator::Mutate_(op, e);
-    op = expr.as<Call>();
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    op = expr.as<CallNode>();
     for (size_t i = 1; i < op->args.size(); ++i) {
-      Expr stack_index = ConstInt32(arg_stack_begin + i - 1);
-      Expr arg = op->args[i];
-      Type t = arg.type();
-      Type api_type = APIType(t);
+      PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
+      PrimExpr arg = op->args[i];
+      DataType t = arg.dtype();
+      DataType api_type = APIType(t);
       if (t != api_type) {
-        arg = Cast::make(api_type, arg);
+        arg = CastNode::make(api_type, arg);
       }
       prep_seq_.emplace_back(TVMStructSet(
           stack_value_, static_cast<int>(arg_stack_begin + i - 1),
@@ -302,7 +310,7 @@ class BuiltinLower : public IRMutator {
       int arg_tcode = api_type.code();
       CHECK(!IsArrayHandle(arg)) << "Trace does not support Buffers";
       prep_seq_.emplace_back(
-          Store::make(stack_tcode_,
+          StoreNode::make(stack_tcode_,
                       ConstInt32(arg_tcode),
                       stack_index, const_true(1)));
     }
@@ -315,7 +323,7 @@ class BuiltinLower : public IRMutator {
     // Update the top of the stack, so we can use more than one
     // packed function's arguments with the one stack.
     run_arg_stack_ = arg_stack_begin + args_size - 1;
-    Array<Expr> packed_args = {
+    Array<PrimExpr> packed_args = {
       op->args[0],
       stack_value_,
       stack_tcode_,
@@ -324,17 +332,17 @@ class BuiltinLower : public IRMutator {
       // Pass traced value.
       op->args[args_size - 1]
     };
-    return Call::make(
-        op->type, intrinsic::tvm_call_trace_packed_lowered,
-        packed_args, Call::Intrinsic);
+    return CallNode::make(
+        op->dtype, intrinsic::tvm_call_trace_packed_lowered,
+        packed_args, CallNode::Intrinsic);
   }
 
  private:
-  bool IsArrayHandle(const Expr& arg) {
+  bool IsArrayHandle(const PrimExpr& arg) {
     // specially set array handle.
-    if (const Call* buf = arg.as<Call>()) {
+    if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->is_intrinsic(intrinsic::tvm_struct_get) &&
-          buf->args[2].as<IntImm>()->value == intrinsic::kArrAddr) {
+          buf->args[2].as<IntImmNode>()->value == intrinsic::kArrAddr) {
         return true;
       }
     }
@@ -343,8 +351,8 @@ class BuiltinLower : public IRMutator {
 
   // The prepration sequence to be emitted.
   std::vector<Stmt> prep_seq_;
-  Expr device_type_;
-  Expr device_id_;
+  PrimExpr device_type_;
+  PrimExpr device_id_;
   // Var handle for each stack.
   Var stack_shape_;
   Var stack_array_;
@@ -361,7 +369,7 @@ class BuiltinLower : public IRMutator {
 };
 
 LoweredFunc LowerTVMBuiltin(LoweredFunc f) {
-  auto n = make_node<LoweredFuncNode>(*f.operator->());
+  auto n = make_object<LoweredFuncNode>(*f.operator->());
   n->body = BuiltinLower().Build(n->body);
   return LoweredFunc(n);
 }

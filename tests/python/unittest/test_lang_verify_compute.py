@@ -17,8 +17,8 @@
 import tvm
 
 def test_verify_compute():
-  n = tvm.var("n")
-  m = tvm.var("m")
+  n = tvm.size_var("n")
+  m = tvm.size_var("m")
   A = tvm.placeholder((n, m), name='A')
   k = tvm.reduce_axis((0, m), "k")
   k_ = tvm.reduce_axis((0, m-1), "k_")

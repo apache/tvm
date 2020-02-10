@@ -40,4 +40,5 @@ class Int8Fallback(autotvm.FallbackContext):
         cfg = FallbackConfigEntity()
         cfg.template_key = 'int8'
         self.memory[key] = cfg
+        cfg.is_fallback = False
         return cfg

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/ir/hash.cc
  * \brief Hash functions for Relay types and expressions.
  */
@@ -27,9 +26,9 @@
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/analysis.h>
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include "type_functor.h"
-#include "../../lang/attr_functor.h"
+#include "../../ir/attr_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -48,13 +47,13 @@ class RelayHashHandler:
    * \param ref The node to hash.
    * \return the hash value.
    */
-  size_t Hash(const NodeRef& ref) {
-    if (!ref.defined()) return ref.hash();
+  size_t Hash(const ObjectRef& ref) {
+    if (!ref.defined()) return ObjectHash()(ref);
 
-    if (ref->derived_from<TypeNode>()) {
+    if (ref->IsInstance<TypeNode>()) {
       return TypeHash(Downcast<Type>(ref));
     }
-    if (ref->derived_from<ExprNode>()) {
+    if (ref->IsInstance<ExprNode>()) {
       return ExprHash(Downcast<Expr>(ref));
     }
     return AttrHash(ref);
@@ -65,8 +64,10 @@ class RelayHashHandler:
    * \param ref The attributes.
    * \return the hash value
    */
-  size_t AttrHash(const NodeRef& ref) {
-    if (!ref.defined()) { return ref.hash(); }
+  size_t AttrHash(const ObjectRef& ref) {
+    if (!ref.defined()) {
+      return ObjectHash()(ref);
+    }
     return AttrsHashHandler::Hash(ref);
   }
   /*!
@@ -76,7 +77,9 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t TypeHash(const Type& type) {
-    if (!type.defined()) { return type.hash(); }
+    if (!type.defined()) {
+      return ObjectHash()(type);
+    }
     auto found = hash_map_.find(type);
     if (found != hash_map_.end()) {
       return found->second;
@@ -98,7 +101,9 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t ExprHash(const Expr& expr) {
-    if (!expr.defined()) return expr.hash();
+    if (!expr.defined()) {
+      return ObjectHash()(expr);
+    }
     auto found = hash_map_.find(expr);
     if (found != hash_map_.end()) {
       return found->second;
@@ -120,9 +125,9 @@ class RelayHashHandler:
   }
 
   using AttrsHashHandler::VisitAttr_;
-  size_t VisitAttr_(const Variable* var) final {
-    size_t hash = std::hash<std::string>()(Variable::_type_key);
-    auto it = hash_map_.find(GetRef<VarExpr>(var));
+  size_t VisitAttr_(const tvm::VarNode* var) final {
+    size_t hash = std::hash<std::string>()(VarNode::_type_key);
+    auto it = hash_map_.find(GetRef<tvm::Var>(var));
     if (it != hash_map_.end()) {
       return it->second;
     }
@@ -216,24 +221,19 @@ class RelayHashHandler:
     return hash;
   }
 
-  size_t BindVar(const NodeRef& var) {
+  size_t BindVar(const ObjectRef& var) {
     size_t hash = std::hash<int>()(var_counter++);
     CHECK_EQ(hash_map_.count(var), 0);
     if (auto var_node = var.as<VarNode>()) {
       hash = Combine(hash, TypeHash(var_node->type_annotation));
     }
     hash_map_[var] = hash;
-
-    const auto* ty_param = var.as<TypeVarNode>();
-    if (ty_param && ty_param->kind == Kind::kShapeVar) {
-      hash_map_[ty_param->var] = hash;
-    }
     return hash;
   }
 
   size_t VisitExpr_(const VarNode* var) final {
     // hash free variable
-    size_t name_hash = std::hash<const Node*>()(var->vid.get());
+    size_t name_hash = std::hash<const Object*>()(var->vid.get());
     return Combine(name_hash, TypeHash(var->type_annotation));
   }
 
@@ -261,6 +261,8 @@ class RelayHashHandler:
 
     hash = Combine(hash, TypeHash(func->ret_type));
     hash = Combine(hash, ExprHash(func->body));
+
+    hash = Combine(hash, AttrHash(func->attrs));
 
     return hash;
   }
@@ -301,7 +303,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const OpNode* op) final {
-    return GetRef<Op>(op).hash();
+    return ObjectHash()(GetRef<Op>(op));
   }
 
   size_t VisitExpr_(const ConstantNode* rconst) final {
@@ -409,7 +411,7 @@ class RelayHashHandler:
   }
  private:
   // renaming of NodeRef to indicate two nodes equals to each other
-  std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;
+  std::unordered_map<ObjectRef, size_t, ObjectHash, ObjectEqual> hash_map_;
   int var_counter = 0;
 };
 
@@ -421,13 +423,13 @@ size_t StructuralHash::operator()(const Expr& expr) const {
   return RelayHashHandler().ExprHash(expr);
 }
 
-TVM_REGISTER_API("relay._analysis._expr_hash")
-.set_body_typed<int64_t(NodeRef)>([](NodeRef ref) {
+TVM_REGISTER_GLOBAL("relay._analysis._expr_hash")
+.set_body_typed([](ObjectRef ref) {
   return static_cast<int64_t>(RelayHashHandler().Hash(ref));
 });
 
-TVM_REGISTER_API("relay._analysis._type_hash")
-.set_body_typed<int64_t(Type)>([](Type type) {
+TVM_REGISTER_GLOBAL("relay._analysis._type_hash")
+.set_body_typed([](Type type) {
   return static_cast<int64_t>(RelayHashHandler().TypeHash(type));
 });
 

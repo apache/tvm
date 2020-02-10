@@ -290,7 +290,7 @@ parameters must be treated as different types) and be
 recursive (a constructor for an ADT can take an instance of
 that ADT, thus an ADT like a tree or list can be inductively
 built up). The representation of ADTs in the type system must
-be able to accomodate these facts, as the below sections will detail.
+be able to accommodate these facts, as the below sections will detail.
 
 Global Type Variable
 ~~~~~~~~~~~~~~~~~~~~
@@ -316,7 +316,7 @@ Definitions (Type Data)
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 Besides a name, an ADT needs to store the constructors that are used
-to define it and any type paramters used within them. These are
+to define it and any type parameters used within them. These are
 stored in the module, :ref:`analogous to global function definitions<module-description>`.
 
 While type-checking uses of ADTs, the type system sometimes must

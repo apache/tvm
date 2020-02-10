@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file trusted/runtime.h
  * \brief TVM SGX trusted API.
  */

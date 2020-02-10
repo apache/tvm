@@ -73,10 +73,10 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
             center_w = (j + offset_w) * steps_w
             for k in const_range(num_sizes + num_ratios - 1):
                 if k < num_sizes:
-                    w = sizes[k] * in_height / in_width / 2.0
+                    w = float32(sizes[k] * in_height) / in_width / 2.0
                     h = sizes[k] / 2.0
                 else:
-                    w = sizes[0] * in_height / in_width \
+                    w = float32(sizes[0] * in_height) / in_width \
                         * sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
                     h = sizes[0] / sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
                 count = i * in_width * (num_sizes + num_ratios - 1) \

@@ -38,7 +38,7 @@ import numpy as np
 # -------------------------------
 # The most straight-forward way to call target specific function is via
 # extern function call construct in tvm.
-# In th following example, we use :any:`tvm.call_pure_extern` to call
+# In the following example, we use :any:`tvm.call_pure_extern` to call
 # :code:`__expf` function, which is only available under CUDA.
 #
 n = tvm.var("n")
@@ -119,7 +119,7 @@ print(fcuda.imported_modules[0].get_source())
 ######################################################################
 # Add Your Own Intrinsic
 # ----------------------
-# If there is an instrinsic that is not provided by TVM.
+# If there is an intrinsic that is not provided by TVM.
 # User can easily add new intrinsic by using the intrinsic rule system.
 # The following example add an intrinsic :code:`mylog` to the system.
 #

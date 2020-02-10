@@ -22,13 +22,13 @@
 #include <tvm/build_module.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/module.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 
 TVM_REGISTER_GLOBAL("schedule")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
@@ -37,7 +37,7 @@ TVM_REGISTER_GLOBAL("schedule")
 
 TEST(Relay, Sequential) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({1, 2, 3}, ::tvm::Float(32));
+  auto tensor_type = relay::TensorTypeNode::make({1, 2, 3}, DataType::Float(32));
   auto c_data =
       tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
@@ -73,7 +73,7 @@ TEST(Relay, Sequential) {
       relay::transform::AlterOpLayout()
   };
   relay::transform::Pass seq = relay::transform::Sequential(pass_seqs);
-  auto mod = relay::ModuleNode::FromExpr(func);
+  auto mod = IRModule::FromExpr(func);
   auto pass_ctx = relay::transform::PassContext::Create();
   pass_ctx->opt_level = 3;
   pass_ctx->fallback_device = 1;
@@ -86,7 +86,7 @@ TEST(Relay, Sequential) {
   CHECK(mod.defined());
   auto entry_func = mod->GetGlobalVar("main");
   CHECK(entry_func.defined());
-  relay::Function f = mod->Lookup("main");
+  relay::Function f = Downcast<relay::Function>(mod->Lookup("main"));
   CHECK(f.defined());
 
   // Expected function
@@ -100,7 +100,7 @@ TEST(Relay, Sequential) {
       relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
-  auto mod1 = relay::ModuleNode::FromExpr(expected_func);
+  auto mod1 = IRModule::FromExpr(expected_func);
   mod1 = relay::transform::InferType()(mod1);
   auto expected = mod1->Lookup("main");
   CHECK(relay::AlphaEqual(f, expected));

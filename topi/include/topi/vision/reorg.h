@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Reorg op constructions
  * \file vision/reorg.h
  */
@@ -32,12 +31,13 @@
 #include "topi/reduction.h"
 #include "topi/tags.h"
 #include "topi/transform.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace vision {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Reorg operation
@@ -61,12 +61,12 @@ inline Tensor reorg(const Tensor &data,
   int w_in = GetConstInt(input_shape[3]);
   int out_c = c_in / (stride * stride);
 
-  auto out = tvm::compute(input_shape,
+  auto out = tvm::top::compute(input_shape,
                           [&](Var b, Var k, Var j, Var i) {
                           return data(b * stride * stride,
-                                      (k % out_c) * stride * stride,
-                                      (j*stride + (k / out_c) / stride) * stride,
-                                      (i*stride + (k / out_c) % stride));
+                                      indexmod(k, out_c) * stride * stride,
+                                      (j*stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
+                                      (i*stride + indexmod(indexdiv(k, out_c), stride)));
                           },
                           name,
                           tag);
@@ -75,7 +75,7 @@ inline Tensor reorg(const Tensor &data,
   int out_h = h_in / stride;
   int out_w = w_in / stride;
 
-  Array<Expr> out_shape = {batch, out_c, out_h, out_w};
+  Array<PrimExpr> out_shape = {batch, out_c, out_h, out_w};
   return reshape(out, out_shape);
 }
 }  // namespace vision

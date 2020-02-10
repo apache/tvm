@@ -26,11 +26,13 @@
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
+#include "injective.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace generic {
 /*!
@@ -47,6 +49,15 @@ inline Schedule schedule_extern(const Target& target, Array<Tensor> outs) {
     out_ops.push_back(t->op);
   }
   auto s = create_schedule(out_ops);
+
+  tvm::top::AutoInlineInjective(s);
+  for (auto out : outs) {
+    if (out->op->IsInstance<ExternOpNode>()) {
+      continue;
+    }
+    tvm::GenericFunc::Get("schedule_injective_from_existing")(s, out);
+  }
+
   return s;
 }
 

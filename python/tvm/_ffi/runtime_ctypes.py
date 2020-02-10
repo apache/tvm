@@ -35,14 +35,13 @@ class TypeCode(object):
     NULL = 4
     TVM_TYPE = 5
     TVM_CONTEXT = 6
-    ARRAY_HANDLE = 7
-    NODE_HANDLE = 8
+    DLTENSOR_HANDLE = 7
+    OBJECT_HANDLE = 8
     MODULE_HANDLE = 9
-    FUNC_HANDLE = 10
+    PACKED_FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
-    NDARRAY_CONTAINER = 13
-    OBJECT_CELL = 14
+    NDARRAY_HANDLE = 13
     EXT_BEGIN = 15
 
 
@@ -272,12 +271,3 @@ class TVMArray(ctypes.Structure):
                 ("byte_offset", ctypes.c_uint64)]
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)
-
-class TVMNDArrayContainer(ctypes.Structure):
-    """TVM NDArray::Container"""
-    _fields_ = [("dl_tensor", TVMArray),
-                ("manager_ctx", ctypes.c_void_p),
-                ("deleter", ctypes.c_void_p),
-                ("array_type_info", ctypes.c_int32)]
-
-TVMNDArrayContainerHandle = ctypes.POINTER(TVMNDArrayContainer)

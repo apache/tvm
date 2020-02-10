@@ -25,7 +25,7 @@
 #ifndef TVM_DATA_LAYOUT_H_
 #define TVM_DATA_LAYOUT_H_
 
-#include <tvm/base.h>
+
 #include <tvm/expr.h>
 
 #include <string>
@@ -92,7 +92,7 @@ class LayoutAxis {
 
 class Layout;
 // Internal node container Buffer
-class LayoutNode : public Node {
+class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
   std::string name;
@@ -104,7 +104,7 @@ class LayoutNode : public Node {
    */
   Array<IterVar> axes;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("axes", &axes);
   }
@@ -112,7 +112,7 @@ class LayoutNode : public Node {
   TVM_DLL static Layout make(const std::string& layout);
 
   static constexpr const char* _type_key = "Layout";
-  TVM_DECLARE_NODE_TYPE_INFO(LayoutNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
 };
 
 /*!
@@ -125,9 +125,9 @@ class LayoutNode : public Node {
  *  Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
  *  Layout for scalar is defined, while both its name and axes have size 0.
  */
-class Layout : public NodeRef {
+class Layout : public ObjectRef {
  public:
-  explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Layout(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*! \brief default constructor */
   Layout() = default;
@@ -152,7 +152,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   const LayoutNode* operator->() const {
-    return static_cast<const LayoutNode*>(node_.get());
+    return static_cast<const LayoutNode*>(get());
   }
 
   /*!
@@ -160,7 +160,7 @@ class Layout : public NodeRef {
    * \return the pointer to the internal node container
    */
   LayoutNode* operator->() {
-    return static_cast<LayoutNode*>(node_.get());
+    return static_cast<LayoutNode*>(get_mutable());
   }
 
   /*!
@@ -208,6 +208,28 @@ class Layout : public NodeRef {
       }
     }
     return ct;
+  }
+
+  /*!
+   * \brief Returns a new layout where the dims have been expanded to match the primal dimensions.
+   * \param dst_layout The dst layout to which current layout has to be expanded.
+   * \return The expanded Layout.
+   */
+  inline Layout ExpandPrimal(const Layout& dst_layout) {
+    Layout new_src_layout;
+    // 1) Find the axis which are missing in the current layout. Make them the prefix.
+    std::string new_src_layout_str = "";
+    for (auto dst_axis : dst_layout->axes) {
+      if (LayoutAxis::Get(dst_axis).IsPrimal()) {
+        if (!this->Contains(LayoutAxis::Get(dst_axis))) {
+          new_src_layout_str += dst_axis->var->name_hint;
+        }
+      }
+    }
+    // 2) Now, add the primal axis of the current layout.
+    new_src_layout_str += this->name();
+    new_src_layout = Layout(new_src_layout_str);
+    return new_src_layout;
   }
 
   /*!
@@ -289,21 +311,21 @@ class Layout : public NodeRef {
 
 class BijectiveLayout;
 // Internal node container BijectiveLayout
-class BijectiveLayoutNode : public Node {
+class BijectiveLayoutNode : public Object {
  public:
   /*! \brief Describes how source axes can be mapped to the destination axes,
    *   e.g., [i0 / 16, i1, i0 % 16] can describe NC -> NC16n
    */
-  Array<Expr> forward_rule;
+  Array<PrimExpr> forward_rule;
   /*! \brief Describes how destination axes can be mapped to the source axes */
-  Array<Expr> backward_rule;
+  Array<PrimExpr> backward_rule;
 
   /*! \brief The source layout */
   Layout src_layout;
   /*! \brief The destination layout */
   Layout dst_layout;
 
-  void VisitAttrs(AttrVisitor* v) final {
+  void VisitAttrs(AttrVisitor* v) {
     v->Visit("src_layout", &src_layout);
     v->Visit("dst_layout", &dst_layout);
     v->Visit("forward_rule", &forward_rule);
@@ -311,7 +333,7 @@ class BijectiveLayoutNode : public Node {
   }
 
   static constexpr const char* _type_key = "BijectiveLayout";
-  TVM_DECLARE_NODE_TYPE_INFO(BijectiveLayoutNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
 
   TVM_DLL static BijectiveLayout make(const Layout& src_layout,
                                       const Layout& dst_layout);
@@ -322,19 +344,19 @@ class BijectiveLayoutNode : public Node {
  *   provides API to transform N-dimention tensor from the source indices (i0, i1, …, im)
  *   to the destination indices (j0, j1, … jm).
  */
-class BijectiveLayout : public NodeRef {
+class BijectiveLayout : public ObjectRef {
  public:
   BijectiveLayout() = default;
-  explicit BijectiveLayout(NodePtr<Node> n) : NodeRef(n) {}
+  explicit BijectiveLayout(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   // Given the source shape, infer the destination shape.
-  TVM_DLL Array<Expr> ForwardShape(const Array<Expr>& shape) const;
+  TVM_DLL Array<PrimExpr> ForwardShape(const Array<PrimExpr>& shape) const;
   // Given the destination shape, recover the source shape.
-  TVM_DLL Array<Expr> BackwardShape(const Array<Expr>& dst_shape) const;
+  TVM_DLL Array<PrimExpr> BackwardShape(const Array<PrimExpr>& dst_shape) const;
   // Given the destination indices, infer the destination indices.
-  TVM_DLL Array<Expr> ForwardIndex(const Array<Expr>& index) const;
+  TVM_DLL Array<PrimExpr> ForwardIndex(const Array<PrimExpr>& index) const;
   // Given the destination indices, recover the source indices.
-  TVM_DLL Array<Expr> BackwardIndex(const Array<Expr>& dst_index) const;
+  TVM_DLL Array<PrimExpr> BackwardIndex(const Array<PrimExpr>& dst_index) const;
 
   /*!
    * \brief access the internal node container
@@ -347,7 +369,7 @@ class BijectiveLayout : public NodeRef {
 };
 
 inline const BijectiveLayoutNode* BijectiveLayout::operator->() const {
-  return static_cast<const BijectiveLayoutNode*>(node_.get());
+  return static_cast<const BijectiveLayoutNode*>(get());
 }
 
 }  // namespace tvm

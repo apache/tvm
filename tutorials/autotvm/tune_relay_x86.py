@@ -37,10 +37,12 @@ import tvm.contrib.graph_runtime as runtime
 # Define network
 # --------------
 # First we need to define the network in relay frontend API.
-# We can load some pre-defined network from :code:`relay.testing`.
+# We can either load some pre-defined network from :code:`relay.testing`
+# or building :any:`relay.testing.resnet` with relay.
 # We can also load models from MXNet, ONNX and TensorFlow.
 #
 # In this tutorial, we choose resnet-18 as tuning example.
+
 
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
@@ -72,6 +74,7 @@ def get_network(name, batch_size):
         raise ValueError("Unsupported network: " + name)
 
     return mod, params, input_shape, output_shape
+
 
 # Replace "llvm" with the correct target of your CPU.
 # For example, for AWS EC2 c5 instance with Intel Xeon
@@ -121,6 +124,7 @@ tuning_option = {
     ),
 }
 
+
 # You can skip the implementation of this function for this tutorial.
 def tune_kernels(tasks,
                  measure_option,
@@ -164,6 +168,7 @@ def tune_kernels(tasks,
                        callbacks=[
                            autotvm.callback.progress_bar(n_trial, prefix=prefix),
                            autotvm.callback.log_to_file(log_filename)])
+
 
 # Use graph tuner to achieve graph level optimal schedules
 # Set use_DP=False if it takes too long to finish.

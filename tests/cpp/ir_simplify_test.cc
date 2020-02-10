@@ -20,7 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir_pass.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 
 TEST(IRSIMPLIFY, MinMax) {
   auto x = tvm::var("x");
@@ -46,7 +46,7 @@ TEST(IRSIMPLIFY, Mod) {
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
-  auto mod = tvm::ir::CanonicalSimplify(tvm::ir::Mod::make(x, y));
+  auto mod = tvm::ir::CanonicalSimplify(tvm::ir::ModNode::make(x, y));
   auto es = tvm::ir::CanonicalSimplify(mod - x);
   CHECK(is_zero(es));
 }

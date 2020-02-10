@@ -64,6 +64,16 @@ class Op(Expr):
         """
         _OpSetAttr(self, attr_name, value, plevel)
 
+    def reset_attr(self, attr_name):
+        """Reset attribute about the operator.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name
+        """
+        _OpResetAttr(self, attr_name)
+
 
 def get(op_name):
     """Get the Op for a given name
@@ -184,6 +194,23 @@ def register_alter_op_layout(op_name, alter_layout=None, level=10):
         The priority level
     """
     return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
+
+
+def register_convert_op_layout(op_name, convert_layout=None, level=10):
+    """Register convert op layout function for an op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    convert_layout: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
+        The function for changing the layout or replacing the operator
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMConvertOpLayout", convert_layout, level)
 
 
 def register_legalize(op_name, legal_op=None, level=10):

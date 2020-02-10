@@ -18,19 +18,19 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief External function interface to rocBLAS libraries
  * \file tags.h
  */
 #ifndef TOPI_CONTRIB_ROCBLAS_H_
 #define TOPI_CONTRIB_ROCBLAS_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "topi/detail/extern.h"
 
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace tvm::top;
 /*!
 * \brief Create an op that multiplies lhs and rhs with rocBLAS
 *
@@ -52,7 +52,7 @@ inline Tensor rocblas_matmul(const Tensor& lhs,
     { { n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
       return call_packed({
-        Expr("tvm.contrib.rocblas.matmul"),
+        PrimExpr("tvm.contrib.rocblas.matmul"),
         pack_buffer(ins[0]),
         pack_buffer(ins[1]),
         pack_buffer(outs[0]),

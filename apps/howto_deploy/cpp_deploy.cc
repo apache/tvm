@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Example code on load and run TVM module.s
  * \file cpp_deploy.cc
  */

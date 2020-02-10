@@ -101,8 +101,11 @@ def convolution_inference(
     assert isinstance(stride, list) and len(stride) == 2
     batch, _, input_height, input_width = data.shape
     output_channels, _, kernel_height, kernel_width = kernel.shape
-    output_height = (input_height + padding[0] + padding[1] - kernel_height) / stride[0] + 1
-    output_width = (input_width + padding[0] + padding[1] - kernel_width) / stride[1] + 1
+    idxdiv = _api.indexdiv
+    output_height = idxdiv(
+        input_height + padding[0] + padding[1] - kernel_height, stride[0]) + 1
+    output_width = idxdiv(
+        input_width + padding[0] + padding[1] - kernel_width, stride[1]) + 1
 
     return _api.extern(
         (batch, output_channels, output_height, output_width),
@@ -153,8 +156,9 @@ def convolution_inference_without_weight_transform(
     batch, _, input_height, input_width = data.shape
     output_channels, _, _, _ = transformed_kernel.shape
     kernel_height, kernel_width = (3, 3)
-    output_height = (input_height + padding[0] + padding[1] - kernel_height) / stride[0] + 1
-    output_width = (input_width + padding[0] + padding[1] - kernel_width) / stride[1] + 1
+    idxdiv = _api.indexdiv
+    output_height = idxdiv(input_height + padding[0] + padding[1] - kernel_height, stride[0]) + 1
+    output_width = idxdiv(input_width + padding[0] + padding[1] - kernel_width, stride[1]) + 1
 
     return _api.extern(
         (batch, output_channels, output_height, output_width),

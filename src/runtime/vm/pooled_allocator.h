@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file runtime/pooled_allocator.h
  */
 #ifndef TVM_RUNTIME_VM_POOLED_ALLOCATOR_H_
@@ -45,7 +44,7 @@ class PooledAllocator final : public Allocator {
 
   ~PooledAllocator() { ReleaseAll(); }
 
-  Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) override {
+  Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) override {
     std::lock_guard<std::mutex> lock(mu_);
     size_t size = ((nbytes + page_size_ - 1) / page_size_) * page_size_;
     auto&& it = memory_pool_.find(size);

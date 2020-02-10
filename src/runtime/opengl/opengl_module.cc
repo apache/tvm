@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opengl_module.cc
  */
 #include <tvm/runtime/registry.h>
@@ -44,7 +43,7 @@ class OpenGLModuleNode final : public ModuleNode {
   const char* type_key() const final { return "opengl"; }
 
   PackedFunc GetFunction(const std::string& name,
-                         const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+                         const ObjectPtr<Object>& sptr_to_self) final;
 
   std::string GetSource(const std::string& format) final;
 
@@ -74,7 +73,7 @@ class OpenGLModuleNode final : public ModuleNode {
 class OpenGLWrappedFunc {
  public:
   OpenGLWrappedFunc(OpenGLModuleNode* m,
-                    std::shared_ptr<ModuleNode> sptr,
+                    ObjectPtr<Object> sptr,
                     std::string func_name,
                     std::vector<size_t> arg_size,
                     const std::vector<std::string>& thread_axis_tags);
@@ -85,7 +84,7 @@ class OpenGLWrappedFunc {
   // The module
   OpenGLModuleNode* m_;
   // resource handle
-  std::shared_ptr<ModuleNode> sptr_;
+  ObjectPtr<Object> sptr_;
   // The name of the function.
   std::string func_name_;
   // convert code for void argument
@@ -111,7 +110,7 @@ OpenGLModuleNode::OpenGLModuleNode(
 
 PackedFunc OpenGLModuleNode::GetFunction(
     const std::string& name,
-    const std::shared_ptr<ModuleNode>& sptr_to_self) {
+    const ObjectPtr<Object>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
   CHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
 
@@ -121,7 +120,7 @@ PackedFunc OpenGLModuleNode::GetFunction(
 
   std::vector<size_t> arg_size(func_info.arg_types.size());
   for (size_t i = 0; i < func_info.arg_types.size(); ++i) {
-    TVMType t = func_info.arg_types[i];
+    DLDataType t = func_info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
     uint32_t bits = t.bits;
     CHECK_EQ(bits % 8, 0U);
@@ -191,7 +190,7 @@ const FunctionInfo& OpenGLModuleNode::GetFunctionInfo(
 
 OpenGLWrappedFunc::OpenGLWrappedFunc(
     OpenGLModuleNode* m,
-    std::shared_ptr<ModuleNode> sptr,
+    ObjectPtr<Object> sptr,
     std::string func_name,
     std::vector<size_t> arg_size,
     const std::vector<std::string>& thread_axis_tags)
@@ -223,14 +222,14 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
         break;
       }
       case OpenGLArgKind::kInputTexture: {
-        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        CHECK_EQ(type.code, kTVMOpaqueHandle) << "Type is not handle?";
         auto texture = *static_cast<gl::Texture**>(void_args[i]);
         m_->workspace().SetInputTexture(program, name, texture_unit, texture);
         ++texture_unit;
         break;
       }
       case OpenGLArgKind::kOutputTexture: {
-        CHECK_EQ(type.code, kHandle) << "Type is not handle?";
+        CHECK_EQ(type.code, kTVMOpaqueHandle) << "Type is not handle?";
         CHECK(output == nullptr) << "Can only have one output texture.";
         output = *static_cast<gl::Texture**>(void_args[i]);
         break;
@@ -242,7 +241,7 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
   std::unique_ptr<GLint> thread_extent(new GLint(wl.block_dim(0)));
   m_->workspace().SetUniform(program, shader.thread_extent_var,
-                             TVMType{kDLInt, 32, 1},
+                             DLDataType{kDLInt, 32, 1},
                              static_cast<void*>(thread_extent.get()));
 
   m_->workspace().Render(output);
@@ -251,9 +250,9 @@ void OpenGLWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
 Module OpenGLModuleCreate(std::unordered_map<std::string, OpenGLShader> shaders,
                           std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap) {
-  auto n = std::make_shared<OpenGLModuleNode>(std::move(shaders),
-                                              std::move(fmt),
-                                              std::move(fmap));
+  auto n = make_object<OpenGLModuleNode>(std::move(shaders),
+                                         std::move(fmt),
+                                         std::move(fmap));
   return Module(n);
 }
 

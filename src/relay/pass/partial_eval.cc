@@ -18,8 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
- *
  * \file partial_eval.cc
  *
  * \brief Perform known computation in compile time.
@@ -65,7 +63,7 @@
  * so we have to deduplicate them.
  *
  * 4: In the generated code, as it call TypeSubst, multiple VarNode might have same Id.
- * While it is permitted, most pass use NodeHash for Var,
+ * While it is permitted, most pass use ObjectHash for Var,
  * and having multiple VarNode for same Id break them.
  * Thus we remap them to a single Id for now.
  *
@@ -112,7 +110,7 @@ using namespace runtime;
  */
 struct VarHash {
   size_t operator()(const Var& v) const {
-    return v->vid.hash();
+    return ObjectHash()(v->vid);
   }
 };
 
@@ -132,15 +130,15 @@ Expr PostProcess(const Expr&);
 class StaticNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Static";
-  TVM_DECLARE_BASE_NODE_INFO(StaticNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(StaticNode, RelayNode);
 };
 
-class Static : public NodeRef {
+class Static : public ObjectRef {
  public:
   Static() {}
-  explicit Static(NodePtr<Node> n) : NodeRef(n) {}
-  const ValueNode* operator->() const {
-    return static_cast<const ValueNode*>(node_.get());
+  explicit Static(ObjectPtr<Object> n) : ObjectRef(n) {}
+  const StaticNode* operator->() const {
+    return static_cast<const StaticNode*>(get());
   }
 
   using ContainerType = StaticNode;
@@ -148,7 +146,7 @@ class Static : public NodeRef {
 
 using Time = size_t;
 
-struct PStaticNode : Node {
+struct PStaticNode : Object {
   static Time time() {
     static Time time_ = 0;
     Time ret = time_;
@@ -162,35 +160,44 @@ struct PStaticNode : Node {
     pstatic(pstatic), dynamic(dynamic), created_time(time()) { }
   explicit PStaticNode(const Expr& dynamic) : PStaticNode(Static(), dynamic) { }
   static constexpr const char* _type_key = "relay.PStatic";
-  TVM_DECLARE_NODE_TYPE_INFO(PStaticNode, Node);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PStaticNode, Object);
 };
 
-RELAY_DEFINE_NODE_REF(PStatic, PStaticNode, NodeRef);
+class PStatic : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PStatic, ObjectRef, PStaticNode);
+};
 
 struct STupleNode : StaticNode {
   std::vector<PStatic> fields;
   explicit STupleNode(const std::vector<PStatic>& fields) : fields(fields) { }
   static constexpr const char* _type_key = "relay.STuple";
-  TVM_DECLARE_NODE_TYPE_INFO(STupleNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(STupleNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(STuple, STupleNode, Static);
+class STuple : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(STuple, Static, STupleNode);
+};
 
 Static MkSTuple(const std::vector<PStatic>& fields) {
-  return Static(make_node<STupleNode>(fields));
+  return Static(make_object<STupleNode>(fields));
 }
 
 struct STensorNode : StaticNode {
   runtime::NDArray data;
   explicit STensorNode(const NDArray& data) : data(data) { }
   static constexpr const char* _type_key = "relay.STensor";
-  TVM_DECLARE_NODE_TYPE_INFO(STensorNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(STensorNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(STensor, STensorNode, Static);
+class STensor : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(STensor, Static, STensorNode);
+};
 
 Static MkSTensor(const NDArray& data) {
-  return Static(make_node<STensorNode>(data));
+  return Static(make_object<STensorNode>(data));
 }
 
 struct SConstructorNode : StaticNode {
@@ -199,25 +206,31 @@ struct SConstructorNode : StaticNode {
   SConstructorNode(const Constructor& constructor, const std::vector<PStatic>& fields) :
     constructor(constructor), fields(fields) { }
   static constexpr const char* _type_key = "relay.SConstructor";
-  TVM_DECLARE_NODE_TYPE_INFO(SConstructorNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SConstructorNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SConstructor, SConstructorNode, Static);
+class SConstructor : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SConstructor, Static, SConstructorNode);
+};
 
 Static MkSConstructor(const Constructor& constructor, const std::vector<PStatic>& fields) {
-  return Static(make_node<SConstructorNode>(constructor, fields));
+  return Static(make_object<SConstructorNode>(constructor, fields));
 }
 
 struct SRefNode : StaticNode {
   static constexpr const char* _type_key = "relay.SRef";
   // we will use the address as the guid for hashing
-  TVM_DECLARE_NODE_TYPE_INFO(SRefNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SRefNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SRef, SRefNode, Static);
+class SRef : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SRef, Static, SRefNode);
+};
 
 Static MkSRef() {
-  return Static(make_node<SRefNode>());
+  return Static(make_object<SRefNode>());
 }
 
 using Func = std::function<PStatic(const PStatic&,
@@ -230,13 +243,16 @@ struct SFuncNode : StaticNode {
   Func func;
   explicit SFuncNode(const Func& func) : func(func) { }
   static constexpr const char* _type_key = "relay.SFunc";
-  TVM_DECLARE_NODE_TYPE_INFO(SFuncNode, StaticNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SFuncNode, StaticNode);
 };
 
-RELAY_DEFINE_NODE_REF(SFunc, SFuncNode, Static);
+class SFunc : public Static {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(SFunc, Static, SFuncNode);
+};
 
 Static MkSFunc(const Func& func) {
-  return Static(make_node<SFuncNode>(func));
+  return Static(make_object<SFuncNode>(func));
 }
 
 
@@ -248,10 +264,10 @@ class FuelNode;
  * Every time we recurse, we do a meet and require that progress must be made.
  * This ensures we do not recurse infinitely in the Partial Evaluator.
  */
-class Fuel : public NodeRef {
+class Fuel : public ObjectRef {
  public:
   Fuel() {}
-  explicit Fuel(NodePtr<Node> n) : NodeRef(n) {}
+  explicit Fuel(ObjectPtr<Object> n) : ObjectRef(n) {}
   const FuelNode* operator->() const;
 
   using ContainerType = FuelNode;
@@ -281,11 +297,11 @@ class FuelNode : public RelayNode {
     return std::get<0>(ret);
   }
   static constexpr const char* _type_key = "relay.Fuel";
-  TVM_DECLARE_BASE_NODE_INFO(FuelNode, RelayNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(FuelNode, RelayNode);
 };
 
 const FuelNode* Fuel::operator->() const {
-  return static_cast<const FuelNode*>(node_.get());
+  return static_cast<const FuelNode*>(get());
 }
 
 Fuel MkFSeq(const std::vector<Fuel>& fuels);
@@ -303,13 +319,16 @@ struct FSeqNode : FuelNode {
   }
   explicit FSeqNode(const std::vector<Fuel>& fuels) : fuels(fuels) { }
   static constexpr const char* _type_key = "relay.FSeq";
-  TVM_DECLARE_NODE_TYPE_INFO(FSeqNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FSeqNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FSeq, FSeqNode, Fuel);
+class FSeq : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FSeq, Fuel, FSeqNode);
+};
 
 Fuel MkFSeq(const std::vector<Fuel>& fuels) {
-  return Fuel(make_node<FSeqNode>(fuels));
+  return Fuel(make_object<FSeqNode>(fuels));
 }
 
 Fuel MkFTime(Time time);
@@ -323,13 +342,16 @@ struct FTimeNode : FuelNode {
   }
   explicit FTimeNode(Time time) : time(time) { }
   static constexpr const char* _type_key = "relay.FTime";
-  TVM_DECLARE_NODE_TYPE_INFO(FTimeNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTimeNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTime, FTimeNode, Fuel);
+class FTime : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTime, Fuel, FTimeNode);
+};
 
 Fuel MkFTime(Time time) {
-  return Fuel(make_node<FTimeNode>(time));
+  return Fuel(make_object<FTimeNode>(time));
 }
 
 Fuel MkFTValue(size_t tvalue);
@@ -344,13 +366,16 @@ struct FTValueNode : FuelNode {
   }
   explicit FTValueNode(size_t tvalue) : tvalue(tvalue) { }
   static constexpr const char* _type_key = "relay.FTValue";
-  TVM_DECLARE_NODE_TYPE_INFO(FTValueNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTValueNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTValue, FTValueNode, Fuel);
+class FTValue : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTValue, Fuel, FTValueNode);
+};
 
 Fuel MkFTValue(size_t tvalue) {
-  return Fuel(make_node<FTValueNode>(tvalue));
+  return Fuel(make_object<FTValueNode>(tvalue));
 }
 
 /*! \brief Initially every element has Fuel of FTop. It is the largest element.
@@ -363,19 +388,22 @@ struct FTopNode : FuelNode {
     return std::make_tuple(f, !f.as<FTopNode>());
   }
   static constexpr const char* _type_key = "relay.FTop";
-  TVM_DECLARE_NODE_TYPE_INFO(FTopNode, FuelNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FTopNode, FuelNode);
 };
 
-RELAY_DEFINE_NODE_REF(FTop, FTopNode, Fuel);
+class FTop : public Fuel {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(FTop, Fuel, FTopNode);
+};
 
 Fuel MkFTop() {
-  return Fuel(make_node<FTopNode>());
+  return Fuel(make_object<FTopNode>());
 }
 
 /*!
  * \brief A stack frame in the Relay interpreter.
  *
- * Contains a mapping from relay::Var to relay::Value.
+ * Contains a mapping from relay::Var to relay::Object.
  */
 struct Frame {
   /*! \brief The set of local variables and arguments for the frame. */
@@ -502,11 +530,11 @@ class Store {
 
 PStatic HasStatic(const Static& stat, const Expr& dynamic) {
   CHECK(stat.defined());
-  return PStatic(make_node<PStaticNode>(stat, dynamic));
+  return PStatic(make_object<PStaticNode>(stat, dynamic));
 }
 
 PStatic NoStatic(const Expr& dynamic) {
-  return PStatic(make_node<PStaticNode>(dynamic));
+  return PStatic(make_object<PStaticNode>(dynamic));
 }
 
 enum struct MatchStatus {
@@ -526,7 +554,7 @@ bool StatefulOp(const Expr& e) {
   return sov.stateful;
 }
 
-using FInterpreter = runtime::TypedPackedFunc<Value(Expr)>;
+using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
 DLContext CPUContext() {
   DLContext ctx;
@@ -541,7 +569,7 @@ FInterpreter CPUInterpreter() {
   // in case we are already in a build context.
   With<BuildConfig> fresh_build_ctx(BuildConfig::Create());
 
-  return CreateInterpreter(Module(nullptr), CPUContext(), target);
+  return CreateInterpreter(IRModule(nullptr), CPUContext(), target);
 }
 
 using FuncId = int;
@@ -561,16 +589,6 @@ struct WithFuncIdAttrs : public tvm::AttrsNode<WithFuncIdAttrs> {
 
 TVM_REGISTER_NODE_TYPE(WithFuncIdAttrs);
 
-Op WithFuncIdOp() {
-  static const Op& op = Op::Get("annotation.with_funcid");
-  return op;
-}
-
-Expr MkWithFuncId(const Expr& expr, FuncId fid) {
-  auto attrs = make_node<WithFuncIdAttrs>();
-  attrs->fid = fid;
-  return CallNode::make(WithFuncIdOp(), {expr}, Attrs(attrs), {});
-}
 
 RELAY_REGISTER_OP("annotation.with_funcid")
 .describe(R"code(Annotate a function with a funcid.)code"
@@ -578,13 +596,22 @@ TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("func", "Function", "The input data.");
 
+// Cache with_funcid op to reduce lookup overhead during traversal.
+static const Op& with_funcid_op = Op::Get("annotation.with_funcid");
+
+Expr MkWithFuncId(const Expr& expr, FuncId fid) {
+  auto attrs = make_object<WithFuncIdAttrs>();
+  attrs->fid = fid;
+  return CallNode::make(with_funcid_op, {expr}, Attrs(attrs), {});
+}
+
 Expr StripWithFuncId(const Expr& e);
 
 Function AsFunc(const Expr& e) {
   if (e.as<FunctionNode>()) {
     return Downcast<Function>(e);
   } else if (const CallNode* c = e.as<CallNode>()) {
-    CHECK(c->op.same_as(WithFuncIdOp()));
+    CHECK(c->op == with_funcid_op);
     CHECK_EQ(c->args.size(), 1);
     return AsFunc(c->args[0]);
   } else {
@@ -596,7 +623,7 @@ Function AsFunc(const Expr& e) {
 class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>,
                          public PatternFunctor<MatchStatus(const Pattern&, const PStatic&)> {
  public:
-  PartialEvaluator(const Module& mod) : mod_(mod) { }
+  PartialEvaluator(const IRModule& mod) : mod_(mod) { }
 
   PStatic VisitExpr(const Expr& e, LetList* ll) final {
     PStatic ret = ExprFunctor<PStatic(const Expr&, LetList*)>::VisitExpr(e, ll);
@@ -606,7 +633,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitExpr(const Expr& e, LetList* ll, const Var& name) {
     if (const CallNode* c = e.as<CallNode>()) {
-      if (c->op.same_as(WithFuncIdOp())) {
+      if (c->op == with_funcid_op) {
         CHECK_EQ(c->args.size(), 1);
         return VisitExpr(c->args[0], ll, name);
       }
@@ -649,12 +676,18 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitGlobalVar(const GlobalVar& gv) {
     CHECK(mod_.defined());
     if (gv_map_.count(gv) == 0) {
-      Function func = mod_->Lookup(gv);
-      InitializeFuncId(func);
-      Func f = VisitFuncStatic(func, gv);
-      gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
-      func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
-      mod_->Update(gv, func);
+      BaseFunc base_func = mod_->Lookup(gv);
+      if (auto* n = base_func.as<FunctionNode>()) {
+        Function func = GetRef<Function>(n);
+        InitializeFuncId(func);
+        Func f = VisitFuncStatic(func, gv);
+        gv_map_.insert({gv, HasStatic(MkSFunc(f), gv)});
+        func = AsFunc(PostProcess(VisitFuncDynamic(func, f, gv)));
+        mod_->Update(gv, func);
+        return gv_map_.at(gv);
+      } else {
+        return NoStatic(gv);
+      }
     }
     return gv_map_.at(gv);
   }
@@ -672,7 +705,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic c = VisitExpr(op->cond, ll);
     if (c->pstatic.defined()) {
       NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
-      CHECK_EQ(TVMType2Type(cpu_array->dtype), Bool());
+      CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
         return VisitExpr(op->true_branch, ll);
       } else {
@@ -716,7 +749,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic r = VisitExpr(op->ref, ll);
     if (r->pstatic.defined()) {
       PStatic ret = store_.Lookup(r->pstatic.as<SRefNode>());
-      if (ret) {
+      if (ret.defined()) {
         return ret;
       }
     }
@@ -724,7 +757,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
-    if (op->op.same_as(WithFuncIdOp())) {
+    if (op->op == with_funcid_op) {
       CHECK_EQ(op->args.size(), 1);
       return VisitExpr(op->args[0], ll);
     }
@@ -765,10 +798,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       if (auto* st = ps->pstatic.as<STensorNode>()) {
         if (st->data.Shape().empty()) {
           NDArray cpu_array = st->data.CopyTo(CPUContext());
-          DataType dtype = TVMType2Type(cpu_array->dtype);
-          if (dtype == Int(32)) {
+          DataType dtype = DataType(cpu_array->dtype);
+          if (dtype == DataType::Int(32)) {
             return std::max<int32_t>(0, *static_cast<const int32_t*>(cpu_array->data));
-          } else if (dtype == Int(64)) {
+          } else if (dtype == DataType::Int(64)) {
             return std::max<int64_t>(0, *static_cast<const int64_t*>(cpu_array->data));
           }
         }
@@ -898,13 +931,14 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     }
   }
 
-  PStatic Reify(const Value& v, LetList* ll) const {
-    if (const TensorValueNode* op = v.as<TensorValueNode>()) {
-      return HasStatic(MkSTensor(op->data), ll->Push(ConstantNode::make(op->data)));
+  PStatic Reify(const ObjectRef& v, LetList* ll) const {
+    if (v->IsInstance<runtime::NDArray::ContainerType>()) {
+      auto nd_array = Downcast<runtime::NDArray>(v);
+      return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
     } else if (const TupleValueNode* op = v.as<TupleValueNode>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
-      for (const Value& field : op->fields) {
+      for (const ObjectRef& field : op->fields) {
         PStatic ps = Reify(field, ll);
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
@@ -920,10 +954,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0),
                                            transform::InferType()};
-    auto mod = ModuleNode::FromExpr(expr);
+    auto mod = IRModule::FromExpr(expr);
     auto seq = transform::Sequential(passes);
     mod = seq(mod);
-    auto entry_func = mod->Lookup("main");
+    auto entry_func = Downcast<Function>(mod->Lookup("main"));
     auto fused_infered =
         expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
     return Reify(executor_(fused_infered), ll);
@@ -1098,7 +1132,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       explicit RegisterFuncIdVisitor(PartialEvaluator* pe) : pe(pe) { }
 
       void VisitExpr_(const CallNode* op) final {
-        if (op->op.same_as(WithFuncIdOp())) {
+        if (op->op == with_funcid_op) {
           CHECK_EQ(op->args.size(), 1);
           CHECK(op->attrs.defined());
           CHECK(op->attrs.as<WithFuncIdAttrs>());
@@ -1150,8 +1184,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
  private:
   Environment env_;
-  Module mod_;
-  std::unordered_map<GlobalVar, PStatic, NodeHash, NodeEqual> gv_map_;
+  IRModule mod_;
+  std::unordered_map<GlobalVar, PStatic, ObjectHash, ObjectEqual> gv_map_;
   /*! Termination checking is done as follows:
    *  We have finitely many FunctionIds.
    *  Each FunctionId maps to a class of semantically equivalent function (ignoring type),
@@ -1165,7 +1199,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
    *  when we PE inside the Function body.
    *  Termination is guaranteed because Fuel is finitely descending - there can only be so many meet.
    */
-  std::unordered_map<Function, FuncId, NodeHash, NodeEqual> func_map_;
+  std::unordered_map<Function, FuncId, ObjectHash, ObjectEqual> func_map_;
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   DLContext context_ = CPUContext();
@@ -1196,7 +1230,7 @@ Expr Remap(const Expr& e) {
 Expr StripWithFuncId(const Expr& e) {
   struct StripWithFuncIdMutator : ExprMutator, PatternMutator {
     Expr VisitExpr_(const CallNode* op) final {
-      if (op->op.same_as(WithFuncIdOp())) {
+      if (op->op == with_funcid_op) {
         CHECK_EQ(op->args.size(), 1);
         return VisitExpr(op->args[0]);
       } else {
@@ -1221,7 +1255,7 @@ Expr PostProcess(const Expr& e) {
 
 }  // namespace partial_eval
 
-Module PartialEval(const Module& m) {
+IRModule PartialEval(const IRModule& m) {
   relay::partial_eval::PartialEvaluator pe(m);
   std::vector<GlobalVar> gvs;
   for (const auto& p : m->functions) {
@@ -1236,14 +1270,14 @@ Module PartialEval(const Module& m) {
 namespace transform {
 
 Pass PartialEval() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
-    return PartialEval(m);
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
+    return relay::PartialEval(m);
   };
   return CreateModulePass(pass_func, 1, "PartialEvaluate", {});
 }
 
-TVM_REGISTER_API("relay._transform.PartialEvaluate")
+TVM_REGISTER_GLOBAL("relay._transform.PartialEvaluate")
 .set_body_typed(PartialEval);
 
 }  // namespace transform

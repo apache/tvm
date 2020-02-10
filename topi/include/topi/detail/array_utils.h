@@ -24,11 +24,12 @@
 #ifndef TOPI_DETAIL_ARRAY_UTILS_H_
 #define TOPI_DETAIL_ARRAY_UTILS_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Search an array for a specific item

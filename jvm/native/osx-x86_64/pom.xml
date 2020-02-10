@@ -24,7 +24,7 @@ under the License.
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>ml.dmlc.tvm</groupId>
+    <groupId>org.apache.tvm</groupId>
     <artifactId>tvm4j-native-parent</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
@@ -39,7 +39,7 @@ under the License.
 
   <dependencies>
     <dependency>
-      <groupId>ml.dmlc.tvm</groupId>
+      <groupId>org.apache.tvm</groupId>
       <artifactId>tvm4j-core</artifactId>
       <version>${project.version}</version>
       <type>jar</type>
@@ -68,7 +68,7 @@ under the License.
             <source>
               <directory>../src/main/native</directory>
               <fileNames>
-                <fileName>ml_dmlc_tvm_native_c_api.cc</fileName>
+                <fileName>org_apache_tvm_native_c_api.cc</fileName>
               </fileNames>
             </source>
           </sources>
@@ -102,9 +102,9 @@ under the License.
               <javahProvider>default</javahProvider>
               <javahOutputDirectory>${project.build.directory}/custom-javah</javahOutputDirectory>
               <workingDirectory>${basedir}</workingDirectory>
-              <javahOutputFileName>ml_dmlc_tvm_native_c_api.h</javahOutputFileName>
+              <javahOutputFileName>org_apache_tvm_native_c_api.h</javahOutputFileName>
               <javahClassNames>
-                <javahClassName>ml.dmlc.tvm.LibInfo</javahClassName>
+                <javahClassName>org.apache.tvm.LibInfo</javahClassName>
               </javahClassNames>
             </configuration>
             <goals>

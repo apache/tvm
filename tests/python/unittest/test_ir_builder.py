@@ -19,7 +19,7 @@ import numpy as np
 
 def test_for():
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
@@ -34,15 +34,16 @@ def test_for():
     body = body.body
     assert isinstance(body, tvm.stmt.For)
     body = body.body
-    assert isinstance(body, tvm.stmt.Block)
-    assert isinstance(body.rest, tvm.stmt.For)
+    assert isinstance(body, tvm.stmt.SeqStmt)
+    assert isinstance(body[1], tvm.stmt.For)
 
 def test_if():
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     A = ib.pointer("float32", name="A")
+    tmod = tvm.truncmod
     with ib.for_range(0, n, name="i") as i:
-        with ib.if_scope((i % 2) == 0):
+        with ib.if_scope(tmod(i, 2) == 0):
             A[i] = A[i] + 1
         with ib.else_scope():
             A[0] = A[i] + 2
@@ -59,7 +60,7 @@ def test_if():
 def test_prefetch():
     A = tvm.placeholder((10, 20), name="A")
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
+    n = tvm.size_var("n")
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
@@ -104,17 +105,19 @@ def test_cpu():
     check_target("llvm")
 
 def test_gpu():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     dtype = "float32"
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
+    idxd = tvm.indexdiv
+
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 32
         ib = tvm.ir_builder.create()
         bx = tvm.thread_axis("blockIdx.x")
         tx = tvm.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", (n+max_threads-1) // max_threads)
+        ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         Aptr = ib.buffer_ptr(A)

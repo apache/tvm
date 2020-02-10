@@ -25,7 +25,7 @@ under the License.
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="ml.dmlc.tvm.tvmrpc.MainActivity">
+    tools:context="org.apache.tvm.tvmrpc.MainActivity">
 
     <android.support.design.widget.AppBarLayout
         android:layout_height="wrap_content"

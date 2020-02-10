@@ -24,8 +24,9 @@
 #ifndef TVM_RELAY_ATTRS_TRANSFORM_H_
 #define TVM_RELAY_ATTRS_TRANSFORM_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/relay/base.h>
+#include <tvm/relay/expr.h>
 #include <string>
 
 namespace tvm {
@@ -196,7 +197,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
 };  // struct SqueezeAttrs
 
 struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
-  NodeRef indices_or_sections;
+  ObjectRef indices_or_sections;
   int axis;
 
   TVM_DECLARE_ATTRS(SplitAttrs, "relay.attrs.SplitAttrs") {
@@ -313,6 +314,12 @@ struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
         .describe("Output data type.");
   }
 };  // struct OneHotAttrs
+
+/*! \brief Attributes for ArgWhere operator */
+struct ArgWhereAttrs : public tvm::AttrsNode<ArgWhereAttrs> {
+  TVM_DECLARE_ATTRS(ArgWhereAttrs, "relay.attrs.ArgWhereAttrs") {
+  }
+};  // struct ArgWhereAttrs
 
 }  // namespace relay
 }  // namespace tvm

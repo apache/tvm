@@ -21,7 +21,7 @@ import os
 def test_unroll_loop():
     ib = tvm.ir_builder.create()
     dtype = 'int64'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
@@ -43,18 +43,18 @@ def test_unroll_loop():
     ib.scope_attr(tvm.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
     ib.emit(stmt)
     wrapped = ib.get()
-    wrapped = tvm.make.Block(wrapped, stmt)
+    wrapped = tvm.stmt.SeqStmt([wrapped, stmt])
     assert isinstance(ret, tvm.stmt.For)
     ret = tvm.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
-    assert isinstance(ret.first, tvm.stmt.For)
-    assert ret.first.for_type == tvm.stmt.For.Unrolled
-    assert isinstance(ret.rest, tvm.stmt.For)
-    assert ret.rest.for_type != tvm.stmt.For.Unrolled
+    assert isinstance(ret[0], tvm.stmt.For)
+    assert ret[0].for_type == tvm.stmt.For.Unrolled
+    assert isinstance(ret[1], tvm.stmt.For)
+    assert ret[1].for_type != tvm.stmt.For.Unrolled
 
 def test_unroll_fake_loop():
     ib = tvm.ir_builder.create()
     dtype = 'int32'
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
@@ -65,10 +65,10 @@ def test_unroll_fake_loop():
 
     stmt = ib.get()
     ret = tvm.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
-    assert isinstance(ret.first, tvm.stmt.Store)
+    assert isinstance(ret[0], tvm.stmt.Store)
 
 def test_unroll_single_count_loops():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute((n,), lambda *i: A(*i), name='B')
     s = tvm.create_schedule(B.op)

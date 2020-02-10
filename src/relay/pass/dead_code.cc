@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  *
  * \file dead_code.cc
  *
@@ -37,8 +36,8 @@ namespace tvm {
 namespace relay {
 
 template<typename X>
-using VarMap = std::unordered_map<Var, X, NodeHash, NodeEqual>;
-using VarSet = std::unordered_set<Var, NodeHash, NodeEqual>;
+using VarMap = std::unordered_map<Var, X, ObjectHash, ObjectEqual>;
+using VarSet = std::unordered_set<Var, ObjectHash, ObjectEqual>;
 
 class CalcDep;
 class FindDef : private ExprVisitor {
@@ -110,7 +109,15 @@ class CalcDep : private ExprVisitor {
   VarMap<size_t> use_map_;
 
   void VisitExpr(const Expr& e) final {
-    return ExprFunctor<void(const Expr& e)>::VisitExpr(e);
+    visit_counter_[e.get()]++;
+    // The dce code seprate variable into three parts:
+    // used 0 times (remove)
+    // used 1 times (inline)
+    // used 2 times (dont do anything).
+    if (visit_counter_[e.get()] <= 2) {
+      using TParent = ExprFunctor<void(const Expr&)>;
+      TParent::VisitExpr(e);
+    }
   }
 
   void VisitExpr_(const LetNode* l) final {
@@ -133,14 +140,14 @@ Expr DeadCodeElimination(const Expr& e, bool inline_once) {
 namespace transform {
 
 Pass DeadCodeElimination(bool inline_once) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(DeadCodeElimination(f, inline_once));
   };
   return CreateFunctionPass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_API("relay._transform.DeadCodeElimination")
+TVM_REGISTER_GLOBAL("relay._transform.DeadCodeElimination")
 .set_body_typed(DeadCodeElimination);
 
 }  // namespace transform

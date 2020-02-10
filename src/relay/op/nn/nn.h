@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file src/relay/op/nn/nn.h
  * \brief Properties def of nn operators for sharing.
  */
@@ -43,17 +42,26 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   CHECK(static_cast<int>(data->shape.size()) != 0);
 
-  Array<tvm::Expr> oshape = data->shape;
+  Array<tvm::PrimExpr> oshape = data->shape;
   if (param->units.defined()) {
-    Array<tvm::Expr> dshape = data->shape;
+    Array<tvm::PrimExpr> dshape = data->shape;
     // validate the weight shape is proper if defined
     // Assign weight type
     Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    // It is possible for weight to be nullptr in which case we will use
+    // data dtype as the weight dtype. However if weight dtype is explicitly
+    // present we will use that.
+    auto weight_dtype = (weight == nullptr ? data->dtype : weight->dtype);
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
-    Array<tvm::Expr> wshape = weight->shape;
+    Array<tvm::PrimExpr> wshape = weight->shape;
+    CHECK(static_cast<int>(weight->shape.size()) == 2);
+    CHECK(reporter->AssertEQ(data->shape[data->shape.size() - 1],
+                             weight->shape[1]))
+        << "DenseRel: input dimension doesn't match,"
+        << " data shape=" << data->shape << ", weight shape=" << weight->shape;
     oshape.Set((oshape.size() - 1), wshape[0]);
   }
 

@@ -28,6 +28,7 @@ from .transform import *
 from .algorithm import *
 from . import nn
 from . import annotation
+from . import memory
 from . import image
 from . import vision
 from . import contrib

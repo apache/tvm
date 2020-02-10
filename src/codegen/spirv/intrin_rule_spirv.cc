@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,9 +18,9 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file intrin_rule_spirv.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
 #include <GLSL.std.450.h>
@@ -34,18 +34,18 @@ using namespace runtime;
 // num_signature means number of arguments used to query signature
 template<unsigned id>
 inline void DispatchGLSLPureIntrin(const TVMArgs& targs, TVMRetValue* rv) {
-  Expr e = targs[0];
-  const ir::Call* call = e.as<ir::Call>();
+  PrimExpr e = targs[0];
+  const ir::CallNode* call = e.as<ir::CallNode>();
   CHECK(call != nullptr);
-  Array<Expr> cargs;
+  Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(ir::UIntImm::make(UInt(32), id));
+  cargs.push_back(IntImm(DataType::UInt(32), id));
 
-  for (Expr arg : call->args) {
+  for (PrimExpr arg : call->args) {
     cargs.push_back(arg);
   }
-  *rv = ir::Call::make(
-      call->type, "spirv_glsl450", cargs, ir::Call::PureIntrinsic);
+  *rv = ir::CallNode::make(
+      call->dtype, "spirv_glsl450", cargs, ir::CallNode::PureIntrinsic);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")

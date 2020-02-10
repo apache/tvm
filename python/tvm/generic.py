@@ -25,6 +25,7 @@ from . import make as _make
 #Operator precedence used when overloading.
 __op_priority__ = 0
 
+
 def add(lhs, rhs):
     """Generic add operator.
 
@@ -78,7 +79,6 @@ def multiply(lhs, rhs):
     """
     return _make._OpMul(lhs, rhs)
 
-
 def divide(lhs, rhs):
     """Generic divide operator.
 
@@ -95,6 +95,23 @@ def divide(lhs, rhs):
         The result Expr of divide operaton.
     """
     return _make._OpDiv(lhs, rhs)
+
+def floordiv(lhs, rhs):
+    """Generic floordiv operator.
+
+    Parameters
+    ----------
+    lhs : object
+        The left operand.
+    rhs : object
+        The right operand.
+
+    Returns
+    -------
+    op : tvm.Expr
+        The result Expr of divide operaton.
+    """
+    return _make._OpFloorDiv(lhs, rhs)
 
 
 def cast(src, dtype):

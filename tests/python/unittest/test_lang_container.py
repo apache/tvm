@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import numpy as np
 
 def test_array():
     a = tvm.convert([1,2,3])
@@ -71,6 +72,14 @@ def test_in_container():
     assert tvm.make.StringImm('a') in arr
     assert 'd' not in arr
 
+def test_ndarray_container():
+    x = tvm.nd.array([1,2,3])
+    arr = tvm.convert([x, x])
+    assert arr[0].same_as(x)
+    assert arr[1].same_as(x)
+    assert isinstance(arr[0], tvm.nd.NDArray)
+
+
 if __name__ == "__main__":
     test_str_map()
     test_array()
@@ -78,3 +87,4 @@ if __name__ == "__main__":
     test_array_save_load_json()
     test_map_save_load_json()
     test_in_container()
+    test_ndarray_container()

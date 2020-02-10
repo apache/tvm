@@ -16,11 +16,11 @@
 # under the License.
 """Container data structures used in TVM DSL."""
 from __future__ import absolute_import as _abs
-from ._ffi.node import NodeBase, register_node
+from ._ffi.object import Object, register_object
 from . import _api_internal
 
-@register_node
-class Array(NodeBase):
+@register_object
+class Array(Object):
     """Array container of TVM.
 
     You do not need to create Array explicitly.
@@ -50,8 +50,8 @@ class Array(NodeBase):
         return _api_internal._ArraySize(self)
 
 
-@register_node
-class EnvFunc(NodeBase):
+@register_object
+class EnvFunc(Object):
     """Environment function.
 
     This is a global function object that can be serialized by its name.
@@ -64,13 +64,13 @@ class EnvFunc(NodeBase):
         return _api_internal._EnvFuncGetPackedFunc(self)
 
 
-@register_node
-class Map(NodeBase):
+@register_object
+class Map(Object):
     """Map container of TVM.
 
     You do not need to create Map explicitly.
     Normally python dict will be converted automaticall to Map during tvm function call.
-    You can use convert to create a dict[NodeBase-> NodeBase] into a Map
+    You can use convert to create a dict[Object-> Object] into a Map
     """
     def __getitem__(self, k):
         return _api_internal._MapGetItem(self, k)
@@ -87,11 +87,11 @@ class Map(NodeBase):
         return _api_internal._MapSize(self)
 
 
-@register_node
+@register_object
 class StrMap(Map):
     """A special map container that has str as key.
 
-    You can use convert to create a dict[str->NodeBase] into a Map.
+    You can use convert to create a dict[str->Object] into a Map.
     """
     def items(self):
         """Get the items from the map"""
@@ -99,8 +99,8 @@ class StrMap(Map):
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
 
 
-@register_node
-class Range(NodeBase):
+@register_object
+class Range(Object):
     """Represent a range in TVM.
 
     You do not need to create a Range explicitly.
@@ -108,8 +108,8 @@ class Range(NodeBase):
     """
 
 
-@register_node
-class LoweredFunc(NodeBase):
+@register_object
+class LoweredFunc(Object):
     """Represent a LoweredFunc in TVM."""
     MixedFunc = 0
     HostFunc = 1

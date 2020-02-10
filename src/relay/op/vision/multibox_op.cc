@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file multibox_op.cc
  * \brief Multibox related operators
  */
@@ -61,7 +60,7 @@ Expr MakeMultiBoxPrior(Expr data,
                        Array<IndexExpr> steps,
                        Array<IndexExpr> offsets,
                        bool clip) {
-  auto attrs = make_node<MultiBoxPriorAttrs>();
+  auto attrs = make_object<MultiBoxPriorAttrs>();
   attrs->sizes = std::move(sizes);
   attrs->ratios = std::move(ratios);
   attrs->steps = std::move(steps);
@@ -72,14 +71,14 @@ Expr MakeMultiBoxPrior(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.multibox_prior")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.multibox_prior")
 .set_body_typed(MakeMultiBoxPrior);
 
 
 RELAY_REGISTER_OP("vision.multibox_prior")
 .describe(R"doc("Generate prior(anchor) boxes from data, sizes and ratios."
 )doc" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MultiBoxPriorAttrs")
+.set_attrs_type<MultiBoxPriorAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(5)
@@ -123,10 +122,10 @@ bool MultiBoxTransformLocRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape1({cls_shape[0]});
   std::vector<Type> fields;
   fields.push_back(TensorTypeNode::make(oshape0, cls_prob->dtype));
-  fields.push_back(TensorTypeNode::make(oshape1, Int(32)));
+  fields.push_back(TensorTypeNode::make(oshape1, DataType::Int(32)));
 
   // assign output type
-  reporter->Assign(types[3], TupleTypeNode::make(Array<Type>(fields)));
+  reporter->Assign(types[3], TupleType(Array<Type>(fields)));
   return true;
 }
 
@@ -136,7 +135,7 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
                               bool clip,
                               double threshold,
                               Array<IndexExpr> variances) {
-  auto attrs = make_node<MultiBoxTransformLocAttrs>();
+  auto attrs = make_object<MultiBoxTransformLocAttrs>();
   attrs->clip = std::move(clip);
   attrs->threshold = std::move(threshold);
   attrs->variances = std::move(variances);
@@ -144,13 +143,13 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
   return CallNode::make(op, {cls_prob, loc_pred, anchor}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.multibox_transform_loc")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.multibox_transform_loc")
 .set_body_typed(MakeMultiBoxTransformLoc);
 
 RELAY_REGISTER_OP("vision.multibox_transform_loc")
 .describe(R"doc("Location transformation for multibox detection."
 )doc" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.MultiBoxTransformLocAttrs")
+.set_attrs_type<MultiBoxTransformLocAttrs>()
 .set_num_inputs(3)
 .add_argument("cls_prob", "Tensor", "Class probabilities.")
 .add_argument("loc_pred", "Tensor", "Location regression predictions.")

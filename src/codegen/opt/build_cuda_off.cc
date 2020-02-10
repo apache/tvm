@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  *  Optional module when build cuda is switched to off
  */
 #include "../../runtime/cuda/cuda_module.h"

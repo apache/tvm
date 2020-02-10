@@ -71,8 +71,13 @@ def test_conv2d_nhwc():
     verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "VALID")
     verify_conv2d_nhwc(4, 128, 16, 128, 5, 2, "VALID")
     verify_conv2d_nhwc(4, 128, 16, 256, 5, 2, "VALID")
+    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (0, 0, 1, 1))
+    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (1, 1, 2, 2))
+    verify_conv2d_nhwc(1, 128, 16, 128, 5, 2, (3, 3, 2, 2))
+    verify_conv2d_nhwc(1, 128, 16, 256, 3, 2, (0, 1, 2, 3))
     # dilation = 2
     verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, "SAME", dilation=2)
+    verify_conv2d_nhwc(1, 256, 32, 256, 3, 1, (1, 1, 2, 2), dilation=2)
 
 
 if __name__ == "__main__":

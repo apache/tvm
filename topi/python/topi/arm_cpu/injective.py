@@ -18,6 +18,33 @@
 """Schedule for pooling operators"""
 import tvm
 from .. import generic
+from ..util import is_empty_shape
+
+@generic.schedule_injective_from_existing.register(["arm_cpu"])
+def schedule_injective_from_existing(sch, out):
+    """Schedule for injective op from existing schedule.
+
+    Parameters
+    ----------
+    sch: Schedule
+         The schedule to update.
+    out: Tensor
+         The tensor representing the injective op.
+
+    Returns
+    -------
+    sch: Schedule
+         The updated schedule.
+    """
+    if len(sch[out].op.axis) >= 4:
+        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1], sch[out].op.axis[2])
+        sch[out].parallel(fused)
+    elif len(sch[out].op.axis) >= 3:
+        fused = sch[out].fuse(sch[out].op.axis[0], sch[out].op.axis[1])
+        sch[out].parallel(fused)
+    elif len(sch[out].op.axis) >= 2:
+        sch[out].parallel(sch[out].op.axis[0])
+    return sch
 
 @generic.schedule_injective.register(["arm_cpu"])
 def schedule_injective(outs):
@@ -42,14 +69,9 @@ def schedule_injective(outs):
         (io, ii) = s[x].split(list(s[x].op.axis)[-1], 8)
         s[x].vectorize(ii)
     tvm.schedule.AutoInlineInjective(s)
-    if len(s[x].op.axis) >= 4:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) >= 3:
-        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
-        s[x].parallel(fused)
-    elif len(s[x].op.axis) >= 2:
-        s[x].parallel(s[x].op.axis[0])
+
+    if not is_empty_shape(x.shape):
+        schedule_injective_from_existing(s, x)
     return s
 
 @generic.schedule_concatenate.register(["arm_cpu"])

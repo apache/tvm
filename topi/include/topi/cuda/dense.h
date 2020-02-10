@@ -24,7 +24,7 @@
 #ifndef TOPI_CUDA_DENSE_H_
 #define TOPI_CUDA_DENSE_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 #include "topi/tags.h"
 #include "topi/detail/array_utils.h"
@@ -34,6 +34,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace cuda {
 /*!
@@ -47,11 +48,11 @@ namespace cuda {
 *
 * \return Tensor with shape [batch, out_dim]
 */
-inline tvm::Tensor dense_cuda(const Target& target,
-                              const tvm::Tensor& data,
-                              const tvm::Tensor& weight,
-                              const tvm::Tensor& bias,
-                              const Type& out_dtype) {
+inline tvm::top::Tensor dense_cuda(const Target& target,
+                              const tvm::top::Tensor& data,
+                              const tvm::top::Tensor& weight,
+                              const tvm::top::Tensor& bias,
+                              const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -66,7 +67,7 @@ inline tvm::Tensor dense_cuda(const Target& target,
     CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::cublas_matmul(data, weight, false, true);
     if (bias.defined()) {
-      mm = tvm::compute({ batch, out_dim },
+      mm = tvm::top::compute({ batch, out_dim },
                         [&](Var i, Var j) {
                           return mm(i, j) + bias(j);
                         }, "tensor", kBroadcast);
@@ -119,8 +120,8 @@ inline Schedule schedule_dense(const Target &target, const Array<Tensor>& outs) 
     auto thread_x = tvm::thread_axis(Range(), "threadIdx.x");
     s[dense].bind(tx, thread_x);
     s[dense_f].compute_at(s[dense], tx);
-    s[dense].set_store_predicate(static_cast<Expr>(thread_x) == 0);
-    s[out].set_store_predicate(static_cast<Expr>(thread_x) == 0);
+    s[dense].set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
+    s[out].set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
   };
 
   std::function<void(Operation)> traverse;

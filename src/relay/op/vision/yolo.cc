@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file yolo.cc
  * \brief Yolo related operators
  */
@@ -55,22 +54,22 @@ bool YoloReorgRel(const Array<Type>& types,
   CHECK(data->shape.size() == 4) << "Yolo reorg supports only 4 dimension.";
   std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
   oshape[1] = oshape[1] * param->stride * param->stride;
-  oshape[2] = oshape[2] / param->stride;
-  oshape[3] = oshape[3] / param->stride;
+  oshape[2] = indexdiv(oshape[2], param->stride);
+  oshape[3] = indexdiv(oshape[3], param->stride);
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }
 
 Expr MakeYoloReorg(Expr data,
                    Integer stride) {
-  auto attrs = make_node<YoloReorgAttrs>();
+  auto attrs = make_object<YoloReorgAttrs>();
   attrs->stride = stride;
   static const Op& op = Op::Get("vision.yolo_reorg");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op.vision._make.yolo_reorg")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.yolo_reorg")
 .set_body_typed(MakeYoloReorg);
 
 
@@ -80,15 +79,15 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_num_inputs(1)
 .set_support_level(5)
-.set_attrs_type_key("relay.attrs.YoloReorgAttrs")
+.set_attrs_type<YoloReorgAttrs>()
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
+                                         const Array<top::Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
   const auto* params = attrs.as<YoloReorgAttrs>();
   CHECK(params != nullptr);
-  return Array<Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
+  return Array<top::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
 });
 
 }  // namespace relay

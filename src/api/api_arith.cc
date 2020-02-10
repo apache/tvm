@@ -18,37 +18,43 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  *  Implementation of API functions related to arith
  * \file api_arith.cc
  */
+#include <tvm/arith/bound.h>
+#include <tvm/arith/int_set.h>
+#include <tvm/arith/pattern.h>
+#include <tvm/arith/analyzer.h>
+
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <tvm/api_registry.h>
-#include <tvm/tensor.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
+#include <tvm/top/tensor.h>
 
 namespace tvm {
 namespace arith {
 
-TVM_REGISTER_API("arith.intset_single_point")
+TVM_REGISTER_GLOBAL("arith.intset_single_point")
 .set_body_typed(IntSet::single_point);
 
-TVM_REGISTER_API("arith.intset_vector")
+TVM_REGISTER_GLOBAL("arith.intset_vector")
 .set_body_typed(IntSet::vector);
 
-TVM_REGISTER_API("arith.intset_interval")
+TVM_REGISTER_GLOBAL("arith.intset_interval")
 .set_body_typed(IntSet::interval);
 
 
-TVM_REGISTER_API("arith.DetectLinearEquation")
+TVM_REGISTER_GLOBAL("arith.DetectLinearEquation")
 .set_body_typed(DetectLinearEquation);
 
-TVM_REGISTER_API("arith.DetectClipBound")
+TVM_REGISTER_GLOBAL("arith.DetectClipBound")
 .set_body_typed(DetectClipBound);
 
-TVM_REGISTER_API("arith.DeduceBound")
-.set_body_typed<IntSet(Expr, Expr, Map<Var, IntSet>, Map<Var, IntSet>)>([](
-  Expr v, Expr cond,
+TVM_REGISTER_GLOBAL("arith.DeduceBound")
+.set_body_typed([](
+  PrimExpr v, PrimExpr cond,
   const Map<Var, IntSet> hint_map,
   const Map<Var, IntSet> relax_map
 ) {
@@ -56,36 +62,36 @@ TVM_REGISTER_API("arith.DeduceBound")
 });
 
 
-TVM_REGISTER_API("arith.DomainTouched")
+TVM_REGISTER_GLOBAL("arith.DomainTouched")
 .set_body_typed(DomainTouched);
 
-TVM_REGISTER_API("_IntervalSetGetMin")
+TVM_REGISTER_GLOBAL("_IntervalSetGetMin")
 .set_body_method(&IntSet::min);
 
-TVM_REGISTER_API("_IntervalSetGetMax")
+TVM_REGISTER_GLOBAL("_IntervalSetGetMax")
 .set_body_method(&IntSet::max);
 
-TVM_REGISTER_API("_IntSetIsNothing")
+TVM_REGISTER_GLOBAL("_IntSetIsNothing")
 .set_body_method(&IntSet::is_nothing);
 
-TVM_REGISTER_API("_IntSetIsEverything")
+TVM_REGISTER_GLOBAL("_IntSetIsEverything")
 .set_body_method(&IntSet::is_everything);
 
 ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_REGISTER_API("arith._make_ConstIntBound")
+TVM_REGISTER_GLOBAL("arith._make_ConstIntBound")
 .set_body_typed(MakeConstIntBound);
 
 ModularSet MakeModularSet(int64_t coeff, int64_t base) {
   return ModularSet(coeff, base);
 }
 
-TVM_REGISTER_API("arith._make_ModularSet")
+TVM_REGISTER_GLOBAL("arith._make_ModularSet")
 .set_body_typed(MakeModularSet);
 
-TVM_REGISTER_API("arith._CreateAnalyzer")
+TVM_REGISTER_GLOBAL("arith._CreateAnalyzer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
@@ -117,11 +123,10 @@ TVM_REGISTER_API("arith._CreateAnalyzer")
         });
       } else if (name == "bind") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
-            auto& sptr = args[1].node_sptr();
-            if (sptr->is_type<Range::ContainerType>()) {
+            if (args[1].IsObjectRef<Range>()) {
               self->Bind(args[0], args[1].operator Range());
             } else {
-              self->Bind(args[0], args[1].operator Expr());
+              self->Bind(args[0], args[1].operator PrimExpr());
             }
         });
       } else if (name == "enter_constraint_context") {

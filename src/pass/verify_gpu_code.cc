@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,21 +18,22 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file verify_gpu_code.cc
  * \brief Verify the correctness of a GPU IR.
  *        It will check the whether the amount of memory usage or the number of threads
  *        in a block exceeds the limit
  */
 
-#include <tvm/api_registry.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
 #include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
+#include <tvm/ir_functor_ext.h>
 
 namespace tvm {
 namespace ir {
 
-class GPUCodeVerifier : public IRVisitor {
+class GPUCodeVerifier : public StmtVisitor {
  public:
   bool Verify(tvm::Stmt stmt,
               int64_t max_local_memory_per_block,
@@ -50,12 +51,12 @@ class GPUCodeVerifier : public IRVisitor {
 
     Reset_();
 
-    this->Visit(stmt);
+    this->VisitStmt(stmt);
 
     return valid_;
   }
 
-  void Visit_(const ProducerConsumer *op) {
+  void VisitStmt_(const ProducerConsumerNode* op) final {
     if (nest_level_ == 0) {
       // enter a new kernel, reset statistics
       Reset_();
@@ -63,10 +64,10 @@ class GPUCodeVerifier : public IRVisitor {
 
     if (op->is_producer) {
       nest_level_++;
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
       nest_level_--;
     } else {
-      IRVisitor::Visit_(op);
+      StmtVisitor::VisitStmt_(op);
     }
 
     if (nest_level_ == 0) {
@@ -78,29 +79,29 @@ class GPUCodeVerifier : public IRVisitor {
     }
   }
 
-  void Visit_(const Allocate *op) {
-    IRVisitor::Visit_(op);
+  void VisitStmt_(const AllocateNode* op) final {
+    StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
     if (visited_local_buffers_.count(op->buffer_var.get()) != 0) {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
-      local_memory_per_block_ += size * op->type.bytes();
+      local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     } else if (visited_shared_buffers_.count(op->buffer_var.get()) != 0) {
       size_t size = static_cast<size_t>(op->constant_allocation_size());
-      shared_memory_per_block_ += size * op->type.bytes();
+      shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
   }
 
-  void Visit_(const AttrStmt *op) {
+  void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      std::string op_value = op->value.as<StringImm>()->value;
+      std::string op_value = op->value.as<StringImmNode>()->value;
       if (op_value == "local") {
-        visited_local_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_local_buffers_.insert(op->node.as<tvm::VarNode>());
       } else if (op_value == "shared") {
-        visited_shared_buffers_.insert(op->node.as<tvm::Variable>());
+        visited_shared_buffers_.insert(op->node.as<tvm::VarNode>());
       }
     } else if (op->attr_key == attr::thread_extent) {
-      VarExpr var = op->node.as<tvm::IterVarNode>()->var;
-      const auto *extent = op->value.as<IntImm>();
+      Var var = op->node.as<tvm::IterVarNode>()->var;
+      const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
 
       // record the number of threads in a block
@@ -133,14 +134,14 @@ class GPUCodeVerifier : public IRVisitor {
         }
       }
     }
-    IRVisitor::Visit_(op);
+    StmtVisitor::VisitStmt_(op);
   }
 
  private:
   int nest_level_{0};
 
-  std::unordered_set<const tvm::Variable *> visited_local_buffers_;
-  std::unordered_set<const tvm::Variable *> visited_shared_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_local_buffers_;
+  std::unordered_set<const tvm::VarNode *> visited_shared_buffers_;
   std::unordered_set<std::string> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;
@@ -168,7 +169,7 @@ class GPUCodeVerifier : public IRVisitor {
 };
 
 bool VerifyGPUCode(Stmt stmt,
-                   Map<std::string, Expr> constraints) {
+                   Map<std::string, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
@@ -179,7 +180,7 @@ bool VerifyGPUCode(Stmt stmt,
   int64_t max_thread_z = INT64_MAX;
 
   for (auto iter : constraints) {
-    const IntImm* val = iter.second.as<IntImm>();
+    const IntImmNode* val = iter.second.as<IntImmNode>();
     if (iter.first == "max_local_memory_per_block")
       max_local_memory_per_block = val->value;
     else if (iter.first == "max_shared_memory_per_block")

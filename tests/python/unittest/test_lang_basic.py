@@ -17,6 +17,7 @@
 import tvm
 import numpy as np
 
+
 def test_const():
     x = tvm.const(1, "int32")
     print(x.dtype)
@@ -39,12 +40,14 @@ def test_scalar_dtype_inference():
     assert tvm.convert(1).dtype == 'int32'
     assert tvm.convert(1.0).dtype == 'float32'
 
+
 def test_make():
     x = tvm.const(1, "int32")
     y = tvm.var("x")
     z = x + y
     assert isinstance(tvm.max(x, y), tvm.expr.Max)
     assert isinstance(tvm.min(x, y), tvm.expr.Min)
+
 
 def test_ir():
     x = tvm.const(1, "int32")
@@ -53,6 +56,7 @@ def test_ir():
     stmt = tvm.make.Evaluate(z)
     assert isinstance(stmt, tvm.stmt.Evaluate)
 
+
 def test_ir2():
     x = tvm.var("n")
     a = tvm.var("array", tvm.handle)
@@ -60,11 +64,13 @@ def test_ir2():
     assert isinstance(st, tvm.stmt.Store)
     assert(st.buffer_var == a)
 
+
 def test_let():
     x = tvm.var('x')
     y = tvm.var('y')
     stmt = tvm.make.LetStmt(
         x, 10, tvm.make.Evaluate(x + 1));
+
 
 def test_cast():
     x = tvm.var('x', dtype="float32")
@@ -104,9 +110,11 @@ def test_stmt():
                  tvm.stmt.For.Serial, 0,
                  x)
 
+
 def test_dir():
     x = tvm.var('x')
     dir(x)
+
 
 def test_dtype():
     x = tvm.var('x')
@@ -158,6 +166,7 @@ def test_all():
         '(((%s < %s) && (%s > (%s + 1))) && (%s < (%s*2)))' % (
             x.name, y.name, y.name, z.name, x.name, z.name)
 
+
 def test_bitwise():
     x = tvm.var('x')
     y = tvm.var('y')
@@ -170,6 +179,18 @@ def test_bitwise():
     assert(tvm.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert(x >> tvm.const(1, "int32x2")).dtype == "int32x2"
     assert(tvm.var("z", "int8x2") << tvm.const(1, "int8x2")).dtype == "int8x2"
+
+
+def test_isnan():
+    x = tvm.var('x', 'float32')
+    assert str(tvm.isnan(x)) == 'isnan(x)'
+    assert str(tvm.isnan(x).dtype) == 'bool'
+    y = tvm.var('y', 'float16')
+    assert str(tvm.isnan(y)) == 'isnan(float32(y))'
+    z = tvm.var('z', 'int32')
+    assert str(tvm.isnan(z)) == '(bool)0'
+    k = tvm.var('k', 'int8x2')
+    assert str(tvm.isnan(k).dtype) == 'uint1x2'
 
 
 def test_equality():
@@ -203,5 +224,6 @@ if __name__ == "__main__":
     test_any()
     test_all()
     test_bitwise()
+    test_isnan()
     test_equality()
     test_equality_string_imm()

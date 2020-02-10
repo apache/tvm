@@ -26,11 +26,12 @@
 
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace cuda {
 /*!
@@ -125,7 +126,7 @@ Schedule ScheduleReduce(const Target& target,
     }
   }
 
-  stage_real.set_store_predicate(static_cast<Expr>(thread_x) == 0);
+  stage_real.set_store_predicate(static_cast<PrimExpr>(thread_x) == 0);
   return sch;
 }
 
@@ -137,7 +138,7 @@ Schedule ScheduleReduce(const Target& target,
  * \param op The current op in the traversal
  */
 void TraverseBeforeReduce(Schedule s, Operation op) {
-  if (op->derived_from<PlaceholderOpNode>()) {
+  if (op->IsInstance<PlaceholderOpNode>()) {
     return;
   } else if (is_injective(op->tag)) {
     s[op].compute_inline();

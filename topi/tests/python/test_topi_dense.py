@@ -117,8 +117,9 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
 def test_dense():
     verify_dense(1, 1024, 1000, use_bias=True)
     verify_dense(1, 1024, 1000, use_bias=False)
-
     verify_dense(2, 1024, 1000, use_bias=True)
+    verify_dense(128, 1024, 1000, use_bias=False)
+    verify_dense(128, 1024, 1000, use_bias=True)
 
 
 def test_dense_int8():

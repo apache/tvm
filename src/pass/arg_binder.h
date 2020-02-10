@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file arg_binder.h
  * \brief Helper utility to match and bind arguments.
  */
@@ -63,7 +62,7 @@ class ArgBinder {
    *   ArgBinder will update this def_map when adding new definitions.
    */
   explicit ArgBinder(
-      std::unordered_map<const Variable*, Expr>* def_map)
+      std::unordered_map<const VarNode*, PrimExpr>* def_map)
       : def_map_(def_map) {
   }
   /*!
@@ -73,8 +72,8 @@ class ArgBinder {
    * \param arg_name argument name.
    * \param with_let Whether add lets during bind
    */
-  void Bind(const Expr& arg,
-            const Expr& value,
+  void Bind(const PrimExpr& arg,
+            const PrimExpr& value,
             const std::string& arg_name,
             bool with_let = false);
   /*!
@@ -83,8 +82,8 @@ class ArgBinder {
    * \param value The target expression value
    * \param arg_name argument name.
    */
-  void BindArray(const Array<Expr>& arg,
-                 const Array<Expr>& value,
+  void BindArray(const Array<PrimExpr>& arg,
+                 const Array<PrimExpr>& value,
                  const std::string& arg_name);
   /*!
    * \brief Bind symbolic buffer to another symbolic buffer
@@ -106,8 +105,8 @@ class ArgBinder {
    * \param arg_name argument name.
    */
   void BindDLTensor(const Buffer& buffer,
-                    const Expr& device_type,
-                    const Expr& device_id,
+                    const PrimExpr& device_type,
+                    const PrimExpr& device_id,
                     const Var& handle,
                     const std::string& arg_name);
 
@@ -134,24 +133,24 @@ class ArgBinder {
     return init_nest_;
   }
   /*! \return Handle data type of the data */
-  const Map<Var, Expr>& def_handle_dtype() const {
+  const Map<Var, PrimExpr>& def_handle_dtype() const {
     return def_handle_dtype_;
   }
 
  private:
   // Internal bind function
-  bool Bind_(const Expr& arg,
-             const Expr& value,
+  bool Bind_(const PrimExpr& arg,
+             const PrimExpr& value,
              const std::string& arg_name,
              bool with_lets);
   /*! \brief The definition map, can be uses to substitute */
-  std::unordered_map<const Variable*, Expr>* def_map_;
+  std::unordered_map<const VarNode*, PrimExpr>* def_map_;
   /*! \brief defs generated in the current binder */
   std::vector<Var> defs_;
   /*! \brief Initialize nest */
   std::vector<Stmt> init_nest_;
   /*! \brief handle data type in the defintiions */
-  Map<Var, Expr> def_handle_dtype_;
+  Map<Var, PrimExpr> def_handle_dtype_;
   /*! \brief asserts generated */
   std::vector<Stmt> asserts_;
 };

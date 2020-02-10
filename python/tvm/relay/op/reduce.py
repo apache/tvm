@@ -166,6 +166,58 @@ def all(data, axis=None, keepdims=False, exclude=False):
     return _make.all(data, axis, keepdims, exclude)
 
 
+def any(data, axis=None, keepdims=False, exclude=False):
+    """Computes the logical OR of boolean array elements over given axes.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input boolean tensor
+
+    axis : None or int or tuple of int
+        Axis or axes along which a sum is performed. The default, axis=None,
+        will sum all of the elements of the input array. If axis is
+        negative it counts from the last to the first axis.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one. With this option, the result will broadcast
+        correctly against the input array.
+
+    exclude : bool
+        If `exclude` is true, reduction will be performed on the axes that are
+        NOT in axis instead.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+    data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
+                                         [ True,  True,  True],
+                                         [False,  True, False]],
+                                        [[ True, False, False],
+                                         [ True,  True, False],
+                                         [False,  True,  True]]]))
+
+    relay.any(data, axis=1)
+    # [[True, True, True],
+    # [True,  True, True]]
+
+    relay.any(data, axis=0)
+    # [[ True, True, True],
+    # [ True,  True, True],
+    # [False,  True, True]]
+
+    """
+    axis = [axis] if isinstance(axis, int) else axis
+    return _make.any(data, axis, keepdims, exclude)
+
+
 def max(data, axis=None, keepdims=False, exclude=False):
     """ Computes the max of array elements over given axes.
 

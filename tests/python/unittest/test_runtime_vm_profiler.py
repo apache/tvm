@@ -22,19 +22,20 @@ import pytest
 from tvm import relay
 from tvm.relay.testing import resnet
 
-@pytest.mark.skip
 def test_basic():
     mod, params = resnet.get_workload()
-    compiler = relay.profiler_vm.VMCompilerProfiler()
     target = 'llvm'
     ctx = tvm.cpu()
-    vm = compiler.compile(mod, target)
+    if not relay.profiler_vm.enabled():
+        return
+    exe = relay.vm.compile(mod, target, params=params)
+    vm = relay.profiler_vm.VirtualMachineProfiler(exe)
     vm.init(ctx)
-    vm.load_params(params)
 
     data = np.random.rand(1, 3, 224, 224).astype('float32')
     res = vm.invoke("main", [data])
     print("\n{}".format(vm.get_stat()))
+    print("\n{}".format(vm.get_stat(False)))
 
 if __name__ == "__main__":
     test_basic()

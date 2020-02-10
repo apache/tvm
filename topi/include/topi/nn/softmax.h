@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Softmax op constructions
  * \file nn/softmax.h
  */
@@ -30,12 +29,13 @@
 
 #include "topi/reduction.h"
 #include "topi/tags.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Softmax activation
@@ -62,12 +62,12 @@ inline Tensor softmax(const Tensor &x,
   auto k2 = tvm::reduce_axis(Range(0, input_shape[axis]), "k2");
   auto reduced_shape = MakeReduceTargetShape({axis}, x, false, false);
 
-  tvm::Map<std::string, NodeRef> attrs;
+  tvm::Map<std::string, ObjectRef> attrs;
   attrs.Set("axis", Integer(axis));
 
   auto insert_reduce_index = [axis, ndim](const Array<Var> &indices,
                                           const IterVar &reduce_index) {
-    Array<Expr> eval_range;
+    Array<PrimExpr> eval_range;
     int arg_counter = 0;
     for (size_t i = 0; i < ndim; ++i) {
       if (static_cast<int>(i) == axis)
@@ -79,7 +79,7 @@ inline Tensor softmax(const Tensor &x,
   };
 
   auto get_non_reduce_indices = [axis, ndim](const Array<Var> &indices) {
-    Array<Expr> non_reduce_indices;
+    Array<PrimExpr> non_reduce_indices;
     for (size_t i = 0; i < ndim; ++i) {
       if (static_cast<int>(i) != axis)
         non_reduce_indices.push_back(indices[i]);
@@ -110,14 +110,14 @@ inline Tensor softmax(const Tensor &x,
     return exp(indices) / expsum(non_reduce_indices);
   };
 
-  auto max_elem = tvm::compute(reduced_shape, _compute_max);
-  auto exp = tvm::compute(input_shape, [&](const Array<Var> &indices) {
+  auto max_elem = tvm::top::compute(reduced_shape, _compute_max);
+  auto exp = tvm::top::compute(input_shape, [&](const Array<Var> &indices) {
       return _compute_exp(max_elem, indices);
   });
-  auto expsum = tvm::compute(reduced_shape, [&](const Array<Var> &indices) {
+  auto expsum = tvm::top::compute(reduced_shape, [&](const Array<Var> &indices) {
       return _compute_expsum(exp, indices);
   });
-  return tvm::compute(input_shape, [&](const Array<Var> &indices) {
+  return tvm::top::compute(input_shape, [&](const Array<Var> &indices) {
       return _normalize(exp, expsum, indices);
   }, name, tag, attrs);
 }
@@ -136,20 +136,20 @@ inline Tensor log_softmax(const Tensor& x,
                           std::string tag = "log_softmax_output") {
   CHECK_EQ(x->shape.size(), 2) << "Log softmax requires 2-D input";
 
-  Expr m = x->shape[0];
-  Expr n = x->shape[1];
+  PrimExpr m = x->shape[0];
+  PrimExpr n = x->shape[1];
 
   auto k = tvm::reduce_axis(Range(0, n), "k");
-  auto max_elem = tvm::compute(
+  auto max_elem = tvm::top::compute(
     { m }, [&](Var i) {
       return tvm::max(x(i, k), Array<IterVar>{ k }); });
   k = tvm::reduce_axis(Range(0, n), "k");
 
-  auto expsum = tvm::compute(
+  auto expsum = tvm::top::compute(
     { m }, [&](Var i) {
       return tvm::sum(tvm::exp(x(i, k) - max_elem(i)), { k }); });
 
-  return tvm::compute(
+  return tvm::top::compute(
     x->shape, [&](Var i, Var j) {
       return x(i, j) - max_elem(i) - tvm::log(expsum(i));
     }, name, tag);

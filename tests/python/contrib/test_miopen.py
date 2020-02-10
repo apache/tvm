@@ -50,7 +50,8 @@ def test_conv2d():
                               pad_w,
                               dilation_h,
                               dilation_w,
-                              conv_mode=0)
+                              conv_mode=0,
+                              data_type=1)
 
     yshape = [x.value for x in Y.shape]
     import topi
@@ -65,7 +66,7 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w))
+        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w))
         with tvm.target.rocm():
             s_ref = topi.generic.schedule_conv2d_nchw([Y_ref])
         f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm")

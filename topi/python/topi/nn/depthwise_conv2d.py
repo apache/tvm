@@ -105,14 +105,17 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     pad_after = [0, 0, pad_down, pad_right]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # depthconv stage
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     di = tvm.reduce_axis((0, filter_height), name='di')
     dj = tvm.reduce_axis((0, filter_width), name='dj')
     Output = tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j: tvm.sum(
-            (PaddedInput[b, c/channel_multiplier, i*stride_h+di*dilation_h,
+            (PaddedInput[b, idxdiv(c, channel_multiplier), i*stride_h+di*dilation_h,
                          j*stride_w+dj*dilation_w].astype(out_dtype) *
-             Filter[c/channel_multiplier, c%channel_multiplier, di, dj].astype(out_dtype)),
+             Filter[idxdiv(c, channel_multiplier),
+                    idxmod(c, channel_multiplier), di, dj].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
     return Output
@@ -176,14 +179,19 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # depthconv stage
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     di = tvm.reduce_axis((0, filter_height), name='di')
     dj = tvm.reduce_axis((0, filter_width), name='dj')
     Output = tvm.compute(
         (batch, out_height, out_width, out_channel),
         lambda b, i, j, c: tvm.sum(
             (PaddedInput[b, i*stride_h + di*dilation_h, j*stride_w + dj*dilation_w,
-                         c/channel_multiplier].astype(out_dtype) *
-             Filter[di, dj, c/channel_multiplier, c%channel_multiplier].astype(out_dtype)),
+                         idxdiv(c, channel_multiplier)].astype(out_dtype) *
+             Filter[di, dj,
+                    idxdiv(c, channel_multiplier),
+                    idxmod(c, channel_multiplier)].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
     return Output
@@ -286,11 +294,13 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     dh = tvm.reduce_axis((0, Out_grad.shape[1].value), name='dh')
     dw = tvm.reduce_axis((0, Out_grad.shape[2].value), name='dw')
     db = tvm.reduce_axis((0, batch), name='db')
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
 
     Weight_grad = tvm.compute(
         (filter_h, filter_w, in_c, channel_multiplier),
         lambda fh, fw, c, m: tvm.sum(
-            Out_grad[db, dh, dw, c*channel_multiplier+m%channel_multiplier] *
+            Out_grad[db, dh, dw, c*channel_multiplier+idxmod(m, channel_multiplier)] *
             padded_in[db, fh+dh*stride_h, fw+dw*stride_w, c], axis=[db, dh, dw]),
         tag='depthwise_conv2d_backward_weight_nhwc')
 

@@ -27,11 +27,12 @@
 #include <string>
 
 #include "topi/tags.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Local response normalization inference operator
@@ -59,33 +60,33 @@ inline Tensor lrn(const Tensor& data,
   CHECK_EQ(size % 2, 1) << "size should be odd number";
   CHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
   auto input_shape = data->shape;
-  Array<Expr> pad_before{ 0, 0, 0, 0};
-  Array<Expr> pad_after{ 0, 0, 0, 0};
-  pad_before.Set(axis, static_cast<Expr>(size/2));
-  pad_after.Set(axis, static_cast<Expr>(size/2));
+  Array<PrimExpr> pad_before{ 0, 0, 0, 0};
+  Array<PrimExpr> pad_after{ 0, 0, 0, 0};
+  pad_before.Set(axis, static_cast<PrimExpr>(size/2));
+  pad_after.Set(axis, static_cast<PrimExpr>(size/2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");
   auto rxs = tvm::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::top::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l + rxs, j, k) *
                                            pad_data(i, l + rxs, j, k),
                                            {rxs});
                            });
   } else if (axis == 3) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::top::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l, j, k + rxs) *
                                            pad_data(i, l, j, k + rxs),
                                            {rxs});
                            });
   }
-  auto sqrt_sum_up = tvm::compute(
+  auto sqrt_sum_up = tvm::top::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
         return tvm::pow(bias +
-                        (alpha * sqr_sum(i, j, k, l) / size),
+                        (div(alpha * sqr_sum(i, j, k, l), size)),
                         beta);
       });
   return topi::divide(data, sqrt_sum_up);

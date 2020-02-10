@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for pooling"""
+import math
 import numpy as np
 import tvm
 import topi
 import topi.testing
-import math
 from topi.util import get_const_tuple
-
 from common import get_all_backend
 
 def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
@@ -179,16 +178,20 @@ def test_pool_grad():
     verify_pool_grad(1, 256, 32, 2, 2, [0, 0, 0, 0], 'max', False, add_relu=True)
 
 
-def verify_global_pool(n, c, h, w, pool_type):
+def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
+
+    assert layout in ["NCHW", "NHWC"] 
     A = tvm.placeholder((n, c, h, w), name='A')
-    B = topi.nn.global_pool(A, pool_type=pool_type)
+    B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
+
+    axis = (layout.find('H'), layout.find('W'))
     if pool_type == 'avg':
-        b_np = np.mean(a_np, axis=(2,3), keepdims=True)
+        b_np = np.mean(a_np, axis=axis, keepdims=True)
     elif pool_type =='max':
-        b_np = np.max(a_np, axis=(2,3), keepdims=True)
+        b_np = np.max(a_np, axis=axis, keepdims=True)
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
@@ -213,6 +216,10 @@ def test_global_pool():
     verify_global_pool(4, 1024, 7, 7, 'avg')
     verify_global_pool(1, 1024, 7, 7, 'max')
     verify_global_pool(4, 1024, 7, 7, 'max')
+    verify_global_pool(1, 1024, 7, 7, 'avg', 'NHWC')
+    verify_global_pool(4, 1024, 7, 7, 'avg', 'NHWC')
+    verify_global_pool(1, 1024, 7, 7, 'max', 'NHWC')
+    verify_global_pool(4, 1024, 7, 7, 'max', 'NHWC')
 
 def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
     def start_index(index, odim, idim):
@@ -264,9 +271,117 @@ def test_adaptive_pool():
     verify_adaptive_pool((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg")
 
+def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
+                  ceil_mode, count_include_pad=True, layout='NCDHW'):
+    id = iw = ih
+    kd = kw = kh
+    sd = sw = sh
+    input_shape = (n, ic, id, ih, iw)
+    kernel = [kd, kh, kw]
+    stride = [sd, sh, sw]
+    A = tvm.placeholder(input_shape, name='A')
+    B = topi.nn.pool3d(A, kernel=kernel, stride=stride, padding=padding,
+                       pool_type=pool_type, ceil_mode=ceil_mode,
+                       layout=layout, count_include_pad=count_include_pad)
+    B = topi.nn.relu(B)
+    dtype = A.dtype
+    output_shape = [int(i) for i in B.shape]
+
+    input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
+    ref_np = topi.testing.pool3d_ncdhw_python(input_np, kernel, stride, padding,
+                                              output_shape, pool_type, count_include_pad, ceil_mode)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_pool(B, layout)
+
+        a = tvm.nd.array(input_np, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
+        f = tvm.build(s, [A, B], device)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
+def test_pool3d():
+    verify_pool3d(1, 256, 32, 2, 2, [0, 0, 0, 0, 0, 0], 'avg', False, True)
+    verify_pool3d(1, 256, 31, 3, 3, [1, 1, 2, 2, 2, 1], 'avg', False, True)
+    verify_pool3d(1, 256, 32, 2, 2, [1, 1, 2, 2, 2, 1], 'avg', False, False)
+    verify_pool3d(1, 256, 31, 4, 4, [3, 3, 3, 3, 3, 3], 'avg', False, False)
+    verify_pool3d(1, 256, 31, 4, 4, [0, 0, 0, 0, 0, 0], 'avg', False, False)
+    verify_pool3d(1, 256, 32, 2, 2, [0, 0, 0, 0, 0, 0], 'max', False)
+    verify_pool3d(1, 256, 31, 3, 3, [2, 2, 1, 1, 1, 2], 'max', False)
+    verify_pool3d(1, 256, 31, 3, 3, [2, 2, 1, 1, 1, 2], 'max', True)
+
+    verify_pool3d(1, 256, 31, 3, 3, [2, 1, 0, 5, 4, 3], 'avg', False, True)
+    verify_pool3d(1, 256, 32, 2, 2, [0, 5, 4, 3, 2, 1], 'avg', False, False)
+    verify_pool3d(1, 256, 31, 3, 3, [1, 0, 5, 4, 3, 2], 'max', False)
+    verify_pool3d(1, 256, 31, 3, 3, [3, 2, 1, 0, 5, 4], 'max', True)
+
+
+def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
+                  ceil_mode, count_include_pad=True, layout='NCW'):
+    input_shape = (n, ic, iw)
+    kernel = [kw]
+    stride = [sw]
+    A = tvm.placeholder(input_shape, name='A')
+    B = topi.nn.pool1d(A, kernel=kernel, stride=stride, padding=padding,
+                       pool_type=pool_type, ceil_mode=ceil_mode,
+                       layout=layout, count_include_pad=count_include_pad)
+    B = topi.nn.relu(B)
+    dtype = A.dtype
+    output_shape = [int(i) for i in B.shape]
+
+    input_np = np.random.uniform(low=0.001, size=input_shape).astype(dtype)
+    ref_np = topi.testing.pool1d_ncw_python(input_np, kernel, stride, padding,
+                                            output_shape, pool_type, count_include_pad, ceil_mode)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_pool(B, layout)
+
+        a = tvm.nd.array(input_np, ctx)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
+        f = tvm.build(s, [A, B], device)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), ref_np, rtol=1e-5)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
+def test_pool1d():
+    verify_pool1d(1, 256, 32, 2, 2, [0, 0], 'avg', False, True)
+    verify_pool1d(1, 256, 31, 3, 3, [1, 2], 'avg', False, True)
+    verify_pool1d(1, 256, 32, 2, 2, [1, 2], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 4, 4, [3, 3], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 4, 4, [0, 0], 'avg', False, False)
+    verify_pool1d(1, 256, 32, 2, 2, [0, 0], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [2, 1], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [2, 1], 'max', True)
+
+    verify_pool1d(1, 256, 31, 3, 3, [2, 5], 'avg', False, True)
+    verify_pool1d(1, 256, 32, 2, 2, [0, 3], 'avg', False, False)
+    verify_pool1d(1, 256, 31, 3, 3, [1, 4], 'max', False)
+    verify_pool1d(1, 256, 31, 3, 3, [3, 0], 'max', True)
+
 
 if __name__ == "__main__":
     test_pool()
+    test_pool1d()
+    test_pool3d()
     test_pool_grad()
     test_global_pool()
     test_adaptive_pool()

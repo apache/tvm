@@ -19,11 +19,24 @@
 import tvm
 from .. import generic
 
-def _schedule_injective(op, sch):
-    x = op.output(0)
-    sch[x].opengl()
-    return sch
+@generic.schedule_injective_from_existing.register(["opengl"])
+def schedule_injective_from_existing(sch, out):
+    """Schedule for injective op from existing schedule.
 
+    Parameters
+    ----------
+    sch: Schedule
+         The schedule to update.
+    out: Tensor
+         The tensor representing the injective op.
+
+    Returns
+    -------
+    sch: Schedule
+         The updated schedule.
+    """
+    sch[out].opengl()
+    return sch
 
 @generic.schedule_injective.register(["opengl"])
 def schedule_injective(outs):
@@ -45,7 +58,7 @@ def schedule_injective(outs):
 
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        _schedule_injective(out.op, s)
+        schedule_injective_from_existing(s, out)
     return s
 
 schedule_elemwise = schedule_injective

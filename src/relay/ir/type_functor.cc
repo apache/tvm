@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file type_functor.cc
  * \brief Implementations of type functors.
  */
@@ -132,7 +131,7 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
     if (const TypeVarNode* tin = new_type_param.as<TypeVarNode>()) {
       type_params.push_back(GetRef<TypeVar>(tin));
     } else {
-      LOG(FATAL) << new_type_param << std::endl;
+      LOG(FATAL) << new_type_param;
     }
   }
 
@@ -141,10 +140,10 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
     auto new_type_cs = VisitType(type_cs);
     changed = changed || !new_type_cs.same_as(type_cs);
     if (const TypeConstraintNode* tin =
-        new_type_cs.as_derived<TypeConstraintNode>()) {
+        new_type_cs.as<TypeConstraintNode>()) {
       type_constraints.push_back(GetRef<TypeConstraint>(tin));
     } else {
-      LOG(FATAL) << new_type_cs << std::endl;
+      LOG(FATAL) << new_type_cs;
     }
   }
 
@@ -155,7 +154,7 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   changed = changed || !new_ret_type.same_as(op->ret_type);
 
   if (!changed) return GetRef<Type>(op);
-  return FuncTypeNode::make(new_args,
+  return FuncType(new_args,
                             new_ret_type,
                             type_params,
                             type_constraints);
@@ -166,7 +165,7 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
   if (new_fields.same_as(op->fields)) {
     return GetRef<Type>(op);
   } else {
-    return TupleTypeNode::make(new_fields);
+    return TupleType(new_fields);
   }
 }
 
@@ -179,7 +178,7 @@ Type TypeMutator::VisitType_(const TypeRelationNode* type_rel) {
   if (new_args.same_as(type_rel->args)) {
     return GetRef<Type>(type_rel);
   } else {
-    return TypeRelationNode::make(type_rel->func,
+    return TypeRelation(type_rel->func,
                                   new_args,
                                   type_rel->num_inputs,
                                   type_rel->attrs);
@@ -196,7 +195,7 @@ Type TypeMutator::VisitType_(const TypeCallNode* op) {
   if (new_args.same_as(op->args) && new_func.same_as(op->func)) {
     return GetRef<TypeCall>(op);
   } else {
-    return TypeCallNode::make(new_func, new_args);
+    return TypeCall(new_func, new_args);
   }
 }
 

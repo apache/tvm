@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,50 +18,49 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_socket_impl.cc
  * \brief Socket based RPC implementation.
  */
 #include <tvm/runtime/registry.h>
 #include <memory>
 #include "rpc_session.h"
-#include "../../common/socket.h"
+#include "../../support/socket.h"
 
 namespace tvm {
 namespace runtime {
 
 class SockChannel final : public RPCChannel {
  public:
-  explicit SockChannel(common::TCPSocket sock)
+  explicit SockChannel(support::TCPSocket sock)
       : sock_(sock) {}
   ~SockChannel() {
     if (!sock_.BadSocket()) {
-        sock_.Close();
+      sock_.Close();
     }
   }
   size_t Send(const void* data, size_t size) final {
     ssize_t n = sock_.Send(data, size);
     if (n == -1) {
-      common::Socket::Error("SockChannel::Send");
+      support::Socket::Error("SockChannel::Send");
     }
     return static_cast<size_t>(n);
   }
   size_t Recv(void* data, size_t size) final {
     ssize_t n = sock_.Recv(data, size);
     if (n == -1) {
-      common::Socket::Error("SockChannel::Recv");
+      support::Socket::Error("SockChannel::Recv");
     }
     return static_cast<size_t>(n);
   }
 
  private:
-  common::TCPSocket sock_;
+  support::TCPSocket sock_;
 };
 
 std::shared_ptr<RPCSession>
 RPCConnect(std::string url, int port, std::string key) {
-  common::TCPSocket sock;
-  common::SockAddr addr(url.c_str(), port);
+  support::TCPSocket sock;
+  support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
   CHECK(sock.Connect(addr))
       << "Connect to " << addr.AsString() << " failed";
@@ -102,10 +101,16 @@ Module RPCClientConnect(std::string url, int port, std::string key) {
 }
 
 void RPCServerLoop(int sockfd) {
-  common::TCPSocket sock(
-      static_cast<common::TCPSocket::SockType>(sockfd));
+  support::TCPSocket sock(
+      static_cast<support::TCPSocket::SockType>(sockfd));
   RPCSession::Create(
       std::unique_ptr<SockChannel>(new SockChannel(sock)),
+      "SockServerLoop", "")->ServerLoop();
+}
+
+void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
+  RPCSession::Create(std::unique_ptr<CallbackChannel>(
+      new CallbackChannel(fsend, frecv)),
       "SockServerLoop", "")->ServerLoop();
 }
 
@@ -114,7 +119,14 @@ TVM_REGISTER_GLOBAL("rpc._Connect")
 
 TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    RPCServerLoop(args[0]);
+    if (args.size() == 1) {
+      RPCServerLoop(args[0]);
+    } else {
+      CHECK_EQ(args.size(), 2);
+      RPCServerLoop(
+          args[0].operator tvm::runtime::PackedFunc(),
+          args[1].operator tvm::runtime::PackedFunc());
+    }
   });
 }  // namespace runtime
 }  // namespace tvm

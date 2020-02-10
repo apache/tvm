@@ -88,7 +88,7 @@ def schedule_pool(outs, layout):
         _parallel_sch(s[Pool], outs[0].shape, do_vectorize)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -98,6 +98,13 @@ def schedule_pool(outs, layout):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
+            # Average pool accumulation and division happens in different for loops (#3607).
+            # To ensure good parallel support, apply multi-threading on the second loop.
+            if OP != outs[0].op:
+                output = outs[0]
+                output_fused = s[output].fuse(output.op.axis[0], output.op.axis[1])
+                s[output].parallel(output_fused)
+
             PaddedInput = OP.input_tensors[0]
             Pool = OP.output(0)
             _schedule(PaddedInput, Pool)
@@ -130,7 +137,7 @@ def schedule_adaptive_pool(outs):
     scheduled_ops = []
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -140,6 +147,11 @@ def schedule_adaptive_pool(outs):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('adaptive_pool'):
+            if OP != outs[0].op:
+                output = outs[0]
+                output_fused = s[output].fuse(output.op.axis[0], output.op.axis[1])
+                s[output].parallel(output_fused)
+
             Pool = OP.output(0)
             _parallel_sch(s[Pool], outs[0].shape)
         else:

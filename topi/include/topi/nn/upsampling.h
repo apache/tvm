@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file topi/nn/upsampling.h
  * \brief upsampling op constructors
  */
@@ -35,6 +34,7 @@
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 using namespace topi::image;
 
 /*!
@@ -50,7 +50,7 @@ using namespace topi::image;
 * \return A Tensor upsampled to given shape
 */
 inline Tensor upsampling(const Tensor& input,
-                         const Array<Expr> shape,
+                         const Array<PrimExpr> shape,
                          std::string layout = "NCHW",
                          std::string mode = "NEAREST_NEIGHBOR",
                          std::string name = "tensor",

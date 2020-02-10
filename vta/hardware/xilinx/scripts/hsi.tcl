@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-#  Copyright (c) 2018 by Contributors
 #  file: hsi.tcl
 #  brief: Driver generation script for ARMv7 driver libraries.
 #

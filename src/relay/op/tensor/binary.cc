@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file binary.cc
  * \brief binary broadcast operators.
  */
@@ -33,9 +32,9 @@ namespace relay {
 
 #define RELAY_BINARY_COMPUTE(FTOPI)                        \
   [] (const Attrs& attrs,                                  \
-      const Array<Tensor>& inputs,                         \
+      const Array<top::Tensor>& inputs,                         \
       const Type& out_type,                                \
-      const Target& target) -> Array<Tensor> {             \
+      const Target& target) -> Array<top::Tensor> {             \
     CHECK_EQ(inputs.size(), 2U);                           \
     return {FTOPI(inputs[0], inputs[1])};                  \
   }                                                        \
@@ -83,6 +82,12 @@ RELAY_REGISTER_BINARY_OP("divide")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::divide));
 
 
+RELAY_REGISTER_BINARY_OP("floor_divide")
+.describe("Elementwise floor divide with broadcasting")
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::floor_divide));
+
+
 RELAY_REGISTER_BINARY_OP("multiply")
 .describe("Elementwise multiply with broadcasting")
 .set_support_level(1)
@@ -99,6 +104,12 @@ RELAY_REGISTER_BINARY_OP("mod")
 .describe("Elementwise mod with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::mod));
+
+
+RELAY_REGISTER_BINARY_OP("floor_mod")
+  .describe("Elementwise floor mod with broadcasting")
+  .set_support_level(1)
+  .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::floor_mod));
 
 
 RELAY_REGISTER_BINARY_OP("logical_and")

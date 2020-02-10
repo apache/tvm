@@ -27,11 +27,12 @@
 #include "topi/tags.h"
 #include "topi/detail/fuse.h"
 #include "topi/detail/array_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/build_module.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::top;
 
 namespace cuda {
 
@@ -51,7 +52,7 @@ inline Schedule schedule_pool(const Target &target, const Array<Tensor>& outs) {
   auto s = create_schedule(out_ops);
 
   auto _schedule = [&](const Tensor& padded_input, const Tensor& pool) {
-    if (padded_input->op->is_type<ComputeOpNode>()) {
+    if (padded_input->op->IsInstance<ComputeOpNode>()) {
       s[padded_input].compute_inline();
     }
     auto num_thread = target->max_num_threads;

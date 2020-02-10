@@ -24,12 +24,13 @@
 #ifndef TOPI_CONTRIB_CUBLAS_H_
 #define TOPI_CONTRIB_CUBLAS_H_
 
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "topi/detail/extern.h"
 
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace tvm::top;
 using namespace topi::detail;
 /*!
 * \brief Create an op that multiplies lhs and rhs with cuBLAS
@@ -52,7 +53,39 @@ inline Tensor cublas_matmul(const Tensor& lhs,
     { { n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
       return call_packed({
-        Expr("tvm.contrib.cublas.matmul"),
+        PrimExpr("tvm.contrib.cublas.matmul"),
+        pack_buffer(ins[0]),
+        pack_buffer(ins[1]),
+        pack_buffer(outs[0]),
+        transa,
+        transb });
+    }, "C", "", {})[0];
+}
+
+/*!
+* \brief Create an op that multiplies batch matrices
+*        lhs and rhs with cuBLAS
+*
+* \param lhs The left matrix operand
+* \param rhs The right matrix operand
+* \param transa Whether to transpose lhs
+* \param transb Whether to transpose rhs
+*
+* \return The output tensor
+*/
+inline Tensor cublas_batch_matmul(const Tensor& lhs,
+                                  const Tensor& rhs,
+                                  bool transa,
+                                  bool transb) {
+  auto b = lhs->shape[0];
+  auto n = transa ? lhs->shape[2] : lhs->shape[1];
+  auto m = transb ? rhs->shape[1] : rhs->shape[2];
+
+  return make_extern(
+    { { b, n, m } }, { lhs->dtype }, { lhs, rhs },
+    [&](Array<Buffer> ins, Array<Buffer> outs) {
+      return call_packed({
+        PrimExpr("tvm.contrib.cublas.batch_matmul"),
         pack_buffer(ins[0]),
         pack_buffer(ins[1]),
         pack_buffer(outs[0]),

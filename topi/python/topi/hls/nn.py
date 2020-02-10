@@ -28,7 +28,7 @@ def _schedule_conv2d(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_injective(OP.tag):
             if OP not in s.outputs:
@@ -214,7 +214,7 @@ def schedule_reduce(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -306,7 +306,7 @@ def schedule_dense(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -350,7 +350,7 @@ def schedule_pool(outs, layout):
     tvm.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -394,7 +394,7 @@ def schedule_adaptive_pool(outs):
     tvm.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

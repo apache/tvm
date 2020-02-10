@@ -23,9 +23,10 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/build_module.h>
-#include <tvm/operation.h>
+#include <tvm/top/operation.h>
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
+#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <mutex>
@@ -33,281 +34,11 @@
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(TargetNode);
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+using runtime::PackedFunc;
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TargetNode>([](const TargetNode *op, IRPrinter *p) {
-  p->stream << op->str();
-  });
-
-
-/*!
-* \brief Construct a Target node from the given name and options.
-* \param target_name The major target name. Should be one of
-* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
-*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
-* \param options Additional options appended to the target
-* \return The constructed Target
-*/
-Target CreateTarget(const std::string& target_name,
-                    const std::vector<std::string>& options) {
-  auto target = Target(make_node<TargetNode>());
-  auto t = static_cast<TargetNode*>(target.node_.get());
-
-  t->target_name = target_name;
-
-  std::string libs_flag = "-libs=";
-  std::string device_flag = "-device=";
-  std::string keys_flag = "-keys=";
-  for (auto& item : options) {
-    t->options_array.push_back(ir::StringImm::make(item));
-
-    if (item.find(libs_flag) == 0) {
-      std::stringstream ss(item.substr(libs_flag.length()));
-      std::string lib_item;
-      while (std::getline(ss, lib_item, ',')) {
-        t->libs_array.push_back(ir::StringImm::make(lib_item));
-      }
-    } else if (item.find(device_flag) == 0) {
-      t->device_name = item.substr(device_flag.length());
-      t->keys_array.push_back(ir::StringImm::make(t->device_name));
-    } else if (item.find(keys_flag) == 0) {
-      std::stringstream ss(item.substr(keys_flag.length()));
-      std::string key_item;
-      while (std::getline(ss, key_item, ',')) {
-        t->keys_array.push_back(ir::StringImm::make(key_item));
-      }
-    }
-  }
-
-  if (t->device_name.length() > 0) {
-    t->keys_array.push_back(ir::StringImm::make(t->device_name));
-  }
-  t->device_type = kDLCPU;
-  t->thread_warp_size = 1;
-  if (target_name == "c" || target_name == "llvm") {
-    t->keys_array.push_back(ir::StringImm::make("cpu"));
-  } else if (target_name == "cuda" || target_name == "nvptx") {
-    t->device_type = kDLGPU;
-    t->keys_array.push_back(ir::StringImm::make("cuda"));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
-    t->max_num_threads = 1024;
-    t->thread_warp_size = 32;
-  } else if (target_name == "rocm" || target_name == "opencl") {
-    // For now assume rocm schedule for opencl
-    if (target_name == "opencl") {
-      t->device_type = kDLOpenCL;
-    } else {
-      t->device_type = kDLROCM;
-    }
-    t->keys_array.push_back(ir::StringImm::make(target_name));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
-    t->max_num_threads = 256;
-    if (t->device_name == "intel_graphics") {
-      t->thread_warp_size = 16;
-    }
-  } else if (target_name == "metal" || target_name == "vulkan") {
-    if (target_name == "metal") {
-      t->device_type = kDLMetal;
-    } else {
-      t->device_type = kDLVulkan;
-    }
-    t->keys_array.push_back(ir::StringImm::make(target_name));
-    t->keys_array.push_back(ir::StringImm::make("gpu"));
-    t->max_num_threads = 256;
-  } else if (target_name == "sdaccel") {
-    t->device_type = kDLOpenCL;
-    t->keys_array.push_back(ir::StringImm::make("sdaccel"));
-    t->keys_array.push_back(ir::StringImm::make("hls"));
-  } else if (target_name == "aocl" || target_name == "aocl_sw_emu") {
-    t->device_type = kDLAOCL;
-    t->keys_array.push_back(ir::StringImm::make("aocl"));
-    t->keys_array.push_back(ir::StringImm::make("hls"));
-  } else if (target_name == "opengl") {
-    t->device_type = kOpenGL;
-    t->keys_array.push_back(ir::StringImm::make("opengl"));
-  } else if (target_name == "stackvm") {
-    t->device_type = kDLCPU;
-  } else if (target_name == "ext_dev") {
-    t->device_type = kDLExtDev;
-  } else if (target_name == "hybrid") {
-    t->device_type = kDLCPU;
-  } else {
-    LOG(ERROR) << "Unknown target name " << target_name;
-    return target::stackvm();
-  }
-
-  return target;
-}
-
-TVM_REGISTER_API("_TargetCreate")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string target_name = args[0];
-  std::vector<std::string> options;
-  for (int i = 1; i < args.num_args; ++i) {
-    std::string arg = args[i];
-    options.push_back(arg);
-  }
-
-  *ret = CreateTarget(target_name, options);
-  });
-
-TVM_REGISTER_API("_TargetFromString")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string target_str = args[0];
-  *ret = Target::Create(target_str);
-  });
-
-std::vector<std::string> TargetNode::keys() const {
-  std::vector<std::string> result;
-  for (auto& expr : keys_array) {
-    result.push_back(expr.as<ir::StringImm>()->value);
-  }
-  return result;
-}
-
-std::vector<std::string> TargetNode::options() const {
-  std::vector<std::string> result;
-  for (auto& expr : options_array) {
-    result.push_back(expr.as<ir::StringImm>()->value);
-  }
-  return result;
-}
-
-std::unordered_set<std::string> TargetNode::libs() const {
-  std::unordered_set<std::string> result;
-  for (auto& expr : libs_array) {
-    result.insert(expr.as<ir::StringImm>()->value);
-  }
-  return result;
-}
-
-const std::string& TargetNode::str() const {
-  if (str_repr_.length() != 0) return str_repr_;
-  std::ostringstream result;
-  result << target_name;
-  for (const auto &x : options()) {
-    result << " " << x;
-  }
-  str_repr_ = result.str();
-  return str_repr_;
-}
-
-
-bool StartsWith(const std::string& str, const std::string& pattern) {
-  return str.compare(0, pattern.length(), pattern) == 0;
-}
-
-std::string GetDeviceName(const std::string& target_str) {
-  std::istringstream ss(target_str);
-  std::string target_name;
-  ss >> target_name;
-
-  std::string item;
-  while (ss >> item) {
-    if (StartsWith(item, "-device=")) {
-      return item.substr(std::string("-device=").length());
-    }
-  }
-
-  return "";
-}
-
-Target Target::Create(const std::string& target_str) {
-  if (target_str.length() == 0) {
-    LOG(ERROR) << "target_str must not be empty";
-  }
-
-  std::istringstream ss(target_str);
-  std::string target_name;
-
-  ss >> target_name;
-  auto device_name = GetDeviceName(target_str);
-
-  std::vector<std::string> options;
-  std::string item;
-  while (ss >> item) {
-    options.push_back(item);
-  }
-
-  return CreateTarget(target_name, options);
-}
-
-/*! \brief Entry to hold the Target context stack. */
-struct TVMTargetThreadLocalEntry {
-  /*! \brief The current target context */
-  std::stack<tvm::Target> context_stack;
-};
-
-/*! \brief Thread local store to hold the Target context stack. */
-typedef dmlc::ThreadLocalStore<TVMTargetThreadLocalEntry> TVMTargetThreadLocalStore;
-
-void Target::EnterWithScope() {
-  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
-  entry->context_stack.push(*this);
-}
-
-void Target::ExitWithScope() {
-  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
-  CHECK(!entry->context_stack.empty());
-  CHECK(entry->context_stack.top().same_as(*this));
-  entry->context_stack.pop();
-}
-
-tvm::Target Target::Current(bool allow_not_defined) {
-  TVMTargetThreadLocalEntry *entry = TVMTargetThreadLocalStore::Get();
-  if (entry->context_stack.size() > 0) {
-    return entry->context_stack.top();
-  }
-  CHECK(allow_not_defined)
-    << "Target context required. Please set it by constructing a TargetContext";
-
-  return Target();
-}
-
-namespace target {
-std::vector<std::string> MergeOptions(std::vector<std::string> opts,
-                                             const std::vector<std::string>& new_opts) {
-  opts.insert(opts.end(), new_opts.begin(), new_opts.end());
-  return opts;
-}
-
-Target llvm(const std::vector<std::string>& options) {
-  return CreateTarget("llvm", options);
-}
-
-Target cuda(const std::vector<std::string>& options) {
-  return CreateTarget("cuda", options);
-}
-
-Target rocm(const std::vector<std::string>& options) {
-  return CreateTarget("rocm", options);
-}
-
-Target opencl(const std::vector<std::string>& options) {
-  return CreateTarget("opencl", options);
-}
-
-Target metal(const std::vector<std::string>& options) {
-  return CreateTarget("metal", options);
-}
-
-Target mali(const std::vector<std::string>& options) {
-  return CreateTarget("opencl", MergeOptions(options, {
-    "-device=mali"
-  }));
-}
-
-Target intel_graphics(const std::vector<std::string>& options) {
-  return CreateTarget("opencl", MergeOptions(options, {
-    "-device=intel_graphics"
-  }));
-}
-
-Target stackvm(const std::vector<std::string>& options) {
-  return CreateTarget("stackvm", options);
-}
-}  // namespace target
+TVM_REGISTER_NODE_TYPE(GenericFuncNode);
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.build_llvm");
@@ -327,35 +58,47 @@ Target DefaultTargetHost(Target target) {
   }
 }
 
-Buffer BufferWithOffsetAlignment(Array<Expr> shape,
-                                 Type dtype,
+Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape,
+                                 DataType dtype,
                                  std::string name,
                                  int data_alignment,
-                                 int offset_factor) {
-  auto data = Var(name, Handle());
+                                 int offset_factor,
+                                 bool compact) {
+  auto data = Var(name, DataType::Handle());
+  bool has_any = false;
+  if (!compact) {
+    for (const auto& it : shape) {
+      if (it.as<VarNode>()) {
+        has_any = true;
+        break;
+      }
+    }
+  }
+  BufferType buffer_type = has_any ? kAutoBroadcast : kDefault;
 
-  Expr elem_offset;
+  PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = Var(name + "_elem_offset", shape[0].type());
+    elem_offset = Var(name + "_elem_offset", shape[0].dtype());
   } else {
-    elem_offset = Expr();
+    elem_offset = PrimExpr();
   }
 
-  return BufferNode::make(data, dtype, shape, Array<Expr>(), elem_offset, name, "",
-    data_alignment, offset_factor, kDefault);
+  return BufferNode::make(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, "",
+    data_alignment, offset_factor, buffer_type);
 }
 
-void GetBinds(const Array<Tensor>& args,
-              const std::unordered_map<Tensor, Buffer>& binds,
-              Map<Tensor, Buffer>* out_binds,
-              Array<NodeRef>* out_arg_list,
+void GetBinds(const Array<top::Tensor>& args,
+              bool compact,
+              const std::unordered_map<top::Tensor, Buffer>& binds,
+              Map<top::Tensor, Buffer>* out_binds,
+              Array<ObjectRef>* out_arg_list,
               const BuildConfig& config) {
   *out_binds = binds;
 
   for (const auto &x : args) {
     if (out_binds->find(x) == out_binds->end()) {
       auto buf = BufferWithOffsetAlignment(x->shape, x->dtype, x->op->name,
-        config->data_alignment, config->offset_factor);
+        config->data_alignment, config->offset_factor, compact);
       out_binds->Set(x, buf);
       out_arg_list->push_back(buf);
     } else {
@@ -374,21 +117,22 @@ void GetBinds(const Array<Tensor>& args,
 * \param config The build configuration.
 * \return The built Stmt.
 */
-Stmt BuildStmt(Schedule sch,
-               const Array<Tensor>& args,
-               const std::unordered_map<Tensor, Buffer>& binds,
+Stmt BuildStmt(top::Schedule sch,
+               const Array<top::Tensor>& args,
+               const std::unordered_map<top::Tensor, Buffer>& binds,
                bool loop_partition,
-               Array<NodeRef> *out_arg_list,
+               Array<ObjectRef> *out_arg_list,
                const BuildConfig& config) {
-  Map<Tensor, Buffer> out_binds;
-  GetBinds(args, binds, &out_binds, out_arg_list, config);
-
   sch = sch.normalize();
 
   // Phase 0
-  auto bounds = schedule::InferBound(sch);
-  auto stmt = schedule::ScheduleOps(sch, bounds, false);
+  auto bounds = top::InferBound(sch);
+  auto stmt = top::ScheduleOps(sch, bounds, false);
   stmt = ir::InjectPrefetch(stmt);
+
+  bool compact = ir::VerifyCompactBuffer(stmt);
+  Map<top::Tensor, Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
 
   // Phase 1
   stmt = ir::StorageFlatten(stmt, out_binds, 64,
@@ -410,7 +154,6 @@ Stmt BuildStmt(Schedule sch,
 
   // Phase 2
   stmt = ir::Simplify(stmt);
-  stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
 
   if (!(config->disable_select_rewriting))
@@ -422,12 +165,12 @@ Stmt BuildStmt(Schedule sch,
   return stmt;
 }
 
-Array<LoweredFunc> lower(Schedule sch,
-                         const Array<Tensor>& args,
+Array<LoweredFunc> lower(top::Schedule sch,
+                         const Array<top::Tensor>& args,
                          const std::string& name,
-                         const std::unordered_map<Tensor, Buffer>& binds,
+                         const std::unordered_map<top::Tensor, Buffer>& binds,
                          const BuildConfig& config) {
-  Array<NodeRef> out_arg_list;
+  Array<ObjectRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
@@ -505,6 +248,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::BindDeviceType(func, target->device_type);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
@@ -512,6 +256,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = ir::LowerIntrin(func, target_host->target_name);
+    func = ir::LowerDeviceStorageAccessInfo(func);
     func = ir::CombineContextCall(func);
     fhost.Set(i, func);
   }
@@ -598,7 +343,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 }
 
 BuildConfig BuildConfig::Create() {
-  return BuildConfig(make_node<BuildConfigNode>());
+  return BuildConfig(make_object<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -640,8 +385,9 @@ tvm::BuildConfig BuildConfig::Current() {
 
 TVM_REGISTER_NODE_TYPE(BuildConfigNode);
 
-TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<BuildConfigNode>([](const BuildConfigNode *op, IRPrinter *p) {
+TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
+.set_dispatch<BuildConfigNode>([](const ObjectRef& node, NodePrinter* p) {
+  auto* op = static_cast<const BuildConfigNode*>(node.get());
   p->stream << "build_config(";
   p->stream << "data_alignment=" << op->data_alignment << ", ";
   p->stream << "offset_factor=" << op->offset_factor << ", ";
@@ -657,11 +403,12 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
   p->stream << "disable_vectorize=" << op->disable_vectorize;
+  p->stream << "disable_assert=" << op->disable_assert;
   p->stream << ")";
 });
 
 struct GenericFunc::Manager {
-  std::unordered_map<std::string, NodePtr<Node> > fmap;
+  std::unordered_map<std::string, GenericFunc> fmap;
   // mutex
   std::mutex mutex;
 
@@ -679,12 +426,13 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
-    auto f = make_node<GenericFuncNode>();
+    auto f = make_object<GenericFuncNode>();
     f->name_ = name;
-    m->fmap[name] = f;
-    return GenericFunc(f);
+    auto gf = GenericFunc(f);
+    m->fmap[name] = gf;
+    return gf;
   } else {
-    return GenericFunc(it->second);
+    return it->second;
   }
 }
 
@@ -694,12 +442,12 @@ void GenericFunc::RegisterGenericFunc(GenericFunc func, const std::string& name)
   auto it = m->fmap.find(name);
   CHECK(it == m->fmap.end()) << "GenericFunc already registered " << name;
   func->name_ = name;
-  m->fmap[name] = func.node_;
+  m->fmap[name] = func;
 }
 
 GenericFunc& GenericFunc::set_default(const PackedFunc value,
-                                           bool allow_override) {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+                                      bool allow_override) {
+  auto node = static_cast<GenericFuncNode*>(operator->());
   if (!allow_override) {
     CHECK(node->generic_func_ == nullptr)
       << "Generic function already registered for " << node->name_;
@@ -723,7 +471,7 @@ GenericFunc& GenericFunc::register_func(const std::vector<std::string>& tags,
 }
 
 void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
-  auto node = static_cast<GenericFuncNode*>(node_.get());
+  auto node = static_cast<const GenericFuncNode*>(get());
   auto target = Target::Current(true);
   PackedFunc func;
 
@@ -745,7 +493,7 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_API("_GetCurrentBuildConfig")
+TVM_REGISTER_GLOBAL("_GetCurrentBuildConfig")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = BuildConfig::Current();
   });
@@ -760,13 +508,13 @@ class BuildConfig::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterBuildConfigScope")
+TVM_REGISTER_GLOBAL("_EnterBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitBuildConfigScope")
+TVM_REGISTER_GLOBAL("_ExitBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::ExitScope);
 
-TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
+TVM_REGISTER_GLOBAL("_BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
   std::vector< std::pair<int, PackedFunc> > add_lower_pass;
@@ -779,7 +527,7 @@ TVM_REGISTER_API("_BuildConfigSetAddLowerPass")
   cfg->add_lower_pass = add_lower_pass;
   });
 
-TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
+TVM_REGISTER_GLOBAL("_BuildConfigGetAddLowerPassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   // Return one of the following:
   //  * Size of add_lower_pass if num_args == 1
@@ -800,18 +548,18 @@ TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
   }
   });
 
-TVM_REGISTER_API("_GenericFuncCreate")
+TVM_REGISTER_GLOBAL("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = GenericFunc(make_node<GenericFuncNode>());
+  *ret = GenericFunc(make_object<GenericFuncNode>());
   });
 
-TVM_REGISTER_API("_GenericFuncGetGlobal")
+TVM_REGISTER_GLOBAL("_GenericFuncGetGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
   });
 
-TVM_REGISTER_API("_GenericFuncSetDefault")
+TVM_REGISTER_GLOBAL("_GenericFuncSetDefault")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -822,24 +570,24 @@ TVM_REGISTER_API("_GenericFuncSetDefault")
     .set_default(*func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncRegisterFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
-  Array<Expr> tags = args[2];
+  Array<PrimExpr> tags = args[2];
   bool allow_override = args[3];
 
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
-    tags_vector.push_back(tag.as<tvm::ir::StringImm>()->value);
+    tags_vector.push_back(tag.as<tvm::ir::StringImmNode>()->value);
   }
 
   generic_func
     .register_func(tags_vector, *func, allow_override);
   });
 
-TVM_REGISTER_API("_GenericFuncCallFunc")
+TVM_REGISTER_GLOBAL("_GenericFuncCallFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
@@ -848,7 +596,7 @@ TVM_REGISTER_API("_GenericFuncCallFunc")
     .CallPacked(func_args, ret);
   });
 
-TVM_REGISTER_API("_GetCurrentTarget")
+TVM_REGISTER_GLOBAL("_GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
   *ret = Target::Current(allow_not_defined);
@@ -864,10 +612,10 @@ class Target::Internal {
   }
 };
 
-TVM_REGISTER_API("_EnterTargetScope")
+TVM_REGISTER_GLOBAL("_EnterTargetScope")
 .set_body_typed(Target::Internal::EnterScope);
 
-TVM_REGISTER_API("_ExitTargetScope")
+TVM_REGISTER_GLOBAL("_ExitTargetScope")
 .set_body_typed(Target::Internal::ExitScope);
 
 }  // namespace tvm

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file module.cc
  * \brief TVM module system
  */
@@ -34,33 +33,46 @@
 namespace tvm {
 namespace runtime {
 
-void Module::Import(Module other) {
+void ModuleNode::Import(Module other) {
   // specially handle rpc
-  if (!std::strcmp((*this)->type_key(), "rpc")) {
+  if (!std::strcmp(this->type_key(), "rpc")) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
       fimport_ = runtime::Registry::Get("rpc._ImportRemoteModule");
       CHECK(fimport_ != nullptr);
     }
-    (*fimport_)(*this, other);
+    (*fimport_)(GetRef<Module>(this), other);
     return;
   }
   // cyclic detection.
-  std::unordered_set<const ModuleNode*> visited{other.node_.get()};
-  std::vector<const ModuleNode*> stack{other.node_.get()};
+  std::unordered_set<const ModuleNode*> visited{other.operator->()};
+  std::vector<const ModuleNode*> stack{other.operator->()};
   while (!stack.empty()) {
     const ModuleNode* n = stack.back();
     stack.pop_back();
     for (const Module& m : n->imports_) {
-      const ModuleNode* next = m.node_.get();
+      const ModuleNode* next = m.operator->();
       if (visited.count(next)) continue;
       visited.insert(next);
       stack.push_back(next);
     }
   }
-  CHECK(!visited.count(node_.get()))
+  CHECK(!visited.count(this))
       << "Cyclic dependency detected during import";
-  node_->imports_.emplace_back(std::move(other));
+  this->imports_.emplace_back(std::move(other));
+}
+
+PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) {
+  ModuleNode* self = this;
+  PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
+  if (pf != nullptr) return pf;
+  if (query_imports) {
+    for (Module& m : self->imports_) {
+      pf = m->GetFunction(name, m.data_);
+      if (pf != nullptr) return pf;
+    }
+  }
+  return pf;
 }
 
 Module Module::LoadFromFile(const std::string& file_name,
@@ -103,7 +115,7 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   if (it != import_cache_.end()) return it->second.get();
   PackedFunc pf;
   for (Module& m : this->imports_) {
-    pf = m.GetFunction(name, false);
+    pf = m.GetFunction(name, true);
     if (pf != nullptr) break;
   }
   if (pf == nullptr) {
@@ -113,8 +125,7 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
         << " in the imported modules or global registry";
     return f;
   } else {
-    std::unique_ptr<PackedFunc> f(new PackedFunc(pf));
-    import_cache_[name] = std::move(f);
+    import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
     return import_cache_.at(name).get();
   }
 }
@@ -137,8 +148,6 @@ bool RuntimeEnabled(const std::string& target) {
     f_name = "codegen.build_stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
-  } else if (target == "vpi" || target == "verilog") {
-    f_name = "device_api.vpi";
   } else if (target == "micro_dev") {
     f_name = "device_api.micro_dev";
   } else if (target.length() >= 5 && target.substr(0, 5) == "nvptx") {

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file cpu_device_api.cc
  */
 #include <dmlc/logging.h>
@@ -46,7 +45,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
-                       TVMType type_hint) final {
+                       DLDataType type_hint) final {
     void* ptr;
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
@@ -77,7 +76,7 @@ class CPUDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final {
     memcpy(static_cast<char*>(to) + to_offset,
            static_cast<const char*>(from) + from_offset,
@@ -87,7 +86,7 @@ class CPUDeviceAPI final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
   static const std::shared_ptr<CPUDeviceAPI>& Global() {
@@ -104,7 +103,7 @@ struct CPUWorkspacePool : public WorkspacePool {
 
 void* CPUDeviceAPI::AllocWorkspace(TVMContext ctx,
                                    size_t size,
-                                   TVMType type_hint) {
+                                   DLDataType type_hint) {
   return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()
       ->AllocWorkspace(ctx, size);
 }

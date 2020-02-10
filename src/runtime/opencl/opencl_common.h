@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file opencl_common.h
  * \brief OpenCL common header
  */
@@ -194,7 +193,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t size,
                        size_t alignment,
-                       TVMType type_hint) final;
+                       DLDataType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_offset,
@@ -203,10 +202,10 @@ class OpenCLWorkspace : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
 
   /*!
@@ -278,7 +277,7 @@ class OpenCLModuleNode : public ModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+      const ObjectPtr<Object>& sptr_to_self) final;
   void SaveToFile(const std::string& file_name,
                   const std::string& format) final;
   void SaveToBinary(dmlc::Stream* stream) final;

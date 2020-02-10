@@ -46,6 +46,8 @@ tvm.relay.transform
 
 .. autofunction:: tvm.relay.transform.CombineParallelConv2D
 
+.. autofunction:: tvm.relay.transform.CombineParallelDense
+
 .. autofunction:: tvm.relay.transform.AlterOpLayout
 
 .. autofunction:: tvm.relay.transform.Legalize

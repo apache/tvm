@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file codegen_spirv.cc
  * \brief Generate SPIRV block
  */
@@ -26,7 +25,7 @@
 #include <tvm/ir_pass.h>
 #include <string>
 #include "codegen_spirv.h"
-#include "../../arithmetic/compute_expr.h"
+#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace codegen {
@@ -38,11 +37,11 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
   std::vector<Var> pod_args;
   uint32_t num_buffer = 0;
   for (Var arg : f->args) {
-    Type t = arg.type();
+    DataType t = arg.dtype();
     if (t.is_handle()) {
       auto it = f->handle_data_type.find(arg);
       if (it != f->handle_data_type.end()) {
-        Type value_type = (*it).second.type();
+        DataType value_type = (*it).second.dtype();
         spirv::Value arg_value = builder_->BufferArgument(
             builder_->GetSType(value_type), 0, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_type);
@@ -62,7 +61,7 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
-      value_types.push_back(builder_->GetSType(pod_args[i].type()));
+      value_types.push_back(builder_->GetSType(pod_args[i].dtype()));
     }
     spirv::Value ptr = builder_->DeclarePushConstant(value_types);
     for (size_t i = 0; i < pod_args.size(); ++i) {
@@ -91,7 +90,7 @@ void CodeGenSPIRV::InitFuncState() {
 }
 
 spirv::Value CodeGenSPIRV::GetThreadIndex(
-    const IterVar& iv, const Expr& extent) {
+    const IterVar& iv, const PrimExpr& extent) {
   runtime::ThreadScope ts = runtime::ThreadScope::make(iv->thread_tag);
   spirv::Value v;
   if (ts.rank == 1) {
@@ -104,16 +103,16 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   } else {
     v = builder_->GetWorkgroupID(ts.dim_index);
   }
-  return builder_->Cast(builder_->GetSType(iv->var.type()), v);
+  return builder_->Cast(builder_->GetSType(iv->var.dtype()), v);
 }
 
-spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
-  const std::string& sync = op->args[0].as<StringImm>()->value;
+spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   spirv::Value value;
   if (sync == "warp") {
     return value;
   } else if (sync == "shared") {
-    auto type_int = builder_->GetSType(Int(32));
+    auto type_int = builder_->GetSType(DataType::Int(32));
     builder_->MakeInst(
       spv::OpControlBarrier,
       builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
@@ -127,165 +126,168 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
   return value;
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Variable* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const VarNode* op) {
   auto it = var_map_.find(op);
   CHECK(it != var_map_.end()) << "cannot find variable " << op->name_hint;
   return it->second;
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const IntImm* op) {
-  return builder_->IntImm(builder_->GetSType(op->type), op->value);
+spirv::Value CodeGenSPIRV::VisitExpr_(const IntImmNode* op) {
+  return builder_->IntImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const UIntImm* op) {
-  return builder_->UIntImm(builder_->GetSType(op->type), op->value);
+spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
+  return builder_->FloatImm(builder_->GetSType(op->dtype), op->value);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImm* op) {
-  return builder_->FloatImm(builder_->GetSType(op->type), op->value);
-}
-
-spirv::Value CodeGenSPIRV::VisitExpr_(const StringImm* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
   LOG(FATAL) << "StringImm is not supported in Device code";
   return spirv::Value();
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Cast* op) {
-  return builder_->Cast(builder_->GetSType(op->type), MakeValue(op->value));
+spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
+  return builder_->Cast(builder_->GetSType(op->dtype), MakeValue(op->value));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Add* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const AddNode* op) {
   return builder_->Add(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Sub* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const SubNode* op) {
   return builder_->Sub(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Mul* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MulNode* op) {
   return builder_->Mul(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Div* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const DivNode* op) {
   return builder_->Div(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Mod* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const ModNode* op) {
   return builder_->Mod(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Min* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MinNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->Select(builder_->LT(a, b), a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Max* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const MaxNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->Select(builder_->GT(a, b), a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const LT* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LTNode* op) {
   return builder_->LT(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const LE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LENode* op) {
   return builder_->LE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const GT* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const GTNode* op) {
   return builder_->GT(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const GE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const GENode* op) {
   return builder_->GE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const EQ* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const EQNode* op) {
   return builder_->EQ(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const NE* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const NENode* op) {
   return builder_->NE(MakeValue(op->a), MakeValue(op->b));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const And* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const AndNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->MakeValue(spv::OpLogicalAnd, a.stype, a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Or* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const OrNode* op) {
   spirv::Value a = MakeValue(op->a);
   spirv::Value b = MakeValue(op->b);
   return builder_->MakeValue(spv::OpLogicalOr, a.stype, a, b);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Not* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const NotNode* op) {
   spirv::Value a = MakeValue(op->a);
   return builder_->MakeValue(spv::OpLogicalNot, a.stype, a);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Select* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const SelectNode* op) {
   return builder_->Select(MakeValue(op->condition),
                           MakeValue(op->true_value),
                           MakeValue(op->false_value));
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Let* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
   CHECK(!var_map_.count(op->var.get()));
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   if (op->is_intrinsic("spirv_glsl450")) {
     CHECK_GE(op->args.size(), 2U);
-    uint32_t inst_id = op->args[0].as<UIntImm>()->value;
+    uint32_t inst_id = static_cast<uint32_t>(
+        op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
     for (size_t i = 1; i < op->args.size(); ++i) {
       values.push_back(MakeValue(op->args[i]));
     }
     return builder_->CallGLSL450(
-        builder_->GetSType(op->type), inst_id, values);
-  } else if (op->is_intrinsic(Call::bitwise_and)) {
+        builder_->GetSType(op->dtype), inst_id, values);
+  } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_xor)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_xor)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_or)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_or)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::bitwise_not)) {
+  } else if (op->is_intrinsic(CallNode::bitwise_not)) {
     CHECK_EQ(op->args.size(), 1U);
     spirv::Value a = MakeValue(op->args[0]);
     return builder_->MakeValue(spv::OpNot, a.stype, a);
-  } else if (op->is_intrinsic(Call::shift_left)) {
+  } else if (op->is_intrinsic(CallNode::shift_left)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
-  } else if (op->is_intrinsic(Call::shift_right)) {
+  } else if (op->is_intrinsic(CallNode::shift_right)) {
     CHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
-    if (op->args[0].type().is_int()) {
+    if (op->args[0].dtype().is_int()) {
       return builder_->MakeValue(spv::OpShiftRightArithmetic, a.stype, a, b);
     } else {
       return builder_->MakeValue(spv::OpShiftRightLogical, a.stype, a, b);
     }
-  } else if (op->is_intrinsic(Call::reinterpret)) {
-    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->type),
+  } else if (op->is_intrinsic(CallNode::reinterpret)) {
+    return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
+  } else if (op->is_intrinsic(intrinsic::tvm_large_uint_imm)) {
+    CHECK_EQ(op->args.size(), 2U);
+    uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
+    uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
+    uint64_t val = (high << 32U) | low;
+    return builder_->UIntImm(builder_->GetSType(op->dtype), val);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     return this->CreateStorageSync(op);
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
@@ -317,17 +319,17 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
   } else if (op->is_intrinsic("popcount")) {
     return builder_->MakeValue(
         spv::OpBitCount,
-        builder_->GetSType(op->type),
+        builder_->GetSType(op->dtype),
         MakeValue(op->args[0]));
   } else {
-    if (op->call_type == Call::Intrinsic ||
-        op->call_type == Call::PureIntrinsic) {
+    if (op->call_type == CallNode::Intrinsic ||
+        op->call_type == CallNode::PureIntrinsic) {
       LOG(FATAL) << "Unresolved intrinsic " << op->name
-                 << " with return type " << op->type;
-    } else if (op->call_type == Call::Extern ||
-               op->call_type == Call::PureExtern) {
+                 << " with return type " << op->dtype;
+    } else if (op->call_type == CallNode::Extern ||
+               op->call_type == CallNode::PureExtern) {
       LOG(FATAL) << "Unresolved extern " << op->name
-                 << " with return type " << op->type;
+                 << " with return type " << op->dtype;
     } else {
       LOG(FATAL) << "Unresolved call type " << op->call_type;
     }
@@ -335,14 +337,14 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Call* op) {
   }
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const RampNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value base = MakeValue(op->base);
   for (int i = 0; i < op->lanes; ++i) {
     spirv::Value v = base;
     if (i != 0) {
       spirv::Value offset = MakeValue(
-          make_const(op->stride.type(), i) * op->stride);
+          make_const(op->stride.dtype(), i) * op->stride);
       v = builder_->Add(v, offset);
     }
     values.push_back(v);
@@ -350,7 +352,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Ramp* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Broadcast* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
   std::vector<spirv::Value> values;
   spirv::Value v = MakeValue(op->value);
   for (int i = 0; i < op->lanes; i++) {
@@ -359,13 +361,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Broadcast* op) {
   return builder_->Concat(values);
 }
 
-spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
+spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
   CHECK(is_one(op->predicate));
   auto it = storage_info_.find(op->buffer_var.get());
   CHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
   if (!info.content_fixed) {
-    info.UpdateContentType(op->type);
+    info.UpdateContentType(op->dtype);
   }
 
   spirv::SType content_type = builder_->GetSType(info.content_type);
@@ -377,15 +379,15 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
   if (info.is_volatile) {
     mask |= spv::MemoryAccessVolatileMask;
   }
-  if (op->type.lanes() == 1) {
-    CHECK_EQ(info.content_type, op->type)
+  if (op->dtype.lanes() == 1) {
+    CHECK_EQ(info.content_type, op->dtype)
         << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(op->index);
     spirv::Value ptr = builder_->StructArrayAccess(
         ptr_type, buffer, index);
     return builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
   } else {
-    if (op->type.element_of() == info.content_type) {
+    if (op->dtype.element_of() == info.content_type) {
       // because content type is element type, we can only do scalarize load.
       std::vector<spirv::Value> values;
       auto f = [&](int i, spirv::Value index) {
@@ -397,15 +399,15 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
       this->Scalarize(op->index, f);
       return builder_->Concat(values);
     } else {
-      if (const Ramp* ramp = op->index.as<Ramp>()) {
+      if (const RampNode* ramp = op->index.as<RampNode>()) {
         if (is_one(ramp->stride)) {
-          CHECK_EQ(ramp->lanes, op->type.lanes());
+          CHECK_EQ(ramp->lanes, op->dtype.lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          Expr vec_index = ir::Simplify(
-              ramp->base / make_const(ramp->base.type(), ramp->lanes));
+          PrimExpr vec_index = ir::Simplify(
+              ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
           return builder_->MakeValue(spv::OpLoad, content_type, ptr, mask);
@@ -418,31 +420,31 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const Load* op) {
   return spirv::Value();
 }
 
-void CodeGenSPIRV::Scalarize(const Expr& e,
+void CodeGenSPIRV::Scalarize(const PrimExpr& e,
                              std::function<void(int i, spirv::Value v)> f) {
-  if (const Ramp* ramp = e.as<Ramp>()) {
-    for (int i = 0; i < ramp->type.lanes(); ++i) {
-      Expr offset = ramp->base + ramp->stride * i;
+  if (const RampNode* ramp = e.as<RampNode>()) {
+    for (int i = 0; i < ramp->dtype.lanes(); ++i) {
+      PrimExpr offset = ramp->base + ramp->stride * i;
       f(i, MakeValue(offset));
     }
   } else {
-    spirv::SType etype = builder_->GetSType(e.type().element_of());
+    spirv::SType etype = builder_->GetSType(e.dtype().element_of());
     spirv::Value value = MakeValue(e);
-    for (int i = 0; i < e.type().lanes(); ++i) {
+    for (int i = 0; i < e.dtype().lanes(); ++i) {
       f(i, builder_->MakeValue(
           spv::OpCompositeExtract, etype, value, i));
     }
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const Store* op) {
+void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
   CHECK(is_one(op->predicate));
   auto it = storage_info_.find(op->buffer_var.get());
   CHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
 
   if (!info.content_fixed) {
-    info.UpdateContentType(op->value.type());
+    info.UpdateContentType(op->value.dtype());
   }
 
   spirv::SType content_type = builder_->GetSType(info.content_type);
@@ -456,15 +458,15 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
     mask |= spv::MemoryAccessVolatileMask;
   }
 
-  if (op->value.type().lanes() == 1) {
-    CHECK_EQ(info.content_type, op->value.type())
+  if (op->value.dtype().lanes() == 1) {
+    CHECK_EQ(info.content_type, op->value.dtype())
         << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(op->index);
     spirv::Value ptr = builder_->StructArrayAccess(
         ptr_type, buffer, index);
     builder_->MakeInst(spv::OpStore, ptr, value, mask);
   } else {
-    if (op->value.type().element_of() == info.content_type) {
+    if (op->value.dtype().element_of() == info.content_type) {
       // because content type is element type, we can only do scalarize load.
       auto f = [&](int i, spirv::Value index) {
         spirv::Value elem = builder_->MakeValue(
@@ -475,15 +477,15 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
       };
       this->Scalarize(op->index, f);
     } else {
-      if (const Ramp* ramp = op->index.as<Ramp>()) {
+      if (const RampNode* ramp = op->index.as<RampNode>()) {
         if (is_one(ramp->stride)) {
-          CHECK_EQ(ramp->lanes, op->value.type().lanes());
+          CHECK_EQ(ramp->lanes, op->value.dtype().lanes());
           arith::ModularSet me = analyzer_->modular_set(ramp->base);
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          Expr vec_index = ir::Simplify(
-              ramp->base / make_const(ramp->base.type(), ramp->lanes));
+          PrimExpr vec_index = ir::Simplify(
+              ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
           builder_->MakeInst(spv::OpStore, ptr, value, mask);
@@ -495,7 +497,7 @@ void CodeGenSPIRV::VisitStmt_(const Store* op) {
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const For* op) {
+void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
@@ -531,7 +533,7 @@ void CodeGenSPIRV::VisitStmt_(const For* op) {
   // loop continue
   builder_->StartLabel(continue_label);
   spirv::Value one =
-      op->loop_var.type().is_int() ?
+      op->loop_var.dtype().is_int() ?
       builder_->IntImm(loop_var.stype, 1) :
       builder_->UIntImm(loop_var.stype, 1);
   spirv::Value next_value = builder_->Add(loop_var, one);
@@ -541,7 +543,7 @@ void CodeGenSPIRV::VisitStmt_(const For* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const IfThenElse* op) {
+void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
   spirv::Value cond = MakeValue(op->condition);
   spirv::Label then_label = builder_->NewLabel();
   spirv::Label merge_label = builder_->NewLabel();
@@ -574,16 +576,16 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElse* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
+void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   CHECK(!op->new_expr.defined());
-  CHECK(!op->type.is_handle());
+  CHECK(!op->dtype.is_handle());
   int32_t constant_size = op->constant_allocation_size();
   CHECK_GT(constant_size, 0)
       << "Can only handle constant size stack allocation in GPU";
   spirv::Value buf;
   StorageInfo& info = storage_info_[op->buffer_var.get()];
-  spirv::SType etype = builder_->GetSType(op->type);
+  spirv::SType etype = builder_->GetSType(op->dtype);
   if (info.scope.rank == runtime::StorageRank::kLocal) {
     buf = builder_->Allocate(
         etype, static_cast<uint32_t>(constant_size),
@@ -598,15 +600,15 @@ void CodeGenSPIRV::VisitStmt_(const Allocate* op) {
         spv::StorageClassWorkgroup);
   }
   CHECK(!info.content_fixed);
-  info.UpdateContentType(op->type);
+  info.UpdateContentType(op->dtype);
   CHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
-    IterVar iv(op->node.node_);
+    IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value);
@@ -614,43 +616,42 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmt* op) {
       }
     }
   } else if (op->attr_key == ir::attr::storage_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].scope =
-        runtime::StorageScope::make(op->value.as<StringImm>()->value);
+        runtime::StorageScope::make(op->value.as<StringImmNode>()->value);
   } else if (op->attr_key == ir::attr::volatile_scope) {
-    const Variable* v = op->node.as<Variable>();
+    const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     storage_info_[v].is_volatile = true;
   }
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const AssertStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
   With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const LetStmt* op) {
+void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {
   CHECK(!var_map_.count(op->var.get()));
-  CHECK(!op->var.type().is_handle());
+  CHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
 }
 
-void CodeGenSPIRV::VisitStmt_(const Block* op) {
-  VisitStmt(op->first);
-  if (op->rest.defined()) {
-    this->VisitStmt(op->rest);
+void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
+  for (Stmt stmt : op->seq) {
+    this->VisitStmt(stmt);
   }
 }
 
-void CodeGenSPIRV::VisitStmt_(const Evaluate* op) {
+void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenSPIRV::VisitStmt_(const ProducerConsumer* op) {
+void CodeGenSPIRV::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 

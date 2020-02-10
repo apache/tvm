@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_session.h
  * \brief Base RPC session interface.
  */
@@ -31,13 +30,32 @@
 #include <string>
 #include <memory>
 #include <utility>
-#include "../../common/ring_buffer.h"
+#include "../../support/ring_buffer.h"
 
 namespace tvm {
 namespace runtime {
 
+// Magic header for RPC data plane
 const int kRPCMagic = 0xff271;
+// magic header for RPC tracker(control plane)
+const int kRPCTrackerMagic = 0x2f271;
+// sucess response
+const int kRPCSuccess = kRPCMagic + 0;
+// cannot found matched key in server
+const int kRPCMismatch = kRPCMagic + 2;
 
+/*! \brief Enumeration code for the RPC tracker */
+enum class TrackerCode : int {
+    kFail = -1,
+    kSuccess = 0,
+    kPing = 1,
+    kStop = 2,
+    kPut = 3,
+    kRequest = 4,
+    kUpdateInfo = 5,
+    kSummary = 6,
+    kGetPendingMatchKeys = 7
+};
 /*! \brief The remote functio handle */
 using RPCFuncHandle = void*;
 
@@ -73,6 +91,16 @@ enum class RPCCode : int {
 };
 
 /*!
+ * \brief Function that unwraps a remote object to its handle.
+ * \param rpc_sess_table_index RPC session table index for validation.
+ * \param obj Handle to the object argument.
+ * \return The corresponding handle.
+ */
+typedef void* (*FUnwrapRemoteObject)(
+    int rpc_sess_table_index,
+    const TVMArgValue& obj);
+
+/*!
  * \brief Abstract channel interface used to create RPCSession.
  */
 class RPCChannel {
@@ -87,7 +115,7 @@ class RPCChannel {
    */
   virtual size_t Send(const void* data, size_t size) = 0;
   /*!
-e   * \brief Recv data from channel.
+   * \brief Recv data from channel.
    *
    * \param data The data pointer.
    * \param size The size fo the data.
@@ -126,11 +154,13 @@ class RPCSession {
    * \param handle The function handle
    * \param args The arguments
    * \param rv The return value.
+   * \param funpwrap Function that takes a remote object and returns the raw handle.
    * \param fwrap Wrapper function to turn Function/Module handle into real return.
    */
   void CallFunc(RPCFuncHandle handle,
                 TVMArgs args,
                 TVMRetValue* rv,
+                FUnwrapRemoteObject funwrap,
                 const PackedFunc* fwrap);
   /*!
    * \brief Copy bytes into remote array content.
@@ -148,7 +178,7 @@ class RPCSession {
                     size_t to_offset,
                     size_t nbytes,
                     TVMContext ctx_to,
-                    TVMType type_hint);
+                    DLDataType type_hint);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
@@ -165,7 +195,7 @@ class RPCSession {
                       size_t to_offset,
                       size_t nbytes,
                       TVMContext ctx_from,
-                      TVMType type_hint);
+                      DLDataType type_hint);
   /*!
    * \brief Get a remote timer function on ctx.
    *  This function consumes fhandle, caller should not call Free on fhandle.
@@ -240,7 +270,7 @@ class RPCSession {
   // Internal mutex
   std::recursive_mutex mutex_;
   // Internal ring buffer.
-  common::RingBuffer reader_, writer_;
+  support::RingBuffer reader_, writer_;
   // Event handler.
   std::shared_ptr<EventHandler> handler_;
   // call remote with specified function code.
@@ -251,6 +281,37 @@ class RPCSession {
   std::string name_;
   // The remote key
   std::string remote_key_;
+};
+
+/*!
+ * \brief RPC channel which callback
+ * frontend (Python/Java/etc.)'s send & recv function
+ */
+class CallbackChannel final : public RPCChannel {
+ public:
+  explicit CallbackChannel(PackedFunc fsend, PackedFunc frecv)
+      : fsend_(std::move(fsend)), frecv_(std::move(frecv)) {}
+
+  ~CallbackChannel() {}
+  /*!
+   * \brief Send data over to the channel.
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes sent.
+   */
+  size_t Send(const void* data, size_t size) final;
+  /*!
+   * \brief Recv data from channel.
+   *
+   * \param data The data pointer.
+   * \param size The size fo the data.
+   * \return The actual bytes received.
+   */
+  size_t Recv(void* data, size_t size) final;
+
+ private:
+  PackedFunc fsend_;
+  PackedFunc frecv_;
 };
 
 /*!

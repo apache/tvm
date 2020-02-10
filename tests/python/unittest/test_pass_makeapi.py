@@ -19,7 +19,7 @@ import numpy
 
 def test_makeapi():
     """Not yet working, mock design"""
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     A = tvm.placeholder((n,), name='A')
     B = tvm.placeholder((n,), name='B')
     C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
@@ -37,7 +37,7 @@ def test_makeapi():
     f = tvm.ir_pass.MakeAPI(
         stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args, True)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)
-    assert(len(f.args) == 5)
+    assert(len(f.args) == 7)
     output_ssa = False
 
 

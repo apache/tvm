@@ -22,7 +22,6 @@ import time
 def test_gemm():
     # graph
     nn = 1024
-    n = tvm.var('n')
     n = tvm.convert(nn)
     m = n
     l = n

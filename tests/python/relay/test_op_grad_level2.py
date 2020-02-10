@@ -48,8 +48,7 @@ def verify_max_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode):
 
 
 def test_max_pool2d_grad():
-    verify_max_pool2d_grad((1, 4, 16, 16), pool_size=(2, 2), strides=(2, 2), padding=(0, 0),
-                           ceil_mode=False)
+    verify_max_pool2d_grad((1, 4, 16, 16), pool_size=(2, 2), strides=(2, 2), padding=(0, 0), ceil_mode=False)
     verify_max_pool2d_grad((1, 4, 16, 16), pool_size=(1, 1), strides=(1, 1), padding=(1, 1), ceil_mode=False)
 
 
@@ -75,13 +74,36 @@ def verify_avg_pool2d_grad(x_shape, pool_size, strides, padding, ceil_mode, coun
         op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
         np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
 
-
 def test_avg_pool2d_grad():
     verify_avg_pool2d_grad((1, 4, 16, 16), pool_size=(2, 2), strides=(2, 2), padding=(0, 0),
                            ceil_mode=False, count_include_pad=True)
     verify_avg_pool2d_grad((1, 4, 16, 16), pool_size=(1, 1), strides=(1, 1), padding=(1, 1),
                            ceil_mode=False, count_include_pad=False)
 
+
+def verify_global_avg_pool2d_grad(x_shape):
+    x = relay.var("x", relay.TensorType(x_shape, "float32"))
+    y = tvm.relay.nn.global_avg_pool2d(x)
+
+    fwd_func = relay.Function([x], y)
+    fwd_func = run_infer_type(fwd_func)
+    bwd_func = run_infer_type(gradient(fwd_func))
+
+    data = np.random.rand(*x_shape).astype("float32")
+    y_shape = topi.util.get_const_tuple(fwd_func.ret_type.shape)
+    out_grad = np.ones(shape=y_shape)
+    ref_grad = topi.testing.pool_grad_nchw(data, out_grad, pool_size=(x_shape[2], x_shape[3]), 
+                                            strides=(1, 1), padding=[0, 0, 0, 0], pool_type='avg', 
+                                            ceil_mode=False)
+
+    for target, ctx in ctx_list():
+        intrp = relay.create_executor(ctx=ctx, target=target)
+        op_res, (op_grad, ) = intrp.evaluate(bwd_func)(data)
+        np.testing.assert_allclose(op_grad.asnumpy(), ref_grad, rtol=0.01)
+
+def test_global_avg_pool2d_grad():
+    verify_global_avg_pool2d_grad((1, 4, 16, 16))
+    verify_global_avg_pool2d_grad((1, 8, 8, 24))
 
 def verify_conv2d_grad(dshape, wshape, strides, padding, dilation, groups=1, mode='higher_order'):
     try:
@@ -155,6 +177,7 @@ def test_batch_flatten_grad():
 if __name__ == "__main__":
     test_max_pool2d_grad()
     test_avg_pool2d_grad()
+    test_global_avg_pool2d_grad()
     test_conv2d_grad()
     test_dense_grad()
     test_batch_flatten_grad()

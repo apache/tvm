@@ -107,7 +107,7 @@ error messages when necessary.
 
    def preferred():
        # Very clear about what is being raised and what is the error message.
-       raise OpNotImplemented("Operator relu is not implemented in the MXNet fronend")
+       raise OpNotImplemented("Operator relu is not implemented in the MXNet frontend")
 
    def _op_not_implemented(op_name):
        return OpNotImplemented("Operator {} is not implemented.").format(op_name)

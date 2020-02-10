@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief gotvm package source for error related API interface.
  * \file error.go
  */

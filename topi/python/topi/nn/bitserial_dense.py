@@ -95,9 +95,9 @@ def bitserial_dense_default(cfg, data, weight, data_bits, weight_bits, pack_dtyp
     ######## Search space
     x, y = cfg.axis(X), cfg.axis(Y)
     db, wb, k = cfg.reduce_axis(DB), cfg.reduce_axis(WB), cfg.reduce_axis(K)
-    ko, ki = cfg.define_split('tile_k', k, policy='all', num_outputs=2)
-    yo, yi = cfg.define_split('tile_y', y, policy='all', num_outputs=2)
-    xo, xi = cfg.define_split('tile_x', x, policy='all', num_outputs=2)
+    ko, ki = cfg.define_split('tile_k', k, num_outputs=2)
+    yo, yi = cfg.define_split('tile_y', y, num_outputs=2)
+    xo, xi = cfg.define_split('tile_x', x, num_outputs=2)
 
     cfg.define_reorder('reorder_0', [yo, xo, ko, yi, wb, db, ki, xi],
                        policy='candidate', candidate=[
@@ -121,13 +121,18 @@ def bitserial_dense_default(cfg, data, weight, data_bits, weight_bits, pack_dtyp
     weight_vec = tvm.compute(wvshape, lambda xo, wb, vx, k:
                              weight_packed[xo*VX+vx][wb][k], name='weight_vec')
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
+
     matmul_unipolar = tvm.compute(oshape, lambda i, j: tvm.sum(
-        (tvm.popcount(weight_vec[j//VX, wb, j%VX, k] & data_packed[i, db, k]) -
-         tvm.popcount(~weight_vec[j//VX, wb, j%VX, k] & data_packed[i, db, k])).astype(out_dtype)
+        (tvm.popcount(weight_vec[idxdiv(j, VX), wb, idxmod(j, VX), k] & data_packed[i, db, k]) -
+         tvm.popcount(~weight_vec[idxdiv(j, VX), wb, idxmod(j, VX), k] & data_packed[i, db, k])
+        ).astype(out_dtype)
         << (db+wb).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense_unipolar')
 
     matmul = tvm.compute(oshape, lambda i, j: tvm.sum(
-        tvm.popcount(weight_vec[j//VX, wb, j%VX, k] & data_packed[i, db, k]).astype(out_dtype)
+        tvm.popcount(weight_vec[idxdiv(j, VX), wb, idxmod(j, VX), k] & data_packed[i, db, k]
+                    ).astype(out_dtype)
         << (db+wb).astype(out_dtype), axis=[wb, db, k]), tag='bitserial_dense')
 
     # binary ops

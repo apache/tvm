@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.6.dev1" %}
+{% set version = "0.7.dev0" %}
 
 package:
   name: tvm-libs
@@ -43,6 +43,6 @@ requirements:
     - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
 
 about:
-  home: https://github.com/dmlc/tvm
+  home: https://github.com/apache/incubator-tvm
   license: Apache2
   summary: a low level domain specific language for compiling tensor computation pipelines

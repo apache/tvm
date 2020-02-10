@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,41 +18,42 @@
  */
 
  /*!
- *  Copyright (c) 2017 by Contributors
  *  Implementation of basic API functions
  * \file api_base.cc
  */
 #include <dmlc/memory_io.h>
 #include <tvm/expr.h>
-#include <tvm/tensor.h>
-#include <tvm/api_registry.h>
+#include <tvm/top/tensor.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/packed_func_ext.h>
+
+#include <tvm/node/serialization.h>
 
 namespace tvm {
-TVM_REGISTER_API("_format_str")
+TVM_REGISTER_GLOBAL("_format_str")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    CHECK(args[0].type_code() == kNodeHandle);
+    CHECK(args[0].type_code() == kTVMObjectHandle);
     std::ostringstream os;
-    os << args[0].operator NodeRef();
+    os << args[0].operator ObjectRef();
     *ret = os.str();
   });
 
-TVM_REGISTER_API("_raw_ptr")
+TVM_REGISTER_GLOBAL("_raw_ptr")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
-    CHECK(args[0].type_code() == kNodeHandle);
-    *ret = reinterpret_cast<int64_t>(
-        args[0].node_sptr().get());
+    CHECK(args[0].type_code() == kTVMObjectHandle);
+    *ret = reinterpret_cast<int64_t>(args[0].value().v_handle);
   });
 
-TVM_REGISTER_API("_save_json")
-.set_body_typed<std::string(NodeRef)>(SaveJSON);
+TVM_REGISTER_GLOBAL("_save_json")
+.set_body_typed(SaveJSON);
 
-TVM_REGISTER_API("_load_json")
-.set_body_typed<NodeRef(std::string)>(LoadJSON<NodeRef>);
+TVM_REGISTER_GLOBAL("_load_json")
+.set_body_typed(LoadJSON);
 
-TVM_REGISTER_API("_TVMSetStream")
+TVM_REGISTER_GLOBAL("_TVMSetStream")
 .set_body_typed(TVMSetStream);
 
-TVM_REGISTER_API("_save_param_dict")
+TVM_REGISTER_GLOBAL("_save_param_dict")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     CHECK_EQ(args.size() % 2, 0u);
     constexpr uint64_t TVMNDArrayListMagic = 0xF7E58D4F05049CB7;

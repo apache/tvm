@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file stackvm.h
  * \brief A simple stack-based virtual machine.
  *
@@ -39,6 +38,7 @@ namespace tvm {
 namespace runtime {
 
 using runtime::operator<<;
+
 /*!
  * \brief A simple stack-based virtual machine program.
  */
@@ -284,6 +284,25 @@ class StackVM {
      */
     TVM_STRUCT_SET
   };
+  /*! \brief The kind of structure field info */
+  enum StructFieldKind : int {
+    // array head address
+    kArrAddr,
+    kArrData,
+    kArrShape,
+    kArrStrides,
+    kArrNDim,
+    kArrTypeCode,
+    kArrTypeBits,
+    kArrTypeLanes,
+    kArrByteOffset,
+    kArrDeviceId,
+    kArrDeviceType,
+    kArrKindBound_,
+    // TVMValue field
+    kTVMValueContent,
+    kTVMValueKindBound_
+  };
   /*! \brief The code structure */
   union Code {
     OpCode op_code;
@@ -359,9 +378,9 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetLoad(TVMType t) {
+  static OpCode GetLoad(DLDataType t) {
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) return ARRAY_LOAD_HANDLE;
+    if (t.code == kTVMOpaqueHandle) return ARRAY_LOAD_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_LOAD_INT32;
@@ -384,9 +403,9 @@ class StackVM {
    * \param t the type code.
    * \return The load opcode
    */
-  static OpCode GetStore(TVMType t) {
+  static OpCode GetStore(DLDataType t) {
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) return ARRAY_STORE_HANDLE;
+    if (t.code == kTVMOpaqueHandle) return ARRAY_STORE_HANDLE;
     if (t.code == kDLInt) {
       switch (t.bits) {
         case 32 : return ARRAY_STORE_INT32;

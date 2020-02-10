@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \brief Softmax op constructions
  * \file nn/flatten.h
  */
@@ -30,13 +29,14 @@
 
 #include "topi/tags.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
 * \brief Flattens the input tensor into a 2-D tensor by collapsing higher dimensions.
@@ -52,26 +52,26 @@ inline Tensor flatten(const Tensor& x,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
   auto ishape = x->shape;
-  int dim = 1;
+  PrimExpr dim = 1;
   for (size_t i = 1; i < ishape.size(); ++i) {
-    dim = dim * static_cast<int>(topi::detail::GetConstInt(ishape[i]));
+    dim = dim * ishape[i];
   }
 
-  Array<Expr> oshape({ ishape[0], dim });
+  Array<PrimExpr> oshape({ ishape[0], dim });
 
-  std::vector<Expr> extra_shape;
+  std::vector<PrimExpr> extra_shape;
   for (size_t i = 1; i < ishape.size(); ++i) {
     extra_shape.push_back(ishape[i]);
   }
   std::reverse(extra_shape.begin(), extra_shape.end());
 
-  return tvm::compute(
+  return tvm::top::compute(
     oshape, [&](Var i, Var j) {
-      Expr idx = j;
-      std::vector<Expr> index;
+      PrimExpr idx = j;
+      std::vector<PrimExpr> index;
       for (auto s : extra_shape) {
-        index.push_back(idx % s);
-        idx = idx / s;
+        index.push_back(indexmod(idx, s));
+        idx = indexdiv(idx, s);
       }
       index.push_back(i);
       std::reverse(index.begin(), index.end());

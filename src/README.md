@@ -21,15 +21,15 @@ Header files in include are public APIs that share across modules.
 There can be internal header files within each module that sit in src.
 
 ## Modules
-- common: Internal common utilities.
-- api: API function registration.
-- lang: The definition of DSL related data structure.
-- arithmetic: Arithmetic expression and set simplification.
-- op: The detail implementations about each operation(compute, scan, placeholder).
-- schedule: The operations on the schedule graph before converting to IR.
+- support: Internal support utilities.
+- runtime: Minimum runtime related codes.
+- node: base infra for IR/AST nodes that is dialect independent.
+- arith: Arithmetic expression and set simplification.
+- top: tensor operation DSL for compute and schedule.
+- relay: Implementation of Relay. The second generation of NNVM, a new IR for deep learning frameworks.
 - pass: The optimization pass on the IR structure.
 - codegen: The code generator.
-- runtime: Minimum runtime related codes.
 - autotvm: The auto-tuning module.
-- relay: Implementation of Relay. The second generation of NNVM, a new IR for deep learning frameworks.
 - contrib: Contrib extension libraries.
+- api: API function registration.
+- lang: The definition of DSL related data structure.

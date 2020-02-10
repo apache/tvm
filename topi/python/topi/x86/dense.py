@@ -32,11 +32,17 @@ def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
     if "cblas" in target.libs:
         C = cblas.matmul(data, weight, False, True)
         if bias is not None:
-            C = tvm.compute(C.shape, lambda i, j: C[i, j] + bias[j].astype(out_dtype),
+            C = tvm.compute(C.shape, lambda i, j: C[i, j] + bias[j],
                             tag=tag.BROADCAST)
         return C
 
     M, _ = get_const_tuple(data.shape)
+    # Always use dense_nopack for dynamic input.
+    # This is a temporary for CV models.
+    # TODO(kevinthesun): use kernel dispatcher instead.
+    if isinstance(M, tvm.expr.Var):
+        return _declaration_dense_nopack(cfg, data, weight, bias, out_dtype)
+
     # For small batch sizes, don't pack weight into cache-friendly layout
     # because of overhead in packing and limited reuse from batch dimension
     # TODO(icemelon9): use a more systematic way to determine which schedule to use
@@ -53,9 +59,9 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape) # batch, in_dim
     N, _ = get_const_tuple(weight.shape) # out_dim
     # create tuning space
-    cfg.define_split("tile_y", M, num_outputs=3)
-    cfg.define_split("tile_x", N, num_outputs=3)
-    cfg.define_split("tile_k", K, num_outputs=2)
+    cfg.define_split("tile_y", 32 if isinstance(M, tvm.expr.Var) else M, num_outputs=3)
+    cfg.define_split("tile_x", 32 if isinstance(N, tvm.expr.Var) else N, num_outputs=3)
+    cfg.define_split("tile_k", 32 if isinstance(K, tvm.expr.Var) else K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_pack_config(cfg, M, N, K)
 
@@ -64,11 +70,13 @@ def _declaration_dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     packw = tvm.compute(packw_shape,
                         lambda z, y, x: weight[z * packw_bn + x, y], name="packed_weight")
 
+    idxdiv = tvm.indexdiv
+    idxmod = tvm.indexmod
     k = tvm.reduce_axis((0, K), name="k")
     C = tvm.compute((M, N),
                     lambda y, x: tvm.sum(
                         data[y, k].astype(out_dtype) *
-                        packw[x // packw_bn, k, x % packw_bn].astype(out_dtype),
+                        packw[idxdiv(x, packw_bn), k, idxmod(x, packw_bn)].astype(out_dtype),
                         axis=k),
                     tag="dense_pack")
     if bias is not None:
@@ -85,9 +93,9 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
     M, K = get_const_tuple(data.shape)
     N, _ = get_const_tuple(weight.shape)
     # create tuning space
-    cfg.define_split("tile_y", M, num_outputs=2)
-    cfg.define_split("tile_x", N, num_outputs=2)
-    cfg.define_split("tile_k", K, num_outputs=2)
+    cfg.define_split("tile_y", 32 if isinstance(M, tvm.expr.Var) else M, num_outputs=2)
+    cfg.define_split("tile_x", 32 if isinstance(N, tvm.expr.Var) else N, num_outputs=2)
+    cfg.define_split("tile_k", 32 if isinstance(K, tvm.expr.Var) else K, num_outputs=2)
     if cfg.is_fallback:
         _default_dense_nopack_config(cfg, M, N, K)
 
@@ -111,6 +119,10 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct")
 def _schedule_dense(cfg, outs):
+    target = tvm.target.current_target()
+    if "cblas" in target.libs:
+        return generic.schedule_extern(outs)
+
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -205,8 +217,15 @@ def _schedule_dense_nopack_template(cfg, s, C):
 
 
 def _default_dense_pack_config(cfg, M, N, K):
-    vec_width = get_fp32_len()
+    # Generate default schedule for dynamic shape.
+    if isinstance(M, tvm.expr.Var):
+        M = 16
+    if isinstance(N, tvm.expr.Var):
+        N = 16
+    if isinstance(K, tvm.expr.Var):
+        K = 16
 
+    vec_width = get_fp32_len()
     tilex_ii = 1
     for bn in range(vec_width*2, 0, -1):
         if N % bn == 0:
@@ -235,6 +254,14 @@ def _default_dense_pack_config(cfg, M, N, K):
 
 
 def _default_dense_nopack_config(cfg, M, N, K):
+    # Generate default schedule for dynamic shape.
+    if isinstance(M, tvm.expr.Var):
+        M = 16
+    if isinstance(N, tvm.expr.Var):
+        N = 16
+    if isinstance(K, tvm.expr.Var):
+        K = 16
+
     vec_width = get_fp32_len()
     tilek_bn = 1
     for bn in range(vec_width*2, 0, -1):

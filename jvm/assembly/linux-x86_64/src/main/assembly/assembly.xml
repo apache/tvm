@@ -48,7 +48,7 @@ under the License.
       <useProjectArtifact>false</useProjectArtifact>
       <useStrictFiltering>false</useStrictFiltering>
       <includes>
-        <include>ml.dmlc.tvm:libtvm4j-linux-x86_64:so</include>
+        <include>org.apache.tvm:libtvm4j-linux-x86_64:so</include>
       </includes>
     </dependencySet>
   </dependencySets>

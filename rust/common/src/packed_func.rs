@@ -71,7 +71,7 @@ macro_rules! TVMPODValue {
             Context(TVMContext),
             Handle(*mut c_void),
             ArrayHandle(TVMArrayHandle),
-            NodeHandle(*mut c_void),
+            ObjectHandle(*mut c_void),
             ModuleHandle(TVMModuleHandle),
             FuncHandle(TVMFunctionHandle),
             NDArrayContainer(*mut c_void),
@@ -83,7 +83,7 @@ macro_rules! TVMPODValue {
                 use $name::*;
                 #[allow(non_upper_case_globals)]
                 unsafe {
-                    match type_code {
+                    match type_code as _ {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
@@ -92,7 +92,7 @@ macro_rules! TVMPODValue {
                         TVMTypeCode_kTVMContext => Context($value.v_ctx),
                         TVMTypeCode_kHandle => Handle($value.v_handle),
                         TVMTypeCode_kArrayHandle => ArrayHandle($value.v_handle as TVMArrayHandle),
-                        TVMTypeCode_kNodeHandle => NodeHandle($value.v_handle),
+                        TVMTypeCode_kObjectHandle => ObjectHandle($value.v_handle),
                         TVMTypeCode_kModuleHandle => ModuleHandle($value.v_handle),
                         TVMTypeCode_kFuncHandle => FuncHandle($value.v_handle),
                         TVMTypeCode_kNDArrayContainer => NDArrayContainer($value.v_handle),
@@ -124,7 +124,7 @@ macro_rules! TVMPODValue {
                             TVMTypeCode_kArrayHandle,
                         )
                     },
-                    NodeHandle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kNodeHandle),
+                    ObjectHandle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kObjectHandle),
                     ModuleHandle(val) =>
                         (TVMValue { v_handle: *val }, TVMTypeCode_kModuleHandle),
                     FuncHandle(val) => (

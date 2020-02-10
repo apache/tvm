@@ -32,6 +32,7 @@ List of operators
    topi.trunc
    topi.round
    topi.abs
+   topi.isnan
    topi.exp
    topi.tanh
    topi.log
@@ -68,6 +69,7 @@ List of operators
    topi.nn.conv2d_hwcn
    topi.nn.depthwise_conv2d_nchw
    topi.nn.depthwise_conv2d_nhwc
+   topi.nn.fifo_buffer
    topi.max
    topi.sum
    topi.min
@@ -90,6 +92,7 @@ List of operators
    topi.greater_equal
    topi.less_equal
    topi.all
+   topi.any
    topi.logical_and
    topi.logical_or
    topi.logical_not
@@ -101,6 +104,7 @@ List of operators
    topi.ndarray_size
    topi.layout_transform
    topi.image.resize
+   topi.image.crop_and_resize
    topi.argsort
    topi.topk
    topi.sequence_mask
@@ -127,6 +131,7 @@ topi
 .. autofunction:: topi.trunc
 .. autofunction:: topi.round
 .. autofunction:: topi.abs
+.. autofunction:: topi.isnan
 .. autofunction:: topi.exp
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log
@@ -149,6 +154,7 @@ topi
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
 .. autofunction:: topi.all
+.. autofunction:: topi.any
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min
@@ -158,7 +164,9 @@ topi
 .. autofunction:: topi.subtract
 .. autofunction:: topi.multiply
 .. autofunction:: topi.divide
+.. autofunction:: topi.floor_divide
 .. autofunction:: topi.mod
+.. autofunction:: topi.floor_mod
 .. autofunction:: topi.maximum
 .. autofunction:: topi.minimum
 .. autofunction:: topi.power
@@ -175,6 +183,9 @@ topi
 .. autofunction:: topi.topk
 .. autofunction:: topi.sequence_mask
 .. autofunction:: topi.one_hot
+.. autofunction:: topi.logical_and
+.. autofunction:: topi.logical_or
+.. autofunction:: topi.logical_not
 
 topi.nn
 ~~~~~~~
@@ -192,10 +203,12 @@ topi.nn
 .. autofunction:: topi.nn.conv2d_hwcn
 .. autofunction:: topi.nn.depthwise_conv2d_nchw
 .. autofunction:: topi.nn.depthwise_conv2d_nhwc
+.. autofunction:: topi.nn.fifo_buffer
 
 topi.image
 ~~~~~~~~~~
 .. autofunction:: topi.image.resize
+.. autofunction:: topi.image.crop_and_resize
 
 topi.sparse
 ~~~~~~~~~~~

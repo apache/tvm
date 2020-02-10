@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2019 by Contributors
  *
  * \file src/tvm/relay/pass/fuse_ops.cc
  *
@@ -31,7 +30,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
 #include "./pattern_util.h"
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 
 namespace tvm {
@@ -40,7 +39,7 @@ namespace relay {
 /*
   Note on Fusing algorithm:
 
-  The main challenge of genenral fusor is to handle possible diamond shape branches,
+  The main challenge of general fusor is to handle possible diamond shape branches,
   in the following graph, conv2d can be fused to elemwise add.
 
             conv2d
@@ -52,8 +51,9 @@ namespace relay {
           elemwise add
                |
 
-  However, at the point of conv2d we do not necessarily know that all its future path
-  will merge at the elemwise add. The new fusor algorithm applies post-dominator analysis.
+  However, at the point of conv2d we do not necessarily know that all the future paths
+  will merge at the elemwise add. The fusion algorithm applies post-dominator analysis.
+
   The immediate post-dominator of a node defined by the closest node where all the future path goes into.
   In the above case, the elemwise add is the post-dominator of conv2d. The general algorithm is as follows:
 
@@ -68,20 +68,24 @@ namespace relay {
   immediate post dominator. It has to check the following things:
 
   - CheckPath: check all the path between a node and its immediate post-dominator
-               satiesfies the fuse condition.
+               satisfies the fuse condition.
   - Note that these intermediate node can already be fused with another nodes, the algorithm
       will still run correctly.
   - CommitFuse: mark all the nodes between source and post-dominator as the same group.
   - We use an Union-Find data structure to manage the groups.
 */
-using common::LinkNode;
-using common::LinkedList;
+using support::LinkNode;
+using support::LinkedList;
+
+constexpr uint32_t kMaxFusedOps = 256;
+
+static const Op& stop_fusion_op = Op::Get("annotation.stop_fusion");
 
 /*!
  * \brief Indexed data flow graph in forward direction.
  *  This is a temporary data structure used for operator fusion analysis.
  *
- *  This data structure only captures the dataflow fragement and
+ *  This data structure only captures the dataflow fragment and
  *  could ignore blocks like let by simply ordering each dataflow block
  *  and mark the output node as extern_ref;
  */
@@ -100,7 +104,7 @@ class IndexedForwardGraph {
   /*! \brief A node in the graph. */
   struct Node {
     /*! \brief weak reference to the corresponding edge. */
-    const tvm::Node* ref{nullptr};
+    const tvm::Object* ref{nullptr};
     /*! \brief The index of the node in topological order. */
     size_t index{0};
     /*! \brief Whether this node is referenced by external source */
@@ -111,7 +115,7 @@ class IndexedForwardGraph {
     LinkedList<Edge> outputs;
   };
   /*! \brief The node map that maps node to graph */
-  std::unordered_map<const tvm::Node*, Node*> node_map;
+  std::unordered_map<const tvm::Object*, Node*> node_map;
   /*! \brief All the nodes in post DFS order */
   std::vector<Node*> post_dfs_order;
 
@@ -121,7 +125,7 @@ class IndexedForwardGraph {
     for (size_t i = 0; i < post_dfs_order.size(); ++i) {
       Node* node = post_dfs_order[i];
       os << "node[" << i << "], "
-         << GetRef<NodeRef>(node->ref)
+         << GetRef<ObjectRef>(node->ref)
          << " outputs=[";
       for (auto* link = node->outputs.head; link != nullptr; link = link->next) {
         os << link->value.node->index << ", ";
@@ -135,7 +139,7 @@ class IndexedForwardGraph {
    * \param arena The arena used for data allocation.
    * \param body The body of the expression to create a graph.
    */
-  static IndexedForwardGraph Create(common::Arena* arena, const Expr& body);
+  static IndexedForwardGraph Create(support::Arena* arena, const Expr& body);
 
  private:
   class Creator;
@@ -144,7 +148,7 @@ class IndexedForwardGraph {
 // Creator of post dominator tree of the dataflow
 class IndexedForwardGraph::Creator : private ExprVisitor {
  public:
-  explicit Creator(common::Arena* arena)
+  explicit Creator(support::Arena* arena)
       : arena_(arena) {}
 
   IndexedForwardGraph Prepare(const Expr& body) {
@@ -155,7 +159,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
  private:
   /*! \brief allocator of all the internal node object */
-  common::Arena* arena_;
+  support::Arena* arena_;
   // The output.
   IndexedForwardGraph graph_;
   // attribute equal comparator
@@ -164,7 +168,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void Update(const Expr& node,
               IndexedForwardGraph::Node* parent,
               OpPatternKind pattern) {
-    const tvm::Node* key = node.get();
+    const tvm::Object* key = node.get();
     IndexedForwardGraph::Node* current;
     auto it = graph_.node_map.find(key);
     if (it != graph_.node_map.end()) {
@@ -183,10 +187,10 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     }
   }
 
-  void AddNode(const tvm::Node* key) {
+  void AddNode(const tvm::Object* key) {
     auto it = graph_.node_map.find(key);
     CHECK(it != graph_.node_map.end())
-        << "Cannot find node " << GetRef<NodeRef>(key);
+        << "Cannot find node " << GetRef<ObjectRef>(key);
     IndexedForwardGraph::Node* node = it->second;
     CHECK(node->ref == nullptr);
     node->ref = key;
@@ -206,14 +210,14 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const ConstantNode* op) final {
     this->AddNode(op);
     Node* node = graph_.node_map.at(op);
-    DataType dtype = TVMType2Type(op->data->dtype);
+    DataType dtype = DataType(op->data->dtype);
     // This rule must be consistent with code generator.
     bool is_simple_const = (
-        dtype == Int(32) ||
-        dtype == Int(64) ||
-        dtype == Float(32) ||
-        dtype == Float(64) ||
-        dtype == Bool());
+        dtype == DataType::Int(32) ||
+        dtype == DataType::Int(64) ||
+        dtype == DataType::Float(32) ||
+        dtype == DataType::Float(64) ||
+        dtype == DataType::Bool());
     if (op->is_scalar() && is_simple_const) {
       node->pattern = kElemWise;
     } else {
@@ -283,7 +287,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   void VisitExpr_(const TupleGetItemNode* op) final {
     auto tuple_type = op->tuple->checked_type().as<TupleTypeNode>();
     CHECK(tuple_type);
-    // when TVM lowers a fused function, it expects all arguments to be a Tensor or
+    // When TVM lowers a fused function, it expects all arguments to be a Tensor or
     // a tuple containing only Tensors. But this tuple may contain a reference or
     // another tuple. To avoid modifying codegen logic, we do not allow fusing through this node
     // if the tuple contains such non Tensor fields. However, all fields will be recursively
@@ -359,7 +363,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 };
 
 IndexedForwardGraph IndexedForwardGraph::Create(
-    common::Arena* arena, const Expr& body) {
+    support::Arena* arena, const Expr& body) {
   return Creator(arena).Prepare(body);
 }
 
@@ -387,12 +391,12 @@ class DominatorTree {
   /*!
    * \brief compute a post dominator relation for a given dataflow graph.
    * \param arena The arena used for node allocation.
-   * \param graph The graph to be analyze.
+   * \param graph The graph to be analyzed.
    * \return The dominator tree of the graph.
    * \note This algorithm makes use of the fact that graph is DAG,
-   *       and runs a single pass algorithm via LCA.
+   *       and runs a single pass algorithm via LCA (Least Common Ancestor)
    */
-  static DominatorTree PostDom(common::Arena* arena,
+  static DominatorTree PostDom(support::Arena* arena,
                                const IndexedForwardGraph& graph);
 
  private:
@@ -471,7 +475,7 @@ class DominatorTree {
    * \param gnode An IndexedForwardGraph Node.
    * \return The DominatorTree Node.
    */
-  Node* GetNode(common::Arena* arena, IndexedForwardGraph::Node* gnode) {
+  Node* GetNode(support::Arena* arena, IndexedForwardGraph::Node* gnode) {
     Node* tnode = arena->make<Node>();
     tnode->gnode = gnode;
     if (gnode->extern_ref) {
@@ -491,7 +495,7 @@ class DominatorTree {
 };
 
 
-DominatorTree DominatorTree::PostDom(common::Arena* arena,
+DominatorTree DominatorTree::PostDom(support::Arena* arena,
                                      const IndexedForwardGraph& graph) {
   DominatorTree tree;
   tree.nodes.resize(graph.post_dfs_order.size(), nullptr);
@@ -508,7 +512,7 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
  */
 class GraphPartitioner {
  public:
-  explicit GraphPartitioner(common::Arena* arena, int opt_level)
+  explicit GraphPartitioner(support::Arena* arena, int opt_level)
       : arena_(arena), opt_level_(opt_level) {}
   /*!
    * \brief Group as a union find data structure.
@@ -519,12 +523,12 @@ class GraphPartitioner {
     /*! \brief The pattern of the group */
     OpPatternKind pattern;
     /*! \brief reference to the root node. */
-    const tvm::Node* root_ref{nullptr};
+    const tvm::Object* root_ref{nullptr};
     /*!
      * \brief Reference to the master node,
      * this field is not nullptr only if pattern is kOutEWiseFusable.
      */
-    const tvm::Node* master_ref{nullptr};
+    const tvm::Object* master_ref{nullptr};
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.
@@ -544,6 +548,11 @@ class GraphPartitioner {
       }
       return root;
     }
+
+    /*!
+     * \brief The number of nodes belonging to this group
+     */
+    uint32_t num_nodes{1};
   };
   /*!
    * \brief Partition a graph.
@@ -553,7 +562,7 @@ class GraphPartitioner {
 
  private:
   /*! \brief The internal arena for temporary space. */
-  common::Arena* arena_;
+  support::Arena* arena_;
   /*! \brief optimization level for fuse operation. */
   int opt_level_;
   /*! \brief The internal groups. */
@@ -616,6 +625,8 @@ class GraphPartitioner {
    * \param parent The parent group.
    */
   void MergeFromTo(Group* child, Group* parent) {
+    // update the number of nodes of the parent group
+    parent->num_nodes += child->num_nodes;
     child = child->FindRoot();
     parent = parent->FindRoot();
     if (child == parent) return;
@@ -689,6 +700,10 @@ class GraphPartitioner {
       if (dom_node->parent == nullptr) continue;
       CHECK(!graph_node->extern_ref);
       size_t dom_parent_gindex = dom_node->parent->gnode->index;
+
+      // refuse the fusion if too many ops are going to be fused together
+      if (groups_[dom_parent_gindex]->num_nodes + group_node->num_nodes > kMaxFusedOps)
+        continue;
 
       if (phase == 2) {
         // Fuse injective ops into intermediate tuples, if any
@@ -830,9 +845,9 @@ class FuseMutator : private ExprMutator {
     }
   };
   /*! \brief Internal arena. */
-  common::Arena arena_;
+  support::Arena arena_;
   /*! \brief The group assignment map. */
-  std::unordered_map<const Node*, GraphPartitioner::Group*> gmap_;
+  std::unordered_map<const Object*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
 
@@ -847,12 +862,18 @@ class FuseMutator : private ExprMutator {
 
   // Transform calls.
   Expr VisitExpr_(const CallNode* call) {
-    static const Op& stop_fusion = Op::Get("annotation.stop_fusion");
     if (call->op.as<OpNode>()) {
+      static auto fnoncomputational =
+        Op::GetAttr<TNonComputational>("TNonComputational");
+
+      if (fnoncomputational.get(Downcast<Op>(call->op), false)) {
+        return ExprMutator::VisitExpr_(call);
+      }
+
       // If it is a primitive op call
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
-      if (call->op.same_as(stop_fusion)) {
+      if (call->op == stop_fusion_op) {
         return ExprMutator::VisitExpr(call->args[0]);
       }
       auto* ret_group = gmap_.at(call)->FindRoot();
@@ -913,7 +934,7 @@ class FuseMutator : private ExprMutator {
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
     auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, "Primitive", tvm::Integer(visitor.has_call));
+    func = FunctionSetAttr(func, attr::kPrimitive, tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 
@@ -948,23 +969,23 @@ class FuseMutator : private ExprMutator {
   }
 };
 
-Expr FuseOps(const Expr& expr, int fuse_opt_level, const Module& module) {
+Expr FuseOps(const Expr& expr, int fuse_opt_level, const IRModule& module) {
   return FuseMutator().Transform(expr, fuse_opt_level);
 }
 
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
   return CreateFunctionPass(pass_func, 1, "FuseOps",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.FuseOps")
+TVM_REGISTER_GLOBAL("relay._transform.FuseOps")
 .set_body_typed(FuseOps);
 
 }  // namespace transform

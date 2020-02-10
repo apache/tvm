@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file codegen_stack_vm.h
  * \brief Codegen into Simple Stack VM.
  */
@@ -47,7 +46,7 @@ using runtime::StackVM;
  *  into device function when only device JIT is available.
  */
 class CodeGenStackVM
-    : public ExprFunctor<void(const Expr&)>,
+    : public ExprFunctor<void(const PrimExpr&)>,
       public StmtFunctor<void(const Stmt&)> {
  public:
  /*!
@@ -61,7 +60,7 @@ class CodeGenStackVM
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
   /*! \brief Push expr to generate new code */
-  void Push(const Expr& n) {
+  void Push(const PrimExpr& n) {
     VisitExpr(n);
   }
   /*!
@@ -97,67 +96,66 @@ class CodeGenStackVM
    * \param v The variable.
    * \return the heap index of the var.
    */
-  int AllocVarID(const Variable* v);
+  int AllocVarID(const VarNode* v);
   /*!
    * \brief Get a variable name.
    * \param v The variable.
    * \return the heap index of the var.
    */
-  int GetVarID(const Variable* v) const;
+  int GetVarID(const VarNode* v) const;
   // Push binary operator
   void PushBinary(StackVM::OpCode op_int64,
-                  const Expr& a,
-                  const Expr& b);
+                  const PrimExpr& a,
+                  const PrimExpr& b);
   // push cast;
-  void PushCast(Type dst, Type src);
+  void PushCast(DataType dst, DataType src);
   // overloadable functions
   // expression
-  void VisitExpr_(const Variable* op) final;
-  void VisitExpr_(const Load* op) final;
-  void VisitExpr_(const Let* op) final;
-  void VisitExpr_(const Call* op) final;
-  void VisitExpr_(const Add* op) final;
-  void VisitExpr_(const Sub* op) final;
-  void VisitExpr_(const Mul* op) final;
-  void VisitExpr_(const Div* op) final;
-  void VisitExpr_(const Mod* op) final;
-  void VisitExpr_(const Min* op) final;
-  void VisitExpr_(const Max* op) final;
-  void VisitExpr_(const EQ* op) final;
-  void VisitExpr_(const NE* op) final;
-  void VisitExpr_(const LT* op) final;
-  void VisitExpr_(const LE* op) final;
-  void VisitExpr_(const GT* op) final;
-  void VisitExpr_(const GE* op) final;
-  void VisitExpr_(const And* op) final;
-  void VisitExpr_(const Or* op) final;
-  void VisitExpr_(const Cast* op) final;
-  void VisitExpr_(const Not* op) final;
-  void VisitExpr_(const Select* op) final;
-  void VisitExpr_(const Ramp* op) final;
-  void VisitExpr_(const Broadcast* op) final;
-  void VisitExpr_(const IntImm* op) final;
-  void VisitExpr_(const UIntImm* op) final;
-  void VisitExpr_(const FloatImm* op) final;
-  void VisitExpr_(const StringImm* op) final;
+  void VisitExpr_(const VarNode* op) final;
+  void VisitExpr_(const LoadNode* op) final;
+  void VisitExpr_(const LetNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
+  void VisitExpr_(const AddNode* op) final;
+  void VisitExpr_(const SubNode* op) final;
+  void VisitExpr_(const MulNode* op) final;
+  void VisitExpr_(const DivNode* op) final;
+  void VisitExpr_(const ModNode* op) final;
+  void VisitExpr_(const MinNode* op) final;
+  void VisitExpr_(const MaxNode* op) final;
+  void VisitExpr_(const EQNode* op) final;
+  void VisitExpr_(const NENode* op) final;
+  void VisitExpr_(const LTNode* op) final;
+  void VisitExpr_(const LENode* op) final;
+  void VisitExpr_(const GTNode* op) final;
+  void VisitExpr_(const GENode* op) final;
+  void VisitExpr_(const AndNode* op) final;
+  void VisitExpr_(const OrNode* op) final;
+  void VisitExpr_(const CastNode* op) final;
+  void VisitExpr_(const NotNode* op) final;
+  void VisitExpr_(const SelectNode* op) final;
+  void VisitExpr_(const RampNode* op) final;
+  void VisitExpr_(const BroadcastNode* op) final;
+  void VisitExpr_(const IntImmNode* op) final;
+  void VisitExpr_(const FloatImmNode* op) final;
+  void VisitExpr_(const StringImmNode* op) final;
   // statment
-  void VisitStmt_(const LetStmt* op) final;
-  void VisitStmt_(const Store* op) final;
-  void VisitStmt_(const For* op) final;
-  void VisitStmt_(const IfThenElse* op) final;
-  void VisitStmt_(const Allocate* op) final;
-  void VisitStmt_(const AttrStmt* op) final;
-  void VisitStmt_(const AssertStmt* op) final;
-  void VisitStmt_(const Evaluate* op) final;
-  void VisitStmt_(const Block* op) final;
-  void VisitStmt_(const ProducerConsumer* op) final;
+  void VisitStmt_(const LetStmtNode* op) final;
+  void VisitStmt_(const StoreNode* op) final;
+  void VisitStmt_(const ForNode* op) final;
+  void VisitStmt_(const IfThenElseNode* op) final;
+  void VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const AssertStmtNode* op) final;
+  void VisitStmt_(const EvaluateNode* op) final;
+  void VisitStmt_(const SeqStmtNode* op) final;
+  void VisitStmt_(const ProducerConsumerNode* op) final;
 
  private:
   bool debug_{false};
   /*! \brief The vm to be generated */
   StackVM vm_;
   /*! \brief id of each variable */
-  std::unordered_map<const Variable*, int> var_idmap_;
+  std::unordered_map<const VarNode*, int> var_idmap_;
   /*! \brief id of each string */
   std::unordered_map<std::string, int> str_idmap_;
   /*! \brief id of each global function */

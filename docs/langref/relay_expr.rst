@@ -26,7 +26,7 @@ Dataflow and Control Fragments
 ==============================
 
 For the purposes of comparing Relay to traditional computational graph-based IRs, it
-can be useful to consider Relay exrpessions in terms of dataflow and control fragments.
+can be useful to consider Relay expressions in terms of dataflow and control fragments.
 Each portion of a Relay program containing expressions that only affect the dataflow can
 be viewed as a traditional computation graph when writing and expressing transformations.
 
@@ -88,7 +88,7 @@ expression where it is bound, respectively.
 In the below code segment, notice that :code:`%a` is defined twice. This is
 permitted, as in most functional languages; in the scope of the second
 :code:`let` expression, the name :code:`%a` is "shadowed," meaning all
-references to :code:`%a` in the inner scope refer to the later defintion, while
+references to :code:`%a` in the inner scope refer to the later definition, while
 references to :code:`%a` in the outer scope continue to refer to
 the first one.
 
@@ -267,7 +267,7 @@ Operators
 An operator is a primitive operation, such as :code:`add` or :code:`conv2d`, not defined in the Relay
 language. Operators are declared in the global operator
 registry in C++. Many common operators are backed by TVM's
-Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
+Tensor Operator Inventory (`TOPI <https://github.com/apache/incubator-tvm/tree/master/topi>`__).
 
 To register an operator a user must provide an implementation
 of the operator, its type, and any other desired metadata.

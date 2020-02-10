@@ -18,16 +18,16 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file transform.cc
  * \brief Transform operators.
  */
 #include <tvm/relay/op.h>
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/expr_operator.h>
 #include <tvm/ir.h>
 #include <tvm/data_layout.h>
+#include <tvm/runtime/packed_func.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
@@ -35,13 +35,14 @@
 #include <topi/nn.h>
 #include <vector>
 #include "../op_common.h"
-#include "../../../arithmetic/compute_expr.h"
-#include "../../pass/alter_op_layout.h"
+#include "../../../arith/compute_expr.h"
+#include "../../pass/infer_layout_util.h"
+#include "../../pass/pattern_util.h"
 #include "transform.h"
 
 namespace tvm {
 namespace relay {
-using ir::IntImm;
+using ir::IntImmNode;
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -64,8 +65,8 @@ bool CastRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> CastCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> CastCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const CastAttrs *param = attrs.as<CastAttrs>();
@@ -76,13 +77,13 @@ Array<Tensor> CastCompute(const Attrs& attrs,
 
 Expr MakeCast(Expr data,
               DataType dtype) {
-  auto attrs = make_node<CastAttrs>();
+  auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("cast");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay._make.cast")
+TVM_REGISTER_GLOBAL("relay._make.cast")
 .set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
@@ -90,7 +91,7 @@ RELAY_REGISTER_OP("cast")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.CastAttrs")
+.set_attrs_type<CastAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Cast", CastRel)
@@ -124,8 +125,8 @@ bool CastLikeRel(const Array<Type>& types,
 }
 
 
-Array<Tensor> CastLikeCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> CastLikeCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::cast(inputs[0], inputs[1]->dtype) };
@@ -139,7 +140,7 @@ Expr MakeCastLike(Expr data,
 }
 
 
-TVM_REGISTER_API("relay._make.cast_like")
+TVM_REGISTER_GLOBAL("relay._make.cast_like")
 .set_body_typed(MakeCastLike);
 
 RELAY_REGISTER_OP("cast_like")
@@ -155,7 +156,7 @@ RELAY_REGISTER_OP("cast_like")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 
-Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs,
+Array<top::Tensor> ReinterpretCompute(const Attrs& attrs, const Array<top::Tensor>& inputs,
                                  const Type& out_type, const Target& target) {
   const CastAttrs* param = attrs.as<CastAttrs>();
   CHECK(param != nullptr);
@@ -164,27 +165,27 @@ Array<Tensor> ReinterpretCompute(const Attrs& attrs, const Array<Tensor>& inputs
 }
 
 Expr MakeReinterpret(Expr data, DataType dtype) {
-  auto attrs = make_node<CastAttrs>();
+  auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("reinterpret");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("relay._make.reinterpret").set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 2>(MakeReinterpret, args, rv);
 });
 
 RELAY_REGISTER_OP("reinterpret")
-    .describe(R"code(Reinterpret the data into a new data type.
+.describe(R"code(Reinterpret the data into a new data type.
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .set_attrs_type_key("relay.attrs.CastAttrs")
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_support_level(3)
-    .add_type_rel("Reinterpret", CastRel)
-    .set_attr<FTVMCompute>("FTVMCompute", ReinterpretCompute)
-    .set_attr<TOpPattern>("TOpPattern", kElemWise)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+.set_num_inputs(1)
+.set_attrs_type<CastAttrs>()
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Reinterpret", CastRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReinterpretCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
@@ -229,8 +230,8 @@ bool ExpandDimsRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ExpandDimsCompute(const Attrs& attrs,
-                                const Array<Tensor>& inputs,
+Array<top::Tensor> ExpandDimsCompute(const Attrs& attrs,
+                                const Array<top::Tensor>& inputs,
                                 const Type& out_type,
                                 const Target& target) {
   const ExpandDimsAttrs *param = attrs.as<ExpandDimsAttrs>();
@@ -241,14 +242,14 @@ Array<Tensor> ExpandDimsCompute(const Attrs& attrs,
 Expr MakeExpandDims(Expr data,
                     int axis,
                     int num_newaxis) {
-  auto attrs = make_node<ExpandDimsAttrs>();
+  auto attrs = make_object<ExpandDimsAttrs>();
   attrs->axis = axis;
   attrs->num_newaxis = num_newaxis;
   static const Op& op = Op::Get("expand_dims");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.expand_dims")
+TVM_REGISTER_GLOBAL("relay.op._make.expand_dims")
 .set_body_typed(MakeExpandDims);
 
 RELAY_REGISTER_OP("expand_dims")
@@ -258,7 +259,7 @@ RELAY_REGISTER_OP("expand_dims")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ExpandDimsAttrs")
+.set_attrs_type<ExpandDimsAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("ExpandDims", ExpandDimsRel)
@@ -268,8 +269,8 @@ RELAY_REGISTER_OP("expand_dims")
 // relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
-Array<Tensor> ConcatenateCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> ConcatenateCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
@@ -282,22 +283,34 @@ Array<Array<Layout>> ConcatenateLayout(
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
     const Array<Array<IndexExpr>> &old_in_shapes) {
-  const ConcatenateAttrs* param = attrs.as<ConcatenateAttrs>();
+  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
 
   size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
                 static_cast<size_t>(param->axis);
 
   Layout ret;
+  bool is_new_layout_selected = false;
   if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
+    // If all the new input layouts are same, the new in layout gets selected.  For axis, the new
+    // axis in the new layout is identified. The param->axis is then modified on the fly to conform
+    // to the new input layout.
     const auto& concate_dim = old_in_layouts[0][axis];
-    for (size_t i = 0; i < new_in_layouts.size(); ++i) {
-      if (new_in_layouts[i].ndim() > axis &&
-          new_in_layouts[i][axis] == concate_dim) {
-        ret = new_in_layouts[i];
-        break;
+    bool all_input_layouts_same = true;
+    for (auto new_layout : new_in_layouts) {
+      if (!new_layout.Equals(new_in_layouts[0])) {
+        all_input_layouts_same = false;
       }
     }
-  } else {  // this function is called on the original correct relay ir
+    if (all_input_layouts_same) {
+      auto new_index = new_in_layouts[0].IndexOf(concate_dim);
+      ret = new_in_layouts[0];
+      param->axis = new_index;
+      is_new_layout_selected = true;
+    }
+  }
+
+  if (!is_new_layout_selected) {
+    // this function is called on the original correct relay ir
     for (size_t i = 0; i < old_in_layouts.size(); ++i) {
       if (old_in_layouts[i].defined()) {
         ret = old_in_layouts[i];
@@ -315,13 +328,13 @@ Array<Array<Layout>> ConcatenateLayout(
 
 Expr MakeConcatenate(Expr data,
                      int axis) {
-  auto attrs = make_node<ConcatenateAttrs>();
+  auto attrs = make_object<ConcatenateAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("concatenate");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.concatenate")
+TVM_REGISTER_GLOBAL("relay.op._make.concatenate")
 .set_body_typed(MakeConcatenate);
 
 RELAY_REGISTER_OP("concatenate")
@@ -332,7 +345,7 @@ RELAY_REGISTER_OP("concatenate")
 - **axis** : The axis along which the tensors are concatenated.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ConcatenateAttrs")
+.set_attrs_type<ConcatenateAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
@@ -358,8 +371,17 @@ bool StackRel(const Array<Type>& types,
   }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
-  // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
+
+  // Sanity check: axis
+  int axis = param->axis;
+  CHECK(-ndim <= axis && axis < ndim)
+    << "stack only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
+  axis = axis < 0 ? ndim + axis + 1: axis;
+
+  // Sanity check: ndim and dtype.
   const DataType dtype = first->dtype;
   for (const Type& ele : tensor_tuple->fields) {
     const auto& e = Downcast<TensorType>(ele);
@@ -367,14 +389,14 @@ bool StackRel(const Array<Type>& types,
     const DataType& e_dtype = e->dtype;
     CHECK_EQ(e_ndim, ndim) << "relay.stack requires all tensors have the same ndim";
     CHECK_EQ(e_dtype, dtype) << "relay.stack requires all tensors have the same dtype";
+    for (size_t j = 0; j < first->shape.size(); ++j) {
+      if (j == static_cast<size_t>(axis)) continue;
+      if (reporter->AssertEQ(first->shape[j], e->shape[j])) continue;
+      throw Error("relay.stack requires all tensors have the same shape "
+                         "on non-stacking axes");
+    }
   }
-  // Sanity check: axis
-  int axis = param->axis;
-  CHECK(-ndim <= axis && axis < ndim)
-    << "stack only accepts `axis` in [-ndim, ndim)"
-    << ", but got axis = " << axis
-    << ", and ndim = " << ndim;
-  axis = axis < 0 ? ndim + axis + 1 : axis;
+
   // Calculate shape
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim + 1);
@@ -390,8 +412,8 @@ bool StackRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> StackCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> StackCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   const StackAttrs *param = attrs.as<StackAttrs>();
@@ -401,13 +423,13 @@ Array<Tensor> StackCompute(const Attrs& attrs,
 
 Expr MakeStack(Expr data,
                int axis) {
-  auto attrs = make_node<StackAttrs>();
+  auto attrs = make_object<StackAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("stack");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.stack")
+TVM_REGISTER_GLOBAL("relay.op._make.stack")
 .set_body_typed(MakeStack);
 
 RELAY_REGISTER_OP("stack")
@@ -418,7 +440,7 @@ RELAY_REGISTER_OP("stack")
 - **axis** : The axis along which the tensors are stacked.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.StackAttrs")
+.set_attrs_type<StackAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(3)
@@ -482,24 +504,24 @@ bool TransposeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> TransposeCompute(const Attrs& attrs,
-                               const Array<Tensor>& inputs,
+Array<top::Tensor> TransposeCompute(const Attrs& attrs,
+                               const Array<top::Tensor>& inputs,
                                const Type& out_type,
                                const Target& target) {
   const auto* param = attrs.as<TransposeAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::transpose(inputs[0], param->axes) };
+  return Array<top::Tensor>{ topi::transpose(inputs[0], param->axes) };
 }
 
 Expr MakeTranspose(Expr data,
                    Array<Integer> axes) {
-  auto attrs = make_node<TransposeAttrs>();
+  auto attrs = make_object<TransposeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("transpose");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.transpose")
+TVM_REGISTER_GLOBAL("relay.op._make.transpose")
 .set_body_typed(MakeTranspose);
 
 RELAY_REGISTER_OP("transpose")
@@ -511,7 +533,7 @@ RELAY_REGISTER_OP("transpose")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.TransposeAttrs")
+.set_attrs_type<TransposeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Transpose", TransposeRel)
@@ -606,7 +628,7 @@ bool ReshapeRel(const Array<Type>& types,
         if (d0.as<Any>()) {
           oshape.push_back(Any::make());
         } else {
-          oshape.push_back(d0 / d2);
+          oshape.push_back(indexdiv(d0, d2));
         }
         used_output_dims.insert(oshape.size());
         oshape.push_back(d2);
@@ -618,7 +640,7 @@ bool ReshapeRel(const Array<Type>& types,
           if (d0.as<Any>()) {
             oshape.push_back(Any::make());
           } else {
-            oshape.push_back(d0 / d1);
+            oshape.push_back(indexdiv(d0, d1));
           }
         } else {
           oshape.push_back(d2);
@@ -650,7 +672,7 @@ bool ReshapeRel(const Array<Type>& types,
           infer_dim = Any::make();
           break;
         }
-        infer_dim /= oshape[i];
+        infer_dim = indexdiv(infer_dim, oshape[i]);
       }
     }
     oshape.Set(infer_idx, infer_dim);
@@ -665,16 +687,16 @@ bool ReshapeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ReshapeCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> ReshapeCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
   CHECK(out_ttype != nullptr);
   Array<IndexExpr> newshape;
   for (auto val : out_ttype->shape) {
-    if (val->is_type<ir::Any>()) {
-      newshape.push_back(val.as<ir::Any>()->ToVar());
+    if (val->IsInstance<ir::AnyNode>()) {
+      newshape.push_back(val.as<ir::AnyNode>()->ToVar());
     } else {
       newshape.push_back(val);
     }
@@ -684,14 +706,14 @@ Array<Tensor> ReshapeCompute(const Attrs& attrs,
 
 Expr MakeReshape(Expr data,
                  Array<Integer> newshape) {
-  auto attrs = make_node<ReshapeAttrs>();
+  auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.reshape")
+TVM_REGISTER_GLOBAL("relay.op._make.reshape")
 .set_body_typed(MakeReshape);
 
 RELAY_REGISTER_OP("reshape")
@@ -746,7 +768,7 @@ Example::
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.set_attrs_type<ReshapeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel)
@@ -775,8 +797,18 @@ bool ReshapeLikeRel(const Array<Type>& types,
   if (reshape_like == nullptr) {
     return false;
   }
-  CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
-    << "Reshape inputs size should be compatible.";
+  // Only check When input data has static shape.
+  bool is_static_shape = true;
+  for (size_t i = 0; i < data->shape.size(); ++i) {
+    if (!data->shape[i].as<IntImmNode>()) {
+      is_static_shape = false;
+      break;
+    }
+  }
+  if (is_static_shape) {
+    CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
+      << "Reshape inputs size should be compatible.";
+  }
   reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
   return true;
 }
@@ -789,7 +821,7 @@ Expr MakeReshapeLike(Expr data,
 }
 
 
-TVM_REGISTER_API("relay.op._make.reshape_like")
+TVM_REGISTER_GLOBAL("relay.op._make.reshape_like")
 .set_body_typed(MakeReshapeLike);
 
 
@@ -808,6 +840,40 @@ the input array into an output array with the same shape as the second input arr
 .set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// ArgWhere
+bool ArgWhereRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(num_inputs, 1);
+  auto tt = types[0].as<TensorTypeNode>();
+  CHECK(tt != nullptr);
+  const auto& input_shape = tt->shape;
+  const auto& input_rank = input_shape.size();
+  std::vector<IndexExpr> result_shape;
+  result_shape.push_back(Any::make());
+  result_shape.push_back(IntImm(DataType::Int(32), input_rank));
+  reporter->Assign(types[1], TensorTypeNode::make(result_shape, DataType::Int(32)));
+  return true;
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.argwhere")
+.set_body_typed([](Expr data) {
+  static const Op& op = Op::Get("argwhere");
+  auto attrs = make_object<ArgWhereAttrs>();
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+});
+
+RELAY_REGISTER_OP("argwhere")
+.describe(R"doc(Find the indices of elements of a tensor that are
+non-zero)doc" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type<ArgWhereAttrs>()
+.add_argument("condition", "Tensor", "The input condition tensor.")
+.add_type_rel("ArgWhere", ArgWhereRel)
+.set_attr<TOpIsStateful>("TOpIsStateful", false)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
+.set_support_level(10);
 
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
@@ -822,6 +888,7 @@ bool TakeRel(const Array<Type>& types,
   CHECK(data != nullptr);
   const auto* indices = types[1].as<TensorTypeNode>();
   CHECK(indices != nullptr);
+  CHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
 
@@ -855,16 +922,16 @@ bool TakeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> TakeCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> TakeCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const auto* param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->mode) };
+    return Array<top::Tensor>{ topi::take(inputs[0], inputs[1], param->mode) };
   } else {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis, param->mode) };
+    return Array<top::Tensor>{ topi::take(inputs[0], inputs[1], param->axis, param->mode) };
   }
 }
 
@@ -872,14 +939,14 @@ Expr MakeTake(Expr data,
               Expr indices,
               Integer axis,
               std::string mode) {
-  auto attrs = make_node<TakeAttrs>();
+  auto attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
   attrs->mode = std::move(mode);
   static const Op& op = Op::Get("take");
   return CallNode::make(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.take")
+TVM_REGISTER_GLOBAL("relay.op._make.take")
 .set_body_typed(MakeTake);
 
 RELAY_REGISTER_OP("take")
@@ -905,7 +972,7 @@ Examples::
                               [ 4., 3.]]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.TakeAttrs")
+.set_attrs_type<TakeAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
@@ -942,8 +1009,8 @@ bool FullRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> FullCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> FullCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -953,21 +1020,21 @@ Array<Tensor> FullCompute(const Attrs& attrs,
 Expr MakeFull(Expr fill_value,
               Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
   return CallNode::make(op, {fill_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.full")
+TVM_REGISTER_GLOBAL("relay.op._make.full")
 .set_body_typed(MakeFull);
 
 RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(1)
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
@@ -988,42 +1055,42 @@ bool InitOpRel(const Array<Type>& types,
 
 Expr MakeZeros(Array<IndexExpr> shape,
                DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
   return CallNode::make(op, {}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.zeros")
+TVM_REGISTER_GLOBAL("relay.op._make.zeros")
 .set_body_typed(MakeZeros);
 
 RELAY_REGISTER_OP("zeros")
 .describe(R"code(Fill array with zeros.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
 
 Expr MakeOnes(Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
   return CallNode::make(op, {}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.ones")
+TVM_REGISTER_GLOBAL("relay.op._make.ones")
 .set_body_typed(MakeOnes);
 
 RELAY_REGISTER_OP("ones")
 .describe(R"code(Fill array with ones.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.InitOpAttrs")
+.set_attrs_type<InitOpAttrs>()
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
@@ -1050,8 +1117,8 @@ bool FullLikeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> FullLikeCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> FullLikeCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::full_like(inputs[0], inputs[1]()) };
@@ -1063,7 +1130,7 @@ Expr MakeFullLike(Expr data,
   return CallNode::make(op, {data, fill_value}, Attrs(), {});
 }
 
-TVM_REGISTER_API("relay.op._make.full_like")
+TVM_REGISTER_GLOBAL("relay.op._make.full_like")
 .set_body_typed(MakeFullLike);
 
 RELAY_REGISTER_OP("full_like")
@@ -1083,11 +1150,41 @@ and type as the input array.
 TVM_REGISTER_NODE_TYPE(ArangeAttrs);
 
 double ToScalar(const runtime::NDArray& array) {
-  if (array->dtype.code == kDLInt || array->dtype.code == kDLUInt) {
-    return reinterpret_cast<int32_t*>(array->data)[0];
-  } else {
-    return reinterpret_cast<float*>(array->data)[0];
+  if (array->dtype.code == kDLInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<int8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<int16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<int32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<int64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLUInt) {
+    if (array->dtype.bits == 8) {
+      return reinterpret_cast<uint8_t*>(array->data)[0];
+    } else if (array->dtype.bits == 16) {
+      return reinterpret_cast<uint16_t*>(array->data)[0];
+    } else if (array->dtype.bits == 32) {
+      return reinterpret_cast<uint32_t*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<uint64_t*>(array->data)[0];
+    }
+  } else if (array->dtype.code == kDLFloat) {
+#if (__ARM_FP16_FORMAT_IEEE == 1)
+    if (array->dtype.bits == 16) {
+      return reinterpret_cast<__fp16*>(array->data)[0];
+    }
+#endif
+    if (array->dtype.bits == 32) {
+      return reinterpret_cast<float*>(array->data)[0];
+    } else if (array->dtype.bits == 64) {
+      return reinterpret_cast<double*>(array->data)[0];
+    }
   }
+  LOG(FATAL) << "Unknown data type: " << tvm::runtime::DLDataType2String(array->dtype);
+  // make compiler happy
+  return -std::numeric_limits<double>::infinity();
 }
 
 bool ArangeRel(const Array<Type>& types,
@@ -1120,24 +1217,27 @@ bool ArangeRel(const Array<Type>& types,
   }
 }
 
-inline Tensor DynamicArange(const tvm::Tensor& start, const tvm::Tensor& stop,
-                            const tvm::Tensor& step, tvm::Type dtype, std::string name = "tensor",
-                            std::string tag = topi::kInjective) {
-  tvm::Expr num_elem = tvm::Var("num_elem");
-  return tvm::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
+inline top::Tensor DynamicArange(const top::Tensor& start,
+                                 const top::Tensor& stop,
+                                 const top::Tensor& step,
+                                 tvm::DataType dtype,
+                                 std::string name = "tensor",
+                                 std::string tag = topi::kInjective) {
+  tvm::PrimExpr num_elem = tvm::Var("num_elem");
+  return top::compute({num_elem}, [&](const Array<tvm::Var>& indices) {
     return tvm::cast(dtype, start[0] + step[0] * indices[0]);
   }, name, tag);
 }
 
-Array<Tensor> ArangeCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+Array<top::Tensor> ArangeCompute(const Attrs& attrs,
+                                 const Array<top::Tensor>& inputs,
+                                 const Type& out_type,
+                                 const Target& target) {
   const ArangeAttrs* param = attrs.as<ArangeAttrs>();
-  Tensor start = inputs[0];
-  Tensor stop =  inputs[1];
-  Tensor step = inputs[2];
-  Array<tvm::Expr> empty = {0};
+  top::Tensor start = inputs[0];
+  top::Tensor stop =  inputs[1];
+  top::Tensor step = inputs[2];
+  Array<tvm::PrimExpr> empty = {0};
   return { DynamicArange(start, stop, step, param->dtype) };
 }
 
@@ -1145,7 +1245,7 @@ Expr MakeArange(Expr start,
                 Expr stop,
                 Expr step,
                 DataType dtype) {
-  auto attrs = make_node<ArangeAttrs>();
+  auto attrs = make_object<ArangeAttrs>();
   attrs->start = start;
   attrs->stop = stop;
   attrs->step = step;
@@ -1154,7 +1254,7 @@ Expr MakeArange(Expr start,
   return CallNode::make(op, {start, stop, step}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.arange")
+TVM_REGISTER_GLOBAL("relay.op._make.arange")
 .set_body_typed(MakeArange);
 
 // An issue with the existing design is that we require dependency
@@ -1174,7 +1274,7 @@ RELAY_REGISTER_OP("arange")
 .describe(R"code(Returns evenly spaced values within a given interval.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ArangeAttrs")
+.set_attrs_type<ArangeAttrs>()
 .set_num_inputs(3)
 .set_support_level(3)
 .add_type_rel("Arange", ArangeRel)
@@ -1224,8 +1324,8 @@ bool RepeatRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> RepeatCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> RepeatCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   const RepeatAttrs *param = attrs.as<RepeatAttrs>();
@@ -1236,14 +1336,14 @@ Array<Tensor> RepeatCompute(const Attrs& attrs,
 Expr MakeRepeat(Expr data,
                 int repeats,
                 int axis) {
-  auto attrs = make_node<RepeatAttrs>();
+  auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = repeats;
   attrs->axis = axis;
   static const Op& op = Op::Get("repeat");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.repeat")
+TVM_REGISTER_GLOBAL("relay.op._make.repeat")
 .set_body_typed(MakeRepeat);
 
 RELAY_REGISTER_OP("repeat")
@@ -1253,7 +1353,7 @@ RELAY_REGISTER_OP("repeat")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Repeat")
+.set_attrs_type<RepeatAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Repeat", RepeatRel)
@@ -1284,7 +1384,7 @@ bool TileRel(const Array<Type>& types,
     << "repetition array is not defined. data.ndim = " << ndim;
   const size_t rndim = reps.size();
   for (size_t i = 0; i < rndim; ++i) {
-    if (const tvm::ir::IntImm* val = reps[i].as<tvm::ir::IntImm>()) {
+    if (const tvm::ir::IntImmNode* val = reps[i].as<tvm::ir::IntImmNode>()) {
       CHECK_GT(val->value, 0)
           << "Tile reps value should always be larger than 0, but get: " << val->value;
     }
@@ -1297,35 +1397,46 @@ bool TileRel(const Array<Type>& types,
   reps_shape.reserve(tndim);
   if (ndim == rndim) {
     for (size_t i = 0; i < tndim; ++i) {
-        data_shape.emplace_back(data->shape[i]);
-        reps_shape.emplace_back(reps[i]);
+      data_shape.emplace_back(data->shape[i]);
+      reps_shape.emplace_back(reps[i]);
     }
   } else if (ndim > rndim) {
-    for (size_t i = 0; i < ndim; ++i)
-        data_shape.emplace_back(data->shape[i]);
-    for (size_t i = 0; i < (ndim - rndim); ++i)
-        reps_shape.emplace_back(1);
-    for (size_t i = 0; i < rndim; ++i)
-        reps_shape.emplace_back(reps[i]);
+    for (size_t i = 0; i < ndim; ++i) {
+      data_shape.emplace_back(data->shape[i]);
+    }
+    for (size_t i = 0; i < (ndim - rndim); ++i) {
+      reps_shape.emplace_back(1);
+    }
+    for (size_t i = 0; i < rndim; ++i) {
+      reps_shape.emplace_back(reps[i]);
+    }
   } else {
-    for (size_t i = 0; i < rndim; ++i)
-        reps_shape.emplace_back(reps[i]);
-    for (size_t i = 0; i < (rndim - ndim); ++i)
-        data_shape.emplace_back(1);
-    for (size_t i = 0; i < ndim; ++i)
-        data_shape.emplace_back(data->shape[i]);
+    for (size_t i = 0; i < rndim; ++i) {
+      reps_shape.emplace_back(reps[i]);
+    }
+    for (size_t i = 0; i < (rndim - ndim); ++i) {
+      data_shape.emplace_back(1);
+    }
+    for (size_t i = 0; i < ndim; ++i) {
+      data_shape.emplace_back(data->shape[i]);
+    }
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(tndim);
   for (size_t i = 0; i < tndim; ++i) {
-    oshape.emplace_back(data_shape[i] * reps_shape[i]);
+    // Save Any if it is dynamic shape
+    if (!data_shape[i].as<IntImmNode>()) {
+      oshape.emplace_back(Any::make());
+    } else {
+      oshape.emplace_back(data_shape[i] * reps_shape[i]);
+    }
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }
 
-Array<Tensor> TileCompute(const Attrs& attrs,
-                          const Array<Tensor>& inputs,
+Array<top::Tensor> TileCompute(const Attrs& attrs,
+                          const Array<top::Tensor>& inputs,
                           const Type& out_type,
                           const Target& target) {
   const TileAttrs *param = attrs.as<TileAttrs>();
@@ -1335,13 +1446,13 @@ Array<Tensor> TileCompute(const Attrs& attrs,
 
 Expr MakeTile(Expr data,
               Array<Integer> reps) {
-  auto attrs = make_node<TileAttrs>();
+  auto attrs = make_object<TileAttrs>();
   attrs->reps = reps;
   static const Op& op = Op::Get("tile");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.tile")
+TVM_REGISTER_GLOBAL("relay.op._make.tile")
 .set_body_typed(MakeTile);
 
 RELAY_REGISTER_OP("tile")
@@ -1351,7 +1462,7 @@ RELAY_REGISTER_OP("tile")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Tile")
+.set_attrs_type<TileAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Tile", TileRel)
@@ -1385,8 +1496,8 @@ bool ReverseRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> ReverseCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> ReverseCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const ReverseAttrs *param = attrs.as<ReverseAttrs>();
@@ -1396,13 +1507,13 @@ Array<Tensor> ReverseCompute(const Attrs& attrs,
 
 Expr MakeReverse(Expr data,
                  int axis) {
-  auto attrs = make_node<ReverseAttrs>();
+  auto attrs = make_object<ReverseAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("reverse");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.reverse")
+TVM_REGISTER_GLOBAL("relay.op._make.reverse")
 .set_body_typed(MakeReverse);
 
 RELAY_REGISTER_OP("reverse")
@@ -1412,7 +1523,7 @@ RELAY_REGISTER_OP("reverse")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.Reverse")
+.set_attrs_type<ReverseAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reverse", ReverseRel)
@@ -1459,14 +1570,14 @@ Expr MakeWhere(const Expr& condition, const Expr& x, const Expr& y) {
   return CallNode::make(op, {condition, x, y});
 }
 
-Array<Tensor> WhereCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> WhereCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   return { topi::where(inputs[0], inputs[1], inputs[2]) };
 }
 
-TVM_REGISTER_API("relay.op._make.where")
+TVM_REGISTER_GLOBAL("relay.op._make.where")
 .set_body_typed(MakeWhere);
 
 RELAY_REGISTER_OP("where")
@@ -1513,13 +1624,13 @@ TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr MakeSqueeze(Expr data,
                  Array<Integer> axis) {
-  auto attrs = make_node<SqueezeAttrs>();
+  auto attrs = make_object<SqueezeAttrs>();
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("squeeze");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.squeeze")
+TVM_REGISTER_GLOBAL("relay.op._make.squeeze")
 .set_body_typed(MakeSqueeze);
 
 
@@ -1538,6 +1649,9 @@ bool SqueezeRel(const Array<Type>& types,
   // if axes is None, squeeze all axes of dimension 1
   if (!param->axis.defined()) {
     for (const auto& e : data->shape) {
+      if (!e.as<IntImmNode>()) {
+        LOG(FATAL) << "axis needs to be defined for dynamic input.";
+      }
       const int64_t* axis_ptr = as_const_int(e);
       CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
       if (*axis_ptr != 1) {
@@ -1573,8 +1687,8 @@ bool SqueezeRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> SqueezeCompute(const Attrs& attrs,
-                             const Array<Tensor>& inputs,
+Array<top::Tensor> SqueezeCompute(const Attrs& attrs,
+                             const Array<top::Tensor>& inputs,
                              const Type& out_type,
                              const Target& target) {
   const SqueezeAttrs *param = attrs.as<SqueezeAttrs>();
@@ -1590,7 +1704,7 @@ RELAY_REGISTER_OP("squeeze")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.SqueezeAttrs")
+.set_attrs_type<SqueezeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Squeeze", SqueezeRel)
@@ -1614,8 +1728,8 @@ Expr MakeCollapseSumLike(Expr data,
   return CallNode::make(op, {data, collapse_type}, Attrs(), {});
 }
 
-Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+Array<top::Tensor> CollapseSumLikeCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -1623,7 +1737,7 @@ Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
   return { topi::collapse_sum(inputs[0], out_ttype->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.collapse_sum_like")
+TVM_REGISTER_GLOBAL("relay.op._make.collapse_sum_like")
 .set_body_typed(MakeCollapseSumLike);
 
 RELAY_REGISTER_OP("collapse_sum_like")
@@ -1654,13 +1768,13 @@ bool BroadCastToRel(const Array<Type>& types,
 
 Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
   static const Op& op = Op::Get("broadcast_to");
-  auto attrs = make_node<InitOpAttrs>();
+  auto attrs = make_object<InitOpAttrs>();
   attrs->shape = std::move(shape);
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Array<Tensor> BroadCastToCompute(const Attrs& attrs,
-                                 const Array<Tensor>& inputs,
+Array<top::Tensor> BroadCastToCompute(const Attrs& attrs,
+                                 const Array<top::Tensor>& inputs,
                                  const Type& out_type,
                                  const Target& target) {
   auto ioattrs = attrs.as<InitOpAttrs>();
@@ -1668,7 +1782,7 @@ Array<Tensor> BroadCastToCompute(const Attrs& attrs,
   return { topi::broadcast_to(inputs[0], ioattrs->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.broadcast_to")
+TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to")
 .set_body_typed(MakeBroadCastTo);
 
 RELAY_REGISTER_OP("broadcast_to")
@@ -1697,8 +1811,8 @@ Expr MakeBroadCastToLike(Expr data,
   return CallNode::make(op, {data, broadcast_type}, Attrs(), {});
 }
 
-Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+Array<top::Tensor> BroadCastToLikeCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* out_ttype = out_type.as<TensorTypeNode>();
@@ -1706,7 +1820,7 @@ Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
   return { topi::broadcast_to(inputs[0], out_ttype->shape) };
 }
 
-TVM_REGISTER_API("relay.op._make.broadcast_to_like")
+TVM_REGISTER_GLOBAL("relay.op._make.broadcast_to_like")
 .set_body_typed(MakeBroadCastToLike);
 
 RELAY_REGISTER_OP("broadcast_to_like")
@@ -1724,10 +1838,10 @@ RELAY_REGISTER_OP("broadcast_to_like")
 // Adapter function to make int array.
 Array<Integer> GetIntArray(Array<IndexExpr> arr) {
   for (size_t i = 0; i < arr.size(); ++i) {
-    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+    CHECK(!arr[i].defined() || arr[i].as<IntImmNode>())
       << "Expect an int array";
   }
-  return Array<Integer>(arr.node_);
+  return Downcast<Array<Integer> >(arr);
 }
 
 
@@ -1826,7 +1940,7 @@ bool StridedSliceRel(const Array<Type>& types,
       slice_range = end_v - begin_v;
       step = stride_v;
     }
-    oshape[i] = make_const(dshape[i].type(), (slice_range + step - 1) / step);
+    oshape[i] = make_const(dshape[i].dtype(), (slice_range + step - 1) / step);
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
@@ -1874,7 +1988,7 @@ Array<Array<Layout> > StridedSliceInferCorrectLayout(
         }
         int64_t begin = params->begin[i].defined() ? params->begin[i]->value : 0;
         int64_t end = params->end[i].defined() ? params->end[i]->value :
-            shape[i].as<IntImm>()->value;
+            shape[i].as<IntImmNode>()->value;
         if (begin % factor || end % factor) {
           // transform to original layout
           return {{Layout::Undef()}, {Layout::Undef()}};
@@ -1896,7 +2010,7 @@ Expr MakeStridedSlice(Expr data,
                       Array<Integer> begin,
                       Array<Integer> end,
                       Array<Integer> strides) {
-  auto attrs = make_node<StridedSliceAttrs>();
+  auto attrs = make_object<StridedSliceAttrs>();
   attrs->begin = std::move(begin);
   attrs->end = std::move(end);
   attrs->strides = std::move(strides);
@@ -1904,19 +2018,19 @@ Expr MakeStridedSlice(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-Array<Tensor> StridedSliceCompute(const Attrs& attrs,
-                                  const Array<Tensor>& inputs,
+Array<top::Tensor> StridedSliceCompute(const Attrs& attrs,
+                                  const Array<top::Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
   const StridedSliceAttrs *param = attrs.as<StridedSliceAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::strided_slice(inputs[0], param->begin, param->end, param->strides)
   };
 }
 
 
-TVM_REGISTER_API("relay.op._make.strided_slice")
+TVM_REGISTER_GLOBAL("relay.op._make.strided_slice")
 .set_body_typed(MakeStridedSlice);
 
 
@@ -1947,12 +2061,60 @@ Examples::
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(4)
-.set_attrs_type_key("relay.attrs.StridedSliceAttrs")
+.set_attrs_type<StridedSliceAttrs>()
 .add_type_rel("StridedSlice", StridedSliceRel)
 .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
+// strided_set
+bool StridedSetRel(const Array<Type>& types,
+                   int num_inputs,
+                   const Attrs& attrs,
+                   const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 6);
+  reporter->Assign(types[5], types[0]);
+  return true;
+}
+
+Expr MakeStridedSet(Expr data,
+                    Expr v,
+                    Expr begin,
+                    Expr end,
+                    Expr strides) {
+  static const Op& op = Op::Get("strided_set");
+  return CallNode::make(op, {data, v, begin, end, strides}, {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.strided_set")
+.set_body_typed(MakeStridedSet);
+
+
+RELAY_REGISTER_OP("strided_set")
+  .describe(R"code(Strided set of an array.
+Example::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  v = [[ 11., 22., 33.]
+       [ 44., 55., 66.]]
+
+  strided_set(x, v, begin=[0, 1], end=[2, 4], stride=[1, 1]) = \
+      [[  1.,  11.,  22.,  33.],
+       [  2.,  44.,  55.,  66.],
+       [  3.,   6.,   9.,  12.]]
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(5)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("v", "Tensor", "The data to set.")
+.add_argument("begin", "Tensor", "Indices for the start of the slice.")
+.add_argument("end", "Tensor", "Indices indicating the end of the slice.")
+.add_argument("strides", "Tensor", "The strides values.")
+.set_support_level(4)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.add_type_rel("StridedSet", StridedSetRel);
 
 // relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
@@ -1977,28 +2139,28 @@ bool SplitRel(const Array<Type>& types,
   CHECK_GE(axis, 0)
     << "axis should be within the input dimension range.";
 
-  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
-    CHECK(reporter->Assert(data->shape[axis] %
-                           sections->value == make_zero(Int(64))))
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
+    CHECK(reporter->Assert(indexmod(data->shape[axis],
+                                    sections->value) == make_zero(DataType::Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < sections->value; ++i) {
         std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-        oshape[axis] /= int32_t(sections->value);
+        oshape[axis] = indexdiv(oshape[axis], sections->value);
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
-    auto begin = IndexExpr(make_zero(Int(32)));
+    auto begin = IndexExpr(make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
-      CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
+      CHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = IndexExpr(indices[i]) - begin;
-      begin = IndexExpr(indices[i]);
+      oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
+      begin = Downcast<IndexExpr>(indices[i]);
       auto vec_type = TensorTypeNode::make(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -2008,42 +2170,42 @@ bool SplitRel(const Array<Type>& types,
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
     fields.push_back(vec_type);
-    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+    reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   }
   return true;
 }
 
-Array<Tensor> SplitCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
+Array<top::Tensor> SplitCompute(const Attrs& attrs,
+                           const Array<top::Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
   const auto param = attrs.as<SplitAttrs>();
   CHECK(param != nullptr);
 
-  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     int64_t num_sections = sections->value;
-    return Array<Tensor>{
+    return Array<top::Tensor>{
       topi::split_sections(inputs[0], num_sections, param->axis) };
   } else {
     auto indices = Downcast<Array<Integer> >(param->indices_or_sections);
-    return Array<Tensor>{ topi::split(inputs[0], indices, param->axis) };
+    return Array<top::Tensor>{ topi::split(inputs[0], indices, param->axis) };
   }
 }
 
 Expr MakeSplit(Expr data,
-               NodeRef indices_or_sections,
+               ObjectRef indices_or_sections,
                int axis) {
-  auto attrs = make_node<SplitAttrs>();
+  auto attrs = make_object<SplitAttrs>();
   attrs->axis = axis;
   attrs->indices_or_sections = std::move(indices_or_sections);
   static const Op& op = Op::Get("split");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.split")
+TVM_REGISTER_GLOBAL("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
-      *rv = MakeSplit(args[0], make_const(Int(64), int64_t(args[1])), args[2]);
+      *rv = MakeSplit(args[0], make_const(DataType::Int(64), int64_t(args[1])), args[2]);
     } else {
       *rv = MakeSplit(args[0], args[1], args[2]);
     }
@@ -2060,7 +2222,7 @@ If indices_or_sections is a tuple of sorted integers,
 the entries indicate where along axis the array is split.
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SplitAttrs")
+.set_attrs_type<SplitAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
@@ -2136,14 +2298,14 @@ bool SliceLikeRel(const Array<Type>& types,
 Expr MakeSliceLike(Expr data,
                    Expr shape_like,
                    Array<Integer> axes) {
-  auto attrs = make_node<SliceLikeAttrs>();
+  auto attrs = make_object<SliceLikeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("slice_like");
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
 }
 
-Array<Tensor> SliceLikeCompute(const Attrs& attrs,
-                               const Array<Tensor>& inputs,
+Array<top::Tensor> SliceLikeCompute(const Attrs& attrs,
+                               const Array<top::Tensor>& inputs,
                                const Type& out_type,
                                const Target& target) {
   const auto* param = attrs.as<SliceLikeAttrs>();
@@ -2180,7 +2342,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
         << topi::GetConstInt(src_shape[axis]);
     }
   }
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::strided_slice(inputs[0],
                         GetIntArray(begin_idx),
                         GetIntArray(end_idx),
@@ -2189,14 +2351,14 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
 }
 
 
-TVM_REGISTER_API("relay.op._make.slice_like")
+TVM_REGISTER_GLOBAL("relay.op._make.slice_like")
 .set_body_typed(MakeSliceLike);
 
 
 RELAY_REGISTER_OP("slice_like")
 .describe(R"code(Slice the first input respect to the second input.
 )code" TVM_ADD_FILELINE)
-  .set_attrs_type_key("relay.attrs.SlicelikeAttrs")
+.set_attrs_type<SliceLikeAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
@@ -2206,13 +2368,15 @@ RELAY_REGISTER_OP("slice_like")
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 // relay.layout_transform
-Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
+TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
+
+Array<top::Tensor> LayoutTransformCompute(const Attrs& attrs,
+                                     const Array<top::Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
   const auto* param = attrs.as<LayoutTransformAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{
+  return Array<top::Tensor>{
     topi::layout_transform(inputs[0], param->src_layout, param->dst_layout)
   };
 }
@@ -2243,14 +2407,14 @@ bool LayoutTransformRel(const Array<Type>& types,
 Expr MakeLayoutTransform(Expr data,
                          std::string src_layout,
                          std::string dst_layout) {
-  auto attrs = make_node<LayoutTransformAttrs>();
+  auto attrs = make_object<LayoutTransformAttrs>();
   attrs->src_layout = std::move(src_layout);
   attrs->dst_layout = std::move(dst_layout);
   static const Op& op = Op::Get("layout_transform");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.layout_transform")
+TVM_REGISTER_GLOBAL("relay.op._make.layout_transform")
 .set_body_typed(MakeLayoutTransform);
 
 RELAY_REGISTER_OP("layout_transform")
@@ -2260,7 +2424,7 @@ For transforming from NCHW to N16cHWC, the `__layout_transform__` operator resha
 the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.LayoutTransformAttrs")
+.set_attrs_type<LayoutTransformAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_type_rel("layout_transform", LayoutTransformRel)
@@ -2271,14 +2435,14 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 /* relay._contrib_reverse_reshape */
 Expr MakeReverseReshape(Expr data,
                         Array<Integer> newshape) {
-  auto attrs = make_node<ReshapeAttrs>();
+  auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   attrs->reverse = true;
   static const Op& op = Op::Get("_contrib_reverse_reshape");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make._contrib_reverse_reshape")
+TVM_REGISTER_GLOBAL("relay.op._make._contrib_reverse_reshape")
 .set_body_typed(MakeReverseReshape);
 
 RELAY_REGISTER_OP("_contrib_reverse_reshape")
@@ -2296,7 +2460,7 @@ example below::
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type_key("relay.attrs.ReshapeAttrs")
+.set_attrs_type<ReshapeAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(10)
 .add_type_rel("Reshape", ReshapeRel)
@@ -2325,7 +2489,7 @@ bool GatherNDRel(const Array<Type>& types,
     return false;
   }
   const size_t ndim = data->shape.size();
-  const IntImm* mdim = indices->shape[0].as<IntImm>();
+  const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
   const size_t kdim = indices->shape.size() - 1;
   CHECK(size_t(mdim->value) <= ndim)
         << "GatherND: indices shape does satisfy.";
@@ -2339,8 +2503,8 @@ bool GatherNDRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> GatherNDCompute(const Attrs& attrs,
-                              const Array<Tensor>& inputs,
+Array<top::Tensor> GatherNDCompute(const Attrs& attrs,
+                              const Array<top::Tensor>& inputs,
                               const Type& out_type,
                               const Target& target) {
   return { topi::gather_nd(inputs[0], inputs[1]) };
@@ -2352,7 +2516,7 @@ Expr MakeGatherND(Expr data,
   return CallNode::make(op, {data, indices}, {});
 }
 
-TVM_REGISTER_API("relay.op._make.gather_nd")
+TVM_REGISTER_GLOBAL("relay.op._make.gather_nd")
 .set_body_typed(MakeGatherND);
 
 RELAY_REGISTER_OP("gather_nd")
@@ -2393,27 +2557,28 @@ bool SequenceMaskRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> SequenceMaskCompute(const Attrs& attrs,
-                                  const Array<Tensor>& inputs,
+Array<top::Tensor> SequenceMaskCompute(const Attrs& attrs,
+                                  const Array<top::Tensor>& inputs,
                                   const Type& out_type,
                                   const Target& target) {
   const auto* param = attrs.as<SequenceMaskAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
+  return Array<top::Tensor>{
+    topi::sequence_mask(inputs[0], inputs[1], param->mask_value, param->axis) };
 }
 
 Expr MakeSequenceMask(Expr data,
                       Expr valid_length,
                       double mask_value,
                       int axis) {
-  auto attrs = make_node<SequenceMaskAttrs>();
+  auto attrs = make_object<SequenceMaskAttrs>();
   attrs->mask_value = std::move(mask_value);
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("sequence_mask");
   return CallNode::make(op, {data, valid_length}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.sequence_mask")
+TVM_REGISTER_GLOBAL("relay.op._make.sequence_mask")
 .set_body_typed(MakeSequenceMask);
 
 RELAY_REGISTER_OP("sequence_mask")
@@ -2465,7 +2630,7 @@ Examples::
         [[  0.1,  0.1,  0.1],
          [  16.,  17.,  18.]]]
 )code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.SequenceMaskAttrs")
+.set_attrs_type<SequenceMaskAttrs>()
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("valid_length", "Tensor", "The real (valid) length of each sequence.")
@@ -2505,13 +2670,13 @@ bool OneHotRel(const Array<Type>& types,
   return true;
 }
 
-Array<Tensor> OneHotCompute(const Attrs& attrs,
-                            const Array<Tensor>& inputs,
+Array<top::Tensor> OneHotCompute(const Attrs& attrs,
+                            const Array<top::Tensor>& inputs,
                             const Type& out_type,
                             const Target& target) {
   const auto* param = attrs.as<OneHotAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor> {
+  return Array<top::Tensor> {
     topi::one_hot(inputs[0],
                   inputs[1](),
                   inputs[2](),
@@ -2527,7 +2692,7 @@ Expr MakeOneHot(Expr indices,
                 int depth,
                 int axis,
                 DataType dtype) {
-  auto attrs = make_node<OneHotAttrs>();
+  auto attrs = make_object<OneHotAttrs>();
   attrs->depth = std::move(depth);
   attrs->axis = axis;
   attrs->dtype = dtype;
@@ -2535,11 +2700,11 @@ Expr MakeOneHot(Expr indices,
   return CallNode::make(op, {indices, on_value, off_value}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.one_hot")
+TVM_REGISTER_GLOBAL("relay.op._make.one_hot")
 .set_body_typed(MakeOneHot);
 
 RELAY_REGISTER_OP("one_hot")
-.describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1, 
+.describe(R"code(Returns a one-hot tensor where the locations repsented by indices take value 1,
     other locations take value 0. Final dimension is <indices dimensions> x depth.
 
     **indices** Locations to set to 1.
@@ -2553,7 +2718,7 @@ RELAY_REGISTER_OP("one_hot")
     **axis** Axis to fill.
 
     **dtype**)code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.OneHotAttrs")
+.set_attrs_type<OneHotAttrs>()
 .set_num_inputs(3)
 .add_argument("indices", "Tensor", "Locations to set to on_value.")
 .add_argument("on_value", "Expr", "Value to fill at indices.")

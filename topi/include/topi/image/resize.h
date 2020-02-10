@@ -33,12 +33,13 @@
 #include "topi/elemwise.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
-#include "tvm/operation.h"
+#include "tvm/top/operation.h"
 #include "tvm/expr_operator.h"
 
 namespace topi {
 namespace image {
 using namespace tvm;
+using namespace tvm::top;
 
 /*!
  * \brief Sample a point in a tensor using bilinear interpolation.
@@ -50,21 +51,21 @@ using namespace tvm;
  *
  * \return The interpolated value in the given index.
  */
-inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices,
-                                 const Expr max_y, const Expr max_x) {
+inline PrimExpr bilinear_sample_nchw(const Tensor& input, const Array<PrimExpr>& indices,
+                                 const PrimExpr max_y, const PrimExpr max_x) {
   auto in_y = indices[2];
   auto yf = tvm::floor(in_y);
-  auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
+  auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
 
-  auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
+  auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
   auto y1 = tvm::if_then_else((yc > max_y), max_y, yc);
   auto y_lerp = in_y - yf;
 
   auto in_x = indices[3];
   auto xf = tvm::floor(in_x);
-  auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
+  auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-  auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
+  auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
   auto x1 = tvm::if_then_else((xc > max_x), max_x, xc);
   auto x_lerp = in_x - xf;
 
@@ -91,19 +92,19 @@ inline Expr bilinear_sample_nchw(const Tensor& input, const Array<Expr>& indices
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_nearest_neighbor_nhwc(const Tensor& input,
-                                           const Array<Expr>& shape,
+                                           const Array<PrimExpr>& shape,
                                            bool align_corners = false,
                                            std::string name = "tensor",
                                            std::string tag = kInjective) {
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    Array<Expr> idx;
+    Array<PrimExpr> idx;
     idx.push_back(indices[0]);
     idx.push_back(indices[1] * input->shape[1] / shape[0]);
     idx.push_back(indices[2] * input->shape[2] / shape[1]);
@@ -125,19 +126,19 @@ inline Tensor resize_nearest_neighbor_nhwc(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
-                                           const Array<Expr>& shape,
+                                           const Array<PrimExpr>& shape,
                                            bool align_corners = false,
                                            std::string name = "tensor",
                                            std::string tag = kInjective) {
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    Array<Expr> idx;
+    Array<PrimExpr> idx;
     idx.push_back(indices[0]);
     idx.push_back(indices[1]);
     idx.push_back(indices[2] * input->shape[2] / shape[0]);
@@ -159,20 +160,20 @@ inline Tensor resize_nearest_neighbor_nchw(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
-                                            const Array<Expr>& shape,
+                                            const Array<PrimExpr>& shape,
                                             bool align_corners = false,
                                             std::string name = "tensor",
                                             std::string tag = kInjective) {
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[4]);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    Array<Expr> idx;
+    Array<PrimExpr> idx;
     idx.push_back(indices[0]);
     idx.push_back(indices[1]);
     idx.push_back(indices[2] * input->shape[2] / shape[0]);
@@ -196,7 +197,7 @@ inline Tensor resize_nearest_neighbor_nchwc(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_nearest_neighbor(const Tensor& input,
-                                      const Array<Expr>& shape,
+                                      const Array<PrimExpr>& shape,
                                       std::string layout = "NCHW",
                                       bool align_corners = false,
                                       std::string name = "tensor",
@@ -227,56 +228,56 @@ inline Tensor resize_nearest_neighbor(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_bilinear_nhwc(const Tensor& input,
-                                   const Array<Expr>& shape,
+                                   const Array<PrimExpr>& shape,
                                    bool align_corners = false,
                                    std::string name = "tensor",
                                    std::string tag = kInjective) {
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   out_shape.push_back(input->shape[0]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
   out_shape.push_back(input->shape[3]);
 
-  Expr cone = make_const(Int(32), 1);
+  PrimExpr cone = make_const(DataType::Int(32), 1);
 
   auto in_height = as_const_int(input->shape[1]);
   auto in_width = as_const_int(input->shape[2]);
   auto out_height = as_const_int(shape[0]);
   auto out_width = as_const_int(shape[1]);
 
-  Expr y_ratio;
-  Expr x_ratio;
+  PrimExpr y_ratio;
+  PrimExpr x_ratio;
 
   if (!align_corners) {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width) /
                                      static_cast<float>(*out_width)));
   } else {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height - 1) /
                                      static_cast<float>(*out_height - 1)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width - 1) /
                                      static_cast<float>(*out_width - 1)));
   }
 
-  Expr other_y = tvm::ir::Simplify(input->shape[1] - cone);
-  Expr other_x = tvm::ir::Simplify(input->shape[2] - cone);
+  PrimExpr other_y = tvm::ir::Simplify(input->shape[1] - cone);
+  PrimExpr other_x = tvm::ir::Simplify(input->shape[2] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
     auto in_y = indices[1] * y_ratio;
     auto yf = tvm::floor(in_y);
-    auto yc = tvm::cast(Int(32), tvm::ceil(in_y));
+    auto yc = tvm::cast(DataType::Int(32), tvm::ceil(in_y));
 
-    auto y0 = tvm::cast(Int(32), tvm::floor(in_y));
+    auto y0 = tvm::cast(DataType::Int(32), tvm::floor(in_y));
     auto y1 = tvm::if_then_else((yc > other_y), other_y, yc);
     auto y_lerp  = in_y - yf;
 
     auto in_x = indices[2] * x_ratio;
     auto xf = tvm::floor(in_x);
-    auto xc = tvm::cast(Int(32), tvm::ceil(in_x));
+    auto xc = tvm::cast(DataType::Int(32), tvm::ceil(in_x));
 
-    auto x0 = tvm::cast(Int(32), tvm::floor(in_x));
+    auto x0 = tvm::cast(DataType::Int(32), tvm::floor(in_x));
     auto x1 = tvm::if_then_else((xc > other_x), other_x, xc);
     auto x_lerp  = in_x - xf;
 
@@ -304,40 +305,40 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_bilinear_nchw(const Tensor& input,
-                                   const Array<Expr>& shape,
+                                   const Array<PrimExpr>& shape,
                                    bool align_corners = false,
                                    std::string name = "tensor",
                                    std::string tag = kInjective) {
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   out_shape.push_back(input->shape[0]);
   out_shape.push_back(input->shape[1]);
-  out_shape.push_back(cast(Int(32), shape[0]));
-  out_shape.push_back(cast(Int(32), shape[1]));
+  out_shape.push_back(cast(DataType::Int(32), shape[0]));
+  out_shape.push_back(cast(DataType::Int(32), shape[1]));
 
-  Expr cone = make_const(Int(32), 1);
+  PrimExpr cone = make_const(DataType::Int(32), 1);
 
   auto in_height = as_const_int(input->shape[2]);
   auto in_width = as_const_int(input->shape[3]);
   auto out_height = as_const_int(shape[0]);
   auto out_width = as_const_int(shape[1]);
 
-  Expr y_ratio;
-  Expr x_ratio;
+  PrimExpr y_ratio;
+  PrimExpr x_ratio;
 
   if (!align_corners) {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width) /
                                      static_cast<float>(*out_width)));
   } else {
-    y_ratio = make_const(Float(32), (static_cast<float>(*in_height - 1) /
+    y_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_height - 1) /
                                      static_cast<float>(*out_height - 1)));
-    x_ratio = make_const(Float(32), (static_cast<float>(*in_width - 1) /
+    x_ratio = make_const(DataType::Float(32), (static_cast<float>(*in_width - 1) /
                                      static_cast<float>(*out_width - 1)));
   }
 
-  Expr other_y = tvm::ir::Simplify(input->shape[2] - cone);
-  Expr other_x = tvm::ir::Simplify(input->shape[3] - cone);
+  PrimExpr other_y = tvm::ir::Simplify(input->shape[2] - cone);
+  PrimExpr other_x = tvm::ir::Simplify(input->shape[3] - cone);
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
@@ -360,7 +361,7 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_bilinear(const Tensor& input,
-                              const Array<tvm::Expr>& shape,
+                              const Array<tvm::PrimExpr>& shape,
                               std::string layout = "NCHW",
                               bool align_corners = false,
                               std::string name = "tensor",
@@ -390,7 +391,7 @@ inline Tensor resize_bilinear(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize(const Tensor& input,
-                     const Array<Expr>& shape,
+                     const Array<PrimExpr>& shape,
                      std::string layout = "NCHW",
                      bool align_corners = false,
                      std::string mode = "BILINEAR",

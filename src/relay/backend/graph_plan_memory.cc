@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file relay/backend/graph_mem_alloca.cc
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
@@ -26,7 +25,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/analysis.h>
-#include "../../common/arena.h"
+#include "../../support/arena.h"
 
 namespace tvm {
 namespace relay {
@@ -131,7 +130,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
 
 class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  public:
-  explicit StorageAllocaInit(common::Arena* arena)
+  explicit StorageAllocaInit(support::Arena* arena)
       : arena_(arena) {}
 
   /*! \return The internal token map */
@@ -184,7 +183,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
 
  private:
   // allocator
-  common::Arena* arena_;
+  support::Arena* arena_;
   Map<Expr, Integer> node_device_map_;
 };
 
@@ -375,7 +374,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
  private:
   // allocator
-  common::Arena arena_;
+  support::Arena arena_;
   // scale used for rough match
   size_t match_range_{16};
   // free list of storage entry
@@ -391,7 +390,7 @@ Map<Expr, Array<IntegerArray> > GraphPlanMemory(const Function& func) {
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.GraphPlanMemory")
-.set_body_typed<Map<Expr, Array<IntegerArray> >(const Function&)>(GraphPlanMemory);
+.set_body_typed(GraphPlanMemory);
 
 }  // namespace relay
 }  // namespace tvm

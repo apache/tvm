@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,6 @@
  */
 
 /*!
- * Copyright (c) 2018 by Contributors
  * \file simplify_inference.cc
  */
 #include <tvm/relay/analysis.h>
@@ -75,7 +74,7 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   const auto param = attrs.as<LayerNormAttrs>();
   CHECK(param);
 
-  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr mean = Mean(data, {param->axis}, true, false);
   Expr var = Variance(data, mean, {param->axis}, true, false);
   Expr denom = Sqrt(Add(var, epsilon));
@@ -92,22 +91,58 @@ Expr LayerNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
+Expr InstanceNormToInferUnpack(const Attrs attrs,
+                               Expr data,
+                               Expr gamma,
+                               Expr beta,
+                               Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
+  const auto param = attrs.as<InstanceNormAttrs>();
+  CHECK(param);
+
+  int ndim = ttype->shape.size();
+  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
+  Array<Integer> reduced_axes;
+  for (int i = 1; i < ndim; ++i) {
+      if (i != axis)
+          reduced_axes.push_back(i);
+  }
+
+  Expr epsilon = MakeConstantScalar(DataType::Float(32), static_cast<float>(param->epsilon));
+  Expr mean = Mean(data, reduced_axes, true, false);
+  Expr var = Variance(data, mean, reduced_axes, true, false);
+  Expr denom = Sqrt(Add(var, epsilon));
+  Expr out = Divide(Subtract(data, mean), denom);
+
+  if (param->scale) {
+    out = Multiply(out, ExpandBiasToMatchAxis(gamma, ndim, {axis}));
+  }
+  if (param->center) {
+    out = Add(out, ExpandBiasToMatchAxis(beta, ndim, {axis}));
+  }
+  return out;
+}
+
 class InferenceSimplifier : public ExprMutator {
  public:
-  Expr VisitExpr_(const TupleGetItemNode* n) final {
-    static const Op& batch_norm = Op::Get("nn.batch_norm");
-    static const Op& dropout = Op::Get("nn.dropout");
+  InferenceSimplifier()
+      : batch_norm_op_(Op::Get("nn.batch_norm")),
+        dropout_op_(Op::Get("nn.dropout")),
+        instance_norm_op_(Op::Get("nn.instance_norm")),
+        layer_norm_op_(Op::Get("nn.layer_norm")) {}
 
+  Expr VisitExpr_(const TupleGetItemNode* n) final {
     Expr new_e = ExprMutator::VisitExpr_(n);
     const auto* new_n = new_e.as<TupleGetItemNode>();
     if (new_n->index != 0) {
       return new_e;
     }
     if (const auto* call = new_n->tuple.as<CallNode>()) {
-      if (call->op.same_as(batch_norm)) {
+      if (call->op == batch_norm_op_) {
         return BatchNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
                                       call->args[3], call->args[4], ty_map_.at(call->args[0]));
-      } else if (call->op.same_as(dropout)) {
+      } else if (call->op == dropout_op_) {
         return call->args[0];
       }
     }
@@ -115,21 +150,30 @@ class InferenceSimplifier : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* n) {
-    static const Op& batch_norm = Op::Get("nn.batch_norm");
-    static const Op& layer_norm = Op::Get("nn.layer_norm");
     auto new_n = ExprMutator::VisitExpr_(n);
-    if (n->op.same_as(batch_norm)) {
+    if (n->op == batch_norm_op_) {
       ty_map_[new_n.as<CallNode>()->args[0]] = n->args[0]->checked_type();
-    } else if (n->op.same_as(layer_norm)) {
+    } else if (n->op == layer_norm_op_) {
       const auto* call = new_n.as<CallNode>();
       return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1],
+                                    call->args[2], n->args[0]->checked_type());
+    } else if (n->op == instance_norm_op_) {
+      const auto* call = new_n.as<CallNode>();
+      return InstanceNormToInferUnpack(call->attrs, call->args[0], call->args[1],
                                     call->args[2], n->args[0]->checked_type());
     }
     return new_n;
   }
 
  private:
-  std::unordered_map<Expr, Type, NodeHash, NodeEqual> ty_map_;
+  // Cache the following ops. They will be used in the passes repeatedly for
+  // operator equivalence checking so that the registry lookup overhead can be
+  // reduced.
+  const Op& batch_norm_op_;
+  const Op& dropout_op_;
+  const Op& instance_norm_op_;
+  const Op& layer_norm_op_;
+  std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
 
 Expr SimplifyInference(const Expr& e) {
@@ -139,15 +183,15 @@ Expr SimplifyInference(const Expr& e) {
 namespace transform {
 
 Pass SimplifyInference() {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func =
-    [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(SimplifyInference(f));
   };
   return CreateFunctionPass(pass_func, 0, "SimplifyInference",
-                            {ir::StringImm::make("InferType")});
+                            {ir::StringImmNode::make("InferType")});
 }
 
-TVM_REGISTER_API("relay._transform.SimplifyInference")
+TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference")
 .set_body_typed(SimplifyInference);
 
 }  // namespace transform

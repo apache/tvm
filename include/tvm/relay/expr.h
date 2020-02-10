@@ -24,7 +24,8 @@
 #ifndef TVM_RELAY_EXPR_H_
 #define TVM_RELAY_EXPR_H_
 
-#include <tvm/attrs.h>
+#include <tvm/ir/attrs.h>
+#include <tvm/ir/expr.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -33,44 +34,12 @@
 namespace tvm {
 namespace relay {
 
-/*!
- * \brief A Relay expression.
- */
-class Expr;
-/*!
- * \brief Base type of the Relay expression hiearchy.
- */
-class ExprNode : public RelayNode {
- public:
-  /*!
-   * \brief Stores the result of type inference(type checking).
-   *
-   * \note This can be undefined before type inference.
-   *       This value is discarded during serialization.
-   */
-  mutable Type checked_type_ = Type(nullptr);
-  /*!
-   * \return The checked_type
-   */
-  const Type& checked_type() const;
-  /*!
-   * \brief Check if the inferred(checked) type of the Expr
-   *  is backed by a TTypeNode and return it.
-   *
-   * \note This function will thrown an error if the node type
-   *       of this Expr is not TTypeNode.
-   *
-   * \return The corresponding TTypeNode pointer.
-   * \tparam The specific TypeNode we look for.
-   */
-  template<typename TTypeNode>
-  inline const TTypeNode* type_as() const;
-
-  static constexpr const char* _type_key = "relay.Expr";
-  TVM_DECLARE_BASE_NODE_INFO(ExprNode, RelayNode);
-};
-
-RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
+using Expr = tvm::RelayExpr;
+using ExprNode = tvm::RelayExprNode;
+using BaseFunc = tvm::BaseFunc;
+using BaseFuncNode = tvm::BaseFuncNode;
+using GlobalVar = tvm::GlobalVar;
+using GlobalVarNode = tvm::GlobalVarNode;
 
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
@@ -95,7 +64,7 @@ class ConstantNode : public ExprNode {
     return data->ndim == 0;
   }
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -104,10 +73,13 @@ class ConstantNode : public ExprNode {
   TVM_DLL static Constant make(runtime::NDArray data);
 
   static constexpr const char* _type_key = "relay.Constant";
-  TVM_DECLARE_NODE_TYPE_INFO(ConstantNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Constant, ConstantNode, Expr);
+class Constant : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
+};
 
 /*! \brief Tuple of multiple Exprs */
 class Tuple;
@@ -117,7 +89,7 @@ class TupleNode : public ExprNode {
   /*! \brief the fields of the tuple */
   tvm::Array<relay::Expr> fields;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -126,10 +98,13 @@ class TupleNode : public ExprNode {
   TVM_DLL static Tuple make(tvm::Array<relay::Expr> fields);
 
   static constexpr const char* _type_key = "relay.Tuple";
-  TVM_DECLARE_NODE_TYPE_INFO(TupleNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
+class Tuple : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
+};
 
 /*!
  * \brief Local variables used in the let expression.
@@ -165,7 +140,7 @@ class VarNode : public ExprNode {
     return vid->name_hint;
   }
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
@@ -179,44 +154,20 @@ class VarNode : public ExprNode {
                           Type type_annotation);
 
   static constexpr const char* _type_key = "relay.Var";
-  TVM_DECLARE_NODE_TYPE_INFO(VarNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VarNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Var, VarNode, Expr);
-
-/*!
- * \brief Global variable that leaves in the top-level module.
- * This is used to enable recursive calls between function.
- *
- * \note A GlobalVar may only point to functions.
- */
-class GlobalVar;
-/*! \brief A GlobalId from the node's current type to target type. */
-class GlobalVarNode : public ExprNode {
+class Var : public Expr {
  public:
-  /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-  }
-
-  TVM_DLL static GlobalVar make(std::string name_hint);
-
-  static constexpr const char* _type_key = "relay.GlobalVar";
-  TVM_DECLARE_NODE_TYPE_INFO(GlobalVarNode, ExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
 };
-
-RELAY_DEFINE_NODE_REF(GlobalVar, GlobalVarNode, Expr);
 
 /*!
  * \brief Function (subgraph in computational graph)
  */
 class Function;
 /*! \brief Function container */
-class FunctionNode : public ExprNode {
+class FunctionNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
   tvm::Array<Var> params;
@@ -243,7 +194,7 @@ class FunctionNode : public ExprNode {
    */
   tvm::Attrs attrs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
@@ -268,22 +219,48 @@ class FunctionNode : public ExprNode {
    */
   bool IsPrimitive() const;
 
+  /*!
+   * \brief Check whether the function should use the TVM default compiler to build, or
+   * use other compilers.
+   *
+   * \return Whether the function will be compiled using the default compiler
+   * (e.g. those are used in the TVM stack).
+   */
+  bool UseDefaultCompiler() const;
+
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
                                tvm::Array<TypeVar> ty_params,
                                tvm::Attrs attrs = Attrs());
 
+  /*!
+   * \brief Attach the function's parameters to its attributes for use in analysis.
+   * \return The function with its parameters attached.
+   */
+  Function SetParams(const tvm::Map<Var, Constant>& parameters) const;
+
+  /*!
+   * \brief Retrieve the function's parameters.
+   *
+   * \return The function's parameter.
+   */
+  tvm::Map<Var, Constant> GetParams() const;
+
   static constexpr const char* _type_key = "relay.Function";
-  TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
-RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
+class Function : public BaseFunc {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
+};
 
 
-TVM_DLL NodeRef FunctionGetAttr(const Function& func, const std::string& key);
-TVM_DLL Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data);
-
+TVM_DLL ObjectRef FunctionGetAttr(const Function& func, const std::string& key);
+TVM_DLL Function FunctionSetAttr(const Function& func,
+                                 const std::string& key,
+                                 const ObjectRef& data);
 
 /*!
  * \brief Call corresponds to operator invocation.
@@ -327,7 +304,7 @@ class CallNode : public ExprNode {
    */
   tvm::Array<Type> type_args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("op", &op);
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
@@ -342,10 +319,13 @@ class CallNode : public ExprNode {
                            Array<Type> type_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
-  TVM_DECLARE_NODE_TYPE_INFO(CallNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Call, CallNode, Expr);
+class Call : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
+};
 
 /*!
  * \brief Let binding that binds a local var and optionally a type annotation.
@@ -369,7 +349,7 @@ class LetNode : public ExprNode {
   /*! \brief The body of the let binding */
   Expr body;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
@@ -380,10 +360,13 @@ class LetNode : public ExprNode {
   TVM_DLL static Let make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "relay.Let";
-  TVM_DECLARE_NODE_TYPE_INFO(LetNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
+class Let : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
+};
 
 /*!
  * \brief Condition expression
@@ -407,7 +390,7 @@ class IfNode : public ExprNode {
   /*! \brief The expression evaluated when condition is false */
   Expr false_branch;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
@@ -418,10 +401,13 @@ class IfNode : public ExprNode {
   TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
 
   static constexpr const char* _type_key = "relay.If";
-  TVM_DECLARE_NODE_TYPE_INFO(IfNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
+class If : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
+};
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItem;
@@ -432,7 +418,7 @@ class TupleGetItemNode : public ExprNode {
   /*! \brief which value to get */
   int index;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
     v->Visit("span", &span);
@@ -442,10 +428,13 @@ class TupleGetItemNode : public ExprNode {
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
   static constexpr const char* _type_key = "relay.TupleGetItem";
-  TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
+class TupleGetItem : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
+};
 
 /*! \brief Create a new Reference out of initial value. */
 class RefCreate;
@@ -454,7 +443,7 @@ class RefCreateNode : public ExprNode {
   /*! \brief The initial value of the Reference. */
   Expr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -463,10 +452,13 @@ class RefCreateNode : public ExprNode {
   TVM_DLL static RefCreate make(Expr value);
 
   static constexpr const char* _type_key = "relay.RefCreate";
-  TVM_DECLARE_NODE_TYPE_INFO(RefCreateNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefCreateNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefCreate, RefCreateNode, Expr);
+class RefCreate : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
+};
 
 /*! \brief Get value out of Reference. */
 class RefRead;
@@ -475,7 +467,7 @@ class RefReadNode : public ExprNode {
   /*! \brief The Reference Expression. */
   Expr ref;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -484,11 +476,13 @@ class RefReadNode : public ExprNode {
   TVM_DLL static RefRead make(Expr ref);
 
   static constexpr const char* _type_key = "relay.RefRead";
-  TVM_DECLARE_NODE_TYPE_INFO(RefReadNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefReadNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefRead, RefReadNode, Expr);
-
+class RefRead : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
+};
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
 class RefWrite;
 class RefWriteNode : public ExprNode {
@@ -498,7 +492,7 @@ class RefWriteNode : public ExprNode {
   /*! \brief The value to write into. */
   Expr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
+  void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
     v->Visit("span", &span);
@@ -508,10 +502,13 @@ class RefWriteNode : public ExprNode {
   TVM_DLL static RefWrite make(Expr ref, Expr value);
 
   static constexpr const char* _type_key = "relay.RefWrite";
-  TVM_DECLARE_NODE_TYPE_INFO(RefWriteNode, ExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(RefWriteNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(RefWrite, RefWriteNode, Expr);
+class RefWrite : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
+};
 
 /*!
  * \brief Base class of the temporary expression.
@@ -534,35 +531,16 @@ class TempExprNode : public ExprNode {
   virtual Expr Realize() const = 0;
 
   static constexpr const char* _type_key = "relay.TempExpr";
-  TVM_DECLARE_BASE_NODE_INFO(TempExprNode, ExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(TempExprNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
-
-// implementataions
-inline const Type& ExprNode::checked_type() const {
-  CHECK(checked_type_.defined()) << "internal error: the type checker has "
-    "not populated the checked_type "
-    "field for "
-                                 << GetRef<Expr>(this);
-  return this->checked_type_;
-}
-
-template<typename TTypeNode>
-inline const TTypeNode* ExprNode::type_as() const {
-  static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
-                "TType must be a special case of type");
-  CHECK(checked_type_.defined())
-      << "Type inference for this Expr has not completed. Try to call infer_type pass.";
-  const TTypeNode* node = checked_type_.as<TTypeNode>();
-  CHECK(node != nullptr)
-      << "Expected type to be " << TTypeNode::_type_key
-      << ", but get " << checked_type_->type_key();
-  return node;
-}
+class TempExpr : public Expr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(TempExpr, RelayExpr, TempExprNode);
+};
 
 /*! \brief Pretty print a Relay node, producing a fragment of the Relay text format. */
-std::string PrettyPrint(const NodeRef& node);
+std::string PrettyPrint(const ObjectRef& node);
 
 /*!
  * \brief Render the node as a string in the Relay text format.
@@ -572,9 +550,29 @@ std::string PrettyPrint(const NodeRef& node);
  *        additional comment block to an expr.
  * \return The text representation.
  */
-std::string AsText(const NodeRef& node,
+std::string AsText(const ObjectRef& node,
                    bool show_meta_data = true,
                    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
+
+/*! \brief namespace of the attributes that are attached to a function. */
+namespace attr {
+/*! \brief Mark the function as a primitive function. */
+constexpr const char* kPrimitive = "Primitive";
+/*!
+ * \brief Indicate the compiler that should be used for builing this function.
+ * When this is unset or set to "default", the default compilation pipeline will be used.
+ */
+constexpr const char* kCompiler = "Compiler";
+/*! \brief Indicate if the function is a closure. */
+constexpr const char* kClosure = "Closure";
+/*! \brief Store a Var to parameter/Constant mapping on a Function. */
+constexpr const char* kParams = "__params__";
+/*! \brief Store the unique external symbol for external compilers. */
+constexpr const char* kExternalSymbol = "ExternalSymbol";
+/*! \brief Mark if the function should be avoided being optimized. */
+constexpr const char* kSkipOptimization = "SkipOptimization";
+}  // namespace attr
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

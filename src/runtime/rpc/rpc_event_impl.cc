@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file rpc_event_impl.cc
  * \brief Event based RPC server implementation.
  */
@@ -29,32 +28,14 @@
 namespace tvm {
 namespace runtime {
 
-class CallbackChannel final : public RPCChannel {
- public:
-  explicit CallbackChannel(PackedFunc fsend)
-      : fsend_(fsend) {}
-
-  size_t Send(const void* data, size_t size) final {
-    TVMByteArray bytes;
-    bytes.data = static_cast<const char*>(data);
-    bytes.size = size;
-    uint64_t ret = fsend_(bytes);
-    return static_cast<size_t>(ret);
-  }
-
-  size_t Recv(void* data, size_t size) final {
-    LOG(FATAL) << "Do not allow explicit receive for";
-    return 0;
-  }
-
- private:
-  PackedFunc fsend_;
-};
-
 PackedFunc CreateEventDrivenServer(PackedFunc fsend,
                                    std::string name,
                                    std::string remote_key) {
-  std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend));
+  static PackedFunc frecv([](TVMArgs args, TVMRetValue* rv) {
+    LOG(FATAL) << "Do not allow explicit receive";
+    return 0;
+  });
+  std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend, frecv));
   std::shared_ptr<RPCSession> sess =
       RPCSession::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {

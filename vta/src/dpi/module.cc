@@ -226,7 +226,7 @@ class DPIModule final : public DPIModuleNode {
 
   PackedFunc GetFunction(
       const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+      const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "WriteReg") {
       return TypedPackedFunc<void(int, int)>(
           [this](int addr, int value){
@@ -413,8 +413,7 @@ class DPIModule final : public DPIModuleNode {
 };
 
 Module DPIModuleNode::Load(std::string dll_name) {
-  std::shared_ptr<DPIModule> n =
-      std::make_shared<DPIModule>();
+  auto n = make_object<DPIModule>();
   n->Init(dll_name);
   return Module(n);
 }

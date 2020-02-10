@@ -49,5 +49,5 @@ Literature
 - Read the VTA `release blog post`_.
 - Read the VTA tech report: `An Open Hardware Software Stack for Deep Learning`_.
 
-.. _release blog post: https://tvm.ai/2018/07/12/vta-release-announcement.html
+.. _release blog post: https://tvm.apache.org/2018/07/12/vta-release-announcement
 .. _An Open Hardware Software Stack for Deep Learning: https://arxiv.org/abs/1807.04188

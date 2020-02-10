@@ -20,7 +20,7 @@ from tvm import relay
 from tvm.expr import *
 from tvm.relay import op
 from tvm.relay.analysis import graph_equal
-
+import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.save_json(node)
@@ -160,7 +160,6 @@ def test_global_var():
     str(gv)
     check_json_roundtrip(gv)
 
-
 def test_function():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.convert([relay.Var(n) for n in param_names])
@@ -175,6 +174,34 @@ def test_function():
     str(fn)
     check_json_roundtrip(fn)
 
+def test_function_attrs():
+    param_names = ['a', 'b', 'c', 'd']
+    params = tvm.convert([relay.var(n, shape=(5, 2)) for n in param_names])
+    ret_type = relay.TupleType(tvm.convert([]))
+    body = relay.Tuple(tvm.convert([]))
+    type_params = tvm.convert([])
+    fn = relay.Function(params, body, ret_type, type_params)
+    model_params = {}
+    for param in params[:1]:
+        cty = param.type_annotation
+        tensor = np.random.rand(*[int(sh) for sh in cty.shape]).astype(cty.dtype)
+        model_params[param] = tvm.nd.array(tensor)
+    fn = fn.set_params(model_params)
+    assert fn.params == params
+    assert fn.body == body
+    assert fn.type_params == type_params
+    assert fn.span == None
+    str(fn)
+    check_json_roundtrip(fn)
+    json_str = tvm.save_json(fn)
+    fn_after = tvm.load_json(json_str)
+    model_params_after = fn_after.get_params()
+    after_keys = [item[0] for item in model_params_after.items()]
+    for key1, key2 in zip(model_params, after_keys):
+        assert key1.name_hint == key2.name_hint
+        p1 = model_params[key1]
+        p2 = model_params_after[key2]
+        np.testing.assert_allclose(p1.data.asnumpy(), p2.data.asnumpy())
 
 def test_call():
     op = relay.Var('f')
@@ -257,9 +284,11 @@ if __name__ == "__main__":
     test_local_var()
     test_global_var()
     test_function()
+    test_function_attrs()
     test_call()
     test_let()
     test_if()
     test_tuple_get_item()
     test_op()
     test_conv2d_attrs()
+

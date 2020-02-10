@@ -16,141 +16,57 @@
 # under the License.
 """TVM Runtime Object API."""
 from __future__ import absolute_import as _abs
-import numpy as _np
 
-from tvm._ffi.vmobj import Object, ObjectTag, register_object
+from tvm._ffi.object import Object, register_object, getitem_helper
 from tvm import ndarray as _nd
 from . import _vmobj
 
-# TODO(@icemelon9): Add ClosureObject
 
-@register_object
-class TensorObject(Object):
-    """Tensor object."""
-    tag = ObjectTag.TENSOR
-
-    def __init__(self, handle):
-        """Constructs a Tensor object
-
-        Parameters
-        ----------
-        handle : object
-            Object handle
-
-        Returns
-        -------
-        obj : TensorObject
-            A tensor object.
-        """
-        super(TensorObject, self).__init__(handle)
-        self.data = _vmobj.GetTensorData(self)
-
-    def asnumpy(self):
-        """Convert data to numpy array
-
-        Returns
-        -------
-        np_arr : numpy.ndarray
-            The corresponding numpy array.
-        """
-        return self.data.asnumpy()
-
-
-@register_object
-class DatatypeObject(Object):
-    """Datatype object."""
-    tag = ObjectTag.DATATYPE
-
-    def __init__(self, handle):
-        """Constructs a Datatype object
-
-        Parameters
-        ----------
-        handle : object
-            Object handle
-
-        Returns
-        -------
-        obj : DatatypeObject
-            A Datatype object.
-        """
-        super(DatatypeObject, self).__init__(handle)
-        self.tag = _vmobj.GetDatatypeTag(self)
-        num_fields = _vmobj.GetDatatypeNumberOfFields(self)
-        self.fields = []
-        for i in range(num_fields):
-            self.fields.append(_vmobj.GetDatatypeFields(self, i))
-
-    def __getitem__(self, idx):
-        return self.fields[idx]
-
-    def __len__(self):
-        return len(self.fields)
-
-    def __iter__(self):
-        return iter(self.fields)
-
-# TODO(icemelon9): Add closure object
-
-def tensor_object(arr, ctx=_nd.cpu(0)):
-    """Create a tensor object from source arr.
-
-    Parameters
-    ----------
-    arr : numpy.ndarray or tvm.nd.NDArray
-        The source array.
-
-    ctx :  TVMContext, optional
-        The device context to create the array
-
-    Returns
-    -------
-    ret : TensorObject
-        The created object.
-    """
-    if isinstance(arr, _np.ndarray):
-        tensor = _vmobj.Tensor(_nd.array(arr, ctx))
-    elif isinstance(arr, _nd.NDArray):
-        tensor = _vmobj.Tensor(arr)
-    else:
-        raise RuntimeError("Unsupported type for tensor object.")
-    return tensor
-
-
-def tuple_object(fields):
-    """Create a datatype object from source tuple.
-
-    Parameters
-    ----------
-    fields : list[Object] or tuple[Object]
-        The source tuple.
-
-    Returns
-    -------
-    ret : DatatypeObject
-        The created object.
-    """
-    for f in fields:
-        assert isinstance(f, Object)
-    return _vmobj.Tuple(*fields)
-
-
-def datatype_object(tag, fields):
-    """Create a datatype object from tag and source fields.
+@register_object("vm.ADT")
+class ADT(Object):
+    """Algebatic data type(ADT) object.
 
     Parameters
     ----------
     tag : int
-        The tag of datatype.
+        The tag of ADT.
 
+    fields : list[Object] or tuple[Object]
+        The source tuple.
+    """
+    def __init__(self, tag, fields):
+        for f in fields:
+            assert isinstance(f, (Object, _nd.NDArray)), "Expect object or "
+            "tvm NDArray type, but received : {0}".format(type(f))
+        self.__init_handle_by_constructor__(
+            _vmobj.ADT, tag, *fields)
+
+    @property
+    def tag(self):
+        return _vmobj.GetADTTag(self)
+
+    def __getitem__(self, idx):
+        return getitem_helper(
+            self, _vmobj.GetADTFields, len(self), idx)
+
+    def __len__(self):
+        return _vmobj.GetADTNumberOfFields(self)
+
+
+def tuple_object(fields):
+    """Create a ADT object from source tuple.
+
+    Parameters
+    ----------
     fields : list[Object] or tuple[Object]
         The source tuple.
 
     Returns
     -------
-    ret : DatatypeObject
+    ret : ADT
         The created object.
     """
     for f in fields:
-        assert isinstance(f, Object)
-    return _vmobj.Datatype(tag, *fields)
+        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or tvm "
+        "NDArray type, but received : {0}".format(type(f))
+    return _vmobj.Tuple(*fields)

@@ -304,6 +304,21 @@ def sin(x):
     """
     return call_pure_intrin(x.dtype, "sin", x)
 
+def atan(x):
+    """Take atan of input x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "atan", x)
+
 def sqrt(x):
     """Take square root of input x.
 
@@ -419,6 +434,45 @@ def round(x):
     return _make.round(x)
 
 
+def nearbyint(x):
+    """Round elements of the array to the nearest integer.
+    This intrinsic uses llvm.nearbyint instead of llvm.round
+    which is faster but will results different from tvm.round.
+    Notably nearbyint rounds according to the rounding mode,
+    whereas tvm.round (llvm.round) ignores that.
+    For differences between the two see:
+    https://en.cppreference.com/w/cpp/numeric/math/round
+    https://en.cppreference.com/w/cpp/numeric/math/nearbyint
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.nearbyint(x)
+
+
+def isnan(x):
+    """Check if input value is Nan.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return _make.isnan(x)
+
+
 def power(x, y):
     """x power y
 
@@ -521,7 +575,7 @@ def register_intrin_rule(target, intrin, f=None, override=False):
         The name of codegen target.
 
     intrin : str
-        The name of the instrinsic.
+        The name of the intrinsic.
 
     f : function, optional
         The function to be registered.

@@ -94,12 +94,15 @@ def _sparse_dense_bsrmm(data, weight_data, weight_indices, weight_indptr):
         x_val = data[i, bs_c * block_j + c]
         return tvm.sum(block_ij_val * x_val, axis=[elem_idx, c])
 
+    idxd = tvm.indexdiv
+    idxm = tvm.indexmod
+
     bsrmm_block = tvm.compute(
         (m, num_blocks, bs_r), _compute_block,
         tag="sparse_dense_bsrmm_block")
     return tvm.compute(
         (m, num_blocks * bs_r),
-        lambda m, n: bsrmm_block[m, n // bs_r, n % bs_r],
+        lambda m, n: bsrmm_block[m, idxd(n, bs_r), idxm(n, bs_r)],
         tag="sparse_dense_bsrmm")
 
 @tvm.target.generic_func

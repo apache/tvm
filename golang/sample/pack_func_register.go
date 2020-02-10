@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \brief Sample golang application to demonstrate function register into TVM global functions.
  * \file pack_func_register.go
  */

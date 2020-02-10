@@ -19,6 +19,27 @@
 import tvm
 from .. import generic
 
+@generic.schedule_injective_from_existing.register(["hls"])
+def schedule_injective_from_existing(sch, out):
+    """Schedule for injective op from existing schedule.
+
+    Parameters
+    ----------
+    sch: Schedule
+         The schedule to update.
+    out: Tensor
+         The tensor representing the injective op.
+
+    Returns
+    -------
+    sch: Schedule
+         The updated schedule.
+    """
+    fused = sch[out].fuse(*sch[out].op.axis)
+    px, x = sch[out].split(fused, nparts=1)
+    sch[out].bind(px, tvm.thread_axis("pipeline"))
+    return sch
+
 @generic.schedule_injective.register(["hls"])
 def schedule_injective(outs):
     """Schedule for injective op.
@@ -38,9 +59,7 @@ def schedule_injective(outs):
     s = tvm.create_schedule([x.op for x in outs])
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        fused = s[out].fuse(*s[out].op.axis)
-        px, x = s[out].split(fused, nparts=1)
-        s[out].bind(px, tvm.thread_axis("pipeline"))
+        schedule_injective_from_existing(s, out)
     return s
 
 schedule_elemwise = schedule_injective

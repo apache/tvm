@@ -24,6 +24,7 @@ The user facing API for computation declaration.
    tvm.load_json
    tvm.save_json
    tvm.var
+   tvm.size_var
    tvm.const
    tvm.convert
    tvm.placeholder
@@ -35,6 +36,13 @@ The user facing API for computation declaration.
    tvm.thread_axis
    tvm.comm_reducer
    tvm.sum
+   tvm.div
+   tvm.indexdiv
+   tvm.indexmod
+   tvm.truncdiv
+   tvm.truncmod
+   tvm.floordiv
+   tvm.floormod
    tvm.min
    tvm.max
    tvm.tag_scope
@@ -42,6 +50,7 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.load_json
 .. autofunction:: tvm.save_json
 .. autofunction:: tvm.var
+.. autofunction:: tvm.size_var
 .. autofunction:: tvm.const
 .. autofunction:: tvm.convert
 .. autofunction:: tvm.placeholder
@@ -53,6 +62,13 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.thread_axis
 .. autofunction:: tvm.comm_reducer
 .. autofunction:: tvm.sum
+.. autofunction:: tvm.div
+.. autofunction:: tvm.indexdiv
+.. autofunction:: tvm.indexmod
+.. autofunction:: tvm.truncdiv
+.. autofunction:: tvm.truncmod
+.. autofunction:: tvm.floordiv
+.. autofunction:: tvm.floormod
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
 .. autofunction:: tvm.tag_scope

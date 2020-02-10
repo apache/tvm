@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2016 by Contributors
  * \file nnvm/pass.h
  * \brief Pass that can be applied to a graph.
  */

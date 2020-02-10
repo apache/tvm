@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2018 by Contributors
  * \file well_formed.cc
  * \brief check that expression is well formed.
  */
@@ -31,19 +30,19 @@ namespace tvm {
 namespace relay {
 
 
-//! brief make sure each Var is bind at most once.
+//! brief make sure each Var is bound at most once in a scope.
 class WellFormedChecker : private ExprVisitor, PatternVisitor {
   bool well_formed = true;
 
-  std::vector<std::unordered_set<Var, NodeHash, NodeEqual>> scope;
-  std::unordered_set<Var, NodeHash, NodeEqual> current_bound;
-  std::unordered_set<Var, NodeHash, NodeEqual> total_bound;
-  std::unordered_set<Var, NodeHash, NodeEqual> free;
+  std::vector<std::unordered_set<Var, ObjectHash, ObjectEqual>> scope;
+  std::unordered_set<Var, ObjectHash, ObjectEqual> current_bound;
+  std::unordered_set<Var, ObjectHash, ObjectEqual> total_bound;
+  std::unordered_set<Var, ObjectHash, ObjectEqual> free;
 
   struct Scope {
     WellFormedChecker* wfc;
     explicit Scope(WellFormedChecker* wfc) : wfc(wfc) {
-      wfc->scope.push_back({});
+      wfc->scope.push_back({{}});
     }
     ~Scope() {
       CHECK_GE(wfc->scope.size(), 0);
@@ -126,7 +125,7 @@ bool WellFormed(const Expr& e) {
   return WellFormedChecker().CheckWellFormed(e);
 }
 
-TVM_REGISTER_API("relay._analysis.well_formed")
+TVM_REGISTER_GLOBAL("relay._analysis.well_formed")
 .set_body_typed(WellFormed);
 
 }  // namespace relay

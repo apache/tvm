@@ -18,8 +18,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
-
- * Copyright (c) 2018 by Contributors
  * \file builtin_fp16.cc
  * \brief Functions for conversion between fp32 and fp16, adopted from compiler-rt.
  */

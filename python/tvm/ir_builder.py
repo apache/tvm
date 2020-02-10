@@ -24,7 +24,7 @@ from . import make as _make
 from . import ir_pass as _pass
 from . import container as _container
 from ._ffi.base import string_types
-from ._ffi.node import NodeGeneric
+from ._ffi.object import ObjectGeneric
 from ._ffi.runtime_ctypes import TVMType
 from .expr import Call as _Call
 
@@ -41,7 +41,7 @@ class WithScope(object):
         self._exit_cb()
 
 
-class BufferVar(NodeGeneric):
+class BufferVar(ObjectGeneric):
     """Buffer variable with content type, makes load store easily.
 
     Do not create it directly, create use IRBuilder.
@@ -70,7 +70,7 @@ class BufferVar(NodeGeneric):
         self._buffer_var = buffer_var
         self._content_type = content_type
 
-    def asnode(self):
+    def asobject(self):
         return self._buffer_var
 
     @property
@@ -120,14 +120,16 @@ class IRBuilder(object):
         seq = self._seq_stack.pop()
         if not seq or callable(seq[-1]):
             seq.append(_make.Evaluate(0))
-        stmt = seq[-1]
+        seqwrap = lambda x: x[0] if len(x) == 1 else _stmt.SeqStmt(list(reversed(x)))
+        ret_seq = [seq[-1]]
+
         for s in reversed(seq[:-1]):
             if callable(s):
-                stmt = s(stmt)
+                ret_seq = [s(seqwrap(ret_seq))]
             else:
                 assert isinstance(s, _stmt.Stmt)
-                stmt = _make.Block(s, stmt)
-        return stmt
+                ret_seq.append(s)
+        return seqwrap(ret_seq)
 
     def emit(self, stmt):
         """Emit a statement to the end of current scope.

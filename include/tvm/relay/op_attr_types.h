@@ -24,11 +24,12 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/tensor.h>
-#include <tvm/schedule.h>
+#include <tvm/top/tensor.h>
+#include <tvm/top/schedule.h>
 #include <tvm/build_module.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -98,10 +99,10 @@ using TShapeDataDependant = bool;
  * \return The output compute description of the operator.
  */
 using FTVMCompute = runtime::TypedPackedFunc<
-  Array<Tensor>(const Attrs& attrs,
-                const Array<Tensor>& inputs,
-                const Type& out_type,
-                const Target& target)>;
+  Array<top::Tensor>(const Attrs& attrs,
+                     const Array<top::Tensor>& inputs,
+                     const Type& out_type,
+                     const Target& target)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -113,16 +114,16 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \return schedule The computation schedule.
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
-  Schedule(const Attrs& attrs,
-           const Array<Tensor>& outs,
-           const Target& target)>;
+  top::Schedule(const Attrs& attrs,
+                const Array<top::Tensor>& outs,
+                const Target& target)>;
 
 /*!
  * \brief Alternate the layout of operators or replace the
  *  operator with other expressions. This function will be invoked
  *  in AlterOpLayout pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
+ * \param args The input symbols of the original node.
  * \param tinfos An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
@@ -130,14 +131,30 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<Tensor>& tinfos)>;
+       const Array<top::Tensor>& tinfos)>;
 
+/*!
+ * \brief Convert the layout of operators or replace the
+ *  operator with other expressions. This function will be invoked
+ *  in ConvertLayout pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos An array of placeholders, use for getting the inferred shape
+ *               and dtype of the inputs.
+ * \param desired_layout The desired layout.
+ * \return new_expr The modified expression.
+ */
+using FTVMConvertOpLayout = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args,
+       const Array<top::Tensor>& tinfos,
+       const std::string& desired_layout)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
  *  invoked in Legalize pass. It is a target-dependent pass.
  * \param attrs The attribute of the original node.
- * \param inputs The input symbols of the original node.
- * \param tinfos An array of placeholders, use for getting the inferred shape
+ * \param args The input symbols of the original node.
+ * \param arg_types An array of placeholders, use for getting the inferred shape
  *               and dtype of the inputs.
  * \return new_expr The modified expression.
  */
@@ -163,7 +180,7 @@ using FTVMLegalize = runtime::TypedPackedFunc<
 using FForwardRewrite = runtime::TypedPackedFunc<
   Expr(const Call& ref_call,
        const Array<Expr>& new_args,
-       const NodeRef& ctx)>;
+       const ObjectRef& ctx)>;
 
 /*!
  * \brief Gradient for a specific op.
@@ -189,9 +206,9 @@ enum AnyCodegenStrategy {
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
-  Array<Tensor>(const Attrs& attrs,
-                const Array<Tensor>& inputs,
-                const Array<IndexExpr>& out_ndims)>;
+  Array<top::Tensor>(const Attrs& attrs,
+                     const Array<top::Tensor>& inputs,
+                     const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

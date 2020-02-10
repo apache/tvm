@@ -19,9 +19,9 @@ import tvm
 import pickle as pkl
 
 def test_schedule_create():
-    m = tvm.var('m')
-    n = tvm.var('n')
-    l = tvm.var('l')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
+    l = tvm.size_var('l')
     A = tvm.placeholder((m, l), name='A')
     B = tvm.placeholder((n, l), name='B')
     AA = tvm.compute((m, l), lambda i, j: A[i, j])
@@ -49,7 +49,7 @@ def test_schedule_create():
 
 
 def test_reorder():
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute(m, lambda i: A[i+1])
 
@@ -69,7 +69,7 @@ def test_reorder():
         pass
 
 def test_split():
-    m = tvm.var('m')
+    m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i: A[i])
 
@@ -79,8 +79,8 @@ def test_split():
 
 
 def test_tile():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
@@ -90,8 +90,8 @@ def test_tile():
 
 
 def test_fuse():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
@@ -103,20 +103,24 @@ def test_fuse():
 
 
 def test_singleton():
+    print("test singleton")
     A = tvm.placeholder((), name='A')
     T = tvm.compute((), lambda : A() + 1)
     s = tvm.create_schedule(T.op)
+    print("test singleton fin1")
     fused = s[T].fuse()
     assert any(isinstance(x, tvm.schedule.Singleton) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused,)
     dump = pkl.dumps(s)
+    print("test singleton fin3")
     s_loaded = pkl.loads(dump)
+    print("test singleton fin2")
     assert isinstance(s_loaded, tvm.schedule.Schedule)
-
+    print("test singleton fin")
 
 def test_vectorize():
-    m = tvm.var('m')
-    n = tvm.var('n')
+    m = tvm.size_var('m')
+    n = tvm.size_var('n')
     A = tvm.placeholder((m, n), name='A')
     T = tvm.compute((m, n), lambda i, j: A[i, j])
 
@@ -152,7 +156,7 @@ def test_pragma():
 
 
 def test_rfactor():
-    n = tvm.var('n')
+    n = tvm.size_var('n')
     k1 = tvm.reduce_axis((0, n), name="k1")
     k2 = tvm.reduce_axis((0, n), name="k2")
     A = tvm.placeholder((n, n, n), name='A')
@@ -210,10 +214,10 @@ def test_tensor_intrin():
     assert(s[z].iter_var_attrs[xi].iter_type == tvm.schedule.IterVar.Tensorized)
 
 def test_tensor_intrin_scalar_params():
-    n = tvm.var("n")
+    n = tvm.size_var("n")
     x = tvm.placeholder((n,), name='x')
-    v = tvm.var("v")
-    w = tvm.var("w")
+    v = tvm.size_var("v")
+    w = tvm.size_var("w")
     z = tvm.compute((n,), lambda i: x[i]*v + w, name='z')
 
     def intrin_func(ins, outs, sp):

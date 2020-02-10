@@ -174,7 +174,8 @@ def test_simplex_data_transferring():
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        check_device(device, target)
+        with tvm.target.create(device):
+            check_device(device, target)
 
 
 def get_duplex_graph(host_dev_type, device_dev_type):
@@ -394,7 +395,8 @@ def test_duplex_data_transferring():
 
     dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
-        check_device(device, target)
+        with tvm.target.create(device):
+            check_device(device, target)
 
 if __name__ == "__main__":
     test_simplex_data_transferring()
