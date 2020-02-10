@@ -302,9 +302,6 @@ def _batch_norm():
         moving_var = inputs[4]
         epsilon = float(inputs[7])
 
-        center = center
-        scale = scale
-
         return _op.nn.batch_norm(data,
                                  gamma,
                                  beta,
