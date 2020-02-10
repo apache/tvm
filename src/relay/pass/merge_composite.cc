@@ -59,7 +59,14 @@ class MergeCompositeWrapper : public ExprMutator {
     return root;
   }
 
-  /* How does this work?
+  /*!
+   * \brief Try and extract a given pattern from a graph as a subgraph.
+   * \param pattern The pattern to extract.
+   * \param root The graph to extract from.
+   * \param var_map A map between free vars in the subgraph and nodes in the graph.
+   * \return The extracted subgraph.
+   *
+   * \note How does this work?
    *
    * A pattern consists of Relay expression containing only operator call nodes, constants
    * and free variables. The free variables indicate where the pattern can 'attach' in your
