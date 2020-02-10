@@ -31,17 +31,17 @@ from ..util import simplify, get_const_tuple, traverse_inline
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
     if is_depthwise:
         raise RuntimeError("Depthwise not supported for intel graphics.")
-    else:
-        batch_size, in_channel, height, width = get_const_tuple(data.shape)
-        out_channel, _, hkernel, _ = get_const_tuple(kernel.shape)
-        HSTR, _ = strides
 
-        ic_bn = 1
-        oc_bn, oc_bn_upper = 16, 16
-        for i in range(oc_bn_upper, 0, -1):
-            if out_channel % i == 0:
-                oc_bn = i
-                break
+    batch_size, in_channel, height, width = get_const_tuple(data.shape)
+    out_channel, _, hkernel, _ = get_const_tuple(kernel.shape)
+    HSTR, _ = strides
+
+    ic_bn = 1
+    oc_bn, oc_bn_upper = 16, 16
+    for i in range(oc_bn_upper, 0, -1):
+        if out_channel % i == 0:
+            oc_bn = i
+            break
 
     if HSTR == 2:
         if out_channel + hkernel == 515:

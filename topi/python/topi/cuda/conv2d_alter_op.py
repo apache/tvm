@@ -79,7 +79,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             "conv2d_NCHWc_int8.cuda")
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
-    elif topi_tmpl == "conv2d_nchw_winograd.cuda":
+
+    if topi_tmpl == "conv2d_nchw_winograd.cuda":
         if dilation != (1, 1):
             logger.warning("Does not support weight pre-transform for dilated convolution.")
             return None
@@ -107,7 +108,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
             inputs[0], weight, **new_attrs)
-    elif topi_tmpl == "group_conv2d_NCHWc_int8.cuda":
+
+    if topi_tmpl == "group_conv2d_NCHWc_int8.cuda":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -130,5 +132,5 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             "group_conv2d_NCHWc_int8.cuda")
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
-    else:
-        return None
+
+    return None

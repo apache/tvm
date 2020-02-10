@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member,no-else-return
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D alter op and legalize functions for arm cpu"""
 
 import logging
@@ -76,7 +76,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
-    elif topi_tmpl == "conv2d_nhwc_spatial_pack.arm_cpu":
+
+    if topi_tmpl == "conv2d_nhwc_spatial_pack.arm_cpu":
         assert data_layout == "NHWC" and kernel_layout == "HWIO"
         N, H, W, CI = get_const_tuple(data.shape)
         KH, KW, _, CO = get_const_tuple(kernel.shape)
@@ -92,7 +93,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
-    elif topi_tmpl == "conv2d_nchw_winograd.arm_cpu":
+
+    if topi_tmpl == "conv2d_nchw_winograd.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -122,7 +124,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
             inputs[0], weight_expr, **new_attrs)
-    elif topi_tmpl == "conv2d_nchw_winograd_nnpack.arm_cpu":
+
+    if topi_tmpl == "conv2d_nchw_winograd_nnpack.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -146,7 +149,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
             inputs[0], transformed_weight, **new_attrs)
-    elif topi_tmpl == "depthwise_conv2d_nchw_spatial_pack.arm_cpu":
+
+    if topi_tmpl == "depthwise_conv2d_nchw_spatial_pack.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -163,5 +167,5 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
-    else:
-        return None
+
+    return None

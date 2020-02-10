@@ -86,7 +86,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_mali(attrs, inputs, out_ty
                            format(layout))
     return strategy
 
-@dense_strategy.register(["mali"])
+@dense_strategy.register("mali")
 def dense_strategy_mali(attrs, inputs, out_type, target):
     """dense mali strategy"""
     strategy = _op.OpStrategy()

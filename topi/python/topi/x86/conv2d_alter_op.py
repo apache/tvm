@@ -88,7 +88,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs["out_layout"], out_dtype], topi_tmpl)
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
-    elif topi_tmpl == "conv2d_NCHWc_int8.x86":
+
+    if topi_tmpl == "conv2d_NCHWc_int8.x86":
         # TODO(@icemelon9, @anijain2305): Need to support data layout NHWC with kernel layout HWIO
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:
@@ -132,7 +133,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.contrib_conv2d_nchwc(data_expr, kernel_OIHWioe, **new_attrs)
-    elif topi_tmpl == "depthwise_conv2d_NCHWc.x86":
+
+    if topi_tmpl == "depthwise_conv2d_NCHWc.x86":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:
             _get_default_config(cfg, data_tensor, kernel_tensor, strides, padding,
@@ -158,8 +160,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs['out_layout'], out_dtype], topi_tmpl)
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
-    else:
-        return None
+
+    return None
 
 
 @conv2d_legalize.register("cpu")
@@ -306,5 +308,4 @@ def _conv2d_legalize(attrs, inputs, arg_types):
             out = relay.subtract(out, adjust_shift)
 
         return out
-    else:
-        return None
+    return None

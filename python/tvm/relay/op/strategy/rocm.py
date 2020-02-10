@@ -116,7 +116,7 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
 
-@dense_strategy.register(["rocm"])
+@dense_strategy.register("rocm")
 def dense_strategy_rocm(attrs, inputs, out_type, target):
     """Dense strategy for ROCM"""
     strategy = _op.OpStrategy()

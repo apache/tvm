@@ -38,10 +38,9 @@ from ._base import INVALID_LAYOUT_TIME
 def get_infer_layout(task_name):
     if task_name.startswith("conv2d"):
         return topi.nn.conv2d_infer_layout
-    elif task_name.startswith("depthwise_conv2d"):
+    if task_name.startswith("depthwise_conv2d"):
         return topi.nn.depthwise_conv2d_infer_layout
-    else:
-        raise ValueError("Cannot find infer layout for task %s" % task_name)
+    raise ValueError("Cannot find infer layout for task %s" % task_name)
 
 @autotvm.register_customized_task("layout_transform")
 def layout_transform(*args):

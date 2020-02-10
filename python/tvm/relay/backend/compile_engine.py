@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=len-as-condition,no-else-return
+# pylint: disable=len-as-condition,no-else-return,invalid-name
 """Backend code generation engine."""
 from __future__ import absolute_import
 
@@ -338,7 +338,7 @@ class ScheduleGetter(ExprVisitor):
             if not is_dyn:
                 best_impl, outputs = select_implement(
                     op, call.attrs, inputs, ret_type, self.target)
-                logger.debug("Use implementation %s for op %s" % (best_impl.name, op.name))
+                logger.info("Use implementation %s for op %s", best_impl.name, op.name)
             else:
                 # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes
                 # for dynamic case, we currently use the implementation with highest plevel

@@ -83,8 +83,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
              new_attrs["out_layout"], out_dtype], "conv2d_NCHWc.intel_graphics")
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
-    else:
-        return None
+
+    return None
 
 
 @conv2d_infer_layout.register("intel_graphics")

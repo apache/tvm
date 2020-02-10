@@ -40,11 +40,10 @@ def get_conv2d_in_channels(data_shape, data_layout):
         idx = data_layout.find("C")
         assert idx >= 0, "Invalid conv2d data layout {}".format(data_layout)
         return data_shape[idx]
-    elif re.match(r"NCHW\d*c", data_layout):
+    if re.match(r"NCHW\d*c", data_layout):
         # NCHW[8]c
         return data_shape[1] * data_shape[4]
-    else:
-        raise ValueError("Unknown conv2d data layout {}".format(data_layout))
+    raise ValueError("Unknown conv2d data layout {}".format(data_layout))
 
 def get_conv2d_out_channels(kernel_shape, kernel_layout):
     """Get conv2d output channels"""
@@ -53,12 +52,11 @@ def get_conv2d_out_channels(kernel_shape, kernel_layout):
         idx = kernel_layout.find("O")
         assert idx >= 0, "Invalid conv2d kernel layout {}".format(kernel_layout)
         return kernel_shape[idx]
-    elif re.match(r"OIHW\d*i\d*o", kernel_layout):
+    if re.match(r"OIHW\d*i\d*o", kernel_layout):
         return kernel_shape[0] * kernel_shape[5]
-    elif re.match(r"OIHW\d*o", kernel_layout):
+    if re.match(r"OIHW\d*o", kernel_layout):
         return kernel_shape[0] * kernel_shape[4]
-    else:
-        raise ValueError("Unknown conv2d kernel layout {}".format(kernel_layout))
+    raise ValueError("Unknown conv2d kernel layout {}".format(kernel_layout))
 
 def is_depthwise_conv2d(data_shape, data_layout, kernel_shape, kernel_layout, groups):
     ic = get_conv2d_in_channels(data_shape, data_layout)

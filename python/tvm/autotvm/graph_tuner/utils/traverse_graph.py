@@ -49,11 +49,12 @@ def expr2graph(expr, target_ops, node_dict, node_list):
         {"op": str, "node": tvm.relay.expr, "inputs": [int], "types": [tvm.relay.Type],
          "name": str, "workloads": [tuple], "topi_op": [function]}
     """
-    env = TaskExtractEnv.get(allow_duplicate=True)
-    env.reset(target_ops)
     # TODO(@kevinthesun, @icemelon9): Currently graph tuning pass relies on the fact
     #   that # autotvm tasks == # ops. But this won't be true after having relay op
     #   strategy. We need to find a solution to fix this.
+    env = TaskExtractEnv.get(allow_duplicate=True)
+    env.reset(target_ops)
+    # pylint: disable=not-context-manager
     with env:
         _expr2graph_impl(expr, target_ops, node_dict, node_list)
         task_pos = 0
