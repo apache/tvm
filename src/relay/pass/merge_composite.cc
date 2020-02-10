@@ -122,7 +122,7 @@ class MergeCompositeWrapper : public ExprMutator {
       CHECK(func.defined());
       const auto name_node = FunctionGetAttr(func, attr::kComposite).as<tir::StringImmNode>();
       // don't step into existing composite functions
-      if (name_node->value != "") {
+      if (name_node && name_node->value != "") {
         tvm::Array<tvm::relay::Expr> new_args;
         for (const auto& arg : call->args) {
           auto new_e = this->Mutate(arg);
