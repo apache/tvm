@@ -35,7 +35,6 @@ namespace tvm {
 namespace relay {
 namespace merge_composite {
 
-
 class MergeCompositeWrapper : public ExprMutator {
  public:
   explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
