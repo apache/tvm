@@ -333,7 +333,7 @@ def _transpose():
         else:
             assert "data type {} could not be parsed in transpose op" % (type(data))
 
-        if isinstance(data, tvm.ndarray.NDArray):
+        if isinstance(data, tvm.runtime.NDArray):
             ndims = len(data.shape)
         axes = list(range(ndims))
 
@@ -757,8 +757,8 @@ class Graph(object):
         mod : tvm.relay.Module
             The module that optimizations will be performed on.
 
-        params : dict of str to tvm.ndarray
-            Dict of converted parameters stored in tvm.ndarray format
+        params : dict of str to tvm.runtime
+            Dict of converted parameters stored in tvm.runtime format
         """
         # Check for missing ops
         missing_operators = self._parse_import_prerequisites()
@@ -1024,8 +1024,8 @@ def from_pytorch(script_module, input_shapes):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.runtime
+        Dict of converted parameters stored in tvm.runtime format
     """
     g = Graph(script_module, input_shapes)
     mod, params = g.from_pytorch()
