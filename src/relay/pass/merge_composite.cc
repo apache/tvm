@@ -50,6 +50,13 @@ class MergeCompositeWrapper : public ExprMutator {
       return std::move(free_var);
     } else {
       // if we have encountered this var already, return the free var that was created
+      auto vars = (*var_map)[pattern->name_hint()];
+      auto free_var = vars[0];
+      auto graph_expr = vars[1];
+      // make sure to first check they both map to the same node in the graph
+      if (graph_expr != root) {
+        return Expr();
+      }
       return (*var_map)[pattern->name_hint()][0];
     }
   }
