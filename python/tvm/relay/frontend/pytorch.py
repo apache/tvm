@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
+# pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
 """PT: PyTorch frontend."""
 import numpy as np
 
@@ -198,7 +199,6 @@ def _convolution():
         padding = inputs[4]
         dilation = inputs[5]
 
-        import torch
         if isinstance(weight, _expr.Expr):
             inferred_shape = _infer_shape(weight)
             weight_shape = []
@@ -288,17 +288,14 @@ def _batch_norm():
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
+            gamma = weight
         else:
             scale = center = False
 
-        if scale:
-            gamma = weight
-        else:
+        if not scale:
             gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
-        if center:
-            beta = beta
-        else:
+        if not center:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
