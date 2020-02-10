@@ -18,12 +18,12 @@
 import os
 import sys
 import numpy as np
-import pytest
 
 import tvm
 import tvm.relay.testing
 import tvm.relay.transform
 from tvm import relay
+from tvm import runtime
 from tvm.contrib import util
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
@@ -49,11 +49,11 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_vm_result():
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            exe = relay.vm.compile(mod, target=target)
+            exe = runtime.vm.compile(mod, target=target)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = relay.vm.Executable.load_exec(code, lib)
-        vm = relay.vm.VirtualMachine(exe)
+        exe = runtime.vm.Executable.load_exec(code, lib)
+        vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)

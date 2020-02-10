@@ -39,6 +39,7 @@ def _lower(mod,
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
+    from tvm import runtime
     from tvm.relay.backend import graph_runtime_codegen
 
     if hasattr(target, 'device_name') and target.device_name == "vta":
@@ -49,7 +50,7 @@ def _lower(mod,
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 grc.codegen(mod["main"])
     # default case
-    compiler = relay.vm.VMCompiler()
+    compiler = runtime.vm.VMCompiler()
     if params:
         compiler.set_params(params)
     compiler.lower(mod, target=target)

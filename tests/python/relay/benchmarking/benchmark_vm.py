@@ -19,7 +19,8 @@ import numpy as np
 
 import tvm
 from tvm.contrib import graph_runtime
-from tvm import relay, container
+from tvm import relay
+from tvm.runtime import container
 from tvm.relay import testing
 from tvm.relay import vm
 

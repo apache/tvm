@@ -19,9 +19,9 @@
 import numpy as np
 
 import tvm
+from tvm.runtime import vm as _vm
 from tvm import relay
 from tvm.relay.module import Module as rly_module
-from tvm.relay import vm as _vm
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.contrib import util

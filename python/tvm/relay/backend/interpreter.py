@@ -20,7 +20,7 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from tvm import container
+from tvm.runtime import container
 from . import _backend
 from .. import _make, analysis, transform
 from .. import module

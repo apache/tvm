@@ -32,15 +32,15 @@ OUTPUT_VAR_NAME = '_py_out'
 #     import numpy
 #     import tvm
 #     from tvm import relay
-#     from tvm import import container as _container
 #     from tvm import nd
+#     from tvm.runtime import import container as _container
 #     from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 PROLOGUE = [
     ast.Import([alias('numpy', None)]),
     ast.Import([alias('tvm', None)]),
     ast.ImportFrom('tvm', [alias('relay', None)], 0),
     ast.ImportFrom('tvm', [alias('nd', None)], 0),
-    ast.ImportFrom('tvm', [alias('container', '_container')],
+    ast.ImportFrom('tvm.runtime', [alias('container', '_container')],
                    0),
     ast.ImportFrom('tvm.relay.backend.interpreter',
                    [alias('RefValue', None),

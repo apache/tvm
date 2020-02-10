@@ -24,13 +24,13 @@ import numpy as np
 
 import tvm
 import tvm.runtime.ndarray as _nd
-from tvm.runtime import Object
-from tvm import autotvm, container
+from tvm.runtime import Object, container
+from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
+from tvm.relay.backend.interpreter import Executor
 from . import _vm
-from .interpreter import Executor
 
 def _convert(arg, cargs):
     if isinstance(arg, _expr.Constant):
@@ -117,7 +117,7 @@ class Executable(object):
             # create a Relay VM.
             ctx = tvm.cpu()
             target = "llvm"
-            executable = relay.vm.compile(mod, target)
+            executable = tvm.runtime.vm.compile(mod, target)
             code, lib = executable.save()
             # save and load the code and lib file.
             tmp = tvm.contrib.util.tempdir()
@@ -128,10 +128,10 @@ class Executable(object):
             loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
             # deserialize.
-            des_exec = relay.vm.Executable.load_exec(loaded_code, loaded_code)
+            des_exec = tvm.runtime.vm.Executable.load_exec(loaded_code, loaded_code)
             # execute the deserialized executable.
             x_data = np.random.rand(10, 10).astype('float32')
-            des_vm = relay.vm.VirtualMachine(des_exec)
+            des_vm = tvm.runtime.vm.VirtualMachine(des_exec)
             des_vm.init(ctx)
             res = des_vm.run(x_data)
             print(res.asnumpy())
@@ -556,7 +556,7 @@ class VMExecutor(Executor):
 
     Useful interface for experimentation and debugging
     the VM can also be used directly from the API.
-    supported by `tvm.relay.vm`.
+    supported by `tvm.runtime.vm`.
 
     Parameters
     ----------

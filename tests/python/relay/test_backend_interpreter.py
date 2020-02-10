@@ -18,7 +18,8 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import nd
-from tvm import relay, container
+from tvm import relay
+from tvm.runtime import container
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
