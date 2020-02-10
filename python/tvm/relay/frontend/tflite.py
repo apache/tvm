@@ -439,8 +439,6 @@ class OperatorConverter(object):
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type = output_tensor.tensor.Type()
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
         params = {'axis': 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
@@ -449,18 +447,13 @@ class OperatorConverter(object):
         # dequantize to FP32 and perform softmax on FP32. We can investigate an integer only softmax
         # implementation in future.
         if input_tensor.qnn_params:
-            in_expr = _qnn.op.dequantize(data=in_expr,
-                                         input_scale=input_tensor.qnn_params['scale'],
-                                         input_zero_point=input_tensor.qnn_params['zero_point'])
+            in_expr = self.dequantize(in_expr, input_tensor)
 
         out = _op.nn.softmax(in_expr, **params)
 
         # Go back to integer dataype if the original operator was quantized.
         if output_tensor.qnn_params:
-            out = _qnn.op.quantize(data=out,
-                                   output_scale=output_tensor.qnn_params['scale'],
-                                   output_zero_point=output_tensor.qnn_params['zero_point'],
-                                   out_dtype=output_tensor_type_str)
+            out = self.quantize(out, output_tensor)
 
         return out
 
