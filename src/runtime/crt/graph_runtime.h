@@ -18,10 +18,8 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
- *
- * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  * \file graph_runtime.h
+ * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  */
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_

@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2017 by Contributors
  * \file ndarray.c
  * \brief NDArray container infratructure.
  */
