@@ -33,7 +33,7 @@ using namespace tvm::runtime;
 
 TVM_REGISTER_NODE_TYPE(IdNode);
 
-TVM_REGISTER_GLOBAL("relay._base.set_span")
+TVM_REGISTER_GLOBAL("ir.NodeSetSpan")
 .set_body_typed([](ObjectRef node_ref, Span sp) {
   if (auto* rn = node_ref.as<RelayNode>()) {
     rn->span = sp;

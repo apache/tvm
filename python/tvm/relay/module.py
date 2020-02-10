@@ -85,7 +85,7 @@ class Module(RelayNode):
         return self._add(var, val)
 
     def _add(self, var, val, update=False):
-        if isinstance(val, _expr.Expr):
+        if isinstance(val, _expr.RelayExpr):
             if isinstance(var, _base.string_types):
                 if _module.Module_ContainGlobalVar(self, var):
                     var = _module.Module_GetGlobalVar(self, var)

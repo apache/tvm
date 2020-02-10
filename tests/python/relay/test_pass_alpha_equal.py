@@ -39,9 +39,9 @@ def test_tensor_type_alpha_equal():
 
 
 def test_incomplete_type_alpha_equal():
-    t1 = relay.IncompleteType(relay.Kind.Shape)
-    t2 = relay.IncompleteType(relay.Kind.Type)
-    t3 = relay.IncompleteType(relay.Kind.Type)
+    t1 = relay.IncompleteType(relay.TypeKind.ShapeVar)
+    t2 = relay.IncompleteType(relay.TypeKind.Type)
+    t3 = relay.IncompleteType(relay.TypeKind.Type)
 
     # only equal when there is pointer equality
     assert t2 == t2
@@ -51,9 +51,9 @@ def test_incomplete_type_alpha_equal():
 
 
 def test_type_param_alpha_equal():
-    t1 = relay.TypeVar("v1", relay.Kind.Type)
-    t2 = relay.TypeVar("v2", relay.Kind.Shape)
-    t3 = relay.TypeVar("v3", relay.Kind.Type)
+    t1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    t2 = relay.TypeVar("v2", relay.TypeKind.ShapeVar)
+    t3 = relay.TypeVar("v3", relay.TypeKind.Type)
 
     # only pointer equality and eq_map allow equal params
     assert t1 == t1
@@ -76,10 +76,10 @@ def test_func_type_alpha_equal():
     t1 = relay.TensorType((1, 2), "float32")
     t2 = relay.TensorType((1, 2, 3), "float32")
 
-    tp1 = relay.TypeVar("v1", relay.Kind.Type)
-    tp2 = relay.TypeVar("v2", relay.Kind.Type)
-    tp3 = relay.TypeVar("v3", relay.Kind.Shape)
-    tp4 = relay.TypeVar("v3", relay.Kind.Shape)
+    tp1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("v2", relay.TypeKind.Type)
+    tp3 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
+    tp4 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
 
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
@@ -135,8 +135,8 @@ def test_func_type_alpha_equal():
 def test_tuple_type_alpha_equal():
     t1 = relay.TensorType((1, 2, 3), "float32")
     t2 = relay.TensorType((1, 2, 3, 4), "float32")
-    tp1 = relay.TypeVar("v1", relay.Kind.Type)
-    tp2 = relay.TypeVar("v2", relay.Kind.Type)
+    tp1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("v2", relay.TypeKind.Type)
 
     tup1 = relay.TupleType(tvm.convert([t1, t2, tp1]))
     tup2 = relay.TupleType(tvm.convert([t1, t2, tp1]))
@@ -347,10 +347,10 @@ def test_function_alpha_equal():
     v4 = relay.Var("v4", tt2)
     vret = relay.Constant(tvm.nd.array(np.ones(1)))
 
-    tp1 = relay.TypeVar("tp1", relay.Kind.Type)
-    tp2 = relay.TypeVar("tp2", relay.Kind.Type)
-    tp3 = relay.TypeVar("tp3", relay.Kind.Shape)
-    tp4 = relay.TypeVar("tp4", relay.Kind.Shape)
+    tp1 = relay.TypeVar("tp1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("tp2", relay.TypeKind.Type)
+    tp3 = relay.TypeVar("tp3", relay.TypeKind.ShapeVar)
+    tp4 = relay.TypeVar("tp4", relay.TypeKind.ShapeVar)
 
     basic_args = [relay.Var("v3", tt1), relay.Var("v4", tt2)]
     basic_tps = [tp1, tp2]

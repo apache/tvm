@@ -19,7 +19,7 @@
 from .base import RelayNode, register_relay_node, Object
 from . import _make
 from .ty import Type
-from .expr import Expr, Call
+from .expr import ExprWithOp, RelayExpr, Call
 
 
 class Pattern(RelayNode):
@@ -113,7 +113,7 @@ class PatternTuple(Pattern):
 
 
 @register_relay_node
-class Constructor(Expr):
+class Constructor(RelayExpr):
     """Relay ADT constructor."""
 
     def __init__(self, name_hint, inputs, belong_to):
@@ -206,7 +206,7 @@ class Clause(Object):
 
 
 @register_relay_node
-class Match(Expr):
+class Match(ExprWithOp):
     """Pattern matching expression in Relay."""
 
     def __init__(self, data, clauses, complete=True):

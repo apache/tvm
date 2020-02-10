@@ -154,7 +154,7 @@ GlobalVar::GlobalVar(std::string name_hint) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
+TVM_REGISTER_GLOBAL("ir.GlobalVar")
 .set_body_typed([](std::string name){
   return GlobalVar(name);
 });

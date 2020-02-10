@@ -67,8 +67,8 @@ def test_tensor_type():
 
 
 def test_type_param():
-    tp = relay.TypeVar('name', relay.Kind.Type)
-    assert tp.kind == relay.Kind.Type
+    tp = relay.TypeVar('name', relay.TypeKind.Type)
+    assert tp.kind == relay.TypeKind.Type
     # assert tp.span  # TODO allow us to set span
     str(tp)
     check_json_roundtrip(tp)
@@ -91,7 +91,7 @@ def test_func_type():
 
 
 def test_tuple_type():
-    tp = relay.TypeVar('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.TypeKind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     fields = tvm.convert([tp, tf, tt])
@@ -103,7 +103,7 @@ def test_tuple_type():
 
 
 def test_type_relation():
-    tp = relay.TypeVar('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.TypeKind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     args = tvm.convert([tp, tf, tt])

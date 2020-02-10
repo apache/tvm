@@ -20,9 +20,10 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
+from tvm.ir import RelayExpr
+
 from . import _analysis
 from . import _make
-from .expr import Expr
 from .ty import Type
 from .module import Module
 from .feature import Feature
@@ -400,7 +401,7 @@ def structural_hash(value):
     result : int
       The hash value
     """
-    if isinstance(value, Expr):
+    if isinstance(value, RelayExpr):
         return int(_analysis._expr_hash(value))
     elif isinstance(value, Type):
         return int(_analysis._type_hash(value))

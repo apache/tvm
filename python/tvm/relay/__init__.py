@@ -73,7 +73,7 @@ Module = module.Module
 Type = ty.Type
 TupleType = ty.TupleType
 TensorType = ty.TensorType
-Kind = ty.Kind
+TypeKind = ty.TypeKind
 TypeVar = ty.TypeVar
 ShapeVar = ty.ShapeVar
 TypeConstraint = ty.TypeConstraint
@@ -87,7 +87,7 @@ TypeCall = ty.TypeCall
 Any = ty.Any
 
 # Expr
-Expr = expr.Expr
+Expr = expr.RelayExpr
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var

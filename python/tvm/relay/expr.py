@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
+# pylint: disable=no-else-return, invalid-name, unused-import
 """The expression nodes of Relay."""
 from __future__ import absolute_import
 from numbers import Number as _Number
@@ -22,33 +22,21 @@ from numbers import Number as _Number
 import numpy as _np
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, convert, ndarray as _nd
+from tvm.ir import RelayExpr, GlobalVar, BaseFunc
 
 from .base import RelayNode, register_relay_node
 from . import _make
 from . import _expr
 from . import ty as _ty
 
+# alias relay expr as Expr.
+Expr = RelayExpr
 
 # will be registered afterwards
 _op_make = None
 
-class Expr(RelayNode):
-    """The base type for all Relay expressions."""
-    @property
-    def checked_type(self):
-        """Get the checked type of tvm.relay.Expr.
-
-        Returns
-        -------
-        checked_type : tvm.relay.Type
-            The checked type.
-        """
-        ret = self._checked_type_
-        if ret is None:
-            raise ValueError("The type checker has not populated"
-                             " the checked_type for this node")
-        return ret
-
+class ExprWithOp(RelayExpr):
+    """Basetype of all relay expressions that defines op overloading."""
     def astype(self, dtype):
         """Cast the content type of the current data to dtype.
 
@@ -173,7 +161,7 @@ class Expr(RelayNode):
         return Call(self, args)
 
 @register_relay_node
-class Constant(Expr):
+class Constant(ExprWithOp):
     """A constant expression in Relay.
 
     Parameters
@@ -186,7 +174,7 @@ class Constant(Expr):
 
 
 @register_relay_node
-class Tuple(Expr):
+class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
     Parameters
@@ -210,7 +198,7 @@ class Tuple(Expr):
 
 
 @register_relay_node
-class Var(Expr):
+class Var(ExprWithOp):
     """A local variable in Relay.
 
     Local variable can be used to declare input
@@ -238,33 +226,7 @@ class Var(Expr):
 
 
 @register_relay_node
-class GlobalVar(Expr):
-    """A global variable in Tvm.Relay.
-
-    GlobalVar is used to refer to the global functions
-    stored in the module.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name of the variable.
-    """
-    def __init__(self, name_hint):
-        self.__init_handle_by_constructor__(_make.GlobalVar, name_hint)
-
-    def __call__(self, *args):
-        """Invoke the gobal function.
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            Arguments.
-        """
-        return Call(self, args, None, None)
-
-
-@register_relay_node
-class Function(Expr):
+class Function(BaseFunc):
     """A function declaration expression.
 
     Parameters
@@ -320,7 +282,7 @@ class Function(Expr):
 
 
 @register_relay_node
-class Call(Expr):
+class Call(ExprWithOp):
     """Function call node in Relay.
 
     Call node corresponds the operator application node
@@ -349,7 +311,7 @@ class Call(Expr):
 
 
 @register_relay_node
-class Let(Expr):
+class Let(ExprWithOp):
     """Let variable binding expression.
 
     Parameters
@@ -369,7 +331,7 @@ class Let(Expr):
 
 
 @register_relay_node
-class If(Expr):
+class If(ExprWithOp):
     """A conditional expression in Relay.
 
     Parameters
@@ -389,7 +351,7 @@ class If(Expr):
 
 
 @register_relay_node
-class TupleGetItem(Expr):
+class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
     Parameters
@@ -406,7 +368,7 @@ class TupleGetItem(Expr):
 
 
 @register_relay_node
-class RefCreate(Expr):
+class RefCreate(ExprWithOp):
     """Create a new reference from initial value.
     Parameters
     ----------
@@ -418,7 +380,7 @@ class RefCreate(Expr):
 
 
 @register_relay_node
-class RefRead(Expr):
+class RefRead(ExprWithOp):
     """Get the value inside the reference.
     Parameters
     ----------
@@ -430,7 +392,7 @@ class RefRead(Expr):
 
 
 @register_relay_node
-class RefWrite(Expr):
+class RefWrite(ExprWithOp):
     """
     Update the value inside the reference.
     The whole expression will evaluate to an empty tuple.
@@ -445,7 +407,7 @@ class RefWrite(Expr):
         self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
 
 
-class TempExpr(Expr):
+class TempExpr(ExprWithOp):
     """Baseclass of all TempExpr.
 
     TempExprs are pass specific expression that can be

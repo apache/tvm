@@ -37,6 +37,7 @@ except ImportError:
             return deque.__new__(cls, *args, **kwds)
 
 import tvm
+import tvm.ir._ffi_api
 
 from . import module
 from .base import Span, SourceName
@@ -190,7 +191,7 @@ def spanify(f):
         sp = Span(sn, line, col)
         if isinstance(ast, tvm.relay.expr.TupleWrapper):
             ast = ast.astuple()
-        ast.set_span(sp)
+        tvm.ir._ffi_api.NodeSetSpan(ast, sp)
         return ast
     return _wrapper
 
@@ -243,7 +244,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         """Pop off the current TypeVar scope and return it."""
         return self.type_var_scopes.popleft()
 
-    def mk_typ(self, name: str, kind: ty.Kind) -> ty.TypeVar:
+    def mk_typ(self, name: str, kind: ty.TypeKind) -> ty.TypeVar:
         """Create a new TypeVar and add it to the TypeVar scope."""
         typ = ty.TypeVar(name, kind)
         self.type_var_scopes[0].append((name, typ))
@@ -274,7 +275,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if isinstance(e, adt.Constructor):
             return "`{0}` ADT constructor".format(e.belong_to.name_hint)
         if isinstance(e, ty.GlobalTypeVar):
-            if e.kind == ty.Kind.AdtHandle:
+            if e.kind == ty.TypeKind.AdtHandle:
                 return "ADT definition"
         return "function definition"
 
@@ -492,7 +493,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             assert type_params
             for ty_param in type_params:
                 name = ty_param.getText()
-                self.mk_typ(name, ty.Kind.Type)
+                self.mk_typ(name, ty.TypeKind.Type)
 
         var_list, attr_list = self.visit(ctx.argList())
         if var_list is None:
@@ -528,13 +529,13 @@ class ParseTreeToRelayIR(RelayVisitor):
             ctx: Union[RelayParser.ExternAdtDefnContext, RelayParser.AdtDefnContext]):
         """Handles parsing of the name and type params of an ADT definition."""
         adt_name = ctx.generalIdent().getText()
-        adt_var = self.mk_global_typ_var(adt_name, ty.Kind.AdtHandle)
+        adt_var = self.mk_global_typ_var(adt_name, ty.TypeKind.AdtHandle)
         # parse type params
         type_params = ctx.typeParamList()
         if type_params is None:
             type_params = []
         else:
-            type_params = [self.mk_typ(type_ident.getText(), ty.Kind.Type)
+            type_params = [self.mk_typ(type_ident.getText(), ty.TypeKind.Type)
                            for type_ident in type_params.typeExpr()]
         return adt_var, type_params
 
