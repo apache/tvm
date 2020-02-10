@@ -51,7 +51,7 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     else:
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
-    exe = runtime.vm.compile(mod, target)
+    exe = relay.vm.compile(mod, target)
     vm = runtime.vm.VirtualMachine(exe)
     vm.init(ctx)
     return vm.invoke("main", *args)
@@ -573,7 +573,7 @@ def test_add_op_broadcast():
 
 def test_vm_optimize():
     mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
-    comp = runtime.vm.VMCompiler()
+    comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, "llvm", params)
 
 if __name__ == "__main__":

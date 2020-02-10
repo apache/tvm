@@ -189,7 +189,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
     def check_vm_result():
         with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
-            exe = runtime.vm.compile(mod, target=target, params=params)
+            exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
         exe = runtime.vm.Executable.load_exec(code, lib)

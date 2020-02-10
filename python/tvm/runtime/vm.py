@@ -23,9 +23,7 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
-import tvm.runtime.ndarray as _nd
 from tvm.runtime import Object, container
-from tvm import autotvm
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
@@ -117,7 +115,7 @@ class Executable(object):
             # create a Relay VM.
             ctx = tvm.cpu()
             target = "llvm"
-            executable = tvm.runtime.vm.compile(mod, target)
+            executable = relay.vm.compile(mod, target)
             code, lib = executable.save()
             # save and load the code and lib file.
             tmp = tvm.contrib.util.tempdir()
@@ -362,192 +360,6 @@ class VirtualMachine(object):
         """
         return self.invoke("main", *args, **kwargs)
 
-
-def compile(mod, target=None, target_host=None, params=None):
-    """Compile the module to VM executable. A helper function for VMCompiler.
-
-    Parameters
-    ----------
-    mod : relay.Module
-        The Relay module to build.
-
-    target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-        device/context name) to str/tvm.target.Target, optional
-        For heterogeneous compilation, it is a dictionary indicating context
-        to target mapping. For homogeneous compilation, it is a build target.
-
-    target_host : str or :any:`tvm.target.Target`, optional
-        Host compilation target, if target is device.
-        When TVM compiles device specific program such as CUDA,
-        we also need host(CPU) side code to interact with the driver
-        to setup the dimensions and parameters correctly.
-        target_host is used to specify the host side codegen target.
-        By default, llvm is used if it is enabled,
-        otherwise a stackvm intepreter is used.
-
-    params : dict of str to NDArray
-        Input parameters to the graph that do not change
-        during inference time. Used for constant folding.
-
-    Returns
-    -------
-    exec : Executable
-        The VM executable that contains both library code and bytecode.
-    """
-    compiler = VMCompiler()
-    if params:
-        compiler.set_params(params)
-    compiler.lower(mod, target, target_host)
-    compiler.codegen()
-    return compiler.get_exec()
-
-
-class VMCompiler(object):
-    """Compiler that compiles Relay module to VM executable."""
-    def __init__(self):
-        self.mod = _vm._VMCompiler()
-        self._lower = self.mod["lower"]
-        self._codegen = self.mod["codegen"]
-        self._get_exec = self.mod["get_executable"]
-        self._set_params_func = self.mod["set_params"]
-        self._get_params_func = self.mod["get_params"]
-        self._optimize = self.mod["optimize"]
-
-    def set_params(self, params):
-        """Set constant parameters for the model.
-
-        Parameters
-        ----------
-        params : dict of str to NDArray
-            Input parameters to the graph that do not change
-            during inference time. Used for constant folding.
-        """
-        inputs = {}
-        for name, param in params.items():
-            if isinstance(param, np.ndarray):
-                param = _nd.array(param)
-            inputs[name] = _expr.const(param)
-        self._set_params_func(inputs)
-
-    def get_params(self):
-        """Return the updated weights."""
-        params = self._get_params_func()
-        ret = {}
-        for key, value in params.items():
-            ret[key] = value.data
-        return ret
-
-    def lower(self, mod, target=None, target_host=None):
-        """Lower the module to VM bytecode.
-
-        Parameters
-        ----------
-        mod : relay.Module
-            The Relay module to build.
-
-        target : str, :any:`tvm.target.Target`, or dict of str(i.e.
-            device/context name) to str/tvm.target.Target, optional
-            For heterogeneous compilation, it is a dictionary indicating context
-            to target mapping. For homogeneous compilation, it is a build target.
-
-        target_host : str or :any:`tvm.target.Target`, optional
-            Host compilation target, if target is device.
-            When TVM compiles device specific program such as CUDA,
-            we also need host(CPU) side code to interact with the driver
-            to setup the dimensions and parameters correctly.
-            target_host is used to specify the host side codegen target.
-            By default, llvm is used if it is enabled,
-            otherwise a stackvm intepreter is used.
-        """
-        target = self._update_target(target)
-        target_host = self._update_target_host(target, target_host)
-        tophub_context = self._tophub_context(target)
-        with tophub_context:
-            self._lower(mod, target, target_host)
-
-    def codegen(self):
-        """Generate the kernel library."""
-        self._codegen()
-
-    def optimize(self, mod, target=None, params=None):
-        """Helper method that optimizes a Relay module via VM.
-
-        Parameters
-        ----------
-        mod : relay.Module
-
-        target : str, :any:`tvm.target.Target`, or dict of str (i.e.
-            device/context name) to str/tvm.target.Target, optional
-
-        params : dict of str to NDArray
-            Input parameters to the graph that do not change
-            during inference time. Used for constant folding.
-
-        Returns
-        -------
-        mod : relay.Module
-            The optimized relay module.
-
-        params : dict
-            The parameters of the final module.
-        """
-        target = self._update_target(target)
-        if params:
-            self.set_params(params)
-        return self._optimize(mod, target), self.get_params()
-
-    def get_exec(self):
-        """Get the VM executable.
-
-        Returns
-        -------
-        exec : Executable
-            The VM executable that contains both library code and bytecode.
-        """
-        return Executable(self._get_exec())
-
-    def _update_target(self, target):
-        """Update target."""
-        target = target if target else tvm.target.current_target()
-        if target is None:
-            raise ValueError("Target is not set in env or passed as argument.")
-        tgts = {}
-        if isinstance(target, (str, tvm.target.Target)):
-            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
-            tgts[dev_type] = tvm.target.create(target)
-        elif isinstance(target, dict):
-            for dev, tgt in target.items():
-                dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
-                tgts[dev_type] = tvm.target.create(tgt)
-        else:
-            raise TypeError("target is expected to be str, tvm.target.Target, " +
-                            "or dict of str to str/tvm.target.Target, but received " +
-                            "{}".format(type(target)))
-        return tgts
-
-    def _update_target_host(self, target, target_host):
-        """Update target host."""
-        target_host = None if target_host == "" else target_host
-        if not target_host:
-            for device_type, tgt in target.items():
-                if device_type.value == tvm.nd.cpu(0).device_type:
-                    target_host = tgt
-                    break
-        if not target_host:
-            target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
-        if isinstance(target_host, str):
-            target_host = tvm.target.create(target_host)
-        return target_host
-
-    def _tophub_context(self, target):
-        """Get the autotvm context."""
-        # If current dispatch context is fallback context (the default root context),
-        # then load pre-tuned parameters from TopHub
-        if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-            tophub_context = autotvm.tophub.context(list(target.values()))
-        else:
-            tophub_context = autotvm.util.EmptyContext()
-        return tophub_context
 
 class VMExecutor(Executor):
     """

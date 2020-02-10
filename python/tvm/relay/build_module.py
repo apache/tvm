@@ -22,7 +22,6 @@ import warnings
 import numpy as np
 
 from tvm import expr as tvm_expr
-from tvm.runtime import vm
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
@@ -30,6 +29,7 @@ from . import ty as _ty
 from . import expr as _expr
 from .module import Module as _Module
 from .backend import interpreter as _interpreter
+from .backend.vm import VMExecutor
 
 def _update_target(target):
     target = target if target else _target.current_target()
@@ -408,5 +408,5 @@ def create_executor(kind="debug",
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
     if kind == "vm":
-        return vm.VMExecutor(mod, ctx, target)
+        return VMExecutor(mod, ctx, target)
     raise RuntimeError("unknown execution strategy: {0}".format(kind))

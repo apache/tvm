@@ -14,25 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm.runtime import profiler_vm
-from tvm import relay
-from tvm.relay.testing import resnet
+"""The Relay virtual machine FFI namespace.
+"""
+import tvm._ffi
 
-def test_basic():
-    mod, params = resnet.get_workload()
-    target = 'llvm'
-    ctx = tvm.cpu()
-    if not profiler_vm.enabled():
-        return
-    exe = relay.vm.compile(mod, target, params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe)
-    vm.init(ctx)
-
-    data = np.random.rand(1, 3, 224, 224).astype('float32')
-    res = vm.invoke("main", [data])
-    print("\n{}".format(vm.get_stat()))
-    print("\n{}".format(vm.get_stat(False)))
-
-if __name__ == "__main__":
-    test_basic()
+tvm._ffi._init_api("relay._vm", __name__)

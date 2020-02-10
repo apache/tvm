@@ -18,4 +18,4 @@
 """
 import tvm._ffi
 
-tvm._ffi._init_api("relay._vm", __name__)
+tvm._ffi._init_api("runtime._vm", __name__)
