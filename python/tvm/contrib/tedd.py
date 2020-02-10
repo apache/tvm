@@ -16,6 +16,8 @@
 # under the License.
 """Tensor Expression Debug Display (TEDD), visualizing Tensor Expression"""
 import html
+import json
+import warnings
 from graphviz import Digraph
 from graphviz import Source
 from IPython.display import display
@@ -35,6 +37,53 @@ ITERVAR_TYPE_STRING_MAP = {
     7: ('kParallelized', '#F5B7B1'),
     8: ('kTensorized', '#A9DFBF'),
 }
+
+
+def dom_path_to_string(dom_path, prefix=""):
+    path_string = prefix
+    for index in dom_path:
+        path_string = path_string + '_' + str(index)
+    return path_string
+
+
+def insert_dot_id(sch):
+    """Insert unique ID for each node in the DOM tree.
+       They are used as Dot node ID.
+       """
+    for stage_idx, stage in enumerate(sch["stages"]):
+        dom_path = [stage_idx]
+        stage["id"] = dom_path_to_string(dom_path, stage["type"])
+        for itervar_idx, itervar in enumerate(stage["all_itervars"]):
+            dom_path = [stage_idx, itervar_idx]
+            itervar["id"] = dom_path_to_string(dom_path, itervar["type"])
+        for rel_idx, rel in enumerate(stage["relations"]):
+            dom_path = [stage_idx, rel_idx]
+            rel["id"] = dom_path_to_string(dom_path, rel["type"])
+        for tensor_idx, tensor in enumerate(stage["output_tensors"]):
+            dom_path = [stage_idx, tensor_idx]
+            tensor["id"] = dom_path_to_string(dom_path, tensor["type"])
+    return sch
+
+
+class ObjectManager:
+    """A helper class tracking schedule objects, e.g. stage, IterVar,
+       relationship, and tensor, to their DOM path."""
+    def __init__(self, sch):
+        self.dict = {}
+        for stage_idx, stage in enumerate(sch.stages):
+            self.dict[stage] = [stage_idx]
+            for itervar_idx, itervar in enumerate(stage.all_iter_vars):
+                self.dict[itervar] = [stage_idx, itervar_idx]
+            for rel_idx, rel in enumerate(stage.relations):
+                self.dict[rel] = [stage_idx, rel_idx]
+            for tensor_idx in range(stage.op.num_outputs):
+                self.dict[frozenset({stage.op.name, tensor_idx})] = [stage_idx, tensor_idx]
+
+    def get_dom_path(self, obj):
+        if obj is None:
+            return None
+        assert obj in self.dict, 'Node is no found.'
+        return self.dict[obj]
 
 
 def get_or_create_dot_id(obj, prefix="", assert_on_missing=False):
@@ -78,7 +127,9 @@ def get_itervar_type_info(iter_type):
 
 def get_itervar_label_color(itervar, iv_type):
     type_info = get_itervar_type_info(iv_type)
-    return str(itervar.var) + '(' + type_info[0] + ')', type_info[1]
+    return linebrk(
+        str(itervar["name"]) + '(' + type_info[0] + ')',
+        TVMDD_TABLE_BODY_WIDTH), type_info[1]
 
 
 def linebrk(s, n):
@@ -103,14 +154,15 @@ def create_graph(name="", rankdir='BT'):
 
 
 def itervar_label(itervar, index, index_color, label):
-    return '<TR><TD PORT="' + get_or_create_dot_id(itervar, str(
-        itervar.var)) + '" BGCOLOR="' + index_color + '">' + str(
+    return '<TR><TD PORT="' + itervar[
+        "id"] + '" BGCOLOR="' + index_color + '">' + str(
             index
-        ) + '</TD><TD BGCOLOR="white" PORT="itervar">' + label + '</TD></TR>'
+        ) + '</TD><TD BGCOLOR="white" PORT="itervar">' + label + '<br/>' + str(
+            itervar["properties"]["range"]) + '</TD></TR>'
 
 
 def stage_label(stage):
-    return stage.op.name + '<br/>Scope: ' + stage.scope
+    return stage['name'] + '<br/>Scope: ' + stage['properties']['scope']
 
 
 def legend_label():
@@ -118,9 +170,14 @@ def legend_label():
     for iter_type in ITERVAR_TYPE_STRING_MAP:
         name, color = ITERVAR_TYPE_STRING_MAP[iter_type]
         label += '<TR><TD BGCOLOR="' + color + '"></TD>' \
-                + '<TD BGCOLOR="white">' + name + '</TD></TR>'
+            + '<TD BGCOLOR="white">' + name + '</TD></TR>'
     label += '</TABLE>>'
     return label
+
+
+def leaf_itervars(stage):
+    filtered = filter(lambda x: (x["index"] >= 0), stage["all_itervars"])
+    return sorted(filtered, key=lambda x: x["index"])
 
 
 def legend_dot(g):
@@ -128,6 +185,13 @@ def legend_dot(g):
         subgraph.attr(label='Legend')
         label = legend_label()
         subgraph.node('legend', label, shape='none', margin='0')
+
+
+def extract_dom_for_viz(sch):
+    json_str = dump_json(sch)
+    s = json.loads(json_str)
+    s = insert_dot_id(s)
+    return s
 
 
 def dump_graph(dot_string,
@@ -148,6 +212,189 @@ def dump_graph(dot_string,
     if output_dot_string:
         return dot_string
     return None
+
+
+def dump_json(sch):
+    """Serialize data for visualization from a schedule in JSON format.
+
+        Parameters
+        ----------
+        sch : schedule
+                    The schedule object to serialize
+
+        Returns
+        -------
+        json : string
+            Serialized JSON string
+    """
+    def encode_itervar(itervar, stage, index, range_map):
+        """Extract and encode IterVar visualization data to a dictionary"""
+        ivrange = range_map[itervar] if range_map is not None and itervar in range_map else None
+        bind_thread = None
+        tensor_intrin = None
+        if itervar in stage.iter_var_attrs:
+            attr = stage.iter_var_attrs[itervar]
+            iv_type = attr.iter_type
+            # binding
+            bind_thread = str(
+                attr.bind_thread.var) if attr.bind_thread is not None else None
+            # tensorization
+            if attr.tensor_intrin is not None:
+                tensor_intrin = str(attr.tensor_intrin.body)
+                # remove the final \n
+                tensor_intrin = tensor_intrin[0:-1] if tensor_intrin[
+                    -1] == "\n" else tensor_intrin
+            else:
+                tensor_intrin = None
+        else:
+            iv_type = itervar.iter_type
+        itervar_dict = {
+            "type": "IterVar",
+            "index": index,
+            "name": str(itervar.var),
+            "itervar_type": iv_type,
+            "properties": {
+                "thread": bind_thread,
+                "intrin": tensor_intrin,
+                "range": str(ivrange) if ivrange is not None else 'range(N/A)',
+            }
+        }
+        return itervar_dict
+
+    def encode_itervars(stage, range_map):
+        """Extract and encode IterVars visualization data from a stage to a dictionary"""
+        def get_leaf_itervar_index(itervar, leaf_iv):
+            for leaf_index, ivar in enumerate(leaf_iv):
+                if ivar == itervar:
+                    return leaf_index
+            return -1
+
+        itervars = []
+        for itervar in stage.all_iter_vars:
+            leaf_index = get_leaf_itervar_index(itervar, stage.leaf_iter_vars)
+            itervars.append(
+                encode_itervar(itervar, stage, leaf_index,
+                               range_map))
+        return itervars
+
+    def encode_itervar_relation(obj_manager, rel):
+        """Extract and encode IterVar Relationship visualization data to a dictionary"""
+        rel_type = type(rel)
+        if rel_type is tvm.schedule.Split:
+            node_type = 'Split_Relation'
+            rel_dict = {
+                "type": node_type,
+                "parent": obj_manager.get_dom_path(rel.parent),
+                "outer": obj_manager.get_dom_path(rel.outer),
+                "inner": obj_manager.get_dom_path(rel.inner),
+            }
+        elif rel_type is tvm.schedule.Fuse:
+            node_type = 'Fuse_Relation'
+            rel_dict = {
+                "type": node_type,
+                "fused": obj_manager.get_dom_path(rel.fused),
+                "outer": obj_manager.get_dom_path(rel.outer),
+                "inner": obj_manager.get_dom_path(rel.inner),
+            }
+        elif rel_type is tvm.schedule.Singleton:
+            node_type = 'Singleton_Relation'
+            rel_dict = {
+                "type": node_type,
+                "iter": obj_manager.get_dom_path(rel.iter),
+            }
+        else:
+            return None
+        return rel_dict
+
+    def encode_itervar_relations(obj_manager, stage):
+        relations = []
+        for i in range(len(stage.relations)):
+            rel = encode_itervar_relation(obj_manager, stage.relations[i])
+            if rel is not None:
+                relations.append(rel)
+        return relations
+
+    def encode_tensor(obj_manager, tensor, stage):
+        """Extract and encode tensor visualization data to a dictionary"""
+        tensor_dict = {
+            "type": "Tensor",
+            "source": obj_manager.get_dom_path(stage),
+            "value_index": tensor.value_index,
+            "shape": str(tensor.op.output(tensor.value_index).shape),
+            "data_type": tensor.op.output(tensor.value_index).dtype,
+        }
+        return tensor_dict
+
+    def encode_tensors(obj_manager, stage):
+        tensors = []
+        for i in range(stage.op.num_outputs):
+            tensor = stage.op.output(i)
+            tensors.append(
+                encode_tensor(obj_manager, tensor, stage))
+        tensors.sort(key=lambda tensor: tensor["value_index"])
+        return tensors
+
+    def encode_stage(obj_manager, stage, range_map):
+        """Extract and encode stage visualization data to a dictionary"""
+        stage_dict = {
+            "type":
+            "Stage",
+            "name":
+            stage.op.name,
+            "attaching_to":
+            obj_manager.get_dom_path(stage.attach_ivar),
+            "compute":
+            str(stage.op.body) if hasattr(stage.op, 'body') else None,
+            "properties": {
+                "scope": stage.scope,
+            },
+            "all_itervars":
+            encode_itervars(stage, range_map),
+            "relations":
+            encode_itervar_relations(obj_manager, stage),
+            "input_tensors": [
+                obj_manager.get_dom_path(
+                    frozenset({tensor.op.name, tensor.value_index}))
+                for tensor in stage.op.input_tensors
+            ],
+            "output_tensors":
+            encode_tensors(obj_manager, stage),
+        }
+        return stage_dict
+
+    def encode_schedule(sch):
+        """Extract and encode data from a schedule for visualization to a nested dictionary.
+        It is useful for JSON to serialize schedule.
+
+            Parameters
+            ----------
+            sch : schedule
+                        The schedule object to extract
+
+            Returns
+            -------
+            dict : dictionary
+                A nested dictionary
+        """
+        assert isinstance(sch, tvm.schedule.Schedule
+                          ), 'Input is not a tvm.schedule.Schedule object.'
+        try:
+            range_map = tvm.schedule.InferBound(sch)
+        except tvm._ffi.base.TVMError as expt:
+            warnings.warn(
+                'Ranges are not available, because InferBound fails with the following error:\n'
+                + str(expt))
+            range_map = None
+        obj_manager = ObjectManager(sch)
+        stages = []
+        for stage in sch.stages:
+            stages.append(encode_stage(obj_manager, stage, range_map))
+        return {
+            "type": "Schedule",
+            "stages": stages,
+        }
+
+    return json.dumps(sch, default=encode_schedule)
 
 
 def viz_schedule_tree(sch,
@@ -195,10 +442,7 @@ def viz_schedule_tree(sch,
 
     def stage_node_dot(g, stage):
         node_label = stage_node_label(stage)
-        g.node(get_or_create_dot_id(stage.op, stage.op.name),
-               node_label,
-               shape='none',
-               margin='0')
+        g.node(stage['id'], node_label, shape='none', margin='0')
 
     def stage_node_label(stage):
         """Return a html format label for the given stage."""
@@ -206,31 +450,24 @@ def viz_schedule_tree(sch,
             'CELLPADDING="4"> <TR><TD BGCOLOR="lightgrey" ' \
             'COLSPAN="2" PORT="stage">' + stage_label(stage) + '</TD></TR>'
 
-        for index in range(len(stage.leaf_iter_vars)):
-            leafiv = stage.leaf_iter_vars[index]
-            iv_type = leafiv.iter_type
+        for leafiv in leaf_itervars(stage):
+            iv_type = leafiv["itervar_type"]
             var_attr_label = ''
-            if leafiv in stage.iter_var_attrs:
-                # binding
-                bind_thread = stage.iter_var_attrs[leafiv].bind_thread
-                if bind_thread is not None:
-                    var_attr_label = var_attr_label + " (" + str(
-                        bind_thread.var) + ")"
-                # tensorization
-                tensor_intrin = stage.iter_var_attrs[leafiv].tensor_intrin
-                if tensor_intrin is not None:
-                    var_attr_label = var_attr_label + \
-                        " (tensor_intrin:" + \
-                        linebrk(str(
-                            stage.iter_var_attrs[leafiv].tensor_intrin.body),
-                                TVMDD_TABLE_BODY_WIDTH) + ")"
-                iv_type = stage.iter_var_attrs[leafiv].iter_type
+            if "thread" in leafiv["properties"] and \
+                    leafiv["properties"]["thread"] is not None:
+                var_attr_label = var_attr_label + "<br/>(" + str(
+                    leafiv["properties"]["thread"]) + ")"
+            if "intrin" in leafiv["properties"] and \
+                    leafiv["properties"]["intrin"] is not None:
+                var_attr_label = var_attr_label + "<br/>" + \
+                    linebrk("(tensor_intrin:" + str(
+                        leafiv["properties"]["intrin"]) + ")", TVMDD_TABLE_BODY_WIDTH)
             var_label, color = get_itervar_label_color(leafiv, iv_type)
-            label += itervar_label(leafiv, index, color,
+            label += itervar_label(leafiv, leafiv["index"], color,
                                    var_label + var_attr_label)
-        if hasattr(stage.op, 'body'):
+        if stage["compute"] is not None:
             label += '<TR><TD COLSPAN="2">' + linebrk(str(
-                stage.op.body), TVMDD_TABLE_BODY_WIDTH) + '</TD></TR>'
+                stage["compute"]), TVMDD_TABLE_BODY_WIDTH) + '</TD></TR>'
         label += '</TABLE>>'
         return label
 
@@ -238,24 +475,19 @@ def viz_schedule_tree(sch,
         """If the given stage attaches to another stage, create an edge from it
         stage to its attach point; otherwise, create an edge to the ROOT.
         """
-        if stage.attach_type == 4:
-            src = get_or_create_dot_id(stage.op, stage.op.name,
-                                       True) + ':stage'
-            dst = get_or_create_dot_id(
-                stage.attach_stage.op,
-                stage.attach_stage.op.name, True) + ':' + get_or_create_dot_id(
-                    stage.attach_ivar, str(stage.attach_ivar.var), True)
-        else:
-            src = get_or_create_dot_id(stage.op, stage.op.name,
-                                       True) + ':stage'
-            dst = 'ROOT'
+        src = stage["id"]
+        dst = dom_path_to_string(
+            [stage["attaching_to"][0]], "Stage") + ":" + dom_path_to_string(
+                stage["attaching_to"],
+                "IterVar") if stage["attaching_to"] is not None else "ROOT"
         g.edge(src, dst)
 
     graph = create_schedule_tree_graph("Schedule Tree")
+    s = extract_dom_for_viz(sch)
     legend_dot(graph)
-    for stage in sch.stages:
+    for stage in s['stages']:
         stage_node_dot(graph, stage)
-    for stage in sch.stages:
+    for stage in s['stages']:
         compute_at_dot(graph, stage)
     root_dot(graph)
     return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)
@@ -300,11 +532,7 @@ def viz_itervar_relationship_graph(sch,
 
     def itervar_node_dot(g, itervar, iv_type, index):
         label = itervar_node_label(itervar, iv_type, index)
-        var_name = str(itervar.var)
-        g.node(get_or_create_dot_id(itervar, var_name),
-               label,
-               shape='none',
-               margin='0')
+        g.node(itervar["id"], label, shape='none', margin='0')
 
     def itervar_node_label(itervar, iv_type, index):
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
@@ -316,12 +544,11 @@ def viz_itervar_relationship_graph(sch,
 
     def itervar_relation_node_dot(g, node_id, node_label, input_ports,
                                   output_ports):
-        label = itervar_relation_node_label(node_label,
-                                            input_ports, output_ports)
+        label = itervar_relation_node_label(node_label, input_ports,
+                                            output_ports)
         g.node(node_id, label, shape='none', margin='0')
 
-    def itervar_relation_node_label(node_label, input_ports,
-                                    output_ports):
+    def itervar_relation_node_label(node_label, input_ports, output_ports):
         """Return a html format label for an itervar relationship node
         including node_label and input/output ports.
         """
@@ -332,7 +559,7 @@ def viz_itervar_relationship_graph(sch,
             if i < len(input_ports):
                 input_port = input_ports[i]
                 label += '<TD BGCOLOR="lightgrey" PORT="' + input_port + '">' \
-                        + input_port + '</TD>'
+                    + input_port + '</TD>'
             else:
                 label += '<TD BGCOLOR="white"></TD>'
         label += '</TR>'
@@ -352,69 +579,54 @@ def viz_itervar_relationship_graph(sch,
 
     def itervar_relation_dot(g, node, node_id):
         """Create an itervar relationship node."""
-        node_type = type(node)
-        if node_type is tvm.schedule.Split:
+        node_type = node["type"]
+        if node_type == "Split_Relation":
             node_type = 'Split'
-            itervar_relation_node_dot(g, node_id, node_type,
-                                      ['Input'], ['Outer', 'Inner'])
-            parent = get_or_create_dot_id(node.parent, str(node.parent.var),
-                                          True)
-            outer = get_or_create_dot_id(node.outer, str(node.outer.var), True)
-            inner = get_or_create_dot_id(node.inner, str(node.inner.var), True)
+            itervar_relation_node_dot(g, node_id, node_type, ['Input'],
+                                      ['Outer', 'Inner'])
+            parent = dom_path_to_string(node["parent"], "IterVar")
+            outer = dom_path_to_string(node["outer"], "IterVar")
+            inner = dom_path_to_string(node["inner"], "IterVar")
             g.edge(parent + ':itervar', node_id + ':Input')
             g.edge(node_id + ':Outer', outer + ':itervar')
             g.edge(node_id + ':Inner', inner + ':itervar')
-        elif node_type is tvm.schedule.Fuse:
+        elif node_type == "Fuse_Relation":
             node_type = 'Fuse'
             itervar_relation_node_dot(g, node_id, node_type,
                                       ['Outer', 'Inner'], ['Fused'])
-            fused = get_or_create_dot_id(node.fused, str(node.fused.var), True)
-            outer = get_or_create_dot_id(node.outer, str(node.outer.var), True)
-            inner = get_or_create_dot_id(node.inner, str(node.inner.var), True)
+            fused = dom_path_to_string(node["fused"], "IterVar")
+            outer = dom_path_to_string(node["outer"], "IterVar")
+            inner = dom_path_to_string(node["inner"], "IterVar")
             g.edge(outer + ':itervar', node_id + ':Outer')
             g.edge(inner + ':itervar', node_id + ':Inner')
             g.edge(node_id + ':Fused', fused + ':itervar')
-        elif node_type is tvm.schedule.Singleton:
+        elif node_type == "Singleton_Relation":
             node_type = 'Singleton'
-            itervar_relation_node_dot(g, node_id, node_type, [],
-                                      ['Iter'])
-            itervar = get_or_create_dot_id(node.iter, str(node.iter.var), True)
+            itervar_relation_node_dot(g, node_id, node_type, [], ['Iter'])
+            itervar = dom_path_to_string(node["inner"], "IterVar")
             g.edge(node_id + ':Iter', itervar + ':itervar')
         else:
             assert False, 'Unknown IterVarRelationNode: ' + node_type
 
-    def get_leaf_itervars_index(stage, itervar):
-        """Return the index of itervar in the given stage."""
-        for i, leaf_iv in enumerate(stage.leaf_iter_vars):
-            if itervar == leaf_iv:
-                return i
-        return -1
-
     def stage_node_dot(g, stage):
         """Create a stage node."""
-        with g.subgraph(
-            name='cluster_' +
-            get_or_create_dot_id(stage.op, stage.op.name)) as subgraph:
-            subgraph.attr(label=stage.op.name)
-            if stage.all_iter_vars:
-                for i in range(len(stage.all_iter_vars)):
-                    itervar = stage.all_iter_vars[i]
-                    if itervar in stage.iter_var_attrs:
-                        iv_type = stage.iter_var_attrs[itervar].iter_type
-                    else:
-                        iv_type = itervar.iter_type
+        with g.subgraph(name='cluster_' + stage["id"]) as subgraph:
+            subgraph.attr(label=stage["name"])
+            if stage["all_itervars"]:
+                for itervar in stage["all_itervars"]:
+                    iv_type = itervar["itervar_type"]
                     itervar_node_dot(subgraph, itervar, iv_type,
-                                     get_leaf_itervars_index(stage, itervar))
-                for i in range(len(stage.relations)):
-                    node_id = get_or_create_dot_id(
-                        stage.relations[i], stage.op.name + "_rel_" + str(i))
-                    itervar_relation_dot(subgraph, stage.relations[i], node_id)
+                                     itervar["index"])
+                for rel in stage["relations"]:
+                    node_id = rel["id"]
+                    itervar_relation_dot(subgraph, rel, node_id)
             else:
-                subgraph.node(stage.op.name + '_placeholder', style='invis')
+                subgraph.node(stage["name"] + '_placeholder', style='invis')
 
     graph = create_itervar_relation_graph("IterVar Relationship Graph")
+    s = extract_dom_for_viz(sch)
     legend_dot(graph)
-    for stage in sch.stages:
+    for stage in s['stages']:
         stage_node_dot(graph, stage)
 
     return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)
@@ -454,40 +666,44 @@ def viz_dataflow_graph(sch,
     def create_dataflow_graph(name=""):
         return create_graph(name=name, rankdir='LR')
 
+    def tensor_node_dot(g, tensor):
+        """Create a tensor node."""
+        label = tensor_node_label(tensor)
+        g.node(tensor["id"], label, shape='oval', margin='0')
+
+    def tensor_node_label(tensor):
+        """Return a html format label for the given tensor."""
+        label = str(tensor["shape"]) + '\n' + str(tensor["data_type"])
+        return label
+
     def stage_node_dot(g, stage):
         """Create a stage node."""
-        op = stage.op
         label = stage_node_label(stage)
-        g.node(get_or_create_dot_id(op, op.name),
-               label,
-               shape='none',
-               margin='0')
+        g.node(stage["id"], label, shape='none', margin='0')
 
     def stage_node_label(stage):
         """Return a html format label for the given stage."""
-        op = stage.op
-        rows = max(1, max(op.num_outputs, len(op.input_tensors)))
+        rows = max(
+            1, max(len(stage["output_tensors"]), len(stage["input_tensors"])))
         label = '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" ' \
             'CELLPADDING="4">'
         for i in range(rows):
             label += '<TR>'
-            if i < len(op.input_tensors):
+            if i < len(stage["input_tensors"]):
                 port_id = get_port_id(True, i)
                 label += '<TD BGCOLOR="lightgrey" COLSPAN="2" PORT="' \
                     + port_id + '">' + str(
-                        i) + ':' + str(op.input_tensors[i].shape) + '::' + str(
-                            op.input_tensors[i].dtype) + '</TD>'
+                        i) + '</TD>'
             else:
                 label += '<TD BGCOLOR="white" COLSPAN="2"></TD>'
             if i == 0:
                 label += '<TD BGCOLOR="white" COLSPAN="2" ROWSPAN="' + str(
                     rows) + '">' + stage_label(stage) + '</TD>'
-            if i < op.num_outputs:
+            if i < len(stage["output_tensors"]):
                 port_id = get_port_id(False, i)
                 label += '<TD BGCOLOR="lightgrey" COLSPAN="2" PORT="' \
                     + port_id + '">' + str(
-                        i) + ':' + str(op.output(0).shape) + '::' + str(
-                            op.output(0).dtype) + '</TD>'
+                        i) + '</TD>'
             else:
                 label += '<TD BGCOLOR="white" COLSPAN="2"></TD>'
             label += '</TR>'
@@ -496,24 +712,24 @@ def viz_dataflow_graph(sch,
 
     def dfg_dot(g, sch):
         """Create edges among stages."""
-        stages = sch.stages
+        stages = sch['stages']
         for stage in stages:
-            dest_op = stage.op
-            for i in range(len(stage.op.input_tensors)):
-                source_tensor = stage.op.input_tensors[i]
-                source_op = source_tensor.op
-                src = get_or_create_dot_id(source_op, source_op.name,
-                                           True) + ':' + get_port_id(
-                                               False, 0)
-                dst = get_or_create_dot_id(dest_op, dest_op.name,
-                                           True) + ':' + get_port_id(
-                                               True, i)
+            for i in range(len(stage["input_tensors"])):
+                src = dom_path_to_string(stage["input_tensors"][i], "Tensor")
+                dst = stage["id"] + ':' + get_port_id(True, i)
+                g.edge(src, dst)
+            for i in range(len(stage["output_tensors"])):
+                src = stage["id"] + ':' + get_port_id(False, i)
+                dst = stage["output_tensors"][i]["id"]
                 g.edge(src, dst)
 
     graph = create_dataflow_graph("Dataflow Graph")
-    for stage in sch.stages:
+    s = extract_dom_for_viz(sch)
+    for stage in s['stages']:
         stage_node_dot(graph, stage)
+        for tensor in stage["output_tensors"]:
+            tensor_node_dot(graph, tensor)
 
-    dfg_dot(graph, sch)
+    dfg_dot(graph, s)
 
     return dump_graph(graph.source, show_svg, dot_file_path, output_dot_string)

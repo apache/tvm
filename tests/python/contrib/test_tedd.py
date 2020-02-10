@@ -18,7 +18,6 @@ import tvm
 import numpy as np
 import re
 import topi
-# from tvm.contrib import tedd
 
 
 def findany(pattern, str):
@@ -27,6 +26,10 @@ def findany(pattern, str):
             0), 'Pattern not found.\nPattern: ' + pattern + '\nString:  ' + str
 
 
+def checkdepdency():
+    import pkg_resources
+    return not {'graphviz', 'IPython'} - {pkg.key for pkg in pkg_resources.working_set}
+
 def test_dfg():
     A = tvm.placeholder((1024, 4096), dtype='float32', name='A')
     B = topi.nn.softmax(A)
@@ -34,24 +37,23 @@ def test_dfg():
     s = tvm.create_schedule([B.op])
 
     def verify():
+        from tvm.contrib import tedd
         str = tedd.viz_dataflow_graph(s, False, '', True)
         # Check all edges are available
         findany(r"digraph \"Dataflow Graph\"", str)
-        findany(r"A0x[\da-f]+:O_0 -> T_softmax_maxelem0x[\da-f]+:I_0", str)
-        findany(r"A0x[\da-f]+:O_0 -> T_softmax_exp0x[\da-f]+:I_0", str)
-        findany(
-            r"T_softmax_maxelem0x[\da-f]+:O_0 -> T_softmax_exp0x[\da-f]+:I_1",
-            str)
-        findany(
-            r"T_softmax_exp0x[\da-f]+:O_0 -> T_softmax_expsum0x[\da-f]+:I_0",
-            str)
-        findany(r"T_softmax_exp0x[\da-f]+:O_0 -> T_softmax_norm0x[\da-f]+:I_0",
-                str)
-        findany(
-            r"T_softmax_expsum0x[\da-f]+:O_0 -> T_softmax_norm0x[\da-f]+:I_1",
-            str)
-
-    # verify()
+        findany(r"Stage_0:O_0 -> Tensor_0_0", str)
+        findany(r"Tensor_0_0 -> Stage_1:I_0", str)
+        findany(r"Stage_1:O_0 -> Tensor_1_0", str)
+        findany(r"Tensor_0_0 -> Stage_2:I_0", str)
+        findany(r"Tensor_1_0 -> Stage_2:I_1", str)
+        findany(r"Stage_2:O_0 -> Tensor_2_0", str)
+        findany(r"Tensor_2_0 -> Stage_3:I_0", str)
+        findany(r"Stage_3:O_0 -> Tensor_3_0", str)
+        findany(r"Tensor_2_0 -> Stage_4:I_0", str)                
+        findany(r"Tensor_3_0 -> Stage_4:I_1", str)
+        findany(r"Stage_4:O_0 -> Tensor_4_0", str)
+    if checkdepdency():
+        verify()
 
 
 def test_itervar_relationship_graph():
@@ -65,23 +67,25 @@ def test_itervar_relationship_graph():
     s[B].split(B.op.reduce_axis[0], factor=16)
 
     def verify():
+        from tvm.contrib import tedd
         str = tedd.viz_itervar_relationship_graph(s, False, '', True)
         findany(r"digraph \"IterVar Relationship Graph\"", str)
         findany(r"subgraph cluster_legend", str)
         # Check subgraphs for stages
-        findany(r"subgraph cluster_A0x[\da-f]+", str)
-        findany(r"subgraph cluster_B0x[\da-f]+", str)
+        findany(r"subgraph cluster_Stage_0", str)
+        findany(r"subgraph cluster_Stage_1", str)
         # Check itervars and their types
-        findany(r"i0x[\da-f]+.+\>0\</TD\>.+\>i\(kDataPar\)", str)
-        findany(r"k0x[\da-f]+.+\>-1\</TD\>.+\>k\(kCommReduce\)", str)
+        findany(r"i\(kDataPar\)\<br/\>range\(min=0, ext=n\)", str)
+        findany(r"k\(kCommReduce\)\<br/\>range\(min=0, ext=m\)", str)
         # Check the split node
-        findany(r"B_rel_00x[\da-f]+.+\>Split", str)
+        findany(r"Split_Relation_1_0 +.+\>Split", str)
         # Check all edges to/from the split node
-        findany(r"k0x[\da-f]+:itervar -> B_rel_00x[\da-f]+:Input", str)
-        findany(r"B_rel_00x[\da-f]+:Outer -> k_outer0x[\da-f]+:itervar", str)
-        findany(r"B_rel_00x[\da-f]+:Inner -> k_inner0x[\da-f]+:itervar", str)
+        findany(r"IterVar_1_1:itervar -> Split_Relation_1_0:Input", str)
+        findany(r"Split_Relation_1_0:Outer -> IterVar_1_2:itervar", str)
+        findany(r"Split_Relation_1_0:Inner -> IterVar_1_3:itervar", str)
 
-    # verify()
+    if checkdepdency():
+        verify()
 
 
 def test_schedule_tree():
@@ -107,12 +111,13 @@ def test_schedule_tree():
     s[C].bind(s[C].op.axis[1], thread_x)
 
     def verify():
+        from tvm.contrib import tedd
         str = tedd.viz_schedule_tree(s, False, '', True)
         findany(r"digraph \"Schedule Tree\"", str)
         findany(r"subgraph cluster_legend", str)
         # Check the A_shared stage, including memory scope, itervars, 
         # and compute
-        findany(r"A_shared0x[\da-f]+.*A\.shared<br/>Scope: shared.+>0.+>" \
+        findany(r"Stage_1.*A\.shared<br/>Scope: shared.+>0.+>" \
             r"ax0\(kDataPar\).+>1.+ax1\(kDataPar\).+>2.+>ax2\(kDataPar\).+>" \
             r"\[A\(ax0, ax1, ax2\)\]", str)
         # Check itervars of types different from KDataPar
@@ -120,9 +125,10 @@ def test_schedule_tree():
         findany(r"r.outer\(kCommReduce\)", str)
         findany(r"label=ROOT", str)
         # Check the compute_at edge
-        findany(r"C_rf0x[\da-f]+:stage -> C_repl0x[\da-f]+:ax10x[\da-f]+", str)
+        findany(r"Stage_1", str)
 
-    # verify()
+    if checkdepdency():
+        verify()
 
 
 if __name__ == "__main__":
