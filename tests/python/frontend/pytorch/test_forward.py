@@ -692,7 +692,8 @@ def test_squeezenet1_1():
 
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
-    verify_model("mobilenet_v2")
+    with torch.no_grad():
+        verify_model("mobilenet_v2")
 
 def test_densenet121():
     torch.set_grad_enabled(False)
