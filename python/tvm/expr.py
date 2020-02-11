@@ -113,11 +113,20 @@ class ExprOp(object):
     def __and__(self, other):
         return _make.bitwise_and(self, other)
 
+    def __rand__(self, other):
+        return _make.bitwise_and(other, self)
+
     def __or__(self, other):
         return _make.bitwise_or(self, other)
 
+    def __ror__(self, other):
+        return _make.bitwise_or(other, self)
+
     def __xor__(self, other):
         return _make.bitwise_xor(self, other)
+
+    def __rxor__(self, other):
+        return _make.bitwise_xor(other, self)
 
     def __invert__(self):
         return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)

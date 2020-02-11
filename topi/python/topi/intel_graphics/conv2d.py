@@ -50,27 +50,27 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
             oc_bn = i
             break
 
-        if HSTR == 2:
-            if out_channel + hkernel == 515:
-                block_oh = 4
-                block_ow = 4
-            else:
-                block_oh = 4
-                block_ow = 5
-        elif hkernel == 3:
-            if out_channel == 512:
-                block_oh = 2
-                block_ow = 7
-            else:
-                block_oh = 2
-                block_ow = 14
+    if HSTR == 2:
+        if out_channel + hkernel == 515:
+            block_oh = 4
+            block_ow = 4
         else:
-            block_oh = 1
-            block_ow = 16
-        cfg["tile_ic"] = SplitEntity([in_channel // ic_bn, ic_bn])
-        cfg["tile_oc"] = SplitEntity([out_channel // oc_bn, oc_bn])
-        cfg["block_oh"] = OtherOptionEntity(block_oh)
-        cfg["block_ow"] = OtherOptionEntity(block_ow)
+            block_oh = 4
+            block_ow = 5
+    elif hkernel == 3:
+        if out_channel == 512:
+            block_oh = 2
+            block_ow = 7
+        else:
+            block_oh = 2
+            block_ow = 14
+    else:
+        block_oh = 1
+        block_ow = 16
+    cfg["tile_ic"] = SplitEntity([in_channel // ic_bn, ic_bn])
+    cfg["tile_oc"] = SplitEntity([out_channel // oc_bn, oc_bn])
+    cfg["block_oh"] = OtherOptionEntity(block_oh)
+    cfg["block_ow"] = OtherOptionEntity(block_ow)
 
 
 def _create_schedule_template(cfg, data, kernel, strides, padding, dilation, layout):
