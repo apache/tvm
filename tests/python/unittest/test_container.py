@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 from tvm import nd, relay
-from tvm import container as _container
+from tvm.runtime import container as _container
 
 
 def test_adt_constructor():

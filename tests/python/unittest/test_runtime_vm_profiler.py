@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import tvm
 import numpy as np
 
-import pytest
+import tvm
+from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import resnet
 
@@ -26,10 +25,10 @@ def test_basic():
     mod, params = resnet.get_workload()
     target = 'llvm'
     ctx = tvm.cpu()
-    if not relay.profiler_vm.enabled():
+    if not profiler_vm.enabled():
         return
     exe = relay.vm.compile(mod, target, params=params)
-    vm = relay.profiler_vm.VirtualMachineProfiler(exe)
+    vm = profiler_vm.VirtualMachineProfiler(exe)
     vm.init(ctx)
 
     data = np.random.rand(1, 3, 224, 224).astype('float32')

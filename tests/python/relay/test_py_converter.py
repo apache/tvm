@@ -19,7 +19,7 @@ import tvm
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
 from tvm.relay.prelude import Prelude
-from tvm.container import ADT
+from tvm.runtime.container import ADT
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 
 # helper: uses a dummy let binding to sequence a list
