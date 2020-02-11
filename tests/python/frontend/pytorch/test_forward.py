@@ -690,11 +690,6 @@ def test_squeezenet1_1():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_1")
 
-def test_mobilenet_v2():
-    torch.set_grad_enabled(False)
-    with torch.no_grad():
-        verify_model("mobilenet_v2")
-
 def test_densenet121():
     torch.set_grad_enabled(False)
     verify_model("densenet121")
@@ -724,6 +719,10 @@ def test_vgg11():
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
     verify_model("vgg11_bn")
+    
+def test_mobilenet_v2():
+    torch.set_grad_enabled(False)
+    verify_model("mobilenet_v2")
 """
 
 if __name__ == "__main__":
@@ -761,7 +760,6 @@ if __name__ == "__main__":
     test_resnet18()
     test_squeezenet1_0()
     test_squeezenet1_1()
-    test_mobilenet_v2()
     test_densenet121()
     test_inception_v3()
     test_googlenet()
