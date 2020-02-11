@@ -34,7 +34,7 @@ def _convert(arg, cargs):
     elif isinstance(arg, np.ndarray):
         nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
         cargs.append(nd_arr)
-    elif isinstance(arg, tvm.nd.NDArray):
+    elif isinstance(arg, tvm.runtime.NDArray):
         cargs.append(arg)
     elif isinstance(arg, (tuple, list)):
         field_args = []
@@ -88,11 +88,14 @@ class Executable(object):
         The returned code is organized with the following sections in order.
          - Global section. This section contains the globals used by the
          virtual machine.
+
          - Constant section. This section is used to store the constant pool of
          a virtual machine.
+
          - Primitive name section. This section is introduced to accommodate
          the list of primitive operator names that will be invoked by the
          virtual machine.
+
          - Code section. The VM functions, including bytecode, are sitting in
          this section.
 
@@ -211,10 +214,15 @@ class Executable(object):
         -----
         The bytecode is in the following format:
           func_name reg_file_size num_instructions
+
           param1 param2 ... paramM
+
           instruction1
+
           instruction2
+
           ...
+
           instructionN
 
         Each instruction is printed in the following format:
@@ -266,7 +274,7 @@ class VirtualMachine(object):
     def __init__(self, mod):
         if not isinstance(mod, (Executable, tvm.runtime.Module)):
             raise TypeError("mod is expected to be the type of Executable or " +
-                            "tvm.Module, but received {}".format(type(mod)))
+                            "tvm.runtime.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
         self.mod = _ffi_api._VirtualMachine(m)
         self._exec = mod
@@ -293,10 +301,10 @@ class VirtualMachine(object):
         func_name : str
             The name of the function.
 
-        args : list[NDArray] or list[np.ndarray]
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
             The arguments to the function.
 
-        kwargs: dict of str to NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
             Named arguments to the function.
         """
         if kwargs:
@@ -323,10 +331,10 @@ class VirtualMachine(object):
         func_name : str
             The name of the function.
 
-        args : list[NDArray] or list[np.ndarray]
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
             The arguments to the function.
 
-        kwargs: dict of str to NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
             Named arguments to the function.
 
         Returns
@@ -343,10 +351,10 @@ class VirtualMachine(object):
 
         Parameters
         ----------
-        args : list[NDArray] or list[np.ndarray]
+        args : list[tvm.runtime.NDArray] or list[np.ndarray]
             The arguments to the function.
 
-        kwargs: dict of str to NDArray or np.ndarray
+        kwargs: dict of str to tvm.runtime.NDArray or np.ndarray
             Named arguments to the function.
 
         Returns
