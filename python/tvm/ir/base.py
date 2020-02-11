@@ -18,8 +18,9 @@
 import tvm._ffi
 
 from tvm.runtime import Object
+import tvm.runtime._ffi_node_api
 from . import _ffi_api
-
+from . import json_compact
 
 class Node(Object):
     """Base class of all IR Nodes, implements astext function."""
@@ -84,3 +85,40 @@ class Span(Object):
     def __init__(self, source, lineno, col_offset):
         self.__init_handle_by_constructor__(
             _ffi_api.Span, source, lineno, col_offset)
+
+
+def load_json(json_str):
+    """Load tvm object from json_str.
+
+    Parameters
+    ----------
+    json_str : str
+        The json string
+
+    Returns
+    -------
+    node : Object
+        The loaded tvm node.
+    """
+
+    try:
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+    except TVMError:
+        json_str = json_compact.upgrade_json(json_str)
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+
+
+def save_json(node):
+    """Save tvm object as json string.
+
+    Parameters
+    ----------
+    node : Object
+        A TVM object to be saved.
+
+    Returns
+    -------
+    json_str : str
+        Saved json string.
+    """
+    return tvm.runtime._ffi_node_api.SaveJSON(node)

@@ -36,8 +36,8 @@ def test_schedule_create():
     assert T.op.axis[1] in s[T].leaf_iter_vars
 
     # save load json
-    json_str = tvm.save_json(s)
-    s_loaded = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(s)
+    s_loaded = tvm.ir.load_json(json_str)
     assert isinstance(s_loaded, tvm.schedule.Schedule)
     assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 

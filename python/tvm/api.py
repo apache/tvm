@@ -19,7 +19,6 @@
 from numbers import Integral as _Integral
 
 import tvm._ffi
-import tvm.runtime._ffi_node_api
 
 from tvm.runtime import convert, const, DataType
 from ._ffi.base import string_types, TVMError
@@ -32,7 +31,6 @@ from . import tensor as _tensor
 from . import schedule as _schedule
 from . import container as _container
 from . import tag as _tag
-from . import json_compact
 
 int8 = "int8"
 int32 = "int32"
@@ -92,43 +90,6 @@ def get_env_func(name):
     This can be used to serialize function field in the language.
     """
     return _api_internal._EnvFuncGet(name)
-
-
-def load_json(json_str):
-    """Load tvm object from json_str.
-
-    Parameters
-    ----------
-    json_str : str
-        The json string
-
-    Returns
-    -------
-    node : Object
-        The loaded tvm node.
-    """
-
-    try:
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
-    except TVMError:
-        json_str = json_compact.upgrade_json(json_str)
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
-
-
-def save_json(node):
-    """Save tvm object as json string.
-
-    Parameters
-    ----------
-    node : Object
-        A TVM object to be saved.
-
-    Returns
-    -------
-    json_str : str
-        Saved json string.
-    """
-    return tvm.runtime._ffi_node_api.SaveJSON(node)
 
 
 def var(name="tindex", dtype=int32):

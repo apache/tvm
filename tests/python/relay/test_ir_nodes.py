@@ -23,8 +23,8 @@ from tvm.relay.analysis import graph_equal
 import numpy as np
 
 def check_json_roundtrip(node):
-    json_str = tvm.save_json(node)
-    back = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(node)
+    back = tvm.ir.load_json(json_str)
     assert graph_equal(back, node)
 
 
@@ -48,7 +48,7 @@ def test_span():
 
     # span is not a node so we can't use graph_equal
     # to test the round trip
-    back = tvm.load_json(tvm.save_json(span))
+    back = tvm.ir.load_json(tvm.ir.save_json(span))
     assert back.source == span.source
     assert back.lineno == span.lineno
     assert back.col_offset == span.col_offset
@@ -193,8 +193,8 @@ def test_function_attrs():
     assert fn.span == None
     str(fn)
     check_json_roundtrip(fn)
-    json_str = tvm.save_json(fn)
-    fn_after = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(fn)
+    fn_after = tvm.ir.load_json(json_str)
     model_params_after = fn_after.get_params()
     after_keys = [item[0] for item in model_params_after.items()]
     for key1, key2 in zip(model_params, after_keys):

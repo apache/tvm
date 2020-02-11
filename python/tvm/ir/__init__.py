@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
-from .base import SourceName, Span, Node
+from .base import SourceName, Span, Node, load_json, save_json
 from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc
 from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType

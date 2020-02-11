@@ -26,8 +26,8 @@ def test_array():
 
 def test_array_save_load_json():
     a = tvm.convert([1,2,3])
-    json_str = tvm.save_json(a)
-    a_loaded = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(a)
+    a_loaded = tvm.ir.load_json(json_str)
     assert(a_loaded[1].value == 2)
 
 
@@ -59,8 +59,8 @@ def test_map_save_load_json():
     b = tvm.var('b')
     amap = tvm.convert({a: 2,
                         b: 3})
-    json_str = tvm.save_json(amap)
-    amap = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(amap)
+    amap = tvm.ir.load_json(json_str)
     assert len(amap) == 2
     dd = {kv[0].name : kv[1].value for kv in amap.items()}
     assert(dd == {"a": 2, "b": 3})

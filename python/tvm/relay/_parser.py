@@ -358,7 +358,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if ctx.METADATA():
             header, data = str(ctx.METADATA()).split("\n", 1)
             assert header == "METADATA:"
-            self.meta = tvm.load_json(data)
+            self.meta = tvm.ir.load_json(data)
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.module
