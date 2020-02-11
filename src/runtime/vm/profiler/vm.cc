@@ -133,7 +133,7 @@ runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
   return runtime::Module(vm);
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VirtualMachineDebug")
+TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());

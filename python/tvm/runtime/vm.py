@@ -16,24 +16,20 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, invalid-name, redefined-builtin
 """
-The Relay Virtual Machine.
+The Relay Virtual Machine runtime.
 
-Implements a Python interface to compiling and executing on the Relay VM.
+Implements a Python interface to executing the compiled VM object.
 """
 import numpy as np
 
 import tvm
 from tvm.runtime import Object, container
-from tvm.relay import expr as _expr
+from tvm.runtime import _ffi_api
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
-from tvm.relay.backend.interpreter import Executor
-from . import _vm
 
 def _convert(arg, cargs):
-    if isinstance(arg, _expr.Constant):
-        cargs.append(arg.data)
-    elif isinstance(arg, Object):
+    if isinstance(arg, Object):
         cargs.append(arg)
     elif isinstance(arg, np.ndarray):
         nd_arr = tvm.nd.array(arg, ctx=tvm.cpu(0))
@@ -163,7 +159,7 @@ class Executable(object):
             raise TypeError("lib is expected to be the type of tvm.runtime.Module" +
                             ", but received {}".format(type(lib)))
 
-        return Executable(_vm.Load_Executable(bytecode, lib))
+        return Executable(_ffi_api.Load_Executable(bytecode, lib))
 
     @property
     def lib(self):
@@ -197,9 +193,9 @@ class Executable(object):
             The list of primitive ops.
         """
         ret = []
-        num_primitives = _vm.GetNumOfPrimitives(self.module)
+        num_primitives = _ffi_api.GetNumOfPrimitives(self.module)
         for i in range(num_primitives):
-            ret.append(_vm.GetPrimitiveFields(self.module, i))
+            ret.append(_ffi_api.GetPrimitiveFields(self.module, i))
         return ret
 
     @property
@@ -240,9 +236,9 @@ class Executable(object):
             The globals contained in the executable.
         """
         ret = []
-        num_globals = _vm.GetNumOfGlobals(self.module)
+        num_globals = _ffi_api.GetNumOfGlobals(self.module)
         for i in range(num_globals):
-            ret.append(_vm.GetGlobalFields(self.module, i))
+            ret.append(_ffi_api.GetGlobalFields(self.module, i))
         return ret
 
     @property
@@ -272,7 +268,7 @@ class VirtualMachine(object):
             raise TypeError("mod is expected to be the type of Executable or " +
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
-        self.mod = _vm._VirtualMachine(m)
+        self.mod = _ffi_api._VirtualMachine(m)
         self._exec = mod
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
@@ -359,43 +355,3 @@ class VirtualMachine(object):
             The output.
         """
         return self.invoke("main", *args, **kwargs)
-
-
-class VMExecutor(Executor):
-    """
-    An implementation of the executor interface for
-    the Relay VM.
-
-    Useful interface for experimentation and debugging
-    the VM can also be used directly from the API.
-    supported by `tvm.runtime.vm`.
-
-    Parameters
-    ----------
-    mod : :py:class:`~tvm.relay.module.Module`
-        The module to support the execution.
-
-    ctx : :py:class:`~tvm.TVMContext`
-        The runtime context to run the code on.
-
-    target : :py:class:`Target`
-        The target option to build the function.
-    """
-    def __init__(self, mod, ctx, target):
-        if mod is None:
-            raise RuntimeError("Must provide module to get VM executor.")
-        self.mod = mod
-        self.ctx = ctx
-        self.target = target
-        self.executable = compile(mod, target)
-        self.vm = VirtualMachine(self.executable)
-        self.vm.init(ctx)
-
-    def _make_executor(self, expr=None):
-        main = self.mod["main"]
-
-        def _vm_wrapper(*args, **kwargs):
-            args = self._convert_args(main, args, kwargs)
-            return self.vm.run(*args)
-
-        return _vm_wrapper

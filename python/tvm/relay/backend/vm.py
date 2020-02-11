@@ -59,7 +59,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
     Returns
     -------
-    exec : tvm.runtime.vmf.Executable
+    exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
     compiler = VMCompiler()
