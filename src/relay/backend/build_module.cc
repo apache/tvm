@@ -439,6 +439,8 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetLoweredFunc();
     if (lowered_funcs.size() == 0) {
+      // When there is no lowered_funcs generated, due to reasons such as optimization,
+      // a module with empty code content will be generated.
       ret_.mod = tvm::codegen::CSourceModuleCreate("", "");
     } else {
       ret_.mod = tvm::build(
