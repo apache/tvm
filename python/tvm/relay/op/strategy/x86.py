@@ -224,7 +224,7 @@ def conv1d_strategy_cpu(attrs, inputs, out_type, target):
 def dense_strategy_cpu(attrs, inputs, out_type, target):
     """dense x86 strategy"""
     strategy = _op.OpStrategy()
-    _, k = inputs[0].shape
+    m, _ = inputs[0].shape
     strategy.add_implement(wrap_compute_dense(topi.x86.dense_nopack),
                            wrap_topi_schedule(topi.x86.schedule_dense_nopack),
                            name="dense_nopack.x86",
@@ -234,7 +234,7 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
                                wrap_topi_schedule(topi.x86.schedule_dense_cblas),
                                name="dense_cblas.x86",
                                plevel=5)
-    with SpecializedCondition(k > 16):
+    with SpecializedCondition(m >= 16):
         # this implementation may not be well-optimized, so use plevel=8 for now.
         strategy.add_implement(wrap_compute_dense(topi.x86.dense_pack),
                                wrap_topi_schedule(topi.x86.schedule_dense_pack),

@@ -36,14 +36,14 @@ _nms_implement = {
     "gpu": (topi.cuda.non_max_suppression, topi.cuda.schedule_nms),
 }
 
-_multibox_prior_schedule = {
-    "generic": topi.generic.schedule_multibox_prior,
-    "gpu": topi.cuda.schedule_multibox_prior,
+_multibox_prior_implement = {
+    "generic": (topi.vision.ssd.multibox_prior, topi.generic.schedule_multibox_prior),
+    "gpu": (topi.cuda.multibox_prior, topi.cuda.schedule_multibox_prior),
 }
 
-_multibox_detection_schedule = {
-    "generic": topi.generic.schedule_multibox_detection,
-    "gpu": topi.cuda.schedule_multibox_detection,
+_multibox_detection_implement = {
+    "generic": (topi.vision.ssd.multibox_detection, topi.generic.schedule_multibox_detection),
+    "gpu": (topi.cuda.multibox_detection, topi.cuda.schedule_multibox_detection),
 }
 
 _roi_align_implement = {
@@ -223,13 +223,11 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+        
+        fcompute, fschedule = topi.testing.dispatch(device, _multibox_prior_implement)
         with tvm.target.create(device):
-            if device == 'llvm':
-                out = ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
-            else:
-                out = topi.cuda.ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
-            s_func = topi.testing.dispatch(device, _multibox_prior_schedule)
-            s = s_func(out)
+            out = fcompute(data, sizes, ratios, steps, offsets, clip)
+            s = fschedule(out)
 
         tvm_input_data = tvm.nd.array(input_data, ctx)
         tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), ctx)
@@ -270,13 +268,11 @@ def test_multibox_detection():
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+
+        fcompute, fschedule = topi.testing.dispatch(device, _multibox_detection_implement)
         with tvm.target.create(device):
-            if device == 'llvm':
-                out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
-            else:
-                out = topi.cuda.ssd.multibox_detection(cls_prob, loc_preds, anchors)
-            s_func = topi.testing.dispatch(device, _multibox_detection_schedule)
-            s = s_func(out)
+            out = fcompute(cls_prob, loc_preds, anchors)
+            s = fschedule(out)
 
         tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
         tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), ctx)

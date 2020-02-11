@@ -459,10 +459,10 @@ def dense_strategy(attrs, inputs, out_type, target):
     return strategy
 
 # batch_matmul
-def wrap_compute_batch_matmul(topi_func):
+def wrap_compute_batch_matmul(topi_compute):
     """wrap batch_matmul topi compute"""
     def _compute_batch_matmul(attrs, inputs, out_type):
-        return [topi_func(inputs[0], inputs[1])]
+        return [topi_compute(inputs[0], inputs[1])]
     return _compute_batch_matmul
 
 @override_native_generic_func("batch_matmul_strategy")
@@ -509,7 +509,7 @@ def argsort_strategy(attrs, inputs, out_type, target):
     return strategy
 
 # topk
-def wrap_compute_topk(topi_func):
+def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
         k = get_const_int(attrs.k)
@@ -517,7 +517,7 @@ def wrap_compute_topk(topi_func):
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
         dtype = attrs.dtype
-        out = topi_func(inputs[0], k, axis, ret_type, is_ascend, dtype)
+        out = topi_compute(inputs[0], k, axis, ret_type, is_ascend, dtype)
         out = out if isinstance(out, list) else [out]
         return out
     return _compute_topk
@@ -532,18 +532,48 @@ def topk_strategy(attrs, inputs, out_type, target):
     return strategy
 
 # multibox_prior
-@generic_func
-def schedule_multibox_prior(attrs, outs, target):
-    """schedule multibox_prior"""
-    with target:
-        return topi.generic.schedule_multibox_prior(outs)
+def wrap_compute_multibox_prior(topi_compute):
+    """Wrap multibox_prior compute"""
+    def _compute_multibox_prior(attrs, inputs, _):
+        """Compute definition of multibox_prior"""
+        sizes = get_float_tuple(attrs.sizes)
+        ratios = get_float_tuple(attrs.ratios)
+        steps = get_float_tuple(attrs.steps)
+        offsets = get_float_tuple(attrs.offsets)
+        clip = bool(get_const_int(attrs.clip))
+        return [topi_compute(inputs[0], sizes, ratios, steps, offsets, clip)]
+    return _compute_multibox_prior
+
+@override_native_generic_func("multibox_prior_strategy")
+def multibox_prior_strategy(attrs, inputs, out_type, target):
+    """multibox_prior generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implement(wrap_compute_multibox_prior(topi.vision.ssd.multibox_prior),
+                           wrap_topi_schedule(topi.generic.schedule_multibox_prior),
+                           name="multibox_prior.generic")
+    return strategy
 
 # multibox_transform_loc
-@generic_func
-def schedule_multibox_transform_loc(attrs, outs, target):
+def wrap_compute_multibox_transform_loc(topi_compute):
+    """Wrap multibox_transform_loc compute"""
+    def _compute_multibox_transform_loc(attrs, inputs, _):
+        """Compute definition of multibox_detection"""
+        clip = bool(get_const_int(attrs.clip))
+        threshold = get_const_float(attrs.threshold)
+        variances = get_float_tuple(attrs.variances)
+        return topi_compute(
+            inputs[0], inputs[1], inputs[2], clip, threshold, variances)
+    return _compute_multibox_transform_loc
+
+@override_native_generic_func("multibox_transform_loc_strategy")
+def multibox_transform_loc_strategy(attrs, inputs, out_type, target):
     """schedule multibox_transform_loc"""
-    with target:
-        return topi.generic.schedule_multibox_transform_loc(outs)
+    strategy = _op.OpStrategy()
+    strategy.add_implement(
+        wrap_compute_multibox_transform_loc(topi.vision.ssd.multibox_transform_loc),
+        wrap_topi_schedule(topi.generic.schedule_multibox_transform_loc),
+        name="multibox_transform_loc.generic")
+    return strategy
 
 # get_valid_counts
 def wrap_compute_get_valid_counts(topi_compute):

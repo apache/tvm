@@ -31,7 +31,7 @@ from .quantize import _forward_op
 
 
 @_reg.register_compute("relay.op.annotation.simulated_quantize")
-def simulated_quantize_compute(attrs, inputs, out_type, target):
+def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
     assert attrs.sign

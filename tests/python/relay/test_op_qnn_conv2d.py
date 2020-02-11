@@ -431,9 +431,9 @@ def test_layout():
                 kernel_shape, kernel_dtype)
 
         # NHWC and HWOI layout. Used in depthwise conv.
-        data_shape = (2, 2, 4, 1) # NHWC
+        data_shape = (2, 2, 4, 3) # NHWC
         data_dtype = 'uint8'
-        kernel_shape = (2, 2, 1, 1) # HWOI
+        kernel_shape = (2, 2, 3, 1) # HWOI
         kernel_dtype = 'uint8'
         ref_func, qnn_func = get_funcs(data_shape=data_shape,
                                        data_dtype=data_dtype,
@@ -447,6 +447,7 @@ def test_layout():
                                        padding=(0, 0),
                                        strides=(1, 1),
                                        dilation=(1, 1),
+                                       groups=3,
                                        data_layout="NHWC",
                                        kernel_layout="HWOI",
                                        out_dtype="int32")
@@ -826,7 +827,12 @@ def test_depthwise_depth_multiplier():
                                        data_layout="NCHW",
                                        kernel_layout="OIHW",
                                        out_dtype="int32",
+<<<<<<< HEAD
                                        groups=8)
+=======
+                                       groups=4,
+                                       channels=8)
+>>>>>>> fix more tests & bugs
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
 
@@ -875,7 +881,12 @@ def test_depthwise_depth_multiplier():
                                        data_layout="NHWC",
                                        kernel_layout="HWOI",
                                        out_dtype="int32",
+<<<<<<< HEAD
                                        groups=8)
+=======
+                                       groups=4,
+                                       channels=8)
+>>>>>>> fix more tests & bugs
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
 

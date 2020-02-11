@@ -155,8 +155,8 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
   bool is_depthwise = false;
   if (param->groups > 1) {
-    CHECK(weight->shape.defined()) << "Weight shape must be specified " <<
-        "when groups is greater than 1.";
+    CHECK(weight && weight->shape.defined()) <<
+        "Weight shape must be specified when groups is greater than 1.";
     Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
     if (tvm::tir::Equal(param->groups, dshape_nchw[1]) &&
         tvm::tir::Equal(param->groups, wshape_oihw[0])) {

@@ -326,17 +326,24 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
                            name="topk.cuda")
     return strategy
 
-@schedule_multibox_prior.register(["cuda", "gpu"])
-def schedule_multibox_prior_cuda(attrs, outs, target):
-    """schedule multibox_prior for cuda"""
-    with target:
-        return topi.cuda.schedule_multibox_prior(outs)
+@multibox_prior_strategy.register(["cuda", "gpu"])
+def multibox_prior_strategy_cuda(attrs, inputs, out_type, target):
+    """multibox_prior cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implement(wrap_compute_multibox_prior(topi.cuda.multibox_prior),
+                           wrap_topi_schedule(topi.cuda.schedule_multibox_prior),
+                           name="multibox_prior.cuda")
+    return strategy
 
-@schedule_multibox_transform_loc.register(["cuda", "gpu"])
-def schedule_multibox_transform_loc_cuda(attrs, outs, target):
-    """schedule multibox_transform_loc for cuda"""
-    with target:
-        return topi.cuda.schedule_multibox_transform_loc(outs)
+@multibox_transform_loc_strategy.register(["cuda", "gpu"])
+def multibox_transform_loc_strategy_cuda(attrs, inputs, out_type, target):
+    """multibox_transform_loc cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implement(
+        wrap_compute_multibox_transform_loc(topi.cuda.multibox_transform_loc),
+        wrap_topi_schedule(topi.cuda.schedule_multibox_transform_loc),
+        name="multibox_transform_loc.cuda")
+    return strategy
 
 @get_valid_counts_strategy.register(["cuda", "gpu"])
 def get_valid_counts_strategy_cuda(attrs, inputs, out_type, target):

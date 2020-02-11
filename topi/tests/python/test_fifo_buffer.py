@@ -128,14 +128,15 @@ def verify_conv1d_integration():
             return
         print('  Running on target: {}'.format(device))
 
+        conv2d_nchw, schedule_conv2d_nchw = topi.testing.get_conv2d_nchw_implement(device)
+
         with tvm.target.create(device):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
             s = topi.testing.get_injective_schedule(device)([out])
             update_context = tvm.build(s, [inc_input, context, out], device, name='update_context')
 
-            out = topi.nn.conv2d(context, kernel, strides=stride, padding=padding, dilation=dilate,
-                                 layout='NCHW', out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_nchw([out])
+            out = conv2d_nchw(context, kernel, stride, padding, dilate, dtype)
+            s = schedule_conv2d_nchw([out])
             conv2d_inc = tvm.build(s, [context, kernel, out], device, name='conv2d_inc')
 
             out = topi.nn.fifo_buffer(inc_output, output_window, axis=buffer_axis)
@@ -148,9 +149,8 @@ def verify_conv1d_integration():
             update_input_window = tvm.build(s, [inc_input, input_window, out], device,
                                             name='update_input_window')
 
-            out = topi.nn.conv2d(input_window, kernel, strides=stride, padding=padding,
-                                 dilation=dilate, layout='NCHW', out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_nchw([out])
+            out = conv2d_nchw(input_window, kernel, stride, padding, dilate, dtype)
+            s = schedule_conv2d_nchw([out])
             conv2d = tvm.build(s, [input_window, kernel, out], device, name='conv2d')
 
         input_window_tvm = tvm.nd.array(input_window_np, ctx=ctx)

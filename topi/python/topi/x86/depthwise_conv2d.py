@@ -26,6 +26,7 @@ from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
 from ..nn.depthwise_conv2d import _get_workload, depthwise_conv2d_infer_layout
 from ..nn.conv2d import unpack_NCHWc_to_nchw
+from ..util import traverse_inline
 from .util import get_fp32_len
 
 def _fallback_schedule(cfg, wkl):
@@ -134,7 +135,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 
     # get workload and related schedule config
     wkl = _get_workload(tvm.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
-                        tvm.placeholder((out_channel, in_channel, filter_height, filter_width),
+                        tvm.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
                                         dtype=kernel.dtype),
                         strides, padding, out_dtype)
     if cfg.is_fallback:
@@ -181,27 +182,20 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     """CPU schedule for depthwise conv2d in NCHW[x]c layout"""
     s = tvm.create_schedule([x.op for x in outs])
-    scheduled_ops = []
-    def traverse(op):
+
+    def _callback(op):
         """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
         if 'depthwise_conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
             data = conv_out.op.input_tensors[0]
             kernel = conv_out.op.input_tensors[1]
             _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, outs[0])
-        scheduled_ops.append(op)
-    traverse(outs[0].op)
+
+    traverse_inline(s, outs[0].op, _callback)
     return s
 
 def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out, output):
-    tile_ow = cfg["tile_ow"].size[-1]
+    tile_ow, oc_bn = cfg["tile_ow"].size[-1], cfg["tile_oc"].size[-1]
     # schedule pad
     if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
             and "pad" in data_vec.op.tag:
@@ -235,13 +229,29 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
     s[CC].unroll(ow_block)
 
     if C != O:
-        batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        ow_chunk, ow_block = s[O].split(ow, factor=tile_ow)
-        s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-        parallel_axis = s[O].fuse(oc_chunk, oh)
-        s[C].compute_at(s[O], parallel_axis)
-        s[O].vectorize(oc_block)
-        s[O].parallel(parallel_axis)
+        out_ndim = len(s[O].op.axis)
+        if out_ndim == 5:
+            batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
+            ow_chunk, ow_block = s[O].split(ow, factor=tile_ow)
+            s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+            parallel_axis = s[O].fuse(oc_chunk, oh)
+            s[C].compute_at(s[O], parallel_axis)
+            s[O].vectorize(oc_block)
+            s[O].parallel(parallel_axis)
+        elif out_ndim == 4:
+            batch, oc, oh, ow = s[O].op.axis
+            ow_chunk, ow_block = s[O].split(ow, factor=tile_ow)
+            print(ow_chunk, ow_block)
+            oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
+            print(oc_chunk, oc_block)
+            s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+            parallel_axis = s[O].fuse(oc_chunk, oh)
+            s[C].compute_at(s[O], parallel_axis)
+            s[O].vectorize(oc_block)
+            s[O].parallel(parallel_axis)
+        else:
+            raise ValueError("Unsupported output ndim: %s" % out_ndim)
+
     return s
 
 @depthwise_conv2d_infer_layout.register("cpu")

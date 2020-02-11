@@ -856,9 +856,10 @@ def test_where_fusion():
                 print("Skip because %s is not enabled" % device)
                 return
             print("Running on target: %s" % device)
+            conv2d_compute, conv2d_schedule = topi.testing.get_conv2d_nchw_implement(device)
             data = tvm.placeholder((2, 1, 2, 4), 'int8', 'data')
             w = tvm.placeholder((3, 1, 2, 2), 'int8', 'w')
-            conv1 = topi.nn.conv2d(data, w, 1, 0, 1, out_dtype='int32')
+            conv1 = conv2d_compute(data, w, 1, 0, 1, 'int32')
             zeros = topi.full((2, 3, 1, 3), 'int32', tvm.const(0, dtype='int32'))
             gt = topi.greater_equal(conv1, zeros)
             one = topi.full((2, 3, 1, 3), 'int32', tvm.const(1, dtype='int32'))
@@ -866,8 +867,7 @@ def test_where_fusion():
             where = topi.where(gt, one, two)
             add = topi.add(conv1, where)
             outs = [add]
-            # TODO(@icemelon9): fix here
-            s = topi.generic.schedule_conv2d_nchw(outs)
+            s = conv2d_schedule(outs)
             tvm.build(s, [data, w, add], target=backend)
 
     for backend in get_all_backend():

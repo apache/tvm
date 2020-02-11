@@ -204,8 +204,6 @@ def conv2d(data,
     # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
     # convert 2-way padding to 4-way padding
     padding = get_pad_tuple2d(padding)
-    if not out_layout:
-        out_layout = data_layout
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -299,8 +297,6 @@ def conv3d(data,
         dilation = (dilation, dilation, dilation)
     if isinstance(padding, int):
         padding = (padding, padding, padding)
-    if not out_layout:
-        out_layout = data_layout
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -369,8 +365,6 @@ def conv2d_transpose(data,
     """
     # convert 2-way padding to 4-way padding
     padding = get_pad_tuple2d(padding)
-    if not out_layout:
-        out_layout = data_layout
     return _make.conv2d_transpose(data, weight, strides, padding, dilation,
                                   groups, channels, kernel_size, data_layout,
                                   kernel_layout, out_layout, output_padding, out_dtype)
@@ -437,8 +431,6 @@ def conv1d_transpose(data,
     result : tvm.relay.Expr
         The computed result.
     """
-    if not out_layout:
-        out_layout = data_layout
     return _make.conv1d_transpose(data, weight, strides, padding, dilation,
                                   groups, channels, kernel_size, data_layout,
                                   kernel_layout, out_layout, output_padding, out_dtype)

@@ -25,32 +25,12 @@ from .. import strategy
 from ..op import OpPattern
 
 # multibox_prior
-@reg.register_compute("vision.multibox_prior")
-def compute_multibox_prior(attrs, inputs, _):
-    """Compute definition of multibox_prior"""
-    sizes = get_float_tuple(attrs.sizes)
-    ratios = get_float_tuple(attrs.ratios)
-    steps = get_float_tuple(attrs.steps)
-    offsets = get_float_tuple(attrs.offsets)
-    clip = bool(get_const_int(attrs.clip))
-    return [topi.vision.ssd.multibox_prior(inputs[0], sizes, ratios, steps,
-                                           offsets, clip)]
-
-reg.register_schedule("vision.multibox_prior", strategy.schedule_multibox_prior)
+reg.register_strategy("vision.multibox_prior", strategy.multibox_prior_strategy)
 reg.register_pattern("vision.multibox_prior", OpPattern.OPAQUE)
 
 
 # multibox_transform_loc
-@reg.register_compute("vision.multibox_transform_loc")
-def compute_multibox_transform_loc(attrs, inputs, _):
-    """Compute definition of multibox_detection"""
-    clip = bool(get_const_int(attrs.clip))
-    threshold = get_const_float(attrs.threshold)
-    variances = get_float_tuple(attrs.variances)
-    return topi.vision.ssd.multibox_transform_loc(
-        inputs[0], inputs[1], inputs[2], clip, threshold, variances)
-
-reg.register_schedule("vision.multibox_transform_loc", strategy.schedule_multibox_transform_loc)
+reg.register_strategy("vision.multibox_transform_loc", strategy.multibox_transform_loc_strategy)
 reg.register_pattern("vision.multibox_transform_loc", OpPattern.OPAQUE)
 
 
