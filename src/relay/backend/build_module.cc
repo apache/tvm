@@ -28,9 +28,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/transform.h>
-#include <tvm/tir/ir_pass.h>
 #include <memory>
 
+#include "../../target/source/codegen_source_base.h"
 #include "utils.h"
 
 namespace tvm {
@@ -38,9 +38,6 @@ namespace relay {
 namespace backend {
 
 using tir::LoweredFunc;
-using tir::Stmt;
-using tir::MakeAPI;
-using tir::EvaluateNode;
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -442,18 +439,13 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetLoweredFunc();
     if (lowered_funcs.size() == 0) {
-      LOG(WARNING) << "No lowered funcs exist in the compiled module, "
-                   << "a dummy function \"__dummy__\" will be created.";
-      Stmt body = EvaluateNode::make(0);
-      Array<ObjectRef> api_args;
-      auto dummy_func = MakeAPI(body, "__dummy__", api_args, 0, false);
-      lowered_funcs.Set("llvm", Array<LoweredFunc>({dummy_func}));
+      ret_.mod = tvm::codegen::CSourceModuleCreate("", "");
+    } else {
+      ret_.mod = tvm::build(
+        lowered_funcs,
+        target_host_,
+        BuildConfig::Current());
     }
-
-    ret_.mod = tvm::build(
-      lowered_funcs,
-      target_host_,
-      BuildConfig::Current());
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
     if (!ext_mods.empty()) {
