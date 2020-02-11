@@ -231,7 +231,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     module_ = std::move(module);
     if (module_ == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load module: " << msg;
     }
     std::string target_;
@@ -254,7 +254,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     auto module = llvm::parseIRFile(file_name, err, *ctx);
     if (module == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
                  << "line " << err.getLineNo() << ":" << msg;
     }
