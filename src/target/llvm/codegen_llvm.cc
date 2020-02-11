@@ -88,7 +88,7 @@ void CodeGenLLVM::InitTarget(llvm::TargetMachine* tm) {
       native_vector_bits_ = 128;
     } else {
       native_vector_bits_ = 128;
-      std::string arch_name = tm->getTargetTriple().getArchName();
+      std::string arch_name = std::string(tm->getTargetTriple().getArchName());
       LOG(WARNING) << "Set native vector bits to be 128 for " << arch_name;
     }
   }
@@ -186,7 +186,7 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
        code.substr(code.length() - 3) == ".bc")) {
     mlib = llvm::parseIRFile(code, err, *ctx_);
     if (mlib.get() == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load bitcode file " << code << "\n"
                  << "line " << err.getLineNo() << ":" << msg;
     }
@@ -195,7 +195,7 @@ void CodeGenLLVM::HandleImport(const std::string& code) {
         llvm::MemoryBuffer::getMemBuffer(code);
     mlib = llvm::parseIR(*buf, err, *ctx_);
     if (mlib.get() == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load llvm ir "
                  << "line " << err.getLineNo() << ":" << msg
                  << "\ncontent:\n"  << code;
