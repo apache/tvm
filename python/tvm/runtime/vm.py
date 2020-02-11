@@ -23,10 +23,10 @@ Implements a Python interface to executing the compiled VM object.
 import numpy as np
 
 import tvm
-from tvm.runtime import Object, container
-from tvm.runtime import _ffi_api
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
+from .object import Object
+from . import _ffi_api, container
 
 def _convert(arg, cargs):
     if isinstance(arg, Object):
@@ -167,7 +167,7 @@ class Executable(object):
 
         Returns
         -------
-        ret : :py:class:`~tvm.Module`
+        ret : :py:class:`~tvm.runtime.Module`
             The runtime module that contains hardware dependent code.
         """
         return self._get_lib()
