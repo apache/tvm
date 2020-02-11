@@ -94,57 +94,83 @@ Ret
   RegName dst
   RegName result
 
-Returns the object in register `result` to caller's register `dst`.
+Returns the object in register ``result`` to caller's register ``dst``.
 
 InvokePacked
 ^^^^^^^^^^^^
 **Arguments**:
 ::
-  size_t packed_index
-  size_t arity
-  size_t output_size
+  Index packed_index
+  Index arity
+  Index output_size
   RegName* packed_args
 
-Invoke the packed function denoted by `packed_index`. The `arity`
-and `output_size` are used to inform the VM how many inputs and
-outputs to expect. `packed_args` stores the list of argument registers.
+Invoke the packed function denoted by ``packed_index``. The ``arity``
+and ``output_size`` are used to inform the VM how many inputs and
+outputs to expect. ``packed_args`` stores the list of argument registers. Note ``Index``
+is an alais of ``int64_t``, and it will be used in other instructions as well.
 
 AllocTensor
 ^^^^^^^^^^^
 **Arguments**:
 ::
   RegName dst
-  RegName shape_register
-  size_t ndim
+  RegName storage
+  uint32_t ndim
+  int64_t* shape
   DLDataType dtype
 
-Allocate a tensor value of the appropriate shape (stored in `shape_register`) and `dtype`. The result
-is saved to register `dst`.
+Allocate a tensor value of using constant shape (stored in ``shape``) and ``dtype``
+from the given storage block, ``storage``. The result is saved to register ``dst``.
 
-AllocADT
-^^^^^^^^^^^^^
+AllocTensorReg
+^^^^^^^^^^^^^^
 **Arguments**:
 ::
   RegName dst
-  size_t tag
-  size_t num_fields
+  RegName storage
+  RegName shape_register
+  DLDataType dtype
+
+Allocate a tensor value of the appropriate shape (stored in ``shape_register``)
+and ``dtype`` from the given storage block (stored in ``storage``). The result is saved to register ``dst``.
+
+AllocStorage
+^^^^^^^^^^^^
+**Arguments**:
+::
+  RegName dst
+  RegName size
+  RegName alignment
+  DLDataType dtype_hint
+
+Allocate a storage block with the given ``size``, ``alignment`` and and data type, ``dtype_hint``.
+The allocated storage block is stored in register ``dst``.
+
+AllocADT
+^^^^^^^^
+**Arguments**:
+::
+  RegName dst
+  Index tag
+  Index num_fields
   RegName* datatype_fields
 
-Allocate a data type with the tag `tag` using the `num_fields` entries
-from registers `datatype_fields`. The result is saved to register `dst`.
+Allocate a data type with the tag ``tag`` using the ``num_fields`` entries
+from registers ``datatype_fields``. The result is saved to register ``dst``.
 
 AllocClosure
 ^^^^^^^^^^^^
 **Arguments**:
 ::
   RegName dst
-  size_t clo_index
-  size_t num_freevar
+  Index clo_index
+  Index num_freevar
   RegName* free_vars;
 
-Allocate a closure with the VMFunction at `clo_index` as
-its code, and the `num_freevar` entries from registers in
-`free_vars`. The result is saved to register `dst`.
+Allocate a closure with the VMFunction at ``clo_index`` as
+its code, and the ``num_freevar`` entries from registers in
+``free_vars``. The result is saved to register ``dst``.
 
 GetField
 ^^^^^^^^
@@ -152,9 +178,9 @@ GetField
 ::
   RegName dst
   RegName object
-  size_t field_index
+  Index field_index
 
-Get the field value with index `field_index` from `object`. And saves the result to register `dst`.
+Get the field value with index ``field_index`` from ``object``. And saves the result to register ``dst``.
 
 If
 ^^
@@ -162,21 +188,21 @@ If
 ::
   RegName test
   RegName target
-  size_t true_offset
-  size_t false_offset
+  Index true_offset
+  Index false_offset
 
-Check if the object at register `test` is equal to `target`.
-If equal, relative jump by `true_offset`, else relative
-jump by `false_offset`.
+Check if the object at register ``test`` is equal to ``target``.
+If equal, relative jump by ``true_offset``, else relative
+jump by ``false_offset``.
 
-GetTagi
-^^^^^^^
+GetTag
+^^^^^^
 **Arguments**:
 ::
   RegName object
   RegName dst
 
-Get the object tag for ADT object in register `object`. And saves the reult to register `dst`.
+Get the object tag for ADT object in register ``object``. And saves the reult to register ``dst``.
 
 Fatal
 ^^^^^
@@ -186,17 +212,17 @@ Goto
 ^^^^
 **Arguments**:
 ::
-  size_t pc_offset
+  Index pc_offset
 
-Relative unconditional jump by `pc_offset`.
+Relative unconditional jump by ``pc_offset``.
 
 Invoke
 ^^^^^^
 **Arguments**:
 ::
-  size_t func_index
+  Index func_index
 
-Invoke function at `func_index`, consumes the number of arguments contained in the VMFunction's
+Invoke function at ``func_index``, consumes the number of arguments contained in the VMFunction's
 arity field.
 
 InvokeClosure
@@ -204,57 +230,44 @@ InvokeClosure
 **Arguments**:
 ::
     RegName closure
-    size_t num_closure_args
+    Index num_closure_args
     RegName* closure_args
 
-Invokes `closure`, consuming the number of arguments declared in the closure's VMFunction.
+Invokes ``closure``, consuming the number of arguments declared in the closure's VMFunction.
 
 LoadConst
 ^^^^^^^^^
 **Arguments**:
 ::
   RegName dst
-  size_t const_index
+  Index const_index
 
-Load the constant at `const_index` from the constant pool. The result is saved to register `dst`.
+Load the constant at ``const_index`` from the constant pool. The result is saved to register ``dst``.
 
 LoadConsti
 ^^^^^^^^^^
 **Arguments**:
 ::
-  size_t val
+  Index val
   RegName dst
 
-Load the constant integer `val` to register `dst`. The result is a 0-rank tensor.
+Load the constant integer ``val`` to register ``dst``. The result is a 0-rank tensor.
 
 Object Representation
 ~~~~~~~~~~~~~~~~~~~~~
-We use a simple object representation that uses shared pointers and tagging.
-There is a huge space of possible object representations trade-offs, but we
-believe micro-optimizing this code has little to no effect on the end-to-end performance.
+We leverage the object protocol to represent the objects that are used by the
+VM.
 
-::
+Currently, three types of objects, ``NDArray``, ``ADT``, and ``Closure`` objects, are used
+to represent tensor, tuple/list, and closure data, respectively. More details
+for each of them can be found at `include/tvm/runtime/ndarray.h`_,
+`include/tvm/runtime/vm.h`_, and `include/tvm/runtime/container.h`_, respectively.
 
-    struct ObjectCell {
-      ObjectTag tag;
-      ...
-    };
+.. _include/tvm/runtime/ndarray.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/ndarray.h
 
-    struct Object {
-      std::shared_ptr<ObjectCell> ptr;
-      ...
-    }
+.. _include/tvm/runtime/vm.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/vm.h
 
-See `include/tvm/runtime/vm.h` for more details.
-
-Currently, we support 3 types of objects: tensors, data types, and closures.
-
-::
-
-    Object Tensor(const tvm::runtime::NDArray& data);
-    Object ADT(size_t tag, const std::vector<Object>& fields);
-    Object Closure(size_t func_index, std::vector<Object> free_vars);
-
+.. _include/tvm/runtime/container.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/runtime/container.h
 
 Stack and State
 ~~~~~~~~~~~~~~~
@@ -284,40 +297,76 @@ Dispatch Loop
 ~~~~~~~~~~~~~
 A critical piece of a VM is the dispatch loop. The dispatch loop usually dominates the execution time of a
 virtual machine, but we have experimentally found this not to be the case for Relay. We have just implemented
-a simple `switch`/`goto` dispatch loop which dispatches based on instruction op code.
+a simple ``switch``/``goto`` dispatch loop which dispatches based on instruction op code.
 
-This loop is implemented by `VirtualMachine::Run()`.
+This loop is implemented by ``VirtualMachine::Run()``.
 
 VM Compiler
 ~~~~~~~~~~~
 
 An important part of this infrastructure is a compiler from Relay's full IR into a sequence of bytecode.
-The VM compiler transforms a `tvm::relay::Module` into a `tvm::relay::vm::VirtualMachine`. The virtual
-machine contains a set of compiled functions, the compiled functions are contained in `tvm::relay::vm::Function`. The functions contain metadata about the the function as well as its compiled bytecode. For full definitions of the data structures see `vm.h`.
+The VM compiler transforms a ``tvm::relay::Module`` into a ``tvm::relay::vm::Executable``. The executable
+contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``. The functions contain metadata about the the function as well as its compiled bytecode. The emitted executable object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the data structures, please see `include/tvm/runtime/vm.h`_.
 
 Optimizations
 ~~~~~~~~~~~~~
 
-There are quite a few optimizations required by the VM compiler.
-
-We have implemented them in the old pass style, but plan to port them to
-the new pass manager (#2546) before merging.
+There are quite a few optimizations required by the VM compiler. Each of them
+is implemented as a pass which is managed by the Relay pass manager.
 
 Optimizations marked with `TODO` are not implemented yet.
 
 - A-Normal Form
-- Lambda Lift (see `src/relay/vm/lambda_lift.cc`)
-- Inline Primitives (see `src/relay/vm/inline_primitives.cc`)
-- Inliner (see `src/relay/pass/inliner.cc`)
-- Constant Pool Layout (see `src/relay/backend/vm/compiler.cc`)
-- ADT Tag Allocation (see `src/relay/backend/vm/compiler.cc`)
+- Lambda Lift (see `src/relay/vm/lambda_lift.cc`_)
+- Inline Primitives (see `src/relay/vm/inline_primitives.cc`_)
+- Constant Pool Layout (see `src/relay/backend/vm/compiler.cc`_)
+- ADT Tag Allocation (see `src/relay/backend/vm/compiler.cc`_)
 - Tail Call Optimization (TODO)
 - Liveness Analysis (TODO)
 
+.. _src/relay/vm/lambda_lift.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/lambda_lift.cc
+
+.. _src/relay/vm/inline_primitives.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/inline_primitives.cc
+
+.. _src/relay/backend/vm/compiler.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/vm/compiler.cc
+
 Serialization
 ~~~~~~~~~~~~~
+Serializing and deserializing the executable generated by the Relay VM compiler is a must as
+we may want to save the model to the disk and perform inference later. Previously, Relay has produced
+a serialized form in a json file for the graph runtime. However, the same format is not directly
+applicable to the VM as it emits bytecode instead of graph-style programs.
+Serialization of an executable essentially needs to handle both model specific
+(i.e. weights and kernels) and VM related (i.e. bytecode and global function names) data.
 
-A final and yet-to-be-implemented part of the VM design is serialization. The accompanying PR will introduce both the bytecode and its serialization, as well as VM-level serialization. The design premise is that a VM can be efficiently stored to disk and resumed at a later time. This would also allow us to efficiently schedule many models on to a single machine in order to obtain good utilization.
+For kernels, we can conveniently leverage existing TVM infra to save and load
+the compiled library module. Here we only focus on serializing other several
+components in a binary format that is organized with the following sections in order.
+
+- Global section. This section contains the globals (function names) used by the virtual machine.
+
+- Constant section. This section is used to store the constant pool (i.e. weights of the model)
+  for a virtual machine.
+
+- Primitive name section. This section is introduced to accommodate the list of primitive
+  operator names that will be invoked by the virtual machine, i.e. the names
+  starting with ``fused_``. The primitive names are used as symbols to look up
+  function pointers in the compiled kernel library.
+
+- Code section. The VM functions, including bytecode, are sitting in this section. The dispatching
+  loop iterates through this section to fetch instructions for execution.
+
+Hence, unlike the graph runtime artifact that contains weight (.params), graph json (.json),
+and compiled kernel library (.so), the serialized executable artifact is composed of the Relay
+object file (.ro) and the compiled kernel library (.so).
+
+A ``save`` function is implemented to store the executable to the disk and
+serialize it into the above format. Meanwhile, a ``load_exec`` function is used to
+load the serialized kernel binary and executable related binary code, which will be again used to
+instantiate a VM object. Please refer to the `test_vm_serialization.py`_ file for more
+examples.
+
+.. _test_vm_serialization.py: https://github.com/apache/incubator-tvm/blob/master/tests/python/relay/test_vm_serialization.py
 
 Unresolved Questions
 ~~~~~~~~~~~~~~~~~~~~
