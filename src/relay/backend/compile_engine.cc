@@ -671,13 +671,6 @@ class CompileEngineImpl : public CompileEngineNode {
    *  The funcs field in cache is not yet populated.
    */
   CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
-    //CachedFunc cfunc;
-//    if (const auto* f = runtime::Registry::Get("relay.backend.create_schedule")) {
-//      cfunc = (*f)(source_func, target);
-//    } else {
-//      LOG(FATAL) << "relay.backend.create_schedule is not registered";
-//    }
-//    return cfunc;
     return ScheduleGetter(target).Create(source_func);
   }
 
