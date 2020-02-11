@@ -96,11 +96,3 @@ class Range(Object):
     You do not need to create a Range explicitly.
     Python lists and tuples will be converted automatically to a Range in API functions.
     """
-
-
-@tvm._ffi.register_object
-class LoweredFunc(Object):
-    """Represent a LoweredFunc in TVM."""
-    MixedFunc = 0
-    HostFunc = 1
-    DeviceFunc = 2
