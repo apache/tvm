@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
-# pylint: disable=self-assigning-variable, import-outside-toplevel, unnecessary-comprehension
+# pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
 """PT: PyTorch frontend."""
 import numpy as np
 
@@ -108,20 +108,34 @@ def _select():
 
 def _ones():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Expr):
-            shape = _infer_shape(inputs[0])
+        data = inputs[0]
+
+        import torch
+        if isinstance(data, _expr.Expr):
+            shape = _infer_shape(data)
+        elif isinstance(data, list):
+            shape = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
+            shape = data.shape
         else:
-            shape = inputs[0].shape
+            assert "data type {} could not be parsed in ones op" % (type(data))
 
         return _op.full(_expr.const(1), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
 
 def _zeros():
     def _impl(inputs, input_types):
-        if isinstance(inputs[0], _expr.Expr):
-            shape = _infer_shape(inputs[0])
+        data = inputs[0]
+
+        import torch
+        if isinstance(data, _expr.Expr):
+            shape = _infer_shape(data)
+        elif isinstance(data, list):
+            shape = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
+            shape = data.shape
         else:
-            shape = inputs[0].shape
+            assert "data type {} could not be parsed in zeros op" % (type(data))
 
         return _op.full(_expr.const(0), shape, dtype=_convert_data_type(input_types[0]))
     return _impl
@@ -176,9 +190,7 @@ def _hardtanh():
 def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
-        use_transpose = False
-        if inputs[6] == "1":
-            use_transpose = True
+        use_transpose = True if inputs[6] == "1" else False
 
         data = inputs[0]
         weight = inputs[1]
@@ -193,14 +205,11 @@ def _convolution():
             for infer in inferred_shape:
                 weight_shape.append(infer)
         else:
-            weight_shape = weight.shape
+            assert "data type {} could not be parsed in conv op" % (type(weight))
+
         channels = weight_shape[0]
-
         kernel_size = weight_shape[2:]
-
-        use_bias = False
-        if isinstance(bias, _expr.Expr):
-            use_bias = True
+        use_bias = True if isinstance(bias, _expr.Expr) else False
 
         if isinstance(strides, _expr.Expr):
             strides = _infer_shape(strides)
@@ -279,25 +288,19 @@ def _batch_norm():
             scale = center = True
             weight = inputs[1]
             beta = inputs[2]
+            gamma = weight
         else:
             scale = center = False
 
-        if scale:
-            gamma = weight
-        else:
+        if not scale:
             gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
 
-        if center:
-            beta = beta
-        else:
+        if not center:
             beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
 
         moving_mean = inputs[3]
         moving_var = inputs[4]
         epsilon = float(inputs[7])
-
-        center = center
-        scale = scale
 
         return _op.nn.batch_norm(data,
                                  gamma,
@@ -314,10 +317,15 @@ def _transpose():
     def _impl(inputs, input_types):
         data = inputs[0]
 
+        import torch
         if isinstance(data, _expr.Expr):
             ndims = len(_infer_shape(data))
-        else:
+        elif isinstance(data, list):
+            ndims = data
+        elif isinstance(data, (torch.Tensor, np.ndarray)):
             ndims = data.shape
+        else:
+            assert "data type {} could not be parsed in transpose op" % (type(data))
 
         if isinstance(data, tvm.runtime.NDArray):
             ndims = len(data.shape)
@@ -350,10 +358,7 @@ def _flatten():
 
 def _dense():
     def _impl(inputs, input_types):
-        use_bias = False
-
-        if isinstance(inputs[0], _expr.Expr):
-            use_bias = True
+        use_bias = True if isinstance(inputs[0], _expr.Expr) else False
 
         data = inputs[1]
         data_type = input_types[1]
@@ -608,8 +613,8 @@ def _convert_data_type(input_type):
     elif input_type in ["byte", "torch.uint8"]:
         return "uint8"
     else:
-        assert "data_type {} is not handled yet" % (data_type)
-        return "float32"
+        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
+    return "float32"
 
 def _create_typed_const(data, data_type):
     dtype = _convert_data_type(data_type)
@@ -631,9 +636,7 @@ def _create_typed_const(data, data_type):
     elif dtype == "uint8":
         typed_data = _expr.const(np.uint8(data), dtype=dtype)
     else:
-        assert "data_type {} is not handled yet" % (data_type)
-        return _expr.const(np.float32(data), dtype="float32")
-
+        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
     return typed_data
 
 # TODO: Fix typing
@@ -721,7 +724,8 @@ class Graph(object):
 
         # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
         import torch
-        if torch.__version__ != "1.2.0":
+        from packaging import version
+        if version.parse(torch.__version__) >= version.parse("1.4.0"):
             torch._C._jit_pass_inline(self._graph)
 
         self._inputs_r = {}
@@ -747,14 +751,14 @@ class Graph(object):
         mod : tvm.relay.Module
             The module that optimizations will be performed on.
 
-        params : dict of str to tvm.ndarray
-            Dict of converted parameters stored in tvm.ndarray format
+        params : dict of str to tvm.runtime
+            Dict of converted parameters stored in tvm.runtime format
         """
         # Check for missing ops
         missing_operators = self._parse_import_prerequisites()
 
         if missing_operators:
-            raise NotImplementedError( \
+            raise tvm.error.OpNotImplemented( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
         # Translate PyTorch graph to by decorating Graph with state dict and inputs into each op
@@ -769,21 +773,21 @@ class Graph(object):
             if op_node.kind() == "prim::ListConstruct":
                 if any(inp.debugName() in self._parsed_node_names.keys() \
                        for inp in op_node.inputs()):
-                    listconstr = []
+                    list_constr = []
                     for i in op_node.inputs():
                         if i.debugName() in self._parsed_node_names.keys():
-                            listconstr.append( \
+                            list_constr.append( \
                                 outputs[self._parsed_node_names[i.debugName()]])
                         elif i.node().kind() == "prim::Constant":
-                            listconstr.append(int(self._consts[i.debugName()]))
+                            list_constr.append(int(self._consts[i.debugName()]))
                         elif i.debugName() in self._inputs_r.keys():
-                            listconstr.append(int(self._inputs_r[i.debugName()]))
+                            list_constr.append(int(self._inputs_r[i.debugName()]))
 
                     # Unwrap for tensors
-                    if len(listconstr) == 1:
-                        listconstr = listconstr[0]
+                    if len(list_constr) == 1:
+                        list_constr = list_constr[0]
 
-                    outputs.append(listconstr)
+                    outputs.append(list_constr)
                     self._parsed_node_names[op_name] = nid
                     nid = nid+1
             elif op_node.kind() != "prim::Constant":
@@ -824,11 +828,9 @@ class Graph(object):
                                                    shape=self._input_shapes[input_name],
                                                    dtype=ir_dtype)
 
-        # Add self (first input of a PyTorch graph) to inputs
-        input_shape = [3]
-        tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
+        # Add self (first input of a PyTorch graph) to inputs, the value doesn't matter here
         input_name = ir_inputs[0].debugName()
-        self._inputs_r[input_name] = tensor
+        self._inputs_r[input_name] = "self"
 
     def _parse_params(self):
         """ Map state dictionary values to corresponding prim::GetAttr op node. """
@@ -986,7 +988,7 @@ class Graph(object):
         Returns
         -------
         missing_operators : set object
-            Set of operator names which don't have their mapping in TVM,
+            Set of operator names which don't have their mapping in TVM
             i.e. which are not supported
 
         """
@@ -1006,7 +1008,7 @@ def from_pytorch(script_module, input_shapes):
     ----------
     script_module : TopLevelTracedModule object
         TorchScripted PyTorch graph
-        Note: We currently only support traces (ie: torch.jit.trace(model, input)
+        Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
     shape : Dictionary of input dimensions
         Graph level input shape dictionary
@@ -1016,8 +1018,8 @@ def from_pytorch(script_module, input_shapes):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.runtime
+        Dict of converted parameters stored in tvm.runtime format
     """
     g = Graph(script_module, input_shapes)
     mod, params = g.from_pytorch()
