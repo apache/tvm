@@ -1179,10 +1179,14 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
             if do_pad:
+                pad_value = 0
+                if input_tensor.qnn_params:
+                    pad_value = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
                 in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
                                                               (pad_top, pad_bottom),
                                                               (pad_left, pad_right),
-                                                              (0, 0)))
+                                                              (0, 0)), pad_value=float(pad_value))
+
         else:
             raise tvm.error.OpAttributeUnImplemented(
                 'Padding format {} is not supported for operator Conv.'.format(padding))
@@ -1476,8 +1480,19 @@ class OperatorConverter(object):
         # convert list of lists to tuple of tuples
         paddings = tuple(tuple(l) for l in pad_list)
 
-        # Use default pad_value 0 because TFLite PAD does not support constant_values parameter
-        out = _op.nn.pad(in_expr, paddings)
+        # Set the pad value
+        pad_value = 0
+        if input_tensor.qnn_params:
+            # Check that input and output tensor have same qnn params.
+            output_tensors = self.get_output_tensors(op)
+            output_tensor = output_tensors[0]
+            assert self.has_same_qnn_params(input_tensor, output_tensor), \
+                    "TFLite reshape requires input and output scale and zero points to be equal"
+
+            # The pad value for quantized pad is the input zero point.
+            pad_value = float(input_tensor.qnn_params['zero_point'].data.asnumpy())
+
+        out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
 
     def convert_mirror_pad(self, op):
