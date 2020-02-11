@@ -25,8 +25,8 @@
 #define TVM_RUNTIME_MODULE_H_
 
 #include <string.h>
-#include "c_runtime_api.h"
-#include "common.h"
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/crt/common.h>
 
 struct packed_func_t;
 typedef struct packed_func_t PackedFunc;

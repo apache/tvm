@@ -24,12 +24,12 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 
-#include <dlpack.h>
-#include "ndarray.h"
-#include "packed_func.h"
-#include "module.h"
-#include "io.h"
-#include "load_json.h"
+#include <dlpack/dlpack.h>
+#include <tvm/runtime/crt/ndarray.h>
+#include <tvm/runtime/crt/packed_func.h>
+#include <tvm/runtime/crt/module.h>
+// #include "io.h"
+#include <tvm/runtime/crt/load_json.h>
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                            \

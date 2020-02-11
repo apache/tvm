@@ -18,16 +18,16 @@
  */
 
 /*!
- * \file tvm/runtime/ndarray.h
+ * \file tvm/runtime/crt/ndarray.h
  * \brief Abstract device memory management API
  */
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
 
-#include "c_runtime_api.h"
-#include "c_backend_api.h"
-#include "common.h"
-#include "dlpack.h"
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/crt/common.h>
+#include <dlpack/dlpack.h>
 
 /*! \brief Magic number for NDArray file */
 static const uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
