@@ -875,7 +875,7 @@ class TVMRetValue : public TVMPODValue_ {
   void Clear() {
     if (type_code_ == kTVMNullptr) return;
     switch (type_code_) {
-      case kTVMStr: delete ptr<std::string>(); break;
+      case kTVMStr: case kTVMBytes: delete ptr<std::string>(); break;
       case kTVMPackedFuncHandle: delete ptr<PackedFunc>(); break;
       case kTVMNDArrayHandle: {
         NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
