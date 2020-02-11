@@ -23,8 +23,8 @@ from tvm.tir import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, 
 from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from tvm.tir import comm_reducer, min, max, sum
 
-from .schedule import Schedule, create_schedule
-from .tensor import Tensor
+from .schedule import Schedule, create_schedule, SpecializedCondition
+from .tensor import TensorSlice, Tensor
 from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, size_var

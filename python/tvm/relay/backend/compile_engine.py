@@ -19,35 +19,25 @@
 from __future__ import absolute_import
 
 import logging
-import hashlib
 import numpy as np
 import tvm
-from topi import tag
 from ..base import register_relay_node, Object
-from ... import _api_internal
 from ... import target as _target
 from ... import autotvm
 from .. import expr as _expr
 from .. import op as _op
 from .. import ty as _ty
-from ..expr_functor import ExprVisitor
 from . import _backend
 
 logger = logging.getLogger('compile_engine')
 
+
 @register_relay_node
-class CachedFunc(Object):
-    """Low-level tensor function to back a relay primitive function.
-    """
-    def __init__(self, target, func_name, inputs, outputs, schedule=None,
-                 lowered_funcs=None, shape_func_param_states=None):
-        if lowered_funcs is None:
-            lowered_funcs = []
-        if shape_func_param_states is None:
-            shape_func_param_states = []
+class LoweredOutput(Object):
+    """Lowered output"""
+    def __init__(self, outputs, implement):
         self.__init_handle_by_constructor__(
-            _backend._make_CachedFunc, target, func_name, inputs, outputs,
-            schedule, lowered_funcs, shape_func_param_states)
+            _backend._make_LoweredOutput, outputs, implement)
 
 
 @register_relay_node
@@ -103,7 +93,7 @@ def get_shape(shape):
 def get_valid_implements(op, attrs, inputs, out_type, target):
     """Get all valid implementations from the op strategy.
 
-    Note that this function doesn't support op that has symbolic input shapes.
+    Note that this function doesn't support op with symbolic input shapes.
 
     Parameters
     ----------
@@ -161,7 +151,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
     If use_autotvm is False, it'll directly choose the implementation with
     highest plevel.
 
-    Note that this function doesn't support op that has symbolic input shapes.
+    Note that this function doesn't support op with symbolic input shapes.
 
     Parameters
     ----------
@@ -220,180 +210,52 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
-class ScheduleGetter(ExprVisitor):
-    """Get the schedule given a fused Relay function"""
+@tvm._ffi.register_func("relay.backend.lower_call")
+def lower_call(call, inputs, target):
+    assert isinstance(call.op, _op.Op)
+    op = call.op
 
-    MAX_FUNC_NAME_LENGTH = 80
-
-    def __init__(self, target):
-        super().__init__()
-        self.target = target
-        self.master_op = None
-        self.master_attrs = None
-        self.master_op_pattern = 0
-        self.master_implement = None
-        self.func_name = ""
-        self.scalars = []
-        self._device_copy_op = _op.get("device_copy")
-
-    def create(self, prim_func):
-        """Get the schedule and create the cached function"""
-        assert isinstance(prim_func, _expr.Function)
-        assert prim_func.is_primitive()
-
-        def create_tensors(typ, tensors):
-            if isinstance(typ, _ty.TensorType):
-                tensors.append(tvm.placeholder(get_shape(typ.shape), typ.dtype))
+    # Prepare the call_node->checked_type(). For the call node inputs, we ensure that
+    # the shape is Int32. Following code ensures the same for the output as well.
+    # TODO(@icemelon9): Support recursive tuple
+    ret_type = call.checked_type
+    if isinstance(ret_type, _ty.TensorType):
+        ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
+    elif isinstance(ret_type, _ty.TupleType):
+        new_fields = []
+        for field in ret_type.fields:
+            if isinstance(field, _ty.TensorType):
+                new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
             else:
-                assert isinstance(typ, _ty.TupleType)
-                for field in typ.fields:
-                    create_tensors(field, tensors)
+                new_fields.append(field)
+        ret_type = _ty.TupleType(new_fields)
 
-        inputs = []
-        for param in prim_func.params:
-            tensors = []
-            create_tensors(param.checked_type, tensors)
-            self.memo_map[param] = tensors
-            inputs.extend(tensors)
-        self.func_name = "fused"
-        outputs = self.visit(prim_func.body)
-        if len(self.func_name) > ScheduleGetter.MAX_FUNC_NAME_LENGTH:
-            hash_digest = int(hashlib.sha1(self.func_name.encode("utf-8")).hexdigest(), 16)
-            self.func_name = "%s_%s" % (
-                self.func_name[:ScheduleGetter.MAX_FUNC_NAME_LENGTH], hash_digest)
+    is_dyn = call.checked_type.is_dynamic()
+    for arg in call.args:
+        is_dyn = is_dyn or arg.checked_type.is_dynamic()
 
-        assert self.master_op is not None
-        tensor_outs = []
-        for tensor in outputs:
-            if not isinstance(tensor.op, tvm.tensor.PlaceholderOp):
-                tensor_outs.append(tensor)
-        sch = None
-        if not isinstance(self.master_attrs, _op.op_attrs.DeviceCopyAttrs):
-            sch = self.master_implement.schedule(self.master_attrs, tensor_outs, self.target)
-            for scalar in self.scalars:
-                if scalar in sch.stage_map:
-                    sch[scalar].compute_inline()
-        return CachedFunc(self.target, self.func_name, inputs, outputs, sch)
+    # check if in the AutoTVM tracing mode, and disable if op is not in wanted list
+    env = autotvm.task.TaskExtractEnv.current
+    reenable_tracing = False
+    if env is not None and env.tracing:
+        if env.wanted_relay_ops is not None and op not in env.wanted_relay_ops:
+            env.tracing = False
+            reenable_tracing = True
 
-    def visit_var(self, var):
-        assert False, "Found free variable " + var.name_hint
+    if not is_dyn:
+        best_impl, outputs = select_implement(
+            op, call.attrs, inputs, ret_type, target)
+        logger.info("Use implementation %s for op %s", best_impl.name, op.name)
+    else:
+        # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
+        #   Currently, we just use the implementation with highest plevel
+        best_impl, outputs = select_implement(
+            op, call.attrs, inputs, ret_type, target, use_autotvm=False)
 
-    def visit_constant(self, const):
-        assert len(const.data.shape) == 0, "Constant is not scalar"
-        dtype = const.data.dtype
-        data = const.data.asnumpy()
-        def fcompute():
-            if dtype.startswith("int"):
-                return tvm.expr.IntImm(dtype, int(data))
-            elif dtype.startswith("uint"):
-                return tvm.expr.UIntImm(dtype, int(data))
-            elif dtype.startswith("float"):
-                return tvm.expr.FloatImm(dtype, float(data))
-            else:
-                assert False, "not handled"
-                return tvm.expr.Expr()
-        value = tvm.compute((), fcompute, name="compile_engine_const", tag=tag.BROADCAST)
-        self.scalars.append(value.op)
-        return [value]
-
-    def visit_call(self, call):
-        inputs = []
-        count_tuple = 0
-        for arg in call.args:
-            if isinstance(arg.checked_type, _ty.TupleType):
-                count_tuple += 1
-            inputs.extend(self.visit(arg))
-        assert count_tuple <= 1, "Only allow function with a single tuple input"
-        ret_type = call.checked_type
-        if isinstance(ret_type, _ty.TensorType):
-            ret_type = _ty.TensorType(get_shape(ret_type.shape), ret_type.dtype)
-        elif isinstance(ret_type, _ty.TupleType):
-            new_fields = []
-            for field in ret_type.fields:
-                if isinstance(field, _ty.TensorType):
-                    new_fields.append(_ty.TensorType(get_shape(field.shape), field.dtype))
-                else:
-                    new_fields.append(field)
-            ret_type = _ty.TupleType(new_fields)
-        assert isinstance(call.op, _op.Op)
-        op = call.op
-
-        # disable AutoTVM tracing if op is not in wanted list
-        env = autotvm.task.TaskExtractEnv.current
-        reenable_tracing = False
-        if env is not None and env.tracing:
-            if env.wanted_relay_ops is not None and op not in env.wanted_relay_ops:
-                env.tracing = False
-                reenable_tracing = True
-
-        if op == self._device_copy_op:
-            copy_input = inputs[0]
-            outputs = [_api_internal._Tensor(copy_input.shape, copy_input.dtype,
-                                             None, 0)]
-        else:
-            is_dyn = call.checked_type.is_dynamic()
-            for arg in call.args:
-                is_dyn = is_dyn or arg.checked_type.is_dynamic()
-
-            if not is_dyn:
-                best_impl, outputs = select_implement(
-                    op, call.attrs, inputs, ret_type, self.target)
-                logger.info("Use implementation %s for op %s", best_impl.name, op.name)
-            else:
-                # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes
-                # for dynamic case, we currently use the implementation with highest plevel
-                best_impl, outputs = select_implement(
-                    op, call.attrs, inputs, ret_type, self.target, use_autotvm=False)
-        op_pattern = op.get_attr("TOpPattern")
-        if op_pattern >= _op.OpPattern.COMM_REDUCE:
-            assert self.master_op is None or self.master_op_pattern < _op.OpPattern.COMM_REDUCE, \
-                "Two complicated op in a primitive function master=%s current=%s" % (
-                    self.master_op, op)
-        if op_pattern >= self.master_op_pattern:
-            self.master_op = op
-            self.master_attrs = call.attrs
-            self.master_op_pattern = op_pattern
-            self.master_implement = best_impl
-        if len(outputs) > 1:
-            assert isinstance(call.checked_type, _ty.TupleType)
-            assert len(call.checked_type.fields) == len(outputs)
-        if op == self._device_copy_op:
-            self.func_name += "__copy"
-        else:
-            self.func_name += "_" + op.name
-
-        # re-enable AutoTVM tracing
-        if reenable_tracing:
-            env.tracing = True
-
-        return outputs
-
-    def visit_let(self, let):
-        val = self.visit(let.value)
-        assert let.var not in self.memo_map
-        self.memo_map[let.var] = val
-        return self.visit(let.body)
-
-    def visit_tuple(self, tup):
-        fields = []
-        for field in tup.fields:
-            assert isinstance(field.checked_type, _ty.TensorType), "Only allow Tuple of Tensor"
-            res = self.visit(field)
-            assert len(res) == 1
-            fields.append(res[0])
-        return fields
-
-    def visit_tuple_getitem(self, t):
-        tup = self.visit(t.tuple_value)
-        assert len(tup) == len(t.tuple_value.checked_type.fields)
-        assert t.index >= 0
-        assert t.index < len(tup)
-        return [tup[t.index]]
-
-
-@tvm._ffi.register_func("relay.backend.create_schedule")
-def create_schedule(src_func, target):
-    return ScheduleGetter(target).create(src_func)
+    # re-enable AutoTVM tracing
+    if reenable_tracing:
+        env.tracing = True
+    return LoweredOutput(outputs, best_impl)
 
 
 @register_relay_node

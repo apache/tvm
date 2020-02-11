@@ -50,7 +50,7 @@ from . import target
 from .target import build_config
 
 # tvm.te
-from .te import decl_tensor_intrin, create_schedule, tag_scope, current_specialization
+from .te import decl_tensor_intrin, create_schedule, tag_scope
 
 # tvm.testing
 from . import testing

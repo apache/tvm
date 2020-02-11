@@ -789,10 +789,10 @@ IterVarRelation SingletonNode::make(IterVar iter) {
   return IterVarRelation(n);
 }
 
-SpecializedCondition SpecializedConditionNode::make(Array<PrimExpr> conditions) {
-  auto n = make_object<SpecializedConditionNode>();
-  n->clauses = conditions;
-  return SpecializedCondition(n);
+SpecializedCondition::SpecializedCondition(Array<PrimExpr> conditions) {
+  ObjectPtr<SpecializedConditionNode> n = make_object<SpecializedConditionNode>();
+  n->clauses = std::move(conditions);
+  data_ = std::move(n);
 }
 
 /*! \brief Entry to hold the SpecializedCondition context stack. */
@@ -826,7 +826,9 @@ SpecializedCondition SpecializedCondition::Current() {
 }
 
 TVM_REGISTER_GLOBAL("_CreateSpecializedCondition")
-.set_body_typed(SpecializedConditionNode::make);
+.set_body_typed([](Array<PrimExpr> condition) {
+  return SpecializedCondition(condition);
+});
 
 TVM_REGISTER_GLOBAL("_GetCurrentSpecialization")
 .set_body([](TVMArgs args, TVMRetValue* ret) {

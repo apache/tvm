@@ -44,7 +44,28 @@ enum ShapeFuncParamState {
   kNeedBoth = 3,
 };
 
-class CachedFunc;
+struct LoweredOutputNode : public Object {
+  /*! \brief The outputs to the function */
+  tvm::Array<te::Tensor> outputs;
+  /*! \brief The implementation used to compute the output */
+  OpImplement implement;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("outputs", &outputs);
+    v->Visit("implement", &implement);
+  }
+
+  static constexpr const char* _type_key = "relay.LoweredOutput";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoweredOutputNode, Object);
+};
+
+class LoweredOutput : public ObjectRef {
+ public:
+  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplement implement);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
+};
+
 /*! \brief Node container to represent a cached function. */
 struct CachedFuncNode : public Object {
   /* \brief compiled target */
@@ -55,7 +76,7 @@ struct CachedFuncNode : public Object {
   tvm::Array<te::Tensor> inputs;
   /* \brief The outputs to the function */
   tvm::Array<te::Tensor> outputs;
-  /* \brief The schedule to the function */
+  /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
   tvm::Array<tir::LoweredFunc> funcs;
@@ -71,14 +92,6 @@ struct CachedFuncNode : public Object {
     v->Visit("funcs", &funcs);
     v->Visit("shape_func_param_states", &shape_func_param_states);
   }
-
-  TVM_DLL static CachedFunc make(tvm::Target target,
-                                 std::string func_name,
-                                 tvm::Array<te::Tensor> inputs,
-                                 tvm::Array<te::Tensor> outputs,
-                                 te::Schedule schedule,
-                                 tvm::Array<tir::LoweredFunc> funcs,
-                                 tvm::Array<Integer> shape_func_param_states);
 
   static constexpr const char* _type_key = "relay.CachedFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(CachedFuncNode, Object);

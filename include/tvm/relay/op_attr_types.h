@@ -120,8 +120,8 @@ using FTVMCompute = runtime::TypedPackedFunc<
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
   te::Schedule(const Attrs& attrs,
-                const Array<te::Tensor>& outs,
-                const Target& target)>;
+               const Array<te::Tensor>& outs,
+               const Target& target)>;
 
 /*!
  * \brief Generate the strategy of operators. This function is a generic
@@ -303,8 +303,8 @@ class OpSpecialization : public ObjectRef {
  public:
   /*!
    * \brief Add an implementation.
-   * \param compute Compute function
-   * \param schedule Schedule function
+   * \param fcompute Compute function
+   * \param fschedule Schedule function
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
@@ -337,8 +337,8 @@ class OpStrategy : public ObjectRef {
  public:
   /*!
    * \brief Add an implementation.
-   * \param compute Compute function
-   * \param schedule Schedule function
+   * \param fcompute Compute function
+   * \param fschedule Schedule function
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */

@@ -743,35 +743,6 @@ class SingletonNode : public IterVarRelationNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SingletonNode, IterVarRelationNode);
 };
 
-class SpecializedConditionNode;
-
-/*!
- * \brief Specialized condition to enable op specialization
- */
-class SpecializedCondition : public ObjectRef {
- public:
-  SpecializedCondition() {}
-  explicit SpecializedCondition(ObjectPtr<Object> n) : ObjectRef(n) {}
-  /*!
-   * \brief Get the current specialized condition.
-   * \return The current specialized condition.
-   */
-  TVM_DLL static SpecializedCondition Current();
-
-  const SpecializedConditionNode* operator->() const;
-
-  using ContainerType = SpecializedConditionNode;
-  class Internal;
- private:
-  // enable with syntax.
-  friend class Internal;
-  friend class With<SpecializedCondition>;
-  /*! \brief Push a new specialized condition onto the thread local stack. */
-  TVM_DLL void EnterWithScope();
-  /*! \brief Pop a specialized condition off the thread local context stack. */
-  TVM_DLL void ExitWithScope();
-};
-
 /*! \brief Container for specialization conditions. */
 class SpecializedConditionNode : public Object {
  public:
@@ -786,12 +757,39 @@ class SpecializedConditionNode : public Object {
     v->Visit("clauses", &clauses);
   }
 
-  static SpecializedCondition make(Array<PrimExpr> conditions);
-
   static constexpr const char* _type_key = "SpecializedCondition";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpecializedConditionNode, Object);
 };
 
+/*!
+ * \brief Specialized condition to enable op specialization
+ */
+class SpecializedCondition : public ObjectRef {
+ public:
+  /*!
+   * \brief construct from conditions
+   * \param conditions The clauses in the specialized condition.
+   */
+  TVM_DLL SpecializedCondition(Array<PrimExpr> conditions);  // NOLINT(*)
+
+  /*!
+   * \brief Get the current specialized condition.
+   * \return the current specialized condition.
+   */
+  TVM_DLL static SpecializedCondition Current();
+
+  TVM_DEFINE_OBJECT_REF_METHODS(SpecializedCondition, ObjectRef, SpecializedConditionNode);
+  class Internal;
+
+ private:
+  // enable with syntax.
+  friend class Internal;
+  friend class With<SpecializedCondition>;
+  /*! \brief Push a new specialized condition onto the thread local stack. */
+  TVM_DLL void EnterWithScope();
+  /*! \brief Pop a specialized condition off the thread local context stack. */
+  TVM_DLL void ExitWithScope();
+};
 
 // implementations
 inline const StageNode* Stage::operator->() const {
@@ -814,10 +812,6 @@ inline const IterVarRelationNode* IterVarRelation::operator->() const {
 
 inline const IterVarAttrNode* IterVarAttr::operator->() const {
   return static_cast<const IterVarAttrNode*>(get());
-}
-
-inline const SpecializedConditionNode* SpecializedCondition::operator->() const {
-  return static_cast<const SpecializedConditionNode*>(get());
 }
 
 }  // namespace te
