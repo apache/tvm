@@ -33,10 +33,11 @@ namespace relay {
 // Realizer class that realizes the expression
 // Note that we can take benefit of its internal memo
 // so that calling realize repeatively won't hurt perf.
-class TempRealizer : private ExprMutator {
+class TempRealizer : private ExprRewriter {
  public:
+  TempRealizer() : ExprRewriter([this](const Expr& expr){this->VisitExpr(expr);}) {}
   Expr Realize(Expr expr) {
-    return VisitExpr(expr);
+    return Rewrite(expr);
   }
 
  private:
@@ -50,15 +51,15 @@ class TempRealizer : private ExprMutator {
         res = temp->Realize();
 
       } else {
-        res = ExprFunctor::VisitExpr(expr);
+        res = ExprRewriter::VisitExpr(expr);
       }
-      memo_[res] = res;
+      memo_[expr] = res;
       return res;
     }
   }
 };
 
-class ForwardRewriter : private ExprMutator {
+class ForwardRewriter : private ExprRewriter {
  public:
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,
@@ -76,7 +77,7 @@ class ForwardRewriter : private ExprMutator {
 
 
   // Transform expression.
-  Expr Rewrite(Expr expr) {
+  Expr Rewrite(const Expr& expr) override {
     if (fmulti_ref_trigger_ != nullptr) {
       ref_counter_ = GetExprRefCount(expr);
     }
@@ -98,13 +99,13 @@ class ForwardRewriter : private ExprMutator {
 
   Expr VisitExpr(const Expr& expr) final {
     // by default always realize.
-    return realizer_.Realize(ExprMutator::VisitExpr(expr));
+    return realizer_.Realize(ExprRewriter::Rewrite(expr));
   }
 
   // Visit and allow non-realized version.
   Expr GetTempExpr(const Expr& expr)  {
     if (fmulti_ref_trigger_ != nullptr) {
-      Expr ret = ExprMutator::VisitExpr(expr);
+      Expr ret = ExprRewriter::VisitExpr(expr);
       auto it = ref_counter_.find(expr.get());
       CHECK(it != ref_counter_.end());
       if (it->second > 1) {
@@ -112,7 +113,7 @@ class ForwardRewriter : private ExprMutator {
       }
       return ret;
     } else {
-      return ExprMutator::VisitExpr(expr);
+      return ExprRewriter::VisitExpr(expr);
     }
   }
 
