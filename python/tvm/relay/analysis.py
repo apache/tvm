@@ -384,7 +384,7 @@ def detect_feature(a, b=None):
     """
     if isinstance(a, Module):
         a, b = b, a
-    return set([Feature(int(x)) for x in _analysis.detect_feature(a, b)])
+    return {Feature(int(x)) for x in _analysis.detect_feature(a, b)}
 
 
 def structural_hash(value):

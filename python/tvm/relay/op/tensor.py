@@ -16,11 +16,12 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin
-from __future__ import absolute_import as _abs
+from tvm.runtime import ndarray as _nd
+from tvm.runtime import TVMContext as _TVMContext
+
 from . import _make
 from ..expr import Tuple
-from ... import nd as _nd
-from ... import TVMContext as _TVMContext
+
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.
@@ -317,6 +318,22 @@ def logical_not(data):
     return _make.logical_not(data)
 
 
+def bitwise_not(data):
+    """Compute element-wise bitwise not of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_not(data)
+
+
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -503,6 +520,60 @@ def logical_or(lhs, rhs):
         The computed result.
     """
     return _make.logical_or(lhs, rhs)
+
+
+def bitwise_and(lhs, rhs):
+    """bitwise AND with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_and(lhs, rhs)
+
+
+def bitwise_or(lhs, rhs):
+    """bitwise OR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_or(lhs, rhs)
+
+
+def bitwise_xor(lhs, rhs):
+    """bitwise XOR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_xor(lhs, rhs)
 
 
 def equal(lhs, rhs):

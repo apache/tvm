@@ -21,6 +21,7 @@
  * \file expr_operator.cc
  */
 
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <cmath>
@@ -631,5 +632,24 @@ PrimExpr trunc(PrimExpr x) {
   }
   return tir::CallNode::make(x.dtype(), "trunc", {x}, tir::CallNode::PureIntrinsic);
 }
+
+
+// expose basic functions to node namespace
+TVM_REGISTER_GLOBAL("node._const")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    if (args[0].type_code() == kDLInt) {
+      *ret = tir::make_const(args[1], args[0].operator int64_t());
+    } else if (args[0].type_code() == kDLFloat) {
+      *ret = tir::make_const(args[1], args[0].operator double());
+    } else {
+      LOG(FATAL) << "only accept int or float";
+    }
+  });
+
+TVM_REGISTER_GLOBAL("node.LargeUIntImm")
+.set_body_typed(LargeUIntImm);
+
+TVM_REGISTER_GLOBAL("node.String")
+.set_body_typed(tir::StringImmNode::make);
 
 }  // namespace tvm

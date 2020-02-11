@@ -151,14 +151,12 @@ class ExprPack(ExprMutator):
             assert not self.start_pack
             self.start_pack = True
             return _pack_batch_channel(args[0], oshape, self.bfactor, self.cfactor)
-        elif call.op == self.bitpack_end:
+        if call.op == self.bitpack_end:
             if self.start_pack:
                 self.start_pack = False
                 data = args[0]
                 data_shape = _get_shape(call.args[0])
                 return _unpack_batch_channel(data, data_shape)
-            else:
-                pass
         if self.start_pack:
             # Operator cases
             if call.op == self.conv2d and odtype == 'int32':
@@ -188,7 +186,8 @@ class ExprPack(ExprMutator):
                     kernel_layout=kernel_layout,
                     out_dtype=call.attrs.out_dtype)
                 return conv2d
-            elif call.op == self.conv2d_transpose and odtype == 'int32':
+
+            if call.op == self.conv2d_transpose and odtype == 'int32':
                 self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
                 w_lanes = 8 // self.weight_bits
@@ -213,7 +212,7 @@ class ExprPack(ExprMutator):
                         output_padding=call.attrs.output_padding,
                         out_dtype=call.attrs.out_dtype)
                 return conv2d
-            elif call.op == self.add and \
+            if call.op == self.add and \
                     tuple(input_types[0].shape) == tuple(input_types[1].shape):
                 pass
             elif call.op == self.add and len(input_types[1].shape) == 3:
@@ -272,7 +271,7 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
                                        _recursion(anf.body, start_found, stop_found,
                                                   operator_current_idx),
                                        anf.ret_type, anf.type_params, anf.attrs)
-        elif isinstance(anf, relay.expr.Let):
+        if isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):
                 if isinstance(value.op, relay.op.Op):

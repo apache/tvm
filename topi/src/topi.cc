@@ -43,7 +43,6 @@
 #include <topi/nn/mapping.h>
 #include <topi/nn/pooling.h>
 #include <topi/nn/softmax.h>
-#include <topi/nn/l2_normalize.h>
 #include <topi/nn/local_response_norm.h>
 #include <topi/nn/batch_matmul.h>
 
@@ -134,6 +133,9 @@ TOPI_REGISTER_BCAST_OP("topi.power", topi::power);
 TOPI_REGISTER_BCAST_OP("topi.left_shift", topi::left_shift);
 TOPI_REGISTER_BCAST_OP("topi.logical_and", topi::logical_and);
 TOPI_REGISTER_BCAST_OP("topi.logical_or", topi::logical_or);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_and", topi::bitwise_and);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_or", topi::bitwise_or);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_xor", topi::bitwise_xor);
 TOPI_REGISTER_BCAST_OP("topi.right_shift", topi::right_shift);
 TOPI_REGISTER_BCAST_OP("topi.greater", topi::greater);
 TOPI_REGISTER_BCAST_OP("topi.less", topi::less);
@@ -150,6 +152,11 @@ TVM_REGISTER_GLOBAL("topi.broadcast_to")
 TVM_REGISTER_GLOBAL("topi.logical_not")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = logical_not(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.bitwise_not")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = bitwise_not(args[0]);
   });
 
 /* Ops from elemwise.h */
@@ -554,12 +561,6 @@ TVM_REGISTER_GLOBAL("topi.nn.log_softmax")
   *rv = nn::log_softmax(args[0]);
   });
 
-/* Ops from nn/l2_normalize.h */
-TVM_REGISTER_GLOBAL("topi.nn.l2_normalize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = nn::l2_normalize(args[0], static_cast<double>(args[1]), args[2]);
-  });
-
 TVM_REGISTER_GLOBAL("topi.nn.lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = nn::lrn(args[0], args[1], args[2],
@@ -674,11 +675,6 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
   *rv = topi::rocm::schedule_lrn(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.rocm.schedule_l2_normalize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_l2_normalize(args[0], args[1]);
-  });
-
 /* CUDA schedules */
 TVM_REGISTER_GLOBAL("topi.cuda.dense_cuda")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -723,11 +719,6 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = topi::cuda::schedule_lrn(args[0], args[1]);
-  });
-
-TVM_REGISTER_GLOBAL("topi.cuda.schedule_l2_normalize")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_l2_normalize(args[0], args[1]);
   });
 
 /* Utility functions */

@@ -16,8 +16,6 @@
 # under the License.
 """The C Types used in API."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
-
 import ctypes
 import struct
 from ..base import py_str, check_call, _LIB

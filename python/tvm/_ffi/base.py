@@ -15,10 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM FFI."""
-from __future__ import absolute_import
-
 import sys
 import os
 import ctypes
@@ -28,27 +26,22 @@ from . import libinfo
 #----------------------------
 # library loading
 #----------------------------
-if sys.version_info[0] == 3:
-    string_types = (str,)
-    integer_types = (int, np.int32)
-    numeric_types = integer_types + (float, np.float32)
-    # this function is needed for python3
-    # to convert ctypes.char_p .value back to python str
-    if sys.platform == "win32":
-        def _py_str(x):
-            try:
-                return x.decode('utf-8')
-            except UnicodeDecodeError:
-                encoding = 'cp' + str(ctypes.cdll.kernel32.GetACP())
-                return x.decode(encoding)
-        py_str = _py_str
-    else:
-        py_str = lambda x: x.decode('utf-8')
+string_types = (str,)
+integer_types = (int, np.int32)
+numeric_types = integer_types + (float, np.float32)
+
+# this function is needed for python3
+# to convert ctypes.char_p .value back to python str
+if sys.platform == "win32":
+    def _py_str(x):
+        try:
+            return x.decode('utf-8')
+        except UnicodeDecodeError:
+            encoding = 'cp' + str(ctypes.cdll.kernel32.GetACP())
+        return x.decode(encoding)
+    py_str = _py_str
 else:
-    string_types = (basestring,)
-    integer_types = (int, long, np.int32)
-    numeric_types = integer_types + (float, np.float32)
-    py_str = lambda x: x
+    py_str = lambda x: x.decode('utf-8')
 
 
 def _load_lib():
@@ -211,14 +204,14 @@ def _find_error_type(line):
         if _valid_error_name(err_name):
             return err_name
         return None
-    else:
-        end_pos = line.find(":")
-        if end_pos == -1:
-            return None
-        err_name = line[:end_pos]
-        if _valid_error_name(err_name):
-            return err_name
+
+    end_pos = line.find(":")
+    if end_pos == -1:
         return None
+    err_name = line[:end_pos]
+    if _valid_error_name(err_name):
+        return err_name
+    return None
 
 
 def c2pyerror(err_msg):

@@ -22,6 +22,8 @@ Python API
    :maxdepth: 2
 
    tvm
+   runtime
+   ndarray
    intrin
    tensor
    schedule
@@ -29,7 +31,6 @@ Python API
    build
    module
    error
-   ndarray
    container
    function
    autotvm
@@ -37,6 +38,7 @@ Python API
    rpc
    bridge
    contrib
+   ffi
    dev
    topi
    vta/index

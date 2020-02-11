@@ -15,13 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Container data structures used in TVM DSL."""
-from __future__ import absolute_import as _abs
-from tvm import ndarray as _nd
-from . import _api_internal
-from ._ffi.object import Object, register_object, getitem_helper
-from ._ffi.function import _init_api
+import tvm._ffi
 
-@register_object
+from tvm.runtime import Object, ObjectTypes
+from tvm.runtime.container import getitem_helper
+from tvm.runtime import _ffi_node_api
+from . import _api_internal
+
+
+@tvm._ffi.register_object
 class Array(Object):
     """Array container of TVM.
 
@@ -30,29 +32,15 @@ class Array(Object):
     to Array during tvm function call.
     You may get Array in return values of TVM function call.
     """
-    def __getitem__(self, i):
-        if isinstance(i, slice):
-            start = i.start if i.start is not None else 0
-            stop = i.stop if i.stop is not None else len(self)
-            step = i.step if i.step is not None else 1
-            if start < 0:
-                start += len(self)
-            if stop < 0:
-                stop += len(self)
-            return [self[idx] for idx in range(start, stop, step)]
-
-        if i < -len(self) or i >= len(self):
-            raise IndexError("Array index out of range. Array size: {}, got index {}"
-                             .format(len(self), i))
-        if i < 0:
-            i += len(self)
-        return _api_internal._ArrayGetItem(self, i)
+    def __getitem__(self, idx):
+        return getitem_helper(
+            self, _ffi_node_api.ArrayGetItem, len(self), idx)
 
     def __len__(self):
-        return _api_internal._ArraySize(self)
+        return _ffi_node_api.ArraySize(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class EnvFunc(Object):
     """Environment function.
 
@@ -66,7 +54,7 @@ class EnvFunc(Object):
         return _api_internal._EnvFuncGetPackedFunc(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class Map(Object):
     """Map container of TVM.
 
@@ -75,21 +63,21 @@ class Map(Object):
     You can use convert to create a dict[Object-> Object] into a Map
     """
     def __getitem__(self, k):
-        return _api_internal._MapGetItem(self, k)
+        return _ffi_node_api.MapGetItem(self, k)
 
     def __contains__(self, k):
-        return _api_internal._MapCount(self, k) != 0
+        return _ffi_node_api.MapCount(self, k) != 0
 
     def items(self):
         """Get the items from the map"""
-        akvs = _api_internal._MapItems(self)
+        akvs = _ffi_node_api.MapItems(self)
         return [(akvs[i], akvs[i+1]) for i in range(0, len(akvs), 2)]
 
     def __len__(self):
-        return _api_internal._MapSize(self)
+        return _ffi_node_api.MapSize(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class StrMap(Map):
     """A special map container that has str as key.
 
@@ -97,11 +85,11 @@ class StrMap(Map):
     """
     def items(self):
         """Get the items from the map"""
-        akvs = _api_internal._MapItems(self)
+        akvs = _ffi_node_api.MapItems(self)
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
 
 
-@register_object
+@tvm._ffi.register_object
 class Range(Object):
     """Represent a range in TVM.
 
@@ -110,7 +98,7 @@ class Range(Object):
     """
 
 
-@register_object
+@tvm._ffi.register_object
 class LoweredFunc(Object):
     """Represent a LoweredFunc in TVM."""
     MixedFunc = 0
@@ -118,7 +106,7 @@ class LoweredFunc(Object):
     DeviceFunc = 2
 
 
-@register_object("vm.ADT")
+@tvm._ffi.register_object("vm.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.
 
@@ -132,7 +120,7 @@ class ADT(Object):
     """
     def __init__(self, tag, fields):
         for f in fields:
-            assert isinstance(f, (Object, _nd.NDArray)), "Expect object or " \
+            assert isinstance(f, ObjectTypes), "Expect object or " \
             "tvm NDArray type, but received : {0}".format(type(f))
         self.__init_handle_by_constructor__(_ADT, tag, *fields)
 
@@ -163,9 +151,9 @@ def tuple_object(fields=None):
     """
     fields = fields if fields else []
     for f in fields:
-        assert isinstance(f, (Object, _nd.NDArray)), "Expect object or tvm " \
+        assert isinstance(f, ObjectTypes), "Expect object or tvm " \
         "NDArray type, but received : {0}".format(type(f))
     return _Tuple(*fields)
 
 
-_init_api("tvm.container")
+tvm._ffi._init_api("tvm.container")

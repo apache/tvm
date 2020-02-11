@@ -22,8 +22,7 @@ The functions are automatically exported from C++ side via PackedFunc.
 Each api is a PackedFunc that can be called in a positional argument manner.
 You can use make function to build the IR node.
 """
-from __future__ import absolute_import as _abs
-from ._ffi.function import _init_api
+import tvm._ffi
 
 
 def range_by_min_extent(min_value, extent):
@@ -85,4 +84,4 @@ def node(type_key, **kwargs):
     return _Node(*args)
 
 
-_init_api("tvm.make")
+tvm._ffi._init_api("tvm.make")

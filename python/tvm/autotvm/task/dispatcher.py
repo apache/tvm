@@ -282,6 +282,7 @@ class ApplyHistoryBest(DispatchContext):
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
         """
+        # pylint: disable=import-outside-toplevel
         from pathlib import Path
         from ..record import load_from_file
 
@@ -454,6 +455,7 @@ class ApplyGraphBest(DispatchContext):
                    Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
         """
+        # pylint: disable=import-outside-toplevel
         from ..record import load_from_file
 
         super(ApplyGraphBest, self).__init__()

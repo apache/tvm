@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, no-init
+# pylint: disable=invalid-name, unused-variable, unused-argument, no-init, import-outside-toplevel
 """
 Tensorflow Model Helpers
 ========================
@@ -346,7 +346,7 @@ def get_workload_ptb():
     sample_data_file = 'simple-examples.tgz'
     sample_url = sample_repo+sample_data_file
     ptb_model_file = 'RNN/ptb/ptb_model_with_lstmblockcell.pb'
-
+    # pylint: disable=import-outside-toplevel
     import tarfile
     file_path = download_testdata(sample_url, sample_data_file, module=['data', 'ptb_data'])
     dir_path = os.path.dirname(file_path)

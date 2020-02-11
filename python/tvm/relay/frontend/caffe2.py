@@ -401,6 +401,7 @@ class Caffe2NetDef(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        # pylint: disable=import-outside-toplevel
         from caffe2.python import workspace
         workspace.RunNetOnce(init_net)
 
@@ -567,8 +568,8 @@ def from_caffe2(init_net, predict_net, shape=None, dtype="float32"):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.nd.NDArray
+        Dict of converted parameters stored in tvm.nd.NDArray format
     """
 
     caffe2 = Caffe2NetDef(shape, dtype)

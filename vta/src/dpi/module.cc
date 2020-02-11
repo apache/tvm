@@ -418,7 +418,7 @@ Module DPIModuleNode::Load(std::string dll_name) {
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_vta-tsim")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_vta-tsim")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = DPIModuleNode::Load(args[0]);
   });

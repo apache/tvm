@@ -38,7 +38,7 @@ def verify_elemwise_sum(num_args, dtype):
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 
@@ -67,7 +67,7 @@ def verify_full(shape, dtype, fill_value):
     np_nd = get_ref_data()
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
 

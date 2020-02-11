@@ -444,7 +444,7 @@ def test_reduction_and_dummy_fuse_split():
     axo, axi = s[Y.op].split(ax, nparts=20)
     f = tvm.build(s, [Y, X])
 
-    args = [tvm.nd.empty((), 'int32')] + [tvm.ndarray.array(np.ones((n,), dtype='int32'))]
+    args = [tvm.nd.empty((), 'int32')] + [tvm.nd.array(np.ones((n,), dtype='int32'))]
     f(*args)
     assert args[0].asnumpy() == n
 
@@ -456,8 +456,8 @@ def test_reduction_and_dummy_fuse_split():
     ax = s[Y.op].fuse(*(list(Y.op.axis) + list(Y.op.reduce_axis)))
     f = tvm.build(s, [Y, X])
 
-    args = [tvm.ndarray.array(np.ones((n,), dtype='int32'))] + \
-        [tvm.ndarray.array(np.ones((n,), dtype='int32'))]
+    args = [tvm.nd.array(np.ones((n,), dtype='int32'))] + \
+        [tvm.nd.array(np.ones((n,), dtype='int32'))]
     f(*args)
     assert np.all(args[0].asnumpy() == n)
 

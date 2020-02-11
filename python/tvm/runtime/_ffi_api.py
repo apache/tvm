@@ -14,32 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
-"""TVM operator for l2 normalize"""
-from __future__ import absolute_import
-import tvm
-from .. import cpp
+"""FFI APIs for tvm.runtime"""
+import tvm._ffi
 
-@tvm.target.generic_func
-def l2_normalize(data, eps, axis=None):
-    """Perform L2 normalization on the input data
-
-    For axis=None, y(i, j) = x(i, j) / sqrt(max(sum(x^2), eps))
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        4-D with NCHW or NHWC layout
-
-    eps : float
-        epsilon value
-
-    axis : list of int
-        axis over the normalization applied
-
-    Returns
-    -------
-    output : tvm.Tensor
-        4-D output with same shape
-    """
-    return cpp.nn.l2_normalize(data, eps, axis)
+# Exports functions registered via TVM_REGISTER_GLOBAL with the "runtime" prefix.
+# e.g. TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile")
+tvm._ffi._init_api("runtime", __name__)

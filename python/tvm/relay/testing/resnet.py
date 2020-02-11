@@ -85,24 +85,25 @@ def residual_unit(data,
                 data=act1, channels=num_filter, kernel_size=(1, 1),
                 strides=stride, name=name+'_sc')
         return relay.add(conv3, shortcut)
+
+    bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, name=name + '_bn1')
+    act1 = relay.nn.relu(data=bn1)
+    conv1 = layers.conv2d(
+        data=act1, channels=num_filter, kernel_size=(3, 3),
+        strides=stride, padding=(1, 1), name=name + '_conv1')
+    bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
+    act2 = relay.nn.relu(data=bn2)
+    conv2 = layers.conv2d(
+        data=act2, channels=num_filter, kernel_size=(3, 3),
+        strides=(1, 1), padding=(1, 1), name=name + '_conv2')
+
+    if dim_match:
+        shortcut = data
     else:
-        bn1 = layers.batch_norm_infer(data=data, epsilon=2e-5, name=name + '_bn1')
-        act1 = relay.nn.relu(data=bn1)
-        conv1 = layers.conv2d(
-            data=act1, channels=num_filter, kernel_size=(3, 3),
-            strides=stride, padding=(1, 1), name=name + '_conv1')
-        bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
-        act2 = relay.nn.relu(data=bn2)
-        conv2 = layers.conv2d(
-            data=act2, channels=num_filter, kernel_size=(3, 3),
-            strides=(1, 1), padding=(1, 1), name=name + '_conv2')
-        if dim_match:
-            shortcut = data
-        else:
-            shortcut = layers.conv2d(
-                data=act1, channels=num_filter, kernel_size=(1, 1),
-                strides=stride, name=name+'_sc')
-        return relay.add(conv2, shortcut)
+        shortcut = layers.conv2d(
+            data=act1, channels=num_filter, kernel_size=(1, 1),
+            strides=stride, name=name+'_sc')
+    return relay.add(conv2, shortcut)
 
 
 def resnet(units,

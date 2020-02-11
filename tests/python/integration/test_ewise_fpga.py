@@ -39,7 +39,7 @@ def test_exp():
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -78,7 +78,7 @@ def test_multi_kernel():
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:

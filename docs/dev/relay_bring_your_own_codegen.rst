@@ -174,7 +174,7 @@ In ``src/relay/backend/contrib/codegen_c/codegen.cc``, we first create a codegen
 
     class CodegenC : public ExprVisitor, public CodegenCBase {
       public:
-        explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }    
+        explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
         void VisitExpr_(const VarNode* node) { ; }
         void VisitExpr_(const CallNode* call) final { ; }
@@ -196,7 +196,7 @@ In ``src/relay/backend/contrib/codegen_c/codegen.cc``, we first create a codegen
         /*! \brief The declaration statements of buffers. */
         std::vector<std::string> buf_decl_;
         /*! \brief The name and index pairs for output. */
-        std::vector<std::pair<std::string, int>> out_;        
+        std::vector<std::pair<std::string, int>> out_;
     }
 
 The ``CodegenC`` class inherits two classes: ``ExprVisitor`` provides abilities to traverse subgraphs and collects the required information and generate subgraph functions such as ``gcc_0_``; ``CodegenCBase`` provides abilities and utilities to generate wrapper functions such as ``gcc_0`` in the above example. As can be seen, we only need to implement three functions in this codegen class to make it work.
@@ -278,7 +278,7 @@ Again, we want to highlight the notes in the above code:
        curr_node <- Process      curr_node                            curr_node <- Put "buf_0" as an input buffer
 
       (a) out_ = {}            (b) out_ = {}                   (c) out_ = {("buf_0", 20)}
-       
+
 
 We can see in the above figure, class variable ``out_`` is empty before visiting the argument node, and it was filled with the output buffer name and size of ``arg_node``. As a result, when we finished visiting the argument node, we know the proper input buffer we should put by looking at ``out_``. You will find out how we update ``out_`` at the end of this section as well as the next section.
 
@@ -539,7 +539,7 @@ Then the ExampleJON of this subgraph looks like:
     input 0 10 10
     input 1 10 10
     input 2 10 10
-    input 3 10 10    
+    input 3 10 10
     add 4 inputs: 0 1 shape: 10 10
     sub 5 inputs: 4 2 shape: 10 10
     add 6 inputs: 5 3 shape: 10 10
@@ -903,7 +903,7 @@ We also need to register this function to enable the corresponding Python API:
   TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
   .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
-The above registration means when users call ``tvm.module.load(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
+The above registration means when users call ``tvm.runtime.load(lib_path)`` API and the exported library has an ExampleJSON stream, our ``LoadFromBinary`` will be invoked to create the same customized runtime module.
 
 In addition, if you want to support module creation directly from an ExampleJSON file, you can also implement a simple function and register a Python API as follows:
 
@@ -928,7 +928,7 @@ In addition, if you want to support module creation directly from an ExampleJSON
       *rv = ExampleJsonModule::Create(args[0]);
   });
 
-It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.module.load("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
+It means users can manually write/modify an ExampleJSON file, and use Python API ``tvm.runtime.load("mysubgraph.examplejson", "examplejson")`` to construct a customized module.
 
 *******
 Summary
@@ -947,12 +947,12 @@ In summary, here is a checklist for you to refer:
 
 * A runtime module class derived from ``ModuleNode`` with following functions (for your graph representation).
 
-  * Constructor.  
+  * Constructor.
   * ``GetFunction`` to generate a TVM runtime compatible ``PackedFunc``.
   * ``Run`` to execute a subgraph.
   * Register a runtime creation API.
   * ``SaveToBinary`` and ``LoadFromBinary`` to serialize/deserialize customized runtime module.
-  * Register ``LoadFromBinary`` API to support ``tvm.module.load(your_module_lib_path)``.
+  * Register ``LoadFromBinary`` API to support ``tvm.runtime.load(your_module_lib_path)``.
   * (optional) ``Create`` to support customized runtime module construction from subgraph file in your representation.
 
 * An annotator to annotate a user Relay program to make use of your compiler and runtime (TBA).

@@ -63,7 +63,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -103,7 +103,7 @@ def verify_global_pool(n, c, h, w, pool_type):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)

@@ -234,7 +234,7 @@ Module CreateRPCModule(std::shared_ptr<RPCSession> sess) {
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
+TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     std::string tkey = m->type_key();

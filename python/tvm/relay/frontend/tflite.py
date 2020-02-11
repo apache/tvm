@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines
+# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+
 """Tensorflow lite frontend."""
 from __future__ import absolute_import as _abs
 import math
@@ -102,6 +103,7 @@ class OperatorConverter(object):
             'SUM': self._convert_reduce_sum,
             'FULLY_CONNECTED': self.convert_fully_connected,
             'PAD': self.convert_pad,
+            'MIRROR_PAD': self.convert_mirror_pad,
             'PACK': self.convert_pack,
             'UNPACK': self.convert_unpack,
             'LOGISTIC': self.convert_logistic,
@@ -117,6 +119,8 @@ class OperatorConverter(object):
             'PRELU': self.convert_prelu,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
+            'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_OR': self.convert_logical_or,
         }
 
     def check_unsupported_ops(self):
@@ -222,6 +226,9 @@ class OperatorConverter(object):
         if tensor_wrapper.tensor.Type() == TensorType.INT64:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.int64).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
+        if tensor_wrapper.tensor.Type() == TensorType.BOOL:
+            return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.bool_).reshape(
+                tensor_wrapper.tensor.ShapeAsNumpy())
         raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_wrapper.tensor.Type())))
 
@@ -240,6 +247,8 @@ class OperatorConverter(object):
             return "int32"
         if tensor_type == TensorType.INT64:
             return "int64"
+        if tensor_type == TensorType.BOOL:
+            return "bool"
         raise NotImplementedError("Tensor type {} is currently not supported"
                                   .format(str(tensor_type)))
 
@@ -266,6 +275,23 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         first_tensor = input_tensors[0]
         return first_tensor.qnn_params is not None
+
+    def quantize(self, expr, tensor_to_quantize):
+        """ Helper function to quantize a tensor with Relay """
+        tensor_type = tensor_to_quantize.tensor.Type()
+        tensor_type_str = self.get_tensor_type_str(tensor_type)
+        quantized = _qnn.op.quantize(data=expr,
+                                     output_scale=tensor_to_quantize.qnn_params['scale'],
+                                     output_zero_point=tensor_to_quantize.qnn_params['zero_point'],
+                                     out_dtype=tensor_type_str)
+        return quantized
+
+    def dequantize(self, expr, tensor):
+        """ Helper function to dequantize a tensor with Relay """
+        dequantized = _qnn.op.dequantize(data=expr,
+                                         input_scale=tensor.qnn_params['scale'],
+                                         input_zero_point=tensor.qnn_params['zero_point'])
+        return dequantized
 
     def convert_conv2d(self, op):
         """Convert TFLite conv2d"""
@@ -384,7 +410,16 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
 
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.sigmoid(in_expr)
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
         return out
 
     def convert_softmax(self, op):
@@ -404,8 +439,6 @@ class OperatorConverter(object):
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type = output_tensor.tensor.Type()
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
         params = {'axis': 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
@@ -414,18 +447,13 @@ class OperatorConverter(object):
         # dequantize to FP32 and perform softmax on FP32. We can investigate an integer only softmax
         # implementation in future.
         if input_tensor.qnn_params:
-            in_expr = _qnn.op.dequantize(data=in_expr,
-                                         input_scale=input_tensor.qnn_params['scale'],
-                                         input_zero_point=input_tensor.qnn_params['zero_point'])
+            in_expr = self.dequantize(in_expr, input_tensor)
 
         out = _op.nn.softmax(in_expr, **params)
 
         # Go back to integer dataype if the original operator was quantized.
         if output_tensor.qnn_params:
-            out = _qnn.op.quantize(data=out,
-                                   output_scale=output_tensor.qnn_params['scale'],
-                                   output_zero_point=output_tensor.qnn_params['zero_point'],
-                                   out_dtype=output_tensor_type_str)
+            out = self.quantize(out, output_tensor)
 
         return out
 
@@ -791,6 +819,33 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NOT_EQUAL operator is not supported yet.')
         return self._convert_elemwise(_op.not_equal, op)
+
+    def _convert_logical_binary(self, relay_op, op):
+        """Generic method to convert logical binary ops"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        lhs_tensor = input_tensors[0]
+        lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
+        rhs_tensor = input_tensors[1]
+        rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
+        out = relay_op(lhs_expr, rhs_expr)
+
+        return out
+
+    def convert_logical_and(self, op):
+        """Convert tflite LOGICAL_AND"""
+        return self._convert_logical_binary(_op.logical_and, op)
+
+    def convert_logical_or(self, op):
+        """Convert tflite LOGICAL_OR"""
+        return self._convert_logical_binary(_op.logical_or, op)
 
     def convert_zeros_like(self, op):
         """Convert TFLite ZEROS LIKE"""
@@ -1397,8 +1452,7 @@ class OperatorConverter(object):
                 raise tvm.error.OpNotImplemented(
                     'Operator {} with fused activation is not supported yet.'
                     .format('qnn.op.pool2d'))
-            else:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_pad(self, op):
@@ -1412,7 +1466,7 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        # TFLite only support CONSTANT mode and does not support constant_values parameter.
+        # TFLite PAD only support CONSTANT mode and does not support constant_values parameter.
         # tensor
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
@@ -1422,8 +1476,46 @@ class OperatorConverter(object):
         # convert list of lists to tuple of tuples
         paddings = tuple(tuple(l) for l in pad_list)
 
-        # Use default pad_value 0 because TFLite does not support constant_values parameter
+        # Use default pad_value 0 because TFLite PAD does not support constant_values parameter
         out = _op.nn.pad(in_expr, paddings)
+        return out
+
+    def convert_mirror_pad(self, op):
+        """Convert TFLite MIRROR_PAD"""
+        try:
+            from tflite.Operator import Operator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.MirrorPadOptions import MirrorPadOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        # the quantized form MirrorPad is not yet implemented in TFLite.
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized MIRROR_PAD operator is not supported yet.')
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        # tensor
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # paddings
+        pad_list = self.get_tensor_value(input_tensors[1])
+        # convert list of lists to tuple of tuples
+        paddings = tuple(tuple(l) for l in pad_list)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.MirrorPadOptions
+        op_options = op.BuiltinOptions()
+        mirror_pad_options = MirrorPadOptions()
+        mirror_pad_options.Init(op_options.Bytes, op_options.Pos)
+        mode_byte = mirror_pad_options.Mode()
+
+        mode = "REFLECT" if mode_byte == 0 else "SYMMETRIC"
+        out = _op.nn.mirror_pad(in_expr, paddings, mode)
+
         return out
 
     def convert_pack(self, op):
@@ -1797,7 +1889,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     mod : tvm.relay.Module
         The relay module for compilation.
 
-    params : dict of str to tvm.NDArray
+    params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relay
     """
     try:

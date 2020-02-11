@@ -23,7 +23,6 @@ import os
 
 import tvm
 from tvm import autotvm
-from tvm.contrib.util import get_lower_ir
 import topi
 import vta
 import vta.testing

@@ -47,19 +47,18 @@ The list of options include:
 
    Build TVM system library module. System lib is a global module that contains
    self registered functions in program startup. User can get the module using
-   :any:`tvm.module.system_lib`.
+   :any:`tvm.runtime.system_lib`.
    It is useful in environments where dynamic loading api like dlopen is banned.
    The system lib will be available as long as the result code is linked by the program.
 
 We can use :any:`tvm.target.create` to create a tvm.target.Target from the target string.
 We can also use other specific function in this module to create specific targets.
 """
-from __future__ import absolute_import
-
 import warnings
+import tvm._ffi
 
+from tvm.runtime import Object
 from ._ffi.base import _LIB_NAME
-from ._ffi.object import Object, register_object
 from . import _api_internal
 
 try:
@@ -80,7 +79,7 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-@register_object
+@tvm._ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
 
@@ -146,7 +145,7 @@ class Target(Object):
         _api_internal._ExitTargetScope(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class GenericFunc(Object):
     """GenericFunc node reference. This represents a generic function
     that may be specialized for different targets. When this object is

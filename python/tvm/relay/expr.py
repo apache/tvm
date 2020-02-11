@@ -20,14 +20,14 @@ from __future__ import absolute_import
 from numbers import Number as _Number
 
 import numpy as _np
+from tvm._ffi import base as _base
+from tvm.runtime import NDArray, convert, ndarray as _nd
+
 from .base import RelayNode, register_relay_node
 from . import _make
 from . import _expr
 from . import ty as _ty
-from .._ffi import base as _base
-from .. import nd as _nd
-from .. import convert
-from ..ndarray import NDArray
+
 
 # will be registered afterwards
 _op_make = None
@@ -125,8 +125,7 @@ class Expr(RelayNode):
     def __rsub__(self, other):
         if isinstance(other, _Number):
             raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
+        raise TypeError("type %s not supported" % str(type(other)))
 
     def __mul__(self, other):
         if isinstance(other, Expr):
@@ -150,8 +149,7 @@ class Expr(RelayNode):
     def __rdiv__(self, other):
         if isinstance(other, _Number):
             raise TypeError('convert "%s" with `const` first' % str(other))
-        else:
-            raise TypeError("type %s not supported" % str(type(other)))
+        raise TypeError("type %s not supported" % str(type(other)))
 
     def __truediv__(self, other):
         return self.__div__(other)

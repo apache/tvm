@@ -513,6 +513,31 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
     return _transform.Legalize(legalize_map_attr_name)
 
 
+def MergeComposite(pattern_table):
+    """Merge multiple operators into a single composite relay function.
+
+    Parameters
+    ----------
+    pattern_table : list(tuple)
+        A list of (pattern_name, pattern) tuples.
+        The order of the patterns in the list will determine the order
+        of priority in which they are matched.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that merges operators into a single composite
+        relay function.
+    """
+    pattern_names = []
+    patterns = []
+    for pattern_name, pattern in pattern_table:
+        pattern_names.append(pattern_name)
+        patterns.append(pattern)
+
+    return _transform.MergeComposite(pattern_names, patterns)
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.

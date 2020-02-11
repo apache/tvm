@@ -38,6 +38,7 @@ namespace contrib {
 class CSourceModuleCodegenBase {
  public:
   CSourceModuleCodegenBase() = default;
+  virtual ~CSourceModuleCodegenBase() = default;
 
   /*!
    * \brief Create a runtime module for the external library. For example, it
@@ -69,6 +70,9 @@ class CSourceModuleCodegenBase {
 
 // The base class to generate the declaration functions in C.
 class CodegenCBase {
+ public:
+  virtual ~CodegenCBase() {}
+
  protected:
   /*! \brief Print indents using spaces. */
   void PrintIndents() {

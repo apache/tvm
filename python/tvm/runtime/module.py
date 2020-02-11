@@ -14,22 +14,101 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Container of compiled functions of TVM."""
-from __future__ import absolute_import as _abs
 
+# pylint: disable=invalid-name, unused-import, import-outside-toplevel
+"""Runtime Module namespace."""
+import ctypes
 import struct
 from collections import namedtuple
 
-from ._ffi.function import ModuleBase, _set_class_module
-from ._ffi.function import _init_api
-from ._ffi.libinfo import find_include_path
-from .contrib import cc as _cc, tar as _tar, util as _util
+import tvm._ffi
+from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
+from tvm._ffi.libinfo import find_include_path
+from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 
+from . import _ffi_api
+
+
+# profile result of time evaluator
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
-class Module(ModuleBase):
-    """Module container of all TVM generated functions"""
+class Module(object):
+    """Runtime Module."""
+    __slots__ = ["handle", "_entry", "entry_name"]
+
+    def __init__(self, handle):
+        self.handle = handle
+        self._entry = None
+        self.entry_name = "__tvm_main__"
+
+    def __del__(self):
+        check_call(_LIB.TVMModFree(self.handle))
+
+    def __hash__(self):
+        return ctypes.cast(self.handle, ctypes.c_void_p).value
+
+    @property
+    def entry_func(self):
+        """Get the entry function
+
+        Returns
+        -------
+        f : tvm.runtime.PackedFunc
+            The entry function if exist
+        """
+        if self._entry:
+            return self._entry
+        self._entry = self.get_function(self.entry_name)
+        return self._entry
+
+    def get_function(self, name, query_imports=False):
+        """Get function from the module.
+
+        Parameters
+        ----------
+        name : str
+            The name of the function
+
+        query_imports : bool
+            Whether also query modules imported by this module.
+
+        Returns
+        -------
+        f : tvm.runtime.PackedFunc
+            The result function.
+        """
+        ret_handle = PackedFuncHandle()
+        check_call(_LIB.TVMModGetFunction(
+            self.handle, c_str(name),
+            ctypes.c_int(query_imports),
+            ctypes.byref(ret_handle)))
+        if not ret_handle.value:
+            raise AttributeError(
+                "Module has no function '%s'" %  name)
+        return PackedFunc(ret_handle, False)
+
+    def import_module(self, module):
+        """Add module to the import list of current one.
+
+        Parameters
+        ----------
+        module : tvm.runtime.Module
+            The other module.
+        """
+        check_call(_LIB.TVMModImport(self.handle, module.handle))
+
+    def __getitem__(self, name):
+        if not isinstance(name, string_types):
+            raise ValueError("Can only take string as function name")
+        return self.get_function(name)
+
+    def __call__(self, *args):
+        if self._entry:
+            return self._entry(*args)
+        # pylint: disable=not-callable
+        return self.entry_func(*args)
+
 
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
@@ -37,7 +116,7 @@ class Module(ModuleBase):
     @property
     def type_key(self):
         """Get type key of the module."""
-        return _GetTypeKey(self)
+        return _ffi_api.ModuleGetTypeKey(self)
 
     def get_source(self, fmt=""):
         """Get source code from module, if available.
@@ -52,7 +131,7 @@ class Module(ModuleBase):
         source : str
             The result source code.
         """
-        return _GetSource(self, fmt)
+        return _ffi_api.ModuleGetSource(self, fmt)
 
     @property
     def imported_modules(self):
@@ -63,8 +142,8 @@ class Module(ModuleBase):
         modules : list of Module
             The module
         """
-        nmod = _ImportsSize(self)
-        return [_GetImport(self, i) for i in range(nmod)]
+        nmod = _ffi_api.ModuleImportsSize(self)
+        return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -81,9 +160,87 @@ class Module(ModuleBase):
 
         See Also
         --------
-        Module.export_library : export the module to shared library.
+        runtime.Module.export_library : export the module to shared library.
         """
-        _SaveToFile(self, file_name, fmt)
+        _ffi_api.ModuleSaveToFile(self, file_name, fmt)
+
+    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
+        """Get an evaluator that measures time cost of running function.
+
+        Parameters
+        ----------
+        func_name: str
+            The name of the function in the module.
+
+        ctx: TVMContext
+            The context we should run this function on.
+
+        number: int
+            The number of times to run this function for taking average.
+            We call these runs as one `repeat` of measurement.
+
+        repeat: int, optional
+            The number of times to repeat the measurement.
+            In total, the function will be invoked (1 + number x repeat) times,
+            where the first one is warm up and will be discarded.
+            The returned result contains `repeat` costs,
+            each of which is an average of `number` costs.
+
+        min_repeat_ms: int, optional
+            The minimum duration of one `repeat` in milliseconds.
+            By default, one `repeat` contains `number` runs. If this parameter is set,
+            the parameters `number` will be dynamically adjusted to meet the
+            minimum duration requirement of one `repeat`.
+            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+            will be automatically increased.
+
+        Note
+        ----
+        The function will be invoked  (1 + number x repeat) times,
+        with the first call discarded in case there is lazy initialization.
+
+        Returns
+        -------
+        ftimer : function
+            The function that takes same argument as func and returns a ProfileResult.
+            The ProfileResult reports `repeat` time costs in seconds.
+        """
+        try:
+            feval = _ffi_api.RPCTimeEvaluator(
+                self, func_name, ctx.device_type, ctx.device_id,
+                number, repeat, min_repeat_ms)
+
+            def evaluator(*args):
+                """Internal wrapped evaluator."""
+                # Wrap feval so we can add more stats in future.
+                blob = feval(*args)
+                fmt = "@" + ("d" * repeat)
+                results = struct.unpack(fmt, blob)
+                mean = sum(results) / float(repeat)
+                return ProfileResult(mean=mean, results=results)
+
+            return evaluator
+        except NameError:
+            raise NameError("time_evaluate is only supported when RPC is enabled")
+
+    def _collect_dso_modules(self):
+        """Helper function to collect dso modules, then return it."""
+        visited, stack, dso_modules = set(), [], []
+        # append root module
+        visited.add(self)
+        stack.append(self)
+        while stack:
+            module = stack.pop()
+            if module._dso_exportable():
+                dso_modules.append(module)
+            for m in module.imported_modules:
+                if m not in visited:
+                    visited.add(m)
+                    stack.append(m)
+        return dso_modules
+
+    def _dso_exportable(self):
+        return self.type_key == "llvm" or self.type_key == "c"
 
     def export_library(self,
                        file_name,
@@ -107,7 +264,14 @@ class Module(ModuleBase):
         kwargs : dict, optional
             Additional arguments passed to fcompile
         """
+        # NOTE: this function depends on contrib library features
+        # which are only available in when TVM function is available.
+        if _RUNTIME_ONLY:
+            raise RuntimeError("Cannot call export_library in runtime only mode")
+        # Extra dependencies during runtime.
         from pathlib import Path
+        from tvm.contrib import cc as _cc, tar as _tar, util as _util
+
         if isinstance(file_name, Path):
             file_name = str(file_name)
 
@@ -153,13 +317,13 @@ class Module(ModuleBase):
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:
                 path_obj = temp.relpath("devc.o")
-                m = _PackImportsToLLVM(self, is_system_lib, llvm_target_triple)
+                m = _ffi_api.ModulePackImportsToLLVM(self, is_system_lib, llvm_target_triple)
                 m.save(path_obj)
                 files.append(path_obj)
             else:
                 path_cc = temp.relpath("devc.cc")
                 with open(path_cc, "w") as f:
-                    f.write(_PackImportsToC(self, is_system_lib))
+                    f.write(_ffi_api.ModulePackImportsToC(self, is_system_lib))
                 files.append(path_cc)
 
         if has_c_module:
@@ -171,83 +335,6 @@ class Module(ModuleBase):
             kwargs.update({'options': opts})
 
         fcompile(file_name, files, **kwargs)
-
-    def time_evaluator(self, func_name, ctx, number=10, repeat=1, min_repeat_ms=0):
-        """Get an evaluator that measures time cost of running function.
-
-        Parameters
-        ----------
-        func_name: str
-            The name of the function in the module.
-
-        ctx: TVMContext
-            The context we should run this function on.
-
-        number: int
-            The number of times to run this function for taking average.
-            We call these runs as one `repeat` of measurement.
-
-        repeat: int, optional
-            The number of times to repeat the measurement.
-            In total, the function will be invoked (1 + number x repeat) times,
-            where the first one is warm up and will be discarded.
-            The returned result contains `repeat` costs,
-            each of which is an average of `number` costs.
-
-        min_repeat_ms: int, optional
-            The minimum duration of one `repeat` in milliseconds.
-            By default, one `repeat` contains `number` runs. If this parameter is set,
-            the parameters `number` will be dynamically adjusted to meet the
-            minimum duration requirement of one `repeat`.
-            i.e., When the run time of one `repeat` falls below this time, the `number` parameter
-            will be automatically increased.
-
-        Note
-        ----
-        The function will be invoked  (1 + number x repeat) times,
-        with the first call discarded in case there is lazy initialization.
-
-        Returns
-        -------
-        ftimer : Function
-            The function that takes same argument as func and returns a ProfileResult.
-            The ProfileResult reports `repeat` time costs in seconds.
-        """
-        try:
-            feval = _RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id, number, repeat, min_repeat_ms)
-
-            def evaluator(*args):
-                """Internal wrapped evaluator."""
-                # Wrap feval so we can add more stats in future.
-                blob = feval(*args)
-                fmt = "@" + ("d" * repeat)
-                results = struct.unpack(fmt, blob)
-                mean = sum(results) / float(repeat)
-                return ProfileResult(mean=mean, results=results)
-
-            return evaluator
-        except NameError:
-            raise NameError("time_evaluate is only supported when RPC is enabled")
-
-    def _collect_dso_modules(self):
-        """Helper function to collect dso modules, then return it."""
-        visited, stack, dso_modules = set(), [], []
-        # append root module
-        visited.add(self)
-        stack.append(self)
-        while stack:
-            module = stack.pop()
-            if module._dso_exportable():
-                dso_modules.append(module)
-            for m in module.imported_modules:
-                if m not in visited:
-                    visited.add(m)
-                    stack.append(m)
-        return dso_modules
-
-    def _dso_exportable(self):
-        return self.type_key == "llvm" or self.type_key == "c"
 
 
 def system_lib():
@@ -265,13 +352,13 @@ def system_lib():
 
     Returns
     -------
-    module : Module
+    module : runtime.Module
         The system-wide library module.
     """
-    return _GetSystemLib()
+    return _ffi_api.SystemLib()
 
 
-def load(path, fmt=""):
+def load_module(path, fmt=""):
     """Load module from file.
 
     Parameters
@@ -285,7 +372,7 @@ def load(path, fmt=""):
 
     Returns
     -------
-    module : Module
+    module : runtime.Module
         The loaded module
 
     Note
@@ -296,9 +383,13 @@ def load(path, fmt=""):
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
+        # Extra dependencies during runtime.
+        from tvm.contrib import cc as _cc
         _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
+        # Extra dependencies during runtime.
+        from tvm.contrib import cc as _cc, util as _util, tar as _tar
         tar_temp = _util.tempdir(custom_path=path.replace('.tar', ''))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
@@ -308,7 +399,7 @@ def load(path, fmt=""):
     elif path.endswith(".obj"):
         fmt = "micro_dev"
     # Redirect to the load API
-    return _LoadFromFile(path, fmt)
+    return _ffi_api.ModuleLoadFromFile(path, fmt)
 
 
 def enabled(target):
@@ -328,10 +419,9 @@ def enabled(target):
     --------
     The following code checks if gpu is enabled.
 
-    >>> tvm.module.enabled("gpu")
+    >>> tvm.runtime.enabled("gpu")
     """
-    return _Enabled(target)
+    return _ffi_api.RuntimeEnabled(target)
 
 
-_init_api("tvm.module")
 _set_class_module(Module)

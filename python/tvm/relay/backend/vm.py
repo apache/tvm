@@ -23,8 +23,9 @@ Implements a Python interface to compiling and executing on the Relay VM.
 import numpy as np
 
 import tvm
+import tvm.runtime.ndarray as _nd
+from tvm.runtime import Object
 from tvm import autotvm, container
-from tvm.object import Object
 from tvm.relay import expr as _expr
 from tvm._ffi.runtime_ctypes import TVMByteArray
 from tvm._ffi import base as _base
@@ -84,7 +85,7 @@ class Executable(object):
             can then be saved to disk and later deserialized into a new
             Executable.
 
-        lib : :py:class:`~tvm.module.Module`
+        lib : :py:class:`~tvm.runtime.Module`
             The runtime module that contains the generated code. It is
             basically a library that is composed of hardware dependent code.
 
@@ -124,7 +125,7 @@ class Executable(object):
             lib.export_library(path_lib)
             with open(tmp.relpath("code.ro"), "wb") as fo:
                 fo.write(code)
-            loaded_lib = tvm.module.load(path_lib)
+            loaded_lib = tvm.runtime.load_module(path_lib)
             loaded_code = bytearray(open(tmp.relpath("code.ro"), "rb").read())
             # deserialize.
             des_exec = relay.vm.Executable.load_exec(loaded_code, loaded_code)
@@ -146,7 +147,7 @@ class Executable(object):
         bytecode : bytearray
             The binary blob representing a the Relay VM bytecode.
 
-        lib : :py:class:`~tvm.module.Module`
+        lib : :py:class:`~tvm.runtime.Module`
             The runtime module that contains the generated code.
 
         Returns
@@ -160,8 +161,8 @@ class Executable(object):
             raise TypeError("bytecode is expected to be the type of bytearray " +
                             "or TVMByteArray, but received {}".format(type(code)))
 
-        if lib is not None and not isinstance(lib, tvm.module.Module):
-            raise TypeError("lib is expected to be the type of tvm.module.Module" +
+        if lib is not None and not isinstance(lib, tvm.runtime.Module):
+            raise TypeError("lib is expected to be the type of tvm.runtime.Module" +
                             ", but received {}".format(type(lib)))
 
         return Executable(_vm.Load_Executable(bytecode, lib))
@@ -269,7 +270,7 @@ class Executable(object):
 class VirtualMachine(object):
     """Relay VM runtime."""
     def __init__(self, mod):
-        if not isinstance(mod, (Executable, tvm.module.Module)):
+        if not isinstance(mod, (Executable, tvm.runtime.Module)):
             raise TypeError("mod is expected to be the type of Executable or " +
                             "tvm.Module, but received {}".format(type(mod)))
         m = mod.module if isinstance(mod, Executable) else mod
@@ -409,6 +410,8 @@ class VMCompiler(object):
         self._codegen = self.mod["codegen"]
         self._get_exec = self.mod["get_executable"]
         self._set_params_func = self.mod["set_params"]
+        self._get_params_func = self.mod["get_params"]
+        self._optimize = self.mod["optimize"]
 
     def set_params(self, params):
         """Set constant parameters for the model.
@@ -425,6 +428,14 @@ class VMCompiler(object):
                 param = _nd.array(param)
             inputs[name] = _expr.const(param)
         self._set_params_func(inputs)
+
+    def get_params(self):
+        """Return the updated weights."""
+        params = self._get_params_func()
+        ret = {}
+        for key, value in params.items():
+            ret[key] = value.data
+        return ret
 
     def lower(self, mod, target=None, target_host=None):
         """Lower the module to VM bytecode.
@@ -457,6 +468,33 @@ class VMCompiler(object):
     def codegen(self):
         """Generate the kernel library."""
         self._codegen()
+
+    def optimize(self, mod, target=None, params=None):
+        """Helper method that optimizes a Relay module via VM.
+
+        Parameters
+        ----------
+        mod : relay.Module
+
+        target : str, :any:`tvm.target.Target`, or dict of str (i.e.
+            device/context name) to str/tvm.target.Target, optional
+
+        params : dict of str to NDArray
+            Input parameters to the graph that do not change
+            during inference time. Used for constant folding.
+
+        Returns
+        -------
+        mod : relay.Module
+            The optimized relay module.
+
+        params : dict
+            The parameters of the final module.
+        """
+        target = self._update_target(target)
+        if params:
+            self.set_params(params)
+        return self._optimize(mod, target), self.get_params()
 
     def get_exec(self):
         """Get the VM executable.
@@ -496,7 +534,7 @@ class VMCompiler(object):
                     target_host = tgt
                     break
         if not target_host:
-            target_host = "llvm" if tvm.module.enabled("llvm") else "stackvm"
+            target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
         if isinstance(target_host, str):
             target_host = tvm.target.create(target_host)
         return target_host

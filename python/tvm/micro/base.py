@@ -23,9 +23,11 @@ import sys
 from enum import Enum
 
 import tvm
+import tvm._ffi
+
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
-from .._ffi.function import _init_api
+
 
 class LibType(Enum):
     """Enumeration of library types that can be compiled and loaded onto a device"""
@@ -136,7 +138,7 @@ def create_micro_mod(c_mod, dev_config):
 
     Parameters
     ----------
-    c_mod : tvm.module.Module
+    c_mod : tvm.runtime.Module
         module with "c" as its target backend
 
     dev_config : Dict[str, Any]
@@ -144,7 +146,7 @@ def create_micro_mod(c_mod, dev_config):
 
     Return
     ------
-    micro_mod : tvm.module.Module
+    micro_mod : tvm.runtim.Module
         micro module for the target device
     """
     temp_dir = _util.tempdir()
@@ -152,14 +154,14 @@ def create_micro_mod(c_mod, dev_config):
     c_mod.export_library(
         lib_obj_path,
         fcompile=cross_compiler(dev_config, LibType.OPERATOR))
-    micro_mod = tvm.module.load(lib_obj_path)
+    micro_mod = tvm.runtime.load_module(lib_obj_path)
     return micro_mod
 
 
 def cross_compiler(dev_config, lib_type):
     """Create a cross-compile function that wraps `create_lib` for a `Binutil` instance.
 
-    For use in `tvm.module.Module.export_library`.
+    For use in `tvm.runtime.Module.export_library`.
 
     Parameters
     ----------
@@ -222,4 +224,4 @@ def get_micro_device_dir():
     return micro_device_dir
 
 
-_init_api("tvm.micro", "tvm.micro.base")
+tvm._ffi._init_api("tvm.micro", "tvm.micro.base")

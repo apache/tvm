@@ -16,9 +16,9 @@
 # under the License.
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
 import numpy as np
+import tvm._ffi
 
 from .._ffi.base import string_types
-from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
@@ -54,7 +54,7 @@ def create(graph_json_str, libmod, ctx):
     if num_rpc_ctx == len(ctx):
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.create")
     else:
-        fcreate = get_global_func("tvm.graph_runtime.create")
+        fcreate = tvm._ffi.get_global_func("tvm.graph_runtime.create")
 
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 

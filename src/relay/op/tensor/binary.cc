@@ -124,6 +124,24 @@ RELAY_REGISTER_BINARY_OP("logical_or")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::logical_or));
 
 
+RELAY_REGISTER_BINARY_OP("bitwise_and")
+.describe("Elementwise bitwise AND with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_and));
+
+
+RELAY_REGISTER_BINARY_OP("bitwise_or")
+.describe("Elementwise bitwise OR with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_or));
+
+
+RELAY_REGISTER_BINARY_OP("bitwise_xor")
+.describe("Elementwise bitwise XOR with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_xor));
+
+
 RELAY_REGISTER_CMP_OP("equal")
 .describe("Elementwise equal compare with broadcasting")
 .set_support_level(4)

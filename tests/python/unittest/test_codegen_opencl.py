@@ -51,7 +51,7 @@ def test_opencl_ternary_expression():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.module.enabled(target):
+    if not tvm.runtime.enabled(target):
         print("skip because opencl is not enabled..")
         return
 
@@ -79,7 +79,7 @@ def test_opencl_inf_nan():
         # Only need to test compiling here
         fun(a, c)
 
-    if not tvm.module.enabled(target):
+    if not tvm.runtime.enabled(target):
         print("skip because opencl is not enabled..")
         return
 

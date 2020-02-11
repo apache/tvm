@@ -16,9 +16,10 @@
 # under the License.
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
-from ._ffi.object import Object, register_object, ObjectGeneric, \
-        convert_to_object
+import tvm._ffi
+
+from tvm.runtime import Object, ObjectGeneric, convert_to_object
+
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
@@ -47,7 +48,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
         """Data content of the tensor."""
         return self.tensor.dtype
 
-@register_object
+@tvm._ffi.register_object
 class TensorIntrinCall(Object):
     """Intermediate structure for calling a tensor intrinsic."""
 
@@ -55,7 +56,7 @@ class TensorIntrinCall(Object):
 itervar_cls = None
 
 
-@register_object
+@tvm._ffi.register_object
 class Tensor(Object, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -127,7 +128,6 @@ class Tensor(Object, _expr.ExprOp):
         return "%s.v%d" % (op.name, self.value_index)
 
 
-
 class Operation(Object):
     """Represent an operation that generates a tensor"""
 
@@ -157,12 +157,12 @@ class Operation(Object):
         return _api_internal._OpInputTensors(self)
 
 
-@register_object
+@tvm._ffi.register_object
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@register_object
+@tvm._ffi.register_object
 class BaseComputeOp(Operation):
     """Compute operation."""
     @property
@@ -176,18 +176,17 @@ class BaseComputeOp(Operation):
         return self.__getattr__("reduce_axis")
 
 
-@register_object
+@tvm._ffi.register_object
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
-    pass
 
 
-@register_object
+@tvm._ffi.register_object
 class TensorComputeOp(BaseComputeOp):
     """Tensor operation."""
 
 
-@register_object
+@tvm._ffi.register_object
 class ScanOp(Operation):
     """Scan operation."""
     @property
@@ -196,12 +195,12 @@ class ScanOp(Operation):
         return self.__getattr__("scan_axis")
 
 
-@register_object
+@tvm._ffi.register_object
 class ExternOp(Operation):
     """External operation."""
 
 
-@register_object
+@tvm._ffi.register_object
 class HybridOp(Operation):
     """Hybrid operation."""
     @property
@@ -210,7 +209,7 @@ class HybridOp(Operation):
         return self.__getattr__("axis")
 
 
-@register_object
+@tvm._ffi.register_object
 class Layout(Object):
     """Layout is composed of upper cases, lower cases and numbers,
     where upper case indicates a primal axis and
@@ -270,7 +269,7 @@ class Layout(Object):
         return _api_internal._LayoutFactorOf(self, axis)
 
 
-@register_object
+@tvm._ffi.register_object
 class BijectiveLayout(Object):
     """Bijective mapping for two layouts (src-layout and dst-layout).
     It provides shape and index conversion between each other.

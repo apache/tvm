@@ -57,8 +57,8 @@ import os
 
 tgt="aocl_sw_emu"
 
-fadd = tvm.module.load("myadd.so")
-fadd_dev = tvm.module.load("myadd.aocx")
+fadd = tvm.runtime.load("myadd.so")
+fadd_dev = tvm.runtime.load("myadd.aocx")
 fadd.import_module(fadd_dev)
 
 ctx = tvm.context(tgt, 0)

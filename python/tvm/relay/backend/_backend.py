@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """The interface of expr function exposed from C++."""
-from __future__ import absolute_import
+import tvm._ffi
 
 from ... import build_module as _build
 from ... import container as _container
-from ..._ffi.function import _init_api, register_func
 
 
-@register_func("relay.backend.lower")
+@tvm._ffi.register_func("relay.backend.lower")
 def lower(sch, inputs, func_name, source_func):
     """Backend function for lowering.
 
@@ -45,8 +44,9 @@ def lower(sch, inputs, func_name, source_func):
     lowered_funcs : List[tvm.LoweredFunc]
         The result of lowering.
     """
+    # pylint: disable=broad-except, import-outside-toplevel
     import traceback
-    # pylint: disable=broad-except
+
     try:
         f = _build.lower(sch, inputs, name=func_name)
         # logging.debug("lower function %s", func_name)
@@ -61,7 +61,7 @@ def lower(sch, inputs, func_name, source_func):
         f, (_container.Array, tuple, list)) else [f]
 
 
-@register_func("relay.backend.build")
+@tvm._ffi.register_func("relay.backend.build")
 def build(funcs, target, target_host=None):
     """Backend build function.
 
@@ -88,14 +88,14 @@ def build(funcs, target, target_host=None):
     return _build.build(funcs, target=target, target_host=target_host)
 
 
-@register_func("relay._tensor_value_repr")
+@tvm._ffi.register_func("relay._tensor_value_repr")
 def _tensor_value_repr(tvalue):
     return str(tvalue.data.asnumpy())
 
 
-@register_func("relay._constant_repr")
+@tvm._ffi.register_func("relay._constant_repr")
 def _tensor_constant_repr(tvalue):
     return str(tvalue.data.asnumpy())
 
 
-_init_api("relay.backend", __name__)
+tvm._ffi._init_api("relay.backend", __name__)

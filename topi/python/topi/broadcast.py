@@ -420,6 +420,63 @@ def logical_or(lhs, rhs):
     return _cpp.logical_or(lhs, rhs)
 
 
+def bitwise_and(lhs, rhs):
+    """Compute element-wise bitwise and of data.
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+          The left operand
+    rhs : tvm.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_and(lhs, rhs)
+
+
+def bitwise_or(lhs, rhs):
+    """Compute element-wise bitwise or of data.
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+          The left operand
+    rhs : tvm.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_or(lhs, rhs)
+
+
+def bitwise_xor(lhs, rhs):
+    """Compute element-wise bitwise xor of data.
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+          The left operand
+    rhs : tvm.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_xor(lhs, rhs)
+
+
 def logical_not(data):
     """Compute element-wise logical not of data.
 
@@ -434,3 +491,19 @@ def logical_not(data):
           Otherwise returns Tensor.
     """
     return _cpp.logical_not(data)
+
+
+def bitwise_not(data):
+    """Compute element-wise bitwise not of data.
+
+    Parameters
+    ----------
+    data : tvm.Tensor or Expr
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+          Returns Expr if the operand are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_not(data)

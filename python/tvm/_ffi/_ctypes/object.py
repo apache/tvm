@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Runtime Object api"""
-from __future__ import absolute_import
-
 import ctypes
 from ..base import _LIB, check_call
 from .types import TypeCode, RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
@@ -94,3 +92,22 @@ class ObjectBase(object):
         if not isinstance(handle, ObjectHandle):
             handle = ObjectHandle(handle)
         self.handle = handle
+
+    def same_as(self, other):
+        """Check object identity.
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare against.
+
+        Returns
+        -------
+        result : bool
+             The comparison result.
+        """
+        if not isinstance(other, ObjectBase):
+            return False
+        if self.handle is None:
+            return other.handle is None
+        return self.handle.value == other.handle.value

@@ -60,6 +60,8 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
  public:
   /*! \brief the result type of this functor */
   using result_type = R;
+  /*! \brief virtual destructor */
+  virtual ~AttrFunctor() {}
   /*!
    * \brief The functor call.
    * \param n The expression node.

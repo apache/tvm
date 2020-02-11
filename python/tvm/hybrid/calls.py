@@ -69,6 +69,7 @@ def bind(func_id, args):
 
 
 def _math_intrin(func_id, args):
+    # pylint: disable=import-outside-toplevel
     from .. import intrin
     return getattr(intrin, func_id)(*args)
 

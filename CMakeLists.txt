@@ -279,6 +279,10 @@ endif()
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
+if(WIN32)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
 if(USE_CXX_RPC STREQUAL "ON")
@@ -403,7 +407,6 @@ endif(INSTALL_DEV)
 if(MSVC)
   set_property(TARGET tvm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   set_property(TARGET tvm_topi PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET tvm_runtime PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
 endif()

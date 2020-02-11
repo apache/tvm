@@ -18,6 +18,9 @@
 """
 import sys
 
+#----------------------------
+# Python3 version.
+#----------------------------
 if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 5):
     PY3STATEMENT = """TVM project proudly dropped support of Python2.
     The minimal Python requirement is Python 3.5

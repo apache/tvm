@@ -34,7 +34,7 @@ TVM_BUNDLE_FUNCTION void *tvm_runtime_create() {
   const std::string json_data(&build_graph_json[0],
                               &build_graph_json[0] + build_graph_json_len);
   tvm::runtime::Module mod_syslib =
-      (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
+      (*tvm::runtime::Registry::Get("runtime.SystemLib"))();
   int device_type = kDLCPU;
   int device_id = 0;
   tvm::runtime::Module mod =

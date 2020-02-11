@@ -78,7 +78,7 @@ port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 if env.TARGET == "pynq":
 
     # Make sure that TVM was compiled with RPC=1
-    assert tvm.module.enabled("rpc")
+    assert tvm.runtime.enabled("rpc")
     remote = rpc.connect(host, port)
 
     # Reconfigure the JIT runtime

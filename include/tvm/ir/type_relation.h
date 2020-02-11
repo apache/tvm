@@ -76,6 +76,8 @@ class TypeCall : public Type {
  */
 class TypeReporterNode : public Object {
  public:
+  /*! \brief virtual destructor */
+  virtual ~TypeReporterNode() {}
   /*!
    * \brief Create a type equality constraint.
    *

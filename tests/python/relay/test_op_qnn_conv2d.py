@@ -495,7 +495,7 @@ def test_padding():
 def test_dilation():
     with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 
-        # uint8 input
+        # Non-zero kernel point - fall back to simpler lowering.
         data_shape = (2, 4, 4, 4)
         data_dtype = 'uint8'
         kernel_shape = (3, 4, 2, 2)
@@ -506,6 +506,29 @@ def test_dilation():
                                        kernel_dtype=kernel_dtype,
                                        input_zero_point=5,
                                        kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(0, 0),
+                                       strides=(1, 1),
+                                       dilation=(2, 2),
+                                       data_layout="NCHW",
+                                       kernel_layout="OIHW",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+        # Zero kernel point
+        data_shape = (2, 4, 4, 4)
+        data_dtype = 'uint8'
+        kernel_shape = (3, 4, 2, 2)
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=0,
+                                       kernel_zero_point=0,
                                        input_scale=1.0,
                                        kernel_scale=1.0,
                                        kernel_size=(2, 2),

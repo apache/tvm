@@ -23,7 +23,7 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
-
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/node/container.h>
@@ -455,4 +455,10 @@ ObjectRef LoadJSON(std::string json_str) {
   }
   return ObjectRef(nodes.at(jgraph.root));
 }
+
+TVM_REGISTER_GLOBAL("node.SaveJSON")
+.set_body_typed(SaveJSON);
+
+TVM_REGISTER_GLOBAL("node.LoadJSON")
+.set_body_typed(LoadJSON);
 }  // namespace tvm

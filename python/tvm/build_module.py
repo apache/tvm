@@ -19,11 +19,11 @@
 This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
-from __future__ import absolute_import as _abs
 import warnings
+import tvm._ffi
+import tvm.runtime
 
-from ._ffi.function import Function
-from ._ffi.object import Object, register_object
+from tvm.runtime import Object, ndarray
 from . import api
 from . import _api_internal
 from . import tensor
@@ -32,9 +32,7 @@ from . import expr
 from . import ir_pass
 from . import stmt as _stmt
 from . import container
-from . import module
 from . import codegen
-from . import ndarray
 from . import target as _target
 from . import make
 
@@ -115,7 +113,7 @@ class DumpIR(object):
         DumpIR.scope_level -= 1
 
 
-@register_object
+@tvm._ffi.register_object
 class BuildConfig(Object):
     """Configuration scope to set a build config option.
 
@@ -469,7 +467,7 @@ def _build_for_device(flist, target, target_host):
             func = ir_pass.InferFragment(func)
             warp_size = target.thread_warp_size
             func = ir_pass.LowerThreadAllreduce(func, warp_size)
-            fsplits = [s for s in ir_pass.SplitHostDevice(func)]
+            fsplits = list(ir_pass.SplitHostDevice(func))
             fhost.append(fsplits[0])
             for x in fsplits[1:]:
                 fdevice.append(x)
@@ -630,7 +628,7 @@ def build(inputs,
                 target_host = tar
                 break
     if not target_host:
-        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+        target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
     fhost_all = []
     device_modules = []

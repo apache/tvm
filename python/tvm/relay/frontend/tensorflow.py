@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
+# pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
 from __future__ import print_function
@@ -2655,8 +2656,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.nd.NDArray
+        Dict of converted parameters stored in tvm.nd.NDArray format
     """
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

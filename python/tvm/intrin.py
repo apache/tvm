@@ -16,9 +16,9 @@
 # under the License.
 """Expression Intrinsics and math functions in TVM."""
 # pylint: disable=redefined-builtin
-from __future__ import absolute_import as _abs
+import tvm._ffi
+import tvm.codegen
 
-from ._ffi.function import register_func as _register_func
 from . import make as _make
 from .api import convert, const
 from .expr import Call as _Call
@@ -189,7 +189,6 @@ def call_llvm_intrin(dtype, name, *args):
     call : Expr
         The call expression.
     """
-    import tvm
     llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_pure_intrin(dtype, 'llvm_intrin', tvm.const(llvm_id, 'uint32'), *args)
@@ -596,7 +595,7 @@ def register_intrin_rule(target, intrin, f=None, override=False):
 
         register_intrin_rule("opencl", "exp", my_exp_rule, override=True)
     """
-    return _register_func("tvm.intrin.rule.%s.%s" % (target, intrin), f, override)
+    return tvm._ffi.register_func("tvm.intrin.rule.%s.%s" % (target, intrin), f, override)
 
 
 def _rule_float_suffix(op):
@@ -650,7 +649,7 @@ def _rule_float_direct(op):
         return call_pure_extern(op.dtype, op.name, *op.args)
     return None
 
-@_register_func("tvm.default_trace_action")
+@tvm._ffi.register_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 

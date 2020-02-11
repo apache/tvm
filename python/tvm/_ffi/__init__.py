@@ -24,3 +24,7 @@ be used via ctypes function calls.
 Some performance critical functions are implemented by cython
 and have a ctypes fallback implementation.
 """
+from . import _pyversion
+from .base import register_error
+from .registry import register_object, register_func, register_extension
+from .registry import _init_api, get_global_func

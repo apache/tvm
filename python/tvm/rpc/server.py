@@ -25,9 +25,6 @@ Server is TCP based with the following protocol:
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 # pylint: disable=invalid-name
-
-from __future__ import absolute_import
-
 import os
 import ctypes
 import socket
@@ -39,6 +36,8 @@ import subprocess
 import time
 import sys
 import signal
+import platform
+import tvm._ffi
 import psutil
 #pylint: disable=wrong-import-position
 if os.name == 'nt':
@@ -47,11 +46,10 @@ if os.name == 'nt':
     #pylint: disable=ungrouped-imports
     import multiprocessing.pool
 
-from .._ffi.function import register_func
-from .._ffi.base import py_str
-from .._ffi.libinfo import find_lib_path
-from ..module import load as _load_module
-from ..contrib import util
+from tvm._ffi.base import py_str
+from tvm._ffi.libinfo import find_lib_path
+from tvm.runtime.module import load_module as _load_module
+from tvm.contrib import util
 from . import base
 from . base import TrackerCode
 #pylint: enable=wrong-import-position
@@ -76,12 +74,12 @@ if os.name == 'nt':
         Process = NoDaemonProcess
 
 # pylint: disable=unused-variable
-@register_func("tvm.rpc.server.workpath", override=True)
+@tvm._ffi.register_func("tvm.rpc.server.workpath", override=True)
 def get_workpath(path):
     global _temp
     return _temp.relpath(path)
 
-@register_func("tvm.rpc.server.load_module", override=True)
+@tvm._ffi.register_func("tvm.rpc.server.load_module", override=True)
 def load_module(file_name):
     """Load module from remote side."""
     global _temp
@@ -526,8 +524,8 @@ class Server(object):
         """Terminate the server process"""
         if self.use_popen:
             if self.proc:
-                if os.name == 'nt':
-                    self.proc.terminate()
+                if platform.system() == "Windows":
+                    os.kill(self.proc.pid, signal.CTRL_C_EVENT)
                 else:
                     os.killpg(self.proc.pid, signal.SIGTERM)
                 self.proc = None
