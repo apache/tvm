@@ -79,7 +79,7 @@ class GlobalVar(RelayExpr):
 
         Returns
         -------
-        call: Call
+        call: BaseExpr
             A call taking the variable as a function.
         """
         # pylint: disable=import-outside-toplevel

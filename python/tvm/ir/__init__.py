@@ -22,3 +22,4 @@ from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .type_relation import TypeCall, TypeRelation
 from .tensor_type import TensorType
+from .adt import Constructor, TypeData
