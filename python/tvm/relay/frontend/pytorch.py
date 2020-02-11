@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
+# pylint: disable=self-assigning-variable, import-outside-toplevel, unnecessary-comprehension
 """PT: PyTorch frontend."""
 import numpy as np
 
