@@ -21,7 +21,7 @@
  * \file saveload_json.cc
  * \brief Save and load graph to/from JSON file.
  */
-#include "load_json.h"
+#include <tvm/runtime/crt/load_json.h>
 
 // the node entry structure in serialized format
 typedef struct _JSONNodeEntry {

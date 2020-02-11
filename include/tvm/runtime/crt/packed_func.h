@@ -136,7 +136,7 @@ static inline void PackedFunc_Call(PackedFunc * pf) {
   char args[200] = {0,};
   for (idx = 0; idx < pf->args.values_count; idx++) {
     char tmp[20];
-    sprintf(tmp, "%s,", (pf->args.tcodes[idx]==kArrayHandle) ? "float *" : "unknown");
+    sprintf(tmp, "%s,", (pf->args.tcodes[idx]==kTVMNDArrayHandle) ? "float *" : "unknown");
     strcat(args, tmp);
   }
   args[strlen(args)-1] = '\0';

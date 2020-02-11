@@ -22,11 +22,11 @@
  * \brief NDArray container infratructure.
  */
 
-#include "common.h"
-#include "ndarray.h"
-#include "c_runtime_api.h"
-#include "c_backend_api.h"
-#include "c_api_common.h"
+#include <tvm/runtime/crt/common.h>
+#include <tvm/runtime/crt/ndarray.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
+//#include <tvm/runtime/crt/c_api_common.h>
 
 NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, DLDataType dtype) {
   uint32_t ndim = Shape_CountNonZero(shape);

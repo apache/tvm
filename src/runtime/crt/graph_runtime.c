@@ -21,9 +21,9 @@
  * \file graph_runtime.c
  * \brief implement graph runtime in pure C
  */
-#include "graph_runtime.h"
-#include "c_api_common.h"
-#include "load_param.h"
+#include <tvm/runtime/crt/graph_runtime.h>
+//#include <c_api_common.h" // TODO(liangfu): 
+//#include <tvm/runtime/crt/load_param.h>
 
 /*!
  * \brief Get the input index given the name of input.
@@ -156,10 +156,10 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
   uint32_t idx, dim;
   
   // Grab saved optimization plan from graph.
-  TVMType vtype[GRAPH_RUNTIME_MAX_NODES];
+  DLDataType vtype[GRAPH_RUNTIME_MAX_NODES];
   GraphRuntimeGraphAttr * attrs = &(runtime->attrs);
   for (idx = 0; idx < attrs->dltype_count; idx++) {
-    vtype[idx] = String2TVMType(attrs->dltype[idx]);
+    vtype[idx] = String2DLDataType(attrs->dltype[idx]);
   }
 
   // Size and device type of each storage pool entry.
@@ -177,7 +177,7 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
         size *= attrs->shape[idx][dim];
       }
     }
-    TVMType t = vtype[idx];
+    DLDataType t = vtype[idx];
     uint32_t bits = t.bits * t.lanes;
     size_t bytes = ((bits + 7U) / 8U) * size;
     
@@ -298,7 +298,7 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
     v.v_handle = args[idx];
     arg_ptr.arg_values[idx] = v;
     arg_ptr.arg_values_count ++;
-    arg_ptr.arg_tcodes[idx] = kArrayHandle;
+    arg_ptr.arg_tcodes[idx] = kTVMNDArrayHandle;
     arg_ptr.arg_tcodes_count ++;
     if (param->flatten_data) {
       arg_ptr.shape_data[idx] = Shape_Accumulate(t->shape);
