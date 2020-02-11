@@ -24,4 +24,6 @@ from .type_relation import TypeCall, TypeRelation
 from .tensor_type import TensorType
 from .adt import Constructor, TypeData
 from .module import IRModule
+from .attrs import Attrs
+
 from . import transform

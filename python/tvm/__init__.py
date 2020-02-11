@@ -49,7 +49,6 @@ from . import codegen
 from . import container
 from . import schedule
 
-from . import attrs
 from . import ir_builder
 from . import target
 from . import generic
