@@ -37,7 +37,6 @@ from . import debug
 from . import param_dict
 from . import feature
 from .backend import vm
-from .backend import profiler_vm
 
 # Root operators
 from .op import Op

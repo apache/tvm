@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+import numpy as np
+import pytest
 
 import tvm
-import numpy as np
+from tvm import runtime
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
 from tvm.relay import testing
-import pytest
 
 def check_result(args, expected_result, mod=None):
     """
@@ -52,14 +52,14 @@ def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
         assert isinstance(f, relay.Module), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = relay.vm.VirtualMachine(exe)
+    vm = runtime.vm.VirtualMachine(exe)
     vm.init(ctx)
     return vm.invoke("main", *args)
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.container.ADT):
+    elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
@@ -573,7 +573,7 @@ def test_add_op_broadcast():
 
 def test_vm_optimize():
     mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
-    comp = relay.backend.vm.VMCompiler()
+    comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, "llvm", params)
 
 if __name__ == "__main__":

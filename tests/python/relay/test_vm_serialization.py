@@ -19,9 +19,10 @@
 import numpy as np
 
 import tvm
+from tvm.runtime import vm as _vm
+from tvm.relay import vm as rly_vm
 from tvm import relay
 from tvm.relay.module import Module as rly_module
-from tvm.relay import vm as _vm
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.contrib import util
@@ -31,11 +32,11 @@ def create_exec(f, target="llvm", params=None):
     if isinstance(f, relay.Expr):
         mod = relay.Module()
         mod["main"] = f
-        executable = _vm.compile(mod, target=target, params=params)
+        executable = rly_vm.compile(mod, target=target, params=params)
         return executable
     else:
         assert isinstance(f, relay.Module), "expected mod as relay.Module"
-        executable = _vm.compile(f, target=target, params=params)
+        executable = rly_vm.compile(f, target=target, params=params)
         return executable
 
 
