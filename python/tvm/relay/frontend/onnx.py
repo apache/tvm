@@ -342,6 +342,14 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
             attr.pop('auto_pad')
+        elif len(attr['kernel_shape']) == 2:
+            sym_pad = True
+            padding = attr['pads']
+            for i in range(0, len(padding), 2):
+                sym_pad = sym_pad and padding[i] == padding[i + 1]
+
+            if sym_pad:
+                attr['pads'] = padding[0::2]
 
         out = AttrCvt(
             op_name=dimension_picker('conv'),
@@ -505,7 +513,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -528,7 +536,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -620,7 +628,7 @@ class DepthToSpace(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-        mode = attr.get("mode", "DCR")
+        mode = attr.get('mode', b'DCR').decode('utf-8')
         return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
