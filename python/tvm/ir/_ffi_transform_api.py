@@ -1,3 +1,4 @@
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,13 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-"""Common data structures across all IR variants."""
-from .base import SourceName, Span, Node
-from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc
-from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
-from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
-from .type_relation import TypeCall, TypeRelation
-from .tensor_type import TensorType
-from .adt import Constructor, TypeData
-from . import transform
+"""FFI APIs for tvm.transform"""
+import tvm._ffi
+
+
+tvm._ffi._init_api("transform", __name__)

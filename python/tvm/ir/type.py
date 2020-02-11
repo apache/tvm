@@ -144,7 +144,6 @@ class TypeConstraint(Type):
 class FuncType(Type):
     """Function type.
 
-
     A function type consists of a list of type parameters to enable
     the definition of generic functions,
     a set of type constraints which we omit for the time being,

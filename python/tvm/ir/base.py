@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Span data structures."""
+"""Common base structures."""
 import tvm._ffi
 
 from tvm.runtime import Object

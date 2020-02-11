@@ -17,6 +17,5 @@
 """FFI APIs for tvm.ir"""
 import tvm._ffi
 
-# Exports functions registered via TVM_REGISTER_GLOBAL with the "runtime" prefix.
-# e.g. TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile")
+
 tvm._ffi._init_api("ir", __name__)

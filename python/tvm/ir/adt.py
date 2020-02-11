@@ -27,7 +27,6 @@ from . import _ffi_api
 class Constructor(RelayExpr):
     """Relay ADT constructor.
 
-
     Parameters
     ----------
     name_hint : str

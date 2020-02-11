@@ -150,7 +150,7 @@ def test_module_pass():
 
     def test_pass_run():
         module_pass = transform
-        assert pass_name in module_pass.astext()
+        assert pass_name in str(module_pass)
 
         updated_mod = module_pass(mod)
         assert isinstance(updated_mod, relay.Module)
@@ -253,7 +253,7 @@ def test_function_pass():
 
     def test_pass_run():
         function_pass = transform
-        assert pass_name in function_pass.astext()
+        assert pass_name in str(function_pass)
 
         updated_mod = function_pass(mod)
         assert isinstance(updated_mod, relay.Module)
