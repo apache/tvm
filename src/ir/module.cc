@@ -338,13 +338,13 @@ IRModule IRModule::FromText(const std::string& text, const std::string& source_p
 
 TVM_REGISTER_NODE_TYPE(IRModuleNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Module")
+TVM_REGISTER_GLOBAL("ir.IRModule")
 .set_body_typed([](tvm::Map<GlobalVar, BaseFunc> funcs,
                    tvm::Map<GlobalTypeVar, TypeData> types) {
   return IRModule(funcs, types, {});
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_Add")
+TVM_REGISTER_GLOBAL("ir.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   IRModule mod = args[0];
   GlobalVar var = args[1];
@@ -369,67 +369,67 @@ TVM_REGISTER_GLOBAL("relay._module.Module_Add")
   *ret = mod;
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_AddDef")
+TVM_REGISTER_GLOBAL("ir.Module_AddDef")
 .set_body_method<IRModule>(&IRModuleNode::AddTypeDef);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalVar")
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar")
 .set_body_method<IRModule>(&IRModuleNode::GetGlobalVar);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalVars")
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVars")
 .set_body_method<IRModule>(&IRModuleNode::GetGlobalVars);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalTypeVars")
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVars")
 .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVars);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_ContainGlobalVar")
+TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
 .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_GetGlobalTypeVar")
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalTypeVar")
 .set_body_method<IRModule>(&IRModuleNode::GetGlobalTypeVar);
 
-TVM_REGISTER_GLOBAL("relay._module.Module_Lookup")
+TVM_REGISTER_GLOBAL("ir.Module_Lookup")
 .set_body_typed([](IRModule mod, GlobalVar var) {
   return mod->Lookup(var);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_Lookup_str")
+TVM_REGISTER_GLOBAL("ir.Module_Lookup_str")
 .set_body_typed([](IRModule mod, std::string var) {
   return mod->Lookup(var);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef")
+TVM_REGISTER_GLOBAL("ir.Module_LookupDef")
 .set_body_typed([](IRModule mod, GlobalTypeVar var) {
   return mod->LookupTypeDef(var);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_LookupDef_str")
+TVM_REGISTER_GLOBAL("ir.Module_LookupDef_str")
 .set_body_typed([](IRModule mod, std::string var) {
   return mod->LookupTypeDef(var);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_LookupTag")
+TVM_REGISTER_GLOBAL("ir.Module_LookupTag")
 .set_body_typed([](IRModule mod, int32_t tag) {
     return mod->LookupTag(tag);
   });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_FromExpr")
+TVM_REGISTER_GLOBAL("ir.Module_FromExpr")
 .set_body_typed([](RelayExpr e,
                    tvm::Map<GlobalVar, BaseFunc> funcs,
                    tvm::Map<GlobalTypeVar, TypeData> type_defs) {
   return IRModule::FromExpr(e, funcs, type_defs);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_Update")
+TVM_REGISTER_GLOBAL("ir.Module_Update")
 .set_body_typed([](IRModule mod, IRModule from) {
   mod->Update(from);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_Import")
+TVM_REGISTER_GLOBAL("ir.Module_Import")
 .set_body_typed([](IRModule mod, std::string path) {
   mod->Import(path);
 });
 
-TVM_REGISTER_GLOBAL("relay._module.Module_ImportFromStd")
+TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd")
 .set_body_typed([](IRModule mod, std::string path) {
   mod->ImportFromStd(path);
 });;

@@ -63,7 +63,7 @@ def extract_from_program(mod, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    mod: relay.module.Module or relay.expr.Function
+    mod: tvm.IRModule or relay.expr.Function
         The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
@@ -95,7 +95,7 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    mods: List[relay.module.Module] or List[relay.expr.Function]
+    mods: List[tvm.IRModule] or List[relay.expr.Function]
         The list of modules or functions to tune
     params: List of dict of str to numpy array
         The associated parameters of the programs
@@ -151,8 +151,8 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
 
         for mod, param in zip(mods, params):
             if isinstance(mod, relay.expr.Function):
-                mod = relay.Module.from_expr(mod)
-            assert isinstance(mod, relay.module.Module), \
+                mod = tvm.IRModule.from_expr(mod)
+            assert isinstance(mod, tvm.IRModule), \
                 "only support relay Module or Function to be tuned"
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems

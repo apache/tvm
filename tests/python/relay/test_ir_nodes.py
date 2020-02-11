@@ -31,7 +31,7 @@ def check_json_roundtrip(node):
 def test_bad_constructor():
     try:
         x = relay.ty.TensorType("xx", "xx")
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 

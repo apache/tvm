@@ -57,13 +57,13 @@ def test_make_attrs():
     try:
         x = tvm.make.node("attrs.TestAttrs", unknown_key=1, name="xx")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert str(e).find("unknown_key") != -1
 
     try:
         x = tvm.make.node("attrs.TestAttrs", axis=100, name="xx")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert str(e).find("upper bound") != -1
 
     x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4))

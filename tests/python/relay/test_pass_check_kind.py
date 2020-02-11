@@ -96,13 +96,13 @@ def test_global_typevar_kind():
 def test_typecall_kind():
     gtv = relay.GlobalTypeVar('gtv')
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     data = relay.TypeData(gtv, [], [])
     mod[gtv] = data
     empty_call = relay.TypeCall(gtv, [])
     assert check_kind(empty_call, mod) == relay.TypeKind.Type
 
-    new_mod = relay.Module()
+    new_mod = tvm.IRModule()
     tv = relay.TypeVar('tv')
     new_data = relay.TypeData(gtv, [tv], [])
     new_mod[gtv] = new_data
@@ -165,7 +165,7 @@ def test_typecall_invalid_callee():
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_typecall_invalid_args():
     # args must all be type kind
-    mod = relay.Module()
+    mod = tvm.IRModule()
     gtv = relay.GlobalTypeVar('v1')
     data = relay.TypeData(gtv, [], [])
     mod[gtv] = data
@@ -175,7 +175,7 @@ def test_typecall_invalid_args():
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)
 def test_typecall_invalid_num_args():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     gtv = relay.GlobalTypeVar('v1')
     tv = relay.TypeVar('tv')
     data = relay.TypeData(gtv, [tv], [])

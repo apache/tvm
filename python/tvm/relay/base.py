@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, unused-import
 """The base node types for the Relay language."""
+import os
 import tvm._ffi
 
 from tvm.runtime import Object
@@ -23,6 +24,13 @@ from tvm.ir import SourceName, Span, Node as RelayNode
 from . import _make
 from . import _expr
 from . import _base
+
+
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
+@tvm._ffi.register_func("tvm.relay.std_path")
+def _std_path():
+    return __STD_PATH__
 
 
 def register_relay_node(type_key=None):

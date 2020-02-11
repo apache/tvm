@@ -125,7 +125,7 @@ def test_multi_node_subgraph():
 
     r = relay.concatenate((call0, call1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     mod = relay.transform.InferType()(mod)
 
@@ -154,7 +154,7 @@ def test_extern_gcc_single_op():
     f = relay.Function([x0, y0], z)
     f = set_external_func_attr(f, "ccompiler", "ccompiler_0")
     call = relay.Call(f, [x, y])
-    mod = relay.Module.from_expr(call)
+    mod = tvm.IRModule.from_expr(call)
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
 
@@ -188,7 +188,7 @@ def test_extern_gcc():
     sub = relay.Function([x2, y2], sub)
     sub = set_external_func_attr(sub, "ccompiler", "ccompiler_0")
     call_sub = relay.Call(sub, [call_mul, call_add])
-    mod = relay.Module.from_expr(call_sub)
+    mod = tvm.IRModule.from_expr(call_sub)
 
     x_data = np.random.rand(2, 2).astype('float32')
     y_data = np.random.rand(2, 2).astype('float32')
@@ -223,12 +223,12 @@ def test_extern_dnnl():
     out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
     f = relay.Function([data1, weight1, weight2], out)
-    ref_mod = relay.Module()
+    ref_mod = tvm.IRModule()
     ref_mod['main'] = f
 
     f = set_external_func_attr(f, "dnnl", "dnnl_0")
     call = relay.Call(f, [data0, weight0, weight0])
-    mod = relay.Module.from_expr(call)
+    mod = tvm.IRModule.from_expr(call)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)

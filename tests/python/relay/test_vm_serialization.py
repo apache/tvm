@@ -22,7 +22,7 @@ import tvm
 from tvm.runtime import vm as _vm
 from tvm.relay import vm as rly_vm
 from tvm import relay
-from tvm.relay.module import Module as rly_module
+
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.prelude import Prelude
 from tvm.contrib import util
@@ -30,12 +30,12 @@ from tvm.relay import testing
 
 def create_exec(f, target="llvm", params=None):
     if isinstance(f, relay.Expr):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         mod["main"] = f
         executable = rly_vm.compile(mod, target=target, params=params)
         return executable
     else:
-        assert isinstance(f, relay.Module), "expected mod as relay.Module"
+        assert isinstance(f, tvm.IRModule), "expected mod as tvm.IRModule"
         executable = rly_vm.compile(f, target=target, params=params)
         return executable
 
@@ -76,7 +76,7 @@ def run_network(mod,
 
 
 def test_serializer():
-    mod = rly_module({})
+    mod = tvm.IRModule({})
     a = relay.const(1.0, "float32")
     x = relay.var('x', shape=(10, 10), dtype='float32')
     f1 = relay.Function([x], x + a)
@@ -187,7 +187,7 @@ def test_if():
 
 
 def test_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
@@ -235,7 +235,7 @@ def test_tuple():
 
 
 def test_adt_list():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     l1 = p.cons(relay.const(1), p.nil())
@@ -263,7 +263,7 @@ def test_adt_list():
 
 
 def test_adt_compose():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     compose = p.compose

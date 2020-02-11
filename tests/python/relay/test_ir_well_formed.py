@@ -50,7 +50,7 @@ def test_tuple_get_item():
 
 
 def test_adt():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     x = relay.Var("x")
     some_case = relay.Clause(relay.PatternConstructor(p.some,

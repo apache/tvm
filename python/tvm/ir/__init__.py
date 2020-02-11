@@ -23,4 +23,5 @@ from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .type_relation import TypeCall, TypeRelation
 from .tensor_type import TensorType
 from .adt import Constructor, TypeData
+from .module import IRModule
 from . import transform

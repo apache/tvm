@@ -38,8 +38,8 @@ except ImportError:
 
 import tvm
 import tvm.ir._ffi_api
+from tvm.ir import IRModule
 
-from . import module
 from .base import Span, SourceName
 from . import adt
 from . import expr
@@ -202,7 +202,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name
-        self.module = module.Module({})  # type: module.Module
+        self.module = IRModule({})  # type: IRModule
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()])       # type: Scopes[expr.Var]
@@ -353,7 +353,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return self.visit(ctx)
 
-    def visitProg(self, ctx: RelayParser.ProgContext) -> Union[expr.Expr, module.Module]:
+    def visitProg(self, ctx: RelayParser.ProgContext) -> Union[expr.Expr, IRModule]:
         self.meta = None
         if ctx.METADATA():
             header, data = str(ctx.METADATA()).split("\n", 1)
@@ -747,7 +747,7 @@ class StrictErrorListener(ErrorListener):
     def reportContextSensitivity(self, recognizer, dfa, startIndex, stopIndex, prediction, configs):
         raise Exception("Context Sensitivity in:\n" + self.text)
 
-def fromtext(data: str, source_name: str = None) -> Union[expr.Expr, module.Module]:
+def fromtext(data: str, source_name: str = None) -> Union[expr.Expr, IRModule]:
     """Parse a Relay program."""
     if data == "":
         raise ParseError("cannot parse the empty string.")

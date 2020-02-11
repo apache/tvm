@@ -17,7 +17,6 @@
 """Tests for module functionality."""
 import tvm
 from tvm import relay
-from tvm.relay import Module
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions
 
@@ -30,10 +29,10 @@ def adt_list(p):
 
 
 def test_constructor_tag_round_trip():
-    mod1 = Module()
+    mod1 = tvm.IRModule()
     p1 = Prelude(mod1)
     add_nat_definitions(p1)
-    mod2 = Module()
+    mod2 = tvm.IRModule()
     p2 = Prelude(mod2)
     add_nat_definitions(p2)
 
@@ -52,7 +51,7 @@ def test_constructor_tag_differences():
     # ensure that if we have the type data for a given ADT, the tags
     # for the constructors of the *same ADT* are simple offsets from
     # each other
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
 

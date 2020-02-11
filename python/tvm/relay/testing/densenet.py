@@ -105,7 +105,7 @@ def get_workload(densenet_size=121, classes=1000, batch_size=4,
 
     Returns
     -------
-    mod: tvm.relay.Module
+    mod: tvm.IRModule
         The relay module that contains a DenseNet network.
 
     params : dict of str to NDArray

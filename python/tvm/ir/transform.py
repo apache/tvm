@@ -130,12 +130,12 @@ class Pass(Object):
 
         Parameters
         ----------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The module that a certain optimization is performed on.
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The updated module after applying this pass.
         """
         return _ffi_transform_api.RunPass(self, mod)
@@ -143,7 +143,7 @@ class Pass(Object):
 
 @tvm._ffi.register_object("relay.ModulePass")
 class ModulePass(Pass):
-    """A pass that works on tvm.relay.Module. Users don't need to interact with
+    """A pass that works on tvm.IRModule. Users don't need to interact with
     this class directly. Instead, a module pass should be created through
     `module_pass`, because the design of the `module_pass` API is flexible
     enough to handle the creation of a module pass in different manners. In
@@ -293,7 +293,7 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
             x = relay.var("x", tp)
             gv = relay.GlobalVar("var")
             func = relay.Function([x], relay.abs(x))
-            new_mod = relay.Module({gv: func})
+            new_mod = tvm.IRModule({gv: func})
             new_mod.update(mod)
             return new_mod
 

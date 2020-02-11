@@ -38,7 +38,7 @@ class CSRNDArray(object):
             The corresponding a dense numpy array,
             or a tuple for constructing a sparse matrix directly.
 
-        ctx: tvm.TVMContext
+        ctx: tvmContext
             The corresponding context.
 
         shape : tuple of int

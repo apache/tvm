@@ -21,12 +21,13 @@ from __future__ import absolute_import as _abs
 import json
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from tvm import relay
 from topi.util import get_const_tuple
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
-from .. import module as _module
 from .. import scope_builder as _scope_builder
 from ... import nd as _nd
 
@@ -1902,7 +1903,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
     dtype_info : dict or str.
         Known parameter dtypes
 
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that contains global information. It will be used for
         converting ops that need global information, e.g. control-flow ops.
 
@@ -2009,7 +2010,7 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation
 
     params : dict of str to tvm.nd.NDArray
@@ -2020,7 +2021,7 @@ def from_mxnet(symbol,
     except ImportError as e:
         raise ImportError("{}. MXNet is required to parse symbols.".format(e))
 
-    mod = _module.Module()
+    mod = IRModule()
     if isinstance(symbol, mx.sym.Symbol):
         params = {}
         arg_params = arg_params if arg_params else {}

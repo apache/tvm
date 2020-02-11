@@ -515,7 +515,7 @@ def test_if_alpha_equal():
 
 def test_constructor_alpha_equal():
     # smoke test: it should be pointer equality
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
     assert alpha_equal(p.nil, p.nil)
@@ -524,7 +524,7 @@ def test_constructor_alpha_equal():
 
 
 def test_match_alpha_equal():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
     x = relay.Var('x')

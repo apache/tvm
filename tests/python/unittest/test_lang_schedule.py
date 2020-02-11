@@ -65,7 +65,7 @@ def test_reorder():
         # must raise an error
         s[T].reorder(xi2, xi1, xi2)
         assert False
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 def test_split():

@@ -59,7 +59,7 @@ def build_config(opt_level=2,
                 "CombineParallelDense": 4
             }
 
-    fallback_device : int, str, or tvm.TVMContext, optional
+    fallback_device : int, str, or tvmContext, optional
         The fallback device. It is also used as the default device for
         operators without specified device during heterogeneous execution.
 
@@ -547,7 +547,7 @@ def gradient(expr, mod=None, mode='higher_order'):
     expr : tvm.relay.Expr
         The input expression, which is a Function or a GlobalVar.
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
 
     mode : Optional[String]
         The mode of the automatic differentiation algorithm.
@@ -578,7 +578,7 @@ def to_cps(func, mod=None):
     func: tvm.relay.Function
         The input function.
 
-    mod: Optional[tvm.relay.Module]
+    mod: Optional[tvm.IRModule]
         The global module.
 
     Returns
