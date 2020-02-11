@@ -33,7 +33,7 @@ class Node(Object):
             if there is meta data.
 
         annotate: Optional[Object->str]
-            Optional annotate function to provide additional
+            Optionally annotate function to provide additional
             information in the comment block.
 
         Note
