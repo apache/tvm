@@ -46,7 +46,8 @@ enum {
  */
 typedef struct json_reader_t {
   /*! \brief internal reader string */
-  char is_[TVM_CRT_MAX_JSON_LENGTH];
+  /* char is_[TVM_CRT_MAX_JSON_LENGTH]; */
+  char * is_;
   char * isptr;
   /*! \brief "\\r" counter */
   size_t line_count_r_;
@@ -385,6 +386,10 @@ static inline JSONReader JSONReader_Create(const char * is) {
   reader.BeginObject = JSONReader_BeginObject;
   reader.NextArrayItem = JSONReader_NextArrayItem;
   reader.NextObjectItem = JSONReader_NextObjectItem;
+  // strcpy(reader.is_, is);
+  // TODO(liangfu): release memory
+  reader.is_ = (char*)malloc(strlen(is)+1);
+  memset(reader.is_, 0, strlen(is)+1);
   strcpy(reader.is_, is);
   reader.isptr = reader.is_;
   return reader;

@@ -500,6 +500,6 @@ static inline uint32_t GraphRuntime_GetEntryId(GraphRuntime * runtime, uint32_t 
   return runtime->node_row_ptr[nid] + index;
 }
 
-int32_t TVMGraphRuntimeCreate(GraphRuntime * runtime, const char * sym_json, const Module * m, const TVMContext * ctxs);
+GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json, const Module * m, const TVMContext * ctxs);
 
 #endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_

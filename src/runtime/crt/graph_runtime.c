@@ -24,6 +24,7 @@
 #include <tvm/runtime/crt/graph_runtime.h>
 //#include <c_api_common.h" // TODO(liangfu): 
 //#include <tvm/runtime/crt/load_param.h>
+#include <tvm/runtime/crt/vm.h>
 
 /*!
  * \brief Get the input index given the name of input.
@@ -339,9 +340,9 @@ void GraphRuntime_Init(GraphRuntime * runtime, const char * graph_json,
   runtime->SetupOpExecs(runtime);
 }
 
-int32_t TVMGraphRuntimeCreate(GraphRuntime * runtime, const char * sym_json,
+GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
                               const Module * m, const TVMContext * ctxs) {
-  // GraphRuntime runtime; //  = (GraphRuntime*)malloc(sizeof(GraphRuntime));
+  GraphRuntime * runtime = (GraphRuntime*)malloc(sizeof(GraphRuntime));
   memset(runtime, 0, sizeof(GraphRuntime));
   runtime->GetEntryId = GraphRuntime_GetEntryId;
   runtime->GetInputIndex = GraphRuntime_GetInputIndex;
@@ -357,5 +358,5 @@ int32_t TVMGraphRuntimeCreate(GraphRuntime * runtime, const char * sym_json,
   runtime->module.GetFunction = Module_GetFunction;
   // init
   runtime->Init(runtime, sym_json, m, ctxs);
-  return TVM_STATUS_SUCCESS; // ModuleCreate(runtime);
+  return runtime; // TVM_STATUS_SUCCESS; // ModuleCreate(runtime);
 }
