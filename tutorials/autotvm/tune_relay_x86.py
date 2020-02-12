@@ -160,7 +160,7 @@ def tune_kernels(tasks,
 # Use graph tuner to achieve graph level optimal schedules
 # Set use_DP=False if it takes too long to finish.
 def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
-    target_op = [relay.nn.conv2d]
+    target_op = [relay.op.get("nn.conv2d"),]
     Tuner = DPTuner if use_DP else PBQPTuner
     executor = Tuner(graph, {input_name: dshape}, records, target_op, target)
     executor.benchmark_layout_transform(min_exec_num=2000)

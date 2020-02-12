@@ -43,12 +43,22 @@ def serialize_args(args):
     ----------
     args: list of hashable or Tensor
     """
+    def _encode(x):
+        if isinstance(x, tensor.Tensor):
+            return ('TENSOR', get_const_tuple(x.shape), x.dtype)
+        if isinstance(x, (tuple, list, container.Array)):
+            return tuple([_encode(a) for a in x])
+        if isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
+            return x
+        if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+            return x.value
+        if x is None:
+            return 0
+        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
+                           'primitive types or tvm.expr.Var only' % type(x))
     ret = []
     for t in args:
-        if isinstance(t, tensor.Tensor):
-            ret.append(('TENSOR', get_const_tuple(t.shape), t.dtype))
-        else:
-            ret.append(t)
+        ret.append(_encode(t))
     return tuple(ret)
 
 
@@ -66,6 +76,27 @@ def deserialize_args(args):
         else:
             ret.append(t)
     return ret
+
+
+def args_to_workload(args, task_name=None):
+    """Convert argument list to hashable workload tuple.
+    This function will convert list to tuple, tvm node to python value and
+    flatten tvm.tensor.Tensor to a tuple
+
+    Parameters
+    ----------
+    task_name : str
+        The AutoTVM task name
+
+    args : list of args
+        The arguments to the function
+
+    Returns
+    -------
+    ret: hashable
+        The hashable value
+    """
+    return (task_name,) + serialize_args(args) if task_name is not None else serialize_args(args)
 
 
 class Task(object):
@@ -88,10 +119,13 @@ class Task(object):
         self.func = TASK_TABLE.get(name, _raise_error)
 
         # auxiliary info, available after `init_space` is called
-        self.workload = None
         self.flop = None
         self.target = None
         self.target_host = None
+
+    @property
+    def workload(self):
+        return (self.name,) + serialize_args(self.args)
 
     def instantiate(self, config):
         """Instantiate this task function (template) with a config.
@@ -127,7 +161,6 @@ class Task(object):
             "args": self.args,
             "kwargs": self.kwargs,
             "config_space": self.config_space,
-            "workload": self.workload,
             "flop": self.flop,
             "target": self.target,
             "target_host": self.target_host
@@ -139,7 +172,6 @@ class Task(object):
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
         self.func = TASK_TABLE.get(state["name"], _raise_error)
-        self.workload = state["workload"]
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
@@ -303,44 +335,11 @@ def create(task_name, args, target, target_host=None):
             sch, _ = ret.func(*args)
             ret.config_space.code_hash = getattr(sch, 'code_hash', None)
 
-    ret.workload = ctx.workload
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
     ret.target_host = target_host
 
     return ret
-
-def args_to_workload(x, task_name=None):
-    """Convert argument list to hashable workload tuple.
-    This function will convert list to tuple, tvm node to python value and
-    flatten tvm.tensor.Tensor to a tuple
-
-    Parameters
-    ----------
-    x: primitive hashable types or tensor.Tensor
-        The original value
-    task_name: str
-        The AutoTVM task name
-
-    Returns
-    -------
-    ret: hashable
-        The hashable value
-    """
-    if isinstance(x, tensor.Tensor):
-        workload = get_const_tuple(x.shape) + (x.dtype, )
-    elif isinstance(x, (tuple, list, container.Array)):
-        workload = tuple([args_to_workload(a) for a in x])
-    elif isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
-        workload = x
-    elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
-        workload = x.value
-    elif x is None:
-        workload = 0
-    else:
-        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
-                           'primitive types or tvm.expr.Var only' % type(x))
-    return tuple((task_name, ) + workload) if task_name else workload
 
 def get_config():
     """Get current config object

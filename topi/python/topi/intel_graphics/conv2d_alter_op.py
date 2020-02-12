@@ -90,8 +90,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 @conv2d_infer_layout.register("intel_graphics")
 def _conv2d_infer_layout(workload, cfg):
     _, data, kernel, strides, padding, dilation, layout, dtype = workload
-    batch_size, in_channel, in_height, in_width = data[:-1]
-    out_channel, _, k_height, k_width = kernel[:-1]
+    batch_size, in_channel, in_height, in_width = data[1]
+    out_channel, _, k_height, k_width = kernel[1]
     out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
     out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]

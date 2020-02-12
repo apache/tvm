@@ -27,16 +27,6 @@ from tvm.relay.testing import resnet
 from tvm.autotvm.graph_tuner.utils import has_multiple_inputs, get_direct_ancestor, get_in_nodes, \
     get_out_nodes, expr2graph, bind_inputs
 from tvm.relay.expr import Call, TupleGetItem, Tuple, Var
-from topi.nn.conv2d import conv2d
-
-
-def create_workload(dshape, kshape, strides,
-                    padding, dilation, layout,
-                    out_layout, dtype, out_dtype):
-    data = tvm.placeholder(dshape, dtype=dtype)
-    kernel = tvm.placeholder(kshape, dtype=dtype)
-    return autotvm.task.args_to_workload([data, kernel, strides, padding, dilation, layout,
-                                          out_layout, out_dtype], "conv2d_NCHWc.x86")
 
 
 def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):

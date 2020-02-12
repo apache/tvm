@@ -60,8 +60,8 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
 @conv2d_infer_layout.register("cpu")
 def _conv2d_infer_layout(workload, cfg):
     _, data, kernel, strides, padding, dilation, layout, _, dtype = workload
-    batch_size, in_channel, in_height, in_width = data[:-1]
-    out_channel, _, k_height, k_width = kernel[:-1]
+    batch_size, in_channel, in_height, in_width = data[1]
+    out_channel, _, k_height, k_width = kernel[1]
     idxdiv = tvm.indexdiv
 
     pt, pl, pb, pr = get_pad_tuple(padding, (k_height, k_width))

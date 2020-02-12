@@ -893,8 +893,8 @@ class ConfigEntity(ConfigSpace):
             a json serializable dictionary
         """
         ret = {}
-        ret['i'] = int(self.index)
-        ret['c'] = self.code_hash
+        ret['index'] = int(self.index)
+        ret['code_hash'] = self.code_hash
         entity_map = []
         for k, v in self._entity_map.items():
             if isinstance(v, SplitEntity):
@@ -907,7 +907,7 @@ class ConfigEntity(ConfigSpace):
                 entity_map.append((k, 'ot', v.val))
             else:
                 raise RuntimeError("Invalid entity instance: " + v)
-        ret['e'] = entity_map
+        ret['entity'] = entity_map
         return ret
 
     @staticmethod
@@ -926,12 +926,12 @@ class ConfigEntity(ConfigSpace):
             The corresponding config object
 
         """
-        index = json_dict["i"]
-        code_hash = json_dict["c"]
+        index = json_dict["index"]
+        code_hash = json_dict["code_hash"]
         constraints = []
         entity_map = OrderedDict()
 
-        for item in json_dict["e"]:
+        for item in json_dict["entity"]:
             key, knob_type, knob_args = item
             if knob_type == 'sp':
                 entity = SplitEntity(knob_args)

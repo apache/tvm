@@ -125,7 +125,7 @@ class RedisDatabase(Database):
         current = self.get(measure_str_key(inp))
         if current is not None:
             records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
-            results = [rec[1] for rec in records]
+            results = [rec[1] for rec in records if rec is not None]
             if get_all:
                 return results
             return max(results, key=lambda result: result.timestamp)
@@ -167,6 +167,7 @@ class RedisDatabase(Database):
             current = self.get(key)
             try:
                 records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
+                records = list(filter(None, records))
             except TypeError: # got a badly formatted/old format record
                 continue
 

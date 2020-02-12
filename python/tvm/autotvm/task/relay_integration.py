@@ -23,7 +23,7 @@ Decorator and utilities for the integration with TOPI and Relay
 import threading
 import logging
 
-
+import tvm
 from .task import create
 from .topi_integration import TaskExtractEnv
 

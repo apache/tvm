@@ -177,7 +177,7 @@ class BaseGraphTuner(object):
                         dtype = first_tensor[-1]
                         new_shape = tuple([val.value for val in node_entry["types"][0].shape])
                         actual_workload = (input_workload[0],) + \
-                                          ((new_shape + (dtype,)),) + input_workload[2:]
+                                          (("TENSOR", new_shape, dtype),) + input_workload[2:]
                         node_entry["workloads"].append(actual_workload)
                         if "record_candidates" not in node_entry:
                             node_entry["record_candidates"] = input_node["record_candidates"]
@@ -312,9 +312,8 @@ class BaseGraphTuner(object):
                                 to_sch_idx, args):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
-        sargs = serialize_args(args)
         in_layout, out_layout = args[1], args[2]
-        ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(sargs)
+        ltf_workload = autotvm.task.args_to_workload(args, 'layout_transform')
         idx_pair_key = (from_node_idx, to_node_idx)
 
         if in_layout == out_layout:
@@ -447,9 +446,8 @@ class BaseGraphTuner(object):
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             data, in_layout, out_layout = args
-            args = serialize_args(args)
-            ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
-            if ltf_workload in  self._layout_transform_perf_records:
+            ltf_workload = autotvm.task.args_to_workload(args, 'layout_transform')
+            if ltf_workload in self._layout_transform_perf_records:
                 continue
 
             if infer_layout:
@@ -476,9 +474,8 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
-            task = autotvm.task.create(layout_transform, args=args, target=self._target,
+            task = autotvm.task.create("layout_transform", args=args, target=self._target,
                                        target_host=target_host)
-            task.workload = ltf_workload
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[_log_to_list(records)])
