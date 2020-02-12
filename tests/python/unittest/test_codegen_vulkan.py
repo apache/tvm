@@ -31,7 +31,7 @@ def test_vector_comparison():
         A = tvm.placeholder(n, dtype=dtype, name='A')
         B = tvm.compute(
             A.shape,
-            lambda i: tvm.expr.Select(
+            lambda i: tvm.tir.Select(
                 A[i] >= 0, A[i] + tvm.const(1, dtype),
                 tvm.const(0, dtype)), name='B')
         s = tvm.create_schedule(B.op)

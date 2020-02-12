@@ -22,7 +22,7 @@ def test_const():
     x = tvm.const(1, "int32")
     print(x.dtype)
     assert x.dtype == tvm.int32
-    assert isinstance(x, tvm.expr.IntImm)
+    assert isinstance(x, tvm.tir.IntImm)
 
 
 def test_scalar_dtype_inference():
@@ -45,47 +45,47 @@ def test_make():
     x = tvm.const(1, "int32")
     y = tvm.var("x")
     z = x + y
-    assert isinstance(tvm.max(x, y), tvm.expr.Max)
-    assert isinstance(tvm.min(x, y), tvm.expr.Min)
+    assert isinstance(tvm.max(x, y), tvm.tir.Max)
+    assert isinstance(tvm.min(x, y), tvm.tir.Min)
 
 
 def test_ir():
     x = tvm.const(1, "int32")
-    y = tvm.make.IntImm('int32', 1)
+    y = tvm.tir.IntImm('int32', 1)
     z = x + y
-    stmt = tvm.make.Evaluate(z)
-    assert isinstance(stmt, tvm.stmt.Evaluate)
+    stmt = tvm.tir.Evaluate(z)
+    assert isinstance(stmt, tvm.tir.Evaluate)
 
 
 def test_ir2():
     x = tvm.var("n")
     a = tvm.var("array", tvm.handle)
-    st = tvm.make.Store(a, x + 1, 1)
-    assert isinstance(st, tvm.stmt.Store)
+    st = tvm.tir.Store(a, x + 1, 1)
+    assert isinstance(st, tvm.tir.Store)
     assert(st.buffer_var == a)
 
 
 def test_let():
     x = tvm.var('x')
     y = tvm.var('y')
-    stmt = tvm.make.LetStmt(
-        x, 10, tvm.make.Evaluate(x + 1));
+    stmt = tvm.tir.LetStmt(
+        x, 10, tvm.tir.Evaluate(x + 1));
 
 
 def test_cast():
     x = tvm.var('x', dtype="float32")
     y = x.astype("int32")
     z = x.astype("float32x4")
-    assert isinstance(y, tvm.expr.Cast)
-    assert isinstance(z, tvm.expr.Broadcast)
+    assert isinstance(y, tvm.tir.Cast)
+    assert isinstance(z, tvm.tir.Broadcast)
     assert z.lanes == 4
 
 
 def test_attr():
     x = tvm.var('x')
     y = tvm.var('y')
-    stmt = tvm.make.AttrStmt(
-        y, "stride", 10, tvm.make.Evaluate(x + 1));
+    stmt = tvm.tir.AttrStmt(
+        y, "stride", 10, tvm.tir.Evaluate(x + 1));
     assert stmt.node == y
 
     a = tvm.convert(1)
@@ -105,9 +105,9 @@ def test_basic():
 
 
 def test_stmt():
-    x = tvm.make.Evaluate(0)
-    tvm.make.For(tvm.var('i'), 0, 1,
-                 tvm.stmt.For.Serial, 0,
+    x = tvm.tir.Evaluate(0)
+    tvm.tir.For(tvm.var('i'), 0, 1,
+                 tvm.tir.For.Serial, 0,
                  x)
 
 
@@ -207,7 +207,7 @@ def test_equality():
 
 def test_equality_string_imm():
     x = 'a'
-    y = tvm.make.StringImm(x)
+    y = tvm.tir.StringImm(x)
     x == y.value
     x == y
 

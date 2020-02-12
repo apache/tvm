@@ -25,18 +25,19 @@ Each statement node have subfields that can be visited from python side.
 
     x = tvm.var("n")
     a = tvm.var("array", tvm.handle)
-    st = tvm.make.Store(a, x + 1, 1)
-    assert isinstance(st, tvm.stmt.Store)
+    st = tvm.tir.stmt.Store(a, x + 1, 1)
+    assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
 """
 import tvm._ffi
 
 from tvm.runtime import Object
-from . import make as _make
+from . import _ffi_api
 
 
 class Stmt(Object):
-    pass
+    """Base class of all the statements."""
+
 
 @tvm._ffi.register_object
 class LetStmt(Stmt):
@@ -47,7 +48,7 @@ class LetStmt(Stmt):
     var : Var
         The variable in the binding.
 
-    value : Expr
+    value : PrimExpr
         The value in to be binded.
 
     body : Stmt
@@ -55,7 +56,7 @@ class LetStmt(Stmt):
     """
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
-            _make.LetStmt, var, value, body)
+            _ffi_api.LetStmt, var, value, body)
 
 
 @tvm._ffi.register_object
@@ -64,10 +65,10 @@ class AssertStmt(Stmt):
 
     Parameters
     ----------
-    condition : Expr
+    condition : PrimExpr
         The assert condition.
 
-    message : Expr
+    message : PrimExpr
         The error message.
 
     body : Stmt
@@ -75,7 +76,7 @@ class AssertStmt(Stmt):
     """
     def __init__(self, condition, message, body):
         self.__init_handle_by_constructor__(
-            _make.AssertStmt, condition, message, body)
+            _ffi_api.AssertStmt, condition, message, body)
 
 
 @tvm._ffi.register_object
@@ -95,7 +96,7 @@ class ProducerConsumer(Stmt):
     """
     def __init__(self, func, is_producer, body):
         self.__init_handle_by_constructor__(
-            _make.ProducerConsumer, func, is_producer, body)
+            _ffi_api.ProducerConsumer, func, is_producer, body)
 
 
 @tvm._ffi.register_object
@@ -107,10 +108,10 @@ class For(Stmt):
     loop_var : Var
         The loop variable.
 
-    min_val : Expr
+    min_val : PrimExpr
         The begining value.
 
-    extent : Expr
+    extent : PrimExpr
         The length of the loop.
 
     for_type : int
@@ -134,7 +135,7 @@ class For(Stmt):
                  device_api,
                  body):
         self.__init_handle_by_constructor__(
-            _make.For, loop_var, min_val, extent,
+            _ffi_api.For, loop_var, min_val, extent,
             for_type, device_api, body)
 
 
@@ -147,18 +148,19 @@ class Store(Stmt):
     buffer_var : Var
         The buffer Variable.
 
-    value : Expr
+    value : PrimExpr
         The value we want to store.
 
-    index : Expr
+    index : PrimExpr
         The index in the store expression.
 
-    predicate : Expr
+    predicate : PrimExpr
         The store predicate.
     """
-    def __init__(self, buffer_var, value, index, predicate):
+    def __init__(self, buffer_var, value, index, predicate=None):
+        args = [] if predicate is None else [predicate]
         self.__init_handle_by_constructor__(
-            _make.Store, buffer_var, value, index, predicate)
+            _ffi_api.Store, buffer_var, value, index, *args)
 
 
 @tvm._ffi.register_object
@@ -173,7 +175,7 @@ class Provide(Stmt):
     value_index : int
         The output value index
 
-    value : Expr
+    value : PrimExpr
         The value to be stored.
 
     args : list of Expr
@@ -181,7 +183,7 @@ class Provide(Stmt):
     """
     def __init__(self, func, value_index, value, args):
         self.__init_handle_by_constructor__(
-            _make.Provide, func, value_index, value, args)
+            _ffi_api.Provide, func, value_index, value, args)
 
 
 @tvm._ffi.register_object
@@ -199,7 +201,7 @@ class Allocate(Stmt):
     extents : list of Expr
         The extents of the allocate
 
-    condition : Expr
+    condition : PrimExpr
         The condition.
 
     body : Stmt
@@ -212,7 +214,7 @@ class Allocate(Stmt):
                  condition,
                  body):
         self.__init_handle_by_constructor__(
-            _make.Allocate, buffer_var, dtype,
+            _ffi_api.Allocate, buffer_var, dtype,
             extents, condition, body)
 
 
@@ -228,7 +230,7 @@ class AttrStmt(Stmt):
     attr_key : str
         Attribute type key.
 
-    value : Expr
+    value : PrimExpr
         The value of the attribute
 
     body : Stmt
@@ -236,7 +238,7 @@ class AttrStmt(Stmt):
     """
     def __init__(self, node, attr_key, value, body):
         self.__init_handle_by_constructor__(
-            _make.AttrStmt, node, attr_key, value, body)
+            _ffi_api.AttrStmt, node, attr_key, value, body)
 
 
 @tvm._ffi.register_object
@@ -250,7 +252,7 @@ class Free(Stmt):
     """
     def __init__(self, buffer_var):
         self.__init_handle_by_constructor__(
-            _make.Free, buffer_var)
+            _ffi_api.Free, buffer_var)
 
 
 @tvm._ffi.register_object
@@ -271,7 +273,7 @@ class Realize(Stmt):
     bounds : list of range
         The bound of realize
 
-    condition : Expr
+    condition : PrimExpr
         The realize condition.
 
     body : Stmt
@@ -285,7 +287,7 @@ class Realize(Stmt):
                  condition,
                  body):
         self.__init_handle_by_constructor__(
-            _make.Realize, func, value_index, dtype,
+            _ffi_api.Realize, func, value_index, dtype,
             bounds, condition, body)
 
 
@@ -300,7 +302,7 @@ class SeqStmt(Stmt):
     """
     def __init__(self, seq):
         self.__init_handle_by_constructor__(
-            _make.SeqStmt, seq)
+            _ffi_api.SeqStmt, seq)
 
     def __getitem__(self, i):
         return self.seq[i]
@@ -315,7 +317,7 @@ class IfThenElse(Stmt):
 
     Parameters
     ----------
-    condition : Expr
+    condition : PrimExpr
         The expression
 
     then_case : Stmt
@@ -326,7 +328,7 @@ class IfThenElse(Stmt):
     """
     def __init__(self, condition, then_case, else_case):
         self.__init_handle_by_constructor__(
-            _make.IfThenElse, condition, then_case, else_case)
+            _ffi_api.IfThenElse, condition, then_case, else_case)
 
 
 @tvm._ffi.register_object
@@ -335,12 +337,12 @@ class Evaluate(Stmt):
 
     Parameters
     ----------
-    value : Expr
+    value : PrimExpr
         The expression to be evalued.
     """
     def __init__(self, value):
         self.__init_handle_by_constructor__(
-            _make.Evaluate, value)
+            _ffi_api.Evaluate, value)
 
 
 @tvm._ffi.register_object
@@ -363,7 +365,7 @@ class Prefetch(Stmt):
     """
     def __init__(self, func, value_index, dtype, bounds):
         self.__init_handle_by_constructor__(
-            _make.Prefetch, func, value_index, dtype, bounds)
+            _ffi_api.Prefetch, func, value_index, dtype, bounds)
 
 
 @tvm._ffi.register_object
@@ -417,6 +419,3 @@ def stmt_list(stmt):
     if isinstance(stmt, ProducerConsumer):
         return stmt_list(stmt.body)
     return [stmt]
-
-
-_make.stmt_list = stmt_list

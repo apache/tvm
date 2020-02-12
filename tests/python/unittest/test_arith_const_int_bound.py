@@ -228,7 +228,7 @@ def test_select_bound():
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
 
     bd = analyzer.const_int_bound(
-        tvm.expr.Select(x > 1, (y < 0).astype("int32"), y + 1))
+        tvm.tir.Select(x > 1, (y < 0).astype("int32"), y + 1))
     assert bd.min_value == 0
     assert bd.max_value == 11
 

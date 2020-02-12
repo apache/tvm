@@ -71,7 +71,7 @@ IntImm::IntImm(DataType dtype, int64_t value) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("make.IntImm")
+TVM_REGISTER_GLOBAL("ir.IntImm")
 .set_body_typed([](DataType dtype, int64_t value) {
   return IntImm(dtype, value);
 });
@@ -97,7 +97,7 @@ FloatImm::FloatImm(DataType dtype, double value) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("make.FloatImm")
+TVM_REGISTER_GLOBAL("ir.FloatImm")
 .set_body_typed([](DataType dtype, double value) {
   return FloatImm(dtype, value);
 });
