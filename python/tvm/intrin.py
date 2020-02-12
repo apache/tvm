@@ -17,7 +17,7 @@
 """Expression Intrinsics and math functions in TVM."""
 # pylint: disable=redefined-builtin
 import tvm._ffi
-import tvm.codegen
+import tvm.target.codegen
 
 from . import make as _make
 from .api import convert, const
@@ -189,7 +189,7 @@ def call_llvm_intrin(dtype, name, *args):
     call : Expr
         The call expression.
     """
-    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
+    llvm_id = tvm.target.codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_pure_intrin(dtype, 'llvm_intrin', tvm.const(llvm_id, 'uint32'), *args)
 

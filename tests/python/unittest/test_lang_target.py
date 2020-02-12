@@ -50,7 +50,7 @@ def test_target_dispatch():
     with tvm.target.create("metal"):
         assert mygeneric(1) == 3
 
-    assert tvm.target.current_target() is None
+    assert tvm.target.Target.current() is None
 
 
 def test_target_string_parse():
