@@ -69,7 +69,7 @@ type List[A] {
 """
 
 def roundtrip(expr):
-    x = relay.fromtext(str(expr))
+    x = relay.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
 
@@ -343,7 +343,7 @@ def test_func():
     # attributes
     assert parses_as(
         "fn (n=5) { () }",
-        relay.Function([], UNIT, None, None, tvm.make.node("DictAttrs", n=relay.const(5)))
+        relay.Function([], UNIT, None, None, tvm.ir.make_node("DictAttrs", n=relay.const(5)))
     )
 
 

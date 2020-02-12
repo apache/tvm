@@ -18,8 +18,8 @@
 # pylint: disable-msg=C0103
 import ctypes
 import numpy as np
+import tvm
 from .. import api as _api
-from .. import intrin as _intrin
 from .. import get_global_func as _get_global_func
 
 
@@ -113,7 +113,7 @@ def conv2d_forward(x,
 
     return _api.extern(
         list(oshape), [x, w],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.miopen.conv2d.forward",
             conv_mode,
             data_type,

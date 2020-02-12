@@ -303,11 +303,11 @@ def test_extern_ccompiler_default_ops():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
-        func = func.set_attribute("Primitive", tvm.expr.IntImm("int32", 1))
+        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.set_attribute("Compiler",
-                                  tvm.expr.StringImm("ccompiler"))
+                                  tvm.tir.StringImm("ccompiler"))
         func = func.set_attribute("ExternalSymbol",
-                                  tvm.expr.StringImm("ccompiler_0"))
+                                  tvm.tir.StringImm("ccompiler_0"))
         add_call = relay.Call(func, [x, y])
         # Function that uses default compiler. Ops are fused in this function.
         p0 = relay.var("p0", shape=(8, 8))
@@ -316,7 +316,7 @@ def test_extern_ccompiler_default_ops():
         concat = relay.concatenate([log, exp], axis=0)
         fused_func = relay.Function([p0], concat)
         fused_func = fused_func.set_attribute("Primitive",
-                                              tvm.expr.IntImm("int32", 1))
+                                              tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
         mod = tvm.IRModule()

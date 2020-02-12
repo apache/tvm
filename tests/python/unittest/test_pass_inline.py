@@ -20,7 +20,7 @@ def test_inline():
     m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
-    stmt = tvm.make.Evaluate(T[10] + 11 * T[100])
+    stmt = tvm.tir.Evaluate(T[10] + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
     print(stmt)
@@ -39,11 +39,11 @@ def test_inline2():
     m = tvm.size_var('m')
     A = tvm.placeholder((m,), name='A')
     T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
-    stmt = tvm.make.Evaluate(tvm.exp(T[10]) + 11 * T[100])
+    stmt = tvm.tir.Evaluate(tvm.exp(T[10]) + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
     def check(op):
-        if isinstance(op, tvm.expr.Call):
+        if isinstance(op, tvm.tir.Call):
             assert op.func != T.op
     tvm.ir_pass.PostOrderVisit(stmt, check)
 

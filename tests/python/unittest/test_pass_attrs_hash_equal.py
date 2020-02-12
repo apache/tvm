@@ -17,15 +17,15 @@
 import tvm
 
 def test_attrs_equal():
-    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3, 4))
-    y = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3, 4))
-    z = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4,1))
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4,1))
     assert tvm.ir_pass.AttrsEqual(x, y)
     assert not tvm.ir_pass.AttrsEqual(x, z)
 
-    dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
+    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert not tvm.ir_pass.AttrsEqual(dattr, x)
-    dattr2 = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
+    dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert tvm.ir_pass.AttrsEqual(dattr, dattr2)
 
     assert tvm.ir_pass.AttrsEqual({"x": x}, {"x": y})
@@ -42,8 +42,8 @@ def test_attrs_equal():
 
 def test_attrs_hash():
     fhash = tvm.ir_pass.AttrsHash
-    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3, 4))
-    y = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert fhash({"x": x}) == fhash({"x": y})
     assert fhash({"x": x}) != fhash({"x": [y, 1]})
     assert fhash({"x": [x, 1]}) == fhash({"x": [y, 1]})

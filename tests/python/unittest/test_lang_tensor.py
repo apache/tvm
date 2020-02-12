@@ -128,7 +128,7 @@ def test_tensor_compute1():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
 
 def test_tensor_compute2():
     M = 2048
@@ -171,8 +171,8 @@ def test_tensor_compute2():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body[0], tvm.stmt.Evaluate)
-    assert isinstance(stmt.body.body.body[1].body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
     m = tvm.size_var("m")
@@ -259,7 +259,7 @@ def test_tuple_with_different_deps():
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
 
     def get_B1_realize(x):
-        if isinstance(x, tvm.stmt.Realize) and \
+        if isinstance(x, tvm.tir.Realize) and \
            x.func == B1.op and x.value_index == 1:
             ret.append(x)
     ret = []

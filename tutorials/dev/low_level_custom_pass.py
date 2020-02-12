@@ -86,8 +86,8 @@ print(ir)
 loops = []
 def find_width8(op):
     """ Find all the 'For' nodes whose extent can be divided by 8. """
-    if isinstance(op, tvm.stmt.For):
-        if isinstance(op.extent, tvm.expr.IntImm):
+    if isinstance(op, tvm.tir.For):
+        if isinstance(op.extent, tvm.tir.IntImm):
             if op.extent.value % 8 == 0:
                 loops.append(op)
 
@@ -113,8 +113,8 @@ def vectorize8(op):
         name = op.loop_var.name
         lo, li = tvm.var(name + '.outer'), tvm.var(name + '.inner')
         body = tvm.ir_pass.Substitute(op.body, {op.loop_var: lo * 8 + li})
-        body = tvm.make.For(li, 0, 8, tvm.stmt.For.Vectorized, 0, body)
-        body = tvm.make.For(lo, 0, extent // 8, tvm.stmt.For.Serial, 0, body)
+        body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
+        body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)
         return body
     return None
 

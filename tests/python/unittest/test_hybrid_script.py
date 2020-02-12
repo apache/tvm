@@ -24,7 +24,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
-        assert isinstance(val, (tvm.expr.IntImm,))
+        assert isinstance(val, (tvm.tir.IntImm,))
         return val.value
 
     ctx = tvm.context(target, 0)
@@ -46,14 +46,14 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
             nd_args.append(tvm.nd.array(emu_args[-1], ctx))
-        elif isinstance(i, tvm.expr.Var):
+        elif isinstance(i, tvm.tir.Var):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
         else:
             assert isinstance(i, list)
             emu_args.append(numpy.array(i))
 
-    compile_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))] + \
+    compile_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.tir.Var))] + \
                    (outs if isinstance(outs, list) else [outs])
     module = tvm.build(sch,
                        compile_args,
@@ -76,7 +76,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     for nd, np in zip(out_tensors, ref_data):
         tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
-    module_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))]
+    module_args = [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.tir.Var))]
     module_outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     h_module = tvm.hybrid.build(sch, module_args, module_outs)
 
@@ -111,32 +111,32 @@ def test_outer_product():
         return
 
     #Check for i in (0, n)
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i'
     assert ir.min.value == 0
     assert ir.extent.name == 'n'
     ibody = ir.body
-    assert isinstance(ibody, tvm.stmt.For)
+    assert isinstance(ibody, tvm.tir.For)
     #Check for j in (0, m)
     assert ibody.loop_var.name == 'j'
     assert ibody.min.value == 0
     assert ibody.extent.name == 'm'
     #Check loop body
     jblock = ibody.body
-    assert isinstance(jblock, tvm.stmt.SeqStmt)
+    assert isinstance(jblock, tvm.tir.SeqStmt)
     jbody = jblock[0]
-    assert isinstance(jbody, tvm.stmt.AssertStmt)
-    assert isinstance(jbody.message, tvm.expr.StringImm)
+    assert isinstance(jbody, tvm.tir.AssertStmt)
+    assert isinstance(jbody.message, tvm.tir.StringImm)
     assert jbody.message.value == "index out of range!"
     jbody = jblock[1]
-    assert isinstance(jbody, tvm.stmt.Provide)
+    assert isinstance(jbody, tvm.tir.Provide)
     assert jbody.func.name == 'c'
     assert len(jbody.args) == 2
     assert jbody.args[0].name == 'i'
     assert jbody.args[1].name == 'j'
-    assert isinstance(jbody.value, tvm.expr.Mul)
+    assert isinstance(jbody.value, tvm.tir.Mul)
     mul = jbody.value
-    assert isinstance(mul.a, tvm.expr.Call)
+    assert isinstance(mul.a, tvm.tir.Call)
     assert mul.a.name == 'a'
     assert mul.b.name == 'b'
 
@@ -177,21 +177,21 @@ def test_fanout():
         return
 
     #Check for i in (0, n-3)
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i'
     assert ir.min.value == 0
     assert tvm.ir_pass.Equal(ir.extent, n - 3)
     #Check loopbody
     ibody = ir.body
-    assert isinstance(ibody, tvm.stmt.AttrStmt)
+    assert isinstance(ibody, tvm.tir.AttrStmt)
     abody = ibody.body
-    assert isinstance(abody, tvm.stmt.Realize)
+    assert isinstance(abody, tvm.tir.Realize)
     assert abody.bounds[0].min.value == 0
     assert abody.bounds[0].extent.value == 1
     assert abody.func.name == 'sigma'
     #Check i loop body
     rbody = abody.body
-    assert isinstance(rbody[0], tvm.stmt.Provide)
+    assert isinstance(rbody[0], tvm.tir.Provide)
     assert rbody[0].func.name == 'sigma'
     assert len(rbody[0].args) == 1
     assert rbody[0].args[0].value == 0
@@ -201,13 +201,13 @@ def test_fanout():
     assert jloop.min.value == 0
     assert jloop.extent.value == 3
     jbody = jloop.body
-    assert isinstance(jbody, tvm.stmt.Provide)
+    assert isinstance(jbody, tvm.tir.Provide)
     assert len(jbody.args) == 1
     assert jbody.args[0].value == 0
     assert jbody.func.name == 'sigma'
-    assert isinstance(jbody.value, tvm.expr.Add)
+    assert isinstance(jbody.value, tvm.tir.Add)
     value = jbody.value
-    assert isinstance(value.a, tvm.expr.Call)
+    assert isinstance(value.a, tvm.tir.Call)
     assert value.a.name == 'sigma'
     assert len(value.a.args) == 1
     assert value.a.args[0].value == 0
@@ -215,17 +215,17 @@ def test_fanout():
     assert len(value.b.args) == 1
     assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
     divide= rbody[2]
-    assert isinstance(divide, tvm.stmt.Provide)
+    assert isinstance(divide, tvm.tir.Provide)
     assert len(divide.args) == 1
     assert divide.args[0].value == 0
     value = divide.value
-    assert isinstance(value, tvm.expr.Mul)
+    assert isinstance(value, tvm.tir.Mul)
     assert value.a.name == 'sigma'
     assert len(value.a.args) == 1
     assert value.a.args[0].value == 0
     assert abs(value.b.value - (1 / 3.0)) < 1e-5
     write = rbody[3]
-    assert isinstance(write, tvm.stmt.Provide)
+    assert isinstance(write, tvm.tir.Provide)
     assert write.func.name == 'b'
     assert write.value.name == 'sigma'
     assert len(write.value.args) == 1
@@ -260,9 +260,9 @@ def test_looptype():
     iloop = ir[0]
     jloop = ir[1]
     kloop = ir[2]
-    assert iloop.for_type == tvm.stmt.For.Parallel
-    assert jloop.for_type == tvm.stmt.For.Vectorized
-    assert kloop.for_type == tvm.stmt.For.Unrolled
+    assert iloop.for_type == tvm.tir.For.Parallel
+    assert jloop.for_type == tvm.tir.For.Vectorized
+    assert kloop.for_type == tvm.tir.For.Unrolled
 
     func, ins, outs = run_and_check(looptype, [a, b, c])
     run_and_check(func, ins, outs=outs)
@@ -364,7 +364,7 @@ def test_bind():
     c = foo(a)
     s = tvm.create_schedule(c.op)
     ir = tvm.lower(s, [a, c], simple_mode=True)
-    assert not isinstance(ir, tvm.stmt.AttrStmt)
+    assert not isinstance(ir, tvm.tir.AttrStmt)
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 
@@ -729,20 +729,20 @@ def test_schedule():
     sch[c].vectorize(ji)
     sch[c].reorder(ii, io, joo, joi, ji)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.stmt.ProducerConsumer)
+    assert isinstance(ir, tvm.tir.ProducerConsumer)
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.AttrStmt)
+    assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i.inner'
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i.outer'
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'j.outer.outer'
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'j.outer.inner'
     ir = ir.body
     func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
@@ -752,11 +752,11 @@ def test_schedule():
     sch = tvm.create_schedule(c.op)
     sch[c].fuse(c.op.axis[0], c.op.axis[1])
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.stmt.ProducerConsumer)
+    assert isinstance(ir, tvm.tir.ProducerConsumer)
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.AttrStmt)
+    assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
-    assert isinstance(ir, tvm.stmt.For)
+    assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i.j.fused'
     func, ins, outs = run_and_check(outer_product, [a, b], sch=sch, outs=[c])
     run_and_check(func, ins, outs=outs)
