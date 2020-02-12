@@ -27,7 +27,7 @@ def test_compile_engine():
         y = relay.add(x, x)
         z = relay.add(y, x)
         f = relay.Function([x], z)
-        mod = relay.Module.from_expr(f)
+        mod = tvm.IRModule.from_expr(f)
         mod = relay.transform.InferType()(mod)
         return mod["main"]
     z1 = engine.lower(get_func((10,)), "llvm")
@@ -59,7 +59,7 @@ def test_compile_placeholder_bypass():
     result = relay.Tuple([x, relay.op.concatenate([y, z], axis=0)])
     func = relay.Function(relay.analysis.free_vars(result), result)
     with relay.build_config(opt_level=0):
-       graph, lib, params = relay.build(relay.Module.from_expr(func), 'llvm')
+       graph, lib, params = relay.build(tvm.IRModule.from_expr(func), 'llvm')
 
 
 def test_compile_injective_with_tuple():
@@ -68,7 +68,7 @@ def test_compile_injective_with_tuple():
     x_transpose = relay.transpose(x)
     output = relay.Tuple([x_transpose, y])
     func = relay.Function([x, y], output)
-    relay.build(relay.Module.from_expr(func), 'llvm')
+    relay.build(tvm.IRModule.from_expr(func), 'llvm')
 
 
 def test_compile_tuple_dup():
@@ -76,7 +76,7 @@ def test_compile_tuple_dup():
     log = relay.log(x)
     output = relay.Tuple([log, log])
     f = relay.Function([x], output)
-    relay.build(relay.Module.from_expr(f), 'llvm')
+    relay.build(tvm.IRModule.from_expr(f), 'llvm')
 
 
 def test_compile_full():
@@ -88,7 +88,7 @@ def test_compile_full():
              tvm.expr.IntImm('int32', 64))
     output = relay.full(relay.const(0, 'int32'), shape=shape, dtype='int32')
     f = relay.Function([], output)
-    mod = relay.Module.from_expr(f)
+    mod = tvm.IRModule.from_expr(f)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     relay.build(mod, 'llvm')
 

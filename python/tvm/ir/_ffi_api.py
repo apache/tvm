@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable
-"""The interface to the Module exposed from C++."""
+"""FFI APIs for tvm.ir"""
 import tvm._ffi
 
-tvm._ffi._init_api("relay._module", __name__)
+
+tvm._ffi._init_api("ir", __name__)

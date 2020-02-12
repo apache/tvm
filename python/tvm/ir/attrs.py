@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" TVM Attribute module, which is mainly used for defining attributes of operators"""
+""" TVM Attribute module, which is mainly used for defining attributes of operators."""
 import tvm._ffi
 
 from tvm.runtime import Object
-from . import _api_internal
+from . import _ffi_api
 
 
 @tvm._ffi.register_object
@@ -36,7 +36,7 @@ class Attrs(Object):
         infos: list of AttrFieldInfo
             List of field information
         """
-        return _api_internal._AttrsListFieldInfo(self)
+        return _ffi_api.AttrsListFieldInfo(self)
 
     def keys(self):
         """Get list of names in the attribute.
@@ -91,6 +91,3 @@ class Attrs(Object):
 
     def __getitem__(self, item):
         return self.__getattr__(item)
-
-
-tvm._ffi._init_api("tvm.attrs")

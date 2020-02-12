@@ -176,7 +176,7 @@ class ManifestAllocPass(ExprMutator):
             view = LinearizeRetType(ret_type)
             out_types = view.unpack()
 
-            is_dynamic = ret_type.is_dynamic()
+            is_dynamic = ty.type_has_any(ret_type)
             # TODO(@jroesch): restore this code, more complex then it seems
             # for arg in call.args:
             #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()

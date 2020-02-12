@@ -50,7 +50,7 @@ def test_ad():
     x = relay.var("x", t)
     func = relay.Function([x], x + x)
     func = run_infer_type(func)
-    mod = relay.Module.from_expr(gradient(func))
+    mod = tvm.IRModule.from_expr(gradient(func))
     mod = relay.transform.InferType()(mod)
     back_func = mod["main"]
     feats = detect_feature(back_func)

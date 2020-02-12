@@ -22,7 +22,7 @@ from tvm.relay.analysis import detect_feature
 
 
 def run_opt_pass(expr, opt_pass):
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -30,7 +30,7 @@ def run_opt_pass(expr, opt_pass):
 
 def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
     if mod is None:
-        mod = relay.Module()
+        mod = tvm.IRModule()
 
     ctx = tvm.context("llvm", 0)
     intrp = create_executor(mod=mod, ctx=ctx, target="llvm")

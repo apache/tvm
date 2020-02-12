@@ -14,36 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
-"""A global module storing everything needed to interpret or compile a Relay program."""
-import os
-from .base import register_relay_node, RelayNode
-from .. import register_func
-from .._ffi import base as _base
-from . import _make
-from . import _module
+"""IRModule that holds the functions and type definitions."""
+from tvm._ffi.base import string_types
+import tvm._ffi
+
+from .base import Node
 from . import expr as _expr
-from . import ty as _ty
+from . import type as _ty
+from . import _ffi_api
 
-__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
 
-@register_func("tvm.relay.std_path")
-def _std_path():
-    global __STD_PATH__
-    return __STD_PATH__
+@tvm._ffi.register_object("relay.Module")
+class IRModule(Node):
+    """IRModule that holds functions and type definitions.
 
-@register_relay_node
-class Module(RelayNode):
-    """The global Relay module containing collection of functions.
-
-    Each global function is identified by an unique tvm.relay.GlobalVar.
-    tvm.relay.GlobalVar and Module is necessary in order to enable
-    recursions in function to avoid cyclic reference in the function.x
+    IRModule is the basic unit for all IR transformations across the stack.
 
     Parameters
     ----------
     functions: Optional[dict].
-        Map of global var to Function
+        Map of global var to BaseFunc
     """
     def __init__(self, functions=None, type_definitions=None):
         if functions is None:
@@ -51,7 +41,7 @@ class Module(RelayNode):
         elif isinstance(functions, dict):
             mapped_funcs = {}
             for k, v in functions.items():
-                if isinstance(k, _base.string_types):
+                if isinstance(k, string_types):
                     k = _expr.GlobalVar(k)
                 if not isinstance(k, _expr.GlobalVar):
                     raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
@@ -62,13 +52,13 @@ class Module(RelayNode):
         elif isinstance(type_definitions, dict):
             mapped_type_defs = {}
             for k, v in type_definitions.items():
-                if isinstance(k, _base.string_types):
+                if isinstance(k, string_types):
                     k = _ty.GlobalTypeVar(k)
                 if not isinstance(k, _ty.GlobalTypeVar):
                     raise TypeError("Expect type_definitions to be Dict[GlobalTypeVar, Type]")
                 mapped_type_defs[k] = v
             type_definitions = mapped_type_defs
-        self.__init_handle_by_constructor__(_make.Module, functions, type_definitions)
+        self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
 
 
     def __setitem__(self, var, val):
@@ -85,18 +75,18 @@ class Module(RelayNode):
         return self._add(var, val)
 
     def _add(self, var, val, update=False):
-        if isinstance(val, _expr.Expr):
-            if isinstance(var, _base.string_types):
-                if _module.Module_ContainGlobalVar(self, var):
-                    var = _module.Module_GetGlobalVar(self, var)
+        if isinstance(val, _expr.RelayExpr):
+            if isinstance(var, string_types):
+                if _ffi_api.Module_ContainGlobalVar(self, var):
+                    var = _ffi_api.Module_GetGlobalVar(self, var)
                 else:
                     var = _expr.GlobalVar(var)
-            _module.Module_Add(self, var, val, update)
+            _ffi_api.Module_Add(self, var, val, update)
         else:
             assert isinstance(val, _ty.Type)
-            if isinstance(var, _base.string_types):
+            if isinstance(var, string_types):
                 var = _ty.GlobalTypeVar(var)
-            _module.Module_AddDef(self, var, val, update)
+            _ffi_api.Module_AddDef(self, var, val, update)
 
     def __getitem__(self, var):
         """Lookup a global definition by name or by variable.
@@ -111,12 +101,11 @@ class Module(RelayNode):
         val: Union[Function, Type]
             The definition referenced by :code:`var` (either a function or type).
         """
-        if isinstance(var, _base.string_types):
-            return _module.Module_Lookup_str(self, var)
-        elif isinstance(var, _expr.GlobalVar):
-            return _module.Module_Lookup(self, var)
-        else:
-            return _module.Module_LookupDef(self, var)
+        if isinstance(var, string_types):
+            return _ffi_api.Module_Lookup_str(self, var)
+        if isinstance(var, _expr.GlobalVar):
+            return _ffi_api.Module_Lookup(self, var)
+        return _ffi_api.Module_LookupDef(self, var)
 
     def update(self, other):
         """Insert functions in another Module to current one.
@@ -128,7 +117,7 @@ class Module(RelayNode):
         """
         if isinstance(other, dict):
             other = Module(other)
-        return _module.Module_Update(self, other)
+        return _ffi_api.Module_Update(self, other)
 
     def get_global_var(self, name):
         """Get a global variable in the function by name.
@@ -145,9 +134,9 @@ class Module(RelayNode):
 
         Raises
         ------
-        tvm.TVMError if we cannot find corresponding global var.
+        tvm.error.TVMError if we cannot find corresponding global var.
         """
-        return _module.Module_GetGlobalVar(self, name)
+        return _ffi_api.Module_GetGlobalVar(self, name)
 
     def get_global_vars(self):
         """Collect all global vars defined in this module.
@@ -157,7 +146,7 @@ class Module(RelayNode):
         global_vars: tvm.Array[GlobalVar]
             An array of global vars.
         """
-        return _module.Module_GetGlobalVars(self)
+        return _ffi_api.Module_GetGlobalVars(self)
 
     def get_global_type_vars(self):
         """Collect all global type vars defined in this module.
@@ -167,7 +156,7 @@ class Module(RelayNode):
         global_type_vars: tvm.Array[GlobalTypeVar]
             An array of global type vars.
         """
-        return _module.Module_GetGlobalTypeVars(self)
+        return _ffi_api.Module_GetGlobalTypeVars(self)
 
     def get_global_type_var(self, name):
         """Get a global type variable in the function by name.
@@ -184,9 +173,9 @@ class Module(RelayNode):
 
         Raises
         ------
-        tvm.TVMError if we cannot find corresponding global type var.
+        tvm.error.TVMError if we cannot find corresponding global type var.
         """
-        return _module.Module_GetGlobalTypeVar(self, name)
+        return _ffi_api.Module_GetGlobalTypeVar(self, name)
 
     def get_constructor(self, tag):
         """Look up an ADT constructor by tag.
@@ -203,9 +192,9 @@ class Module(RelayNode):
 
         Raises
         ------
-        tvm.TVMError if the corresponding constructor cannot be found.
+        tvm.error.TVMError if the corresponding constructor cannot be found.
         """
-        return _module.Module_LookupTag(self, tag)
+        return _ffi_api.Module_LookupTag(self, tag)
 
     @staticmethod
     def from_expr(expr, functions=None, type_defs=None):
@@ -213,13 +202,14 @@ class Module(RelayNode):
 
         Parameters
         ----------
-        expr: Expr
+        expr: RelayExpr
             The starting expression
+
         global_funcs: Optional[dict]
             Map of global vars to function definitions
+
         type_defs: Optional[dict]
             Map of global type vars to type definitions
-
 
         Returns
         -------
@@ -230,10 +220,10 @@ class Module(RelayNode):
         """
         funcs = functions if functions is not None else {}
         defs = type_defs if type_defs is not None else {}
-        return _module.Module_FromExpr(expr, funcs, defs)
+        return _ffi_api.Module_FromExpr(expr, funcs, defs)
 
     def _import(self, file_to_import):
-        return _module.Module_Import(self, file_to_import)
+        return _ffi_api.Module_Import(self, file_to_import)
 
     def import_from_std(self, file_to_import):
-        return _module.Module_ImportFromStd(self, file_to_import)
+        return _ffi_api.Module_ImportFromStd(self, file_to_import)

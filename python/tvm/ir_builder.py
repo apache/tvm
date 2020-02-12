@@ -15,16 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of IR node builder make function."""
+from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, DataType
-
-from ._ffi.base import string_types
+from tvm.ir import container as _container
 
 from . import api as _api
 from . import stmt as _stmt
 from . import expr as _expr
 from . import make as _make
 from . import ir_pass as _pass
-from . import container as _container
 from .expr import Call as _Call
 
 class WithScope(object):

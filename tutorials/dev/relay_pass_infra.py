@@ -99,7 +99,7 @@ def alter_conv2d(attrs, inputs, tinfos):
 # Let's first create a relay Module which contains one or multiple Relay
 # functions for optimization.
 f = example()
-mod = relay.Module.from_expr(f)
+mod = tvm.IRModule.from_expr(f)
 
 # Now we can apply constant folding on the module.
 # fold_const here is a callback that doesn't take any parameters.
@@ -151,7 +151,7 @@ print(mod)
 
 # Now let's execute some passes through `Sequential`_
 f = example()
-mod = relay.Module.from_expr(f)
+mod = tvm.IRModule.from_expr(f)
 # Glob the interested passes.
 seq = relay.transform.Sequential([relay.transform.FoldConstant(),
                                   relay.transform.EliminateCommonSubexpr(),
@@ -228,7 +228,7 @@ class CustomPipeline:
         return ReplaceConstant().visit(func)
 
 f = example()
-mod = relay.Module.from_expr(f)
+mod = tvm.IRModule.from_expr(f)
 custom_pass = CustomPipeline(multiplier=relay.const(3, "float"))
 assert custom_pass.info.name == "CustomPipeline"
 mod3 = custom_pass(mod)
@@ -243,7 +243,7 @@ print(mod3)
 # them.
 
 f = example()
-mod = relay.Module.from_expr(f)
+mod = tvm.IRModule.from_expr(f)
 seq = relay.transform.Sequential([relay.transform.FoldConstant(),
                                   relay.transform.PrintIR(),
                                   relay.transform.EliminateCommonSubexpr(),

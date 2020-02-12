@@ -159,7 +159,7 @@ def test_DPTuner_run():
     target_ops = [relay.nn.conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = g
     costs = [0.02, 0.02, 0.045]
     config_list = []

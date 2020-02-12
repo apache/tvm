@@ -17,14 +17,13 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
-from __future__ import absolute_import as _abs
-
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -1615,7 +1614,7 @@ class GraphProto(object):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The returned relay module
 
         params : dict
@@ -1708,7 +1707,7 @@ class GraphProto(object):
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
         func = _expr.Function(analysis.free_vars(outputs), outputs)
-        return _module.Module.from_expr(func), self._params
+        return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""
@@ -1836,7 +1835,7 @@ def from_onnx(model,
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation
 
     params : dict of str to tvm.nd.NDArray

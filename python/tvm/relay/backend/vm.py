@@ -36,7 +36,7 @@ def compile(mod, target=None, target_host=None, params=None):
 
     Parameters
     ----------
-    mod : relay.Module
+    mod : tvm.IRModule
         The Relay module to build.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e.
@@ -110,7 +110,7 @@ class VMCompiler(object):
 
         Parameters
         ----------
-        mod : relay.Module
+        mod : tvm.IRModule
             The Relay module to build.
 
         target : str, :any:`tvm.target.Target`, or dict of str(i.e.
@@ -142,7 +142,7 @@ class VMCompiler(object):
 
         Parameters
         ----------
-        mod : relay.Module
+        mod : tvm.IRModule
 
         target : str, :any:`tvm.target.Target`, or dict of str (i.e.
             device/context name) to str/tvm.target.Target, optional
@@ -153,7 +153,7 @@ class VMCompiler(object):
 
         Returns
         -------
-        mod : relay.Module
+        mod : tvm.IRModule
             The optimized relay module.
 
         params : dict
@@ -229,10 +229,10 @@ class VMExecutor(Executor):
 
     Parameters
     ----------
-    mod : :py:class:`~tvm.relay.module.Module`
+    mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
-    ctx : :py:class:`~tvm.TVMContext`
+    ctx : :py:class:`~tvmContext`
         The runtime context to run the code on.
 
     target : :py:class:`Target`

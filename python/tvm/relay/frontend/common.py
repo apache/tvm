@@ -20,9 +20,10 @@ import logging
 import numpy as np
 
 import tvm
+from tvm.ir import IRModule
 from topi.util import get_const_tuple
+
 from .. import expr as _expr
-from .. import module as _module
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
@@ -453,7 +454,7 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    new_mod = _module.Module.from_expr(node)
+    new_mod = IRModule.from_expr(node)
     if mod is not None:
         new_mod.update(mod)
     new_mod = _transform.InferType()(new_mod)

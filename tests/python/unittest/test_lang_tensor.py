@@ -96,8 +96,8 @@ def test_tensor_reduce():
     rv = tvm.reduce_axis((0, A.shape[1]), "k")
     C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), axis=rv))
     # json load save
-    C_json = tvm.save_json(C)
-    C_loaded = tvm.load_json(C_json)
+    C_json = tvm.ir.save_json(C)
+    C_loaded = tvm.ir.load_json(C_json)
     assert(isinstance(C_loaded, tvm.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
@@ -201,8 +201,8 @@ def test_scan_multi_out():
                       [s1, s2])
     assert(r0.value_index == 0)
     assert(r1.value_index == 1)
-    json_str = tvm.save_json(r0.op)
-    zz = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(r0.op)
+    zz = tvm.ir.load_json(json_str)
     assert isinstance(zz, tvm.tensor.ScanOp)
 
 def test_extern():

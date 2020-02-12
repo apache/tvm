@@ -23,7 +23,7 @@ from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_val
 
 import numpy as np
 
-mod = relay.Module()
+mod = tvm.IRModule()
 p = Prelude(mod)
 add_nat_definitions(p)
 
@@ -730,7 +730,7 @@ def check_tensor_array(ta_mod, ref_res, *args, dtype="float32",
 def test_tensor_expand_dims():
     def run(dtype):
         x = relay.var('x')
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         expand_dims_func = p.get_var('tensor_expand_dims', dtype)
         tensor1 = p.get_var('tensor1', dtype)
@@ -745,7 +745,7 @@ def test_tensor_expand_dims():
 def test_tensor_array_constructor():
     def run(dtype):
         x = relay.var('x')
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         tensor_array = p.get_var('tensor_array', dtype)
         mod["main"] = relay.Function([x], tensor_array(x))
@@ -757,7 +757,7 @@ def test_tensor_array_constructor():
 
 def test_tensor_array_read():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         l = relay.var('l')
         i = relay.var('i')
@@ -773,7 +773,7 @@ def test_tensor_array_read():
 
 def test_tensor_array_write():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         v1 = relay.var('v1')
         v2 = relay.var('v2')
@@ -793,7 +793,7 @@ def test_tensor_array_write():
 
 def test_tensor_array_stack():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         tensor_array = p.get_var('tensor_array', dtype)
         tensor1 = p.get_var('tensor1', dtype)
@@ -815,7 +815,7 @@ def test_tensor_array_stack():
 
 def test_tensor_array_unstack():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         unstack_tensor1 = p.get_var('tensor_array_unstack_tensor1', dtype)
         v = relay.var('v')
@@ -828,7 +828,7 @@ def test_tensor_array_unstack():
 
 def test_tensor_take():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         take = p.get_var('tensor_take', dtype)
         tensor2 = p.get_var('tensor2', dtype)
@@ -847,7 +847,7 @@ def test_tensor_take():
 
 def test_tensor_concatenate():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         concat = p.get_var('tensor_concatenate', dtype)
         tensor1 = p.get_var('tensor1', dtype)
@@ -865,7 +865,7 @@ def test_tensor_concatenate():
 
 def test_tensor_array_concat():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         v1 = relay.var('v1')
         v2 = relay.var('v2')
@@ -888,9 +888,9 @@ def test_tensor_array_concat():
 
 def test_tensor_array_scatter():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
-        
+
         # tensor array
         v1 = relay.var('v1')
         v2 = relay.var('v2')
@@ -938,9 +938,9 @@ def test_tensor_array_scatter():
 
 def test_tensor_array_split():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
-        
+
         # tensor array
         v1 = relay.var('v1')
         v2 = relay.var('v2')

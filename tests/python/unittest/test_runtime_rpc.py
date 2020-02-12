@@ -78,7 +78,7 @@ def test_rpc_simple():
     try:
         f3("abc")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert "abc" in str(e)
 
     f2 = client.get_function("rpc.test.strcat")

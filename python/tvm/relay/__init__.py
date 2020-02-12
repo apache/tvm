@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
-from __future__ import absolute_import
 import os
 from sys import setrecursionlimit
 from ..api import register_func
@@ -25,7 +24,6 @@ from . import ty
 from . import expr
 from . import type_functor
 from . import expr_functor
-from . import module
 from . import adt
 from . import analysis
 from . import transform
@@ -66,14 +64,11 @@ setrecursionlimit(10000)
 # Span
 Span = base.Span
 
-# Env
-Module = module.Module
-
 # Type
 Type = ty.Type
 TupleType = ty.TupleType
 TensorType = ty.TensorType
-Kind = ty.Kind
+TypeKind = ty.TypeKind
 TypeVar = ty.TypeVar
 ShapeVar = ty.ShapeVar
 TypeConstraint = ty.TypeConstraint
@@ -87,7 +82,7 @@ TypeCall = ty.TypeCall
 Any = ty.Any
 
 # Expr
-Expr = expr.Expr
+Expr = expr.RelayExpr
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var

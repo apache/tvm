@@ -33,7 +33,7 @@ def early_rewrite(stmt):
     """Try to do storage rewrite in early pass."""
     try:
         return tvm.ir_pass.StorageRewrite(stmt)
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         return stmt
 
 

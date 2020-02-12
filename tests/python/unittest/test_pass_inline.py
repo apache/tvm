@@ -32,7 +32,7 @@ def test_inline():
         stmt = tvm.ir_pass.Inline(
             T.op, [1,2,3], T.op.body, stmt)
         assert False
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 def test_inline2():

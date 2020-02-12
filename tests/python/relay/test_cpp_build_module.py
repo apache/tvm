@@ -43,7 +43,7 @@ def test_basic_build():
     targets = {
         tvm.expr.IntImm("int32", ctx.device_type): tgt
     }
-    g_json, mmod, params = relay.build(relay.Module.from_expr(func), targets, "llvm", params=params)
+    g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), targets, "llvm", params=params)
 
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
@@ -115,7 +115,7 @@ def test_fp16_conversion():
 
             # build
             with relay.build_config(opt_level=1):
-                g_json, mmod, params = relay.build(relay.Module.from_expr(func), tgt)
+                g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), tgt)
 
             # test
             rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)

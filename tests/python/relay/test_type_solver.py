@@ -20,7 +20,7 @@ import pytest
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):
-    func = tvm.get_env_func("tvm.relay.type_relation." + name)
+    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation." + name)
     if num_inputs is None:
         num_inputs = len(args) - 1
     return relay.ty.TypeRelation(func, args, num_inputs, attrs)

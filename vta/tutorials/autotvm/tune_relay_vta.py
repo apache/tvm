@@ -353,7 +353,7 @@ def tune_and_evaluate(tuning_opt):
     # Perform task extraction on Relay program
     print("Extract tasks...")
     relay_prog, params = compile_network(env, target, network, start_pack, stop_pack)
-    mod = relay.Module.from_expr(relay_prog)
+    mod = tvm.IRModule.from_expr(relay_prog)
     tasks = autotvm.task.extract_from_program(mod,
                                               params=params,
                                               ops=(tvm.relay.op.nn.conv2d, ),

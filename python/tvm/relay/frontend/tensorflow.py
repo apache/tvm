@@ -29,13 +29,13 @@ import numpy as np
 
 import tvm
 
+from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude
 
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
-from .. import module as _module
 from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
@@ -2136,7 +2136,7 @@ class GraphProto(object):
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
-        self._mod = _module.Module({})
+        self._mod = IRModule({})
         self._prelude = Prelude(self._mod)
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
@@ -2171,7 +2171,7 @@ class GraphProto(object):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The module that optimizations will be performed on.
 
         params : dict
@@ -2653,7 +2653,7 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.nd.NDArray

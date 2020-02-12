@@ -42,7 +42,7 @@ def test_double():
 
 # make sure cps work for recursion.
 def test_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     shape = (10, 10)

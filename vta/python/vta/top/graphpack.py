@@ -17,6 +17,7 @@
 # pylint: disable=unused-argument
 """A Relay implementation of graph packing."""
 
+import tvm
 from tvm import relay
 from tvm.relay import op, transform
 from tvm.relay import ExprMutator
@@ -24,7 +25,7 @@ from tvm.relay import ExprMutator
 def run_opt_pass(expr, opt_pass):
     """Exectue a relay pass."""
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
