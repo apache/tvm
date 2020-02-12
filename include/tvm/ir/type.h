@@ -141,11 +141,12 @@ enum TypeKind : int {
 };
 
 /*!
- * \brief Type parameter in the function.
- *  This can be viewed as template parameter in c++ template function.
+ * \brief Type parameter in functions.
+ *
+ * A type variable can be viewed as template parameter in c++ template function.
  *
  * For example, in the following pesudo code,
- * the TypeVar of f is TypeVar(kind=kShapeVar, var=n).
+ * the TypeVar of f is TypeVar("n", kind=kShapeVar).
  * This function can take in a Tensor with shape=(3, 3) and
  * returns a Tensor with shape=(9,)
  *

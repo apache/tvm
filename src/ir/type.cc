@@ -33,7 +33,7 @@ PrimType::PrimType(runtime::DataType dtype) {
 
 TVM_REGISTER_NODE_TYPE(PrimTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.PrimType")
+TVM_REGISTER_GLOBAL("ir.PrimType")
 .set_body_typed([](runtime::DataType dtype) {
   return PrimType(dtype);
 });
@@ -54,7 +54,7 @@ TypeVar::TypeVar(std::string name, TypeKind kind) {
 
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeVar")
+TVM_REGISTER_GLOBAL("ir.TypeVar")
 .set_body_typed([](std::string name, int kind) {
   return TypeVar(name, static_cast<TypeKind>(kind));
 });
@@ -76,7 +76,7 @@ GlobalTypeVar::GlobalTypeVar(std::string name, TypeKind kind) {
 
 TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 
-TVM_REGISTER_GLOBAL("relay._make.GlobalTypeVar")
+TVM_REGISTER_GLOBAL("ir.GlobalTypeVar")
 .set_body_typed([](std::string name, int kind) {
   return GlobalTypeVar(name, static_cast<TypeKind>(kind));
 });
@@ -102,7 +102,7 @@ FuncType::FuncType(tvm::Array<Type> arg_types,
 
 TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.FuncType")
+TVM_REGISTER_GLOBAL("ir.FuncType")
 .set_body_typed([](tvm::Array<Type> arg_types,
                    Type ret_type,
                    tvm::Array<TypeVar> type_params,
@@ -131,7 +131,7 @@ TupleType TupleType::Empty() {
 
 TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TupleType")
+TVM_REGISTER_GLOBAL("ir.TupleType")
 .set_body_typed([](Array<Type> fields) {
   return TupleType(fields);
 });
@@ -151,7 +151,7 @@ IncompleteType::IncompleteType(TypeKind kind) {
 
 TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.IncompleteType")
+TVM_REGISTER_GLOBAL("ir.IncompleteType")
 .set_body_typed([](int kind) {
     return IncompleteType(static_cast<TypeKind>(kind));
   });
@@ -169,7 +169,7 @@ RelayRefType::RelayRefType(Type value) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relay._make.RefType")
+TVM_REGISTER_GLOBAL("ir.RelayRefType")
 .set_body_typed([](Type value) {
   return RelayRefType(value);
 });
