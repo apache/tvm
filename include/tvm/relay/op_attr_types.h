@@ -259,9 +259,9 @@ class OpImplement : public ObjectRef {
    * \param out_type The output type information.
    * \return The output compute description of the operator.
    */
-  Array<te::Tensor> Compute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type);
+  TVM_DLL Array<te::Tensor> Compute(const Attrs& attrs,
+                                    const Array<te::Tensor>& inputs,
+                                    const Type& out_type);
   /*!
    * \brief Build the computation schedule.
    * \param attrs The attribute of the node.
@@ -269,9 +269,9 @@ class OpImplement : public ObjectRef {
    * \param target The build target.
    * \return The computation schedule.
    */
-  te::Schedule Schedule(const Attrs& attrs,
-                        const Array<te::Tensor>& outs,
-                        const Target& target);
+  TVM_DLL te::Schedule Schedule(const Attrs& attrs,
+                                const Array<te::Tensor>& outs,
+                                const Target& target);
 
   TVM_DEFINE_OBJECT_REF_METHODS(OpImplement, ObjectRef, OpImplementNode);
 };
@@ -308,8 +308,8 @@ class OpSpecialization : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
-                    std::string name, int plevel);
+  TVM_DLL void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
+                            std::string name, int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpSpecialization, ObjectRef, OpSpecializationNode);
 };
@@ -342,8 +342,8 @@ class OpStrategy : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule, std::string name,
-                    int plevel);
+  TVM_DLL void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
+                            std::string name, int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpStrategy, ObjectRef, OpStrategyNode);
 };
