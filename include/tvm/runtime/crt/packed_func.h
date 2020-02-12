@@ -113,14 +113,14 @@ static inline TVMArgs TVMArgs_Create(TVMValue * values, uint32_t * tcodes, uint3
   return args;
 }
 
-// static inline int TVMNoOperation(TVMValue * args, uint32_t * type_codes, int num_args,
-//                                  TVMRetValueHandle ret, void* resource_handle) {
-//   return TVM_STATUS_SUCCESS;
-// }
-
-static inline int TVMNoOperation(void * args, void * type_codes, int num_args) {
+static inline int TVMNoOperation(TVMValue * args, int * type_codes, int num_args,
+                                 TVMRetValueHandle ret, void * res) {
   return TVM_STATUS_SUCCESS;
 }
+
+// static inline int TVMNoOperation(void * args, int * type_codes, int num_args) {
+//   return TVM_STATUS_SUCCESS;
+// }
 
 typedef struct packed_func_t {
   // Function (*GetFunction)();
@@ -143,7 +143,7 @@ static inline void PackedFunc_Call(PackedFunc * pf) {
 #if TVM_CRT_DEBUG
   LOGI("calling %s(%s)", pf->name, args);
 #endif // TVM_CRT_DEBUG
-  pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count);
+  pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0);
 }
 
 static inline void PackedFunc_SetArgs(PackedFunc * pf, const TVMArgs * args) {

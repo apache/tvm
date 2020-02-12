@@ -57,7 +57,7 @@ typedef struct json_reader_t {
    * \brief record how many element processed in
    *  current array/object scope.
    */
-  Seq scope_counter_;
+  Seq * scope_counter_;
 
   char (*NextChar)(struct json_reader_t * reader);
   char (*NextNonSpace)(struct json_reader_t * reader);
@@ -265,7 +265,7 @@ static inline void JSONReader_BeginObject(JSONReader * reader) {
   if (!(ch == '{')) {
     LOGE("Error at line X, Expect \'{\' but got \'%c\'", ch);
   }
-  Seq * scope_counter_ = &(reader->scope_counter_);
+  Seq * scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
 }
 
@@ -278,7 +278,7 @@ static inline void JSONReader_BeginObject(JSONReader * reader) {
  */
 static inline bool JSONReader_NextObjectItem(JSONReader * reader, char * out_key) {
   bool next = true;
-  Seq * scope_counter_ = &(reader->scope_counter_);
+  Seq * scope_counter_ = reader->scope_counter_;
   if (scope_counter_->back(scope_counter_)[0] != 0) {
     int ch = reader->NextNonSpace(reader);
     if (ch == EOF) {
@@ -327,7 +327,7 @@ static inline void JSONReader_BeginArray(JSONReader * reader) {
   if (ch != '[') {
     LOGE("Error at line X, Expect \'[\' but get \'%c\'", ch);
   }
-  Seq * scope_counter_ = &(reader->scope_counter_);
+  Seq * scope_counter_ = reader->scope_counter_;
   scope_counter_->push_back(scope_counter_, 0);
 }
 
@@ -339,7 +339,7 @@ static inline void JSONReader_BeginArray(JSONReader * reader) {
  */
 static inline bool JSONReader_NextArrayItem(JSONReader * reader) {
   bool next = true;
-  Seq * scope_counter_ = &(reader->scope_counter_);
+  Seq * scope_counter_ = reader->scope_counter_;
   if (scope_counter_->back(scope_counter_)[0] != 0) {
     int ch = reader->NextNonSpace(reader);
     if (ch == EOF) {

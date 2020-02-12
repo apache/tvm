@@ -36,13 +36,13 @@ NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, DLDataType dtype) {
 }
 
 int TVMArrayAlloc(const tvm_index_t* shape,
-                  uint8_t ndim,
-                  uint8_t dtype_code,
-                  uint8_t dtype_bits,
-                  uint16_t dtype_lanes,
-                  uint8_t device_type,
-                  uint8_t device_id,
-                  TVMArrayHandle out) {
+                  int ndim,
+                  int dtype_code,
+                  int dtype_bits,
+                  int dtype_lanes,
+                  int device_type,
+                  int device_id,
+                  TVMArrayHandle * out) {
   API_BEGIN();
   uint32_t idx = 0;
   DLDataType dtype;
@@ -52,21 +52,21 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   DLContext ctx;
   ctx.device_type = device_type;
   ctx.device_id = device_id;
-  out->ctx = ctx;
-  out->ndim = ndim;
-  out->dtype = dtype;
+  (*out)->ctx = ctx;
+  (*out)->ndim = ndim;
+  (*out)->dtype = dtype;
   uint32_t bytes = (dtype_bits + 7) / 8;
   uint32_t size = 1;
   for (idx = 0; idx < ndim; idx++) {
     size *= shape[idx];
   }
-  out->data = TVMBackendAllocWorkspace(device_type, device_id, size, dtype_code, dtype_bits);
-  memset(out->data, 0, size * bytes);
+  (*out)->data = TVMBackendAllocWorkspace(device_type, device_id, size, dtype_code, dtype_bits);
+  memset((*out)->data, 0, size * bytes);
   for (idx = 0; idx < ndim; idx++) {
-    out->shape[idx] = shape[idx];
-    out->strides = 0;
+    (*out)->shape[idx] = shape[idx];
+    (*out)->strides = 0;
   }
-  out->byte_offset = 0;
+  (*out)->byte_offset = 0;
   API_END();
 }
 
