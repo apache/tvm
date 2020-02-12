@@ -588,7 +588,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
     idxd = tvm.indexdiv
 
     if groups == 1:
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         dispatch_ctx = autotvm.DispatchContext.current
         cfg = dispatch_ctx.query(target, workload)
 
@@ -693,12 +693,12 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
         else:
             raise RuntimeError("Unsupported template_key '%s'" % cfg.template_key)
     else:
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         dispatch_ctx = autotvm.DispatchContext.current
         cfg = dispatch_ctx.query(target, workload)
 
         if cfg.is_fallback:  # if is fallback, clear query cache and return None
-            autotvm.task.clear_fallback_cache(tvm.target.current_target(), workload)
+            autotvm.task.clear_fallback_cache(tvm.target.Target.current(), workload)
             if layout == 'NHWC' and kernel_layout == 'HWOI':
                 new_attrs['data_layout'] = 'NCHW'
                 new_attrs['kernel_layout'] = 'OIHW'

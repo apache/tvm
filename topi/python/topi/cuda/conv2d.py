@@ -69,7 +69,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     if "cudnn" in target.libs:
         if layout == 'NCHW':
@@ -148,7 +148,7 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if 'cudnn' in target.libs:
         return generic.schedule_extern(outs)
 
@@ -186,7 +186,7 @@ def schedule_conv2d_nhwc_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if 'cudnn' in target.libs:
         return generic.schedule_extern(outs)
 

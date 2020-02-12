@@ -37,8 +37,8 @@ def _get_profile_runtime(mod):
     func = mod['main']
     func = _quantize.CreateStatsCollector(func)
 
-    if tvm.target.current_target():
-        target = tvm.target.current_target()
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
         ctx = tvm.context(target.target_name)
     else:
         target = 'llvm'

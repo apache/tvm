@@ -57,7 +57,7 @@ def conv2d_rocm(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         4-D with shape [batch, out_channel, out_height, out_width]
     """
 
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "miopen" in target.libs:
         assert layout == 'NCHW', "Only NCHW layout is supported."
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
@@ -106,7 +106,7 @@ def schedule_conv2d_nchw_rocm(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if target and "miopen" in target.libs:
         return generic.schedule_extern(outs)
 

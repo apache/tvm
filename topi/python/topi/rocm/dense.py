@@ -56,7 +56,7 @@ def dense_rocm(cfg, data, weight, bias=None, out_dtype=None):
         out_dtype = data.dtype
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "rocblas" in target.libs:
         assert out_dtype == data.dtype, "Mixed precision not supported."
         matmul = rocblas.matmul(data, weight, False, True)
@@ -83,7 +83,7 @@ def schedule_dense(cfg, outs):
     s: Schedule
         The computation schedule for dense.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if target.target_name == "rocm" and "rocblas" in target.libs:
         return generic.schedule_extern(outs)
     return topi.cuda.schedule_dense(cfg, outs)

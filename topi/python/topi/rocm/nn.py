@@ -23,6 +23,6 @@ from .. import cpp
 
 @generic.schedule_lrn.register(["rocm", "gpu"])
 def schedule_lrn(outs):
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.rocm.schedule_lrn(cpp_target, outs)

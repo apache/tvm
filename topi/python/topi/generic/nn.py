@@ -22,7 +22,7 @@ from .. import cpp
 
 def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     if target.target_name not in ("llvm", "c"):
         raise RuntimeError("schedule not registered for '%s'" % target)
@@ -645,7 +645,7 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
@@ -686,6 +686,6 @@ def schedule_sparse_transpose(outs):
 
 @tvm.target.generic_func
 def schedule_batch_matmul(outs):
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)

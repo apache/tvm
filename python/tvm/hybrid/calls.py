@@ -154,8 +154,8 @@ def max_num_threads(func_id, args):
     _internal_assert(func_id == "max_num_threads", "This function cannot be directly invoked!")
     _internal_assert(args.__len__() <= 1, "At most one argument accepted!")
     if args.__len__() == 0:
-        res = _tgt.current_target().max_num_threads
+        res = _tgt.Target.current().max_num_threads
     else:
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
-        res = _tgt.current_target(args[0].value).max_num_threads
+        res = _tgt.Target.current(args[0].value).max_num_threads
     return _api.convert(res)

@@ -176,7 +176,7 @@ class VMCompiler(object):
 
     def _update_target(self, target):
         """Update target."""
-        target = target if target else tvm.target.current_target()
+        target = target if target else tvm.target.Target.current()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
         tgts = {}

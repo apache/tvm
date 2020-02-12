@@ -57,7 +57,7 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
             cfg.define_split("tile_x", x, num_outputs=4)
             cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
 
-            target = tvm.target.current_target()
+            target = tvm.target.Target.current()
             if target.target_name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:
@@ -166,7 +166,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
         # num_thread here could be 728, it is larger than cuda.max_num_threads
         num_thread = tvm.ir_pass.Simplify(temp.shape[3]).value
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         if target and (target.target_name not in ["cuda", "nvptx"]):
             num_thread = target.max_num_threads
         xoc, xic = s[Output].split(c, factor=num_thread)

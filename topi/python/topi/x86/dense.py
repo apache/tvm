@@ -28,7 +28,7 @@ from ..util import traverse_inline, get_const_tuple
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None, out_dtype=None):
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         C = cblas.matmul(data, weight, False, True)
         if bias is not None:
@@ -119,7 +119,7 @@ def _declaration_dense_nopack(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct")
 def _schedule_dense(cfg, outs):
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         return generic.schedule_extern(outs)
 
@@ -136,7 +136,7 @@ def _schedule_dense(cfg, outs):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_pack")
 def _schedule_dense_pack(cfg, outs):
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         return generic.schedule_extern(outs)
 
@@ -151,7 +151,7 @@ def _schedule_dense_pack(cfg, outs):
 
 @autotvm.register_topi_schedule(generic.schedule_dense, "cpu", "direct_nopack")
 def _schedule_dense_nopack(cfg, outs):
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         return generic.schedule_extern(outs)
 

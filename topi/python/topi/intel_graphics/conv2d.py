@@ -221,7 +221,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
         return None
 
     dispatch_ctx = autotvm.task.DispatchContext.current
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     # query schedule and fallback if necessary
     workload = autotvm.task.args_to_workload(

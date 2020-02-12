@@ -17,9 +17,11 @@
 """Utility for ROCm backend"""
 import subprocess
 from os.path import join, exists
+
+from tvm._ffi.base import py_str
+import tvm.target
+
 from . import util
-from .._ffi.base import py_str
-from .. import codegen
 from ..api import register_func, convert
 
 def find_lld(required=True):
@@ -42,8 +44,8 @@ def find_lld(required=True):
     matches the major llvm version that built with tvm
     """
     lld_list = []
-    if hasattr(codegen, "llvm_version_major"):
-        major = codegen.llvm_version_major()
+    major = tvm.target.codegen.llvm_version_major(allow_none=True)
+    if major is not None:
         lld_list += ["ld.lld-%d.0" % major]
         lld_list += ["ld.lld-%d" % major]
     lld_list += ["ld.lld"]

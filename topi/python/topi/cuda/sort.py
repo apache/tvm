@@ -87,7 +87,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
             axis_mul_before *= value
         elif i > axis:
             axis_mul_after *= value
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     ib = tvm.ir_builder.create()
     data = ib.buffer_ptr(data)
     values_out = ib.buffer_ptr(values_out)
@@ -186,7 +186,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
             axis_mul_before *= value
         elif i > axis:
             axis_mul_after *= value
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     ib = tvm.ir_builder.create()
     data = ib.buffer_ptr(data)
     valid_count = ib.buffer_ptr(valid_count)

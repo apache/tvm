@@ -17,11 +17,9 @@
 """Custom datatype functionality"""
 import tvm._ffi
 
-from . import make as _make
-from .api import convert
-from .expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
-from ._ffi.runtime_ctypes import DataType
-from . import _api_internal
+import tvm.runtime._ffi_api
+from tvm.runtime import convert, DataType
+from tvm.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
 
 
 def register(type_name, type_code):
@@ -39,7 +37,7 @@ def register(type_name, type_code):
     type_code : int
         The type's code, which should be >= kCustomBegin
     """
-    _api_internal._datatype_register(type_name, type_code)
+    tvm.runtime._ffi_api._datatype_register(type_name, type_code)
 
 
 def get_type_name(type_code):
@@ -50,7 +48,7 @@ def get_type_name(type_code):
     type_code : int
         The type code
     """
-    return _api_internal._datatype_get_type_name(type_code)
+    return tvm.runtime._ffi_api._datatype_get_type_name(type_code)
 
 
 def get_type_code(type_name):
@@ -61,7 +59,7 @@ def get_type_code(type_name):
     type_name : str
         The type name
     """
-    return _api_internal._datatype_get_type_code(type_name)
+    return tvm.runtime._ffi_api._datatype_get_type_code(type_name)
 
 
 def get_type_registered(type_code):
@@ -72,7 +70,7 @@ def get_type_registered(type_code):
     type_code: int
         The type code
     """
-    return _api_internal._datatype_get_type_registered(type_code)
+    return tvm.runtime._ffi_api._datatype_get_type_registered(type_code)
 
 
 def register_op(lower_func, op_name, target, type_name, src_type_name=None):
@@ -137,9 +135,9 @@ def create_lower_func(extern_func_name):
             if t.lanes > 1:
                 dtype += "x" + str(t.lanes)
         if isinstance(op, (_Cast, _FloatImm)):
-            return _make.Call(dtype, extern_func_name, convert([op.value]),
-                              _Call.Extern, None, 0)
-        return _make.Call(dtype, extern_func_name, convert([op.a, op.b]),
-                          _Call.Extern, None, 0)
+            return _Call(dtype, extern_func_name, convert([op.value]),
+                         _Call.Extern, None, 0)
+        return _Call(dtype, extern_func_name, convert([op.a, op.b]),
+                     _Call.Extern, None, 0)
 
     return lower

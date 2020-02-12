@@ -244,7 +244,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
   return (*codegen_f)(blob_byte_array, system_lib, target_triple);
 }
 
-TVM_REGISTER_GLOBAL("codegen._Build")
+TVM_REGISTER_GLOBAL("target.Build")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   if (args[0].IsObjectRef<tir::LoweredFunc>()) {
       *ret = Build({args[0]}, args[1]);
