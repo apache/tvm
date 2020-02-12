@@ -14,13 +14,41 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Container data structures used in TVM DSL."""
+"""Container data structures used across IR variants."""
 import tvm._ffi
 
 from tvm.runtime import Object
 from tvm.runtime.container import getitem_helper
 from tvm.runtime import _ffi_node_api
-from . import _api_internal
+from . import _ffi_api
+
+
+@tvm._ffi.register_object
+class EnvFunc(Object):
+    """Environment function.
+
+    This is a global function object that can be serialized by its name.
+    """
+    def __call__(self, *args):
+        return _ffi_api.EnvFuncCall(self, *args)
+
+    @property
+    def func(self):
+        return _ffi_api.EnvFuncGetPackedFunc(self)
+
+    @staticmethod
+    def get(name):
+        """Get a static env function
+        """
+
+
+@tvm._ffi.register_object
+class Range(Object):
+    """Represent a range in TVM.
+
+    You do not need to create a Range explicitly.
+    Python lists and tuples will be converted automatically to a Range in API functions.
+    """
 
 
 @tvm._ffi.register_object
@@ -38,20 +66,6 @@ class Array(Object):
 
     def __len__(self):
         return _ffi_node_api.ArraySize(self)
-
-
-@tvm._ffi.register_object
-class EnvFunc(Object):
-    """Environment function.
-
-    This is a global function object that can be serialized by its name.
-    """
-    def __call__(self, *args):
-        return _api_internal._EnvFuncCall(self, *args)
-
-    @property
-    def func(self):
-        return _api_internal._EnvFuncGetPackedFunc(self)
 
 
 @tvm._ffi.register_object
@@ -87,12 +101,3 @@ class StrMap(Map):
         """Get the items from the map"""
         akvs = _ffi_node_api.MapItems(self)
         return [(akvs[i].value, akvs[i+1]) for i in range(0, len(akvs), 2)]
-
-
-@tvm._ffi.register_object
-class Range(Object):
-    """Represent a range in TVM.
-
-    You do not need to create a Range explicitly.
-    Python lists and tuples will be converted automatically to a Range in API functions.
-    """

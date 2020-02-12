@@ -871,11 +871,3 @@ class Let(PrimExpr):
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
             _make.Let, var, value, body)
-
-
-@tvm._ffi.register_object
-class LoweredFunc(Object):
-    """Represent a LoweredFunc in TVM."""
-    MixedFunc = 0
-    HostFunc = 1
-    DeviceFunc = 2

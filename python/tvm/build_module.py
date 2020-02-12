@@ -35,7 +35,7 @@ from . import container
 from . import codegen
 from . import target as _target
 from . import make
-from .expr import LoweredFunc
+from .stmt import LoweredFunc
 
 
 class DumpIR(object):
