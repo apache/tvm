@@ -92,8 +92,8 @@ class TCPHandler(object):
             except socket.error as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
-                else:
-                    self.on_error(err)
+                self.on_error(err)
+
         if self._pending_write:
             self._ioloop.update_handler(
                 self._sock.fileno(), self._ioloop.READ | self._ioloop.ERROR | self._ioloop.WRITE)

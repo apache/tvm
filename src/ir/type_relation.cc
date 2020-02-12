@@ -35,7 +35,7 @@ TypeCall::TypeCall(Type func, tvm::Array<Type> args) {
 
 TVM_REGISTER_NODE_TYPE(TypeCallNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeCall")
+TVM_REGISTER_GLOBAL("ir.TypeCall")
 .set_body_typed([](Type func, Array<Type> type) {
   return TypeCall(func, type);
 });
@@ -61,7 +61,7 @@ TypeRelation::TypeRelation(TypeRelationFn func,
 
 TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
+TVM_REGISTER_GLOBAL("ir.TypeRelation")
 .set_body_typed([](TypeRelationFn func,
                    Array<Type> args,
                    int num_inputs,

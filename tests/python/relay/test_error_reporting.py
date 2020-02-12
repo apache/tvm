@@ -19,12 +19,12 @@ from tvm import relay
 
 def check_type_err(expr, msg):
     try:
-        mod = relay.Module.from_expr(expr)
+        mod = tvm.IRModule.from_expr(expr)
         mod = relay.transform.InferType()(mod)
         entry = mod["main"]
         expr = entry if isinstance(expr, relay.Function) else entry.body
         assert False
-    except tvm.TVMError as err:
+    except tvm.error.TVMError as err:
         assert msg in str(err)
 
 def test_wellformed():

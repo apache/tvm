@@ -16,9 +16,9 @@
 # under the License.
 """The interface of expr function exposed from C++."""
 import tvm._ffi
+from tvm.ir import container as _container
 
 from ... import build_module as _build
-from ... import container as _container
 
 
 @tvm._ffi.register_func("relay.backend.lower")
@@ -44,8 +44,9 @@ def lower(sch, inputs, func_name, source_func):
     lowered_funcs : List[tvm.LoweredFunc]
         The result of lowering.
     """
+    # pylint: disable=broad-except, import-outside-toplevel
     import traceback
-    # pylint: disable=broad-except
+
     try:
         f = _build.lower(sch, inputs, name=func_name)
         # logging.debug("lower function %s", func_name)

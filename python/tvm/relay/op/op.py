@@ -20,13 +20,13 @@ import topi
 import tvm._ffi
 
 from ..base import register_relay_node
-from ..expr import Expr
+from ..expr import RelayExpr
 from ...api import register_func
 from ...build_module import lower, build
 from . import _make
 
 @register_relay_node
-class Op(Expr):
+class Op(RelayExpr):
     """A Relay operator definition."""
 
     def __init__(self):

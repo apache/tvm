@@ -508,8 +508,7 @@ class Proxy(object):
             except socket.error as sock_err:
                 if sock_err.errno in [98, 48]:
                     continue
-                else:
-                    raise sock_err
+                raise sock_err
         if not self.port:
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
         logging.info("RPCProxy: client port bind to %s:%d", host, self.port)
@@ -569,7 +568,7 @@ def websocket_proxy_server(url, key=""):
         magic = struct.unpack('<i', msg[:4])[0]
         if magic == base.RPC_CODE_DUPLICATE:
             raise RuntimeError("key: %s has already been used in proxy" % key)
-        elif magic == base.RPC_CODE_MISMATCH:
+        if magic == base.RPC_CODE_MISMATCH:
             logging.info("RPCProxy do not have matching client key %s", key)
         elif magic != base.RPC_CODE_SUCCESS:
             raise RuntimeError("%s is not RPC Proxy" % url)

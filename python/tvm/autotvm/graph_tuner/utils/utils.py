@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
+import tvm
 from tvm import relay
 from tvm.relay import transform
 
@@ -136,7 +137,7 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
             rebind_dict[var] = updated_input_dict[var.name_hint]
     updated_expr = relay.expr.bind(expr, rebind_dict)
 
-    mod = relay.Module.from_expr(updated_expr)
+    mod = tvm.IRModule.from_expr(updated_expr)
     mod = transform.InferType()(mod)
     entry = mod["main"]
     return entry if isinstance(updated_expr, relay.Function) else entry.body

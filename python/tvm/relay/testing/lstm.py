@@ -173,7 +173,7 @@ def get_workload(iterations, num_hidden, batch_size=1, dtype="float32"):
         The data type
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module that contains a LSTM network.
     params : dict of str to NDArray
         The parameters.

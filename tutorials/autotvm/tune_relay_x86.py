@@ -69,7 +69,7 @@ def get_network(name, batch_size):
         mod, params = relay.frontend.from_mxnet(block, shape={input_name: input_shape}, dtype=dtype)
         net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
-        mod = relay.Module.from_expr(net)
+        mod = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 

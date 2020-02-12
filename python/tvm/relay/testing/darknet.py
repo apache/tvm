@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, no-init
+# pylint: disable=invalid-name, unused-variable, unused-argument, no-init, unpacking-non-sequence
 """
 Compile DarkNet Models
 ====================

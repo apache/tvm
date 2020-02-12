@@ -151,7 +151,7 @@ def get_workload(batch_size=1, num_classes=1000, image_shape=(3, 224, 224),
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module that contains a MobileNet network.
 
     params : dict of str to NDArray

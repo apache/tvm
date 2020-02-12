@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-variable,invalid-name
+# pylint: disable=unused-variable,invalid-name, not-context-manager
 """
 Decorator and utilities for the integration with TOPI and Relay
 99.9% copy-paste of implementation by @MerryMercy
@@ -37,7 +37,7 @@ def _lower(mod,
            params):
     """ Helper to lower VTA properly.
     """
-
+    # pylint: disable=import-outside-toplevel
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
 
@@ -63,7 +63,7 @@ def extract_from_program(mod, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    mod: relay.module.Module or relay.expr.Function
+    mod: tvm.IRModule or relay.expr.Function
         The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
@@ -95,7 +95,7 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
 
     Parameters
     ----------
-    mods: List[relay.module.Module] or List[relay.expr.Function]
+    mods: List[tvm.IRModule] or List[relay.expr.Function]
         The list of modules or functions to tune
     params: List of dict of str to numpy array
         The associated parameters of the programs
@@ -114,6 +114,7 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
     task: Array of autotvm.task.Task
         collected tasks
     """
+    # pylint: disable=import-outside-toplevel
     import tvm.relay.op
     from tvm import relay
     import topi
@@ -150,8 +151,8 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
 
         for mod, param in zip(mods, params):
             if isinstance(mod, relay.expr.Function):
-                mod = relay.Module.from_expr(mod)
-            assert isinstance(mod, relay.module.Module), \
+                mod = tvm.IRModule.from_expr(mod)
+            assert isinstance(mod, tvm.IRModule), \
                 "only support relay Module or Function to be tuned"
             relay.backend.compile_engine.get().clear()
             # wrap build call in thread to avoid multiprocessing problems

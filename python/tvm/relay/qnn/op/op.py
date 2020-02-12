@@ -16,7 +16,7 @@
 # under the License.
 #pylint: disable=unused-argument
 """The register functions for the QNN dialect."""
-from tvm.relay.op.op import register as register
+from tvm.relay.op.op import register
 
 def register_qnn_legalize(op_name, legal_op=None, level=10):
     """Register legal transformation function for a QNN op

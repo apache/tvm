@@ -141,7 +141,7 @@ class BaseGraphTuner(object):
             self._logger.propagate = False
 
         # Generate workload and schedule dictionaries.
-        if isinstance(graph, relay.Module):
+        if isinstance(graph, tvm.IRModule):
             graph = graph["main"]
 
         if isinstance(graph, relay.expr.Function):
@@ -539,4 +539,3 @@ class BaseGraphTuner(object):
     @abstractmethod
     def run(self, **kwargs):
         """Run graph tuning."""
-        pass

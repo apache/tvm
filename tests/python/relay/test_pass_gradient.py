@@ -188,7 +188,7 @@ def test_tuple():
 
 
 def test_pow():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     shape = (10, 10)

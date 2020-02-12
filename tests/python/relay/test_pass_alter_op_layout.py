@@ -23,7 +23,7 @@ from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -1005,7 +1005,7 @@ def test_alter_op_with_global_var():
                             kernel_size=(3, 3),
                             padding=(1, 1))
         y = relay.nn.relu(y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         foo = relay.GlobalVar('foo')
         mod[foo] = relay.Function([x, weight], y)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
@@ -1024,7 +1024,7 @@ def test_alter_op_with_global_var():
                             kernel_size=(3, 3),
                             padding=(1, 1))
         y = relay.nn.relu(y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         foo = relay.GlobalVar('foo')
         mod[foo] = relay.Function([x, weight], y)
         mod["main"] = relay.Function([x, weight], foo(x, weight))

@@ -47,7 +47,7 @@ def test_trivial_matches():
 
 
 def test_single_constructor_adt():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box = relay.GlobalTypeVar('box')
     a = relay.TypeVar('a')
     box_ctor = relay.Constructor('box', [a], box)
@@ -76,7 +76,7 @@ def test_single_constructor_adt():
 
 
 def test_too_specific_match():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -117,7 +117,7 @@ def test_too_specific_match():
 
 
 def test_multiple_constructor_clauses():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -147,7 +147,7 @@ def test_multiple_constructor_clauses():
 
 
 def test_missing_in_the_middle():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -185,7 +185,7 @@ def test_missing_in_the_middle():
 
 
 def test_mixed_adt_constructors():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box = relay.GlobalTypeVar('box')
     a = relay.TypeVar('a')
     box_ctor = relay.Constructor('box', [a], box)

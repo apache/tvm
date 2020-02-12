@@ -1,3 +1,4 @@
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,9 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI APIs for tvm.transform"""
+import tvm._ffi
 
-from typing import Union, Tuple, Dict, List
-from relay.ir import GlobalId, OperatorId, Item, Object, Span, FileId
-from relay.ir import ShapeExtension, Operator, Defn
 
-class Module(Object): ...
+tvm._ffi._init_api("transform", __name__)

@@ -71,7 +71,7 @@ def test_llvm_add_pipeline():
             port = int(os.environ['TVM_RPC_ARM_PORT'])
             try:
                 remote = rpc.connect(host, port)
-            except tvm.TVMError as e:
+            except tvm.error.TVMError as e:
                 pass
 
         if remote:

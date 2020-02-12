@@ -19,11 +19,11 @@ import tvm._ffi
 
 from tvm._ffi.base import string_types
 from tvm.runtime import Object, convert
+from tvm.ir import container as _container
 
 from . import _api_internal
 from . import tensor as _tensor
 from . import expr as _expr
-from . import container as _container
 
 
 @tvm._ffi.register_object

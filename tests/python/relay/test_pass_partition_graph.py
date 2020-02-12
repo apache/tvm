@@ -24,6 +24,7 @@ import tvm
 import tvm.relay.testing
 import tvm.relay.transform as transform
 from tvm import relay
+from tvm import runtime
 from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
@@ -182,7 +183,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.runtime.load_module(lib_path)
+        lib = runtime.load_module(lib_path)
 
         return lib
 
@@ -191,8 +192,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = relay.vm.Executable.load_exec(code, lib)
-        vm = relay.vm.VirtualMachine(exe)
+        exe = runtime.vm.Executable.load_exec(code, lib)
+        vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
@@ -244,7 +245,7 @@ def test_multi_node_compiler():
 
     r = relay.concatenate((q0, q1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
-    mod = relay.Module()
+    mod = tvm.IRModule()
     ann = CcompilerAnnotator()
     mod["main"] = ann.visit(f)
     mod = transform.PartitionGraph()(mod)
@@ -285,7 +286,7 @@ def test_extern_ccompiler_single_op():
     f = relay.Function([x, y], z)
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     mod = MyAnnotator()(mod)
     mod = transform.PartitionGraph()(mod)
@@ -318,7 +319,7 @@ def test_extern_ccompiler_default_ops():
                                               tvm.expr.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         mod["main"] = main
         return mod
 
@@ -329,7 +330,7 @@ def test_extern_ccompiler_default_ops():
     exp = relay.exp(add)
     concat = relay.concatenate([log, exp], axis=0)
     f = relay.Function([x, y], concat)
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
@@ -353,7 +354,7 @@ def test_extern_ccompiler():
     f = relay.Function([x, y], p - z)
     x_data = np.random.rand(2, 2).astype('float32')
     y_data = np.random.rand(2, 2).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     mod = WhiteListAnnotator(["add", "subtract", "multiply"], "ccompiler")(mod)
     mod = transform.PartitionGraph()(mod)
@@ -385,11 +386,11 @@ def test_extern_dnnl():
 
     f = relay.Function([data, weight1], out)
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod['main'] = WholeGraphAnnotator('dnnl').visit(f)
     mod = transform.PartitionGraph()(mod)
 
-    ref_mod = relay.Module()
+    ref_mod = tvm.IRModule()
     ref_mod['main'] = f
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)

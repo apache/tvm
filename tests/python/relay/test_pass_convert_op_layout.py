@@ -24,7 +24,7 @@ from tvm.relay import transform, analysis
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)

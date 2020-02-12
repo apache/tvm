@@ -311,7 +311,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols
@@ -328,7 +328,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
 
-    copy_inputs = [s for s in inputs]
+    copy_inputs = list(inputs)
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
 

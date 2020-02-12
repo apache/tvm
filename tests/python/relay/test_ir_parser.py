@@ -355,7 +355,7 @@ def test_defn():
             %x
         }
         """)
-    assert isinstance(id_defn, relay.Module)
+    assert isinstance(id_defn, tvm.IRModule)
 
 
 def test_recursive_call():
@@ -365,7 +365,7 @@ def test_recursive_call():
             @id(%x)
         }
         """)
-    assert isinstance(id_defn, relay.Module)
+    assert isinstance(id_defn, tvm.IRModule)
 
 
 def test_ifelse():
@@ -639,7 +639,7 @@ def test_tuple_type():
 
 
 def test_adt_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(
@@ -656,7 +656,7 @@ def test_adt_defn():
 
 
 def test_empty_adt_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(glob_typ_var, [], [])
@@ -670,7 +670,7 @@ def test_empty_adt_defn():
 
 
 def test_multiple_cons_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
@@ -696,7 +696,7 @@ def test_multiple_type_param_defn():
                 relay.Constructor("Left", [typ_var_a], glob_typ_var),
                 relay.Constructor("Right", [typ_var_b], glob_typ_var),
             ])
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod[glob_typ_var] = prog
     assert parses_as(
         """
@@ -713,7 +713,7 @@ def test_match():
     # pair each match keyword with whether it specifies a complete match or not
     match_keywords = [("match", True), ("match?", False)]
     for (match_keyword, is_complete) in match_keywords:
-        mod = relay.Module()
+        mod = tvm.IRModule()
 
         list_var = relay.GlobalTypeVar("List")
         typ_var = relay.TypeVar("A")
@@ -773,7 +773,7 @@ def test_match():
 
 
 def test_adt_cons_expr():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
@@ -853,7 +853,7 @@ def test_duplicate_global_var():
 
 def test_extern_adt_defn():
     # TODO(weberlo): update this test once extern is implemented
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     extern_var = relay.GlobalTypeVar("T")
     typ_var = relay.TypeVar("A")

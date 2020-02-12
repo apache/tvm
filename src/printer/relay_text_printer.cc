@@ -131,6 +131,7 @@ class RelayTextPrinter :
     } else if (node.as<IRModuleNode>()) {
       return PrintMod(Downcast<IRModule>(node));
     } else {
+      // default module.
       std::ostringstream os;
       os << node;
       return Doc() << os.str();
@@ -905,20 +906,18 @@ static const char* kSemVer = "v0.0.4";
 // - relay_text_printer.cc (specific printing logics for relay)
 // - tir_text_printer.cc (specific printing logics for TIR)
 std::string PrettyPrint(const ObjectRef& node) {
-  Doc doc;
-  doc << relay::RelayTextPrinter(false, nullptr).PrintFinal(node);
-  return doc.str();
+  return AsText(node, false, nullptr);
 }
 
 std::string AsText(const ObjectRef& node,
                    bool show_meta_data,
                    runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
   Doc doc;
-  doc << kSemVer << Doc::NewLine()
-      << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
+  doc << kSemVer << Doc::NewLine();
+  doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
   return doc.str();
 }
 
-TVM_REGISTER_GLOBAL("relay._expr.AsText")
+TVM_REGISTER_GLOBAL("ir.AsText")
 .set_body_typed(AsText);
 }  // namespace tvm

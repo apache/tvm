@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, too-many-lines
+# pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
+
 """Tensorflow lite frontend."""
-from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from tvm import relay
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from .. import qnn as _qnn
 from ..util import get_scalar_from_constant
@@ -438,8 +439,6 @@ class OperatorConverter(object):
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
-        output_tensor_type = output_tensor.tensor.Type()
-        output_tensor_type_str = self.get_tensor_type_str(output_tensor_type)
 
         params = {'axis': 1}  # 1 is channel
         in_expr = self.get_expr(input_tensor_idx)
@@ -448,18 +447,13 @@ class OperatorConverter(object):
         # dequantize to FP32 and perform softmax on FP32. We can investigate an integer only softmax
         # implementation in future.
         if input_tensor.qnn_params:
-            in_expr = _qnn.op.dequantize(data=in_expr,
-                                         input_scale=input_tensor.qnn_params['scale'],
-                                         input_zero_point=input_tensor.qnn_params['zero_point'])
+            in_expr = self.dequantize(in_expr, input_tensor)
 
         out = _op.nn.softmax(in_expr, **params)
 
         # Go back to integer dataype if the original operator was quantized.
         if output_tensor.qnn_params:
-            out = _qnn.op.quantize(data=out,
-                                   output_scale=output_tensor.qnn_params['scale'],
-                                   output_zero_point=output_tensor.qnn_params['zero_point'],
-                                   out_dtype=output_tensor_type_str)
+            out = self.quantize(out, output_tensor)
 
         return out
 
@@ -1185,10 +1179,14 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
             if do_pad:
+                pad_value = 0
+                if input_tensor.qnn_params:
+                    pad_value = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
                 in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
                                                               (pad_top, pad_bottom),
                                                               (pad_left, pad_right),
-                                                              (0, 0)))
+                                                              (0, 0)), pad_value=float(pad_value))
+
         else:
             raise tvm.error.OpAttributeUnImplemented(
                 'Padding format {} is not supported for operator Conv.'.format(padding))
@@ -1458,8 +1456,7 @@ class OperatorConverter(object):
                 raise tvm.error.OpNotImplemented(
                     'Operator {} with fused activation is not supported yet.'
                     .format('qnn.op.pool2d'))
-            else:
-                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
     def convert_pad(self, op):
@@ -1483,8 +1480,19 @@ class OperatorConverter(object):
         # convert list of lists to tuple of tuples
         paddings = tuple(tuple(l) for l in pad_list)
 
-        # Use default pad_value 0 because TFLite PAD does not support constant_values parameter
-        out = _op.nn.pad(in_expr, paddings)
+        # Set the pad value
+        pad_value = 0
+        if input_tensor.qnn_params:
+            # Check that input and output tensor have same qnn params.
+            output_tensors = self.get_output_tensors(op)
+            output_tensor = output_tensors[0]
+            assert self.has_same_qnn_params(input_tensor, output_tensor), \
+                    "TFLite reshape requires input and output scale and zero points to be equal"
+
+            # The pad value for quantized pad is the input zero point.
+            pad_value = float(input_tensor.qnn_params['zero_point'].data.asnumpy())
+
+        out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
 
     def convert_mirror_pad(self, op):
@@ -1893,7 +1901,7 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.nd.NDArray
@@ -1932,5 +1940,5 @@ def from_tflite(model, shape_dict, dtype_dict):
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _expr.Function(analysis.free_vars(outputs), outputs)
-    mod = _module.Module.from_expr(func)
+    mod = IRModule.from_expr(func)
     return mod, params

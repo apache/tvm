@@ -42,6 +42,7 @@ def _schedule_sort(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
+    # pylint: disable=import-outside-toplevel
     from .injective import schedule_injective_from_existing
     def traverse(op):
         if tag.is_injective(op.tag):

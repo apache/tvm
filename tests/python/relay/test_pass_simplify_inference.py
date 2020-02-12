@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from tvm.ir import IRModule
 from tvm import relay as rly
 from tvm.relay.transform import SimplifyInference
 
@@ -50,7 +51,7 @@ def test_simplify_batchnorm(dtype='float32'):
                            gamma, beta, moving_mean, moving_var,
                            epsilon=eps, axis=axis, shape=ttype1.shape)
 
-        mod = rly.Module.from_expr(y1)
+        mod = IRModule.from_expr(y1)
         simplify = SimplifyInference()
         mod = simplify(mod)
         y1 = mod["main"].body

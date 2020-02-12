@@ -19,9 +19,11 @@
 from numbers import Integral as _Integral
 
 import tvm._ffi
-import tvm.runtime._ffi_node_api
+import tvm.ir
 
 from tvm.runtime import convert, const, DataType
+from tvm.ir import container as _container
+
 from ._ffi.base import string_types, TVMError
 from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
 
@@ -30,9 +32,7 @@ from . import make as _make
 from . import expr as _expr
 from . import tensor as _tensor
 from . import schedule as _schedule
-from . import container as _container
 from . import tag as _tag
-from . import json_compact
 
 int8 = "int8"
 int32 = "int32"
@@ -70,66 +70,6 @@ def max_value(dtype):
         The maximum value of dtype.
     """
     return _api_internal._max_value(dtype)
-
-
-def get_env_func(name):
-    """Get an EnvFunc by a global name.
-
-    Parameters
-    ----------
-    name: str
-        The name of the global function.
-
-    Returns
-    -------
-    env_func : EnvFunc
-        The result env function.
-
-    Note
-    ----
-    EnvFunc is a Object wrapper around
-    global function that can be serialized via its name.
-    This can be used to serialize function field in the language.
-    """
-    return _api_internal._EnvFuncGet(name)
-
-
-def load_json(json_str):
-    """Load tvm object from json_str.
-
-    Parameters
-    ----------
-    json_str : str
-        The json string
-
-    Returns
-    -------
-    node : Object
-        The loaded tvm node.
-    """
-
-    try:
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
-    except TVMError:
-        json_str = json_compact.upgrade_json(json_str)
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
-
-
-def save_json(node):
-    """Save tvm object as json string.
-
-    Parameters
-    ----------
-    node : Object
-        A TVM object to be saved.
-
-    Returns
-    -------
-    json_str : str
-        Saved json string.
-    """
-    return tvm.runtime._ffi_node_api.SaveJSON(node)
-
 
 def var(name="tindex", dtype=int32):
     """Create a new variable with specified name and dtype
@@ -688,7 +628,7 @@ def _IterVar(dom, name, iter_type, thread_tag=''):
                 raise TypeError("need to be list of ranges")
             dom = Range(dom[0], dom[1])
 
-        if not isinstance(dom, _container.Range):
+        if not isinstance(dom, tvm.ir.Range):
             raise TypeError("dom need to be Range")
     name = name if name else 'iter'
     v = var(name)

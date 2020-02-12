@@ -200,13 +200,12 @@ def take_shape_func(attrs, inputs, out_ndims):
     """
     if attrs.axis is None:
         return [_take_no_axis_shape_func(inputs[1], out_ndims[0])]
-    else:
-        axis = get_const_int(attrs.axis)
-        data_ndim = int(inputs[0].shape[0])
-        if axis < 0:
-            axis += data_ndim
-        assert 0 <= axis < data_ndim
-        return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
+    axis = get_const_int(attrs.axis)
+    data_ndim = int(inputs[0].shape[0])
+    if axis < 0:
+        axis += data_ndim
+    assert 0 <= axis < data_ndim
+    return [_take_with_axis_shape_func(*inputs, convert(axis), out_ndims[0])]
 
 @script
 def _argwhere_shape_func_1d(condition):
@@ -275,13 +274,13 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     """
     if len(inputs[0].shape) == 1:
         return [_argwhere_shape_func_1d(inputs[0])]
-    elif len(inputs[0].shape) == 2:
+    if len(inputs[0].shape) == 2:
         return [_argwhere_shape_func_2d(inputs[0])]
-    elif len(inputs[0].shape) == 3:
+    if len(inputs[0].shape) == 3:
         return [_argwhere_shape_func_3d(inputs[0])]
-    elif len(inputs[0].shape) == 4:
+    if len(inputs[0].shape) == 4:
         return [_argwhere_shape_func_4d(inputs[0])]
-    elif len(inputs[0].shape) == 5:
+    if len(inputs[0].shape) == 5:
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
 

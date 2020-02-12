@@ -63,7 +63,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -106,7 +106,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -169,7 +169,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized

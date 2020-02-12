@@ -23,15 +23,15 @@ from tvm.relay.analysis import graph_equal
 import numpy as np
 
 def check_json_roundtrip(node):
-    json_str = tvm.save_json(node)
-    back = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(node)
+    back = tvm.ir.load_json(json_str)
     assert graph_equal(back, node)
 
 
 def test_bad_constructor():
     try:
         x = relay.ty.TensorType("xx", "xx")
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 
@@ -48,7 +48,7 @@ def test_span():
 
     # span is not a node so we can't use graph_equal
     # to test the round trip
-    back = tvm.load_json(tvm.save_json(span))
+    back = tvm.ir.load_json(tvm.ir.save_json(span))
     assert back.source == span.source
     assert back.lineno == span.lineno
     assert back.col_offset == span.col_offset
@@ -67,8 +67,8 @@ def test_tensor_type():
 
 
 def test_type_param():
-    tp = relay.TypeVar('name', relay.Kind.Type)
-    assert tp.kind == relay.Kind.Type
+    tp = relay.TypeVar('name', relay.TypeKind.Type)
+    assert tp.kind == relay.TypeKind.Type
     # assert tp.span  # TODO allow us to set span
     str(tp)
     check_json_roundtrip(tp)
@@ -91,7 +91,7 @@ def test_func_type():
 
 
 def test_tuple_type():
-    tp = relay.TypeVar('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.TypeKind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     fields = tvm.convert([tp, tf, tt])
@@ -103,13 +103,13 @@ def test_tuple_type():
 
 
 def test_type_relation():
-    tp = relay.TypeVar('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.TypeKind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     args = tvm.convert([tp, tf, tt])
 
     num_inputs = 2
-    func = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
+    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
     attrs = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
 
     tr = relay.TypeRelation(func, args, num_inputs, attrs)
@@ -193,8 +193,8 @@ def test_function_attrs():
     assert fn.span == None
     str(fn)
     check_json_roundtrip(fn)
-    json_str = tvm.save_json(fn)
-    fn_after = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(fn)
+    fn_after = tvm.ir.load_json(json_str)
     model_params_after = fn_after.get_params()
     after_keys = [item[0] for item in model_params_after.items()]
     for key1, key2 in zip(model_params, after_keys):

@@ -353,8 +353,8 @@ def test_tuple_intermediate():
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
     orig = before(x)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(x), transform.InferType())
     assert relay.analysis.alpha_equal(m["main"], after)
@@ -408,8 +408,8 @@ def test_tuple_consecutive():
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
     orig = before(x)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
     assert relay.analysis.alpha_equal(m["main"], after)
@@ -475,8 +475,8 @@ def test_inception_like():
 
     dshape = (1, 16, 64, 64)
     orig = before(dshape)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
     assert relay.analysis.alpha_equal(m["main"], after)
@@ -519,7 +519,7 @@ def test_immutable():
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
         w = relay.squeeze(z)
-        mod = relay.module.Module()
+        mod = tvm.IRModule()
         mod["main"] = relay.Function([x], w)
         return mod
 
@@ -531,7 +531,7 @@ def test_immutable():
         f1 = relay.Function([x], w)
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
-        mod = relay.module.Module()
+        mod = tvm.IRModule()
         mod["main"] = relay.Function([x], y)
         return mod
 
@@ -548,7 +548,7 @@ def test_split():
     a = relay.TupleGetItem(y, 0)
     b = relay.TupleGetItem(y, 1)
     c = relay.TupleGetItem(y, 2)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
     mod = transform.FuseOps()(mod)
 

@@ -24,6 +24,7 @@ import types
 import numbers
 
 from enum import Enum
+from tvm.ir.container import Array
 
 from .util import _internal_assert
 from . import calls
@@ -32,7 +33,6 @@ from .preprocessor import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
 
-from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import _api_internal as _tvm_internal
 from .. import expr as _expr
@@ -198,7 +198,7 @@ class HybridParser(ast.NodeVisitor):
             ty, entry = self.symbols[key] #pylint: disable=invalid-name
             if ty in [Symbol.Input, Symbol.OutputBuffer]:
                 continue
-            elif 'Buffer' in ty.name:
+            if 'Buffer' in ty.name:
                 _buf = entry
                 _scope = 'global' if ty is Symbol.BufferVar else ty.name[:-6].lower()
                 to_pop.append(key)

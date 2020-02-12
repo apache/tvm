@@ -66,6 +66,7 @@ def server_start():
 
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
+        # pylint: disable=import-outside-toplevel
         from pynq import xlnk
         # Reset xilinx driver
         xlnk.Xlnk().xlnk_reset()

@@ -87,6 +87,7 @@ class ObjectBase(object):
         instead of creating a new Node.
         """
         # assign handle first to avoid error raising
+        # pylint: disable=not-callable
         self.handle = None
         handle = __init_by_constructor__(fconstructor, args)
         if not isinstance(handle, ObjectHandle):

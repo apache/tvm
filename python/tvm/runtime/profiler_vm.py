@@ -20,18 +20,19 @@ The Relay Virtual Machine profiler.
 
 Provides extra APIs for profiling vm execution.
 """
-from . import vm, _vm
+from tvm.runtime import _ffi_api
+from . import vm
 
 def enabled():
     """Whether vm profiler is enabled."""
-    return hasattr(_vm, "_VirtualMachineDebug")
+    return hasattr(_ffi_api, "_VirtualMachineDebug")
 
 class VirtualMachineProfiler(vm.VirtualMachine):
     """Relay profile VM runtime."""
     def __init__(self, mod):
         super(VirtualMachineProfiler, self).__init__(mod)
         m = mod.module if isinstance(mod, vm.Executable) else mod
-        self.mod = _vm._VirtualMachineDebug(m)
+        self.mod = _ffi_api._VirtualMachineDebug(m)
         self._init = self.mod["init"]
         self._invoke = self.mod["invoke"]
         self._get_stat = self.mod["get_stat"]

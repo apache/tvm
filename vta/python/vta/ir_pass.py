@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Additional IR Pass for VTA"""
-# pylint: disable=len-as-condition
-from __future__ import absolute_import as _abs
-
+# pylint: disable=len-as-condition, no-else-return
 import tvm
 from topi import util
 

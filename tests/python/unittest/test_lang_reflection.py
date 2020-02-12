@@ -22,9 +22,9 @@ def test_const_saveload_json():
     y = tvm.const(10, "int32")
     z = x + y
     z = z + z
-    json_str = tvm.save_json(z)
-    zz = tvm.load_json(json_str)
-    assert tvm.save_json(zz) == tvm.save_json(z)
+    json_str = tvm.ir.save_json(z)
+    zz = tvm.ir.load_json(json_str)
+    assert tvm.ir.save_json(zz) == tvm.ir.save_json(z)
 
 
 def test_make_smap():
@@ -33,8 +33,8 @@ def test_make_smap():
     y = tvm.const(10, "int32")
     z = tvm.expr.Add(x, y)
     smap = tvm.convert({"z": z, "x": x})
-    json_str = tvm.save_json(tvm.convert([smap]))
-    arr = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(tvm.convert([smap]))
+    arr = tvm.ir.load_json(json_str)
     assert len(arr) == 1
     assert arr[0]["z"].a == arr[0]["x"]
 
@@ -57,13 +57,13 @@ def test_make_attrs():
     try:
         x = tvm.make.node("attrs.TestAttrs", unknown_key=1, name="xx")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert str(e).find("unknown_key") != -1
 
     try:
         x = tvm.make.node("attrs.TestAttrs", axis=100, name="xx")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert str(e).find("upper bound") != -1
 
     x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4))
@@ -75,7 +75,7 @@ def test_make_attrs():
 
     dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert dattr.x.value == 1
-    datrr = tvm.load_json(tvm.save_json(dattr))
+    datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name.value == "xyz"
 
 
@@ -84,8 +84,8 @@ def test_make_sum():
     A = tvm.placeholder((2, 10), name='A')
     k = tvm.reduce_axis((0,10), "k")
     B = tvm.compute((2,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
-    json_str = tvm.save_json(B)
-    BB = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(B)
+    BB = tvm.ir.load_json(json_str)
     assert B.op.body[0].combiner is not None
     assert BB.op.body[0].combiner is not None
 
@@ -96,10 +96,10 @@ def test_env_func():
         return x + 1
 
     f = tvm.get_global_func("test.env_func")
-    x = tvm.get_env_func("test.env_func")
+    x = tvm.ir.EnvFunc.get("test.env_func")
     assert x.name == "test.env_func"
-    json_str = tvm.save_json([x])
-    y = tvm.load_json(json_str)[0]
+    json_str = tvm.ir.save_json([x])
+    y = tvm.ir.load_json(json_str)[0]
     assert y.name == x.name
     assert y(1) == 2
     assert y.func(1) == 2
@@ -109,8 +109,8 @@ def test_env_func():
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4
     assert x.axis == 10
-    x = tvm.load_json(tvm.save_json(x))
-    assert isinstance(x.func, tvm.container.EnvFunc)
+    x = tvm.ir.load_json(tvm.ir.save_json(x))
+    assert isinstance(x.func, tvm.ir.EnvFunc)
     assert x.func(10) == 11
 
 

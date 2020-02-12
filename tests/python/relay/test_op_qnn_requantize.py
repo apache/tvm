@@ -59,7 +59,7 @@ def get_mod(data_shape, data_dtype, out_dtype, input_scale, output_scale,
             out_dtype=out_dtype)
 
     mod = relay.Function(relay.analysis.free_vars(mod), mod)
-    mod = relay.Module.from_expr(mod)
+    mod = tvm.IRModule.from_expr(mod)
     return mod
 
 def test_same_scale():

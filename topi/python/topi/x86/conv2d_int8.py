@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member, import-outside-toplevel
 """Conv2D int8 schedule on x86"""
 
 import re
@@ -70,7 +70,7 @@ def _is_int8_hw_support(data_dtype, kernel_dtype):
     # 3) Check target
     mcpu = tvm.target.current_target().mcpu
     is_target_support = False
-    if mcpu == 'skylake-avx512' or mcpu == 'cascadelake':
+    if mcpu in ('skylake-avx512', 'cascadelake'):
         is_target_support = True
 
     return is_dtype_support and is_llvm_support and is_target_support
