@@ -188,19 +188,10 @@ def verify_model(model_name, input_data=[]):
             relay_model.run()
 
             for i, baseline_output in enumerate(baseline_outputs):
-                output_shape = baseline_output.shape
-                compiled_output = relay_model.get_output(
-                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
-
-                compiled_relay_output = relay_model.get_output(
-                    i, tvm.nd.array(np.zeros(output_shape).astype(dtype), ctx)).asnumpy()
+                compiled_output = relay_model.get_output(i).asnumpy()
 
                 assert_shapes_match(baseline_output, compiled_output)
                 tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=1e-3, atol=1e-3)
-
-                assert_shapes_match(baseline_output, compiled_relay_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_relay_output,
                                             rtol=1e-3, atol=1e-3)
 
     del model_name
