@@ -178,7 +178,7 @@ class RelayExpr : public BaseExpr {
 
 class GlobalVar;
 /*!
- * \brief Global variable that leaves in the top-level module.
+ * \brief Global variable that lives in the top-level module.
  *
  * A GlobalVar only refers to function definitions.
  * This is used to enable recursive calls between function.

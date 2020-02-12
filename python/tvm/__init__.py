@@ -33,6 +33,12 @@ from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
 from .runtime import ndarray as nd
 
+# tvm.ir
+from .ir import IRModule
+from .ir import transform
+from .ir import container
+from . import ir
+
 # others
 from . import tensor
 from . import arith
@@ -41,10 +47,8 @@ from . import stmt
 from . import make
 from . import ir_pass
 from . import codegen
-from . import container
 from . import schedule
 
-from . import attrs
 from . import ir_builder
 from . import target
 from . import generic

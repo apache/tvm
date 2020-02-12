@@ -300,10 +300,15 @@ bool SequentialNode::PassEnabled(const PassInfo& info) const {
 
 Pass GetPass(const std::string& pass_name) {
   using tvm::runtime::Registry;
-  std::string fpass_name = "relay._transform." + pass_name;
-  const auto* f = Registry::Get(fpass_name);
-  CHECK(f != nullptr) << "Cannot find " << fpass_name
-                      << "to create the pass " << pass_name;
+  const runtime::PackedFunc* f = nullptr;
+  if (pass_name.find("transform.") != std::string::npos) {
+    f = Registry::Get(pass_name);
+  } else if ((f = Registry::Get("transform." + pass_name))) {
+    // pass
+  } else if ((f = Registry::Get("relay._transform." + pass_name))) {
+  }
+  CHECK(f != nullptr) << "Cannot use " << pass_name
+                      << "to create the pass";
   return (*f)();
 }
 
@@ -311,7 +316,7 @@ Pass GetPass(const std::string& pass_name) {
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
 IRModule SequentialNode::operator()(const IRModule& module,
-                                  const PassContext& pass_ctx) const {
+                                    const PassContext& pass_ctx) const {
   IRModule mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
@@ -339,12 +344,12 @@ Pass CreateModulePass(
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_GLOBAL("relay._transform.PassInfo")
+TVM_REGISTER_GLOBAL("transform.PassInfo")
 .set_body_typed([](int opt_level, std::string name, tvm::Array<PrimExpr> required) {
   return PassInfo(opt_level, name, required);
 });
 
-TVM_REGISTER_GLOBAL("relay._transform.Info")
+TVM_REGISTER_GLOBAL("transform.Info")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
@@ -366,14 +371,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_GLOBAL("relay._transform.MakeModulePass")
+TVM_REGISTER_GLOBAL("transform.MakeModulePass")
 .set_body_typed(
   [](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
      PassInfo pass_info) {
   return ModulePass(pass_func, pass_info);
 });
 
-TVM_REGISTER_GLOBAL("relay._transform.RunPass")
+TVM_REGISTER_GLOBAL("transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   IRModule mod = args[1];
@@ -390,7 +395,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("relay._transform.Sequential")
+TVM_REGISTER_GLOBAL("transform.Sequential")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
@@ -416,7 +421,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("relay._transform.PassContext")
+TVM_REGISTER_GLOBAL("transform.PassContext")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   auto pctx = PassContext::Create();
   int opt_level = args[0];
@@ -465,13 +470,13 @@ class PassContext::Internal {
   }
 };
 
-TVM_REGISTER_GLOBAL("relay._transform.GetCurrentPassContext")
+TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext")
 .set_body_typed(PassContext::Current);
 
-TVM_REGISTER_GLOBAL("relay._transform.EnterPassContext")
+TVM_REGISTER_GLOBAL("transform.EnterPassContext")
 .set_body_typed(PassContext::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("relay._transform.ExitPassContext")
+TVM_REGISTER_GLOBAL("transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
 
 }  // namespace transform

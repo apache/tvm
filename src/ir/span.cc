@@ -45,7 +45,7 @@ SourceName SourceName::Get(const std::string& name) {
   return SourceName(GetSourceNameNode(name));
 }
 
-TVM_REGISTER_GLOBAL("relay._make.SourceName")
+TVM_REGISTER_GLOBAL("ir.SourceName")
 .set_body_typed(SourceName::Get);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -70,7 +70,7 @@ Span SpanNode::make(SourceName source, int lineno, int col_offset) {
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Span")
+TVM_REGISTER_GLOBAL("ir.Span")
 .set_body_typed(SpanNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
