@@ -26,13 +26,9 @@ from topi.nn.util import get_pad_tuple
 
 from ..environment import get_env
 
-@autotvm.register_topi_compute(topi.nn.conv2d_transpose_nchw, 'vta', 'direct')
-def _declatation_conv2d_transpose(cfg,
-                                  data,
-                                  kernel,
-                                  strides,
-                                  padding,
-                                  out_dtype):
+@autotvm.register_topi_compute("conv2d_transpose_packed.vta")
+def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype):
+    """Packed conv2d_transpose compute"""
     ishape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
     b, c_i, i_h, i_w, t_b, t_ci = ishape
@@ -75,8 +71,9 @@ def _declatation_conv2d_transpose(cfg,
 
     return out
 
-@autotvm.register_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw, 'vta', 'direct')
-def _schedule_conv2d_transpose(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_transpose_packed.vta")
+def schedule_conv2d_transpose_packed(cfg, outs):
+    """Schedule packed conv2d_transpose"""
     assert len(outs) == 1
     output = outs[0]
     ewise_inputs = []

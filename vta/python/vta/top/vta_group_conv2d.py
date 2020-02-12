@@ -24,8 +24,8 @@ import topi
 
 from ..environment import get_env
 
-@autotvm.register_topi_compute(topi.nn.group_conv2d_nchw, 'vta', 'direct')
-def packed_group_conv2d(cfg,
+@autotvm.register_topi_compute("group_conv2d_packed.vta")
+def group_conv2d_packed(cfg,
                         data,
                         kernel,
                         strides,
@@ -74,8 +74,8 @@ def packed_group_conv2d(cfg,
     return out
 
 
-@autotvm.register_topi_schedule(topi.generic.schedule_group_conv2d_nchw, 'vta', 'direct')
-def schedule_packed_group_conv2d(cfg, outs):
+@autotvm.register_topi_schedule("group_conv2d_packed.vta")
+def schedule_group_conv2d_packed(cfg, outs):
     """ Schedule the packed conv2d.
     """
     assert len(outs) == 1
