@@ -25,7 +25,6 @@ import topi
 import tvm
 from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
-from tvm.autotvm.task.topi_integration import serialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 
