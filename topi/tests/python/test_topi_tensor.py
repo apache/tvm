@@ -19,16 +19,7 @@ import numpy as np
 import tvm
 import topi
 from tvm.contrib.pickle_memoize import memoize
-from tvm.contrib.nvcc import parse_compute_version
-
-def skip_test(dtype, device):
-    if dtype == "float16" and device == "cuda":
-        major, minor = parse_compute_version(tvm.gpu(0).compute_version)
-        # fp16 starts from 5.3
-        if major < 6 or (major == 5 and minor < 3):
-            print("skip because gpu does not support fp16")
-            return True
-    return False
+from tvm.contrib.nvcc import have_fp16
 
 def verify_elemwise_sum(num_args, dtype):
     shape = (3,5,4)
@@ -99,7 +90,8 @@ def verify_vectorization(n, m, dtype):
         if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        if skip_test(dtype, device):
+        if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
             return
         with tvm.target.create(device):
             ctx = tvm.context(device, 0)
