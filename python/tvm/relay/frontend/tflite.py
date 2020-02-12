@@ -17,14 +17,14 @@
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
 
 """Tensorflow lite frontend."""
-from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from tvm import relay
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from .. import qnn as _qnn
 from ..util import get_scalar_from_constant
@@ -1901,7 +1901,7 @@ def from_tflite(model, shape_dict, dtype_dict):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.nd.NDArray
@@ -1940,5 +1940,5 @@ def from_tflite(model, shape_dict, dtype_dict):
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
     func = _expr.Function(analysis.free_vars(outputs), outputs)
-    mod = _module.Module.from_expr(func)
+    mod = IRModule.from_expr(func)
     return mod, params

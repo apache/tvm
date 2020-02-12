@@ -16,7 +16,7 @@
 # under the License.
 
 # pylint: disable=invalid-name, unused-argument
-"""FFI for tvm.runtime.extra"""
+"""FFI for tvm.node"""
 import tvm._ffi
 
 # The implementations below are default ones when the corresponding

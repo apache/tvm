@@ -42,7 +42,7 @@ def test_tuple_object():
         ]))
 
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
-    mod = relay.Module.from_expr(fn)
+    mod = tvm.IRModule.from_expr(fn)
 
     exe = relay.create_executor(
         kind="vm", mod=mod, ctx=nd.cpu(), target="llvm")

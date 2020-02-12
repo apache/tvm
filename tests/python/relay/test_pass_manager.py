@@ -79,9 +79,9 @@ class OptTester():
     """A helper class for testing the pass manager."""
 
     def __init__(self, mod):
-        if not isinstance(mod, relay.Module):
+        if not isinstance(mod, tvm.IRModule):
             raise TypeError("mod is expected to be the type of "
-                            "relay.Module")
+                            "tvm.IRModule")
         self.mod = mod
 
     def analysis(self):
@@ -91,10 +91,10 @@ class OptTester():
     @staticmethod
     def transform(node, ctx=None):
         """Perform optimization on node."""
-        if isinstance(node, relay.Module):
+        if isinstance(node, tvm.IRModule):
             # Add a function to the module and return an updated module.
             gv, func = get_var_func()
-            mod = relay.Module({gv: func})
+            mod = tvm.IRModule({gv: func})
             mod.update(node)
             return mod
         if isinstance(node, relay.Function):
@@ -121,7 +121,7 @@ def test_module_pass():
     y = relay.var("y", tp)
     v_add = relay.GlobalVar("myAdd")
     func = relay.Function([x, y], x + y)
-    mod = relay.Module({v_add: func})
+    mod = tvm.IRModule({v_add: func})
 
     pass_name = "module_pass_test"
     opt_level = 0
@@ -150,10 +150,10 @@ def test_module_pass():
 
     def test_pass_run():
         module_pass = transform
-        assert pass_name in module_pass.astext()
+        assert pass_name in str(module_pass)
 
         updated_mod = module_pass(mod)
-        assert isinstance(updated_mod, relay.Module)
+        assert isinstance(updated_mod, tvm.IRModule)
 
         # Check the abs function in the updated module.
         v_abs, myabs = get_var_func()
@@ -206,10 +206,10 @@ def test_function_class_pass():
     fpass = TestReplaceFunc(f1)
     assert fpass.info.opt_level == 1
     assert fpass.info.name == "TestReplaceFunc"
-    mod = relay.Module.from_expr(f2)
+    mod = tvm.IRModule.from_expr(f2)
     mod = fpass(mod)
     # wrap in expr
-    mod2 = relay.Module.from_expr(f1)
+    mod2 = tvm.IRModule.from_expr(f1)
     assert relay.alpha_equal(mod["main"], mod2["main"])
 
 
@@ -220,7 +220,7 @@ def test_function_pass():
     x = relay.var("x", tp)
     v_log = relay.GlobalVar("myLog")
     log = relay.Function([x], relay.log(x))
-    mod = relay.Module({v_log: log})
+    mod = tvm.IRModule({v_log: log})
 
     pass_name = "function_pass_test"
     opt_level = 1
@@ -253,10 +253,10 @@ def test_function_pass():
 
     def test_pass_run():
         function_pass = transform
-        assert pass_name in function_pass.astext()
+        assert pass_name in str(function_pass)
 
         updated_mod = function_pass(mod)
-        assert isinstance(updated_mod, relay.Module)
+        assert isinstance(updated_mod, tvm.IRModule)
 
         # Check the log function in the updated module.
         new_v_log = updated_mod.get_global_var(v_log.name_hint)
@@ -297,8 +297,8 @@ def test_module_class_pass():
             return mod
 
     x = relay.var("x", shape=(10, 20))
-    m1 = relay.Module.from_expr(relay.Function([x], x))
-    m2 = relay.Module.from_expr(relay.Function([x], relay.log(x)))
+    m1 = tvm.IRModule.from_expr(relay.Function([x], x))
+    m2 = tvm.IRModule.from_expr(relay.Function([x], relay.log(x)))
     fpass = TestPipeline(m2, replace=True)
     assert fpass.info.name == "TestPipeline"
     mod3 = fpass(m1)
@@ -326,7 +326,7 @@ def test_sequential_pass():
     v_log = relay.GlobalVar("myLog")
     log = relay.Function([z], relay.log(z))
 
-    mod = relay.Module({v_sub: sub, v_log: log})
+    mod = tvm.IRModule({v_sub: sub, v_log: log})
 
     def get_ref_log():
         ref_log = relay.Function([x], relay.log(relay.add(x, x)))
@@ -408,7 +408,7 @@ def test_sequential_pass():
     def test_multiple_passes():
         # Reset the current module since mod has been polluted by the previous
         # function pass.
-        mod = relay.Module({v_sub: sub, v_log: log})
+        mod = tvm.IRModule({v_sub: sub, v_log: log})
         passes = [module_pass, function_pass]
         sequential = _transform.Sequential(opt_level=1, passes=passes)
         required = ["mod_transform", "func_transform"]
@@ -488,7 +488,7 @@ def test_sequential_with_scoping():
         relay.transform.AlterOpLayout()
     ])
 
-    mod = relay.Module({"main": before()})
+    mod = tvm.IRModule({"main": before()})
     with relay.build_config(opt_level=3):
         with tvm.target.create("llvm"):
             mod = seq(mod)
@@ -513,7 +513,7 @@ def test_print_ir(capfd):
         relay.transform.DeadCodeElimination()
     ])
 
-    mod = relay.Module({"main": func})
+    mod = tvm.IRModule({"main": func})
     with relay.build_config(opt_level=3):
         mod = seq(mod)
 
@@ -545,7 +545,7 @@ def test_print_debug_callback():
     ])
 
     assert __TRACE_COUNTER__ == 0
-    mod = relay.Module({"main": func})
+    mod = tvm.IRModule({"main": func})
 
     with relay.build_config(opt_level=3, trace=_tracer):
         mod = seq(mod)

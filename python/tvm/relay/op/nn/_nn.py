@@ -275,7 +275,7 @@ def legalize_conv2d(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -296,7 +296,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -413,7 +413,7 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current Transposed convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -947,7 +947,7 @@ def legalize_bitserial_conv2d(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized

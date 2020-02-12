@@ -16,9 +16,9 @@
 # under the License.
 """The interface of expr function exposed from C++."""
 import tvm._ffi
+from tvm.ir import container as _container
 
 from ... import build_module as _build
-from ... import container as _container
 
 
 @tvm._ffi.register_func("relay.backend.lower")

@@ -34,11 +34,11 @@ def test_type_var():
         "attrs": {"tvm_version": "0.6.0"},
         "b64ndarrays": [],
     }
-    tvar = tvm.load_json(json.dumps(data))
+    tvar = tvm.ir.load_json(json.dumps(data))
     assert isinstance(tvar, relay.TypeVar)
     assert tvar.name_hint == "in0"
     nodes[1]["type_key"] = "relay.GlobalTypeVar"
-    tvar = tvm.load_json(json.dumps(data))
+    tvar = tvm.ir.load_json(json.dumps(data))
     assert isinstance(tvar, relay.GlobalTypeVar)
     assert tvar.name_hint == "in0"
 

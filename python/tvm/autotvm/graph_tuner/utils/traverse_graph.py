@@ -20,6 +20,7 @@ import threading
 
 import topi
 
+import tvm
 from tvm import relay, autotvm
 from tvm.relay import transform
 from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
@@ -83,7 +84,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
 
 def _infer_type(node):
     """A method to infer the type of a relay expression."""
-    mod = relay.Module.from_expr(node)
+    mod = tvm.IRModule.from_expr(node)
     mod = transform.InferType()(mod)
     entry = mod["main"]
     return entry if isinstance(node, relay.Function) else entry.body
@@ -136,7 +137,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                     free_var = relay.Var("var_%d" % i, input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
-                mod = relay.Module.from_expr(relay.Function(params, call))
+                mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
                 build_thread = threading.Thread(target=relay.build,
                                                 args=(mod,

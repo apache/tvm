@@ -79,7 +79,7 @@ def conv2d_legalize(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -101,7 +101,7 @@ def conv2d_alter_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols

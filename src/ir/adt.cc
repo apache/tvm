@@ -38,7 +38,7 @@ Constructor::Constructor(std::string name_hint,
 
 TVM_REGISTER_NODE_TYPE(ConstructorNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Constructor")
+TVM_REGISTER_GLOBAL("ir.Constructor")
 .set_body_typed([](std::string name_hint,
                    tvm::Array<Type> inputs,
                    GlobalTypeVar belong_to) {
@@ -64,7 +64,7 @@ TypeData::TypeData(GlobalTypeVar header,
 
 TVM_REGISTER_NODE_TYPE(TypeDataNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeData")
+TVM_REGISTER_GLOBAL("ir.TypeData")
 .set_body_typed([](GlobalTypeVar header,
                    tvm::Array<TypeVar> type_vars,
                    tvm::Array<Constructor> constructors) {

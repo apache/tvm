@@ -82,7 +82,7 @@ def test_bound_vars():
 
 
 def test_match_vars():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
     x = relay.Var('x')

@@ -290,7 +290,7 @@ def get_workload(batch_size=1, num_classes=1000,
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module that contains an Inception V3 network.
 
     params : dict of str to NDArray

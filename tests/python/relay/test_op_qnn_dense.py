@@ -201,7 +201,7 @@ def qnn_dense_driver(test_configuration):
         expected_out_dtype = requantize_config['out_dtype']
 
     mod = relay.Function(relay.analysis.free_vars(mod), mod)
-    mod = relay.Module.from_expr(mod)
+    mod = tvm.IRModule.from_expr(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     with relay.build_config(opt_level=2):
         graph, lib, params = relay.build(mod, "llvm", params=None)

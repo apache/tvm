@@ -20,11 +20,11 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
+from tvm.ir import RelayExpr, IRModule
+
 from . import _analysis
 from . import _make
-from .expr import Expr
 from .ty import Type
-from .module import Module
 from .feature import Feature
 
 
@@ -70,7 +70,7 @@ def check_kind(t, mod=None):
     t : tvm.relay.Type
         The type to check
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
         The global module.
 
     Returns
@@ -169,7 +169,7 @@ def free_type_vars(expr, mod=None):
     expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
         The global module
 
     Returns
@@ -177,7 +177,7 @@ def free_type_vars(expr, mod=None):
     free : List[tvm.relay.TypeVar]
         The list of free type variables in post-DFS order
     """
-    use_mod = mod if mod is not None else Module()
+    use_mod = mod if mod is not None else IRModule()
     return _analysis.free_type_vars(expr, use_mod)
 
 
@@ -189,7 +189,7 @@ def bound_type_vars(expr, mod=None):
     expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
         The global module
 
     Returns
@@ -197,7 +197,7 @@ def bound_type_vars(expr, mod=None):
     free : List[tvm.relay.TypeVar]
         The list of bound type variables in post-DFS order
     """
-    use_mod = mod if mod is not None else Module()
+    use_mod = mod if mod is not None else IRModule()
     return _analysis.bound_type_vars(expr, use_mod)
 
 
@@ -209,7 +209,7 @@ def all_type_vars(expr, mod=None):
     expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
         The global module
 
     Returns
@@ -217,7 +217,7 @@ def all_type_vars(expr, mod=None):
     free : List[tvm.relay.TypeVar]
         The list of all type variables in post-DFS order
     """
-    use_mod = mod if mod is not None else Module()
+    use_mod = mod if mod is not None else IRModule()
     return _analysis.all_type_vars(expr, use_mod)
 
 
@@ -353,7 +353,7 @@ def unmatched_cases(match, mod=None):
     match : tvm.relay.Match
         The match expression
 
-    mod : Optional[tvm.relay.Module]
+    mod : Optional[tvm.IRModule]
         The module (defaults to an empty module)
 
     Returns
@@ -370,10 +370,10 @@ def detect_feature(a, b=None):
 
     Parameters
     ----------
-    a : Union[tvm.relay.Expr, tvm.relay.Module]
+    a : Union[tvm.relay.Expr, tvm.IRModule]
       The input expression or module.
 
-    b : Optional[Union[tvm.relay.Expr, tvm.relay.Module]]
+    b : Optional[Union[tvm.relay.Expr, tvm.IRModule]]
       The input expression or module.
       The two arguments cannot both be expression or module.
 
@@ -382,7 +382,7 @@ def detect_feature(a, b=None):
     features : Set[Feature]
       Features used in the program.
     """
-    if isinstance(a, Module):
+    if isinstance(a, IRModule):
         a, b = b, a
     return {Feature(int(x)) for x in _analysis.detect_feature(a, b)}
 
@@ -400,7 +400,7 @@ def structural_hash(value):
     result : int
       The hash value
     """
-    if isinstance(value, Expr):
+    if isinstance(value, RelayExpr):
         return int(_analysis._expr_hash(value))
     elif isinstance(value, Type):
         return int(_analysis._type_hash(value))

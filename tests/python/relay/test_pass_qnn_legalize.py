@@ -34,7 +34,7 @@ def alpha_equal(x, y):
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -114,7 +114,7 @@ def test_qnn_legalize_qnn_conv2d():
                 kernel_layout='OIHW')
 
         mod = relay.Function(relay.analysis.free_vars(func), func)
-        mod = relay.Module.from_expr(mod)
+        mod = tvm.IRModule.from_expr(mod)
         return mod
 
     # Check uint8 x uint8 and int8 x int8 transformation
@@ -193,7 +193,7 @@ def test_qnn_legalize_qnn_dense():
                 out_dtype='int32')
 
         mod = relay.Function(relay.analysis.free_vars(func), func)
-        mod = relay.Module.from_expr(mod)
+        mod = tvm.IRModule.from_expr(mod)
         return mod
 
     # Check uint8 x uint8 and int8 x int8 transformation

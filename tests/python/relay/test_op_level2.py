@@ -237,7 +237,7 @@ def test_conv2d_run():
                             groups=groups,
                             **attrs)
         func = relay.Function([x, w], y)
-        mod = tvm.relay.Module()
+        mod = tvm.IRModule()
         mod["main"] = func
 
         test_schedule='{"i": ["llvm -device=arm_cpu", "topi_nn_depthwise_conv2d_nchw", \
@@ -276,7 +276,7 @@ def test_conv2d_run():
     dshape = (1, 512, 32, 32)
     kshape = (512, 1, 3, 3)
     compile_test_conv2d_arm_cpu("float32", "float32", 1, dshape, kshape,
-                                padding=(1, 1), channels=512, 
+                                padding=(1, 1), channels=512,
                                 groups=512, kernel_size=(3 ,3))
 
     # CUDA is disabled for 'direct' schedule:
@@ -344,7 +344,7 @@ def test_conv2d_winograd():
                             groups=groups,
                             **attrs)
         func = relay.Function([x, w], y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         mod['main'] = func
         mod = relay.transform.InferType()(mod)
 

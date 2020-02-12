@@ -98,7 +98,7 @@ def get_qnn_func(data,
             kernel_layout=kernel_layout)
 
     mod = relay.Function(relay.analysis.free_vars(func), func)
-    mod = relay.Module.from_expr(mod)
+    mod = tvm.IRModule.from_expr(mod)
     return mod
 
 def get_funcs(data_shape,
@@ -138,7 +138,7 @@ def get_funcs(data_shape,
                             groups,
                             channels)
     ref_func = run_infer_type(ref_func)
-    ref_func = relay.Module.from_expr(ref_func)
+    ref_func = tvm.IRModule.from_expr(ref_func)
     qnn_func = get_qnn_func(data,
                             kernel,
                             input_zero_point,
@@ -759,7 +759,7 @@ def test_broadcast_layout():
         func = relay.add(bias, func)
         func = relay.add(func, bias)
         func = relay.Function(relay.analysis.free_vars(func), func)
-        mod = relay.Module.from_expr(func)
+        mod = tvm.IRModule.from_expr(func)
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm -mcpu=skylake-avx512")
 
@@ -896,7 +896,7 @@ def test_per_channel_kernel_scale():
                 out_dtype="int32")
 
         mod = relay.Function(relay.analysis.free_vars(func), func)
-        mod = relay.Module.from_expr(mod)
+        mod = tvm.IRModule.from_expr(mod)
 
 if __name__ == "__main__":
     test_no_zero_point()

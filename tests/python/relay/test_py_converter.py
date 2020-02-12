@@ -199,7 +199,7 @@ def test_local_function():
 
 
 def test_global_function():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     ident = relay.GlobalVar('ident')
     a = relay.TypeVar('a')
     v = relay.Var('v', a)
@@ -218,7 +218,7 @@ def test_global_function():
 
 
 def test_constructor():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
 
     init_box_int = box_ctor(relay.const(1))
@@ -235,7 +235,7 @@ def test_constructor():
 
 
 def test_match_wildcard():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     match = relay.Let(
@@ -249,7 +249,7 @@ def test_match_wildcard():
 
 
 def test_match_var():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -265,7 +265,7 @@ def test_match_var():
 
 
 def test_match_pattern():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -279,7 +279,7 @@ def test_match_pattern():
 
 
 def test_nested_match_pattern():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -296,7 +296,7 @@ def test_nested_match_pattern():
     assert_tensor_value(match_val, 2)
 
 def test_match_order():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -316,7 +316,7 @@ def test_match_order():
 
 
 def test_local_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -342,11 +342,11 @@ def test_local_recursion():
     assert_tensor_value(val.fields[1].fields[0], 2)
     assert_constructor_value(val.fields[1].fields[1], p.cons, 2)
     assert_tensor_value(val.fields[1].fields[1].fields[0], 3)
-    assert_constructor_value(val.fields[1].fields[1].fields[1], p.nil, 0) 
+    assert_constructor_value(val.fields[1].fields[1].fields[1], p.nil, 0)
 
 
 def test_global_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     copy = relay.GlobalVar('copy')
     # same as above: it copies the given list
@@ -398,7 +398,7 @@ def test_higher_order_call():
 
 
 def test_match_effect_exactly_once():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     # the list should be of length 1!
@@ -423,7 +423,7 @@ def test_match_effect_exactly_once():
 
 def test_arbitrary_let_nesting():
     # something that is tricky to do in Python but comes naturally in Relay
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     x = relay.Var('x')
     r = relay.Var('r')

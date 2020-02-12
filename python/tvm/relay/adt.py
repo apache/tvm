@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
+# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-import
 """Algebraic data types in Relay."""
+from tvm.ir import Constructor, TypeData
+
 from .base import RelayNode, register_relay_node, Object
 from . import _make
 from .ty import Type
-from .expr import Expr, Call
+from .expr import ExprWithOp, RelayExpr, Call
 
 
 class Pattern(RelayNode):
@@ -113,77 +115,6 @@ class PatternTuple(Pattern):
 
 
 @register_relay_node
-class Constructor(Expr):
-    """Relay ADT constructor."""
-
-    def __init__(self, name_hint, inputs, belong_to):
-        """Defines an ADT constructor.
-
-        Parameters
-        ----------
-        name_hint : str
-            Name of constructor (only a hint).
-        inputs : List[Type]
-            Input types.
-        belong_to : tvm.relay.GlobalTypeVar
-            Denotes which ADT the constructor belongs to.
-
-        Returns
-        -------
-        con: Constructor
-            A constructor.
-        """
-        self.__init_handle_by_constructor__(_make.Constructor, name_hint, inputs, belong_to)
-
-    def __call__(self, *args):
-        """Call the constructor.
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            The arguments to the constructor.
-
-        Returns
-        -------
-        call: relay.Call
-            A call to the constructor.
-        """
-        return Call(self, args)
-
-
-@register_relay_node
-class TypeData(Type):
-    """Stores the definition for an Algebraic Data Type (ADT) in Relay.
-
-    Note that ADT definitions are treated as type-level functions because
-    the type parameters need to be given for an instance of the ADT. Thus,
-    any global type var that is an ADT header needs to be wrapped in a
-    type call that passes in the type params.
-    """
-
-    def __init__(self, header, type_vars, constructors):
-        """Defines a TypeData object.
-
-        Parameters
-        ----------
-        header: tvm.relay.GlobalTypeVar
-            The name of the ADT.
-            ADTs with the same constructors but different names are
-            treated as different types.
-        type_vars: List[TypeVar]
-            Type variables that appear in constructors.
-        constructors: List[tvm.relay.Constructor]
-            The constructors for the ADT.
-
-        Returns
-        -------
-        type_data: TypeData
-            The adt declaration.
-        """
-        self.__init_handle_by_constructor__(_make.TypeData, header, type_vars, constructors)
-
-
-@register_relay_node
 class Clause(Object):
     """Clause for pattern matching in Relay."""
 
@@ -206,7 +137,7 @@ class Clause(Object):
 
 
 @register_relay_node
-class Match(Expr):
+class Match(ExprWithOp):
     """Pattern matching expression in Relay."""
 
     def __init__(self, data, clauses, complete=True):

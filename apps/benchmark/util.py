@@ -34,7 +34,7 @@ def get_network(name, batch_size, dtype='float32'):
 
     Returns
     -------
-    net: relay.Module
+    net: tvm.IRModule
         The relay function of network definition
     params: dict
         The random parameters for benchmark
@@ -70,7 +70,7 @@ def get_network(name, batch_size, dtype='float32'):
         net, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
         net = net["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
-        net = relay.Module.from_expr(net)
+        net = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 

@@ -311,7 +311,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols

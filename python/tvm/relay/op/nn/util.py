@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
-from __future__ import absolute_import
-from .... import container
+from tvm.ir import container
+
 
 def get_pad_tuple2d(padding):
     """Common code to get the pad option

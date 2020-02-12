@@ -330,7 +330,7 @@ def get_synthetic_lib():
     sub2 = relay.subtract(add2, w7)
     ret = relay.concatenate((subgraph0_ret, subgraph1_ret, sub2), 0)
     func = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], ret)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     _, lib, _ = relay.build(mod, "llvm")
     return lib
 

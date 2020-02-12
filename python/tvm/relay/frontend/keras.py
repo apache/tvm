@@ -19,9 +19,10 @@
 import sys
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable, new_var
@@ -752,7 +753,7 @@ def from_keras(model, shape=None):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.nd.NDArray
@@ -837,4 +838,4 @@ def from_keras(model, shape=None):
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
     func = _expr.Function(analysis.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
-    return _module.Module.from_expr(func), params
+    return IRModule.from_expr(func), params
