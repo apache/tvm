@@ -23,6 +23,7 @@ from ..base import register_relay_node
 from ..expr import RelayExpr
 from ...api import register_func
 from ...target import get_native_generic_func, GenericFunc
+from ...runtime import Object
 from . import _make
 
 @register_relay_node
@@ -143,8 +144,8 @@ class OpPattern(object):
     OPAQUE = 8
 
 
-@register_relay_node
-class OpImplement(Expr):
+@tvm._ffi.register_object("relay.OpImplement")
+class OpImplement(Object):
     """Operator implementation"""
     def compute(self, attrs, inputs, out_type):
         """Call compute function.
@@ -189,13 +190,13 @@ class OpImplement(Expr):
         return _OpImplementSchedule(self, attrs, outs, target)
 
 
-@register_relay_node
-class OpSpecialization(Expr):
+@tvm._ffi.register_object("relay.OpSpecialization")
+class OpSpecialization(Object):
     """Operator specialization"""
 
 
-@register_relay_node
-class OpStrategy(Expr):
+@tvm._ffi.register_object("relay.OpStrategy")
+class OpStrategy(Object):
     """Operator strategy"""
     def __init__(self):
         self.__init_handle_by_constructor__(_make.OpStrategy)
