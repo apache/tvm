@@ -24,21 +24,18 @@ Python API
    tvm
    runtime
    ndarray
+   error
+   ir
    intrin
    tensor
    schedule
    target
    build
-   module
-   error
-   container
    function
    autotvm
-   graph_runtime
    rpc
-   bridge
    contrib
-   ffi
+   graph_runtime
    dev
    topi
    vta/index

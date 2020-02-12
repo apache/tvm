@@ -112,7 +112,7 @@ class IRModule(Node):
 
         Parameters
         ----------
-        other: Module
+        other: IRModule
             The module to merge into the current Module.
         """
         if isinstance(other, dict):
@@ -143,7 +143,7 @@ class IRModule(Node):
 
         Returns
         -------
-        global_vars: tvm.Array[GlobalVar]
+        global_vars: Array[GlobalVar]
             An array of global vars.
         """
         return _ffi_api.Module_GetGlobalVars(self)
@@ -153,7 +153,7 @@ class IRModule(Node):
 
         Returns
         -------
-        global_type_vars: tvm.Array[GlobalTypeVar]
+        global_type_vars: Array[GlobalTypeVar]
             An array of global type vars.
         """
         return _ffi_api.Module_GetGlobalTypeVars(self)
