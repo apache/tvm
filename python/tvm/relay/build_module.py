@@ -275,7 +275,7 @@ def optimize(mod, target=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    if isinstance(mod, _Module):
+    if isinstance(mod, IRModule):
         func = mod["main"]
     elif isinstance(mod, _expr.Function):
         func = mod
