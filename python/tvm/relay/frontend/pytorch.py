@@ -21,10 +21,10 @@
 import numpy as np
 
 import tvm
+from tvm.ir import module as _module
 
 from .. import analysis as _analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
@@ -811,7 +811,7 @@ class Graph(object):
 
         param = {k: tvm.nd.array(v) for k, v in self._param_tensors.items()}
 
-        return  _module.Module.from_expr(func), param
+        return  _module.IRModule.from_expr(func), param
 
     def _parse_inputs(self):
         """ Map inputs to parser and inputs to graph. """
