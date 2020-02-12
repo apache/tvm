@@ -24,7 +24,7 @@ from .type_relation import TypeCall, TypeRelation
 from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc, Range
 from .adt import Constructor, TypeData
 from .module import IRModule
-from .attrs import Attrs
+from .attrs import Attrs, make_node
 from .container import Array, Map
 
 from . import transform

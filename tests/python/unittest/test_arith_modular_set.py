@@ -84,7 +84,7 @@ def test_min_max_select():
     assert m.coeff == 3
     assert m.base == 1
 
-    m = analyzer.modular_set(tvm.expr.Select(x > 0, x * 3 + 1, y * 9 + 2))
+    m = analyzer.modular_set(tvm.tir.Select(x > 0, x * 3 + 1, y * 9 + 2))
     assert m.coeff == 1
     assert m.base == 0
 

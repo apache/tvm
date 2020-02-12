@@ -27,16 +27,16 @@ For example, you can use addexp.a to get the left operand of an Add node.
 
   x = tvm.var("n")
   y = x + 2
-  assert(isinstance(y, tvm.expr.Add))
+  assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
-# pylint: disable=missing-docstring
 import tvm._ffi
-from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode, const
 
-from . import make as _make
+from tvm.runtime import Object, ObjectGeneric, DataType, TypeCode, const
+from tvm.ir import PrimExpr
+import tvm.ir._ffi_api
 from . import generic as _generic
-from . import _api_internal
+from . import _ffi_api
 
 
 def div_ambiguity_error():
@@ -44,6 +44,7 @@ def div_ambiguity_error():
         "TVM supports multiple types of integer divisions, " +
         "please call div, indexdiv/indexmod, floordiv/floormod " +
         " or truncdiv/truncmod directly to avoid ambiguity in the code.")
+
 
 def _dtype_is_int(value):
     if isinstance(value, int):
@@ -53,6 +54,7 @@ def _dtype_is_int(value):
 
 
 class ExprOp(object):
+    """Operator overloading for Expr like expressions."""
     def __add__(self, other):
         return _generic.add(self, other)
 
@@ -98,44 +100,44 @@ class ExprOp(object):
         return _generic.floordiv(other, self)
 
     def __mod__(self, other):
-        return _make._OpFloorMod(self, other)
+        return _ffi_api._OpFloorMod(self, other)
 
     def __neg__(self):
         neg_one = const(-1, self.dtype)
         return self.__mul__(neg_one)
 
     def __lshift__(self, other):
-        return _make.left_shift(self, other)
+        return _ffi_api.left_shift(self, other)
 
     def __rshift__(self, other):
-        return _make.right_shift(self, other)
+        return _ffi_api.right_shift(self, other)
 
     def __and__(self, other):
-        return _make.bitwise_and(self, other)
+        return _ffi_api.bitwise_and(self, other)
 
     def __rand__(self, other):
-        return _make.bitwise_and(other, self)
+        return _ffi_api.bitwise_and(other, self)
 
     def __or__(self, other):
-        return _make.bitwise_or(self, other)
+        return _ffi_api.bitwise_or(self, other)
 
     def __ror__(self, other):
-        return _make.bitwise_or(other, self)
+        return _ffi_api.bitwise_or(other, self)
 
     def __xor__(self, other):
-        return _make.bitwise_xor(self, other)
+        return _ffi_api.bitwise_xor(self, other)
 
     def __rxor__(self, other):
-        return _make.bitwise_xor(other, self)
+        return _ffi_api.bitwise_xor(other, self)
 
     def __invert__(self):
-        return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
+        return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
-        return _make._OpLT(self, other)
+        return _ffi_api._OpLT(self, other)
 
     def __le__(self, other):
-        return _make._OpLE(self, other)
+        return _ffi_api._OpLE(self, other)
 
     def __eq__(self, other):
         return EqualOp(self, other)
@@ -144,10 +146,10 @@ class ExprOp(object):
         return NotEqualOp(self, other)
 
     def __gt__(self, other):
-        return _make._OpGT(self, other)
+        return _ffi_api._OpGT(self, other)
 
     def __ge__(self, other):
-        return _make._OpGE(self, other)
+        return _ffi_api._OpGE(self, other)
 
     def __nonzero__(self):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
@@ -161,15 +163,15 @@ class ExprOp(object):
 
         Parameters
         ----------
-        other : Expr
+        other : PrimExpr
             The other expression
 
         Returns
         -------
-        ret : Expr
+        ret : PrimExpr
             The equality expression.
         """
-        return _make._OpEQ(self, other)
+        return _ffi_api._OpEQ(self, other)
 
     def astype(self, dtype):
         """Cast the expression to other type.
@@ -181,7 +183,7 @@ class ExprOp(object):
 
         Returns
         -------
-        expr : Expr
+        expr : PrimExpr
             Expression with new type
         """
         return _generic.cast(self, dtype)
@@ -195,10 +197,10 @@ class EqualOp(ObjectGeneric, ExprOp):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         Left operand.
 
-    b : Expr
+    b : PrimExpr
         Right operand.
     """
     # This class is not manipulated by C++. So use python's identity check function is sufficient
@@ -216,7 +218,7 @@ class EqualOp(ObjectGeneric, ExprOp):
 
     def asobject(self):
         """Convert object."""
-        return _make._OpEQ(self.a, self.b)
+        return _ffi_api._OpEQ(self.a, self.b)
 
 
 class NotEqualOp(ObjectGeneric, ExprOp):
@@ -227,10 +229,10 @@ class NotEqualOp(ObjectGeneric, ExprOp):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         Left operand.
 
-    b : Expr
+    b : PrimExpr
         Right operand.
     """
     # This class is not manipulated by C++. So use python's identity check function is sufficient
@@ -248,30 +250,30 @@ class NotEqualOp(ObjectGeneric, ExprOp):
 
     def asobject(self):
         """Convert object."""
-        return _make._OpNE(self.a, self.b)
+        return _ffi_api._OpNE(self.a, self.b)
 
 
-class PrimExpr(ExprOp, Object):
-    """Base class of all tvm Expressions"""
+class PrimExprWithOp(ExprOp, PrimExpr):
+    """Helper base class to inherit from PrimExpr."""
     # In Python3, We have to explicitly tell interpreter to retain __hash__ if we overide __eq__
     # https://docs.python.org/3.1/reference/datamodel.html#object.__hash__
-    __hash__ = Object.__hash__
+    __hash__ = PrimExpr.__hash__
 
 
-class ConstExpr(PrimExpr):
+class ConstExpr(PrimExprWithOp):
     pass
 
-class BinaryOpExpr(PrimExpr):
+class BinaryOpExpr(PrimExprWithOp):
     pass
 
-class CmpExpr(PrimExpr):
+class CmpExpr(PrimExprWithOp):
     pass
 
-class LogicalExpr(PrimExpr):
+class LogicalExpr(PrimExprWithOp):
     pass
 
 @tvm._ffi.register_object("Variable")
-class Var(PrimExpr):
+class Var(PrimExprWithOp):
     """Symbolic variable.
 
     Parameters
@@ -279,18 +281,18 @@ class Var(PrimExpr):
     name : str
         The name
 
-    dtype : int
+    dtype : str
         The data type
     """
     def __init__(self, name, dtype):
         self.__init_handle_by_constructor__(
-            _api_internal._Var, name, dtype)
+            _ffi_api.Var, name, dtype)
 
 
 @tvm._ffi.register_object
 class SizeVar(Var):
     """Symbolic variable to represent a tensor index size
-       which is greater or equal to zero
+       which is greater or equal to zero.
 
     Parameters
     ----------
@@ -303,11 +305,34 @@ class SizeVar(Var):
     # pylint: disable=super-init-not-called
     def __init__(self, name, dtype):
         self.__init_handle_by_constructor__(
-            _api_internal._SizeVar, name, dtype)
+            _ffi_api.SizeVar, name, dtype)
 
 
 @tvm._ffi.register_object
-class Reduce(PrimExpr):
+class CommReducer(Object):
+    """Communicative reduce operator
+
+    Parameters
+    ----------
+    lhs : List[Var]
+       The left arguments of the reducer.
+
+    rhs : List[Var]
+       The right arguments of the reducer.
+
+    result : List[PrimExpr]
+       The reduction results.
+
+    identity_element : List[PrimExpr]
+       The identity elements.
+    """
+    def __init__(self, lhs, rhs, result, identity_element):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CommReducer, lhs, rhs, result, identity_element)
+
+
+@tvm._ffi.register_object
+class Reduce(PrimExprWithOp):
     """Reduce node.
 
     Parameters
@@ -321,7 +346,7 @@ class Reduce(PrimExpr):
     rdom : list of IterVar
         The iteration domain
 
-    condition : Expr
+    condition : PrimExpr
         The reduce condition.
 
     value_index : int
@@ -329,7 +354,7 @@ class Reduce(PrimExpr):
     """
     def __init__(self, combiner, src, rdom, condition, value_index):
         self.__init_handle_by_constructor__(
-            _make.Reduce, combiner, src, rdom,
+            _ffi_api.Reduce, combiner, src, rdom,
             condition, value_index)
 
 
@@ -347,7 +372,7 @@ class FloatImm(ConstExpr):
     """
     def __init__(self, dtype, value):
         self.__init_handle_by_constructor__(
-            _make.FloatImm, dtype, value)
+            tvm.ir._ffi_api.FloatImm, dtype, value)
 
 @tvm._ffi.register_object
 class IntImm(ConstExpr):
@@ -363,7 +388,7 @@ class IntImm(ConstExpr):
     """
     def __init__(self, dtype, value):
         self.__init_handle_by_constructor__(
-            _make.IntImm, dtype, value)
+            tvm.ir._ffi_api.IntImm, dtype, value)
 
     def __int__(self):
         return self.value
@@ -380,7 +405,7 @@ class StringImm(ConstExpr):
     """
     def __init__(self, value):
         self.__init_handle_by_constructor__(
-            _make.StringImm, value)
+            _ffi_api.StringImm, value)
 
     def __eq__(self, other):
         if isinstance(other, ConstExpr):
@@ -394,7 +419,7 @@ class StringImm(ConstExpr):
 
 
 @tvm._ffi.register_object
-class Cast(PrimExpr):
+class Cast(PrimExprWithOp):
     """Cast expression.
 
     Parameters
@@ -402,12 +427,12 @@ class Cast(PrimExpr):
     dtype : str
         The data type
 
-    value : Expr
+    value : PrimExpr
         The value of the function.
     """
     def __init__(self, dtype, value):
         self.__init_handle_by_constructor__(
-            _make.Cast, dtype, value)
+            _ffi_api.Cast, dtype, value)
 
 
 @tvm._ffi.register_object
@@ -416,15 +441,15 @@ class Add(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Add, a, b)
+            _ffi_api.Add, a, b)
 
 
 @tvm._ffi.register_object
@@ -433,15 +458,15 @@ class Sub(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Sub, a, b)
+            _ffi_api.Sub, a, b)
 
 
 @tvm._ffi.register_object
@@ -450,15 +475,15 @@ class Mul(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Mul, a, b)
+            _ffi_api.Mul, a, b)
 
 
 @tvm._ffi.register_object
@@ -467,15 +492,15 @@ class Div(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Div, a, b)
+            _ffi_api.Div, a, b)
 
 
 @tvm._ffi.register_object
@@ -484,15 +509,15 @@ class Mod(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Mod, a, b)
+            _ffi_api.Mod, a, b)
 
 
 @tvm._ffi.register_object
@@ -501,15 +526,15 @@ class FloorDiv(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.FloorDiv, a, b)
+            _ffi_api.FloorDiv, a, b)
 
 
 @tvm._ffi.register_object
@@ -518,15 +543,15 @@ class FloorMod(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.FloorMod, a, b)
+            _ffi_api.FloorMod, a, b)
 
 
 @tvm._ffi.register_object
@@ -535,15 +560,15 @@ class Min(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Min, a, b)
+            _ffi_api.Min, a, b)
 
 
 @tvm._ffi.register_object
@@ -552,15 +577,15 @@ class Max(BinaryOpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Max, a, b)
+            _ffi_api.Max, a, b)
 
 
 @tvm._ffi.register_object
@@ -569,15 +594,15 @@ class EQ(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.EQ, a, b)
+            _ffi_api.EQ, a, b)
 
 
 @tvm._ffi.register_object
@@ -586,15 +611,15 @@ class NE(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.NE, a, b)
+            _ffi_api.NE, a, b)
 
 
 @tvm._ffi.register_object
@@ -603,15 +628,15 @@ class LT(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.LT, a, b)
+            _ffi_api.LT, a, b)
 
 
 @tvm._ffi.register_object
@@ -620,15 +645,15 @@ class LE(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.LE, a, b)
+            _ffi_api.LE, a, b)
 
 
 @tvm._ffi.register_object
@@ -637,15 +662,15 @@ class GT(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.GT, a, b)
+            _ffi_api.GT, a, b)
 
 
 @tvm._ffi.register_object
@@ -654,15 +679,15 @@ class GE(CmpExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.GE, a, b)
+            _ffi_api.GE, a, b)
 
 
 @tvm._ffi.register_object
@@ -671,15 +696,15 @@ class And(LogicalExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.And, a, b)
+            _ffi_api.And, a, b)
 
 
 @tvm._ffi.register_object
@@ -688,15 +713,15 @@ class Or(LogicalExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The left hand operand.
 
-    b : Expr
+    b : PrimExpr
         The right hand operand.
     """
     def __init__(self, a, b):
         self.__init_handle_by_constructor__(
-            _make.Or, a, b)
+            _ffi_api.Or, a, b)
 
 
 @tvm._ffi.register_object
@@ -705,16 +730,16 @@ class Not(LogicalExpr):
 
     Parameters
     ----------
-    a : Expr
+    a : PrimExpr
         The input value
     """
     def __init__(self, a):
         self.__init_handle_by_constructor__(
-            _make.Not, a)
+            _ffi_api.Not, a)
 
 
 @tvm._ffi.register_object
-class Select(PrimExpr):
+class Select(PrimExprWithOp):
     """Select node.
 
     Note
@@ -726,23 +751,23 @@ class Select(PrimExpr):
 
     Parameters
     ----------
-    condition : Expr
+    condition : PrimExpr
         The condition expression.
 
-    true_value : Expr
+    true_value : PrimExpr
         The value to take when condition is true.
 
-    false_value : Expr
+    false_value : PrimExpr
         The value to take when condition is false.
 
     """
     def __init__(self, condition, true_value, false_value):
         self.__init_handle_by_constructor__(
-            _make.Select, condition, true_value, false_value)
+            _ffi_api.Select, condition, true_value, false_value)
 
 
 @tvm._ffi.register_object
-class Load(PrimExpr):
+class Load(PrimExprWithOp):
     """Load node.
 
     Parameters
@@ -753,24 +778,25 @@ class Load(PrimExpr):
     buffer_var : Var
         The buffer variable in the load expression.
 
-    index : Expr
+    index : PrimExpr
         The index in the load.
 
-    predicate : Expr
+    predicate : PrimExpr
         The load predicate.
     """
-    def __init__(self, dtype, buffer_var, index, predicate):
+    def __init__(self, dtype, buffer_var, index, predicate=None):
+        args = [] if predicate is None else [predicate]
         self.__init_handle_by_constructor__(
-            _make.Load, dtype, buffer_var, index, predicate)
+            _ffi_api.Load, dtype, buffer_var, index, *args)
 
 
 @tvm._ffi.register_object
-class Ramp(PrimExpr):
+class Ramp(PrimExprWithOp):
     """Ramp node.
 
     Parameters
     ----------
-    base : Expr
+    base : PrimExpr
         The base expression.
 
     stride : ramp stride
@@ -781,16 +807,16 @@ class Ramp(PrimExpr):
     """
     def __init__(self, base, stride, lanes):
         self.__init_handle_by_constructor__(
-            _make.Ramp, base, stride, lanes)
+            _ffi_api.Ramp, base, stride, lanes)
 
 
 @tvm._ffi.register_object
-class Broadcast(PrimExpr):
+class Broadcast(PrimExprWithOp):
     """Broadcast node.
 
     Parameters
     ----------
-    value : Expr
+    value : PrimExpr
         The value of the expression.
 
     lanes : int
@@ -798,11 +824,11 @@ class Broadcast(PrimExpr):
     """
     def __init__(self, value, lanes):
         self.__init_handle_by_constructor__(
-            _make.Broadcast, value, lanes)
+            _ffi_api.Broadcast, value, lanes)
 
 
 @tvm._ffi.register_object
-class Shuffle(PrimExpr):
+class Shuffle(PrimExprWithOp):
     """Shuffle node.
 
     Parameters
@@ -815,11 +841,11 @@ class Shuffle(PrimExpr):
     """
     def __init__(self, vectors, indices):
         self.__init_handle_by_constructor__(
-            _make.Shuffle, vectors, indices)
+            _ffi_api.Shuffle, vectors, indices)
 
 
 @tvm._ffi.register_object
-class Call(PrimExpr):
+class Call(PrimExprWithOp):
     """Call node.
 
     Parameters
@@ -850,11 +876,11 @@ class Call(PrimExpr):
     PureIntrinsic = 5
     def __init__(self, dtype, name, args, call_type, func, value_index):
         self.__init_handle_by_constructor__(
-            _make.Call, dtype, name, args, call_type, func, value_index)
+            _ffi_api.Call, dtype, name, args, call_type, func, value_index)
 
 
 @tvm._ffi.register_object
-class Let(PrimExpr):
+class Let(PrimExprWithOp):
     """Let node.
 
     Parameters
@@ -862,12 +888,12 @@ class Let(PrimExpr):
     var : Var
         The variable in the binding.
 
-    value : Expr
+    value : PrimExpr
         The value in to be binded.
 
-    body : Expr
+    body : PrimExpr
         The body expression.
     """
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
-            _make.Let, var, value, body)
+            _ffi_api.Let, var, value, body)

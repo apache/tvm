@@ -25,9 +25,9 @@ def test_stmt_simplify():
         with ib.if_scope(i < 12):
             A[i] = C[i]
 
-    body = tvm.stmt.LetStmt(n, 10, ib.get())
+    body = tvm.tir.LetStmt(n, 10, ib.get())
     body = tvm.ir_pass.CanonicalSimplify(body)
-    assert isinstance(body.body, tvm.stmt.Store)
+    assert isinstance(body.body, tvm.tir.Store)
 
 
 def test_thread_extent_simplify():
@@ -42,9 +42,9 @@ def test_thread_extent_simplify():
     ib.scope_attr(ty, "thread_extent", 1)
     with ib.if_scope(tx + ty < 12):
         A[tx] = C[tx + ty]
-    body = tvm.stmt.LetStmt(n, 10, ib.get())
+    body = tvm.tir.LetStmt(n, 10, ib.get())
     body = tvm.ir_pass.CanonicalSimplify(body)
-    assert isinstance(body.body.body.body, tvm.stmt.Store)
+    assert isinstance(body.body.body.body, tvm.tir.Store)
 
 
 def test_basic_likely_elimination():

@@ -29,31 +29,31 @@ def test_vector_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     # Add rules
-    ck.verify(tvm.expr.Ramp(x, 1, 4) + tvm.expr.Ramp(y, 2, 4),
-              tvm.expr.Ramp(x + y, 3, 4))
-    ck.verify(tvm.expr.Ramp(x, 1, 2) + y,
-              tvm.expr.Ramp(x + y, 1, 2))
-    ck.verify(y + tvm.expr.Ramp(x, 1, 2) ,
-              tvm.expr.Ramp(y + x, 1, 2))
+    ck.verify(tvm.tir.Ramp(x, 1, 4) + tvm.tir.Ramp(y, 2, 4),
+              tvm.tir.Ramp(x + y, 3, 4))
+    ck.verify(tvm.tir.Ramp(x, 1, 2) + y,
+              tvm.tir.Ramp(x + y, 1, 2))
+    ck.verify(y + tvm.tir.Ramp(x, 1, 2) ,
+              tvm.tir.Ramp(y + x, 1, 2))
     ck.verify(y.astype("int32x2") + x.astype("int32x2"),
               (y + x).astype("int32x2"))
     # Sub rules
-    ck.verify(tvm.expr.Ramp(x, 4, 4) - tvm.expr.Ramp(y, 2, 4),
-              tvm.expr.Ramp(x - y, 2, 4))
-    ck.verify(tvm.expr.Ramp(x, 1, 2) - y,
-              tvm.expr.Ramp(x - y, 1, 2))
-    ck.verify(y - tvm.expr.Ramp(x, 1, 2) ,
-              tvm.expr.Ramp(y - x, -1, 2))
+    ck.verify(tvm.tir.Ramp(x, 4, 4) - tvm.tir.Ramp(y, 2, 4),
+              tvm.tir.Ramp(x - y, 2, 4))
+    ck.verify(tvm.tir.Ramp(x, 1, 2) - y,
+              tvm.tir.Ramp(x - y, 1, 2))
+    ck.verify(y - tvm.tir.Ramp(x, 1, 2) ,
+              tvm.tir.Ramp(y - x, -1, 2))
     ck.verify(y.astype("int32x2") - x.astype("int32x2"),
               (y - x).astype("int32x2"))
 
     # Mul rules
     ck.verify(y.astype("int32x2") * x.astype("int32x2"),
               (y * x).astype("int32x2"))
-    ck.verify(tvm.expr.Ramp(x, 4, 4) * 2,
-              tvm.expr.Ramp(x * 2, 8, 4))
-    ck.verify(2 * tvm.expr.Ramp(x, 4, 4),
-              tvm.expr.Ramp(x * 2, 8, 4))
+    ck.verify(tvm.tir.Ramp(x, 4, 4) * 2,
+              tvm.tir.Ramp(x * 2, 8, 4))
+    ck.verify(2 * tvm.tir.Ramp(x, 4, 4),
+              tvm.tir.Ramp(x * 2, 8, 4))
 
     ## DivMod rules
     tdiv = tvm.truncdiv
@@ -61,21 +61,21 @@ def test_vector_simplify():
     # truc div
     ck.verify(tdiv(y.astype("int32x2"), x.astype("int32x2")),
               tdiv(y, x).astype("int32x2"))
-    ck.verify(tdiv(tvm.expr.Ramp(x, 4, 4), 2),
-              tvm.expr.Ramp(tdiv(x, 2), 2, 4))
+    ck.verify(tdiv(tvm.tir.Ramp(x, 4, 4), 2),
+              tvm.tir.Ramp(tdiv(x, 2), 2, 4))
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 1000), override=True)
-    ck.verify(tdiv(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
+    ck.verify(tdiv(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8),
               (x).astype("int32x4"))
-    ck.verify(tdiv(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8),
-              tdiv(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8))
+    ck.verify(tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8),
+              tdiv(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
     ck.verify(tmod(y.astype("int32x2"), x.astype("int32x2")),
               tmod(y, x).astype("int32x2"))
-    ck.verify(tmod(tvm.expr.Ramp(x, 4, 4), 2),
-              tvm.expr.Broadcast(tmod(x, 2), 4))
-    ck.verify(tmod(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
-              tvm.expr.Ramp(1, 1, 4))
-    ck.verify(tmod(tvm.expr.Ramp(x * 8 + 1, 15, 4), 8),
-              tmod(tvm.expr.Ramp(1, 15, 4), 8))
+    ck.verify(tmod(tvm.tir.Ramp(x, 4, 4), 2),
+              tvm.tir.Broadcast(tmod(x, 2), 4))
+    ck.verify(tmod(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8),
+              tvm.tir.Ramp(1, 1, 4))
+    ck.verify(tmod(tvm.tir.Ramp(x * 8 + 1, 15, 4), 8),
+              tmod(tvm.tir.Ramp(1, 15, 4), 8))
 
     # floor div
     fld = tvm.floordiv
@@ -83,20 +83,20 @@ def test_vector_simplify():
     ck.analyzer.update(x, tvm.arith.ConstIntBound(-10, 1000), override=True)
     ck.verify(fld(y.astype("int32x2"), x.astype("int32x2")),
               fld(y, x).astype("int32x2"))
-    ck.verify(fld(tvm.expr.Ramp(x, 4, 4), 2),
-              tvm.expr.Ramp(fld(x, 2), 2, 4))
-    ck.verify(fld(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
+    ck.verify(fld(tvm.tir.Ramp(x, 4, 4), 2),
+              tvm.tir.Ramp(fld(x, 2), 2, 4))
+    ck.verify(fld(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8),
               (x).astype("int32x4"))
-    ck.verify(fld(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8),
-              fld(tvm.expr.Ramp(x * 8 + 15, 1, 4), 8))
+    ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8),
+              fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
     ck.verify(flm(y.astype("int32x2"), x.astype("int32x2")),
               flm(y, x).astype("int32x2"))
-    ck.verify(flm(tvm.expr.Ramp(x, 4, 4), 2),
-              tvm.expr.Broadcast(flm(x, 2), 4))
-    ck.verify(flm(tvm.expr.Ramp(x * 8 + 1, 1, 4), 8),
-              tvm.expr.Ramp(1, 1, 4))
-    ck.verify(flm(tvm.expr.Ramp(x * 8 + 1, 15, 4), 8),
-              flm(tvm.expr.Ramp(1, 15, 4), 8))
+    ck.verify(flm(tvm.tir.Ramp(x, 4, 4), 2),
+              tvm.tir.Broadcast(flm(x, 2), 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 8 + 1, 1, 4), 8),
+              tvm.tir.Ramp(1, 1, 4))
+    ck.verify(flm(tvm.tir.Ramp(x * 8 + 1, 15, 4), 8),
+              flm(tvm.tir.Ramp(1, 15, 4), 8))
 
     # Min/Max rules
     vx = tvm.var("vx", dtype="int32x2")
@@ -113,8 +113,8 @@ def test_vector_simplify():
     ## Logical rules
     ck.verify(y.astype("int32x2").equal(x.astype("int32x2")),
               (y.equal(x)).astype("uint1x2"))
-    ck.verify(tvm.expr.NE(y.astype("int32x2"), (x.astype("int32x2"))),
-              (tvm.expr.NE(y, x)).astype("uint1x2"))
+    ck.verify(tvm.tir.NE(y.astype("int32x2"), (x.astype("int32x2"))),
+              (tvm.tir.NE(y, x)).astype("uint1x2"))
     ck.verify(y.astype("int32x2") > x.astype("int32x2"),
               (x < y).astype("uint1x2"))
     ck.verify(y.astype("int32x2") >= x.astype("int32x2"),
@@ -123,32 +123,32 @@ def test_vector_simplify():
               (y < x).astype("uint1x2"))
     ck.verify(y.astype("int32x2") <= x.astype("int32x2"),
               (y <= x).astype("uint1x2"))
-    ck.verify(tvm.expr.And(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
-              (tvm.expr.And(y <= x, vc)).astype("uint1x2"))
-    ck.verify(tvm.expr.Or(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
-              (tvm.expr.Or(y <= x, vc)).astype("uint1x2"))
+    ck.verify(tvm.tir.And(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
+              (tvm.tir.And(y <= x, vc)).astype("uint1x2"))
+    ck.verify(tvm.tir.Or(y.astype("int32x2") <= x.astype("int32x2"), vc.astype("uint1x2")),
+              (tvm.tir.Or(y <= x, vc)).astype("uint1x2"))
 
 
 def test_select_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
     # Add rules
-    ck.verify(tvm.expr.Select(x < 0, y, 0) + tvm.expr.Select(x < 0, 1, z),
-              tvm.expr.Select(x < 0, y + 1, z))
-    ck.verify(tvm.expr.Select(x < 0, y, 1) - tvm.expr.Select(x < 0, 1, z),
-              tvm.expr.Select(x < 0, y + (-1), 1 - z))
-    ck.verify(tvm.expr.Select(x < 0, y, z) - y,
-              tvm.expr.Select(x < 0, 0, z - y))
-    ck.verify(tvm.expr.Select(x < 0, y, z) - z,
-              tvm.expr.Select(x < 0, y - z, 0))
-    ck.verify(tvm.min(tvm.expr.Select(x < 0, y, 0), tvm.expr.Select(x < 0, 1, z)),
-              tvm.expr.Select(x < 0, tvm.min(y, 1), tvm.min(0, z)))
-    ck.verify(tvm.max(tvm.expr.Select(x < 0, y, 0), tvm.expr.Select(x < 0, 1, z)),
-              tvm.expr.Select(x < 0, tvm.max(y, 1), tvm.max(0, z)))
+    ck.verify(tvm.tir.Select(x < 0, y, 0) + tvm.tir.Select(x < 0, 1, z),
+              tvm.tir.Select(x < 0, y + 1, z))
+    ck.verify(tvm.tir.Select(x < 0, y, 1) - tvm.tir.Select(x < 0, 1, z),
+              tvm.tir.Select(x < 0, y + (-1), 1 - z))
+    ck.verify(tvm.tir.Select(x < 0, y, z) - y,
+              tvm.tir.Select(x < 0, 0, z - y))
+    ck.verify(tvm.tir.Select(x < 0, y, z) - z,
+              tvm.tir.Select(x < 0, y - z, 0))
+    ck.verify(tvm.min(tvm.tir.Select(x < 0, y, 0), tvm.tir.Select(x < 0, 1, z)),
+              tvm.tir.Select(x < 0, tvm.min(y, 1), tvm.min(0, z)))
+    ck.verify(tvm.max(tvm.tir.Select(x < 0, y, 0), tvm.tir.Select(x < 0, 1, z)),
+              tvm.tir.Select(x < 0, tvm.max(y, 1), tvm.max(0, z)))
 
-    ck.verify(tvm.expr.Select(x * 3 + 1 != 0, y, z), y)
-    ck.verify(tvm.expr.Select(x * 3 + 1 == 0, y, z), z)
-    ck.verify(tvm.expr.Select(x > 0, y + 1, y + 1), y + 1)
+    ck.verify(tvm.tir.Select(x * 3 + 1 != 0, y, z), y)
+    ck.verify(tvm.tir.Select(x * 3 + 1 == 0, y, z), z)
+    ck.verify(tvm.tir.Select(x > 0, y + 1, y + 1), y + 1)
 
 
 def test_add_index_simplify():
@@ -633,7 +633,7 @@ def test_cmp_simplify():
     tmod = tvm.truncmod
     # const int bound
     ck.verify((tmod(x, 2) + 10).equal(0), tvm.const(0, "bool"))
-    ck.verify(tvm.expr.NE(tmod(x, 2) + 10, 0), tvm.const(1, "bool"))
+    ck.verify(tvm.tir.NE(tmod(x, 2) + 10, 0), tvm.const(1, "bool"))
     ck.verify(tmod(x, 2) + 10 > 1, tvm.const(1, "bool"))
     ck.verify(tmod(x, 2) + 10 <= 1, tvm.const(0, "bool"))
     ck.verify(flm(x, 2) + 2 > 1, tvm.const(1, "bool"))
@@ -645,7 +645,7 @@ def test_cmp_simplify():
     # canonicalization
     ck.verify((x - 10).equal(0), x.equal(10))
     ck.verify((10 - x).equal(0), x.equal(10))
-    ck.verify((x * y).equal(0), tvm.expr.Or(x.equal(0), y.equal(0)))
+    ck.verify((x * y).equal(0), tvm.tir.Or(x.equal(0), y.equal(0)))
 
     # cmp bound
     ck.verify(x + y < x + z, y < z)
@@ -655,104 +655,104 @@ def test_cmp_simplify():
     ck.verify(y - x < z - x, y < z)
     ck.verify(x - y < x - z, z < y)
 
-    ck.verify(x < z + x, tvm.expr.LT(0, z))
-    ck.verify(x < x + z, tvm.expr.LT(0, z))
+    ck.verify(x < z + x, tvm.tir.LT(0, z))
+    ck.verify(x < x + z, tvm.tir.LT(0, z))
 
-    ck.verify(100 < x + 1, tvm.expr.LT(99, x))
-    ck.verify(1 < 100 - x, tvm.expr.LT(x, 99))
+    ck.verify(100 < x + 1, tvm.tir.LT(99, x))
+    ck.verify(1 < 100 - x, tvm.tir.LT(x, 99))
     ck.verify(x * 3 < y * 3, x < y)
     ck.verify(x * (-3) < y * (-3), y < x)
     ck.verify(x * 3 >= y * 3, y <= x)
 
-    ck.verify(x * 4 >= 2, tvm.expr.LE(1, x))
-    ck.verify(x * 2 >= 50, tvm.expr.LE(25, x))
+    ck.verify(x * 4 >= 2, tvm.tir.LE(1, x))
+    ck.verify(x * 2 >= 50, tvm.tir.LE(25, x))
     ck.verify(x * 4 <= 2, x <= 0)
-    ck.verify((0 - x * 3) <= 0, tvm.expr.LE(0, x))
-    ck.verify((0 - x * 3) >= 0, tvm.expr.LE(x, 0))
+    ck.verify((0 - x * 3) <= 0, tvm.tir.LE(0, x))
+    ck.verify((0 - x * 3) >= 0, tvm.tir.LE(x, 0))
     ck.verify(2 * x <= 0, x <= 0)
 
-    ck.verify(x * 2 >= 3, tvm.expr.LE(2, x))
-    ck.verify(x * 2 >= 2, tvm.expr.LE(1, x))
-    ck.verify(x * 2 >= 1, tvm.expr.LE(1, x))
-    ck.verify(x * 2 >= 0, tvm.expr.LE(0, x))
-    ck.verify(x * 2 >= -1, tvm.expr.LE(0, x))
-    ck.verify(x * 2 >= -2, tvm.expr.LE(-1, x))
-    ck.verify(x * 2 >= -3, tvm.expr.LE(-1, x))
+    ck.verify(x * 2 >= 3, tvm.tir.LE(2, x))
+    ck.verify(x * 2 >= 2, tvm.tir.LE(1, x))
+    ck.verify(x * 2 >= 1, tvm.tir.LE(1, x))
+    ck.verify(x * 2 >= 0, tvm.tir.LE(0, x))
+    ck.verify(x * 2 >= -1, tvm.tir.LE(0, x))
+    ck.verify(x * 2 >= -2, tvm.tir.LE(-1, x))
+    ck.verify(x * 2 >= -3, tvm.tir.LE(-1, x))
 
-    ck.verify(x * 2 <= 3, tvm.expr.LE(x, 1))
-    ck.verify(x * 2 <= 2, tvm.expr.LE(x, 1))
-    ck.verify(x * 2 <= 1, tvm.expr.LE(x, 0))
-    ck.verify(x * 2 <= 0, tvm.expr.LE(x, 0))
-    ck.verify(x * 2 <= -1, tvm.expr.LE(x, -1))
-    ck.verify(x * 2 <= -2, tvm.expr.LE(x, -1))
-    ck.verify(x * 2 <= -3, tvm.expr.LE(x, -2))
+    ck.verify(x * 2 <= 3, tvm.tir.LE(x, 1))
+    ck.verify(x * 2 <= 2, tvm.tir.LE(x, 1))
+    ck.verify(x * 2 <= 1, tvm.tir.LE(x, 0))
+    ck.verify(x * 2 <= 0, tvm.tir.LE(x, 0))
+    ck.verify(x * 2 <= -1, tvm.tir.LE(x, -1))
+    ck.verify(x * 2 <= -2, tvm.tir.LE(x, -1))
+    ck.verify(x * 2 <= -3, tvm.tir.LE(x, -2))
 
-    ck.verify(x * (-2) >= 3, tvm.expr.LE(x, -2))
-    ck.verify(x * (-2) >= 2, tvm.expr.LE(x, -1))
-    ck.verify(x * (-2) >= 1, tvm.expr.LE(x, -1))
-    ck.verify(x * (-2) >= 0, tvm.expr.LE(x, 0))
-    ck.verify(x * (-2) >= -1, tvm.expr.LE(x, 0))
-    ck.verify(x * (-2) >= -2, tvm.expr.LE(x, 1))
-    ck.verify(x * (-2) >= -3, tvm.expr.LE(x, 1))
+    ck.verify(x * (-2) >= 3, tvm.tir.LE(x, -2))
+    ck.verify(x * (-2) >= 2, tvm.tir.LE(x, -1))
+    ck.verify(x * (-2) >= 1, tvm.tir.LE(x, -1))
+    ck.verify(x * (-2) >= 0, tvm.tir.LE(x, 0))
+    ck.verify(x * (-2) >= -1, tvm.tir.LE(x, 0))
+    ck.verify(x * (-2) >= -2, tvm.tir.LE(x, 1))
+    ck.verify(x * (-2) >= -3, tvm.tir.LE(x, 1))
 
-    ck.verify(x * (-2) <= 3, tvm.expr.LE(-1, x))
-    ck.verify(x * (-2) <= 2, tvm.expr.LE(-1, x))
-    ck.verify(x * (-2) <= 1, tvm.expr.LE(0, x))
-    ck.verify(x * (-2) <= 0, tvm.expr.LE(0, x))
-    ck.verify(x * (-2) <= -1, tvm.expr.LE(1, x))
-    ck.verify(x * (-2) <= -2, tvm.expr.LE(1, x))
-    ck.verify(x * (-2) <= -3, tvm.expr.LE(2, x))
+    ck.verify(x * (-2) <= 3, tvm.tir.LE(-1, x))
+    ck.verify(x * (-2) <= 2, tvm.tir.LE(-1, x))
+    ck.verify(x * (-2) <= 1, tvm.tir.LE(0, x))
+    ck.verify(x * (-2) <= 0, tvm.tir.LE(0, x))
+    ck.verify(x * (-2) <= -1, tvm.tir.LE(1, x))
+    ck.verify(x * (-2) <= -2, tvm.tir.LE(1, x))
+    ck.verify(x * (-2) <= -3, tvm.tir.LE(2, x))
 
     # DivMod rules
     # truc div
     ck.verify(tdiv(x, 2) < 3, x < 6)
-    ck.verify(3 < tdiv(x, 2), tvm.expr.LT(7, x))
-    ck.verify(tdiv(x, 3) >= 0, tvm.expr.LE(-2, x))
-    ck.verify(tdiv(x, 2) >= 1, tvm.expr.LE(2, x))
-    ck.verify(tdiv(x, 2) >= 0, tvm.expr.LE(-1, x))
-    ck.verify(tdiv(x, 2) >= -1, tvm.expr.LE(-3, x))
+    ck.verify(3 < tdiv(x, 2), tvm.tir.LT(7, x))
+    ck.verify(tdiv(x, 3) >= 0, tvm.tir.LE(-2, x))
+    ck.verify(tdiv(x, 2) >= 1, tvm.tir.LE(2, x))
+    ck.verify(tdiv(x, 2) >= 0, tvm.tir.LE(-1, x))
+    ck.verify(tdiv(x, 2) >= -1, tvm.tir.LE(-3, x))
 
-    ck.verify(tdiv(x, 2) <= 1, tvm.expr.LE(x, 3))
-    ck.verify(tdiv(x, 2) <= 0, tvm.expr.LE(x, 1))
-    ck.verify(tdiv(x, 2) <= -1, tvm.expr.LE(x, -2))
+    ck.verify(tdiv(x, 2) <= 1, tvm.tir.LE(x, 3))
+    ck.verify(tdiv(x, 2) <= 0, tvm.tir.LE(x, 1))
+    ck.verify(tdiv(x, 2) <= -1, tvm.tir.LE(x, -2))
 
-    ck.verify(tdiv(x, 4) * 4 < x, tvm.expr.LT(0, tmod(x, 4)))
-    ck.verify(tdiv(x, 4) * 4 >= x, tvm.expr.LE(tmod(x, 4), 0))
+    ck.verify(tdiv(x, 4) * 4 < x, tvm.tir.LT(0, tmod(x, 4)))
+    ck.verify(tdiv(x, 4) * 4 >= x, tvm.tir.LE(tmod(x, 4), 0))
 
-    ck.verify(tdiv(x, 4) * 4 < x + y, tvm.expr.LT(0, tmod(x, 4) + y))
-    ck.verify(tdiv(x, 4) * 4 < x - y, tvm.expr.LT(y, tmod(x, 4)))
+    ck.verify(tdiv(x, 4) * 4 < x + y, tvm.tir.LT(0, tmod(x, 4) + y))
+    ck.verify(tdiv(x, 4) * 4 < x - y, tvm.tir.LT(y, tmod(x, 4)))
 
-    ck.verify(tdiv(x + 2, 4) * 4 >= x, tvm.expr.LE(tmod(x + 2, 4), 2))
-    ck.verify(tdiv(x + 2, 4) * 4 >= x + y, tvm.expr.LE(tmod(x + 2, 4) + y, 2))
-    ck.verify(tdiv(x + 2, 4) * 4 >= x - y, tvm.expr.LE(tmod(x + 2, 4) + (-2), y))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x, tvm.tir.LE(tmod(x + 2, 4), 2))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x + y, tvm.tir.LE(tmod(x + 2, 4) + y, 2))
+    ck.verify(tdiv(x + 2, 4) * 4 >= x - y, tvm.tir.LE(tmod(x + 2, 4) + (-2), y))
 
     # floor div
     ck.verify(fld(x, 2) < 3, x < 6)
-    ck.verify(3 < fld(x, 2), tvm.expr.LT(7, x))
-    ck.verify(-3 < fld(x, 2), tvm.expr.LT(-5, x))
-    ck.verify(fld(x, 3) >= 0, tvm.expr.LE(0, x))
-    ck.verify(fld(x, 2) >= 1, tvm.expr.LE(2, x))
-    ck.verify(fld(x, 2) >= 0, tvm.expr.LE(0, x))
-    ck.verify(fld(x, 2) >= -1, tvm.expr.LE(-2, x))
+    ck.verify(3 < fld(x, 2), tvm.tir.LT(7, x))
+    ck.verify(-3 < fld(x, 2), tvm.tir.LT(-5, x))
+    ck.verify(fld(x, 3) >= 0, tvm.tir.LE(0, x))
+    ck.verify(fld(x, 2) >= 1, tvm.tir.LE(2, x))
+    ck.verify(fld(x, 2) >= 0, tvm.tir.LE(0, x))
+    ck.verify(fld(x, 2) >= -1, tvm.tir.LE(-2, x))
 
-    ck.verify(fld(x, 2) <= 1, tvm.expr.LE(x, 3))
-    ck.verify(fld(x, 2) <= 0, tvm.expr.LE(x, 1))
-    ck.verify(fld(x, 2) <= -1, tvm.expr.LE(x, -1))
+    ck.verify(fld(x, 2) <= 1, tvm.tir.LE(x, 3))
+    ck.verify(fld(x, 2) <= 0, tvm.tir.LE(x, 1))
+    ck.verify(fld(x, 2) <= -1, tvm.tir.LE(x, -1))
 
-    ck.verify(fld(x, 4) * 4 < x, tvm.expr.LT(0, flm(x, 4)))
-    ck.verify(fld(x, 4) * 4 >= x, tvm.expr.LE(flm(x, 4), 0))
+    ck.verify(fld(x, 4) * 4 < x, tvm.tir.LT(0, flm(x, 4)))
+    ck.verify(fld(x, 4) * 4 >= x, tvm.tir.LE(flm(x, 4), 0))
 
-    ck.verify(fld(x, 4) * 4 < x + y, tvm.expr.LT(0, flm(x, 4) + y))
-    ck.verify(fld(x, 4) * 4 < x - y, tvm.expr.LT(y, flm(x, 4)))
+    ck.verify(fld(x, 4) * 4 < x + y, tvm.tir.LT(0, flm(x, 4) + y))
+    ck.verify(fld(x, 4) * 4 < x - y, tvm.tir.LT(y, flm(x, 4)))
 
-    ck.verify(fld(x + 2, 4) * 4 >= x, tvm.expr.LE(flm(x + 2, 4), 2))
-    ck.verify(fld(x + 2, 4) * 4 >= x + y, tvm.expr.LE(flm(x + 2, 4) + y, 2))
-    ck.verify(fld(x + 2, 4) * 4 >= x - y, tvm.expr.LE(flm(x + 2, 4) + (-2), y))
+    ck.verify(fld(x + 2, 4) * 4 >= x, tvm.tir.LE(flm(x + 2, 4), 2))
+    ck.verify(fld(x + 2, 4) * 4 >= x + y, tvm.tir.LE(flm(x + 2, 4) + y, 2))
+    ck.verify(fld(x + 2, 4) * 4 >= x - y, tvm.tir.LE(flm(x + 2, 4) + (-2), y))
     # End DivMod Rules
 
     ck.verify(tvm.min(x, 11) < 10, x < 10)
     ck.verify(tvm.min(x, 8) < 10, tvm.const(1, "bool"))
-    ck.verify(tvm.max(8, x) > 10, tvm.expr.LT(10, x))
+    ck.verify(tvm.max(8, x) > 10, tvm.tir.LT(10, x))
     ck.verify(x + 1 < tvm.max(8, x), x < 7)
 
     ck.analyzer.update(x, tvm.arith.ConstIntBound(0, 10), override=True)
@@ -777,48 +777,48 @@ def test_logical_simplify():
     ck = RewriteChecker()
     x, y, z = tvm.var("x"), tvm.var("y"), tvm.var("z")
 
-    ck.verify(tvm.expr.And(tvm.expr.EQ(x, y), tvm.expr.NE(x, y)),
+    ck.verify(tvm.tir.And(tvm.tir.EQ(x, y), tvm.tir.NE(x, y)),
               tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(tvm.expr.NE(x, y), tvm.expr.EQ(x, y)),
+    ck.verify(tvm.tir.And(tvm.tir.NE(x, y), tvm.tir.EQ(x, y)),
               tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x > 1, tvm.expr.Not(x > 1)), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x <= y, y < x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(y < x, x <= y), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x < 1, 0 < x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x < 0, 1 < x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x < 1, 1 <= x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x <= 1, 1 < x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(1 <= x, x < 1), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(1 < x, x <= 1), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x <= 1, 2 <= x), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(2 <= x, x <= 1), tvm.const(False, "bool"))
-    ck.verify(tvm.expr.And(x == 1, x != 2), x == 1)
+    ck.verify(tvm.tir.And(x > 1, tvm.tir.Not(x > 1)), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x <= y, y < x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(y < x, x <= y), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x < 1, 0 < x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x < 0, 1 < x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x < 1, 1 <= x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x <= 1, 1 < x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(1 <= x, x < 1), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(1 < x, x <= 1), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x <= 1, 2 <= x), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(2 <= x, x <= 1), tvm.const(False, "bool"))
+    ck.verify(tvm.tir.And(x == 1, x != 2), x == 1)
 
 
-    ck.verify(tvm.expr.Or(tvm.expr.EQ(x, y), tvm.expr.NE(x, y)),
+    ck.verify(tvm.tir.Or(tvm.tir.EQ(x, y), tvm.tir.NE(x, y)),
               tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(tvm.expr.NE(x, y), tvm.expr.EQ(x, y)),
+    ck.verify(tvm.tir.Or(tvm.tir.NE(x, y), tvm.tir.EQ(x, y)),
               tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x > y, tvm.expr.Not(x > y)), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x > y, tvm.tir.Not(x > y)), tvm.const(True, "bool"))
 
-    ck.verify(tvm.expr.Or(x <= y, y < x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(y < x, y >= x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x <= y, y < x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(y < x, y >= x), tvm.const(True, "bool"))
 
-    ck.verify(tvm.expr.Or(x < 1, 0 < x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(0 < x, x < 1), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x < 1, 0 < x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(0 < x, x < 1), tvm.const(True, "bool"))
 
-    ck.verify(tvm.expr.Or(x < 1, 1 <= x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x <= 1, 1 < x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(1 <= x, x < 1), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(1 < x, x <= 1), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x <= 1, 2 <= x), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(2 <= x, x <= 1), tvm.const(True, "bool"))
-    ck.verify(tvm.expr.Or(x != 1, x == 2), x != 1)
+    ck.verify(tvm.tir.Or(x < 1, 1 <= x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x <= 1, 1 < x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(1 <= x, x < 1), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(1 < x, x <= 1), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x <= 1, 2 <= x), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(2 <= x, x <= 1), tvm.const(True, "bool"))
+    ck.verify(tvm.tir.Or(x != 1, x == 2), x != 1)
 
 def test_let_simplify():
     ck = RewriteChecker()
     x, y = tvm.var("x"), tvm.var("y")
-    z = tvm.expr.Let(x, 1, x + 1)
+    z = tvm.tir.Let(x, 1, x + 1)
     ck.verify(z + z, 4)
 
 def test_cast_simplify():
@@ -827,11 +827,11 @@ def test_cast_simplify():
 
     dtypes = ["float32", "float16", "int32", "int8", "bool"]
     for dtype1 in dtypes:
-        ck.verify(tvm.expr.Cast(dtype1, x - x), tvm.const(0, dtype1))
-        ck.verify(tvm.expr.Cast(dtype1, x == x), tvm.const(1, dtype1))
+        ck.verify(tvm.tir.Cast(dtype1, x - x), tvm.const(0, dtype1))
+        ck.verify(tvm.tir.Cast(dtype1, x == x), tvm.const(1, dtype1))
         for dtype2 in dtypes:
             for i in [0, 1, 2, 3]:
-                ck.verify(tvm.expr.Cast(dtype1, tvm.const(i, dtype2)), tvm.const(i, dtype1))
+                ck.verify(tvm.tir.Cast(dtype1, tvm.const(i, dtype2)), tvm.const(i, dtype1))
 
 if __name__ == "__main__":
     test_floordiv_index_simplify()

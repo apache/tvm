@@ -20,6 +20,7 @@
 /*!
  * \file buffer.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/expr.h>
@@ -460,5 +461,25 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
+
+
+TVM_REGISTER_GLOBAL("tir.Buffer")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    CHECK_EQ(args.size(), 10);
+    auto buffer_type = args[9].operator std::string();
+    BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
+    *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4],
+                            args[5], args[6], args[7], args[8], type);
+  });
+
+TVM_REGISTER_GLOBAL("tir.BufferAccessPtr")
+.set_body_method(&Buffer::access_ptr);
+
+TVM_REGISTER_GLOBAL("tir.BufferVLoad")
+.set_body_method(&Buffer::vload);
+
+TVM_REGISTER_GLOBAL("tir.BufferVStore")
+.set_body_method(&Buffer::vstore);
+
 }  // namespace tir
 }  // namespace tvm

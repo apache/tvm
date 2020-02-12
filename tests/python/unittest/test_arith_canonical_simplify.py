@@ -151,9 +151,9 @@ def test_reduce_combiner_simplify():
     prod = comm_reducer(lambda x, y: x*y, lambda t0: tvm.const(1, t0))
 
     sum_or_prod = comm_reducer(
-        lambda x, y: tvm.expr.Select(dummy < 0,
+        lambda x, y: tvm.tir.Select(dummy < 0,
                                      x + y, x*y),
-        lambda t0: tvm.expr.Select(dummy < 0,
+        lambda t0: tvm.tir.Select(dummy < 0,
                                    tvm.const(0, t0), tvm.const(1, t0)))
     sum_and_prod = comm_reducer(
         lambda x, y: (x[0] + y[0],
@@ -199,7 +199,7 @@ def test_reduce_combiner_simplify():
             assert tvm.ir_pass.Equal(lhs, rhs)
 
     # Test that components with side effects are not removed
-    side_effect = lambda *xs: tvm.make.Call("int32", "dummy", xs, tvm.expr.Call.Intrinsic, None, 0)
+    side_effect = lambda *xs: tvm.tir.Call("int32", "dummy", xs, tvm.tir.Call.Intrinsic, None, 0)
     ck.verify(sum_and_prod((A[k], side_effect(A[10-k])), k)[0],
              sum_and_prod((A[k], side_effect(A[10-k])), k)[0])
     ck.verify(sum_and_prod((side_effect(A[k]), A[10-k]), k)[0],
@@ -211,7 +211,7 @@ def test_reduce_simplify():
     k = tvm.reduce_axis((0, 10), name="k")
     j = tvm.reduce_axis((-5, 3), name="j")
     A = tvm.placeholder((10,), name='A')
-    ck.verify(tvm.sum(tvm.expr.Select(k + j < 12, k + j, 0), [k, j]),
+    ck.verify(tvm.sum(tvm.tir.Select(k + j < 12, k + j, 0), [k, j]),
               tvm.sum(k + j, [k, j]))
     ck.verify(tvm.sum(A[3], []), A[3])
     # The rule below is not typical, removed for now
@@ -235,23 +235,23 @@ def test_simplify_if_then_else():
                                             tmod(tmod(((x*4) + y)  - 466036, 24528) -24512, 16),
                                             x), y)
     expected = tvm.if_then_else(
-        tvm.expr.LE(466036, (x * 4 + y)),
-        tvm.if_then_else(tvm.expr.LE(24512, tmod(((x*4) + y) - 4, 24528)),
+        tvm.tir.LE(466036, (x * 4 + y)),
+        tvm.if_then_else(tvm.tir.LE(24512, tmod(((x*4) + y) - 4, 24528)),
                                      tmod(((x*4) + y)  - 4, 16),
                          x), y)
     ck.verify(res, expected)
     ck.verify(res2, expected)
     # can only simplify if condition
-    res = tvm.expr.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3))
-    expected = tvm.expr.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3))
+    res = tvm.tir.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 100, 3), tmod(x + 100, 3))
+    expected = tvm.tir.Select(tvm.all(x >= -1, y >= 0), tmod(x + y + 1, 3), tmod(x + 100, 3))
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
-    res = tvm.expr.Select(x >= 10,
+    res = tvm.tir.Select(x >= 10,
                           tvm.if_then_else(tdiv(x, 3) > 2, x, 0), 0)
-    expected = tvm.expr.Select(x >= 10, x, 0)
+    expected = tvm.tir.Select(x >= 10, x, 0)
     ck.verify(res, ck.analyzer.canonical_simplify(expected))
 
-    res = tvm.expr.Select(x >= 10,
+    res = tvm.tir.Select(x >= 10,
                           tvm.if_then_else(tdiv(x, 3) < 2, x, 0), 0)
     ck.verify(res, 0)
 
