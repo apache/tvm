@@ -17,9 +17,24 @@
 """Common utilities for testing autotvm"""
 import time
 
+import numpy as np
+
 import tvm
 from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
+from tvm.autotvm.measure.measure import Runner
+
+
+class DummyRunner(Runner):
+    def __init__(self):
+        super(DummyRunner, self).__init__(1, 1)
+
+    def run(self, measure_inputs, build_results):
+        return [MeasureResult((np.random.random(),), 0, 0.2, time.time())
+                for _ in range(len(measure_inputs))]
+
+    def get_build_kwargs(self):
+        return {}
 
 @autotvm.template
 def matmul(N, L, M, dtype):
@@ -82,4 +97,3 @@ def get_sample_records(n):
         inps.append(MeasureInput(target, tsk, tsk.config_space.get(i)))
         ress.append(MeasureResult((i+1,), 0, i, time.time()))
     return list(zip(inps, ress))
-
