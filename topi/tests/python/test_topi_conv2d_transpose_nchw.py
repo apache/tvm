@@ -24,6 +24,14 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
+_conv2d_transpose_nchw_implement = {
+    "generic": (topi.nn.conv2d_transpose_nchw, topi.generic.schedule_conv2d_transpose_nchw),
+    "cpu": (topi.x86.conv2d_transpose_nchw, topi.x86.schedule_conv2d_transpose_nchw),
+    "arm_cpu": (topi.arm_cpu.conv2d_transpose_nchw, topi.arm_cpu.schedule_conv2d_transpose_nchw),
+    "gpu": (topi.cuda.conv2d_transpose_nchw, topi.cuda.schedule_conv2d_transpose_nchw),
+    "hls": (topi.nn.conv2d_transpose_nchw, topi.hls.schedule_conv2d_transpose_nchw),
+}
+
 def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_height, in_width = in_size
     kernel_height, kernel_width = kernel
@@ -54,13 +62,14 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            B = topi.nn.conv2d_transpose_nchw(A, W,
-                                              [stride_height, stride_width],
-                                              [pad_top, pad_left, pad_bottom, pad_right],
-                                              A.dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _conv2d_transpose_nchw_implement)
+            B = fcompute(A, W,
+                         [stride_height, stride_width],
+                         [pad_top, pad_left, pad_bottom, pad_right],
+                         A.dtype)
             C = topi.nn.relu(B)
-            s1 = topi.generic.schedule_conv2d_transpose_nchw([B])
-            s2 = topi.generic.schedule_conv2d_transpose_nchw([C])
+            s1 = fschedule([B])
+            s2 = fschedule([C])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

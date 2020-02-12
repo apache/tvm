@@ -28,8 +28,8 @@ from .. import nn
 
 
 @autotvm.register_topi_compute("group_conv2d_nchw.cuda")
-def group_conv2d_nchw_cuda(_, data, kernel, stride, padding, dilation, groups,
-                           out_dtype='float32'):
+def group_conv2d_nchw(_, data, kernel, stride, padding, dilation, groups,
+                      out_dtype='float32'):
     return nn.group_conv2d_nchw(data, kernel, stride, padding, dilation, groups, out_dtype)
 
 

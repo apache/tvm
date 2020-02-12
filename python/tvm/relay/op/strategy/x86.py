@@ -106,7 +106,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             channel_multiplier = get_const_tuple(inputs[1].shape)[1]
-            if channel_multiplier == 1:
+            if channel_multiplier == 1 and dilation_h == 1 and dilation_w == 1:
                 strategy.add_implement(
                     wrap_compute_conv2d(topi.x86.depthwise_conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_depthwise_conv2d_nchw),

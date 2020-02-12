@@ -81,12 +81,12 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
-                                     (dilation, dilation),
-                                     layout='NCHW%dc'%ic_block,
-                                     out_layout="NCHW%dc"%oc_block,
-                                     out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_NCHWc([C])
+            C = topi.x86.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
+                                      (dilation, dilation),
+                                      'NCHW%dc'%ic_block,
+                                      "NCHW%dc"%oc_block,
+                                      dtype)
+            s = topi.x86.schedule_conv2d_NCHWc([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

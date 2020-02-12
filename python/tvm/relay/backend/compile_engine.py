@@ -212,6 +212,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
 
 @tvm._ffi.register_func("relay.backend.lower_call")
 def lower_call(call, inputs, target):
+    """Lower the call expression to op implementation and tensor outputs."""
     assert isinstance(call.op, _op.Op)
     op = call.op
 

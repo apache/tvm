@@ -76,6 +76,7 @@ def _conv2d_infer_layout(workload, cfg):
 
 def schedule_conv2d_nhwc(outs):
     """Create schedule for conv2d_nhwc"""
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
     scheduled_ops = []

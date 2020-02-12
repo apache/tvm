@@ -20,7 +20,6 @@
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
-from .. import tag
 from ..nn.pad import pad
 from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
@@ -114,6 +113,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
         in_channel = in_channel_chunk * in_channel_block
         out_channel = out_channel_chunk * out_channel_block
         channel_multiplier = cm_chunk * cm_block
+        assert channel_multiplier * in_channel == out_channel
     else:
         batch, in_channel, in_height, in_width = get_const_tuple(data.shape)
         out_channel, channel_multiplier, filter_height, filter_width = get_const_tuple(kernel.shape)
@@ -134,10 +134,11 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
     cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
 
     # get workload and related schedule config
-    wkl = _get_workload(tvm.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
-                        tvm.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
-                                        dtype=kernel.dtype),
-                        strides, padding, out_dtype)
+    wkl = _get_workload(
+        tvm.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
+        tvm.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
+                        dtype=kernel.dtype),
+        strides, padding, out_dtype)
     if cfg.is_fallback:
         _fallback_schedule(cfg, wkl)
 
@@ -181,6 +182,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 @autotvm.register_topi_schedule("depthwise_conv2d_NCHWc.x86")
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     """CPU schedule for depthwise conv2d in NCHW[x]c layout"""
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -241,9 +243,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
         elif out_ndim == 4:
             batch, oc, oh, ow = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=tile_ow)
-            print(ow_chunk, ow_block)
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
-            print(oc_chunk, oc_block)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
             parallel_axis = s[O].fuse(oc_chunk, oh)
             s[C].compute_at(s[O], parallel_axis)

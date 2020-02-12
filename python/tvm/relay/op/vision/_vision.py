@@ -18,8 +18,6 @@
 """Definition of vision ops"""
 from __future__ import absolute_import
 
-import topi
-from topi.util import get_const_int, get_const_float, get_float_tuple
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern

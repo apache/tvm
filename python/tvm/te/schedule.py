@@ -540,7 +540,7 @@ class SpecializedCondition(Object):
             _ffi_api._CreateSpecializedCondition, conditions)
 
     @staticmethod
-    def current(self):
+    def current():
         """Returns the current specialized condition"""
         return _ffi_api._GetCurrentSpecialization()
 
