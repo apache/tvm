@@ -1057,7 +1057,7 @@ runtime::Module CreateVirtualMachine(const Executable* exec) {
   return runtime::Module(vm);
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VirtualMachine")
+TVM_REGISTER_GLOBAL("runtime._VirtualMachine")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());

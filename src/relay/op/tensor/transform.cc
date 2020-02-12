@@ -1673,7 +1673,7 @@ bool SqueezeRel(const Array<Type>& types,
       CHECK_LT(axis_val, original_shape.size());
       original_shape.at(axis_val).second = false;
     }
-    for (const auto p : original_shape) {
+    for (const auto& p : original_shape) {
       if (p.second) {
         result_shape.push_back(p.first);
       } else {

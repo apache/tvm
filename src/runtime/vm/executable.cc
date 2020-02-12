@@ -738,7 +738,7 @@ void Executable::LoadCodeSection(dmlc::Stream* strm) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relay._vm.GetNumOfGlobals")
+TVM_REGISTER_GLOBAL("runtime.GetNumOfGlobals")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
@@ -746,7 +746,7 @@ TVM_REGISTER_GLOBAL("relay._vm.GetNumOfGlobals")
   *rv = static_cast<int>(exec->global_map.size());
 });
 
-TVM_REGISTER_GLOBAL("relay._vm.GetGlobalFields")
+TVM_REGISTER_GLOBAL("runtime.GetGlobalFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
@@ -763,7 +763,7 @@ TVM_REGISTER_GLOBAL("relay._vm.GetGlobalFields")
   *rv = globals[idx].first;
 });
 
-TVM_REGISTER_GLOBAL("relay._vm.GetNumOfPrimitives")
+TVM_REGISTER_GLOBAL("runtime.GetNumOfPrimitives")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
@@ -772,7 +772,7 @@ TVM_REGISTER_GLOBAL("relay._vm.GetNumOfPrimitives")
 });
 
 
-TVM_REGISTER_GLOBAL("relay._vm.GetPrimitiveFields")
+TVM_REGISTER_GLOBAL("runtime.GetPrimitiveFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());
@@ -789,7 +789,7 @@ TVM_REGISTER_GLOBAL("relay._vm.GetPrimitiveFields")
   }
 });
 
-TVM_REGISTER_GLOBAL("relay._vm.Load_Executable")
+TVM_REGISTER_GLOBAL("runtime.Load_Executable")
 .set_body_typed([](
     std::string code,
     runtime::Module lib) {

@@ -342,6 +342,14 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
             attr.pop('auto_pad')
+        elif len(attr['kernel_shape']) == 2:
+            sym_pad = True
+            padding = attr['pads']
+            for i in range(0, len(padding), 2):
+                sym_pad = sym_pad and padding[i] == padding[i + 1]
+
+            if sym_pad:
+                attr['pads'] = padding[0::2]
 
         out = AttrCvt(
             op_name=dimension_picker('conv'),
@@ -505,7 +513,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -528,7 +536,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -620,7 +628,7 @@ class DepthToSpace(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-        mode = attr.get("mode", "DCR")
+        mode = attr.get('mode', b'DCR').decode('utf-8')
         return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
@@ -1396,6 +1404,44 @@ class LSTM(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
 
 
+class Resize(OnnxOpConverter):
+    """Operator converter for Resize
+    """
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        mode = attr.get('mode')
+        if mode == b'nearest':
+            method = "nearest_neighbor"
+        elif mode == b'linear':
+            method = "bilinear"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode))
+
+        in_size = np.array(infer_shape(inputs[0]))
+        scale = infer_value_simulated(inputs[2], params).asnumpy()
+        if len(inputs) == 4:
+            assert len(scale) == 0, "One of scale or size should be passed, not both."
+            size = infer_value_simulated(inputs[3], params).asnumpy().astype(np.int32)
+        else:
+            assert len(scale) != 0, "One of scale or size should be passed."
+            size = (in_size * scale).astype(np.int32)
+
+        coord_trans = attr.get('coordinate_transformation_mode')
+        if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
+            coord_trans = "half_pixel"
+        elif coord_trans == b'align_corners':
+            coord_trans = "align_corners"
+        elif coord_trans == b'asymmetric' or method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
+        layout = "NCHW"  # ONNX assumes NCHW layout
+        out_size = (size[2], size[3])
+        return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1524,6 +1570,7 @@ def _get_convert_map(opset):
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
         'Or': Or.get_converter(opset),
+        'Resize': Resize.get_converter(opset),
     }
 
 

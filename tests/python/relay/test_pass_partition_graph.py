@@ -24,6 +24,7 @@ import tvm
 import tvm.relay.testing
 import tvm.relay.transform as transform
 from tvm import relay
+from tvm import runtime
 from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
@@ -182,7 +183,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.runtime.load_module(lib_path)
+        lib = runtime.load_module(lib_path)
 
         return lib
 
@@ -191,8 +192,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = relay.vm.Executable.load_exec(code, lib)
-        vm = relay.vm.VirtualMachine(exe)
+        exe = runtime.vm.Executable.load_exec(code, lib)
+        vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
