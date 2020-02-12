@@ -17,16 +17,17 @@
 """Intrinsics of TVM-Python Hybrid Script for Python compilation time
 semantic support."""
 from tvm.ir.container import Array
-from .. import api as _api
-from .. import expr as _expr
-from .. import make as _make
-from .. import target as _tgt
-from .. import ir_pass
-from ..stmt import For
-from .util import _internal_assert
-from ..intrin import call_pure_intrin
+from tvm import target as _tgt
+from tvm.tir import expr as _expr
+from tvm.tir import ir_pass
+from tvm.tir import call_pure_intrin
+from tvm.tir.stmt import For
 
-#pylint: disable=redefined-builtin
+from .. import api as _api
+
+from .util import _internal_assert
+
+# pylint: disable=redefined-builtin
 
 LOOP_INTRIN = {
     'range'       : For.Serial,
@@ -69,15 +70,15 @@ def bind(func_id, args):
 
 def _math_intrin(func_id, args):
     # pylint: disable=import-outside-toplevel
-    from .. import intrin
-    return getattr(intrin, func_id)(*args)
+    import tvm.tir.op
+    return getattr(tvm.tir.op, func_id)(*args)
 
 sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin #pylint: disable=invalid-name
 
 
 def _min_max(func_id, args):
     _internal_assert(args.__len__() == 2, "Max/Min function should have 2 elements")
-    return getattr(_make, func_id.title())(args[0], args[1])
+    return getattr(_expr, func_id.title())(args[0], args[1])
 
 
 min = max = _min_max #pylint: disable=invalid-name
@@ -127,7 +128,7 @@ def len(func_id, args):
 def _cast(func_id, args):
     _internal_assert(args.__len__() == 1 and isinstance(args[0], _expr.PrimExpr), \
                      "Only one expression can be cast")
-    return _make.Cast(func_id, args[0])
+    return _expr.Cast(func_id, args[0])
 
 float16 = float32 = float64 = _cast #pylint: disable=invalid-name
 int8 = int16 = int32 = int64 = _cast #pylint: disable=invalid-name

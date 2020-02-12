@@ -69,7 +69,7 @@ def test_map_save_load_json():
 def test_in_container():
     arr = tvm.convert(['a', 'b', 'c'])
     assert 'a' in arr
-    assert tvm.make.StringImm('a') in arr
+    assert tvm.tir.StringImm('a') in arr
     assert 'd' not in arr
 
 def test_ndarray_container():

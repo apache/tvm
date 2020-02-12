@@ -630,8 +630,8 @@ def test_upsampling_infer_type():
     y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(h*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
                                                 "float32")
     n, c = tvm.size_var("n"), tvm.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
@@ -647,9 +647,9 @@ def test_upsampling3d_infer_type():
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
 
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(h*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(d*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(h*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
                                                 "float32")
     n, c = tvm.size_var("n"), tvm.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 100, 200), "float32"))

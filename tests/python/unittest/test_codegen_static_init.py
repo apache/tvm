@@ -26,7 +26,7 @@ def test_static_callback():
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     cp = tvm.thread_axis((0, 1), "cop")
-    finit = tvm.make.StringImm("TVMBackendRunOnce")
+    finit = tvm.tir.StringImm("TVMBackendRunOnce")
     ib.scope_attr(cp, "coproc_uop_scope", finit)
     with ib.for_range(0, n, "i", for_type="parallel") as i:
         A[i] = A[i] + 1

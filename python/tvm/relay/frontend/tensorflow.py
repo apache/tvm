@@ -932,7 +932,7 @@ def _shape():
     def _impl(inputs, attr, params):
         is_symbolic_shape = False
         for axis in attr['_input_shapes'][inputs[0]]:
-            if not isinstance(axis, (int, tvm.expr.IntImm)):
+            if not isinstance(axis, (int, tvm.tir.IntImm)):
                 is_symbolic_shape = True
                 break
 

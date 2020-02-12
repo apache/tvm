@@ -98,7 +98,7 @@ def gemm(env, mock=False):
                     0, 0, 0))
             return irb.get()
         # return a triple of normal-set, reset, update
-        nop = tvm.make.Evaluate(0)
+        nop = tvm.tir.Evaluate(0)
         if mock:
             return (nop, nop, nop)
         return (instr(0), instr(1), instr(2))

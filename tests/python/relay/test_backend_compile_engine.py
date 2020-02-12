@@ -82,10 +82,10 @@ def test_compile_tuple_dup():
 def test_compile_full():
     # Shape calculations can happen in int64. The test checks that full operator
     # can handle when shapes are not int32
-    shape = (tvm.expr.IntImm('int32', 1),
-             tvm.expr.IntImm('int64', 16),
-             tvm.expr.IntImm('int64', 16),
-             tvm.expr.IntImm('int32', 64))
+    shape = (tvm.tir.IntImm('int32', 1),
+             tvm.tir.IntImm('int64', 16),
+             tvm.tir.IntImm('int64', 16),
+             tvm.tir.IntImm('int32', 64))
     output = relay.full(relay.const(0, 'int32'), shape=shape, dtype='int32')
     f = relay.Function([], output)
     mod = tvm.IRModule.from_expr(f)

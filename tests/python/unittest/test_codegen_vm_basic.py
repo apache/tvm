@@ -34,7 +34,7 @@ def test_stack_vm_basic():
 
     n = tvm.size_var('n')
     Ab = tvm.decl_buffer((n, ), tvm.float32)
-    stmt = tvm.make.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
+    stmt = tvm.tir.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
     fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     fapi = tvm.ir_pass.LowerIntrin(fapi, "stackvm")
@@ -75,7 +75,7 @@ def test_stack_vm_cond():
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n - 1, "i") as i:
-        with ib.if_scope(tvm.make.EQ(i,  4)):
+        with ib.if_scope(tvm.tir.EQ(i,  4)):
             A[i + 1] = A[i] + 1
         with ib.else_scope():
             A[i + 1] = A[i] + 2
