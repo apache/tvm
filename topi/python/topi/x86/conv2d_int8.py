@@ -64,11 +64,11 @@ def _is_int8_hw_support(data_dtype, kernel_dtype):
     is_dtype_support = data_dtype == 'uint8' and kernel_dtype == 'int8'
 
     # 2) Check LLVM support
-    llvm_version = tvm.codegen.llvm_version_major()
+    llvm_version = tvm.target.codegen.llvm_version_major()
     is_llvm_support = llvm_version >= 8
 
     # 3) Check target
-    mcpu = tvm.target.current_target().mcpu
+    mcpu = tvm.target.Target.current().mcpu
     is_target_support = False
     if mcpu in ('skylake-avx512', 'cascadelake'):
         is_target_support = True
@@ -89,7 +89,7 @@ def _create_tuning_space_int8(cfg, data, kernel, strides, padding, dilation, lay
         kh, kw, oc, _ = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
-        target = tvm.target.current_target(allow_none=False)
+        target = tvm.target.Target.current(allow_none=False)
         oc_chunk, k_ic, kh, kw, k_ic_f, oc_bn, k_ic_s = kshape
         ic = ic_chunk * ic_bn
         assert ic == k_ic * k_ic_f * k_ic_s
@@ -205,7 +205,7 @@ def _schedule_conv2d_NCHWc_int8(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            target = tvm.target.current_target(allow_none=False)
+            target = tvm.target.Target.current(allow_none=False)
             # int8 conv kernel is 7-dim
             _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
             if kh == 1 and kw == 1:

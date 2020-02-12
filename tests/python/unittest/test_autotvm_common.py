@@ -50,7 +50,7 @@ def matmul(N, L, M, dtype):
 
 @autotvm.template
 def bad_matmul(N, L, M, dtype):
-    if 'bad_device' in tvm.target.current_target().keys:
+    if 'bad_device' in tvm.target.Target.current().keys:
         A = tvm.placeholder((N, L), name='A', dtype=dtype)
         B = tvm.placeholder((L, M), name='B', dtype=dtype)
 

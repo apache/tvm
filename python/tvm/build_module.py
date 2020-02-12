@@ -25,6 +25,8 @@ import tvm.runtime
 
 from tvm.runtime import Object, ndarray
 from tvm.ir import container
+from tvm.target import codegen
+
 from . import api
 from . import _api_internal
 from . import tensor
@@ -32,7 +34,6 @@ from . import schedule
 from . import expr
 from . import ir_pass
 from . import stmt as _stmt
-from . import codegen
 from . import target as _target
 from . import make
 from .stmt import LoweredFunc
@@ -602,7 +603,7 @@ def build(inputs,
                          "LoweredFunc.")
 
     if not isinstance(inputs, (dict, container.Map)):
-        target = _target.current_target() if target is None else target
+        target = _target.Target.current() if target is None else target
         target = target if target else "llvm"
         target_flist = {target: flist}
     else:

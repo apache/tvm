@@ -75,7 +75,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     # Set workload. Config update.
     dispatch_ctx = autotvm.task.DispatchContext.current
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     if is_depthwise:
         workload = autotvm.task.args_to_workload(

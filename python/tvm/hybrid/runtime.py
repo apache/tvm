@@ -107,7 +107,7 @@ def sigmoid(x):
 
 def max_num_threads(allow_none=True):
     """Get max number of threads for GPU targets."""
-    return target.current_target(allow_none).max_num_threads
+    return target.Target.current(allow_none).max_num_threads
 
 
 HYBRID_GLOBALS = {

@@ -33,7 +33,7 @@ def test_static_callback():
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
     fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.codegen.build_module(fapi, "llvm")
+    f = tvm.target.codegen.build_module(fapi, "llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
@@ -57,7 +57,7 @@ def test_static_init():
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
     fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.codegen.build_module(fapi, "llvm")
+    f = tvm.target.codegen.build_module(fapi, "llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
 

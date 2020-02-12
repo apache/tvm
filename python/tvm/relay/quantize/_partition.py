@@ -16,9 +16,7 @@
 # under the License.
 #pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
-from __future__ import absolute_import
-
-from ... import target as _target
+import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
 from ..base import register_relay_node
@@ -133,7 +131,7 @@ def add_partition_generic(ref_call, new_args, ctx):
 @register_partition_function("add")
 def add_partition_function(ref_call, new_args, ctx):
     """Rewrite function for ewise add for partition"""
-    target = _target.current_target()
+    target = tvm.target.Target.current()
     if target and 'cuda' in target.keys:
         #TODO(wuwei/ziheng) cuda specific rules
         return add_partition_generic(ref_call, new_args, ctx)

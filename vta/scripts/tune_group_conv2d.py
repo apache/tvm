@@ -80,7 +80,7 @@ def group_conv2d(N, CI, H, W, CO, KH, KW, strides, padding, dilation, group):
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
 
-    if tvm.target.current_target().device_name == 'vta':
+    if tvm.target.Target.current().device_name == 'vta':
         s = topi.generic.schedule_group_conv2d_nchw([res])
     else:
         s = tvm.create_schedule([res.op])

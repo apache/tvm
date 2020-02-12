@@ -26,10 +26,10 @@ Python API
    ndarray
    error
    ir
+   target
    intrin
    tensor
    schedule
-   target
    build
    function
    autotvm

@@ -194,7 +194,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     cfg.define_split("tile_x", x, num_outputs=4)
     cfg.define_split("tile_rc", rc, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 128, 1500])
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if target.target_name in ['nvptx', 'rocm']:
         cfg.define_knob("unroll_explicit", [1])
     else:
@@ -325,7 +325,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     Unlike other TOPI functions, this function operates on both graph level and operator level,
     so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
     """
-    if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
+    if 'cudnn' in tvm.target.Target.current().libs or 'miopen' in tvm.target.Target.current().libs:
         return None
 
     copy_inputs = list(inputs)
@@ -349,7 +349,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     CO, _, KH, KW = get_const_tuple(kernel.shape)
 
     dispatch_ctx = autotvm.DispatchContext.current
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     if groups == 1:
         # query config of this workload

@@ -112,7 +112,7 @@ def schedule_pool(outs, layout):
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
-        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+        num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
         if Pool.op in s.outputs:
             Out = Pool
             OL = s.cache_write(Pool, "local")
@@ -177,7 +177,7 @@ def schedule_pool_grad_cuda(outs):
         else:
             out = outs[0].op.output(0)
         fused = s[out].fuse(*s[out].op.axis)
-        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+        num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
         bx, tx = s[out].split(fused, factor=num_thread)
         s[out].bind(bx, tvm.thread_axis("blockIdx.x"))
         s[out].bind(tx, tvm.thread_axis("threadIdx.x"))
