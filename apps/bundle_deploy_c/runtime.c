@@ -39,6 +39,7 @@
 /* #include "../../src/runtime/system_library.cc" */
 /* #include "../../src/runtime/graph/graph_runtime.cc" */
 
+#include "../../src/runtime/crt/c_backend_api.c"
 #include "../../src/runtime/crt/graph_runtime.c"
 #include "../../src/runtime/crt/load_json.c"
 #include "../../src/runtime/crt/ndarray.c"
