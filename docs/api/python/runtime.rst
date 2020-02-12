@@ -20,9 +20,9 @@ tvm.runtime
 
 .. automodule:: tvm.runtime
 
-
 .. autoclass:: tvm.runtime.PackedFunc
    :members:
+   :inheritated-members:
 
 .. autofunction:: tvm.register_func
 

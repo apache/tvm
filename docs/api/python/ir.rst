@@ -15,7 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.container
--------------
-.. automodule:: tvm.container
-    :members:
+tvm.ir
+------
+.. automodule:: tvm.ir
+   :members:
+   :imported-members:
