@@ -306,7 +306,7 @@ VM Compiler
 
 An important part of this infrastructure is a compiler from Relay's full IR into a sequence of bytecode.
 The VM compiler transforms a ``tvm::relay::Module`` into a ``tvm::relay::vm::Executable``. The executable
-contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``. The functions contain metadata about the the function as well as its compiled bytecode. The emitted executable object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the data structures, please see `include/tvm/runtime/vm.h`_.
+contains a set of compiled functions, the compiled functions are contained in ``tvm::relay::vm::Function``. The functions contain metadata about the function as well as its compiled bytecode. The emitted executable object then can be loaded and run by a ``tvm::relay::vm::VirtualMachine`` object. For full definitions of the data structures, please see `include/tvm/runtime/vm.h`_.
 
 Optimizations
 ~~~~~~~~~~~~~
@@ -320,7 +320,6 @@ Optimizations marked with `TODO` are not implemented yet.
 - Lambda Lift (see `src/relay/vm/lambda_lift.cc`_)
 - Inline Primitives (see `src/relay/vm/inline_primitives.cc`_)
 - Constant Pool Layout (see `src/relay/backend/vm/compiler.cc`_)
-- ADT Tag Allocation (see `src/relay/backend/vm/compiler.cc`_)
 - Tail Call Optimization (TODO)
 - Liveness Analysis (TODO)
 
