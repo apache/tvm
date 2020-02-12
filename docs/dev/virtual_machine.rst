@@ -144,7 +144,7 @@ AllocStorage
   RegName alignment
   DLDataType dtype_hint
 
-Allocate a storage block with the given ``size``, ``alignment`` and and data type, ``dtype_hint``.
+Allocate a storage block with the given ``size``, ``alignment`` and data type, ``dtype_hint``.
 The allocated storage block is stored in register ``dst``.
 
 AllocADT
