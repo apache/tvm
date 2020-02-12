@@ -450,19 +450,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
-    if (!ext_mods.empty()) {
-      CHECK(lowered_funcs.size() > 0 || ext_mods.size() == 1)
-          << "Expect to have a TVM DSOModule when multiple external runtime modules exist";
-      if (lowered_funcs.size() == 0) {
-        // Execute the whole module using external runtime.
-        ret_.mod = ext_mods[0];
-      } else {
-        // Import all external runtime modules.
-        for (const auto& it : ext_mods) {
-          ret_.mod.Import(it);
-        }
-      }
-    }
+    // Import all external runtime modules.
+    for (const auto& it : ext_mods)
+      ret_.mod.Import(it);
   }
 
  protected:
