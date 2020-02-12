@@ -54,5 +54,5 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 }
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
-  printf("TVMBackendRegisterSystemLibSymbol not implemented.\n");
+  printf("TVMBackendRegisterSystemLibSymbol(%s) not implemented.\n", name);
 }

@@ -18,7 +18,7 @@
 # Makefile Example to bundle TVM modules.
 
 # Configure runtime
-DEBUG = 0
+DEBUG = 1
 MAX_NDIM = 6
 MAX_ARGS = 10
 GRAPH_RUNTIME_NODE_MAX_INPUTS = 300
@@ -31,7 +31,11 @@ GRAPH_RUNTIME_MAX_OUTPUTS = 300
 # Setup build environment
 TVM_ROOT=$(shell cd ../..; pwd)
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
-PKG_CFLAGS = -std=c99 -O2 -fPIC \
+PKG_CXXFLAGS = -std=c++14 -O0 -g -fPIC \
+	-I${TVM_ROOT}/include \
+	-I${DMLC_CORE}/include \
+	-I${TVM_ROOT}/3rdparty/dlpack/include
+PKG_CFLAGS = -std=c99 -O0 -g -fPIC \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include \
@@ -54,7 +58,7 @@ test: $(build_dir)/demo $(build_dir)/bundle.so
 
 $(build_dir)/demo: demo.cc
 	@mkdir -p $(@D)
-	gcc $(PKG_CFLAGS) -o $@  $^ -ldl
+	g++ $(PKG_CXXFLAGS) -o $@  $^ -ldl
 
 # Serialize our graph.json file.
 $(build_dir)/graph.json.c: $(build_dir)/graph.json
@@ -64,14 +68,17 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin: build_model.py
+$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/bridge.c: build_model.py
 	python3 $< -o $(build_dir)
 
 # Build our bundle against the serialized bundle.cc API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/graph.json.c $(build_dir)/params.bin.c
+$(build_dir)/bundle.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/graph.json.c $(build_dir)/params.bin.c $(build_dir)/bridge.c
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
 clean:
+	rm -r $(build_dir)/bundle.so
+
+cleanall:
 	rm -r $(build_dir)

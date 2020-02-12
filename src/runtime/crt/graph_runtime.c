@@ -258,9 +258,9 @@ int GraphRuntime_SetupOpExecs(GraphRuntime * runtime) {
 #if TVM_CRT_DEBUG
       /* (runtime->op_execs[1].args.values[0].v_handle)->ndim = 3; */
       LOGI("DEBUG: (runtime->op_execs[1].args.values[0].v_handle)->ndim=%d",
-           (runtime->op_execs[1].args.values[0].v_handle)->ndim);
+           ((DLTensor*)(runtime->op_execs[1].args.values[0].v_handle))->ndim);
       LOGI("DEBUG: (runtime->op_execs[%d].args.values[0].v_handle)->ndim=%d",
-           nid, (runtime->op_execs[nid].args.values[0].v_handle)->ndim);
+           nid, ((DLTensor*)(runtime->op_execs[nid].args.values[0].v_handle))->ndim);
 #endif // TVM_CRT_DEBUG
     }
   }
@@ -315,7 +315,7 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
   TVMArgs targs = TVMArgs_Create(arg_ptr.arg_values, arg_ptr.arg_tcodes, arg_ptr.arg_values_count);
 #if TVM_CRT_DEBUG
   LOGI("set args for %s function: dims=%d,%d", param->func_name,
-       (targs.values[0].v_handle)->ndim, (targs.values[1].v_handle)->ndim);
+       ((DLTensor*)(targs.values[0].v_handle))->ndim, ((DLTensor*)(targs.values[1].v_handle))->ndim);
 #endif // TVM_CRT_DEBUG
   pf->SetArgs(pf, &targs);
   
@@ -332,11 +332,16 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
  */
 void GraphRuntime_Init(GraphRuntime * runtime, const char * graph_json,
                        const Module * module, const TVMContext * ctxs) {
+  printf("GraphRuntime_Init()\n");
   JSONReader reader = JSONReader_Create(graph_json);
+  printf("GraphRuntime_Load()\n");
   runtime->Load(runtime, &reader);
   runtime->ctxs[0] = ctxs[0];
+  printf("GraphRuntime_SetupStorage()\n");
   runtime->SetupStorage(runtime);
+  printf("PackedFunc_SetupExecs()\n");
   PackedFunc_SetupExecs();
+  printf("GraphRuntime_SetupOpExecs()\n");
   runtime->SetupOpExecs(runtime);
 }
 

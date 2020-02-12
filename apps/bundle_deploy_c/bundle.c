@@ -32,6 +32,7 @@ extern unsigned int build_params_bin_len;
 /* extern "C" { */
 
 TVM_BUNDLE_FUNCTION GraphRuntime * tvm_runtime_create() {
+  printf("tvm_runtime_create\n");
   char * json_data = build_graph_json;
   /* memset(json_data, 0, build_graph_json_len + 1); */
   /* memcpy(json_data, build_graph_json, build_graph_json_len); */

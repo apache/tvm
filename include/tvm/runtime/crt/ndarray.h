@@ -42,6 +42,7 @@ static inline NDArray NDArray_Create(uint32_t ndim, int64_t * shape, DLDataType 
   NDArray ret;
   memset(&ret, 0, sizeof(NDArray));
   ret.dl_tensor.ndim = ndim;
+  ret.dl_tensor.shape = (int64_t*)malloc(sizeof(int64_t)*ndim); // TODO(liangfu): release memory
   memcpy(ret.dl_tensor.shape, shape, sizeof(int64_t)*ndim);
   ret.dl_tensor.dtype = dtype;
   ret.dl_tensor.ctx = ctx;
