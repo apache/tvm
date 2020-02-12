@@ -53,7 +53,7 @@ class Node(Object):
         return _ffi_api.AsText(self, show_meta_data, annotate)
 
     def __str__(self):
-        return self.astext(show_meta_data=False)
+        return _ffi_api.PrettyPrint(self)
 
 
 @tvm._ffi.register_object("relay.SourceName")

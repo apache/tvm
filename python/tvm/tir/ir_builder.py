@@ -16,15 +16,13 @@
 # under the License.
 """Developer API of IR node builder make function."""
 from tvm._ffi.base import string_types
-from tvm.runtime import ObjectGeneric, DataType
+from tvm.runtime import ObjectGeneric, DataType, convert, const
 from tvm.ir import container as _container
 
-from . import api as _api
 from . import stmt as _stmt
 from . import expr as _expr
-from . import make as _make
 from . import ir_pass as _pass
-from .expr import Call as _Call
+
 
 class WithScope(object):
     """Auxiliary scope  with"""
@@ -53,7 +51,7 @@ class BufferVar(ObjectGeneric):
     .. code-block:: python
 
         # The following code generate IR for x[0] = x[
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         x = ib.pointer("float32")
         x[0] = x[10] + 1
 
@@ -78,19 +76,19 @@ class BufferVar(ObjectGeneric):
     def __getitem__(self, index):
         t = DataType(self._content_type)
         if t.lanes > 1:
-            index = _make.Ramp(index * t.lanes, 1, t.lanes)
-        return _make.Load(self._content_type, self._buffer_var, index)
+            index = _expr.Ramp(index * t.lanes, 1, t.lanes)
+        return _expr.Load(self._content_type, self._buffer_var, index)
 
     def __setitem__(self, index, value):
-        value = _api.convert(value)
+        value = convert(value)
         if value.dtype != self._content_type:
             raise ValueError(
                 "data type does not match content type %s vs %s" % (
                     value.dtype, self._content_type))
         t = DataType(self._content_type)
         if t.lanes > 1:
-            index = _make.Ramp(index * t.lanes, 1, t.lanes)
-        self._builder.emit(_make.Store(self._buffer_var, value, index))
+            index = _expr.Ramp(index * t.lanes, 1, t.lanes)
+        self._builder.emit(_stmt.Store(self._buffer_var, value, index))
 
 
 class IRBuilder(object):
@@ -117,7 +115,7 @@ class IRBuilder(object):
         """Pop sequence from stack"""
         seq = self._seq_stack.pop()
         if not seq or callable(seq[-1]):
-            seq.append(_make.Evaluate(0))
+            seq.append(_stmt.Evaluate(0))
         seqwrap = lambda x: x[0] if len(x) == 1 else _stmt.SeqStmt(list(reversed(x)))
         ret_seq = [seq[-1]]
 
@@ -138,7 +136,7 @@ class IRBuilder(object):
            The statement to be emitted or callable that build stmt given body.
         """
         if isinstance(stmt, _expr.Call):
-            stmt = _make.Evaluate(stmt)
+            stmt = _stmt.Evaluate(stmt)
         assert isinstance(stmt, _stmt.Stmt) or callable(stmt)
         self._seq_stack[-1].append(stmt)
 
@@ -167,10 +165,10 @@ class IRBuilder(object):
             x[i] = x[i - 1] + 1
         """
         if isinstance(node, string_types):
-            node = _make.StringImm(node)
+            node = _expr.StringImm(node)
         if isinstance(value, string_types):
-            value = _make.StringImm(value)
-        self.emit(lambda x: _make.AttrStmt(node, attr_key, value, x))
+            value = _expr.StringImm(value)
+        self.emit(lambda x: _stmt.AttrStmt(node, attr_key, value, x))
 
     def for_range(self, begin, end, name="i", dtype="int32", for_type="serial"):
         """Create a for iteration scope.
@@ -211,7 +209,7 @@ class IRBuilder(object):
             name = chr(ord(name) + self.nidx) if self.nidx < 3 else name + "_" + str(self.nidx - 3)
             self.nidx += 1
         self._seq_stack.append([])
-        loop_var = _api.var(name, dtype=dtype)
+        loop_var = _expr.Var(name, dtype=dtype)
         extent = end if begin == 0 else _pass.Simplify(end - begin)
         def _exit_cb():
             if for_type == "serial":
@@ -224,7 +222,7 @@ class IRBuilder(object):
                 for_type_id = 3
             else:
                 raise ValueError("Unknown for_type")
-            self.emit(_make.For(
+            self.emit(_stmt.For(
                 loop_var, begin, extent, for_type_id, 0, self._pop_seq()))
         return WithScope(loop_var, _exit_cb)
 
@@ -253,7 +251,7 @@ class IRBuilder(object):
         """
         self._seq_stack.append([])
         def _exit_cb():
-            self.emit(_make.IfThenElse(cond, self._pop_seq(), None))
+            self.emit(_stmt.IfThenElse(cond, self._pop_seq(), None))
         return WithScope(None, _exit_cb)
 
     def else_scope(self):
@@ -286,7 +284,7 @@ class IRBuilder(object):
         self._seq_stack[-1].pop()
         self._seq_stack.append([])
         def _exit_cb():
-            self.emit(_make.IfThenElse(prev.condition, prev.then_case, self._pop_seq()))
+            self.emit(_stmt.IfThenElse(prev.condition, prev.then_case, self._pop_seq()))
         return WithScope(None, _exit_cb)
 
     def new_scope(self):
@@ -326,13 +324,13 @@ class IRBuilder(object):
         buffer : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _api.var(name, dtype="handle")
+        buffer_var = _expr.Var(name, dtype="handle")
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
         if scope:
             self.scope_attr(buffer_var, "storage_scope", scope)
-        self.emit(lambda x: _make.Allocate(
-            buffer_var, dtype, shape, _api.const(1, dtype="uint1"), x))
+        self.emit(lambda x: _stmt.Allocate(
+            buffer_var, dtype, shape, const(1, dtype="uint1"), x))
         return BufferVar(self, buffer_var, dtype)
 
     def pointer(self, content_type, name="ptr"):
@@ -351,7 +349,7 @@ class IRBuilder(object):
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        buffer_var = _api.var(name, dtype="handle")
+        buffer_var = _expr.Var(name, dtype="handle")
         return BufferVar(self, buffer_var, content_type)
 
     def buffer_ptr(self, buf):
@@ -380,7 +378,8 @@ class IRBuilder(object):
         expr : Expr
             The expression will likely tag.
         """
-        return _make.Call(expr.dtype, "likely", [expr], _Call.PureIntrinsic, None, 0)
+        return _expr.Call(expr.dtype, "likely", [expr],
+                          _expr.Call.PureIntrinsic, None, 0)
 
     def get(self):
         """Return the builded IR.

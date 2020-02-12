@@ -21,6 +21,7 @@
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/ir_pass.h>
 #include <cctype>
@@ -371,5 +372,44 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "BijectiveLayout(" << b->src_layout.name()
               << "->" << b->dst_layout.name() << ")";
   });
+
+TVM_REGISTER_GLOBAL("tir.Layout")
+.set_body_typed(LayoutNode::make);
+
+TVM_REGISTER_GLOBAL("tir.LayoutIndexOf")
+.set_body_typed([](Layout layout, std::string axis) -> int {
+  return layout.IndexOf(LayoutAxis::make(axis));
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
+.set_body_typed([](Layout layout, std::string axis) -> int {
+  return layout.FactorOf(LayoutAxis::make(axis));
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutNdim")
+.set_body_typed([](Layout layout) -> int {
+  return layout.ndim();
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutGetItem")
+.set_body_typed([](Layout layout, int idx) -> std::string {
+  const LayoutAxis& axis = layout[idx];
+  return axis.name();
+});
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
+.set_body_typed(BijectiveLayoutNode::make);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
+.set_body_method(&BijectiveLayout::ForwardIndex);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
+.set_body_method(&BijectiveLayout::BackwardIndex);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
+.set_body_method(&BijectiveLayout::ForwardShape);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
+.set_body_method(&BijectiveLayout::BackwardShape);
 }  // namespace tir
 }  // namespace tvm

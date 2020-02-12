@@ -77,9 +77,9 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
-    func = func.set_attribute("Primitive", tvm.expr.IntImm("int32", 1))
-    func = func.set_attribute("Compiler", tvm.expr.StringImm(compiler))
-    func = func.set_attribute("ExternalSymbol", tvm.expr.StringImm(ext_symbol))
+    func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+    func = func.set_attribute("Compiler", tvm.tir.StringImm(compiler))
+    func = func.set_attribute("ExternalSymbol", tvm.tir.StringImm(ext_symbol))
     return func
 
 

@@ -85,7 +85,7 @@ def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
         min_value = lambda dtype: tvm.if_then_else(non_empty, tvm.min_value(dtype),
                                                    tvm.const(0.0, dtype))
         # pylint: disable=unnecessary-lambda
-        _max = tvm.comm_reducer(lambda x, y: tvm.make._OpMax(x, y), min_value, name='max')
+        _max = tvm.comm_reducer(lambda x, y: tvm.max(x, y), min_value, name='max')
         rh = tvm.reduce_axis((0, hend - hstart), 'rh')
         rw = tvm.reduce_axis((0, wend - wstart), 'rw')
         return _max(data[batch_index, c, hstart+rh, wstart+rw], axis=[rh, rw])

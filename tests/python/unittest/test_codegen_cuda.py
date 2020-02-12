@@ -185,19 +185,19 @@ def test_cuda_shuffle():
 
     def my_vectorize(stmt):
         def vectorizer(op):
-            if op.for_type == tvm.stmt.For.Vectorized:
+            if op.for_type == tvm.tir.For.Vectorized:
                 four = tvm.const(4, 'int32')
-                idx = tvm.make.Ramp(thrx.var * four, tvm.const(1, 'int32'), 4)
+                idx = tvm.tir.Ramp(thrx.var * four, tvm.const(1, 'int32'), 4)
                 all_ones = tvm.const(1, 'int32x4')
                 store = op.body
                 value = store.value
-                new_a = tvm.make.Load('int32x4', value.a.buffer_var, idx, all_ones)
+                new_a = tvm.tir.Load('int32x4', value.a.buffer_var, idx, all_ones)
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(tvm.make.Load('int32', value.b.buffer_var, thrx.var * four + tvm.const(i, 'int32')))
+                    bs.append(tvm.tir.Load('int32', value.b.buffer_var, thrx.var * four + tvm.const(i, 'int32')))
                     ids.append(tvm.const(3 - i, 'int32'))
-                new_b = tvm.make.Shuffle(bs, ids)
-                return tvm.make.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+                new_b = tvm.tir.Shuffle(bs, ids)
+                return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
             return None
         return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 

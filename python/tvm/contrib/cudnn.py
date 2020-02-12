@@ -18,8 +18,8 @@
 # pylint: disable-msg=C0103
 import ctypes
 import numpy as np
+import tvm
 from .. import api as _api
-from .. import intrin as _intrin
 from .. import get_global_func as _get_global_func
 
 # algos can be read from cudnn.h
@@ -365,7 +365,7 @@ def conv_forward(x,
     if dims == 4:
         return _api.extern(
             oshape, [x, w],
-            lambda ins, outs: _intrin.call_packed(
+            lambda ins, outs: tvm.tir.call_packed(
                 "tvm.contrib.cudnn.conv2d.forward",
                 conv_mode,
                 tensor_format,
@@ -383,7 +383,7 @@ def conv_forward(x,
 
     return _api.extern(
         oshape, [x, w],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cudnn.conv3d.forward",
             conv_mode,
             tensor_format,

@@ -18,7 +18,7 @@
 import tvm
 from ctypes import *
 import topi
-import tvm.ir_pass as ir_pass
+import tvm.tir.ir_pass as ir_pass
 import numpy as np
 
 tgt = "llvm"
@@ -126,7 +126,7 @@ def test_bfloat_add_and_cast_FloatImm():
     Z = topi.cast(
         topi.add(
             topi.cast(X, dtype="custom[bfloat]16"),
-            tvm.expr.FloatImm("custom[bfloat]16", 1.5)),
+            tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
         dtype="float")
 
     s = tvm.create_schedule([Z.op])

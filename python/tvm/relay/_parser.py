@@ -509,7 +509,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             _, type_params = zip(*type_params)
         self.exit_var_scope()
 
-        attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
+        attrs = tvm.ir.make_node("DictAttrs", **attr_list) if attr_list is not None else None
         return expr.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify

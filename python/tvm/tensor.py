@@ -19,10 +19,9 @@
 import tvm._ffi
 
 from tvm.runtime import Object, ObjectGeneric, convert_to_object
+from tvm.tir import expr as _expr
 
 from . import _api_internal
-from . import make as _make
-from . import expr as _expr
 
 
 class TensorSlice(ObjectGeneric, _expr.ExprOp):
@@ -74,7 +73,7 @@ class Tensor(Object, _expr.ExprOp):
             else:
                 raise ValueError("The indices must be expression")
 
-        return _make.Call(self.dtype, self.op.name,
+        return _expr.Call(self.dtype, self.op.name,
                           args, _expr.Call.Halide,
                           self.op, self.value_index)
 
@@ -207,136 +206,3 @@ class HybridOp(Operation):
     def axis(self):
         """Represent the IterVar axis, also defined when it is a HybridOp"""
         return self.__getattr__("axis")
-
-
-@tvm._ffi.register_object
-class Layout(Object):
-    """Layout is composed of upper cases, lower cases and numbers,
-    where upper case indicates a primal axis and
-    the corresponding lower case with factor size indicates the subordinate axis.
-    For example, NCHW16c can describe a 5-D tensor of
-    [batch_size, channel, height, width, channel_block].
-    Here subordinate axis channel_block=16 is the factor size of the primal axis C (channel).
-
-    Do not construct directly, use :any:`layout` instead.
-    See the documentation of :any:`layout` for more details.
-
-    See Also
-    --------
-    layout : Declare a layout
-    """
-    def __len__(self):
-        return _api_internal._LayoutNdim(self)
-
-    def __contains__(self, axis):
-        return len(axis) == 1 and axis[0].isalpha() and axis[0] in self.name
-
-    def __getitem__(self, index):
-        if index >= len(self):
-            raise IndexError("Layout index out of range")
-        return _api_internal._LayoutGetItem(self, index)
-
-    def index_of(self, axis):
-        """Get the index of an axis
-
-        Parameters
-        ----------
-        axis : str
-            The axis name, need to be [a-z,A-Z]
-
-        Returns
-        -------
-        index : int
-            The index of the axis, -1 if not found.
-        """
-        return _api_internal._LayoutIndexOf(self, axis)
-
-    def factor_of(self, axis):
-        """Get the factor size of the subordinate axis.
-
-        Parameters
-        ----------
-        axis : str
-            The axis name, need to be [a-z,A-Z]
-
-        Returns
-        -------
-        factor : int
-            the size of the subordinate-axis of axis (if axis is a primal-axis),
-            or the size of axis itself (if axis is a subordinate-axis).
-            Return -1 if axis is not in the layout.
-        """
-        return _api_internal._LayoutFactorOf(self, axis)
-
-
-@tvm._ffi.register_object
-class BijectiveLayout(Object):
-    """Bijective mapping for two layouts (src-layout and dst-layout).
-    It provides shape and index conversion between each other.
-
-    Do not construct directly, use :any:`bijective_layout` instead.
-    See the documentation of :any:`bijective_layout` for more details.
-
-    See Also
-    --------
-    bijective_layout : Declare a bijective layout converter
-    """
-    def forward_index(self, index):
-        """Given the indices of the src-layout, infer the dst index.
-
-        Parameters
-        ----------
-        index: Array of Expr
-            The indices in src-layout.
-
-        Returns
-        -------
-        dst_index: Array of Expr
-            The inferred indices in dst-layout.
-        """
-        return _api_internal._BijectiveLayoutForwardIndex(self, index)
-
-    def backward_index(self, index):
-        """Given the indices of the dst-layout, infer the src index.
-
-        Parameters
-        ----------
-        index: Array of Expr
-            The indices in dst-layout.
-
-        Returns
-        -------
-        src_index: Array of Expr
-            The inferred indices in src-layout.
-        """
-        return _api_internal._BijectiveLayoutBackwardIndex(self, index)
-
-    def forward_shape(self, shape):
-        """Given the shape of the src-layout, infer the dst shape.
-
-        Parameters
-        ----------
-        shape: Array of Expr
-            The shape in src-layout.
-
-        Returns
-        -------
-        dst_shape: Array of Expr
-            The inferred shape in dst-layout.
-        """
-        return _api_internal._BijectiveLayoutForwardShape(self, shape)
-
-    def backward_shape(self, shape):
-        """Given the shape of the dst-layout, infer the src shape.
-
-        Parameters
-        ----------
-        shape: Array of Expr
-            The shape in dst-layout.
-
-        Returns
-        -------
-        src_shape: Array of Expr
-            The inferred shape in src-layout.
-        """
-        return _api_internal._BijectiveLayoutBackwardShape(self, shape)

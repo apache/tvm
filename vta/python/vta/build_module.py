@@ -68,7 +68,7 @@ def build_config(debug_flag=0, **kwargs):
             env.dev.command_handle,
             debug_flag)
 
-        return tvm.make.stmt_seq(debug, stmt)
+        return tvm.tir.stmt_seq(debug, stmt)
     pass_list = [(0, ir_pass.inject_conv2d_transpose_skip),
                  (1, ir_pass.inject_dma_intrin),
                  (1, ir_pass.inject_skip_copy),

@@ -17,7 +17,7 @@
 import tvm
 
 def nop():
-    return tvm.stmt.Evaluate(0)
+    return tvm.tir.Evaluate(0)
 
 def test_remove_no_op():
     i = tvm.var('i')
@@ -27,25 +27,25 @@ def test_remove_no_op():
     n = tvm.var('n')
     dtype = 'int64'
     Ab = tvm.decl_buffer((n, ), dtype)
-    stmt = tvm.make.For(
+    stmt = tvm.tir.For(
         i, 0, 4, 0, 0,
-        tvm.make.For(
+        tvm.tir.For(
             j, 0, n, 0, 0,
-            tvm.make.For(
+            tvm.tir.For(
                 k, 0, m, 0, 0,
-                tvm.make.IfThenElse(
-                    (i*m+j+k < n), tvm.make.Evaluate(m), tvm.make.Evaluate(n)))))
+                tvm.tir.IfThenElse(
+                    (i*m+j+k < n), tvm.tir.Evaluate(m), tvm.tir.Evaluate(n)))))
     ret = tvm.ir_pass.RemoveNoOp(stmt)
-    assert(isinstance(ret, tvm.stmt.Evaluate))
-    store = tvm.make.Store(Ab.data,
-                           tvm.make.Load(dtype, Ab.data, i) + 1,
+    assert(isinstance(ret, tvm.tir.Evaluate))
+    store = tvm.tir.Store(Ab.data,
+                           tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1)
-    stmt2 = tvm.stmt.SeqStmt([nop(), tvm.stmt.SeqStmt([store, nop()])])
+    stmt2 = tvm.tir.SeqStmt([nop(), tvm.tir.SeqStmt([store, nop()])])
     assert(tvm.ir_pass.RemoveNoOp(stmt2) == store)
     # remove zero extent loop
-    stmt3 = tvm.make.For(i, 0, 0, 0, 0, store)
+    stmt3 = tvm.tir.For(i, 0, 0, 0, 0, store)
     ret = tvm.ir_pass.RemoveNoOp(stmt3)
-    assert(isinstance(ret, tvm.stmt.Evaluate))
+    assert(isinstance(ret, tvm.tir.Evaluate))
 
 
 if __name__ == "__main__":
