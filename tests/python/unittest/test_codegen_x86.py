@@ -19,9 +19,9 @@ import re
 
 
 def test_fp16_to_fp32():
-    if tvm.codegen.llvm_version_major() < 6:
+    if tvm.target.codegen.llvm_version_major() < 6:
         print("Skipping due to LLVM version being {} < 6".format(
-            tvm.codegen.llvm_version_major()))
+            tvm.target.codegen.llvm_version_major()))
         return
 
     def fp16_to_fp32(target, width, match=None, not_match=None):
