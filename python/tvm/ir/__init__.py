@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
-from .base import SourceName, Span, Node, load_json, save_json
-from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc
+from .base import SourceName, Span, Node, EnvFunc, load_json, save_json
+from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc, Range
 from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .type_relation import TypeCall, TypeRelation
@@ -25,5 +25,6 @@ from .tensor_type import TensorType
 from .adt import Constructor, TypeData
 from .module import IRModule
 from .attrs import Attrs
+from .container import Array, Map
 
 from . import transform

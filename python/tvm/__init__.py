@@ -36,6 +36,7 @@ from .runtime import ndarray as nd
 # tvm.ir
 from .ir import IRModule
 from .ir import transform
+from .ir import container
 from . import ir
 
 # others
@@ -46,7 +47,6 @@ from . import stmt
 from . import make
 from . import ir_pass
 from . import codegen
-from . import container
 from . import schedule
 
 from . import ir_builder

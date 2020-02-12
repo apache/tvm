@@ -109,7 +109,7 @@ def test_type_relation():
     args = tvm.convert([tp, tf, tt])
 
     num_inputs = 2
-    func = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
+    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
     attrs = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
 
     tr = relay.TypeRelation(func, args, num_inputs, attrs)

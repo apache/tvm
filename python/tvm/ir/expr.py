@@ -17,6 +17,7 @@
 """Common expressions data structures in the IR."""
 import tvm._ffi
 
+
 from .base import Node
 from . import _ffi_api
 
@@ -89,3 +90,12 @@ class GlobalVar(RelayExpr):
         arg_types = [type(x) for x in args]
         raise RuntimeError(
             "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types))
+
+
+@tvm._ffi.register_object
+class Range(Node):
+    """Represent a range in TVM.
+
+    You do not need to create a Range explicitly.
+    Python lists and tuples will be converted automatically to a Range in API functions.
+    """

@@ -96,7 +96,7 @@ def test_env_func():
         return x + 1
 
     f = tvm.get_global_func("test.env_func")
-    x = tvm.get_env_func("test.env_func")
+    x = tvm.ir.EnvFunc.get("test.env_func")
     assert x.name == "test.env_func"
     json_str = tvm.ir.save_json([x])
     y = tvm.ir.load_json(json_str)[0]
@@ -110,7 +110,7 @@ def test_env_func():
     assert x.padding[1].value == 4
     assert x.axis == 10
     x = tvm.ir.load_json(tvm.ir.save_json(x))
-    assert isinstance(x.func, tvm.container.EnvFunc)
+    assert isinstance(x.func, tvm.ir.EnvFunc)
     assert x.func(10) == 11
 
 

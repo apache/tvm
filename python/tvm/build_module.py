@@ -24,6 +24,7 @@ import tvm._ffi
 import tvm.runtime
 
 from tvm.runtime import Object, ndarray
+from tvm.ir import container
 from . import api
 from . import _api_internal
 from . import tensor
@@ -31,7 +32,6 @@ from . import schedule
 from . import expr
 from . import ir_pass
 from . import stmt as _stmt
-from . import container
 from . import codegen
 from . import target as _target
 from . import make

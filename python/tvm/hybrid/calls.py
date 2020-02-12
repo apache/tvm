@@ -16,12 +16,11 @@
 # under the License.
 """Intrinsics of TVM-Python Hybrid Script for Python compilation time
 semantic support."""
-
+from tvm.ir.container import Array
 from .. import api as _api
 from .. import expr as _expr
 from .. import make as _make
 from .. import target as _tgt
-from ..container import Array
 from .. import ir_pass
 from ..stmt import For
 from .util import _internal_assert

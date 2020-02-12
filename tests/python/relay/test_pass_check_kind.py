@@ -150,7 +150,7 @@ def test_invalid_relation_kind():
     tp3 = relay.TypeVar('tp3', relay.TypeKind.Constraint)
     args = tvm.convert([tp1, tp2, tp3])
 
-    func = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
+    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
     tr = relay.TypeRelation(func, args, 2, None)
     check_kind(tr)
 
@@ -217,7 +217,7 @@ def test_func_with_invalid_relation():
     tp2 = relay.TypeVar('tp2', relay.TypeKind.ShapeVar)
     tp3 = relay.TypeVar('tp3', relay.TypeKind.Constraint)
 
-    func = tvm.get_env_func("tvm.relay.type_relation.Identity")
+    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
     tr = relay.TypeRelation(func, tvm.convert([tp2, tp3]), 1, None)
 
     tf = relay.FuncType(tvm.convert([tp1]), tp1, tvm.convert([tp1, tp2, tp3]), tvm.convert([tr]))

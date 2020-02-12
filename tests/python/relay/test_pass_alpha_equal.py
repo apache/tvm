@@ -81,8 +81,8 @@ def test_func_type_alpha_equal():
     tp3 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
     tp4 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
 
-    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
-    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
+    broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
+    identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
     tr1 = relay.TypeRelation(broadcast, tvm.convert([tp1, tp3]), 1, None)
     tr2 = relay.TypeRelation(broadcast, tvm.convert([tp2, tp4]), 1, None)
@@ -157,8 +157,8 @@ def test_type_relation_alpha_equal():
 
     # functions are compared only by pointer equality so
     # we need to be sure to use the same pointers
-    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
-    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
+    broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
+    identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
     attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))

@@ -21,13 +21,14 @@ import inspect
 import logging
 import sys
 import numpy
+
+from tvm.ir.container import Array
 from .. import api as _api
 from .. import make as _make
 from .. import expr as _expr
 from .. import stmt as _stmt
 from .._ffi.base import numeric_types
 from ..tensor import Tensor
-from ..container import Array
 
 
 #pylint: disable=invalid-name
