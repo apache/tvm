@@ -1115,7 +1115,7 @@ def test_conv2d_int8_intrinsics():
 
     # compile conv2d for x86 (skylake, cascadelake) and test assembly contains *pmadd* instructions
     targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
-    llvm_version = tvm.codegen.llvm_version_major()
+    llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
             dtypes = ('uint8', 'int8', 'int32')
@@ -1208,7 +1208,7 @@ def test_depthwise_conv2d_int8():
     parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
 
     targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
-    llvm_version = tvm.codegen.llvm_version_major()
+    llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
             with relay.build_config(opt_level=3):

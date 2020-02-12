@@ -37,7 +37,7 @@ def schedule_injective_from_existing(sch, out):
          The updated schedule.
     """
     fused = sch[out].fuse(*sch[out].op.axis)
-    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+    num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
     max_block = 256
 
     try:

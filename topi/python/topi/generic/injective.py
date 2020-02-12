@@ -54,7 +54,7 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     if target.target_name != "llvm":
         raise RuntimeError("schedule_injective not registered for '%s'" % target)
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs

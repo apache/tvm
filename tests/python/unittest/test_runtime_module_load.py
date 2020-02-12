@@ -57,7 +57,7 @@ def test_dso_module_load():
                            i + 1))
         fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
         fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
-        m = tvm.codegen.build_module(fapi, "llvm")
+        m = tvm.target.codegen.build_module(fapi, "llvm")
         for name in names:
             m.save(name)
 

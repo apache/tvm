@@ -14,25 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Code generation related functions."""
+"""FFI APIs for tvm.target"""
 import tvm._ffi
 
-def build_module(lowered_func, target):
-    """Build lowered_func into Module.
 
-    Parameters
-    ----------
-    lowered_func : LoweredFunc
-        The lowered function
-
-    target : str
-        The target module type.
-
-    Returns
-    -------
-    module : Module
-        The corressponding module.
-    """
-    return _Build(lowered_func, target)
-
-tvm._ffi._init_api("tvm.codegen")
+tvm._ffi._init_api("target", __name__)

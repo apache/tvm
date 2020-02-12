@@ -37,6 +37,6 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.cuda.schedule_lrn(cpp_target, outs)

@@ -24,7 +24,7 @@ def fuse_and_bind(s, tensor, axis=None, num_thread=None):
     """Fuse all the axis and bind to GPU threads"""
     axis = axis or s[tensor].op.axis
     fused = s[tensor].fuse(*axis)
-    max_threads = tvm.target.current_target(allow_none=False).max_num_threads
+    max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
     bx, tx = s[tensor].split(fused, num_thread or max_threads)
     s[tensor].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[tensor].bind(tx, tvm.thread_axis("threadIdx.x"))

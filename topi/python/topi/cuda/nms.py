@@ -71,7 +71,7 @@ def get_valid_counts_pre(data, flag, idx, score_threshold, id_index, score_index
     id_index = tvm.make.node("IntImm", dtype="int32", value=id_index)
     score_index = tvm.make.node("IntImm", dtype="int32", value=score_index)
 
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -120,7 +120,7 @@ def get_valid_counts_upsweep(data, idx_in, idx, partial):
     idx_in = ib.buffer_ptr(idx_in)
     idx = ib.buffer_ptr(idx)
     partial = ib.buffer_ptr(partial)
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     elem_per_thread = num_anchors // max_threads + 1
     nthread_tx = max_threads
     nthread_bx = batch_size
@@ -176,7 +176,7 @@ def get_valid_counts_scan(data, partial_in, partial):
     ib = tvm.ir_builder.create()
     partial_in = ib.buffer_ptr(partial_in)
     partial = ib.buffer_ptr(partial)
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     elem_per_thread = num_anchors // max_threads + 1
     nthread_tx = max_threads
     nthread_bx = batch_size
@@ -234,7 +234,7 @@ def get_valid_counts_downsweep(data, idx_in, partial, idx):
     idx_in = ib.buffer_ptr(idx_in)
     idx = ib.buffer_ptr(idx)
     partial = ib.buffer_ptr(partial)
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     elem_per_thread = num_anchors // max_threads + 1
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
@@ -297,7 +297,7 @@ def get_valid_counts_ir(data, flag, idx, valid_count, out):
     valid_count = ib.buffer_ptr(valid_count)
     out = ib.buffer_ptr(out)
 
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors * elem_length // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -356,7 +356,7 @@ def get_valid_counts_gpu(data, score_threshold=0, id_index=0, score_index=1):
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     elem_per_thread = num_anchors // max_threads + 1
     new_range = num_anchors // elem_per_thread + 1
     temp_flag_buf = api.decl_buffer(
@@ -482,7 +482,7 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
     num_valid_boxes = ib.allocate("int32", (1,), name="num_valid_boxes", scope="local")
 
     max_threads = int(
-        tvm.target.current_target(allow_none=False).max_num_threads)
+        tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -594,7 +594,7 @@ def invalid_to_bottom_pre(data, flag, idx):
     idx = ib.buffer_ptr(idx)
 
     max_threads = int(math.sqrt(
-        tvm.target.current_target(allow_none=False).max_num_threads))
+        tvm.target.Target.current(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -654,7 +654,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
     out = ib.buffer_ptr(out)
 
     max_threads = int(math.sqrt(
-        tvm.target.current_target(allow_none=False).max_num_threads))
+        tvm.target.Target.current(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
