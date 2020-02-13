@@ -90,8 +90,9 @@ def encode(inp, result, protocol='json'):
     if protocol == 'json':
         json_dict = {
             "input": (str(inp.target),
-                      inp.task.name, inp.task.args, inp.task.kwargs,
-                      inp.config.to_json_dict()),
+                      inp.task.name, inp.task.args, inp.task.kwargs),
+
+            "config": inp.config.to_json_dict(),
 
             "result": (result.costs if result.error_no == 0 else (1e9,),
                        result.error_no,
@@ -139,7 +140,7 @@ def decode(row, protocol='json'):
             logger.warning("AutoTVM log version 0.1 is no longer supported.")
             return None
 
-        tgt, task_name, task_args, task_kwargs, config = row['input']
+        tgt, task_name, task_args, task_kwargs = row["input"]
         tgt = _target.create(str(tgt))
 
         def clean_json_to_python(x):
@@ -155,7 +156,7 @@ def decode(row, protocol='json'):
             return x
 
         tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))
-        config = ConfigEntity.from_json_dict(config)
+        config = ConfigEntity.from_json_dict(row["config"])
         inp = MeasureInput(tgt, tsk, config)
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["result"]])
         config.cost = np.mean(result.costs)
