@@ -349,7 +349,7 @@ def get_config():
     cfg: ConfigSpace or ConfigEntity
         The current config
     """
-    tgt = _target.current_target(allow_none=True)
+    tgt = _target.Target.current(allow_none=True)
     return DispatchContext.current.query(tgt, None)
 
 class FlopCalculationError(RuntimeError):

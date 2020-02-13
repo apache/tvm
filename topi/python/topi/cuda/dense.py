@@ -229,16 +229,6 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
-
-    target = tvm.target.Target.current()
-    if "cublas" in target.libs:
-        matmul = cublas.matmul(data, weight, False, True, out_dtype)
-        if bias is not None:
-            matmul = tvm.compute((batch, out_dim), \
-                                 lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \
-                                 tag=tag.BROADCAST)
-        return matmul
-
     k = tvm.reduce_axis((0, in_dim), name='k')
 
     matmul = tvm.compute((batch, out_dim),
@@ -260,12 +250,8 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_int8.cuda")
 def schedule_dense_int8(cfg, outs):
     """Dense schedule for int8 on CUDA"""
-    s = tvm.create_schedule([x.op for x in outs])
-    target = tvm.target.current_target()
-
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    if "cublas" in target.libs:
-        return generic.schedule_extern(outs)
+    s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "dense_int8" in op.tag:

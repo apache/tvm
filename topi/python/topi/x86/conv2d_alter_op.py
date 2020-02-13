@@ -32,7 +32,7 @@ logger = logging.getLogger('topi')
 
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
     if isinstance(dispatch_ctx, autotvm.task.ApplyGraphBest):
         cfg = dispatch_ctx.query(target, None)

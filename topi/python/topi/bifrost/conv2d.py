@@ -459,7 +459,7 @@ def _schedule_winograd(cfg, s, op):
 ##### REGISTER ALTER OP LAYOUT #####
 @nn.conv2d_alter_layout.register(["bifrost"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
     _, outs = relay.backend.compile_engine.select_implement(

@@ -248,7 +248,7 @@ def register_topi_compute(task_name, func=None):
             if task_env is not None and task_env.tracing:
                 task_env.add_task(task_name, args)
             workload = args_to_workload(args, task_name)
-            tgt = _target.current_target()
+            tgt = _target.Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             node = topi_compute(cfg, *args)
 
@@ -317,7 +317,7 @@ def register_topi_schedule(task_name, func=None):
             workload = get_workload(outs)
             if workload is None:
                 raise RuntimeError("Cannot find workload in attribute of this schedule")
-            tgt = _target.current_target()
+            tgt = _target.Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             return topi_schedule(cfg, outs, *args, **kwargs)
         return wrapper
