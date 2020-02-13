@@ -133,6 +133,7 @@ def extract_from_multiple_program(mods, params, ops, target, target_host=None,
         tvm.relay.op.nn.batch_matmul: [topi.nn.batch_matmul],
         tvm.relay.op.nn.deformable_conv2d: [topi.nn.deformable_conv2d_nchw],
         tvm.relay.op.nn.conv1d_transpose: [topi.nn.conv1d_transpose_ncw],
+        tvm.relay.op.nn.conv3d: [topi.nn.conv3d],
     }
 
     topi_funcs = []
