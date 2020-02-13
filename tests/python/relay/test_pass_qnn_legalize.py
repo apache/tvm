@@ -107,6 +107,7 @@ def test_qnn_legalize_qnn_conv2d():
                 input_scale=relay.const(1.0, 'float32'),
                 kernel_scale=relay.const(1.0, 'float32'),
                 kernel_size=(3, 3),
+                channels=kernel_shape[0],
                 strides=(1, 1),
                 dilation=(1, 1),
                 out_dtype='int32',
