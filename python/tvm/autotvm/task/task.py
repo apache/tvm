@@ -53,7 +53,7 @@ def serialize_args(args):
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
         if x is None:
-            return 0
+            return None
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
                            'primitive types or tvm.expr.Var only' % type(x))
     ret = []
