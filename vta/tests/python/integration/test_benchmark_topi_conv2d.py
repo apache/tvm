@@ -20,6 +20,7 @@
 import json
 import os
 
+import pytest
 import numpy as np
 from collections import namedtuple
 
@@ -79,9 +80,13 @@ def run_conv2d(env, remote, wl, target,
     if "arm_cpu" in target.keys:
         data_pack = False
         layout = "NCHW"
+        conv2d_fcompute = topi.arm_cpu.conv2d_nchw_spatial_pack
+        conv2d_fschedule = topi.arm_cpu.schedule_conv2d_nchw_spatial_pack
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
+        conv2d_fcompute = vta.top.vta_conv2d.conv2d_packed
+        conv2d_fschedule = vta.top.vta_conv2d.schedule_conv2d_packed
 
     # Derive shapes depending upon packing
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
@@ -104,15 +109,20 @@ def run_conv2d(env, remote, wl, target,
 
     # Define base computation schedule
     with target:
-        res = topi.nn.conv2d(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
-            layout, env.acc_dtype)
+        if data_pack:
+            res = conv2d_fcompute(
+                data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+                layout, env.acc_dtype)
+        else:
+            res = conv2d_fcompute(
+                data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+                env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
-        s = topi.generic.schedule_conv2d_nchw([res])
+        s = conv2d_fschedule([res])
         if print_ir:
             print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
 
@@ -222,7 +232,8 @@ def run_conv2d(env, remote, wl, target,
 
     return correct, cost, stats
 
-def test_conv2d(device="vta"):
+@pytest.mark.parametrize("device", ["vta", "arm_cpu"])
+def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target
