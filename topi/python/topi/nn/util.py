@@ -47,6 +47,42 @@ def infer_pad(data, data_pad):
     wpad = (TW - IW) // 2
     return get_const_int(hpad), get_const_int(wpad)
 
+def infer_pad3d(data, data_pad, layout):
+    """Infer the padding from stages in reverse.
+
+    Parameters
+    ----------
+    data : Tensor
+        data stage.
+
+    data_pad : Tensor
+        pad stage.
+
+    Returns
+    -------
+    dpad : int
+        padding depth
+    hpad : int
+        padding height
+    wpad : int
+        padding width
+    """
+    if data_pad is None:
+        return 0, 0, 0
+
+    if layout == "NDHWC":
+        _, ID, IH, IW, _ = data.shape
+        _, TD, TH, TW, _ = data_pad.shape
+    elif layout == "NCDHW":
+        _, _, ID, IH, IW = data.shape
+        _, _, TD, TH, TW = data_pad.shape
+    else:
+        raise ValueError("Layout {} is not supported".format(layout))
+    dpad = (TD - ID)
+    hpad = (TH - IH)
+    wpad = (TW - IW)
+    return get_const_int(dpad), get_const_int(hpad), get_const_int(wpad)
+
 def infer_stride(data, kernel, out):
     """Infer the stride from stages in reverse.
 
