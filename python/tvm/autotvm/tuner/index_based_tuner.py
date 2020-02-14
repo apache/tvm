@@ -60,7 +60,7 @@ class GridSearchTuner(IndexBaseTuner):
         ret = []
         for _ in range(batch_size):
             if self.counter >= self.range_length:
-                continue
+                break
             index = self.counter + self.index_offset
             ret.append(self.task.config_space.get(index))
             self.counter = self.counter + 1
@@ -115,7 +115,8 @@ class RandomTuner(IndexBaseTuner):
         return ret
 
     def __getstate__(self):
-        return {"visited": self.counter}
+        return {"visited": self.visited}
 
     def __setstate__(self, state):
-        self.counter = state['visited']
+        self.visited = state['visited']
+        self.counter = len(self.visited)
