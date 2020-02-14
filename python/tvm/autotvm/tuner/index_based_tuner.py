@@ -29,6 +29,7 @@ class IndexBaseTuner(Tuner):
     ----------
     task: autotvm.task.Task
         The tuning task
+
     range_idx: Optional[Tuple[int, int]]
         A tuple of index range that this tuner can select from
     """
