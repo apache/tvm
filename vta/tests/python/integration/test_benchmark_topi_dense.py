@@ -63,8 +63,8 @@ def run_gemm(env, remote, target,
                       env.BATCH, env.BLOCK_IN)
         kernel_shape = (out_feat//env.BLOCK_OUT, in_feat//env.BLOCK_IN,
                         env.BLOCK_OUT, env.BLOCK_IN)
-        fcompute = vta.top.vta_dense.dense_packed
-        fschedule = vta.top.vta_dense.schedule_dense_packed
+        fcompute = vta.top.dense_packed
+        fschedule = vta.top.schedule_dense_packed
     else:
         data_shape = a_shape
         kernel_shape = w_shape

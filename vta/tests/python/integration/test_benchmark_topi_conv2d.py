@@ -85,8 +85,8 @@ def run_conv2d(env, remote, wl, target,
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
-        conv2d_fcompute = vta.top.vta_conv2d.conv2d_packed
-        conv2d_fschedule = vta.top.vta_conv2d.schedule_conv2d_packed
+        conv2d_fcompute = vta.top.conv2d_packed
+        conv2d_fschedule = vta.top.schedule_conv2d_packed
 
     # Derive shapes depending upon packing
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)

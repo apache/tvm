@@ -296,7 +296,6 @@ def tune_tasks(tasks,
 
 def register_vta_tuning_tasks():
     from tvm.autotvm.task import TaskExtractEnv
-    from tvm.autotvm.task.task import deserialize_args
 
     @tvm.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
@@ -310,20 +309,19 @@ def register_vta_tuning_tasks():
     # init autotvm env to register VTA operator
     TaskExtractEnv()
 
-    @autotvm.task.register("topi_nn_conv2d", override=True)
+    @autotvm.register_customized_task("conv2d_packed.vta")
     def _topi_nn_conv2d(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
-        args = deserialize_args(args)
         A, W = args[:2]
 
         with tvm.target.vta():
-            res = topi.nn.conv2d(*args, **kwargs)
+            res = vta.top.conv2d_packed(*args, **kwargs)
             res = topi.right_shift(res, 8)
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
         if tvm.target.Target.current().device_name == 'vta':
-            s = topi.generic.schedule_conv2d_nchw([res])
+            s = vta.top.schedule_conv2d_packed([res])
         else:
             s = tvm.create_schedule([res.op])
         return s, [A, W, res]
@@ -360,6 +358,9 @@ def tune_and_evaluate(tuning_opt):
                                               ops=(relay.op.get("nn.conv2d"),),
                                               target=target,
                                               target_host=env.target_host)
+
+    # filter out non-packed conv2d task
+    tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
 
     # We should have extracted 10 convolution tasks
     assert len(tasks) == 10

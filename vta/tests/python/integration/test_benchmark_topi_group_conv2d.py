@@ -81,8 +81,8 @@ def run_group_conv2d(env, remote, wl, target,
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
-        fcompute = vta.top.vta_group_conv2d.group_conv2d_packed
-        fschedule = vta.top.vta_group_conv2d.schedule_group_conv2d_packed
+        fcompute = vta.top.group_conv2d_packed
+        fschedule = vta.top.schedule_group_conv2d_packed
 
     # Derive shapes depending upon packing
     CI_G = wl.in_filter // wl.groups

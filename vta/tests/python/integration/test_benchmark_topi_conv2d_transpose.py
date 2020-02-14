@@ -86,8 +86,8 @@ def run_conv2d_transpose(env, remote, wl, target,
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
-        fcompute = vta.top.vta_conv2d_transpose.conv2d_transpose_packed
-        fschedule = vta.top.vta_conv2d_transpose.schedule_conv2d_transpose_packed
+        fcompute = vta.top.conv2d_transpose_packed
+        fschedule = vta.top.schedule_conv2d_transpose_packed
 
     # Derive shapes depending upon packing
 

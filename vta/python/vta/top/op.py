@@ -36,9 +36,8 @@ from ..environment import get_env
 # override to force partition at copy
 reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
 
-
-@reg.register_compute("clip", level=15)
-def compute_clip(attrs, inputs, output_type, target):
+# add clip vta strategy
+def compute_clip_vta(attrs, inputs, output_type):
     """ Clip operator. """
     x = inputs[0]
     a_min = attrs.a_min
@@ -52,6 +51,15 @@ def compute_clip(attrs, inputs, output_type, target):
             x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return [x]
 
+def clip_strategy_vta(attrs, inputs, out_type, target):
+    strategy = OpStrategy()
+    strategy.add_implement(
+        compute_clip_vta,
+        _strategy.wrap_topi_schedule(topi.generic.schedule_injective),
+        name="clip.vta")
+    return strategy
+
+reg.get("clip").get_attr("FTVMStrategy").register(clip_strategy_vta, "vta")
 
 @_strategy.conv2d_strategy.register("vta")
 def conv2d_strategy_vta(attrs, inputs, out_type, target):
