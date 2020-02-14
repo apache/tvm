@@ -136,6 +136,33 @@ Expr L2NormToInferUnpack(const Attrs attrs, Expr data) {
   return Divide(data, sqrt);
 }
 
+Expr SoftmaxToInferUnpack(const Attrs attrs, Expr data) {
+  const auto param = attrs.as<SoftmaxAttrs>();
+  CHECK(param);
+
+  // Subtract max of the tensor to prevent underflow/overflow.
+  Expr x = Subtract(data, Max(data, NullValue<Array<Integer> >(), false, false));
+
+  // Return - exp(x) / sum(exp(x))
+  Expr exp = Exp(x);
+  Expr sum_exp = Sum(exp, {param->axis}, true, false);
+  return Divide(exp, sum_exp);
+}
+
+Expr LogSoftmaxToInferUnpack(const Attrs attrs, Expr data) {
+  const auto param = attrs.as<SoftmaxAttrs>();
+  CHECK(param);
+
+  // Subtract max of the tensor to prevent underflow/overflow.
+  Expr data_max = Max(data, NullValue<Array<Integer> >(), false, false);
+  Expr x = Subtract(data, data_max);
+
+  // Return - log(exp(x) / sum(exp(x))) = x - log(sum(exp(x))
+  Expr exp = Exp(x);
+  Expr sum_exp = Sum(exp, {param->axis}, true, false);
+  return Subtract(x, Log(sum_exp));
+}
+
 class InferenceSimplifier : public ExprMutator {
  public:
   InferenceSimplifier()
@@ -143,7 +170,9 @@ class InferenceSimplifier : public ExprMutator {
         dropout_op_(Op::Get("nn.dropout")),
         instance_norm_op_(Op::Get("nn.instance_norm")),
         layer_norm_op_(Op::Get("nn.layer_norm")),
-        l2_norm_op_(Op::Get("nn.l2_normalize")) {}
+        l2_norm_op_(Op::Get("nn.l2_normalize")),
+        softmax_op_(Op::Get("nn.softmax")),
+        log_softmax_op_(Op::Get("nn.log_softmax")) {}
 
   Expr VisitExpr_(const TupleGetItemNode* n) final {
     Expr new_e = ExprMutator::VisitExpr_(n);
@@ -177,6 +206,12 @@ class InferenceSimplifier : public ExprMutator {
     } else if (n->op == l2_norm_op_) {
       const auto* call = new_n.as<CallNode>();
       return L2NormToInferUnpack(call->attrs, call->args[0]);
+    } else if (n->op == softmax_op_) {
+      const auto* call = new_n.as<CallNode>();
+      return SoftmaxToInferUnpack(call->attrs, call->args[0]);
+    } else if (n->op == log_softmax_op_) {
+      const auto* call = new_n.as<CallNode>();
+      return LogSoftmaxToInferUnpack(call->attrs, call->args[0]);
     }
     return new_n;
   }
@@ -190,6 +225,8 @@ class InferenceSimplifier : public ExprMutator {
   const Op& instance_norm_op_;
   const Op& layer_norm_op_;
   const Op& l2_norm_op_;
+  const Op& softmax_op_;
+  const Op& log_softmax_op_;
   std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
 

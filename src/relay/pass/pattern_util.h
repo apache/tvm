@@ -533,6 +533,15 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
+static inline Expr Max(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
+  auto attrs = make_object<ReduceAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->keepdims = keepdims;
+  attrs->exclude = exclude;
+  static const Op& op = Op::Get("max");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   auto attrs = make_object<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
