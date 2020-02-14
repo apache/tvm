@@ -81,6 +81,19 @@ def test_bound_split_divisible():
     assert bounds[xo].extent == m
     assert bounds[xi].extent.value == 8
 
+def test_bound_split_ext_less_than_factor():
+    m = 8
+    I = tvm.placeholder((m,), name='I')
+    EF = tvm.compute((m,), lambda i: I[i] * 2, name = "EF")
+    E = tvm.compute((m,), lambda i: EF[i] * 2, name = "E")
+    s = tvm.create_schedule([E.op])
+    xo, xi = s[E].split(s[E].op.axis[0], factor = 32)
+    s[EF].compute_at(s[E], xo)
+
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert bounds[xi].extent.value == m
+
 def test_bound_tile_divisible():
     m = tvm.var('m')
     l = tvm.var('l')
@@ -423,4 +436,5 @@ if __name__ == "__main__":
     test_bound_fusesplit1()
     test_bound_fusesplit2()
     test_bound_split_divisible()
+    test_bound_split_ext_less_than_factor()
     test_bound_tile_divisible()
