@@ -87,7 +87,7 @@ class MergeCompositeWrapper : public ExprMutator {
    * a new Relay expression ready to be wrapped into a composite function.
    */
   Expr ExtractPattern(const Call& pattern, const Call& root,
-          Map<std::string, Array<Expr>>* var_map) {
+          Map<std::string, Array<Expr>>* var_map, Map<Expr, Expr>* call_map) {
     // check to make sure both calls are to operators (not functions)
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
       return Expr();
@@ -99,14 +99,20 @@ class MergeCompositeWrapper : public ExprMutator {
     for (const auto& arg : pattern->args) {
       Expr new_arg;
       if (arg->IsInstance<CallNode>()) {
-        // fail if the root argument is not also a call node
-        if (!root->args[i]->IsInstance<CallNode>()) {
-          return Expr();
+        // if we've already processed this call node, return the previous result
+        if (call_map->find(arg) != call_map->end()) {
+          new_arg = (*call_map)[arg];
+        } else {
+          // fail if the root argument is not also a call node
+          if (!root->args[i]->IsInstance<CallNode>()) {
+            return Expr();
+          }
+          // if it's a call node, recursively call this function
+          new_arg = ExtractPattern(Downcast<Call>(arg),
+                                  Downcast<Call>(root->args[i]),
+                                  var_map, call_map);
+          call_map->Set(arg, new_arg);
         }
-        // if it's a call node, recursively call this function
-        new_arg = ExtractPattern(Downcast<Call>(arg),
-                                 Downcast<Call>(root->args[i]),
-                                 var_map);
       } else if (arg->IsInstance<VarNode>()) {
         // if there's a var in the pattern, it must be a free var
         // so call the function to update the var_map
@@ -155,7 +161,8 @@ class MergeCompositeWrapper : public ExprMutator {
     Call pattern = Downcast<Call>(pattern_);
     CHECK(pattern.defined());
     Map<std::string, Array<Expr>> args_map;
-    auto extract = ExtractPattern(pattern, call, &args_map);
+    Map<Expr, Expr> call_map;
+    auto extract = ExtractPattern(pattern, call, &args_map, &call_map);
     if (extract.defined()) {
       auto free_vars = FreeVars(extract);
       // make the composite function
