@@ -69,7 +69,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     if "cudnn" in target.libs:
         if layout == 'NCHW':
@@ -86,7 +86,8 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
         dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
 
-        if isinstance(padding, (list, tuple)) and len(padding) > 2:
+        if isinstance(padding, (list, tuple)) and len(padding) == 4 and \
+           (padding[0] != padding[2] or padding[1] != padding[3]):
             raise ValueError("Cudnn doesn't support asymmetric padding.")
         pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
         OH = (H + pt + pb - KH) // stride_h + 1
@@ -147,7 +148,7 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if 'cudnn' in target.libs:
         return generic.schedule_extern(outs)
 
@@ -185,7 +186,7 @@ def schedule_conv2d_nhwc_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if 'cudnn' in target.libs:
         return generic.schedule_extern(outs)
 

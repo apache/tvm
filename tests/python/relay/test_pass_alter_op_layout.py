@@ -23,7 +23,7 @@ from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -617,7 +617,7 @@ def test_alter_layout_depthwise_conv2d():
         w = relay.var("w", shape=(32, 1, 3, 3))
         x = relay.layout_transform(x, "NCHW", "NCHW8c")
         w = relay.layout_transform(w, "OIHW", "OIHW1i8o")
-        y = relay.nn.contrib_depthwise_conv2d_nchwc(x, w, padding=(1, 1), channels=32, kernel_size=(3, 3),
+        y = relay.nn.contrib_depthwise_conv2d_nchwc(x, w, padding=(1, 1, 1, 1), channels=32, kernel_size=(3, 3),
                                                     groups=32, data_layout="NCHW8c", kernel_layout="OIHW1i8o",
                                                     out_layout="NCHW8c")
         y = relay.layout_transform(y, "NCHW8c", "NCHW")
@@ -1005,7 +1005,7 @@ def test_alter_op_with_global_var():
                             kernel_size=(3, 3),
                             padding=(1, 1))
         y = relay.nn.relu(y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         foo = relay.GlobalVar('foo')
         mod[foo] = relay.Function([x, weight], y)
         mod["main"] = relay.Function([x, weight], foo(x, weight))
@@ -1024,7 +1024,7 @@ def test_alter_op_with_global_var():
                             kernel_size=(3, 3),
                             padding=(1, 1))
         y = relay.nn.relu(y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         foo = relay.GlobalVar('foo')
         mod[foo] = relay.Function([x, weight], y)
         mod["main"] = relay.Function([x, weight], foo(x, weight))

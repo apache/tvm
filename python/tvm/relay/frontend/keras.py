@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-self
+# pylint: disable=invalid-name, import-self, import-outside-toplevel
 """Keras frontend."""
-from __future__ import absolute_import as _abs
 import sys
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import ExprTable, new_var
@@ -133,7 +133,7 @@ def _convert_advanced_activation(inexpr, keras_layer, etab):
             # f(x) = max_value, for x >= max_value
             # f(x) = x,         for threshold <= x < max_value
             return _op.clip(inexpr, a_min=0., a_max=float(keras_layer.max_value))
-        elif keras_layer.max_value and _op.greater(threshold, inexpr).astype('float32'):
+        if keras_layer.max_value and _op.greater(threshold, inexpr).astype('float32'):
             # f(x) = negative_slope * (inexpr - threshold)
             negative_slope = _expr.const(keras_layer.negative_slope, dtype='float32')
             return _op.multiply(negative_slope, _op.subtract(inexpr, threshold))
@@ -753,10 +753,10 @@ def from_keras(model, shape=None):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
-    params : dict of str to tvm.NDArray
+    params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by Relay.
     """
     def _check_model_is_tf_keras():
@@ -838,4 +838,4 @@ def from_keras(model, shape=None):
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
     func = _expr.Function(analysis.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
-    return _module.Module.from_expr(func), params
+    return IRModule.from_expr(func), params

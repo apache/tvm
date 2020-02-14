@@ -127,7 +127,7 @@ def run_group_conv2d(env, remote, wl, target,
         w_np = np.random.randint(w_min, w_max, size=w_shape).astype(kernel.dtype)
         b_np = np.random.randint(b_min, b_max, size=b_shape).astype(env.acc_dtype)
         r_np = topi.testing.conv2d_nchw_python(
-            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype), 
+            a_np.astype(env.acc_dtype), w_np.astype(env.acc_dtype),
             (wl.hstride, wl.wstride), wl.hpad, wl.groups).astype(env.acc_dtype)
         return a_np, w_np, b_np, r_np
 
@@ -224,7 +224,7 @@ def test_conv2d(device="vta"):
         if device == "vta":
             target = env.target
             if env.TARGET not in ["sim", "tsim"]:
-                assert tvm.module.enabled("rpc")
+                assert tvm.runtime.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)
         elif device == "arm_cpu":

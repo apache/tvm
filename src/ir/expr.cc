@@ -71,7 +71,7 @@ IntImm::IntImm(DataType dtype, int64_t value) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("make.IntImm")
+TVM_REGISTER_GLOBAL("ir.IntImm")
 .set_body_typed([](DataType dtype, int64_t value) {
   return IntImm(dtype, value);
 });
@@ -97,7 +97,7 @@ FloatImm::FloatImm(DataType dtype, double value) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("make.FloatImm")
+TVM_REGISTER_GLOBAL("ir.FloatImm")
 .set_body_typed([](DataType dtype, double value) {
   return FloatImm(dtype, value);
 });
@@ -154,7 +154,7 @@ GlobalVar::GlobalVar(std::string name_hint) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("relay._make.GlobalVar")
+TVM_REGISTER_GLOBAL("ir.GlobalVar")
 .set_body_typed([](std::string name){
   return GlobalVar(name);
 });

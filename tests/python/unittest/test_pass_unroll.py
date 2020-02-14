@@ -30,26 +30,26 @@ def test_unroll_loop():
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
-    assert isinstance(stmt, tvm.stmt.For)
+    assert isinstance(stmt, tvm.tir.For)
     ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
-    assert not isinstance(ret, tvm.stmt.For)
+    assert not isinstance(ret, tvm.tir.For)
     ret = tvm.ir_pass.UnrollLoop(stmt, 15, 8, 0, True)
-    assert isinstance(ret, tvm.stmt.For)
+    assert isinstance(ret, tvm.tir.For)
     ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, False)
-    assert isinstance(ret, tvm.stmt.For)
-    assert ret.for_type == tvm.stmt.For.Unrolled
+    assert isinstance(ret, tvm.tir.For)
+    assert ret.for_type == tvm.tir.For.Unrolled
 
     ib = tvm.ir_builder.create()
     ib.scope_attr(tvm.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
     ib.emit(stmt)
     wrapped = ib.get()
-    wrapped = tvm.stmt.SeqStmt([wrapped, stmt])
-    assert isinstance(ret, tvm.stmt.For)
+    wrapped = tvm.tir.SeqStmt([wrapped, stmt])
+    assert isinstance(ret, tvm.tir.For)
     ret = tvm.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
-    assert isinstance(ret[0], tvm.stmt.For)
-    assert ret[0].for_type == tvm.stmt.For.Unrolled
-    assert isinstance(ret[1], tvm.stmt.For)
-    assert ret[1].for_type != tvm.stmt.For.Unrolled
+    assert isinstance(ret[0], tvm.tir.For)
+    assert ret[0].for_type == tvm.tir.For.Unrolled
+    assert isinstance(ret[1], tvm.tir.For)
+    assert ret[1].for_type != tvm.tir.For.Unrolled
 
 def test_unroll_fake_loop():
     ib = tvm.ir_builder.create()
@@ -65,7 +65,7 @@ def test_unroll_fake_loop():
 
     stmt = ib.get()
     ret = tvm.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
-    assert isinstance(ret[0], tvm.stmt.Store)
+    assert isinstance(ret[0], tvm.tir.Store)
 
 def test_unroll_single_count_loops():
     n = tvm.size_var('n')

@@ -14,164 +14,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-import
 """The computation schedule api of TVM."""
-from __future__ import absolute_import as _abs
-from ._ffi.base import string_types
-from ._ffi.object import Object, register_object
-from ._ffi.object import convert_to_object as _convert_to_object
-from ._ffi.function import _init_api, Function
-from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
+import tvm._ffi
+from tvm._ffi.base import string_types
+
+from tvm.runtime import Object, convert
+from tvm.ir import container as _container
+from tvm.tir import expr as _expr, Buffer
+
 from . import _api_internal
 from . import tensor as _tensor
-from . import expr as _expr
-from . import container as _container
-
-def convert(value):
-    """Convert value to TVM object or function.
-
-    Parameters
-    ----------
-    value : python value
-
-    Returns
-    -------
-    tvm_val : Object or Function
-        Converted value in TVM
-    """
-    if isinstance(value, (Function, Object)):
-        return value
-
-    if callable(value):
-        return _convert_tvm_func(value)
-
-    return _convert_to_object(value)
-
-@register_object
-class Buffer(Object):
-    """Symbolic data buffer in TVM.
-
-    Buffer provide a way to represent data layout
-    specialization of data structure in TVM.
-
-    Do not construct directly, use :any:`decl_buffer` instead.
-    See the documentation of :any:`decl_buffer` for more details.
-
-    See Also
-    --------
-    decl_buffer : Declare a buffer
-    """
-    READ = 1
-    WRITE = 2
-
-    def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0):
-        """Get an access pointer to the head of buffer.
-
-        This is the recommended method to get buffer data
-        ptress when interacting with external functions.
-
-        Parameters
-        ----------
-        access_mask : int
-            The access pattern MASK. Indicate whether the
-            access will read or write to the data content.
-
-        ptr_type : str, optional
-            The data type of the result pointer. Do not specify
-            unless we want to cast pointer to specific type.
-
-        content_lanes: int, optional
-            The number of lanes for the data type. This value
-            is greater than one for vector types.
-
-        offset: Expr, optional
-            The offset of pointer. We can use it to offset by
-            the number of elements from the address of ptr.
-
-        Examples
-        --------
-        .. code-block:: python
-
-          import tvm.schedule.Buffer
-          # Get access ptr for read
-          buffer.access_ptr("r")
-          # Get access ptr for read/write with bitmask
-          buffer.access_ptr(Buffer.READ | Buffer.WRITE)
-          # Get access ptr for read/write with str flag
-          buffer.access_ptr("rw")
-          # Get access ptr for read with offset
-          buffer.access_ptr("r", offset = 100)
-        """
-        if isinstance(access_mask, string_types):
-            mask = 0
-            for value in access_mask:
-                if value == "r":
-                    mask = mask | Buffer.READ
-                elif value == "w":
-                    mask = mask | Buffer.WRITE
-                else:
-                    raise ValueError("Unknown access_mask %s" % access_mask)
-            access_mask = mask
-        offset = convert(offset)
-        return _api_internal._BufferAccessPtr(self, access_mask, ptr_type,
-                                              content_lanes, offset)
-
-    def vload(self, begin, dtype=None):
-        """Generate an Expr that loads dtype from begin index.
-
-        Parameters
-        ----------
-        begin : Array of Expr
-            The beginning index in unit of Buffer.dtype
-
-        dtype : str
-            The data type to be loaded,
-            can be vector type which have lanes that is multiple of Buffer.dtype
-
-        Returns
-        -------
-        load : Expr
-            The corresponding load expression.
-        """
-        begin = (begin,) if isinstance(begin, (int, _expr.PrimExpr)) else begin
-        dtype = dtype if dtype else self.dtype
-        return _api_internal._BufferVLoad(self, begin, dtype)
-
-    def vstore(self, begin, value):
-        """Generate a Stmt that store value into begin index.
-
-        Parameters
-        ----------
-        begin : Array of Expr
-            The beginning index in unit of Buffer.dtype
-
-        value : Expr
-            The value to be stored.
-
-        Returns
-        -------
-        store : Stmt
-            The corresponding store stmt.
-        """
-        begin = (begin,) if isinstance(begin, (int, _expr.PrimExpr)) else begin
-        return _api_internal._BufferVStore(self, begin, value)
 
 
-@register_object
+@tvm._ffi.register_object
 class Split(Object):
     """Split operation on axis."""
 
 
-@register_object
+@tvm._ffi.register_object
 class Fuse(Object):
     """Fuse operation on axis."""
 
 
-@register_object
+@tvm._ffi.register_object
 class Singleton(Object):
     """Singleton axis."""
 
 
-@register_object
+@tvm._ffi.register_object
 class IterVar(Object, _expr.ExprOp):
     """Represent iteration variable.
 
@@ -214,7 +85,7 @@ def create_schedule(ops):
     return _api_internal._CreateSchedule(ops)
 
 
-@register_object
+@tvm._ffi.register_object
 class Schedule(Object):
     """Schedule for all the stages."""
     def __getitem__(self, k):
@@ -348,7 +219,7 @@ class Schedule(Object):
         return factored[0] if len(factored) == 1 else factored
 
 
-@register_object
+@tvm._ffi.register_object
 class Stage(Object):
     """A Stage represents schedule for one operation."""
     def split(self, parent, factor=None, nparts=None):
@@ -670,4 +541,4 @@ class Stage(Object):
         """
         _api_internal._StageOpenGL(self)
 
-_init_api("tvm.schedule")
+tvm._ffi._init_api("tvm.schedule")

@@ -62,7 +62,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
             indices_index += 1
 
     out = np.empty(oshape)
-    output_indices = [index for index in np.ndindex(out.shape)]
+    output_indices = list(np.ndindex(out.shape))
     for output_index in output_indices:
         indices_indices = []
         for i, out_idx in enumerate(output_index):

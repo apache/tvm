@@ -599,6 +599,11 @@ TVM_REGISTER_GLOBAL("relay._make._alpha_equal")
   return AlphaEqualHandler(false, false).Equal(a, b);
 });
 
+TVM_REGISTER_GLOBAL("ir.type_alpha_equal")
+.set_body_typed([](Type a, Type b) {
+  return AlphaEqual(a, b);
+});
+
 TVM_REGISTER_GLOBAL("relay._make._assert_alpha_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);

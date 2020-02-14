@@ -53,7 +53,7 @@ def test_graph_simple():
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -105,7 +105,7 @@ def test_graph_simple():
         assert(not os.path.exists(directory))
 
     def check_remote():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")

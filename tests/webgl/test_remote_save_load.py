@@ -37,11 +37,11 @@ proxy_host = "localhost"
 proxy_port = 9090
 
 def try_remote_save_load():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
-    if not tvm.module.enabled("opengl"):
+    if not tvm.runtime.enabled("opengl"):
         return
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
 
     # Build the module.

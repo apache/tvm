@@ -340,7 +340,7 @@ def schedule_group_conv2d_nchw_direct(cfg, s, conv):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if target.target_name in ['nvptx', 'rocm']:
         cfg.define_knob("unroll_explicit", [1])
     else:

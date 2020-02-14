@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments
+# pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
@@ -265,6 +265,7 @@ def schedule_conv2d(attrs, outs, target):
 @reg.register_alter_op_layout("nn.conv2d")
 def alter_op_layout_conv2d(attrs, inputs, tinfos):
     """Alternate the layout of conv2d"""
+    # pylint: disable=import-outside-toplevel
     from ... import op
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
@@ -274,7 +275,7 @@ def legalize_conv2d(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -295,7 +296,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -309,7 +310,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
     result : tvm.relay.Expr
         The transformed expr
     """
-
+    # pylint: disable=import-outside-toplevel
     from tvm import relay
     data_layout = attrs['data_layout']
     kernel_layout = attrs['kernel_layout']
@@ -412,7 +413,7 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current Transposed convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -610,22 +611,6 @@ def schedule_lrn(attrs, outs, target):
 
 reg.register_pattern("nn.lrn", OpPattern.OPAQUE)
 
-
-# l2_normalize
-@reg.register_compute("nn.l2_normalize")
-def compute_l2_normalize(attrs, inputs, out_dtype, target):
-    """Compute definition of l2 normalize"""
-    return [topi.nn.l2_normalize(inputs[0], attrs.eps, attrs.axis)]
-
-
-@reg.register_schedule("nn.l2_normalize")
-def schedule_l2_normalize(attrs, outs, target):
-    """Schedule definition of l2 normalize"""
-    with target:
-        return topi.generic.schedule_l2_normalize(outs)
-
-
-reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # upsampling
 reg.register_schedule("nn.upsampling", reg.schedule_injective)
@@ -962,7 +947,7 @@ def legalize_bitserial_conv2d(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized

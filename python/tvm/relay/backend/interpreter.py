@@ -20,10 +20,11 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from tvm import container
+from tvm.runtime import container
+from tvm.ir import IRModule
+
 from . import _backend
 from .. import _make, analysis, transform
-from .. import module
 from ... import nd
 from ..base import Object, register_relay_node
 from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
@@ -84,14 +85,14 @@ class Executor(object):
         expr: relay.Expr
             The expression to evaluate
 
-        args: List[tvm.NDArray]
+        args: List[tvm.nd.NDArray]
             The arguments to pass to the evaluator.
 
         kwargs: Dict[str, tvm.NDArrray]
             The keyword arguments to pass to the evaluator.
 
         Returns:
-            args: List[tvm.NDArray]
+            args: List[tvm.nd.NDArray]
                 The new arguments with all keyword arguments placed in the correct slot.
         """
         assert expr is not None
@@ -186,10 +187,10 @@ class Interpreter(Executor):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module to support the execution.
 
-    ctx : tvm.TVMContext
+    ctx : tvmContext
         The runtime context to run the code on.
 
     target : tvm.Target
@@ -205,7 +206,7 @@ class Interpreter(Executor):
 
         Returns
         -------
-        opt_mod : tvm.relay.Module
+        opt_mod : tvm.IRModule
             The optimized module.
         """
         seq = transform.Sequential([transform.SimplifyInference(),
@@ -239,7 +240,7 @@ class Interpreter(Executor):
                 if self.mod:
                     self.mod["main"] = func
                 else:
-                    self.mod = module.Module.from_expr(func)
+                    self.mod = IRModule.from_expr(func)
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)

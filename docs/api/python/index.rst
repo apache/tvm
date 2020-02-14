@@ -22,21 +22,20 @@ Python API
    :maxdepth: 2
 
    tvm
+   runtime
+   ndarray
+   error
+   ir
+   target
    intrin
    tensor
    schedule
-   target
    build
-   module
-   error
-   ndarray
-   container
    function
    autotvm
-   graph_runtime
    rpc
-   bridge
    contrib
+   graph_runtime
    dev
    topi
    vta/index

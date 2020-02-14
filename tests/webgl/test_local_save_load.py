@@ -20,9 +20,9 @@ from tvm import rpc
 from tvm.contrib import util, emscripten
 
 def test_local_save_load():
-    if not tvm.module.enabled("opengl"):
+    if not tvm.runtime.enabled("opengl"):
         return
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
 
     n = tvm.var("n")
@@ -44,7 +44,7 @@ def test_local_save_load():
     temp = util.tempdir()
     path_so = temp.relpath("myadd.so")
     f.export_library(path_so)
-    f1 = tvm.module.load(path_so)
+    f1 = tvm.runtime.load_module(path_so)
     f1(a, b, c)
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 

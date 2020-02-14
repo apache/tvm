@@ -18,9 +18,9 @@ import tvm
 import numpy as np
 
 def test_local_multi_stage():
-    if not tvm.module.enabled("opengl"):
+    if not tvm.runtime.enabled("opengl"):
         return
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
 
     n = tvm.var("n")

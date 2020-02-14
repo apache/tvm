@@ -31,16 +31,16 @@ def test_simplify():
 def test_verify_ssa():
     x = tvm.var('x')
     y = tvm.var()
-    z = tvm.make.Evaluate(x + y)
+    z = tvm.tir.Evaluate(x + y)
     assert(tvm.ir_pass.VerifySSA(z))
 
 
 def test_convert_ssa():
     x = tvm.var('x')
     y = tvm.var()
-    let1 = tvm.make.Let(x, 1, x + 1)
-    let2 = tvm.make.Let(x, 1, x + y)
-    z = tvm.make.Evaluate(let1 + let2)
+    let1 = tvm.tir.Let(x, 1, x + 1)
+    let2 = tvm.tir.Let(x, 1, x + y)
+    z = tvm.tir.Evaluate(let1 + let2)
     assert(not tvm.ir_pass.VerifySSA(z))
     z_ssa = tvm.ir_pass.ConvertSSA(z)
     assert(tvm.ir_pass.VerifySSA(z_ssa))

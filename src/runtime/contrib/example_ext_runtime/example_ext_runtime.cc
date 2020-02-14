@@ -332,12 +332,12 @@ class ExampleJsonModule : public ModuleNode {
   std::vector<std::string> op_id_;
 };
 
-TVM_REGISTER_GLOBAL("module.loadfile_examplejson")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_examplejson")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = ExampleJsonModule::Create(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_examplejson")
 .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
 }  // namespace runtime

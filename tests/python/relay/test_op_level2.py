@@ -237,7 +237,7 @@ def test_conv2d_run():
                             groups=groups,
                             **attrs)
         func = relay.Function([x, w], y)
-        mod = tvm.relay.Module()
+        mod = tvm.IRModule()
         mod["main"] = func
 
         test_schedule='{"i": ["llvm -device=arm_cpu", "topi_nn_depthwise_conv2d_nchw", \
@@ -276,7 +276,7 @@ def test_conv2d_run():
     dshape = (1, 512, 32, 32)
     kshape = (512, 1, 3, 3)
     compile_test_conv2d_arm_cpu("float32", "float32", 1, dshape, kshape,
-                                padding=(1, 1), channels=512, 
+                                padding=(1, 1), channels=512,
                                 groups=512, kernel_size=(3 ,3))
 
     # CUDA is disabled for 'direct' schedule:
@@ -344,7 +344,7 @@ def test_conv2d_winograd():
                             groups=groups,
                             **attrs)
         func = relay.Function([x, w], y)
-        mod = relay.Module()
+        mod = tvm.IRModule()
         mod['main'] = func
         mod = relay.transform.InferType()(mod)
 
@@ -630,8 +630,8 @@ def test_upsampling_infer_type():
     y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(h*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(h*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
                                                 "float32")
     n, c = tvm.size_var("n"), tvm.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
@@ -647,9 +647,9 @@ def test_upsampling3d_infer_type():
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
 
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.expr.Cast("int32", tvm.round(d*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(h*scale)),
-                                                tvm.expr.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(d*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(h*scale)),
+                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
                                                 "float32")
     n, c = tvm.size_var("n"), tvm.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 100, 200), "float32"))
@@ -1115,7 +1115,7 @@ def test_conv2d_int8_intrinsics():
 
     # compile conv2d for x86 (skylake, cascadelake) and test assembly contains *pmadd* instructions
     targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
-    llvm_version = tvm.codegen.llvm_version_major()
+    llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
             dtypes = ('uint8', 'int8', 'int32')
@@ -1208,7 +1208,7 @@ def test_depthwise_conv2d_int8():
     parameters = {"weight": tvm.nd.array(wdata.astype(weight_dtype))}
 
     targets = ["llvm -mcpu=skylake-avx512", "llvm -mcpu=cascadelake"]
-    llvm_version = tvm.codegen.llvm_version_major()
+    llvm_version = tvm.target.codegen.llvm_version_major()
     for target in targets:
         if llvm_version >= 8:
             with relay.build_config(opt_level=3):

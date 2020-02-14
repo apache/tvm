@@ -20,7 +20,7 @@ def test_coproc_lift():
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
     cp = tvm.thread_axis((0, 1), "cop")
-    value = tvm.make.StringImm("xxx")
+    value = tvm.tir.StringImm("xxx")
 
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:

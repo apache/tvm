@@ -15,22 +15,22 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ndarray
------------
-.. automodule:: tvm.ndarray
+tvm.runtime.ndarray
+-------------------
+.. automodule:: tvm.runtime.ndarray
 
-.. autoclass:: tvm.ndarray.TVMContext
-    :members:
-
-.. autoclass:: tvm.ndarray.NDArray
+.. autoclass:: tvm.nd.NDArray
     :members:
     :inherited-members:
 
+
+.. autoclass:: tvm.runtime.TVMContext
+    :members:
+
+.. autofunction:: tvm.context
 .. autofunction:: tvm.cpu
 .. autofunction:: tvm.gpu
 .. autofunction:: tvm.opencl
 .. autofunction:: tvm.metal
-.. autofunction:: tvm.ndarray.array
-.. autofunction:: tvm.ndarray.empty
-
-.. autofunction:: tvm.register_extension
+.. autofunction:: tvm.nd.array
+.. autofunction:: tvm.nd.empty

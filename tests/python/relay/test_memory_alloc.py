@@ -20,7 +20,7 @@ from tvm import relay
 from tvm.relay import memory_alloc
 
 def check_vm_alloc(func, check_fn):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod['main'] = func
     ex = relay.create_executor('vm', mod)
     args = []
@@ -37,11 +37,11 @@ def storage_type(mod):
     return relay.TypeCall(mod.get_global_type_var("Storage"), [])
 
 def test_tyck_alloc_storage():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod.import_from_std("core.rly")
 
 def test_tyck_alloc_tensor():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod.import_from_std("core.rly")
     sto = relay.Var("x", storage_type(mod))
     sh = relay.const(np.array([1, 2]), dtype="int64")

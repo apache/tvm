@@ -34,7 +34,7 @@ def test_fully_connected_inference():
     s = tvm.create_schedule(D.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
@@ -104,7 +104,7 @@ def test_convolution_inference():
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")
@@ -166,7 +166,7 @@ def test_convolution_inference_without_weight_transform():
     def verify(target="llvm",
                algorithm=nnpack.ConvolutionAlgorithm.AUTO,
                with_bias=True):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             pytest.skip("%s is not enabled..." % target)
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             pytest.skip("extern function is not available")

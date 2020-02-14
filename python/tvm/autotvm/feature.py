@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,
 """Extract feature of iter vars
 
 There are two types of feature
@@ -148,6 +148,7 @@ def get_flatten_name(fea):
     }
 
     if isinstance(fea, str):
+        # pylint: disable=import-outside-toplevel
         from .record import decode
         # flatten line to feature
         line = fea

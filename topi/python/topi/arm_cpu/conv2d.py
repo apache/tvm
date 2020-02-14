@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument
+# pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
 """Conv2D schedule for ARM CPU"""
 from __future__ import absolute_import as _abs
 
@@ -514,7 +514,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols
@@ -528,8 +528,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
     Unlike other TOPI functions, this function operates on both graph level and operator level,
     so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
     """
-    copy_inputs = [s for s in inputs]
-
+    copy_inputs = list(inputs)
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
     if F.__name__ == 'tvm.relay.op':
@@ -589,7 +588,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
     idxd = tvm.indexdiv
 
     if groups == 1:
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         dispatch_ctx = autotvm.DispatchContext.current
         cfg = dispatch_ctx.query(target, workload)
 
@@ -694,12 +693,12 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
         else:
             raise RuntimeError("Unsupported template_key '%s'" % cfg.template_key)
     else:
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         dispatch_ctx = autotvm.DispatchContext.current
         cfg = dispatch_ctx.query(target, workload)
 
         if cfg.is_fallback:  # if is fallback, clear query cache and return None
-            autotvm.task.clear_fallback_cache(tvm.target.current_target(), workload)
+            autotvm.task.clear_fallback_cache(tvm.target.Target.current(), workload)
             if layout == 'NHWC' and kernel_layout == 'HWOI':
                 new_attrs['data_layout'] = 'NCHW'
                 new_attrs['kernel_layout'] = 'OIHW'

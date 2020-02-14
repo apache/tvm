@@ -231,7 +231,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     module_ = std::move(module);
     if (module_ == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load module: " << msg;
     }
     std::string target_;
@@ -254,7 +254,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     auto module = llvm::parseIRFile(file_name, err, *ctx);
     if (module == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
                  << "line " << err.getLineNo() << ":" << msg;
     }
@@ -349,11 +349,6 @@ unsigned LookupLLVMIntrinsic(const std::string& name) {
   return llvm::Function::lookupIntrinsicID(name);
 }
 
-TVM_REGISTER_GLOBAL("codegen.llvm_lookup_intrinsic_id")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
-  });
-
 TVM_REGISTER_GLOBAL("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
@@ -361,14 +356,18 @@ TVM_REGISTER_GLOBAL("codegen.build_llvm")
     *rv = runtime::Module(n);
   });
 
-TVM_REGISTER_GLOBAL("codegen.llvm_version_major")
+TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::ostringstream os;
+    *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
+  });
+
+TVM_REGISTER_GLOBAL("target.llvm_version_major")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
     int major = TVM_LLVM_VERSION / 10;
     *rv = major;
   });
 
-TVM_REGISTER_GLOBAL("module.loadfile_ll")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     auto n = make_object<LLVMModuleNode>();
     n->LoadIR(args[0]);

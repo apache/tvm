@@ -30,7 +30,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
     b_np = topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)

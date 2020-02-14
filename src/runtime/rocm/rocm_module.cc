@@ -254,18 +254,18 @@ Module ROCMModuleLoadBinary(void* strm) {
 }
 
 
-TVM_REGISTER_GLOBAL("module.loadbinary_hsaco")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_hsaco")
 .set_body_typed(ROCMModuleLoadBinary);
 
 
-TVM_REGISTER_GLOBAL("module.loadbinary_hip")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_hip")
 .set_body_typed(ROCMModuleLoadBinary);
 
 
-TVM_REGISTER_GLOBAL("module.loadfile_hsaco")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hsaco")
 .set_body_typed(ROCMModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadfile_hip")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hip")
 .set_body_typed(ROCMModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

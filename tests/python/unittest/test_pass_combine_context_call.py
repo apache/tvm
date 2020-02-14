@@ -20,8 +20,8 @@ def test_for():
     dev_type = tvm.var("dev_type")
     def device_context(dev_id):
         ctx = tvm.call_extern("handle", "device_context", dev_type, dev_id)
-        return tvm.make.Call(
-            "handle", "tvm_thread_context", [ctx], tvm.expr.Call.Intrinsic, None, 0)
+        return tvm.tir.Call(
+            "handle", "tvm_thread_context", [ctx], tvm.tir.Call.Intrinsic, None, 0)
 
     ib = tvm.ir_builder.create()
     n = tvm.var("n")

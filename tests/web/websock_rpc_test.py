@@ -30,7 +30,7 @@ proxy_host = "localhost"
 proxy_port = 9090
 
 def test_rpc_array():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     # graph
     n = tvm.convert(1024)
@@ -40,7 +40,7 @@ def test_rpc_array():
     remote = rpc.connect(proxy_host, proxy_port, key="js")
     target = "llvm -target=asmjs-unknown-emscripten -system-lib"
     def check_remote():
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("Skip because %s is not enabled" % target)
             return
         temp = util.tempdir()

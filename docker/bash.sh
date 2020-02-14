@@ -94,4 +94,3 @@ ${DOCKER_BINARY} run --rm --pid=host\
     ${DOCKER_IMAGE_NAME}\
     bash --login /docker/with_the_same_user \
     ${COMMAND[@]}
-

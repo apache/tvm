@@ -82,7 +82,7 @@ def test_depthwise_conv2d_nchw():
     shift_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Shift.dtype)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         ctx = tvm.context(device, 0)
@@ -172,7 +172,7 @@ def test_depthwise_conv2d_nhwc():
     shift_np = np.random.uniform(size=(in_channel * channel_multiplier)).astype(Shift.dtype)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         ctx = tvm.context(device, 0)

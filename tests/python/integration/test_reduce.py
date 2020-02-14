@@ -24,7 +24,7 @@ def test_reduce_prims():
         n = tvm.size_var('n')
         m = tvm.size_var('m')
         A = tvm.placeholder((n, m), name='A')
-        R = tvm.compute((n, ), lambda i: tvm.expr.Select((i > 1), 1, 0), name='R')
+        R = tvm.compute((n, ), lambda i: tvm.tir.Select((i > 1), 1, 0), name='R')
         k = tvm.reduce_axis((0, m))
         B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
         # schedule
@@ -39,7 +39,7 @@ def test_reduce_prims():
         # one line to build the function.
         def check_device(device, host="llvm"):
             ctx = tvm.context(device, 0)
-            if not tvm.module.enabled(host):
+            if not tvm.runtime.enabled(host):
                 return
             if not ctx.exist:
                 print("skip because %s is not enabled.." % device)
@@ -81,7 +81,7 @@ def test_rfactor():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -111,7 +111,7 @@ def test_rfactor_factor_axis():
     s[BF].parallel(BF.op.axis[0])
     # one line to build the function.
     def check_target(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         ctx = tvm.cpu(0)
         fapi = tvm.lower(s, args=[A, B])
@@ -232,8 +232,8 @@ def test_rfactor_elemwise_threads():
 
 def test_argmax():
     def fcombine(x, y):
-        lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
-        rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
         return lhs, rhs
 
     def fidentity(t0, t1):
@@ -252,7 +252,7 @@ def test_argmax():
 
     def check_target():
         device = 'cpu'
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("skip because %s is not enabled.." % device)
             return
         ctx = tvm.context(device, 0)
@@ -279,8 +279,8 @@ def test_argmax():
 
 def test_rfactor_argmax():
     def fcombine(x, y):
-        lhs = tvm.make.Select((x[1] >= y[1]), x[0], y[0])
-        rhs = tvm.make.Select((x[1] >= y[1]), x[1], y[1])
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
         return lhs, rhs
 
     def fidentity(t0, t1):

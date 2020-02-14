@@ -76,8 +76,7 @@ TEST(BuildModule, Heterogeneous) {
 
   using namespace tvm;
   using namespace tvm::te;
-  const runtime::PackedFunc* pf = runtime::Registry::Get("module._Enabled");
-  bool enabled = (*pf)("cuda");
+  bool enabled = tvm::runtime::RuntimeEnabled("cuda");
   if (!enabled) {
     LOG(INFO) << "Skip heterogeneous test because cuda is not enabled."
               << "\n";
@@ -104,11 +103,11 @@ TEST(BuildModule, Heterogeneous) {
     return copy[i] - C[i];
   }, "elemwise_sub");
 
-  const runtime::PackedFunc* enter_target_scope_func = runtime::Registry::Get("_EnterTargetScope");
-  (*enter_target_scope_func)(target_cuda);
+  With<Target> cuda_scope(target_cuda);
   auto s1 = topi::cuda::schedule_injective(target_cuda, {elemwise_add});
 
-  (*enter_target_scope_func)(target_llvm);
+
+  With<Target> llvm_scope(target_llvm);
   auto s2 = create_schedule({elemwise_sub->op});
 
   auto config = BuildConfig::Create();

@@ -63,7 +63,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     is_depthwise = groups == kshape[0] and kshape[1] == 1
 
     # Save the input exprs.
-    copy_inputs = [s for s in inputs]
+    copy_inputs = list(inputs)
 
     # Set the new attrs
     new_attrs = {k : attrs[k] for k in attrs.keys()}
@@ -75,7 +75,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo, F):
 
     # Set workload. Config update.
     dispatch_ctx = autotvm.task.DispatchContext.current
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
 
     if is_depthwise:
         workload = autotvm.task.args_to_workload(
@@ -173,7 +173,7 @@ def _conv2d_legalize(attrs, inputs, arg_types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized

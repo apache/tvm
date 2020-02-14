@@ -45,7 +45,7 @@ static inline Array<IndexExpr> get_shape(const Type& type) {
   return input_tt->shape;
 }
 
-static inline const int32_t GetQmin(const DataType& dtype) {
+static inline int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {
@@ -58,7 +58,7 @@ static inline const int32_t GetQmin(const DataType& dtype) {
   }
 }
 
-static inline const int32_t GetQmax(const DataType& dtype) {
+static inline int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
   if (dtype.is_int() || dtype.is_uint()) {

@@ -324,11 +324,11 @@ class LocalRunner(RPCRunner):
         self.server = None
 
     def set_task(self, task):
-        self.task = task
-
+        # pylint: disable=import-outside-toplevel
         from ...rpc.tracker import Tracker
         from ...rpc.server import Server
 
+        self.task = task
         tracker = Tracker('0.0.0.0', port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % tracker.port
         server = Server('0.0.0.0', port=9000, port_end=10000,
@@ -362,6 +362,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         # if target is vta, we need to use vta build
         if hasattr(measure_input.target, 'device_name') and \
             measure_input.target.device_name == 'vta':
+            # pylint: disable=import-outside-toplevel
             import vta
             func = vta.build(s, args, target_host=task.target_host)
         else:
@@ -460,6 +461,7 @@ def run_through_rpc(measure_input, build_result,
         # Program the FPGA every single time when targeting VTA
         if hasattr(measure_input.target, 'device_name') and \
             measure_input.target.device_name == 'vta':
+            # pylint: disable=import-outside-toplevel
             from vta import program_fpga, reconfig_runtime
             program_fpga(remote, None)
             reconfig_runtime(remote)

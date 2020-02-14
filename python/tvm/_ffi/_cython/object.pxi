@@ -96,6 +96,23 @@ cdef class ObjectBase:
         self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
-            (<FunctionBase>fconstructor).chandle,
+            (<PackedFuncBase>fconstructor).chandle,
             kTVMObjectHandle, args, &chandle)
         self.chandle = chandle
+
+    def same_as(self, other):
+        """Check object identity.
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare against.
+
+        Returns
+        -------
+        result : bool
+             The comparison result.
+        """
+        if not isinstance(other, ObjectBase):
+            return False
+        return self.chandle == (<ObjectBase>other).chandle

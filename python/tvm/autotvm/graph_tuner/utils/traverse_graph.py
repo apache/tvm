@@ -20,6 +20,7 @@ import threading
 
 import topi
 
+import tvm
 from tvm import relay, autotvm
 from tvm.relay import transform
 from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
@@ -65,6 +66,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
                                % op_name)
         topi_funcs += OP2COMPUTE[op_name]
     env.reset(topi_funcs)
+    # pylint: disable=not-context-manager
     with env:
         _expr2graph_impl(expr, target_ops, node_dict, node_list)
         task_pos = 0
@@ -82,7 +84,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
 
 def _infer_type(node):
     """A method to infer the type of a relay expression."""
-    mod = relay.Module.from_expr(node)
+    mod = tvm.IRModule.from_expr(node)
     mod = transform.InferType()(mod)
     entry = mod["main"]
     return entry if isinstance(node, relay.Function) else entry.body
@@ -126,16 +128,16 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                 for i, input_idx in enumerate(node_entry["inputs"]):
                     input_node_entry = node_list[input_idx[0]]
                     input_type = input_node_entry["types"][input_idx[1]]
-                    if not isinstance(input_node_entry["node"], (Var, Call)):
+                    if not isinstance(input_node_entry["node"], (Var, Constant, Call)):
                         raise RuntimeError("Graph tuner can only tune target "
                                            "operators with input node of type "
-                                           "relay.expr.Var or relay.expr.Call. Now "
+                                           "relay.expr.Var/Constant/Call. Now "
                                            "find a target op %s with input type %s"
                                            % (op_name, str(type(input_node_entry["node"]))))
                     free_var = relay.Var("var_%d" % i, input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
-                mod = relay.Module.from_expr(relay.Function(params, call))
+                mod = tvm.IRModule.from_expr(relay.Function(params, call))
                 relay.backend.compile_engine.get().clear()
                 build_thread = threading.Thread(target=relay.build,
                                                 args=(mod,
@@ -167,7 +169,8 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                 else:
                     node_entry["inputs"].append([in_node_idx, 0, 0])
         elif isinstance(node, Constant):
-            pass
+            node_entry["name"] = "Constant_" + str(node_index)
+            node_entry["types"] = [node.checked_type]
         elif isinstance(node, relay.op.op.Op):
             return
         else:

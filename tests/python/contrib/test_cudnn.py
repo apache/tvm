@@ -35,7 +35,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
     height = 32
     weight = 32
 
-    if not tvm.module.enabled("cuda"):
+    if not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
@@ -78,7 +78,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
             c_np = topi.testing.conv2d_nhwc_python(x_np, wt, 1, 1)
 
         f(x, w, y)
-        tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=1e-5, rtol=1e-3)
+        tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=3e-5, rtol=1e-3)
 
     verify()
 
@@ -110,7 +110,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
     height = 32
     weight = 32
 
-    if not tvm.module.enabled("cuda"):
+    if not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
@@ -149,7 +149,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
             raise AssertionError("For now, conv3d tensor format only support: 0(NCHW)")
 
         f(x, w, y)
-        tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=1e-5, rtol=1e-4)
+        tvm.testing.assert_allclose(y.asnumpy(), c_np, atol=3e-5, rtol=1e-4)
 
     verify()
 

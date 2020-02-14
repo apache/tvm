@@ -461,7 +461,7 @@ def test_proposal():
         func = relay.Function([cls_prob, bbox_pred, im_info], z)
         func = run_infer_type(func)
         for target in ['llvm', 'cuda']:
-            if not tvm.module.enabled(target):
+            if not tvm.runtime.enabled(target):
                 print("Skip test because %s is not enabled." % target)
                 continue
             ctx = tvm.context(target, 0)

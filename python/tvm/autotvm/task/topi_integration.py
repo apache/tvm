@@ -76,6 +76,7 @@ class TaskExtractEnv:
     registered = None
 
     def __init__(self, allow_duplicate=False):
+        # pylint: disable=import-outside-toplevel
         import topi
 
         # topi compute -> autotvm task name
@@ -93,6 +94,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_dense: "topi_nn_bitserial_dense",
             topi.nn.deformable_conv2d_nchw: "topi_nn_deformable_conv2d_nchw",
             topi.nn.conv1d_transpose_ncw: "topi_nn_conv1d_transpose_ncw",
+            topi.nn.conv3d: "topi_nn_conv3d",
         }
 
         self.topi_to_schedule = {
@@ -111,6 +113,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_dense: [topi.generic.schedule_bitserial_dense],
             topi.nn.deformable_conv2d_nchw: [topi.generic.schedule_deformable_conv2d_nchw],
             topi.nn.conv1d_transpose_ncw: [topi.generic.schedule_conv1d_transpose_ncw],
+            topi.nn.conv3d: [topi.generic.schedule_conv3d_ndhwc],
         }
 
         # function reflection for tracing
@@ -128,6 +131,7 @@ class TaskExtractEnv:
             topi.nn.bitserial_dense:        lambda x: setattr(topi.nn, 'bitserial_dense', x),
             topi.nn.deformable_conv2d_nchw: lambda x: setattr(topi.nn, 'deformable_conv2d_nchw', x),
             topi.nn.conv1d_transpose_ncw:   lambda x: setattr(topi.nn, 'conv1d_transpose_ncw', x),
+            topi.nn.conv3d:                 lambda x: setattr(topi.nn, 'conv3d', x),
         }
 
         self.allow_duplicate = allow_duplicate
@@ -168,6 +172,7 @@ class TaskExtractEnv:
 
     def _register_topi_task(self):
         """register tuning wrapper for topi function"""
+        # pylint: disable=import-outside-toplevel
         import topi
 
         # Avoid double registration for certain targets
@@ -227,6 +232,15 @@ class TaskExtractEnv:
             A, W = args[:2]
             C = topi.nn.conv1d_transpose_ncw(*args, **kwargs)
             s = topi.generic.schedule_conv1d_transpose_ncw([C])
+            return s, [A, W, C]
+
+        @register("topi_nn_conv3d")
+        def _topi_nn_conv3d(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, W = args[:2]
+            C = topi.nn.conv3d(*args, **kwargs)
+            s = topi.generic.schedule_conv3d_ndhwc([C])
             return s, [A, W, C]
 
         @register("topi_nn_dense")

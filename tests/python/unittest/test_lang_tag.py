@@ -48,7 +48,7 @@ def test_with():
     assert "hello" in C.op.attrs
     assert "xx" not in C.op.attrs
     assert C.op.attrs["hello"].value == 1
-    CC = tvm.load_json(tvm.save_json(C))
+    CC = tvm.ir.load_json(tvm.ir.save_json(C))
     assert CC.op.attrs["hello"].value == 1
     assert CC.op.attrs["arr"][0].value == 10
     # str format happened to be json compatible

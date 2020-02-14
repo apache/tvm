@@ -78,7 +78,7 @@ C++ Backend
 We provide a ``PassInfo`` object to contain the basic information needed by
 a pass. ``name`` is the pass name, ``opt_level`` indicates at which optimization
 level the pass will be enabled, and ``required`` represents the passes that are
-required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
+required to execute a certain pass (see `include/tvm/ir/transform.h`_ for
 more details). For example, during registration of a pass (will be covered in
 later), the pass developers can specify the name of the pass, the optimization
 level it will be performed at, and/or the passes that are required.
@@ -183,7 +183,7 @@ optimization passes, e.g., function-level passes, module-level passes, and
 sequential passes.  Each subclass itself could act as a pass manager. For
 instance, they could collect the required passes and execute them or build
 a dependency graph based on the given metadata. The full definition of them
-can be found in `src/relay/pass/pass_manager.cc`_
+can be found in `src/relay/ir/transform.cc`_ and `src/ir/transform.cc`_.
 
 Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
@@ -651,9 +651,11 @@ For more pass infra related examples in Python and C++, please refer to
 
 .. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions
 
-.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/relay/transform.h
+.. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/ir/transform.h
 
-.. _src/relay/pass/pass_manager.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/pass_manager.cc
+.. _src/relay/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/ir/transform.cc
+
+.. _src/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/ir/transform.cc
 
 .. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/fold_constant.cc
 

@@ -123,18 +123,18 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
-TVM_REGISTER_GLOBAL("_GenericFuncCreate")
+TVM_REGISTER_GLOBAL("target.GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = GenericFunc(make_object<GenericFuncNode>());
   });
 
-TVM_REGISTER_GLOBAL("_GenericFuncGetGlobal")
+TVM_REGISTER_GLOBAL("target.GenericFuncGetGlobal")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string func_name = args[0];
   *ret = GenericFunc::Get(func_name);
   });
 
-TVM_REGISTER_GLOBAL("_GenericFuncSetDefault")
+TVM_REGISTER_GLOBAL("target.GenericFuncSetDefault")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -145,7 +145,7 @@ TVM_REGISTER_GLOBAL("_GenericFuncSetDefault")
     .set_default(*func, allow_override);
   });
 
-TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
+TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
@@ -162,7 +162,7 @@ TVM_REGISTER_GLOBAL("_GenericFuncRegisterFunc")
     .register_func(tags_vector, *func, allow_override);
   });
 
-TVM_REGISTER_GLOBAL("_GenericFuncCallFunc")
+TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   GenericFunc generic_func = args[0];
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);

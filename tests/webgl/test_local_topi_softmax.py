@@ -37,7 +37,7 @@ def verify_softmax(m, n):
     b_np = topi.testing.softmax_python(a_np)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -68,7 +68,7 @@ def verify_log_softmax(m, n):
     b_np = topi.testing.log_softmax_python(a_np)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)

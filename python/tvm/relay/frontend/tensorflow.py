@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
+# pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
 from __future__ import print_function
@@ -28,13 +29,13 @@ import numpy as np
 
 import tvm
 
+from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude
 
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
 from ..expr_functor import ExprMutator
-from .. import module as _module
 from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
@@ -931,7 +932,7 @@ def _shape():
     def _impl(inputs, attr, params):
         is_symbolic_shape = False
         for axis in attr['_input_shapes'][inputs[0]]:
-            if not isinstance(axis, (int, tvm.expr.IntImm)):
+            if not isinstance(axis, (int, tvm.tir.IntImm)):
                 is_symbolic_shape = True
                 break
 
@@ -2135,7 +2136,7 @@ class GraphProto(object):
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
-        self._mod = _module.Module({})
+        self._mod = IRModule({})
         self._prelude = Prelude(self._mod)
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
@@ -2170,7 +2171,7 @@ class GraphProto(object):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The module that optimizations will be performed on.
 
         params : dict
@@ -2652,11 +2653,11 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.nd.NDArray
+        Dict of converted parameters stored in tvm.nd.NDArray format
     """
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

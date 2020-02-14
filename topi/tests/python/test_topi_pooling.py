@@ -80,7 +80,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=2e-5, atol=1e-5)
 
     for device in get_all_backend():
         check_device(device)
@@ -180,7 +180,7 @@ def test_pool_grad():
 
 def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
 
-    assert layout in ["NCHW", "NHWC"] 
+    assert layout in ["NCHW", "NHWC"]
     A = tvm.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)

@@ -27,7 +27,7 @@ from tvm.relay import transform
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -557,7 +557,7 @@ def run_unpropagatable_graph(dev, tgt):
 def test_check_run():
     for dev, tgt in [("opencl", "opencl"), ("cuda", "cuda"),
                  ("opencl", str(tvm.target.intel_graphics()))]:
-        if not tvm.module.enabled(dev):
+        if not tvm.runtime.enabled(dev):
             print("Skip test because %s is not enabled." % dev)
             continue
         run_fusible_network(dev, tgt)
@@ -566,7 +566,7 @@ def test_check_run():
 
 def test_tuple_get_item():
     dev = "cuda"
-    if not tvm.module.enabled(dev):
+    if not tvm.runtime.enabled(dev):
         print("Skip test because %s is not enabled." % dev)
         return
 

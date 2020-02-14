@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member,import-outside-toplevel
 """Conv2D schedule on x86"""
 
 import logging
@@ -74,7 +74,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         kh, kw, oc, _ = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
-        target = tvm.target.current_target(allow_none=False)
+        target = tvm.target.Target.current(allow_none=False)
         oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
         assert ic_chunk == k_ic_chunk
         assert ic_bn == k_ic_bn
@@ -126,7 +126,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     #     # specialize for INT8 1X1 conv on X86
     #     return conv2d_avx_1x1._declaration_conv_nhwc_pack(cfg, data, kernel, strides,
     #                                                       padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
@@ -423,7 +423,7 @@ def _schedule_conv2d_NCHWc(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            target = tvm.target.current_target(allow_none=False)
+            target = tvm.target.Target.current(allow_none=False)
             _, _, kh, kw, _, _, = get_const_tuple(kernel.shape)
             if kh == 1 and kw == 1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)

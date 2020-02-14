@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tensor intrinsics"""
-from __future__ import absolute_import as _abs
+import tvm._ffi
+
+from tvm.runtime import Object
+from tvm.ir import Range
+from tvm.tir import expr as _expr
+from tvm.tir import stmt as _stmt
+
 from . import _api_internal
 from . import api as _api
-from . import expr as _expr
-from . import stmt as _stmt
-from . import make as _make
 from . import tensor as _tensor
 from . import schedule as _schedule
 from .build_module import current_build_config
-from ._ffi.object import Object, register_object
 
 
 def _get_region(tslice):
@@ -38,10 +40,10 @@ def _get_region(tslice):
                 begin = idx.var
             else:
                 begin = idx
-            region.append(_make.range_by_min_extent(begin, 1))
+            region.append(Range.make_by_min_extent(begin, 1))
     return region
 
-@register_object
+@tvm._ffi.register_object
 class TensorIntrin(Object):
     """Tensor intrinsic functions for certain computation.
 
@@ -111,7 +113,7 @@ def decl_tensor_intrin(op,
         raise TypeError("expect Operation")
     inputs = op.input_tensors
     binds = binds if binds else {}
-    tensors = [x for x in inputs]
+    tensors = list(inputs)
     for i in range(op.num_outputs):
         tensors.append(op.output(i))
 
@@ -135,7 +137,7 @@ def decl_tensor_intrin(op,
         scalar_params = []
     if isinstance(body, (_expr.PrimExpr, _stmt.Stmt)):
         body = [body]
-    body = [_make.Evaluate(x) if isinstance(x, _expr.PrimExpr) else x for x in body]
+    body = [_stmt.Evaluate(x) if isinstance(x, _expr.PrimExpr) else x for x in body]
     if len(body) < 3:
         body += [None] * (3 - len(body))
     return _api_internal._TensorIntrin(

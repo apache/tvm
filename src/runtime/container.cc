@@ -32,14 +32,14 @@ namespace runtime {
 
 using namespace vm;
 
-TVM_REGISTER_GLOBAL("container._GetADTTag")
+TVM_REGISTER_GLOBAL("runtime.container._GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
   *rv = static_cast<int64_t>(adt.tag());
 });
 
-TVM_REGISTER_GLOBAL("container._GetADTSize")
+TVM_REGISTER_GLOBAL("runtime.container._GetADTSize")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
@@ -47,7 +47,7 @@ TVM_REGISTER_GLOBAL("container._GetADTSize")
 });
 
 
-TVM_REGISTER_GLOBAL("container._GetADTFields")
+TVM_REGISTER_GLOBAL("runtime.container._GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
@@ -56,7 +56,7 @@ TVM_REGISTER_GLOBAL("container._GetADTFields")
   *rv = adt[idx];
 });
 
-TVM_REGISTER_GLOBAL("container._Tuple")
+TVM_REGISTER_GLOBAL("runtime.container._Tuple")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> fields;
   for (auto i = 0; i < args.size(); ++i) {
@@ -65,7 +65,7 @@ TVM_REGISTER_GLOBAL("container._Tuple")
   *rv = ADT::Tuple(fields);
 });
 
-TVM_REGISTER_GLOBAL("container._ADT")
+TVM_REGISTER_GLOBAL("runtime.container._ADT")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   int itag = args[0];
   size_t tag = static_cast<size_t>(itag);

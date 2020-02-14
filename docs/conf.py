@@ -139,6 +139,9 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
+# sort autodoc order by the source file.
+autodoc_member_order = 'bysource'
+
 # -- Options for HTML output ----------------------------------------------
 
 # The theme is set by the make target

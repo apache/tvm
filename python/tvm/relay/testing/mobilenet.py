@@ -120,7 +120,9 @@ def mobile_net(num_classes=1000, data_shape=(1, 3, 224, 224),
     pool = relay.nn.global_avg_pool2d(data=body, layout=layout)
     flatten = relay.nn.batch_flatten(data=pool)
     weight = relay.var('fc_weight')
+    bias = relay.var('fc_bias')
     fc = relay.nn.dense(data=flatten, weight=weight, units=num_classes)
+    fc = relay.nn.bias_add(fc, bias)
     softmax = relay.nn.softmax(data=fc)
     return relay.Function(relay.analysis.free_vars(softmax), softmax)
 
@@ -149,7 +151,7 @@ def get_workload(batch_size=1, num_classes=1000, image_shape=(3, 224, 224),
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module that contains a MobileNet network.
 
     params : dict of str to NDArray

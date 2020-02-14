@@ -266,11 +266,22 @@ RELAY_REGISTER_UNARY_OP("logical_not")
 .describe(R"code(Returns the logical inverse of input array, computed element-wise.
 
 .. math::
-   ~(x)
+   !(x)
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::logical_not));
+
+
+RELAY_REGISTER_UNARY_OP("bitwise_not")
+.describe(R"code(Returns the bitwise inverse of input array, computed element-wise.
+
+.. math::
+   ~(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::bitwise_not));
 
 
 // shape_of

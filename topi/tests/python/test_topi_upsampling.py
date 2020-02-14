@@ -20,16 +20,26 @@ import tvm
 import topi
 import topi.testing
 import math
+from topi.util import nchw_pack_layout
 
 from common import get_all_backend
 
 def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
-                      layout='NCHW', method="nearest_neighbor"):
+                      layout='NCHW', method="nearest_neighbor",
+                      in_batch_block = 0, in_channel_block = 0):
     if layout == 'NCHW':
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         dtype = A.dtype
         out_shape = (batch, in_channel, int(round(in_height*scale_h)), int(round(in_width*scale_w)))
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
+    elif nchw_pack_layout(layout):
+        A = tvm.placeholder((batch, in_channel, in_height, in_width, in_batch_block, in_channel_block),
+                             name='A')
+        dtype = A.dtype
+        out_shape = (batch, in_channel, int(round(in_height*scale_h)), int(round(in_width*scale_w)),
+                     in_batch_block, in_channel_block)
+        a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width,
+                                 in_batch_block, in_channel_block)).astype(dtype)
     elif layout == 'NHWC':
         A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
         dtype = A.dtype
@@ -80,6 +90,22 @@ def test_upsampling():
     verify_upsampling(2, 2, 32, 32, 2.0, 2.0, method="bilinear")
     verify_upsampling(2, 2, 32, 32, 3.0, 3.0, method="bilinear")
     verify_upsampling(1, 64, 22, 32, 1.954545497894287, 2.0, method="bilinear")
+
+    # nearest_neighbor - NCHWinic
+    verify_upsampling(2, 2, 32, 32, in_batch_block=4, in_channel_block=8,
+                      scale_h=2.0, scale_w=2.0)
+    verify_upsampling(2, 2, 64, 64, in_batch_block=1, in_channel_block=16,
+                      scale_h=3.0, scale_w=3.0)
+    verify_upsampling(1, 4, 22, 32, in_batch_block=1, in_channel_block=16,
+                      scale_h=1.954545497894287, scale_w=2.0)
+
+    # bilinear - NCHWinic
+    verify_upsampling(2, 2, 32, 32, in_batch_block=1, in_channel_block=1,
+                      scale_h=2.0, scale_w=2.0, method="bilinear")
+    verify_upsampling(2, 2, 32, 32, in_batch_block=1, in_channel_block=1,
+                      scale_h=3.0, scale_w=3.0, method="bilinear")
+    verify_upsampling(2, 4, 22, 32, in_batch_block=1, in_channel_block=16,
+                      scale_h=1.954545497894287, scale_w=2.0, layout="NCHW1n16c", method="bilinear")
 
     # bilinear - NHWC
     verify_upsampling(2, 2, 32, 32, 2.0, 2.0, layout="NHWC", method="bilinear")

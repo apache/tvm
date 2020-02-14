@@ -337,6 +337,11 @@ class StringImmNode : public PrimExprNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
 };
 
+class StringImm : public PrimExpr {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(StringImm, PrimExpr, StringImmNode);
+};
+
 /*!
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
@@ -726,6 +731,8 @@ class LetNode : public PrimExprNode {
 /*! \brief Base node of internal functions. */
 class FunctionBaseNode : public Object {
  public:
+  /*! \brief virtual destructor */
+  virtual ~FunctionBaseNode() {}
   /*! \return the name of the function */
   virtual const std::string& func_name() const = 0;
   /*! \return the number of outputs of this function */

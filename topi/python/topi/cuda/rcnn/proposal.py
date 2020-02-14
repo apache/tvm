@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, singleton-comparison
+# pylint: disable=invalid-name, singleton-comparison, bad-continuation
 """Proposal operator"""
 import math
 import tvm
@@ -64,7 +64,7 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
     """
     batch, num_anchors, height, width = get_const_tuple(cls_prob_buf.shape)
     num_anchors //= 2
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = (batch * height * width) // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -152,7 +152,7 @@ def argsort_ir(data_buf, out_index_buf):
         The result IR statement.
     """
     batch, num_bbox = get_const_tuple(data_buf.shape)
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
     ib = tvm.ir_builder.create()
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
@@ -177,7 +177,7 @@ def argsort_ir(data_buf, out_index_buf):
         with ib.for_range(0, num_bbox) as k:
             offset = start + 2 * tid + idxm(k, 2)
             with ib.if_scope(
-                tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
+                    tvm.all(offset + 1 < num_bbox, p_data[offset] < p_data[offset + 1])):
                 temp_data[0] = p_data[offset]
                 p_data[offset] = p_data[offset + 1]
                 p_data[offset + 1] = temp_data[0]
@@ -225,7 +225,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
         return i / u
 
     batch, num_bbox = get_const_tuple(out_buf.shape)
-    max_threads = int(math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(math.sqrt(tvm.target.Target.current(allow_none=False).max_num_threads))
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("blockIdx.x")
     ib = tvm.ir_builder.create()

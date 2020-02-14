@@ -100,7 +100,7 @@ def get_network(name, batch_size):
         mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
         net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
-        mod = relay.Module.from_expr(net)
+        mod = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
@@ -283,13 +283,14 @@ def tune_tasks(tasks,
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
-        n_trial = min(n_trial, len(tsk.config_space))
-        tuner_obj.tune(n_trial=n_trial,
+        tsk_trial = min(n_trial, len(tsk.config_space))
+        tuner_obj.tune(n_trial=tsk_trial,
                        early_stopping=early_stopping,
                        measure_option=measure_option,
                        callbacks=[
-                           autotvm.callback.progress_bar(n_trial, prefix=prefix),
-                           autotvm.callback.log_to_file(tmp_log_file)])
+                           autotvm.callback.progress_bar(tsk_trial, prefix=prefix),
+                           autotvm.callback.log_to_file(tmp_log_file)
+                       ])
 
     # pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_filename)

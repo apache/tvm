@@ -15,10 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to rocBLAS libraries."""
-from __future__ import absolute_import as _abs
-
+import tvm
 from .. import api as _api
-from .. import intrin as _intrin
 
 def matmul(lhs, rhs, transa=False, transb=False):
     """Create an extern op that compute matrix mult of A and rhs with rocBLAS
@@ -43,6 +41,6 @@ def matmul(lhs, rhs, transa=False, transb=False):
     m = rhs.shape[0] if transb else rhs.shape[1]
     return _api.extern(
         (n, m), [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.rocblas.matmul",
             ins[0], ins[1], outs[0], transa, transb), name="C")

@@ -18,8 +18,8 @@
 import sys
 import os
 import ctypes
+import tvm._ffi
 
-from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
 
 def _get_lib_names():
@@ -41,4 +41,4 @@ def _load_lib():
 
 _LIB, _LIB_NAME = _load_lib()
 
-_init_api_prefix("topi.cpp", "topi")
+tvm._ffi._init_api("topi", "topi.cpp")

@@ -18,12 +18,12 @@
 import os
 import sys
 import numpy as np
-import pytest
 
 import tvm
 import tvm.relay.testing
 import tvm.relay.transform
 from tvm import relay
+from tvm import runtime
 from tvm.contrib import util
 
 def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
@@ -43,7 +43,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = tvm.module.load(lib_path)
+        lib = tvm.runtime.load_module(lib_path)
 
         return lib
 
@@ -52,8 +52,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
             exe = relay.vm.compile(mod, target=target)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = relay.vm.Executable.load_exec(code, lib)
-        vm = relay.vm.VirtualMachine(exe)
+        exe = runtime.vm.Executable.load_exec(code, lib)
+        vm = runtime.vm.VirtualMachine(exe)
         vm.init(ctx)
         out = vm.run(**map_inputs)
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
@@ -77,9 +77,9 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 
 def set_external_func_attr(func, compiler, ext_symbol):
-    func = func.set_attribute("Primitive", tvm.expr.IntImm("int32", 1))
-    func = func.set_attribute("Compiler", tvm.expr.StringImm(compiler))
-    func = func.set_attribute("ExternalSymbol", tvm.expr.StringImm(ext_symbol))
+    func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+    func = func.set_attribute("Compiler", tvm.tir.StringImm(compiler))
+    func = func.set_attribute("ExternalSymbol", tvm.tir.StringImm(ext_symbol))
     return func
 
 
@@ -125,7 +125,7 @@ def test_multi_node_subgraph():
 
     r = relay.concatenate((call0, call1, q2), axis=0)
     f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     mod = relay.transform.InferType()(mod)
 
@@ -154,7 +154,7 @@ def test_extern_gcc_single_op():
     f = relay.Function([x0, y0], z)
     f = set_external_func_attr(f, "ccompiler", "ccompiler_0")
     call = relay.Call(f, [x, y])
-    mod = relay.Module.from_expr(call)
+    mod = tvm.IRModule.from_expr(call)
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
 
@@ -188,7 +188,7 @@ def test_extern_gcc():
     sub = relay.Function([x2, y2], sub)
     sub = set_external_func_attr(sub, "ccompiler", "ccompiler_0")
     call_sub = relay.Call(sub, [call_mul, call_add])
-    mod = relay.Module.from_expr(call_sub)
+    mod = tvm.IRModule.from_expr(call_sub)
 
     x_data = np.random.rand(2, 2).astype('float32')
     y_data = np.random.rand(2, 2).astype('float32')
@@ -223,12 +223,12 @@ def test_extern_dnnl():
     out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
     f = relay.Function([data1, weight1, weight2], out)
-    ref_mod = relay.Module()
+    ref_mod = tvm.IRModule()
     ref_mod['main'] = f
 
     f = set_external_func_attr(f, "dnnl", "dnnl_0")
     call = relay.Call(f, [data0, weight0, weight0])
-    mod = relay.Module.from_expr(call)
+    mod = tvm.IRModule.from_expr(call)
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w_data = np.random.uniform(0, 1, w1shape).astype(dtype)

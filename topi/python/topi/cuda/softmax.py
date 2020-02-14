@@ -54,9 +54,9 @@ def schedule_softmax(outs):
 
     if len(softmax.shape) > 2:
         ops = [max_elem.op, expsum.op, softmax.op]
-        if exp != None:
+        if exp is not None:
             ops.append(exp.op)
-            
+
         for op in ops:
             s = schedule_injective_from_existing(s, op.output(0))
     else:
@@ -64,7 +64,7 @@ def schedule_softmax(outs):
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
-        if exp != None:
+        if exp is not None:
             s[exp].bind(exp.op.axis[0], block_x)
 
         s[max_elem].bind(max_elem.op.axis[0], block_x)

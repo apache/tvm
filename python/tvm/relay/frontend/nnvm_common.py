@@ -16,15 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition
 """Utility functions common to NNVM and MxNet conversion."""
-from __future__ import absolute_import as _abs
-
+import warnings
 from .. import expr as _expr
 from .. import op as _op
 from .common import get_relay_op
 from .common import infer_type as _infer_type
 
 def _warn_not_used(attr, op='nnvm'):
-    import warnings
     err = "{} is ignored in {}.".format(attr, op)
     warnings.warn(err)
 

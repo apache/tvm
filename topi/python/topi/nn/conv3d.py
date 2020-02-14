@@ -186,15 +186,15 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     pad_before = [0, pad_front, pad_top, pad_left, 0]
     pad_after = [0, pad_back, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
+    rd = tvm.reduce_axis((0, kernel_d), name='rd')
+    rh = tvm.reduce_axis((0, kernel_h), name='rh')
+    rw = tvm.reduce_axis((0, kernel_w), name='rw')
     rc = tvm.reduce_axis((0, in_channel), name='rc')
-    rz = tvm.reduce_axis((0, kernel_d), name='rz')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
     Output = tvm.compute(
         (batch, out_depth, out_height, out_width, out_channel),
-        lambda nn, zz, yy, xx, ff: tvm.sum(
-            PaddedInput[nn, zz * stride_d + rz * dilation_d, yy * stride_h + ry * dilation_h,
-                        xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
-            Filter[rz, ry, rx, rc, ff].astype(out_dtype), axis=[rz, ry, rx, rc]),
+        lambda nn, dd, hh, ww, cc: tvm.sum(
+            PaddedInput[nn, dd * stride_d + rd * dilation_d, hh * stride_h + rh * dilation_h,
+                        ww * stride_w + rw * dilation_w, rc].astype(out_dtype) *
+            Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),
         name="Conv3dOutput", tag="conv3d_ndhwc")
     return Output

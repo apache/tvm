@@ -526,6 +526,8 @@ class RefWrite : public Expr {
  */
 class TempExprNode : public ExprNode {
  public:
+  /*! \brief virtual destructor */
+  virtual ~TempExprNode() {}
   /*!
    * \brief Convert the expression to a normal(non-temp) Expr.
    * \return The corresponding normal(non-temp) expression.
@@ -559,6 +561,8 @@ constexpr const char* kParams = "__params__";
 constexpr const char* kExternalSymbol = "ExternalSymbol";
 /*! \brief Mark if the function should be avoided being optimized. */
 constexpr const char* kSkipOptimization = "SkipOptimization";
+/*! \brief Treat the function as a composite operator. */
+constexpr const char* kComposite = "Composite";
 }  // namespace attr
 
 }  // namespace relay

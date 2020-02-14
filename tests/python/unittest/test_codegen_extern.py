@@ -50,7 +50,7 @@ def test_add_pipeline():
     print(tvm.lower(s_gpu, [A, C_gpu], simple_mode=True))
 
     def check_target(target):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         s = s_gpu if target in ['opencl', 'cuda'] else s_cpu
         C = C_gpu if target in ['opencl', 'cuda'] else C_cpu
@@ -85,7 +85,7 @@ def test_pack_buffer_simple():
 
 
     def check_target(target):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)
@@ -115,7 +115,7 @@ def test_pack_buffer_intermediate():
     s = tvm.create_schedule(C.op)
 
     def check_target(target):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             return
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], target)

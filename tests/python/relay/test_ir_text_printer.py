@@ -58,7 +58,7 @@ def test_env():
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = relay.Module()
+    env = tvm.IRModule()
     env["myf"] = f
     text = astext(env)
     assert "def @myf" in text

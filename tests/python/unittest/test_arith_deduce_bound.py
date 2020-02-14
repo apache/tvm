@@ -19,7 +19,7 @@ import tvm
 
 def assert_expr_equal(a, b):
     res =  tvm.ir_pass.Simplify(a - b)
-    equal = isinstance(res, tvm.expr.IntImm) and res.value == 0
+    equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
     if not equal:
         raise ValueError("{} and {} are not equal".format(a, b))
 
