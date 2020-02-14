@@ -136,7 +136,7 @@ def decode(row, protocol='json'):
     """
     # pylint: disable=unused-variable
     global _old_version_warning
-    
+
     if protocol == 'json':
         row = json.loads(row)
         if 'v' in row and row['v'] == 0.1:

@@ -22,7 +22,6 @@ import logging
 
 import tvm
 from tvm import autotvm
-from .. import tag
 from .. import nn
 from ..nn.conv2d import conv2d_infer_layout, _get_workload as _get_conv2d_workload
 from ..nn.conv2d import unpack_NCHWc_to_nchw
@@ -98,15 +97,14 @@ def schedule_conv2d_nhwc(outs):
             s[data_pad].parallel(pad_fused)
             C = conv
             n, h, w, c = C.op.axis
-            ry, rx, rc = C.op.reduce_axis
             s[C].vectorize(c)
 
-            O = output_op
-            if len(O.axis) == 4: # schedule bias + bn + relu
-                n, h, w, c = O.axis
+            O = output_op.output(0)
+            if len(O.op.axis) == 4: # schedule bias + bn + relu
+                n, h, w, c = O.op.axis
                 fused = s[O].fuse(n, h, w)
                 s[O].parallel(fused)
-                channels = int(O.output(0).shape[-1])
+                channels = int(O.shape[-1])
                 if channels % 64 == 0:
                     c, ci = s[O].split(c, 64)
                     s[O].vectorize(ci)
