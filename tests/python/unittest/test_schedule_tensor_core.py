@@ -339,8 +339,6 @@ def test_tensor_core_batch_conv():
     ty, yo = s[AS].split(xo, nparts=block_col_warps)
     t = s[AS].fuse(nn, ii)
     to, ti = s[AS].split(t, factor=warp_size)
-    s[AS].bind(tx, thread_y)
-    s[AS].bind(ty, thread_z)
     s[AS].bind(ti, thread_x)
 
     kh, kw, ic, o, ii, oo = WS.op.axis
@@ -348,8 +346,6 @@ def test_tensor_core_batch_conv():
     ty, yo = s[WS].split(xo, nparts=block_col_warps)
     t = s[WS].fuse(ii, oo)
     to, ti = s[WS].split(t, nparts=warp_size)
-    s[WS].bind(tx, thread_y)
-    s[WS].bind(ty, thread_z)
     s[WS].bind(to, thread_x)
     s[WS].vectorize(ti)
 
