@@ -23,7 +23,6 @@ This functions will not be loaded by default.
 These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
-import math
 import numpy as np
 from cffi import FFI
 import cv2
@@ -55,7 +54,8 @@ def _letterbox_image(img, w_in, h_in):
     dim = (new_w, new_h)
     # Default interpolation method is INTER_LINEAR
     # Other methods are INTER_AREA, INTER_NEAREST, INTER_CUBIC and INTER_LANCZOS4
-    # See Documentation https://docs.opencv.org/2.4/modules/imgproc/doc/geometric_transformations.html#resize
+    # For more information see:
+    # https://docs.opencv.org/2.4/modules/imgproc/doc/geometric_transformations.html#resize
     resized = cv2.resize(src=img, dsize=dim, interpolation=cv2.INTER_CUBIC)
     resized = convert_image(resized)
     boxed = np.full((imc, h_in, w_in), 0.5, dtype=float)
