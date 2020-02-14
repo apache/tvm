@@ -990,7 +990,7 @@ class OperatorConverter(object):
                                 kernel_zero_point=weight_tensor.qnn_params['zero_point'],
                                 input_scale=input_tensor.qnn_params['scale'],
                                 kernel_scale=weight_tensor.qnn_params['scale'],
-                                units=weight_shape[1],
+                                units=weight_shape[0],
                                 out_dtype='int32')
         else:
             out = _op.nn.dense(in_expr, weight_expr)
