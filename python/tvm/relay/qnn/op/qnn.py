@@ -104,7 +104,7 @@ def quantize(data,
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
     out_dtype : str, optional
-        The data type of the input tensor. Can be [int8, uint8]
+        The data type of the input tensor. Can be [int8, uint8, int32]
     Returns
     -------
     result : tvm.relay.Expr
@@ -202,11 +202,11 @@ def conv2d(data,
            input_scale,
            kernel_scale,
            kernel_size,
+           channels,
            strides=(1, 1),
            padding=(0, 0),
            dilation=(1, 1),
            groups=1,
-           channels=None,
            data_layout="NCHW",
            kernel_layout="OIHW",
            out_layout="",
@@ -247,6 +247,9 @@ def conv2d(data,
     kernel_size : tuple of int
         The spatial width and height of the convolution kernel.
 
+    channels : int
+        Number of output channels of this convolution.
+
     strides : tuple of int, optional
         The strides of convolution.
 
@@ -258,9 +261,6 @@ def conv2d(data,
 
     groups : int, optional
         Number of groups for grouped convolution.
-
-    channels : int, optional
-        Number of output channels of this convolution.
 
     data_layout : str, optional
         Layout of the input.
