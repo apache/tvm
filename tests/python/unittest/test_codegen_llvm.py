@@ -29,9 +29,9 @@ def test_llvm_intrin():
         tvm.call_pure_intrin("handle", "tvm_address_of", A[0]),
         0, 3, 1
     ]
-    ib.emit(tvm.make.Evaluate(
-        tvm.make.Call(
-            "int32", "prefetch", args, tvm.expr.Call.Intrinsic, None, 0)))
+    ib.emit(tvm.tir.Evaluate(
+        tvm.tir.Call(
+            "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
     body = ib.get()
     func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
@@ -643,14 +643,14 @@ def test_llvm_shuffle():
 
         def vectorizer(op):
             store = op.body
-            idx = tvm.make.Ramp(tvm.const(0, 'int32'), tvm.const(1, 'int32'), 8)
+            idx = tvm.tir.Ramp(tvm.const(0, 'int32'), tvm.const(1, 'int32'), 8)
             all_ones = tvm.const(1, 'int32x8')
             value = store.value
-            b_idx = tvm.make.Shuffle([idx], [tvm.const(i, 'int32') for i in range(7, -1, -1)])
-            new_a = tvm.make.Load('int32x8', value.a.buffer_var, idx, all_ones)
-            new_b = tvm.make.Load('int32x8', value.b.buffer_var, b_idx, all_ones)
+            b_idx = tvm.tir.Shuffle([idx], [tvm.const(i, 'int32') for i in range(7, -1, -1)])
+            new_a = tvm.tir.Load('int32x8', value.a.buffer_var, idx, all_ones)
+            new_b = tvm.tir.Load('int32x8', value.b.buffer_var, b_idx, all_ones)
             value = new_a + new_b
-            return tvm.make.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+            return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 
         return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 

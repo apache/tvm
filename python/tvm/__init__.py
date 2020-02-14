@@ -33,35 +33,39 @@ from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
 from .runtime import ndarray as nd
 
+# tvm.error
+from . import error
+
 # tvm.ir
 from .ir import IRModule
 from .ir import transform
 from .ir import container
 from . import ir
 
+# tvm.tir
+from . import tir
+
+# tvm.target
+from . import target
+
 # others
 from . import tensor
 from . import arith
-from . import expr
-from . import stmt
 from . import make
-from . import ir_pass
 from . import schedule
-
-from . import ir_builder
-from . import target
-from . import generic
 from . import hybrid
 from . import testing
-from . import error
-
 
 from .api import *
-from .intrin import *
 from .tensor_intrin import decl_tensor_intrin
 from .schedule import create_schedule
 from .build_module import build, lower, build_config
 from .tag import tag_scope
+
+# backward compact for topi, to be removed later
+from .tir import expr, stmt, ir_builder, ir_pass, generic
+from .tir.op import *
+from . import intrin
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

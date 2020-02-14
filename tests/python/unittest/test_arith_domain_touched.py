@@ -23,14 +23,14 @@ def test_domain_touched():
     m = tvm.var('m')
     a = tvm.placeholder((n, m), name = 'a')
     b = tvm.placeholder((n, m), name = 'b')
-    ir = tvm.make.For(
+    ir = tvm.tir.For(
             i, 0, n, 0, 0,
-            tvm.make.For(j, 0, m, 0, 0,
-                tvm.make.Provide(
+            tvm.tir.For(j, 0, m, 0, 0,
+                tvm.tir.Provide(
                     a.op,
                     0,
-                    tvm.make.Call(b.dtype, 'b', [i - 1, j + 1], 3, b.op, 0) +
-                    tvm.make.Call(a.dtype, 'a', [i - 1, j - 1], 3, a.op, 0),
+                    tvm.tir.Call(b.dtype, 'b', [i - 1, j + 1], 3, b.op, 0) +
+                    tvm.tir.Call(a.dtype, 'a', [i - 1, j - 1], 3, a.op, 0),
                     [i, j]
                 )
             )
@@ -51,7 +51,7 @@ def test_domain_touched():
     assert a_domain_rw[0].min.value == -1
     assert a_domain_rw[0].extent.value == 101
     assert a_domain_rw[1].min.value == -1
-    assert isinstance(a_domain_rw[1].extent, tvm.expr.Add)
+    assert isinstance(a_domain_rw[1].extent, tvm.tir.Add)
     assert a_domain_rw[1].extent.a.name == 'm'
     assert a_domain_rw[1].extent.b.value == 1
 

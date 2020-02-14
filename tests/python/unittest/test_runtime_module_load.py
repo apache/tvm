@@ -50,10 +50,10 @@ def test_dso_module_load():
         Ab = tvm.decl_buffer((n, ), dtype)
         i = tvm.var('i')
         # for i in 0 to n-1:
-        stmt = tvm.make.For(
+        stmt = tvm.tir.For(
             i, 0, n - 1, 0, 0,
-            tvm.make.Store(Ab.data,
-                           tvm.make.Load(dtype, Ab.data, i) + 1,
+            tvm.tir.Store(Ab.data,
+                           tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
         fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
         fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)

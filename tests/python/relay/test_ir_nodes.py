@@ -17,7 +17,7 @@
 """ test ir"""
 import tvm
 from tvm import relay
-from tvm.expr import *
+from tvm.tir.expr import *
 from tvm.relay import op
 from tvm.relay.analysis import graph_equal
 import numpy as np
@@ -110,7 +110,7 @@ def test_type_relation():
 
     num_inputs = 2
     func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
-    attrs = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attrs = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
 
     tr = relay.TypeRelation(func, args, num_inputs, attrs)
     assert tr.args == args

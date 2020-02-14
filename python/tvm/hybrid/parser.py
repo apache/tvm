@@ -24,7 +24,11 @@ import types
 import numbers
 
 from enum import Enum
-from tvm.ir.container import Array
+from tvm.ir import Array, Range
+import tvm.tir
+from tvm.tir import expr as _expr
+from tvm.tir import stmt as _stmt
+from tvm.tir import ir_pass as _ir_pass
 
 from .util import _internal_assert
 from . import calls
@@ -35,12 +39,7 @@ from ..api import any as _any
 
 from ..tensor import Tensor, Operation
 from .. import _api_internal as _tvm_internal
-from .. import expr as _expr
-from .. import make as _make
-from .. import stmt as _stmt
-
 from .. import api  as _api
-from .. import ir_pass as _ir_pass
 
 
 def concat_list_to_block(lst):
@@ -79,13 +78,13 @@ class Symbol(Enum):
 
 def _floordiv(x, y):
     if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
-        return _api.floordiv(x, y)
+        return tvm.tir.floordiv(x, y)
     return operator.floordiv(x, y)
 
 
 def _floormod(x, y):
     if isinstance(x, _expr.ExprOp) or isinstance(y, _expr.ExprOp):
-        return _api.floormod(x, y)
+        return tvm.tir.floormod(x, y)
     return operator.mod(x, y)
 
 
@@ -208,11 +207,11 @@ class HybridParser(ast.NodeVisitor):
             if _scope == 'global':
                 body = self.wrap_up_binds(body)
 
-            _domain = [_make.range_by_min_extent(0, i) for i in _buf.shape]
+            _domain = [Range.make_by_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = _api.convert(True)
-            body = _make.Realize(_buf.op, 0, _dtype, _domain, _true, body)
-            body = _make.AttrStmt(_buf.op, 'realize_scope', _api.convert(_scope), body)
+            body = tvm.tir.Realize(_buf.op, 0, _dtype, _domain, _true, body)
+            body = tvm.tir.AttrStmt(_buf.op, 'realize_scope', _api.convert(_scope), body)
 
         for elem in to_pop:
             self.symbols.pop(elem)
@@ -223,7 +222,7 @@ class HybridParser(ast.NodeVisitor):
     def wrap_up_binds(self, body):
         for _, iter_var in self.binds.items():
             ext = iter_var.dom.extent
-            body = _make.AttrStmt(iter_var, 'thread_extent', ext, body)
+            body = tvm.tir.AttrStmt(iter_var, 'thread_extent', ext, body)
         self.binds = {}
         return body
 
@@ -271,7 +270,7 @@ class HybridParser(ast.NodeVisitor):
             return entry if isinstance(node.ctx, ast.Load) else None
         if ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
-                return _make.Call(entry.dtype, entry.name, [_api.const(0, 'int32')], \
+                return tvm.tir.Call(entry.dtype, entry.name, [_api.const(0, 'int32')], \
                                   _expr.Call.Halide, entry.op, entry.value_index)
             return entry, [_api.const(0, 'int32')]
         # Do I need any assertion here?
@@ -304,10 +303,10 @@ class HybridParser(ast.NodeVisitor):
             args = [_api.const(0, 'int32')]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
-        read = _make.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
+        read = tvm.tir.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
         value = HybridParser._binop_maker[type(node.op)](read, rhs)
 
-        return _make.Provide(buf.op, 0, value, args)
+        return tvm.tir.Provide(buf.op, 0, value, args)
 
 
     def visit_Assign(self, node):
@@ -358,13 +357,13 @@ class HybridParser(ast.NodeVisitor):
             lhs = self.visit(lhs_)
             if lhs is not None:
                 buf, args = lhs
-                return _make.Provide(buf.op, 0, rhs, args)
+                return tvm.tir.Provide(buf.op, 0, rhs, args)
             return util.make_nop()
 
         lhs, args = self.visit(lhs)
         _internal_assert(isinstance(lhs, Tensor), \
                          "An array access's LHS is expected to be a expr.Call!")
-        res = _make.Provide(lhs.op, lhs.value_index, rhs, args)
+        res = tvm.tir.Provide(lhs.op, lhs.value_index, rhs, args)
         return res
 
 
@@ -391,8 +390,8 @@ class HybridParser(ast.NodeVisitor):
                     arr = arr[i.value]
             return arr
         if isinstance(node.ctx, ast.Load):
-            return _make.Call(arr.dtype, arr.name, args,
-                              _expr.Call.Halide, arr.op, arr.value_index)
+            return tvm.tir.Call(arr.dtype, arr.name, args,
+                                _expr.Call.Halide, arr.op, arr.value_index)
         return arr, args
 
     def visit_With(self, node):
@@ -426,14 +425,14 @@ class HybridParser(ast.NodeVisitor):
             else_body = visit_list_to_block(self.visit, node.orelse)
         else:
             else_body = None
-        return _make.IfThenElse(cond, if_body, else_body)
+        return tvm.tir.IfThenElse(cond, if_body, else_body)
 
 
     def visit_IfExp(self, node):
         cond = self.visit(node.test)
         if_body = self.visit(node.body)
         else_body = self.visit(node.orelse)
-        return _make.Select(cond, if_body, else_body)
+        return tvm.tir.Select(cond, if_body, else_body)
 
 
     def visit_Compare(self, node):
@@ -543,7 +542,7 @@ class HybridParser(ast.NodeVisitor):
         else:
             _internal_assert(not isinstance(for_type, tuple), \
                             "Micro expansion should be handled before!")
-            res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
+            res = tvm.tir.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
 
         self.symbols.pop(_name)
         return res
@@ -580,7 +579,7 @@ class HybridParser(ast.NodeVisitor):
     def visit_Assert(self, node):
         test = self.visit(node.test)
         mesg = _api.convert(self.visit(node.msg))
-        return _make.AssertStmt(test, mesg, util.make_nop())
+        return tvm.tir.AssertStmt(test, mesg, util.make_nop())
 
 
 def parse_python(src, args, symbols, closure_vars):

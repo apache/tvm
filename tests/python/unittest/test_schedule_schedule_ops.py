@@ -79,8 +79,8 @@ def test_schedule_scan():
 
 def test_inline_multi_reduce():
     def argmax_comp(x, y):
-        idx = tvm.expr.Select((x[1] >= y[1]), x[0], y[0])
-        val = tvm.expr.Select((x[1] >= y[1]), x[1], y[1])
+        idx = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        val = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
         return idx, val
     def argmax_init(idx_typ, val_typ):
         return tvm.const(-1, idx_typ), tvm.min_value(val_typ)
@@ -142,7 +142,7 @@ def test_inline_mixed():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     def check(x):
-        if isinstance(x, tvm.expr.Call):
+        if isinstance(x, tvm.tir.Call):
             assert x.func != A2
     tvm.ir_pass.PostOrderVisit(s[C].op.body[0], check)
 
@@ -426,7 +426,7 @@ def test_loop_dep_reduce_cache_write():
     X = tvm.placeholder(shape=(10,), name="x")
     def f(n):
         rv = tvm.reduce_axis((0, n))
-        init = lambda dtype: tvm.expr.Select(n > 1, tvm.const(0, dtype), n.astype(dtype))
+        init = lambda dtype: tvm.tir.Select(n > 1, tvm.const(0, dtype), n.astype(dtype))
         sum = tvm.comm_reducer(lambda x, y: tvm.max(x + y, n.astype('float32')), init, name='sum')
         return sum(X[rv], axis=rv)
     Y = tvm.compute(X.shape, f, name="y")

@@ -19,6 +19,16 @@ import numpy as np
 import tvm
 import topi
 from tvm.contrib.pickle_memoize import memoize
+from tvm.contrib.nvcc import parse_compute_version
+
+def skip_test(dtype, device):
+    if dtype == "float16" and device == "cuda":
+        major, minor = parse_compute_version(tvm.gpu(0).compute_version)
+        # fp16 starts from 5.3
+        if major < 6 or (major == 5 and minor < 3):
+            print("skip because gpu does not support fp16")
+            return True
+    return False
 
 def verify_elemwise_sum(num_args, dtype):
     shape = (3,5,4)
@@ -84,18 +94,43 @@ def verify_full(shape, dtype, fill_value):
     for device in ["llvm"]:
         check_device(device)
 
+def verify_vectorization(n, m, dtype):
+    def check_device(device):
+        if not tvm.runtime.enabled(device):
+            print("Skip because %s is not enabled" % device)
+            return
+        if skip_test(dtype, device):
+            return
+        with tvm.target.create(device):
+            ctx = tvm.context(device, 0)
+            A = tvm.placeholder((n, m), name='A', dtype=dtype)
+            B = tvm.compute((n, m), lambda i, j:
+                             A[i, j] + tvm.const(1, A.dtype), name='B')
+            S = topi.generic.schedule_elemwise(B)
+
+            fun = tvm.build(S, [A, B], device)
+            np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(
+                                np.random.uniform(size=(n, m)))
+            np_B = tvm.nd.empty((n, m), B.dtype, ctx)
+            fun(np_A, np_B)
+            tvm.testing.assert_allclose(np_B.asnumpy(), np_A.asnumpy() + 1, rtol=1e-5)
+
+    for device in ["cuda"]:
+        check_device(device)
+
+def test_vectorization():
+    verify_vectorization(128, 64, "float16")
 
 def test_elemwise_sum():
     verify_elemwise_sum(1, "float32")
     verify_elemwise_sum(5, "float32")
     verify_elemwise_sum(4, "int32")
 
-
 def test_full():
     verify_full((3,4,5), "float32", 3.14)
     verify_full((10,), "int32", 7)
 
-
 if __name__ == "__main__":
     test_elemwise_sum()
     test_full()
+    test_vectorization()

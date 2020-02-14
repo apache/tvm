@@ -429,7 +429,9 @@ def cast(x, dtype):
     if isinstance(x, tvm.tensor.Tensor):
         return tvm.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
-    return tvm.make._cast(dtype, x)
+    # pylint: disable=import-outside-toplevel
+    from tvm.tir import _ffi_api
+    return _ffi_api._cast(dtype, x)
 
 
 def reinterpret(x, dtype):

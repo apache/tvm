@@ -906,7 +906,9 @@ static const char* kSemVer = "v0.0.4";
 // - relay_text_printer.cc (specific printing logics for relay)
 // - tir_text_printer.cc (specific printing logics for TIR)
 std::string PrettyPrint(const ObjectRef& node) {
-  return AsText(node, false, nullptr);
+  Doc doc;
+  doc << relay::RelayTextPrinter(false, nullptr).PrintFinal(node);
+  return doc.str();
 }
 
 std::string AsText(const ObjectRef& node,
@@ -917,6 +919,10 @@ std::string AsText(const ObjectRef& node,
   doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
   return doc.str();
 }
+
+
+TVM_REGISTER_GLOBAL("ir.PrettyPrint")
+.set_body_typed(PrettyPrint);
 
 TVM_REGISTER_GLOBAL("ir.AsText")
 .set_body_typed(AsText);

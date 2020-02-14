@@ -33,7 +33,7 @@ def test_decorate_device():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt1 = tvm.ir_pass.Simplify(stmt)
     stmt2 = tvm.ir_pass.DecorateDeviceScope(stmt1)
-    assert isinstance(stmt2, tvm.stmt.AttrStmt)
+    assert isinstance(stmt2, tvm.tir.AttrStmt)
     assert stmt2.attr_key == "device_scope"
     assert stmt1 == stmt2.body
 

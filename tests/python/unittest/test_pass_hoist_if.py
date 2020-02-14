@@ -24,19 +24,19 @@ def verify_structure(stmt, expected_struct):
     struct = {}
     def _extract_vars(op):
         global var_list
-        if isinstance(op, tvm.expr.Var):
+        if isinstance(op, tvm.tir.Var):
             var_list.append(op.name)
 
     def _visit(op):
         key = op
-        if isinstance(op, tvm.stmt.IfThenElse):
+        if isinstance(op, tvm.tir.IfThenElse):
             global var_list
             tvm.ir_pass.PostOrderVisit(op.condition, _extract_vars)
             val = [(op.then_case, op.else_case), ("IfThenElse", tuple(var_list))]
             var_list.clear()
-        elif isinstance(op, tvm.stmt.For):
+        elif isinstance(op, tvm.tir.For):
             val = [(op.body,), ("For", op.loop_var.name)]
-        elif isinstance(op, tvm.stmt.AttrStmt):
+        elif isinstance(op, tvm.tir.AttrStmt):
             val = [(op.body,), ("AttrStmt", op.attr_key, int(op.value))]
         else:
             return
@@ -61,9 +61,9 @@ def test_basic():
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(tvm.make.Evaluate(m))
+                    ib.emit(tvm.tir.Evaluate(m))
                 with ib.else_scope():
-                    ib.emit(tvm.make.Evaluate(n))
+                    ib.emit(tvm.tir.Evaluate(n))
 
     stmt = ib.get()
     new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
@@ -82,7 +82,7 @@ def test_no_else():
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
                 with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(tvm.make.Evaluate(m))
+                    ib.emit(tvm.tir.Evaluate(m))
 
     stmt = ib.get()
     new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)

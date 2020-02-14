@@ -19,7 +19,7 @@ import tvm._ffi
 
 import tvm.runtime._ffi_api
 from tvm.runtime import convert, DataType
-from tvm.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
+from tvm.tir.expr import Call as _Call, Cast as _Cast, FloatImm as _FloatImm
 
 
 def register(type_name, type_code):

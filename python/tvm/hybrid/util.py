@@ -22,12 +22,13 @@ import logging
 import sys
 import numpy
 
+from tvm._ffi.base import numeric_types
 from tvm.ir.container import Array
+
+from tvm.tir import expr as _expr
+from tvm.tir import stmt as _stmt
+
 from .. import api as _api
-from .. import make as _make
-from .. import expr as _expr
-from .. import stmt as _stmt
-from .._ffi.base import numeric_types
 from ..tensor import Tensor
 
 
@@ -46,7 +47,7 @@ def _internal_assert(cond, err):
 # Useful constants. In avoid of runtime dependences, we use function calls to return them.
 def make_nop():
     """Returns a 'no operation' node in HalideIR."""
-    return _make.Evaluate(_api.const(0, dtype='int32'))
+    return _stmt.Evaluate(_api.const(0, dtype='int32'))
 
 
 def is_docstring(node):
@@ -77,10 +78,10 @@ def replace_io(body, rmap):
     def replace(op):
         if isinstance(op, _stmt.Provide) and op.func in rmap.keys():
             buf = rmap[op.func]
-            return _make.Provide(buf.op, op.value_index, op.value, op.args)
+            return _stmt.Provide(buf.op, op.value_index, op.value, op.args)
         if isinstance(op, _expr.Call) and  op.func in rmap.keys():
             buf = rmap[op.func]
-            return _make.Call(buf.dtype, buf.name, op.args, \
+            return _expr.Call(buf.dtype, buf.name, op.args, \
                               _expr.Call.Halide, buf.op, buf.value_index)
         return None
 

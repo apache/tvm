@@ -19,8 +19,8 @@ import numpy as np
 
 def lower_intrin(stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.expr.PrimExpr)
-    stmt = tvm.stmt.Evaluate(stmt) if lower_expr else stmt
+    lower_expr = isinstance(stmt, tvm.tir.PrimExpr)
+    stmt = tvm.tir.Evaluate(stmt) if lower_expr else stmt
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt  = tvm.ir_pass._LowerIntrinStmt(stmt, "llvm")
     return stmt.value if lower_expr else stmt.body
@@ -33,8 +33,8 @@ def check_value(expr, vx, vy, data, fref):
 
     def make_binds(i):
         x = expr
-        x = tvm.expr.Let(vx, A[i], x)
-        x = tvm.expr.Let(vy, B[i], x)
+        x = tvm.tir.Let(vx, A[i], x)
+        x = tvm.tir.Let(vy, B[i], x)
         return x
 
     C = tvm.compute((n,), make_binds)
@@ -72,13 +72,13 @@ def test_lower_floordiv():
         res = lower_intrin(tvm.floordiv(x, y))
         check_value(res, x, y, data, lambda a, b: a // b)
         # rhs >= 0
-        res = lower_intrin(tvm.expr.Select(y >= 0, tvm.floordiv(x, y), zero))
+        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.floordiv(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a // b if b > 0 else 0)
         # involves max
-        res = lower_intrin(tvm.expr.Select(y >= 0, tvm.max(tvm.floordiv(x, y), zero), zero))
+        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.max(tvm.floordiv(x, y), zero), zero))
         check_value(res, x, y, data, lambda a, b: max(a // b, 0) if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin(tvm.expr.Select(tvm.all(y >= 0, x >= 0), tvm.floordiv(x, y), zero))
+        res = lower_intrin(tvm.tir.Select(tvm.all(y >= 0, x >= 0), tvm.floordiv(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a // b if b > 0 and a >= 0 else 0)
         # const power of two
         res = lower_intrin(tvm.floordiv(x, tvm.const(8, dtype=dtype)))
@@ -95,10 +95,10 @@ def test_lower_floormod():
         res = lower_intrin(tvm.floormod(x, y))
         check_value(res, x, y, data, lambda a, b: a % b)
         # rhs >= 0
-        res = lower_intrin(tvm.expr.Select(y >= 0, tvm.floormod(x, y), zero))
+        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.floormod(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a % b if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin(tvm.expr.Select(tvm.all(y >= 0, x >= 0), tvm.floormod(x, y), zero))
+        res = lower_intrin(tvm.tir.Select(tvm.all(y >= 0, x >= 0), tvm.floormod(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a % b if b > 0 and a >= 0 else 0)
         # const power of two
         res = lower_intrin(tvm.floormod(x, tvm.const(8, dtype=dtype)))

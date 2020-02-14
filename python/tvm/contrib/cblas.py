@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to BLAS libraries."""
-from __future__ import absolute_import as _abs
-
-from .. import api as _api, intrin as _intrin
+import tvm
+from .. import api as _api
 
 
 def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
@@ -46,7 +45,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     return _api.extern(
         (n, m),
         [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
@@ -78,7 +77,7 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs
     return _api.extern(
         (b, n, m),
         [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cblas.batch_matmul"
             if not iterative
             else "tvm.contrib.cblas.batch_matmul_iterative",

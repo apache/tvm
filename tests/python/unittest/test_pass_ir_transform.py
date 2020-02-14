@@ -32,12 +32,12 @@ def test_ir_transform():
         return None
 
     def postorder(op):
-        assert isinstance(op, tvm.expr.Call)
+        assert isinstance(op, tvm.tir.Call)
         if op.name == "TestA":
             return tvm.call_extern("int32", "TestB", op.args[0] + 1)
         return op
     body = tvm.ir_pass.IRTransform(body, preorder, postorder, ["Call"])
-    stmt_list = tvm.make.stmt_list(body.body.body)
+    stmt_list = tvm.tir.stmt_list(body.body.body)
     assert stmt_list[0].value.args[0].name == "TestB"
     assert stmt_list[1].value.value == 0
 
