@@ -80,7 +80,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
 
 def test_get_valid_counts():
     verify_get_valid_counts((1, 122640, 6), 0.01, 0, 1)
-    #verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
+    verify_get_valid_counts((1, 125000, 6), 0, 0, 1)
     #verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
     #verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
     #verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)

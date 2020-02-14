@@ -39,7 +39,7 @@ def cuda_atomicAdd_rule(op):
         raise RuntimeError("only support int32, float32 and float64")
 
 
-tvm.register_intrin_rule(
+tvm.target.intrin.register_intrin_rule(
     "cuda", "atomicAdd", cuda_atomicAdd_rule, override=True)
 
 
@@ -47,7 +47,7 @@ def atomicAdd(x, y):
     return tvm.call_pure_intrin(y.dtype, "atomicAdd", x, y)
 
 
-def get_valid_counts_ir(data, valid_count, Flag, out, score_threshold, id_index, score_index):
+def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -84,7 +84,6 @@ def get_valid_counts_ir(data, valid_count, Flag, out, score_threshold, id_index,
 
     valid_count = ib.buffer_ptr(valid_count)
     Flag = ib.buffer_ptr(Flag)
-    out = ib.buffer_ptr(out)
     atomicAdd_return = ib.allocate(
         valid_count.dtype, (1,), name='atomicAdd_return', scope='local')
     one_count = tvm.const(1, dtype=valid_count.dtype)
@@ -93,7 +92,8 @@ def get_valid_counts_ir(data, valid_count, Flag, out, score_threshold, id_index,
     id_index = tvm.make.node("IntImm", dtype="int32", value=id_index)
     score_index = tvm.make.node("IntImm", dtype="int32", value=score_index)
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(
+        allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -106,14 +106,13 @@ def get_valid_counts_ir(data, valid_count, Flag, out, score_threshold, id_index,
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         Flag[tid] = 0
-        base_idx = i * num_anchors * elem_length
         with ib.if_scope(tvm.all(data[tid * elem_length + score_index] > score_threshold,
                                  tvm.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
             Flag[tid] = 1
-            with ib.for_range(0, elem_length) as k:
-                out[base_idx + k] = data[base_idx + k]
             atomicAdd_return[0] = atomicAdd(tvm.call_pure_intrin("handle", "tvm_address_of",
                                                                  valid_count[i]), one_count)
+    with ib.else_scope():
+        Flag[tid] = 0
 
     return ib.get()
 
@@ -126,10 +125,8 @@ def flag_scan(Flag, PrefixSum):
 
     Flag = ib.buffer_ptr(Flag)
     PrefixSum = ib.buffer_ptr(PrefixSum)
-    atomicAdd_return = ib.allocate(
-        "int32", (1,), name='atomicAdd_return', scope='local')
 
-    max_threads = int(tvm.target.current_target(
+    max_threads = int(tvm.target.Target.current(
         allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
@@ -145,15 +142,12 @@ def flag_scan(Flag, PrefixSum):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         with ib.for_range(0, j) as r:
-            # TODO: no difference for the following two
             PrefixSum[tid] += Flag[i * num_anchors + r]
-            # atomicAdd_return[0] = atomicAdd(tvm.call_pure_intrin("handle", "tvm_address_of",
-            #                                                     PrefixSum[tid]), Flag[i * num_anchors + r])
 
     return ib.get()
 
 
-def out_rewrite(data, Flag, PrefixSum, out_in, valid_count, out):
+def out_rewrite(data, Flag, PrefixSum, valid_count, out):
     batch_size = out.shape[0]
     num_anchors = out.shape[1]
     elem_length = out.shape[2]
@@ -165,10 +159,10 @@ def out_rewrite(data, Flag, PrefixSum, out_in, valid_count, out):
     Flag = ib.buffer_ptr(Flag)
     valid_count = ib.buffer_ptr(valid_count)
     PrefixSum = ib.buffer_ptr(PrefixSum)
-    out_in = ib.buffer_ptr(out_in)
     out = ib.buffer_ptr(out)
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(
+        allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
     tx = tvm.thread_axis("threadIdx.x")
@@ -183,7 +177,6 @@ def out_rewrite(data, Flag, PrefixSum, out_in, valid_count, out):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         base_idx = i * num_anchors * elem_length
-        out[tid] = out_in[tid]
         with ib.if_scope(tvm.all(Flag[tid] > 0, PrefixSum[tid] >= 0, PrefixSum[tid] < num_anchors)):
             with ib.for_range(0, elem_length) as k:
                 out[base_idx + PrefixSum[tid] * elem_length +
@@ -228,20 +221,20 @@ def get_valid_counts_gpu(data, score_threshold=0, id_index=0, score_index=1):
         data.shape, data.dtype, "data_buf", data_alignment=8)
     valid_count_buf = api.decl_buffer(
         (batch_size,), "int32", "valid_count_buf", data_alignment=8)
-    temp_out_buf = api.decl_buffer(
-        data.shape, data.dtype, "temp_out_buf", data_alignment=8)
     temp_flag_buf = api.decl_buffer(
         (batch_size, num_anchors,), "int32", "temp_flag", data_alignment=8)
     temp_partial_buf = api.decl_buffer(
         (batch_size, num_anchors), "int32", "temp_partial", data_alignment=8)
+    out_buf = api.decl_buffer(
+        data.shape, data.dtype, "out_buf", data_alignment=8)
 
-    valid_count, temp_flag, out_in = \
-        tvm.extern([(batch_size,), (batch_size, num_anchors), data.shape], [data],
+    valid_count, temp_flag = \
+        tvm.extern([(batch_size,), (batch_size, num_anchors)], [data],
                    lambda ins, outs: get_valid_counts_ir(
-            ins[0], outs[0], outs[1], outs[2], score_threshold, id_index, score_index),
-            dtype=["int32", "int32", data.dtype],
+            ins[0], outs[0], outs[1], score_threshold, id_index, score_index),
+            dtype=["int32", "int32"],
             in_buffers=[data_buf],
-            out_buffers=[valid_count_buf, temp_flag_buf, temp_out_buf],
+            out_buffers=[valid_count_buf, temp_flag_buf],
             name="get_valid_counts",
             tag="get_valid_counts_gpu")
 
@@ -255,12 +248,13 @@ def get_valid_counts_gpu(data, score_threshold=0, id_index=0, score_index=1):
             name="flag_scan")
 
     out = \
-        tvm.extern([data.shape], [data, temp_flag, temp_partial, out_in, valid_count],
+        tvm.extern([data.shape], [data, temp_flag, temp_partial, valid_count],
                    lambda ins, outs: out_rewrite(
-            ins[0], ins[1], ins[2], ins[3], ins[4], outs[0]),
+            ins[0], ins[1], ins[2], ins[3], outs[0]),
             dtype=[data.dtype],
             in_buffers=[data_buf, temp_flag_buf,
-                        temp_partial_buf, temp_out_buf, valid_count_buf],
+                        temp_partial_buf, valid_count_buf],
+            out_buffers=[out_buf],
             name="out_rewrite")
 
     return [valid_count, out]
