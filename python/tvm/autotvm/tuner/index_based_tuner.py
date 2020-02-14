@@ -66,12 +66,6 @@ class GridSearchTuner(IndexBaseTuner):
             self.counter = self.counter + 1
         return ret
 
-    def __getstate__(self):
-        return {"counter": self.counter}
-
-    def __setstate__(self, state):
-        self.counter = state['counter']
-
 
 class RandomTuner(IndexBaseTuner):
     """Enumerate the search space in a random order
@@ -113,10 +107,3 @@ class RandomTuner(IndexBaseTuner):
             self.rand_state.pop(self.rand_max, None)
             self.counter += 1
         return ret
-
-    def __getstate__(self):
-        return {"visited": self.visited}
-
-    def __setstate__(self, state):
-        self.visited = state['visited']
-        self.counter = len(self.visited)
