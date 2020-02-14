@@ -18,6 +18,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib.nvcc import have_fp16
 
@@ -98,7 +99,7 @@ def verify_vectorization(n, m, dtype):
             A = tvm.placeholder((n, m), name='A', dtype=dtype)
             B = tvm.compute((n, m), lambda i, j:
                              A[i, j] + tvm.const(1, A.dtype), name='B')
-            S = topi.generic.schedule_elemwise(B)
+            S = topi.testing.get_elemwise_schedule(device)(B)
 
             fun = tvm.build(S, [A, B], device)
             np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(

@@ -78,7 +78,7 @@ def example():
 # the scope of this tutorial.
 
 @relay.op.register_alter_op_layout("nn.conv2d", level=101)
-def alter_conv2d(attrs, inputs, tinfos):
+def alter_conv2d(attrs, inputs, tinfos, out_type):
     data, weight = inputs
     new_attrs = dict(attrs)
     new_attrs['data_layout'] = 'NCHW16c'
@@ -245,10 +245,10 @@ print(mod3)
 f = example()
 mod = tvm.IRModule.from_expr(f)
 seq = relay.transform.Sequential([relay.transform.FoldConstant(),
-                                  relay.transform.PrintIR(),
+                                  relay.transform.PrintIR(False),
                                   relay.transform.EliminateCommonSubexpr(),
                                   relay.transform.FuseOps(),
-                                  relay.transform.PrintIR()])
+                                  relay.transform.PrintIR(False)])
 with relay.build_config(opt_level=3):
     mod = seq(mod)
 
