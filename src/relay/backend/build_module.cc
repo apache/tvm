@@ -28,7 +28,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/transform.h>
-#include <tvm/tir/ir_pass.h> 
+#include <tvm/tir/ir_pass.h>
 #include <memory>
 
 #include "../../target/source/codegen_source_base.h"
@@ -445,10 +445,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     // When there is no lowered_funcs due to reasons such as optimization,
     // we first try to generate a dummy one if the target host is "llvm".
     if (lowered_funcs.size() == 0) {
-      // Decide first the target host 
+      // Decide first the target host
       Target target_host_val = target_host_;
       if (!target_host_.defined()) {
-        for (const auto &it: targets_) {
+        for (const auto &it : targets_) {
           if (it.second->device_type == kDLCPU) {
             target_host_val = it.second;
             break;
@@ -462,17 +462,18 @@ class RelayBuildModule : public runtime::ModuleNode {
       if (!target_host_val.defined())
         target_host_val = (pf != nullptr) ? target::llvm() : target::stackvm();
 
-      if (target_host_val.defined() && target_host_val->str() == "llvm")
+      if (target_host_val.defined() && target_host_val->target_name == "llvm")
         lowered_funcs.Set(
           target_host_val->str(),
           Array<LoweredFunc>({
              MakeAPI(EvaluateNode::make(0), "__dummy__", Array<ObjectRef>(), 0, false) }));
     }
-    
+
     if (lowered_funcs.size() == 0) {
       // If there is still no lowered_funcs, a fallback solution is to create a module
       // with empty code content.
-      // The code content is initialized with ";" to prevent complaining from CSourceModuleNode::SaveToFile.
+      // The code content is initialized with ";" to prevent complaining
+      // from CSourceModuleNode::SaveToFile.
       ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
     } else {
       ret_.mod = tvm::build(
