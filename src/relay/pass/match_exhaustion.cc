@@ -293,8 +293,14 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
 
   Array<Pattern> failures;
 
+  size_t counter = 0;
   while (!candidates.empty()) {
+    counter++;
     Pattern cand = candidates.top();
+    if (counter == 1000) {
+      CHECK(false);
+    }
+    std::cerr << AsText(cand) << std::endl;
     candidates.pop();
 
     bool failure = true;
