@@ -103,7 +103,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
                                      dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, dilation, out_dtype, tile_size],
+            [new_data, new_weight, strides, padding, dilation, out_dtype],
             "conv2d_nchw_winograd_without_weight_transform.cuda")
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(

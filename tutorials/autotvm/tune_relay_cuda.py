@@ -163,19 +163,7 @@ def tune_tasks(tasks,
                n_trial=1000,
                early_stopping=None,
                log_filename='tuning.log',
-               use_transfer_learning=True,
-               try_winograd=True):
-    if try_winograd:
-        for i in range(len(tasks)):
-            try:  # try winograd template
-                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
-                                          tasks[i].target, tasks[i].target_host, 'winograd')
-                input_channel = tsk.workload[1][1]
-                if input_channel >= 64:
-                    tasks[i] = tsk
-            except Exception:
-                pass
-
+               use_transfer_learning=True):
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):

@@ -79,24 +79,8 @@ def schedule_conv2d_nhwc(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     output_op = outs[0].op
-    scheduled_ops = []
 
-    def traverse(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            else: # inject custom schedule
-                if len(op.axis) == 4: # schedule bias + bn + relu
-                    n, h, w, c = op.axis
-                    fused = s[op].fuse(n, h, w)
-                    s[op].parallel(fused)
-                    s[op].vectorize(c)
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
-
+    def _callback(op):
         if 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
@@ -115,17 +99,21 @@ def schedule_conv2d_nhwc(outs):
             C = conv
             n, h, w, c = C.op.axis
             ry, rx, rc = C.op.reduce_axis
-            n_out, h_out, w_out, c_out = output_op.axis
             s[C].vectorize(c)
-            if op != output_op: # fuse bias + bn + relu into conv
-                s[C].compute_at(s[output_op], c_out)
-            else:
-                fused = s[C].fuse(n, h, w)
-                s[C].parallel(fused)
 
-        scheduled_ops.append(op)
+            O = output_op
+            if len(O.axis) == 4: # schedule bias + bn + relu
+                n, h, w, c = O.axis
+                fused = s[O].fuse(n, h, w)
+                s[O].parallel(fused)
+                channels = int(O.output(0).shape[-1])
+                if channels % 64 == 0:
+                    c, ci = s[O].split(c, 64)
+                    s[O].vectorize(ci)
+                if C != O:
+                    s[C].compute_at(s[O], c)
 
-    traverse(output_op)
+    traverse_inline(s, output_op, _callback)
     return s
 
 def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):

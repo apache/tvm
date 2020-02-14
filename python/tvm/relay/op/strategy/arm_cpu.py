@@ -68,10 +68,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
                     name="conv2d_nchw_winograd.arm_cpu",
                     plevel=15)
-                if pt == 1 and pb == 1 and pl == 1 and pr == 1:
+                if "nnpack" in target.libs and pt == 1 and pb == 1 and pl == 1 and pr == 1:
                     strategy.add_implement(
-                        wrap_compute_conv2d_winograd_nnpack(
-                            topi.arm_cpu.conv2d_nchw_winograd_nnpack),
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd_nnpack),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack),
                         name="conv2d_nchw_winograd_nnpack.arm_cpu",
                         plevel=13)

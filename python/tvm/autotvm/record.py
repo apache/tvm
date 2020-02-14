@@ -37,6 +37,7 @@ from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.2
+_old_version_warning = True
 logger = logging.getLogger('autotvm')
 
 try:  # convert unicode to str for python2
@@ -134,10 +135,14 @@ def decode(row, protocol='json'):
     result: autotvm.tuner.MeasureResult
     """
     # pylint: disable=unused-variable
+    global _old_version_warning
+    
     if protocol == 'json':
         row = json.loads(row)
         if 'v' in row and row['v'] == 0.1:
-            logger.warning("AutoTVM log version 0.1 is no longer supported.")
+            if _old_version_warning:
+                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                _old_version_warning = False
             return None
 
         tgt, task_name, task_args, task_kwargs = row["input"]
@@ -165,7 +170,9 @@ def decode(row, protocol='json'):
     if protocol == 'pickle':
         items = row.split("\t")
         if len(items) == 4:
-            logger.warning("AutoTVM log version 0.1 is no longer supported.")
+            if _old_version_warning:
+                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                _old_version_warning = False
             return None
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
