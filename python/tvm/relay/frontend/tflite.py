@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
 """Tensorflow lite frontend."""
 import math
+import itertools
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -1026,6 +1027,8 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
         data = self.get_expr(input_tensors[0].tensor_idx)
 
         indices = input_tensors[1]
@@ -1041,11 +1044,78 @@ class OperatorConverter(object):
         gather_options.Init(op_options.Bytes, op_options.Pos)
         axis = gather_options.Axis()
 
-        out = _op.take(data, indices, axis=axis)
+        # Check the indices are with in bounds.
+        data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
+        data_dim = len(data_shape)
+
+        axis_n = axis
+        if axis_n < 0:
+            axis_n += axis_n + data_dim
+        assert axis_n >= 0, "Axis out of bounds"
+        assert axis_n < data_dim, "Axis out of bounds"
+
+        indices_val = self.get_tensor_value(input_tensors[1])
+        indices_shape = list(indices_val.shape)
+        indices_len = len(indices_shape)
+
+        out_shape = []
+        for i in range(data_dim):
+            if axis_n == i:
+                for j in range(indices_len):
+                    out_shape.append(indices_shape[j])
+            else:
+                out_shape.append(data_shape[i])
+
+        loopover = [range(s) for s in out_shape]
+        for idx in list(itertools.product(*loopover)):
+            indices_position = [idx[j] for j in range(axis_n, axis_n+indices_len)]
+
+            real_indices = [idx[j] for j in range(axis_n)]
+            real_indices.append(indices_val[tuple(indices_position)])
+            real_indices.extend([idx[j] for j in range(axis_n + indices_len, len(idx))])
+            for r, d in zip(real_indices, data_shape):
+                if r >= d:
+                    raise ValueError("TFLite out of bound indices are not supported.")
+
+        # Use mode 'fast' since indices are already checked within bounds.
+        out = _op.take(data, indices, axis=axis, mode="fast")
         return out
 
     def convert_strided_slice(self, op):
-        """Method to Convert TFLite STRIDED_SLICE operator"""
+        """Method to Convert TFLite STRIDED_SLICE operator.
+           NOTE: Eventhough tensorflow supports begin_mask, end_mask, ellipsis_mask, new_axis_mask
+           and shrink_axis_mask, tflite doesn't support these and expect these values to be zero.
+           But in future, they may open up the mask implementation, so kept the implementation
+           same as tensorflow.
+
+           This op extracts a slice of size (end - begin) / stride from the given input tensor.
+           Starting at the location specified by begin the slice continues by adding stride to the
+           index until all dimensions are not less than end. Note that a stride can be negative,
+           which causes a reverse slice.
+
+           For slice input[val0, val1, ..., valn], begin/end/strides will be vectors of length n.
+
+           In each mask field(begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask)
+           the ith bit will correspond to the ith val.
+
+           If the ith bit of begin_mask is set, begin[i] is ignored and the fullest possible range
+           in that dimension is used instead.
+
+           If the ith bit of ellipsis_mask is set, as many unspecified dimensions as needed will be
+           inserted between other dimensions. Only one non-zero bit is allowed in ellipsis_mask.
+
+           If the ith bit of new_axis_mask is set, then begin, end, and stride are ignored and a
+           new length 1 dimension is added at this point in the output tensor.
+
+           If the ith bit of shrink_axis_mask is set, it implies that the ith specification shrinks
+           the dimensionality by 1, taking on the value at index begin[i]. end[i] and strides[i]
+           are ignored in this case.
+           begin and end are zero-indexed. strides entries must be non-zero.
+
+           TVM Relay implementation of doesn't support mask, so the mask values are processed in
+           this function and begin/end/strides are updated accordingly. If any mask is present, and
+           since tvm doesn't support mask computation directly, the output need a final reshape.
+        """
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.StridedSliceOptions import StridedSliceOptions
@@ -1053,6 +1123,8 @@ class OperatorConverter(object):
             raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "input tensors length should be 4"
+
         data_expr = self.get_expr(input_tensors[0].tensor_idx)
 
         begin = list(self.get_tensor_value(input_tensors[1]))
@@ -1071,8 +1143,7 @@ class OperatorConverter(object):
 
         data_shape = list(input_tensors[0].tensor.ShapeAsNumpy())
         data_dim = len(data_shape)
-        stride_dim = len(list(input_tensors[3].tensor.ShapeAsNumpy()))
-
+        stride_dim = len(stride)
         def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
             m_begin = [0] * data_dim
