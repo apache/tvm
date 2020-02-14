@@ -65,4 +65,4 @@ def test_cast_grad():
     check_grad(fwd_func)
 
 if __name__ == "__main__":
-    pytest.main()
+    pytest.main([__file__])

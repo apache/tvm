@@ -46,4 +46,4 @@ def test_max_grad():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    pytest.main([__file__])

@@ -92,6 +92,14 @@ Expr DeGlobal(const IRModule& mod, const Expr& e) {
   }
 }
 
+std::string GradName(const Expr& e) {
+  if (const auto* x = e.as<GlobalVarNode>()) {
+    return x->name_hint + "_grad";
+  } else {
+    return "temp_grad";
+  }
+}
+
 /*! \brief A fragment of the program being built by the automatic differentation
  *  pass.
  */

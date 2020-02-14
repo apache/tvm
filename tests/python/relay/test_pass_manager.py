@@ -555,4 +555,4 @@ def test_print_debug_callback():
 
 
 if __name__ == "__main__":
-    pytest.main()
+    pytest.main([__file__])

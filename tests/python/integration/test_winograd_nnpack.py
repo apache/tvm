@@ -25,6 +25,7 @@ import topi
 import topi.testing
 from topi.util import get_const_tuple
 from pytest import skip
+import pytest
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -140,5 +141,4 @@ def test_conv2d_nchw():
 
 
 if __name__ == "__main__":
-    import pytest
-    pytest.main()
+    pytest.main([__file__])
