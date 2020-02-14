@@ -183,7 +183,7 @@ RPC server on iPhone/android/raspberry pi or even the browser. The cross compila
 This instant feedback gives us a lot of advantages. For example, to test the correctness of generated code on iPhone, we no longer have to write test-cases in swift/objective-c from scratch -- We can use RPC to execute on iPhone, copy the result back and do verification on the host via numpy. We can also do the profiling using the same script.
 
 TVM Object and Compiler Stack
----------------------------
+-----------------------------
 
 As we mentioned earlier, we build compiler stack API on top of the PackedFunc runtime system.
 We faced a constant changing of the compiler API for the need of research. We need a new language object or IR node whenever we want to test out new primitives.

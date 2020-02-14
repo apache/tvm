@@ -20,6 +20,10 @@ Each error class takes an error message as its input.
 See the example sections for for suggested message conventions.
 To make the code more readable, we recommended developers to
 copy the examples and raise errors with the same message convention.
+
+.. note::
+
+    Please also refer to :ref:`error-handling-guide`.
 """
 from tvm._ffi.base import register_error, TVMError
 

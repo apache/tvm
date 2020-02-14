@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-VTA API
-=======
+vta
+===
 
 This document contains the python API to VTA compiler toolchain.
 

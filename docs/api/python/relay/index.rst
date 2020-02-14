@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay API
+tvm.relay
 =========
 
 This document contains the Python API for the Relay frontend, optimizer, and
@@ -35,9 +35,7 @@ compiler stack.
    image
    analysis
    transform
-   module
    nn
    op
    scope_builder
-   ty
    vision
