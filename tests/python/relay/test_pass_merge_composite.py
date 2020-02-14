@@ -681,3 +681,4 @@ if __name__ == "__main__":
     test_merge_order()
     test_parallel_merge()
     test_multiple_input_subgraphs()
+    test_reuse_call_merge()
