@@ -345,7 +345,7 @@ def dense(data,
           kernel_zero_point,
           input_scale,
           kernel_scale,
-          units=None,
+          units,
           out_dtype="int32"):
     """Qnn Dense operator.
     Applies a quantized linear transformation
@@ -371,7 +371,7 @@ def dense(data,
         stored for access to this during relay. This information is not
         needed in the pass pipeline after qnn.conv2d is lowered to the
         sequence of steps as in nn.conv2d. See also input_scale in Requantize.
-    units : int, optional
+    units : int
         Number of hidden units of the dense transformation.
     out_dtype : str, optional
         Specifies the output data type for mixed precision dense can be int32 or int16.
