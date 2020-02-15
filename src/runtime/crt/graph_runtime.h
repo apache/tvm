@@ -26,10 +26,10 @@
 
 #include <dlpack/dlpack.h>
 
-#include "load_json.h" // <tvm/runtime/crt/load_json.h>
-#include "ndarray.h" // <tvm/runtime/crt/ndarray.h>
-#include "packed_func.h" // <tvm/runtime/crt/packed_func.h>
-#include "module.h" // <tvm/runtime/crt/module.h>
+#include "load_json.h"
+#include "ndarray.h"
+#include "packed_func.h"
+#include "module.h"
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                                            \
