@@ -497,7 +497,7 @@ def test_merge_order():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
     # check B highest priority
     pattern_table = [
@@ -508,7 +508,7 @@ def test_merge_order():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
     # check C highest priority
     pattern_table = [
@@ -519,7 +519,7 @@ def test_merge_order():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
 
 def test_parallel_merge():
@@ -549,11 +549,13 @@ def test_parallel_merge():
         y = relay.var('y')
         branch_1 = relay.multiply(relay.add(x, y), relay.subtract(x, y))
         func_1 = relay.Function([x, y], branch_1)
+        func_1 = add_attributes_to_fn(func_1, "add_sub_mul")
         call_1 = relay.Call(func_1, [input_1, input_2])
         x1 = relay.var('x1')
         y1 = relay.var('y1')
         branch_2 = relay.multiply(relay.add(x1, y1), relay.subtract(x1, y1))
         func_2 = relay.Function([x1, y1], branch_2)
+        func_2 = add_attributes_to_fn(func_2, "add_sub_mul")
         call_2 = relay.Call(func_2, [input_1, input_2])
         out = relay.multiply(call_1, call_2)
         return relay.Function([input_1, input_2], out)
@@ -564,7 +566,7 @@ def test_parallel_merge():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
 
 def test_multiple_input_subgraphs():
@@ -677,13 +679,13 @@ def test_multiple_input_subgraphs():
     result = run_opt_pass(before()['A'], relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_A(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
     # check case 'B'
     result = run_opt_pass(before()['B'], relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_B(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, expected)
+    assert relay.analysis.alpha_equal(expected, result)
 
 
 if __name__ == "__main__":
