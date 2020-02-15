@@ -55,7 +55,7 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[5], DataType::Float(32)));  // kernel_scale
+  AssignType(types[5], DataType::Float(32), param->units, reporter);
 
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
