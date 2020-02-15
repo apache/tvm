@@ -55,7 +55,7 @@ def serialize_args(args):
         if x is None:
             return None
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
-                           'primitive types or tvm.expr.Var only' % type(x))
+                           'primitive types or tvm.tir.Var only' % type(x))
     ret = []
     for t in args:
         ret.append(_encode(t))
