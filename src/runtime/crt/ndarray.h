@@ -21,8 +21,8 @@
  * \file tvm/runtime/crt/ndarray.h
  * \brief Abstract device memory management API
  */
-#ifndef TVM_RUNTIME_NDARRAY_H_
-#define TVM_RUNTIME_NDARRAY_H_
+#ifndef TVM_RUNTIME_CRT_NDARRAY_H_
+#define TVM_RUNTIME_CRT_NDARRAY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
@@ -41,11 +41,12 @@ typedef struct ndarray_t {
 
 NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, uint32_t ndim, DLDataType dtype);
 
-static inline NDArray NDArray_Create(uint32_t ndim, int64_t * shape, DLDataType dtype, DLContext ctx) {
+static inline NDArray NDArray_Create(uint32_t ndim, int64_t * shape,
+                                     DLDataType dtype, DLContext ctx) {
   NDArray ret;
   memset(&ret, 0, sizeof(NDArray));
   ret.dl_tensor.ndim = ndim;
-  ret.dl_tensor.shape = (int64_t*)malloc(sizeof(int64_t)*ndim); // TODO(liangfu): release memory
+  ret.dl_tensor.shape = (int64_t*)malloc(sizeof(int64_t)*ndim);  // NOLINT(*)
   memcpy(ret.dl_tensor.shape, shape, sizeof(int64_t)*ndim);
   ret.dl_tensor.dtype = dtype;
   ret.dl_tensor.ctx = ctx;
@@ -53,7 +54,8 @@ static inline NDArray NDArray_Create(uint32_t ndim, int64_t * shape, DLDataType 
   return ret;
 }
 
-static inline NDArray NDArray_Empty(uint32_t ndim, int64_t * shape, DLDataType dtype, DLContext ctx) {
+static inline NDArray NDArray_Empty(uint32_t ndim, int64_t * shape,
+                                    DLDataType dtype, DLContext ctx) {
   NDArray ret = NDArray_Create(ndim, shape, dtype, ctx);
   int64_t num_elems = 1;
   int elem_bytes = (dtype.bits + 7) / 8;
@@ -69,18 +71,18 @@ static inline NDArray NDArray_Empty(uint32_t ndim, int64_t * shape, DLDataType d
 static inline int NDArray_Load(NDArray * ret, const char ** strm) {
   int32_t status = 0;
   uint64_t header, reserved;
-  header = ((uint64_t*)*strm)[0]; *strm += sizeof(header);
+  header = ((uint64_t*)*strm)[0]; *strm += sizeof(header);  // NOLINT(*)
   if (header != kTVMNDArrayMagic) {
     fprintf(stderr, "Invalid DLTensor file format\n");
     status = -1;
   }
-  reserved = ((uint64_t*)*strm)[0]; *strm += sizeof(reserved);
+  reserved = ((uint64_t*)*strm)[0]; *strm += sizeof(reserved);  // NOLINT(*)
   DLContext ctx;
   uint32_t ndim;
   DLDataType dtype;
-  ctx = ((DLContext*)*strm)[0]; *strm += sizeof(ctx);
-  ndim = ((uint32_t*)*strm)[0]; *strm += sizeof(ndim);
-  dtype = ((DLDataType*)*strm)[0]; *strm += sizeof(dtype);
+  ctx = ((DLContext*)*strm)[0]; *strm += sizeof(ctx);  // NOLINT(*)
+  ndim = ((uint32_t*)*strm)[0]; *strm += sizeof(ndim);  // NOLINT(*)
+  dtype = ((DLDataType*)*strm)[0]; *strm += sizeof(dtype);  // NOLINT(*)
   if ((ndim <= 0) || (ndim > TVM_CRT_MAX_NDIM)) {
     fprintf(stderr, "Invalid ndim=%d: expected to be 1 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
     status = -1;
@@ -89,11 +91,11 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
     fprintf(stderr, "Invalid DLTensor context: can only save as CPU tensor\n");
     status = -1;
   }
-  int64_t shape[TVM_CRT_MAX_NDIM]; // [ndim];
+  int64_t shape[TVM_CRT_MAX_NDIM];
   uint32_t idx;
   if (ndim != 0) {
-    for (idx = 0; idx < ndim; idx++){
-      shape[idx] = ((int64_t*)*strm)[0]; *strm += sizeof(shape[idx]);
+    for (idx = 0; idx < ndim; idx++) {
+      shape[idx] = ((int64_t*)*strm)[0]; *strm += sizeof(shape[idx]);  // NOLINT(*)
     }
   }
   *ret = NDArray_Empty(ndim, shape, dtype, ctx);
@@ -103,7 +105,7 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
     num_elems *= ret->dl_tensor.shape[idx];
   }
   int64_t data_byte_size;
-  data_byte_size = ((int64_t*)*strm)[0]; *strm += sizeof(data_byte_size);
+  data_byte_size = ((int64_t*)*strm)[0]; *strm += sizeof(data_byte_size);  // NOLINT(*)
   if (!(data_byte_size == num_elems * elem_bytes)) {
     fprintf(stderr, "invalid DLTensor file format: data_byte_size=%ld, "
             "while num_elems*elem_bytes=%ld\n",
@@ -116,4 +118,4 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
   return status;
 }
 
-#endif  // TVM_RUNTIME_NDARRAY_H_
+#endif  // TVM_RUNTIME_CRT_NDARRAY_H_

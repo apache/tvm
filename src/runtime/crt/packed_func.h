@@ -21,8 +21,8 @@
  * \file tvm/runtime/packed_func.h
  * \brief Type-erased function used across TVM API.
  */
-#ifndef TVM_RUNTIME_PACKED_FUNC_H_
-#define TVM_RUNTIME_PACKED_FUNC_H_
+#ifndef TVM_RUNTIME_CRT_PACKED_FUNC_H_
+#define TVM_RUNTIME_CRT_PACKED_FUNC_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -71,7 +71,7 @@ static inline DLDataType String2DLDataType(const char * s) {
   if (*xdelim == 'x') {
     t.lanes = (uint16_t)(strtoul(xdelim + 1, &endpt, 10));
   }
-  if (!(endpt == s + strlen(s))){
+  if (!(endpt == s + strlen(s))) {
     fprintf(stderr, "unknown type %s\n", s);
   }
   return t;
@@ -125,7 +125,7 @@ void PackedFunc_SetupExecs();
 static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
   int idx;
   memset(pf, 0, sizeof(PackedFunc));
-  strcpy(pf->name, name);
+  snprintf(pf->name, strlen(name), "%s", name);
   pf->Call = PackedFunc_Call;
   pf->SetArgs = PackedFunc_SetArgs;
   pf->fexec = &TVMNoOperation;
@@ -140,4 +140,4 @@ static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
   }
 }
 
-#endif  // TVM_RUNTIME_PACKED_FUNC_H_
+#endif  // TVM_RUNTIME_CRT_PACKED_FUNC_H_

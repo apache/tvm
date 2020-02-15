@@ -21,8 +21,8 @@
  * \file load_json.h
  * \brief Lightweight JSON Reader that read save into C++ data structs.
  */
-#ifndef LOAD_JSON_H_
-#define LOAD_JSON_H_
+#ifndef TVM_RUNTIME_CRT_LOAD_JSON_H_
+#define TVM_RUNTIME_CRT_LOAD_JSON_H_
 
 #include <stdio.h>
 #include <ctype.h>
@@ -76,10 +76,10 @@ static inline void SeqPop(Seq * seq) {
 }
 
 static inline Seq * SeqCreate(uint64_t len) {
-  Seq * seq = (Seq*)malloc(sizeof(Seq));
+  Seq * seq = (Seq*)malloc(sizeof(Seq));  // NOLINT(*)
   memset(seq, 0, sizeof(Seq));
   seq->allocated = len;
-  seq->data = (uint32_t*)malloc(sizeof(uint32_t)*len);
+  seq->data = (uint32_t*)malloc(sizeof(uint32_t)*len);  // NOLINT(*)
   seq->push_back = SeqPush;
   seq->back = SeqBack;
   seq->pop_back = SeqPop;
@@ -247,12 +247,12 @@ static inline int JSONReader_ReadString(JSONReader * reader, char * out_str) {
     if (ch == '\\') {
       char sch = reader->NextChar(reader);
       switch (sch) {
-        case 'r': strcat(output, "\r"); break;
-        case 'n': strcat(output, "\n"); break;
-        case '\\': strcat(output, "\\"); break;
-        case 't': strcat(output, "\t"); break;
-        case '\"': strcat(output, "\""); break;
-        default: fprintf(stderr, "unknown string escape \%c\n", sch);
+      case 'r': snprintf(output, sizeof(output), "%s\r", output); break;
+      case 'n': snprintf(output, sizeof(output), "%s\n", output); break;
+      case '\\': snprintf(output, sizeof(output), "%s\\", output); break;
+      case 't': snprintf(output, sizeof(output), "%s\t", output); break;
+      case '\"': snprintf(output, sizeof(output), "%s\"", output); break;
+      default: fprintf(stderr, "unknown string escape %c\n", sch);
       }
     } else {
       if (ch == '\"') { break; }
@@ -273,7 +273,7 @@ static inline int JSONReader_ReadString(JSONReader * reader, char * out_str) {
       fprintf(stderr, "Error at line X, Expect \'\"\' but reach end of line\n");
     }
   }
-  strcpy(out_str, output);
+  snprintf(out_str, sizeof(output), "%s", output);
   return status;
 }
 
@@ -437,9 +437,9 @@ static inline JSONReader JSONReader_Create(const char * is) {
   reader.BeginObject = JSONReader_BeginObject;
   reader.NextArrayItem = JSONReader_NextArrayItem;
   reader.NextObjectItem = JSONReader_NextObjectItem;
-  reader.is_ = (char*)malloc(strlen(is)+1);
+  reader.is_ = (char*)malloc(strlen(is)+1);  // NOLINT(*)
   memset(reader.is_, 0, strlen(is)+1);
-  strcpy(reader.is_, is);
+  snprintf(reader.is_, strlen(is)+1, "%s", is);
   reader.isptr = reader.is_;
   return reader;
 }
@@ -449,4 +449,4 @@ static inline void JSONReader_Release(JSONReader * reader) {
   free(reader->is_);
 }
 
-#endif  // LOAD_JSON_H_
+#endif  // TVM_RUNTIME_CRT_LOAD_JSON_H_

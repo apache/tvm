@@ -27,7 +27,7 @@
 
 #ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#endif // MAX
+#endif  // MAX
 
 static inline uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
   int64_t accum = 1;
@@ -68,22 +68,23 @@ int GraphRuntime_GetInputIndex(GraphRuntime * runtime, const char * name) {
 void GraphRuntime_SetInput(struct graph_runtime_t * runtime, const char * name, DLTensor* data_in) {
   uint32_t index = runtime->GetInputIndex(runtime, name);
   if (index >= runtime->input_nodes_count) {
-    fprintf(stderr, "given index is greater than num of input nodes.");
+    fprintf(stderr, "given index is greater than num of input nodes.\n");
   }
   uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[index], 0);
   runtime->data_entry[eid].dl_tensor = *data_in;
 }
 
-int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param_blob, const uint32_t param_size) {
+int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param_blob,
+                            const uint32_t param_size) {
   int status = 0;
   const char * bptr = param_blob;
   uint64_t header, reserved;
-  header = ((uint64_t*)bptr)[0];
+  header = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(header);
   if (header != kTVMNDArrayListMagic) {
     fprintf(stderr, "Invalid parameters file format");
   }
-  reserved = ((uint64_t*)bptr)[0];
+  reserved = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(reserved);
 
   // read names
@@ -91,14 +92,14 @@ int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param
   memset(names, 0, sizeof(names));
   uint64_t names_count;
   int idx;
-  names_count = ((uint64_t*)bptr)[0];
+  names_count = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(names_count);
   for (idx = 0; idx < names_count; idx++) {
     uint64_t name_length;
-    name_length = ((uint64_t*)bptr)[0];
+    name_length = ((uint64_t*)bptr)[0];  // NOLINT(*)
     bptr += sizeof(name_length);
-    if (name_length >= 80){
-      fprintf(stderr, "Error: function name longer than expected.");
+    if (name_length >= 80) {
+      fprintf(stderr, "Error: function name longer than expected.\n");
     }
     memcpy(names[idx], bptr, name_length);
     bptr += name_length;
@@ -106,23 +107,24 @@ int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param
 
   // read sizes
   uint64_t sz;
-  sz = ((uint64_t*)bptr)[0];
+  sz = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(sz);
   uint32_t size = sz;
   if (size != names_count) {
-    fprintf(stderr, "Invalid parameters file format");
+    fprintf(stderr, "Invalid parameters file format\n");
     status = -1;
   }
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx = runtime->GetInputIndex(runtime, names[idx]);
     if (!(in_idx >= 0)) {
-      fprintf(stderr, "Found param for non-existent input: %s", names[idx]);
+      fprintf(stderr, "Found param for non-existent input: %s\n", names[idx]);
       status = -1;
     }
     uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
-      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).", eid, runtime->data_entry_count);
+      fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n",
+              eid, runtime->data_entry_count);
       status = -1;
     }
 
@@ -130,9 +132,9 @@ int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param
 #if TVM_CRT_DEBUG
     NDArray * entry = &(runtime->data_entry[eid]);
     printf("param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
-         names[idx], in_idx, eid, entry->dl_tensor.ndim,
-         ((float*)entry->dl_tensor.data)[0]);
-#endif // TVM_CRT_DEBUG
+           names[idx], in_idx, eid, entry->dl_tensor.ndim,
+           ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
+#endif  // TVM_CRT_DEBUG
   }
 
   return status;
@@ -148,7 +150,7 @@ void GraphRuntime_Run(GraphRuntime * runtime) {
     if (runtime->op_execs[idx].fexec) {
 #if TVM_CRT_DEBUG
       printf("calling %s (%d)\n", runtime->op_execs[idx].name, idx);
-#endif // TVM_CRT_DEBUG
+#endif  // TVM_CRT_DEBUG
       runtime->op_execs[idx].Call(&(runtime->op_execs[idx]));
     }
   }
@@ -206,7 +208,7 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
   // Allocate the space.
   for (idx = 0; idx < pool_entry_count; idx++) {
     PoolEntry pit = pool_entry[idx];
-    int64_t shape[TVM_CRT_MAX_NDIM] = {0,};
+    int64_t shape[TVM_CRT_MAX_NDIM] = {0, };
     TVMContext ctx = runtime->ctxs[0];
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
@@ -225,7 +227,8 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
     size_t storage_id = attrs->storage_id[idx];
     assert(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
-      NDArray_CreateView(&(runtime->storage_pool[storage_id]), attrs->shape[idx], attrs->ndim[idx], vtype[idx]);
+      NDArray_CreateView(&(runtime->storage_pool[storage_id]),
+                         attrs->shape[idx], attrs->ndim[idx], vtype[idx]);
     if (runtime->data_entry[idx].dl_tensor.data == 0) {
       fprintf(stderr, "fail to create for node with idx=%d, storage_id=%d\n", idx, storage_id);
     }
@@ -245,12 +248,12 @@ int GraphRuntime_SetupOpExecs(GraphRuntime * runtime) {
         const NodeEntry * entry = inode->inputs + idx;
         uint32_t eid = runtime->GetEntryId(runtime, entry->node_id, entry->index);
         args[idx] = &(runtime->data_entry[eid].dl_tensor);
-        args_count ++;
+        args_count++;
       }
       for (idx = 0; idx < inode->param.num_outputs; idx++) {
         uint32_t eid = runtime->GetEntryId(runtime, nid, idx);
         args[args_count] = &(runtime->data_entry[eid].dl_tensor);
-        args_count ++;
+        args_count++;
       }
       if (strcmp(inode->op_type, "tvm_op")) {
         fprintf(stderr, "Can only take tvm_op as op\n"); status = -1;
@@ -264,7 +267,7 @@ int GraphRuntime_SetupOpExecs(GraphRuntime * runtime) {
       }
 #if TVM_CRT_DEBUG
       printf("creating tvm_op: %s with node_id=%d\n", inode->param.func_name, nid);
-#endif // TVM_CRT_DEBUG
+#endif  // TVM_CRT_DEBUG
       PackedFunc pf;
       runtime->CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count, &pf);
       runtime->op_execs[nid] = pf;
@@ -290,10 +293,7 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
   uint32_t idx;
   OpArgs arg_ptr;
   memset(&arg_ptr, 0, sizeof(OpArgs));
-  for (idx = 0; idx < args_count; idx++) {
-    /* arg_ptr.args[idx] = args[idx]; */
-  }
-	arg_ptr.args_count = args_count;
+  arg_ptr.args_count = args_count;
   if (param->flatten_data) {
     arg_ptr.shape_data_count = arg_ptr.args_count;
   }
@@ -304,9 +304,9 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
     /* v.v_handle = &((*args)[idx]); */
     v.v_handle = args[idx];
     arg_ptr.arg_values[idx] = v;
-    arg_ptr.arg_values_count ++;
+    arg_ptr.arg_values_count++;
     arg_ptr.arg_tcodes[idx] = kTVMNDArrayHandle;
-    arg_ptr.arg_tcodes_count ++;
+    arg_ptr.arg_tcodes_count++;
     if (param->flatten_data) {
       arg_ptr.shape_data[idx] = Shape_Accumulate(t->shape, t->ndim);
       t->ndim = 1;
@@ -345,7 +345,7 @@ void GraphRuntime_Init(GraphRuntime * runtime, const char * graph_json,
 
 GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
                               const Module * m, const TVMContext * ctxs) {
-  GraphRuntime * runtime = (GraphRuntime*)malloc(sizeof(GraphRuntime));
+  GraphRuntime * runtime = (GraphRuntime*)malloc(sizeof(GraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(GraphRuntime));
   runtime->GetEntryId = GraphRuntime_GetEntryId;
   runtime->GetInputIndex = GraphRuntime_GetInputIndex;

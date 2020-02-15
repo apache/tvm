@@ -21,8 +21,8 @@
  * \file src/runtime/crt/module.h
  * \brief Runtime container of the functions
  */
-#ifndef TVM_RUNTIME_MODULE_H_
-#define TVM_RUNTIME_MODULE_H_
+#ifndef TVM_RUNTIME_CRT_MODULE_H_
+#define TVM_RUNTIME_CRT_MODULE_H_
 
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -49,4 +49,4 @@ typedef struct module_t {
   void (*run)(const struct module_t * mod);
 } Module;
 
-#endif  // TVM_RUNTIME_MODULE_H_
+#endif  // TVM_RUNTIME_CRT_MODULE_H_

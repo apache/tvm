@@ -21,8 +21,8 @@
  * \file graph_runtime.h
  * \brief Tiny graph runtime that can run graph containing only tvm PackedFunc.
  */
-#ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
-#define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#ifndef TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
+#define TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_
 
 #include <dlpack/dlpack.h>
 
@@ -114,7 +114,7 @@ static inline void GraphRuntimeNode_LoadAttrs(GraphRuntimeNode * node, JSONReade
   while (reader->NextObjectItem(reader, key)) {
     reader->ReadString(reader, value);
     if (!strcmp(key, "func_name")) {
-      strcpy(param->func_name, value);
+      snprintf(param->func_name, sizeof(value), "%s", value);
       bitmask |= 1;
     } else if (!strcmp(key, "num_inputs")) {
       param->num_inputs = strtoul(value, 0, 10);
@@ -209,10 +209,10 @@ static inline GraphRuntimeNode GraphRuntimeNodeCreate() {
 
 // Graph attribute
 typedef struct graph_runtime_graph_attr_t {
-  uint32_t storage_num_not_alloctaed; // {0};
+  uint32_t storage_num_not_alloctaed;
   uint32_t storage_id[GRAPH_RUNTIME_MAX_NODES];
   uint32_t device_index[GRAPH_RUNTIME_MAX_NODES];
-  char     dltype[GRAPH_RUNTIME_MAX_NODES][10]; // "int8", "int16", "float32"
+  char     dltype[GRAPH_RUNTIME_MAX_NODES][10];  // "int8", "int16", "float32"
   uint32_t dltype_count;
   int64_t  shape[GRAPH_RUNTIME_MAX_NODES][TVM_CRT_MAX_NDIM];
   uint32_t ndim[GRAPH_RUNTIME_MAX_NODES];
@@ -238,7 +238,7 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
         reader->ReadString(reader, attr->dltype[dltype_count]);
-        dltype_count ++;
+        dltype_count++;
       }
       attr->dltype_count = dltype_count;;
       if (reader->NextArrayItem(reader)) { fprintf(stderr, "Invalid json format\n"); }
@@ -269,15 +269,15 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
         uint32_t ndim = 1;
         if (reader->NextArrayItem(reader)) {
           if (reader->NextArrayItem(reader)) {
-            reader->ReadInteger(reader, &(attr->shape[shape_count][1])); ndim ++;
+            reader->ReadInteger(reader, &(attr->shape[shape_count][1])); ndim++;
             if (reader->NextArrayItem(reader)) {
-              reader->ReadInteger(reader, &(attr->shape[shape_count][2])); ndim ++;
+              reader->ReadInteger(reader, &(attr->shape[shape_count][2])); ndim++;
               if (reader->NextArrayItem(reader)) {
-                reader->ReadInteger(reader, &(attr->shape[shape_count][3])); ndim ++;
+                reader->ReadInteger(reader, &(attr->shape[shape_count][3])); ndim++;
                 if (reader->NextArrayItem(reader)) {
-                  reader->ReadInteger(reader, &(attr->shape[shape_count][4])); ndim ++;
+                  reader->ReadInteger(reader, &(attr->shape[shape_count][4])); ndim++;
                   if (reader->NextArrayItem(reader)) {
-                    reader->ReadInteger(reader, &(attr->shape[shape_count][5])); ndim ++;
+                    reader->ReadInteger(reader, &(attr->shape[shape_count][5])); ndim++;
                     reader->NextArrayItem(reader);
                   }
                 }
@@ -286,7 +286,7 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
           }
         }
         attr->ndim[shape_count] = ndim;
-        shape_count ++;
+        shape_count++;
       }
       attr->shape_count = shape_count;
       if (reader->NextArrayItem(reader)) { fprintf(stderr, "Invalid json format\n"); }
@@ -299,7 +299,7 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
       if (!(reader->NextArrayItem(reader))) { fprintf(stderr, "Invalid json format\n"); }
       while (reader->NextArrayItem(reader)) {
         reader->ReadUnsignedInteger(reader, &(attr->device_index[device_index_count]));
-        device_index_count ++;
+        device_index_count++;
       }
       if (reader->NextArrayItem(reader)) { fprintf(stderr, "Invalid json format\n"); }
     } else {
@@ -313,7 +313,7 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
         reader->BeginArray(reader);
         while (reader->NextArrayItem(reader)) {
           reader->ReadUnsignedInteger(reader, &(temp[temp_count]));
-          temp_count ++;
+          temp_count++;
         }
       } else if (!strcmp(type, "size_t")) {
         if (!(reader->NextArrayItem(reader))) { fprintf(stderr, "Invalid json format\n"); }
@@ -438,7 +438,6 @@ static inline int GraphRuntime_Load(GraphRuntime * runtime, JSONReader *reader) 
     int status = 0;
     reader->BeginObject(reader);
     int bitmask = 0;
-    /* String key = StringCreate(); */
     char key[20];
     while (reader->NextObjectItem(reader, key)) {
       if (!strcmp(key, "nodes")) {
@@ -452,9 +451,9 @@ static inline int GraphRuntime_Load(GraphRuntime * runtime, JSONReader *reader) 
 #if TVM_CRT_DEBUG
           } else {
             printf("layer %u: `%s` loaded.\n", runtime->nodes_count, node->name);
-#endif // TVM_CRT_DEBUG
+#endif  // TVM_CRT_DEBUG
           }
-          runtime->nodes_count ++; /* seq push */
+          runtime->nodes_count++;
         }
         bitmask |= 1;
       } else if (!strcmp(key, "arg_nodes")) {
@@ -462,7 +461,7 @@ static inline int GraphRuntime_Load(GraphRuntime * runtime, JSONReader *reader) 
         while (reader->NextArrayItem(reader)) {
           uint32_t * node = runtime->input_nodes + runtime->input_nodes_count;
           reader->ReadUnsignedInteger(reader, node);
-          runtime->input_nodes_count ++;
+          runtime->input_nodes_count++;
         }
         bitmask |= 2;
       } else if (!strcmp(key, "node_row_ptr")) {
@@ -471,7 +470,7 @@ static inline int GraphRuntime_Load(GraphRuntime * runtime, JSONReader *reader) 
           uint32_t count = runtime->node_row_ptr_count;
           uint32_t * node = runtime->node_row_ptr + count;
           reader->ReadUnsignedInteger(reader, node);
-          runtime->node_row_ptr_count ++;
+          runtime->node_row_ptr_count++;
         }
         bitmask |= 4;
       } else if (!strcmp(key, "heads")) {
@@ -480,23 +479,23 @@ static inline int GraphRuntime_Load(GraphRuntime * runtime, JSONReader *reader) 
           NodeEntry * entry = runtime->outputs + runtime->outputs_count;
           status = NodeEntry_Load(entry, reader);
           if (status != 0) {
-            fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.");
+            fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
             break;
           }
-          runtime->outputs_count ++; /* seq push */
+          runtime->outputs_count++;
         }
         bitmask |= 8;
       } else if (!strcmp(key, "attrs")) {
         status = GraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
         if (status != 0) {
-          fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.");
+          fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
           break;
         }
         bitmask |= 16;
       } else if (!strcmp(key, "metadata")) {
         break;
       } else {
-        fprintf(stderr, "key %s is not supported", key);
+        fprintf(stderr, "key %s is not supported\n", key);
         status = -1;
       }
       if (status != 0) { break; }
@@ -515,4 +514,4 @@ GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json, const Module * m,
 
 void TVMGraphRuntimeRelease(GraphRuntime ** runtime);
 
-#endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
+#endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_

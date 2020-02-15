@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_CRT_VM_H_
 #define TVM_RUNTIME_CRT_VM_H_
 
-/*! \brief Magic number for NDArray list file  */                                                       static const uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
+/*! \brief Magic number for NDArray list file  */
+static const uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
 #endif  // TVM_RUNTIME_CRT_VM_H_
