@@ -20,26 +20,6 @@
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
-/* #include <tvm/runtime/crt/module.h> */
-/* #include <tvm/runtime/registry.h> */
-/* #include <tvm/runtime/packed_func.h> */
-/* #include <tvm/runtime/crt/graph_runtime.h> */
-/* #include <tvm/runtime/crt/load_json.h> */
-/* #include <tvm/runtime/crt/ndarray.h> */
-
-/* #include "../../src/runtime/c_runtime_api.cc" */
-/* #include "../../src/runtime/cpu_device_api.cc" */
-/* #include "../../src/runtime/workspace_pool.cc" */
-/* #include "../../src/runtime/library_module.cc" */
-/* #include "../../src/runtime/module.cc" */
-/* #include "../../src/runtime/registry.cc" */
-/* #include "../../src/runtime/file_util.cc" */
-/* #include "../../src/runtime/threading_backend.cc" */
-/* #include "../../src/runtime/thread_pool.cc" */
-/* #include "../../src/runtime/ndarray.cc" */
-/* #include "../../src/runtime/object.cc" */
-/* #include "../../src/runtime/system_library.cc" */
-/* #include "../../src/runtime/graph/graph_runtime.cc" */
 
 #include "../../src/runtime/crt/c_backend_api.c"
 #include "../../src/runtime/crt/graph_runtime.c"

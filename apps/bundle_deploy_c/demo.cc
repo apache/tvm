@@ -84,7 +84,8 @@ int main(int argc, char **argv) {
       max_index = i;
     }
   }
-  printf("The maximum position in output vector is: %d, with max-value %f.\n", max_index, max_iter);
+  printf("The maximum position in output vector is: %d, with max-value %f.\n",
+         max_index, max_iter);
   getFunc<void(void *)>(bundle, "tvm_runtime_destroy")(handle);
   dlclose(bundle);
   return 0;

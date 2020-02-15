@@ -66,15 +66,11 @@ def build_bridge(opts):
         f_bridge.write("  } while (0)\n")
         f_bridge.write("\n")
         for node in nodes:
-            # if node[-2:] in [str(_) for _ in range(21, 25)]:
-            #     continue
             f_bridge.write("int %s(TVMValue * args, int * arg_type_ids, int num_args, TVMRetValueHandle ret, void * res);\n" % (node,))
         f_bridge.write("\n")
         f_bridge.write("void PackedFunc_SetupExecs() {\n")
         f_bridge.write("  int32_t idx = 0;\n")
         for node in nodes:
-            # if node[-2:] in [str(_) for _ in range(21, 25)]:
-            #     continue
             f_bridge.write("  REGISTER_PACKED_FUNC(%s);\n" % (node,))
         f_bridge.write("}\n")
 
