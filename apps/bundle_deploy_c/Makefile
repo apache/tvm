@@ -18,7 +18,7 @@
 # Makefile Example to bundle TVM modules.
 
 # Configure runtime
-DEBUG = 1
+DEBUG = 0
 MAX_NDIM = 6
 MAX_ARGS = 10
 GRAPH_RUNTIME_NODE_MAX_INPUTS = 300
@@ -73,12 +73,18 @@ $(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir
 
 # Build our bundle against the serialized bundle.cc API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/graph.json.c $(build_dir)/params.bin.c $(build_dir)/bridge.c
+$(build_dir)/bundle.so: bundle.c runtime.c $(build_dir)/model.o $(build_dir)/graph.json.o $(build_dir)/params.bin.o $(build_dir)/bridge.c
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
+$(build_dir)/graph.json.o: $(build_dir)/graph.json.c
+	gcc -c ${PKG_CFLAGS} -o $@ $^
+
+$(build_dir)/params.bin.o: $(build_dir)/params.bin.c
+	gcc -c ${PKG_CFLAGS} -o $@ $^
+
 clean:
-	rm -r $(build_dir)/bundle.so
+	rm -rf $(build_dir)/bundle.so
 
 cleanall:
-	rm -r $(build_dir)
+	rm -rf $(build_dir)

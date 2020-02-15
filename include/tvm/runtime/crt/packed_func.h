@@ -132,17 +132,6 @@ typedef struct packed_func_t {
 } PackedFunc;
 
 static inline void PackedFunc_Call(PackedFunc * pf) {
-  uint32_t idx;
-  char args[200] = {0,};
-  for (idx = 0; idx < pf->args.values_count; idx++) {
-    char tmp[20];
-    sprintf(tmp, "%s,", (pf->args.tcodes[idx]==kTVMNDArrayHandle) ? "float *" : "unknown");
-    strcat(args, tmp);
-  }
-  args[strlen(args)-1] = '\0';
-#if TVM_CRT_DEBUG
-  LOGI("calling %s(%s)", pf->name, args);
-#endif // TVM_CRT_DEBUG
   pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0);
 }
 
@@ -167,9 +156,6 @@ static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
   for (idx = 0; idx < GRAPH_RUNTIME_MAX_NODES; idx++) {
     if (!strcmp(fexecs[idx].name, name)) {
       pf->fexec = fexecs[idx].fexec;
-#if TVM_CRT_DEBUG
-      LOGI("setup function %s", name);
-#endif // TVM_CRT_DEBUG
       break;
     }
   }

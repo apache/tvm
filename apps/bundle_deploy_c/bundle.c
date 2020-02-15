@@ -29,19 +29,12 @@ extern unsigned int build_params_bin_len;
 
 #define TVM_BUNDLE_FUNCTION __attribute__((visibility("default")))
 
-/* extern "C" { */
-
 TVM_BUNDLE_FUNCTION GraphRuntime * tvm_runtime_create() {
-  printf("tvm_runtime_create\n");
   char * json_data = build_graph_json;
-  /* memset(json_data, 0, build_graph_json_len + 1); */
-  /* memcpy(json_data, build_graph_json, build_graph_json_len); */
-  
+
   int device_type = kDLCPU;
   int device_id = 0;
-  /* tvm::runtime::Module mod = */
-  /*     (*tvm::runtime::Registry::Get("tvm.graph_runtime.create"))( */
-  /*         json_data, mod_syslib, device_type, device_id); */
+
   TVMByteArray params;
   params.data = build_params_bin;
   params.size = build_params_bin_len;
@@ -51,30 +44,26 @@ TVM_BUNDLE_FUNCTION GraphRuntime * tvm_runtime_create() {
   ctx.device_id = device_id;
   GraphRuntime * runtime = TVMGraphRuntimeCreate(json_data, 0, &ctx);
 
-  /* mod.GetFunction("load_params")(params); */
   runtime->LoadParams(runtime, params.data, params.size);
-  
-  /* return new tvm::runtime::Module(mod); */
+
   return runtime;
 }
 
 TVM_BUNDLE_FUNCTION void tvm_runtime_destroy(GraphRuntime * runtime) {
-  /* delete reinterpret_cast<tvm::runtime::Module *>(handle); */
+  TVMGraphRuntimeRelease(&runtime);
 }
 
 TVM_BUNDLE_FUNCTION void tvm_runtime_set_input(GraphRuntime * runtime, const char * name,
-                                               void * tensor) {
-  /* reinterpret_cast<tvm::runtime::Module *>(handle)->GetFunction("set_input")( */
-  /*     name, reinterpret_cast<DLTensor *>(tensor)); */
+                                               DLTensor * tensor) {
+  runtime->SetInput(runtime, "data", tensor);
 }
 
 TVM_BUNDLE_FUNCTION void tvm_runtime_run(GraphRuntime * runtime) {
-  /* reinterpret_cast<tvm::runtime::Module *>(handle)->GetFunction("run")(); */
+  runtime->Run(runtime);
 }
 
 TVM_BUNDLE_FUNCTION void tvm_runtime_get_output(GraphRuntime * runtime, int32_t index,
-                                                void * tensor) {
-  /* reinterpret_cast<tvm::runtime::Module *>(handle)->GetFunction("get_output")( */
-  /*     index, reinterpret_cast<DLTensor *>(tensor)); */
+                                                DLTensor * tensor) {
+  runtime->GetOutput(runtime, index, tensor);
 }
-/* } */
+

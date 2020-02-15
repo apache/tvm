@@ -22,8 +22,6 @@
  * \brief implement graph runtime in pure C
  */
 #include <tvm/runtime/crt/graph_runtime.h>
-//#include <c_api_common.h" // TODO(liangfu): 
-//#include <tvm/runtime/crt/load_param.h>
 #include <tvm/runtime/crt/vm.h>
 
 /*!
@@ -113,7 +111,7 @@ int GraphRuntime_LoadParams(struct graph_runtime_t * runtime, const char * param
       status = TVM_STATUS_FAILURE;
     }
 
-    NDArray_Load(&(runtime->data_entry[eid]), &bptr);
+    status |= NDArray_Load(&(runtime->data_entry[eid]), &bptr);
 #if TVM_CRT_DEBUG
     char shape_desc[20];
     memset(shape_desc, 0, sizeof(shape_desc));
@@ -149,7 +147,15 @@ int GraphRuntime_GetOutput(GraphRuntime * runtime, const int32_t idx, DLTensor *
   uint32_t nid = runtime->outputs[idx].node_id;
   uint32_t index = runtime->outputs[idx].index;
   uint32_t eid = runtime->GetEntryId(runtime, nid, index);
-  *out = runtime->data_entry[eid].dl_tensor;
+
+  // copy data section to allocated output tensor
+  int32_t elem_bytes = out->dtype.bits / 8;
+  int64_t size = Shape_Accumulate(out->shape, out->ndim);
+  DLTensor * tensor = &(runtime->data_entry[eid].dl_tensor);
+  assert(out->ndim == tensor->ndim);
+  assert(out->dtype.bits == tensor->dtype.bits);
+  assert(Shape_Accumulate(out->shape, out->ndim) == Shape_Accumulate(tensor->shape, tensor->ndim));
+  memcpy(out->data, tensor->data, size * elem_bytes);
   return status;
 }
 
@@ -197,8 +203,7 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
     TVMContext ctx = runtime->ctxs[0];
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
-    uint32_t ndim = Shape_CountNonZero(shape);
-    runtime->storage_pool[runtime->storage_pool_count] = NDArray_Empty(ndim, shape, dtype, ctx);
+    runtime->storage_pool[runtime->storage_pool_count] = NDArray_Empty(1, shape, dtype, ctx);
     if (runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data == 0) {
       LOGE("fail to create storage_pool with idx=%d", idx);
     }
@@ -210,8 +215,8 @@ void GraphRuntime_SetupStorage(GraphRuntime * runtime) {
   // is mapped to this pool.
   runtime->data_entry_count = runtime->node_row_ptr[runtime->node_row_ptr_count - 1];
   for (idx = 0; idx < runtime->data_entry_count; ++idx) {
-    int storage_id = attrs->storage_id[idx];
-    /* CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size()); */
+    size_t storage_id = attrs->storage_id[idx];
+    assert(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
       NDArray_CreateView(&(runtime->storage_pool[storage_id]), attrs->shape[idx], vtype[idx]);
     if (runtime->data_entry[idx].dl_tensor.data == 0) {
@@ -255,13 +260,6 @@ int GraphRuntime_SetupOpExecs(GraphRuntime * runtime) {
       PackedFunc pf;
       runtime->CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count, &pf);
       runtime->op_execs[nid] = pf;
-#if TVM_CRT_DEBUG
-      /* (runtime->op_execs[1].args.values[0].v_handle)->ndim = 3; */
-      LOGI("DEBUG: (runtime->op_execs[1].args.values[0].v_handle)->ndim=%d",
-           ((DLTensor*)(runtime->op_execs[1].args.values[0].v_handle))->ndim);
-      LOGI("DEBUG: (runtime->op_execs[%d].args.values[0].v_handle)->ndim=%d",
-           nid, ((DLTensor*)(runtime->op_execs[nid].args.values[0].v_handle))->ndim);
-#endif // TVM_CRT_DEBUG
     }
   }
   API_END();
@@ -302,7 +300,7 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
     arg_ptr.arg_tcodes[idx] = kTVMNDArrayHandle;
     arg_ptr.arg_tcodes_count ++;
     if (param->flatten_data) {
-      arg_ptr.shape_data[idx] = Shape_Accumulate(t->shape);
+      arg_ptr.shape_data[idx] = Shape_Accumulate(t->shape, t->ndim);
       t->ndim = 1;
       t->shape[0] = arg_ptr.shape_data[idx];
     }
@@ -313,10 +311,6 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
   
   runtime->module.GetFunction(param->func_name, pf);
   TVMArgs targs = TVMArgs_Create(arg_ptr.arg_values, arg_ptr.arg_tcodes, arg_ptr.arg_values_count);
-#if TVM_CRT_DEBUG
-  LOGI("set args for %s function: dims=%d,%d", param->func_name,
-       ((DLTensor*)(targs.values[0].v_handle))->ndim, ((DLTensor*)(targs.values[1].v_handle))->ndim);
-#endif // TVM_CRT_DEBUG
   pf->SetArgs(pf, &targs);
   
   return TVM_STATUS_SUCCESS;
@@ -332,16 +326,11 @@ int32_t GraphRuntime_CreateTVMOp(GraphRuntime * runtime, const TVMOpParam * para
  */
 void GraphRuntime_Init(GraphRuntime * runtime, const char * graph_json,
                        const Module * module, const TVMContext * ctxs) {
-  printf("GraphRuntime_Init()\n");
   JSONReader reader = JSONReader_Create(graph_json);
-  printf("GraphRuntime_Load()\n");
   runtime->Load(runtime, &reader);
   runtime->ctxs[0] = ctxs[0];
-  printf("GraphRuntime_SetupStorage()\n");
   runtime->SetupStorage(runtime);
-  printf("PackedFunc_SetupExecs()\n");
   PackedFunc_SetupExecs();
-  printf("GraphRuntime_SetupOpExecs()\n");
   runtime->SetupOpExecs(runtime);
 }
 
@@ -363,5 +352,15 @@ GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
   runtime->module.GetFunction = Module_GetFunction;
   // init
   runtime->Init(runtime, sym_json, m, ctxs);
-  return runtime; // TVM_STATUS_SUCCESS; // ModuleCreate(runtime);
+  return runtime;
+}
+
+void TVMGraphRuntimeRelease(GraphRuntime ** pptr) {
+  int32_t idx;
+  GraphRuntime * runtime = *pptr;
+  for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
+    free(runtime->storage_pool[idx].dl_tensor.data);
+    free(runtime->storage_pool[idx].dl_tensor.shape);
+  }
+  free(*pptr);
 }

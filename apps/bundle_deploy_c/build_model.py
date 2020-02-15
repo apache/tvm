@@ -54,7 +54,7 @@ def build_bridge(opts):
     if json_data == {}:
         return
     else:
-        nodes = [node['name'] for node in json_data['nodes'] if node['op'] == "tvm_op"]
+        nodes = [node['attrs']['func_name'] for node in json_data['nodes'] if node['op'] == "tvm_op"]
     with open(os.path.join(build_dir, 'bridge.c'), 'w') as f_bridge:
         f_bridge.write("#include <tvm/runtime/crt/packed_func.h>\n")
         f_bridge.write("\n")
@@ -66,15 +66,15 @@ def build_bridge(opts):
         f_bridge.write("  } while (false)\n")
         f_bridge.write("\n")
         for node in nodes:
-            if node[-2:] in [str(_) for _ in range(21, 25)]:
-                continue
+            # if node[-2:] in [str(_) for _ in range(21, 25)]:
+            #     continue
             f_bridge.write("int %s(TVMValue * args, int * arg_type_ids, int num_args, TVMRetValueHandle ret, void * res);\n" % (node,))
         f_bridge.write("\n")
         f_bridge.write("void PackedFunc_SetupExecs() {\n")
         f_bridge.write("  int32_t idx = 0;\n")
         for node in nodes:
-            if node[-2:] in [str(_) for _ in range(21, 25)]:
-                continue
+            # if node[-2:] in [str(_) for _ in range(21, 25)]:
+            #     continue
             f_bridge.write("  REGISTER_PACKED_FUNC(%s);\n" % (node,))
         f_bridge.write("}\n")
 

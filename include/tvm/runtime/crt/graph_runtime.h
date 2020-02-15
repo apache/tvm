@@ -299,7 +299,6 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
       reader->ReadString(reader, type);
       if (!strcmp(type, "list_int")) {
         if (!(reader->NextArrayItem(reader))) { LOGE("Invalid json format"); }
-        // std::vector<int> temp;
         uint32_t temp[GRAPH_RUNTIME_MAX_NODES];
         uint32_t temp_count = 0;
         reader->BeginArray(reader);
@@ -501,5 +500,7 @@ static inline uint32_t GraphRuntime_GetEntryId(GraphRuntime * runtime, uint32_t 
 }
 
 GraphRuntime * TVMGraphRuntimeCreate(const char * sym_json, const Module * m, const TVMContext * ctxs);
+
+void TVMGraphRuntimeRelease(GraphRuntime ** runtime);
 
 #endif  // TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_

@@ -27,10 +27,11 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
                                int dtype_bits_hint) {
   void* ptr = nullptr;
   assert(nbytes > 0);
+  unsigned int dtype_bytes = dtype_bits_hint / 8;
 #ifdef __ANDROID__
-  ptr = memalign(64, nbytes);
+  ptr = memalign(64, nbytes * dtype_bytes);
 #else
-  const int ret = posix_memalign(&ptr, 64, nbytes);
+  const int ret = posix_memalign(&ptr, 64, nbytes * dtype_bytes);
   (void)ret;
   assert(ret == 0);
 #endif
@@ -54,5 +55,5 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 }
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
-  printf("TVMBackendRegisterSystemLibSymbol(%s) not implemented.\n", name);
+  // printf("TVMBackendRegisterSystemLibSymbol(%s) not implemented.\n", name);
 }

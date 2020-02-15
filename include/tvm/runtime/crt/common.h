@@ -112,12 +112,12 @@ static inline uint32_t Shape_CountNonZero(int64_t * shape){
   return ndim;
 }
 
-static inline uint32_t Shape_Accumulate(int64_t * shape){
+static inline uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim){
   int64_t accum = 1;
-  uint32_t ndim;
-  for (ndim = 0; ndim < TVM_CRT_MAX_NDIM; ndim++) {
-    if (shape[ndim] == 0) { break; }
-    accum *= shape[ndim];
+  uint32_t idx;
+  for (idx = 0; idx < ndim; idx++) {
+    if (shape[idx] == 0) { break; }
+    accum *= shape[idx];
   }
   return accum;
 }

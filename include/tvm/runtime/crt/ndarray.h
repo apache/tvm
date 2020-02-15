@@ -64,7 +64,7 @@ static inline NDArray NDArray_Empty(uint32_t ndim, int64_t * shape, DLDataType d
 }
 
 static inline int NDArray_Load(NDArray * ret, const char ** strm) {
-  API_BEGIN();
+  int32_t status = TVM_STATUS_SUCCESS;
   uint64_t header, reserved;
   header = ((uint64_t*)*strm)[0]; *strm += sizeof(header);
   if (header != kTVMNDArrayMagic) {
@@ -108,7 +108,8 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
   }
   memcpy(ret->dl_tensor.data, *strm, data_byte_size);
   *strm += data_byte_size;
-  API_END();
+
+  return status;
 }
 
 #endif  // TVM_RUNTIME_NDARRAY_H_
