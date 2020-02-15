@@ -21,11 +21,15 @@ import tvm
 import topi
 import topi.testing
 
+
 def test_argsort():
     dshape = (20, 100)
     data = tvm.placeholder(dshape, name="data", dtype="float32")
     np_data = np.random.rand(dshape[0], dshape[1]).astype(data.dtype)
-    np_result = np.argsort(-np_data)
+    np_data_sorted = np.sort(np_data)
+    np.random.shuffle(np_data_sorted)
+    np_result = np.argsort(-np_data_sorted)
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -36,7 +40,7 @@ def test_argsort():
             out = topi.argsort(data, axis=-1, is_ascend=False)
             s = topi.generic.schedule_argsort(out)
 
-        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_data = tvm.nd.array(np_data_sorted, ctx)
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
         f = tvm.build(s, [data, out], device)
         f(tvm_data, tvm_out)
@@ -44,6 +48,7 @@ def test_argsort():
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
+
 
 def verify_topk(k, axis, ret_type, is_ascend, dtype):
     shape = (20, 100)
@@ -94,6 +99,7 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
+
 
 def test_topk():
     np.random.seed(0)
