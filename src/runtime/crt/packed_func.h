@@ -24,29 +24,12 @@
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_
 #define TVM_RUNTIME_PACKED_FUNC_H_
 
-// #ifndef _LIBCPP_SGX_NO_IOSTREAMS
-// #include <sstream>
-// #endif
-// #include <dmlc/logging.h>
-// #include <functional>
-// #include <tuple>
-// #include <vector>
-// #include <string>
-// #include <limits>
-// #include <memory>
-// #include <utility>
-// #include <type_traits>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/module.h>
-#include <tvm/runtime/crt/ndarray.h>
-// #include "node_base.h"
 
-// namespace HalideIR {
-// // Forward declare type for extensions
-// // The header works fine without depending on this.
-// struct Type;
-// struct Expr;
-// }
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "module.h"
 
 // Whether use TVM runtime in header only mode.
 #ifndef TVM_RUNTIME_HEADER_ONLY
@@ -57,19 +40,19 @@ static inline DLDataType String2DLDataType(const char * s) {
   DLDataType t;
   // handle None type
   if (strlen(s) == 0) {
-    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle; // kHandle;
+    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle;
     return t;
   }
   t.bits = 32; t.lanes = 1;
   const char* scan;
-  if (!strncmp(s, "int", 3)) {             // s.substr(0, 3) == "int"
+  if (!strncmp(s, "int", 3)) {
     t.code = kDLInt;  scan = s + 3;
-  } else if (!strncmp(s, "uint", 4)) {     // s.substr(0, 4) == "uint"
+  } else if (!strncmp(s, "uint", 4)) {
     t.code = kDLUInt; scan = s + 4;
-  } else if (!strncmp(s, "float", 5)) { // s.substr(0, 5) == "float"
+  } else if (!strncmp(s, "float", 5)) {
     t.code = kDLFloat; scan = s + 5;
-  } else if (!strncmp(s, "handle", 6)) { // s.substr(0, 6) == "handle"
-    t.code = kTVMOpaqueHandle; // kHandle;
+  } else if (!strncmp(s, "handle", 6)) {
+    t.code = kTVMOpaqueHandle;
     t.bits = 64;  // handle uses 64 bit by default.
     scan = s + 6;
   } else if (!strcmp(s, "bool")) {
@@ -79,10 +62,9 @@ static inline DLDataType String2DLDataType(const char * s) {
     return t;
   } else {
     scan = s;
-    // LOG(FATAL) << "unknown type " << s;
-    LOGE("unknown type %s\n", s);
+    fprintf(stderr, "unknown type %s\n", s);
   }
-  char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
+  char* xdelim;
   uint8_t bits = (uint8_t)(strtoul(scan, &xdelim, 10));
   if (bits != 0) t.bits = bits;
   char* endpt = xdelim;
@@ -90,7 +72,7 @@ static inline DLDataType String2DLDataType(const char * s) {
     t.lanes = (uint16_t)(strtoul(xdelim + 1, &endpt, 10));
   }
   if (!(endpt == s + strlen(s))){
-    LOGE("unknown type %s\n", s);
+    fprintf(stderr, "unknown type %s\n", s);
   }
   return t;
 }
@@ -115,15 +97,10 @@ static inline TVMArgs TVMArgs_Create(TVMValue * values, uint32_t * tcodes, uint3
 
 static inline int TVMNoOperation(TVMValue * args, int * type_codes, int num_args,
                                  TVMRetValueHandle ret, void * res) {
-  return TVM_STATUS_SUCCESS;
+  return 0;
 }
 
-// static inline int TVMNoOperation(void * args, int * type_codes, int num_args) {
-//   return TVM_STATUS_SUCCESS;
-// }
-
 typedef struct packed_func_t {
-  // Function (*GetFunction)();
   char name[200];
   TVMPackedCFunc fexec;
   TVMArgs args;
@@ -147,7 +124,6 @@ void PackedFunc_SetupExecs();
 // Put implementation in this file so we have seen the PackedFunc
 static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
   int idx;
-  // PackedFunc pf;
   memset(pf, 0, sizeof(PackedFunc));
   strcpy(pf->name, name);
   pf->Call = PackedFunc_Call;
@@ -159,10 +135,9 @@ static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
       break;
     }
   }
-  if (idx==GRAPH_RUNTIME_MAX_NODES) {
-    LOGE("function handle for %s not found", name);
+  if (idx == GRAPH_RUNTIME_MAX_NODES) {
+    fprintf(stderr, "function handle for %s not found\n", name);
   }
-  // return pf;
 }
 
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_

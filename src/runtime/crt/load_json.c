@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,7 +21,7 @@
  * \file saveload_json.cc
  * \brief Save and load graph to/from JSON file.
  */
-#include <tvm/runtime/crt/load_json.h>
+#include "load_json.h"
 
 // the node entry structure in serialized format
 typedef struct _JSONNodeEntry {
@@ -33,13 +33,13 @@ typedef struct _JSONNodeEntry {
 
 void JSONNodeEntryLoad(JSONNodeEntry * entry, JSONReader *reader) {
   reader->BeginArray(reader);
-  if (reader->NextArrayItem(reader)) { Printf("invalid json format"); }
+  if (reader->NextArrayItem(reader)) { fprintf(stderr, "invalid json format\n"); }
   reader->ReadUnsignedInteger(reader, &(entry->node_id));
-  if (reader->NextArrayItem(reader)) { Printf("invalid json format"); }
+  if (reader->NextArrayItem(reader)) { fprintf(stderr, "invalid json format\n"); }
   reader->ReadUnsignedInteger(reader, &(entry->index));
   if (reader->NextArrayItem(reader)) {
     reader->ReadUnsignedInteger(reader, &(entry->version));
-    if (!reader->NextArrayItem(reader)) { Printf("invalid json format"); }
+    if (!reader->NextArrayItem(reader)) { fprintf(stderr, "invalid json format\n"); }
   } else {
     entry->version = 0;
   }

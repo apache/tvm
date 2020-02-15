@@ -17,10 +17,7 @@
  * under the License.
  */
 
-/* #include <memory> */
-/* #include <tvm/runtime/c_runtime_api.h> */
-/* #include <tvm/runtime/registry.h> */
-#include <tvm/runtime/crt/graph_runtime.h>
+#include "graph_runtime.h"
 
 extern unsigned char build_graph_json[];
 extern unsigned int build_graph_json_len;

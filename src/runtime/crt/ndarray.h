@@ -26,8 +26,11 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/crt/common.h>
 #include <dlpack/dlpack.h>
+
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 /*! \brief Magic number for NDArray file */
 static const uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
@@ -36,7 +39,7 @@ typedef struct ndarray_t {
   DLTensor dl_tensor;
 } NDArray;
 
-NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, DLDataType dtype);
+NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, uint32_t ndim, DLDataType dtype);
 
 static inline NDArray NDArray_Create(uint32_t ndim, int64_t * shape, DLDataType dtype, DLContext ctx) {
   NDArray ret;
@@ -64,12 +67,12 @@ static inline NDArray NDArray_Empty(uint32_t ndim, int64_t * shape, DLDataType d
 }
 
 static inline int NDArray_Load(NDArray * ret, const char ** strm) {
-  int32_t status = TVM_STATUS_SUCCESS;
+  int32_t status = 0;
   uint64_t header, reserved;
   header = ((uint64_t*)*strm)[0]; *strm += sizeof(header);
   if (header != kTVMNDArrayMagic) {
-    LOGE("Invalid DLTensor file format\n");
-    status = TVM_STATUS_FAILURE;
+    fprintf(stderr, "Invalid DLTensor file format\n");
+    status = -1;
   }
   reserved = ((uint64_t*)*strm)[0]; *strm += sizeof(reserved);
   DLContext ctx;
@@ -79,12 +82,12 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
   ndim = ((uint32_t*)*strm)[0]; *strm += sizeof(ndim);
   dtype = ((DLDataType*)*strm)[0]; *strm += sizeof(dtype);
   if ((ndim <= 0) || (ndim > TVM_CRT_MAX_NDIM)) {
-    LOGE("Invalid ndim=%d: expected to be 1 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
-    status = TVM_STATUS_FAILURE;
+    fprintf(stderr, "Invalid ndim=%d: expected to be 1 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
+    status = -1;
   }
   if (ctx.device_type != kDLCPU) {
-    LOGE("Invalid DLTensor context: can only save as CPU tensor\n");
-    status = TVM_STATUS_FAILURE;
+    fprintf(stderr, "Invalid DLTensor context: can only save as CPU tensor\n");
+    status = -1;
   }
   int64_t shape[TVM_CRT_MAX_NDIM]; // [ndim];
   uint32_t idx;
@@ -102,9 +105,10 @@ static inline int NDArray_Load(NDArray * ret, const char ** strm) {
   int64_t data_byte_size;
   data_byte_size = ((int64_t*)*strm)[0]; *strm += sizeof(data_byte_size);
   if (!(data_byte_size == num_elems * elem_bytes)) {
-    LOGE("invalid DLTensor file format: data_byte_size=%ld, while num_elems*elem_bytes=%ld",
-         data_byte_size, (num_elems * elem_bytes));
-    status = TVM_STATUS_FAILURE;
+    fprintf(stderr, "invalid DLTensor file format: data_byte_size=%ld, "
+            "while num_elems*elem_bytes=%ld\n",
+            data_byte_size, (num_elems * elem_bytes));
+    status = -1;
   }
   memcpy(ret->dl_tensor.data, *strm, data_byte_size);
   *strm += data_byte_size;

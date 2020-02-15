@@ -22,56 +22,10 @@
  * \brief NDArray container infratructure.
  */
 
-#include <tvm/runtime/crt/common.h>
-#include <tvm/runtime/crt/ndarray.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/c_backend_api.h>
-//#include <tvm/runtime/crt/c_api_common.h>
+#include "ndarray.h"
 
-NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, DLDataType dtype) {
-  uint32_t ndim = Shape_CountNonZero(shape);
+NDArray NDArray_CreateView(NDArray * arr, int64_t * shape, uint32_t ndim, DLDataType dtype) {
   NDArray ret = NDArray_Create(ndim, shape, dtype, arr->dl_tensor.ctx);
   ret.dl_tensor.data = arr->dl_tensor.data;
   return ret;
 }
-
-int TVMArrayAlloc(const tvm_index_t* shape,
-                  int ndim,
-                  int dtype_code,
-                  int dtype_bits,
-                  int dtype_lanes,
-                  int device_type,
-                  int device_id,
-                  TVMArrayHandle * out) {
-  API_BEGIN();
-  uint32_t idx = 0;
-  DLDataType dtype;
-  dtype.code = dtype_code;
-  dtype.bits = dtype_bits;
-  dtype.lanes = dtype_lanes;
-  DLContext ctx;
-  ctx.device_type = device_type;
-  ctx.device_id = device_id;
-  (*out)->ctx = ctx;
-  (*out)->ndim = ndim;
-  (*out)->dtype = dtype;
-  uint32_t bytes = (dtype_bits + 7) / 8;
-  uint32_t size = 1;
-  for (idx = 0; idx < ndim; idx++) {
-    size *= shape[idx];
-  }
-  (*out)->data = TVMBackendAllocWorkspace(device_type, device_id, size, dtype_code, dtype_bits);
-  memset((*out)->data, 0, size * bytes);
-  for (idx = 0; idx < ndim; idx++) {
-    (*out)->shape[idx] = shape[idx];
-    (*out)->strides = 0;
-  }
-  (*out)->byte_offset = 0;
-  API_END();
-}
-
-int TVMArrayFree(TVMArrayHandle handle) {
-  API_BEGIN();
-  API_END();
-}
-

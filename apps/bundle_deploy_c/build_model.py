@@ -56,14 +56,14 @@ def build_bridge(opts):
     else:
         nodes = [node['attrs']['func_name'] for node in json_data['nodes'] if node['op'] == "tvm_op"]
     with open(os.path.join(build_dir, 'bridge.c'), 'w') as f_bridge:
-        f_bridge.write("#include <tvm/runtime/crt/packed_func.h>\n")
+        f_bridge.write("#include \"../../../src/runtime/crt/packed_func.h\"\n")
         f_bridge.write("\n")
         f_bridge.write("#define REGISTER_PACKED_FUNC(func_name) \\\n")
         f_bridge.write("  do { \\\n")
         f_bridge.write("    strcpy(fexecs[idx].name, #func_name ); \\\n")
         f_bridge.write("    fexecs[idx].fexec = func_name ; \\\n")
         f_bridge.write("    idx ++; \\\n")
-        f_bridge.write("  } while (false)\n")
+        f_bridge.write("  } while (0)\n")
         f_bridge.write("\n")
         for node in nodes:
             # if node[-2:] in [str(_) for _ in range(21, 25)]:

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "tvm/runtime/c_runtime_api.h"
+#include <tvm/runtime/c_runtime_api.h>
 #include <assert.h>
 #include <dlfcn.h> //dlopen
 #include <dlpack/dlpack.h>

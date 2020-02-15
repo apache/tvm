@@ -26,7 +26,6 @@
 
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/common.h>
 
 struct packed_func_t;
 typedef struct packed_func_t PackedFunc;

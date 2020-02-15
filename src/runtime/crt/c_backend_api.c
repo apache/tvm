@@ -25,7 +25,7 @@
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, int dtype_code_hint,
                                int dtype_bits_hint) {
-  void* ptr = nullptr;
+  void* ptr = 0;
   assert(nbytes > 0);
   unsigned int dtype_bytes = dtype_bits_hint / 8;
 #ifdef __ANDROID__

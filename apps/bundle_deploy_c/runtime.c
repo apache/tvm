@@ -18,12 +18,14 @@
  */
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/crt/module.h>
+#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
+/* #include <tvm/runtime/crt/module.h> */
 /* #include <tvm/runtime/registry.h> */
 /* #include <tvm/runtime/packed_func.h> */
-#include <tvm/runtime/crt/graph_runtime.h>
-#include <tvm/runtime/crt/load_json.h>
-#include <tvm/runtime/crt/ndarray.h>
+/* #include <tvm/runtime/crt/graph_runtime.h> */
+/* #include <tvm/runtime/crt/load_json.h> */
+/* #include <tvm/runtime/crt/ndarray.h> */
 
 /* #include "../../src/runtime/c_runtime_api.cc" */
 /* #include "../../src/runtime/cpu_device_api.cc" */
@@ -43,4 +45,5 @@
 #include "../../src/runtime/crt/graph_runtime.c"
 #include "../../src/runtime/crt/load_json.c"
 #include "../../src/runtime/crt/ndarray.c"
+#include "../../src/runtime/crt/bundle.c"
 
