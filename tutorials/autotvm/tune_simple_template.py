@@ -298,7 +298,12 @@ measure_option = autotvm.measure_option(
 
 # Begin tuning with RandomTuner, log records to file `matmul.log`
 # You can use alternatives like XGBTuner.
-logdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../docs/tutorials/autotvm")
+try:
+    curdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../")
+except NameError:
+    # in sphinx
+    curdir = os.path.join(os.getcwd(), "../../")
+logdir = os.path.join(curdir, "docs/tutorials/autotvm")
 if not os.path.isdir(logdir):
     os.makedirs(logdir)
 logfile = os.path.join(logdir, "matmul.log")

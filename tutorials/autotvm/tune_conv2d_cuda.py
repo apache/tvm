@@ -196,7 +196,12 @@ measure_option = autotvm.measure_option(
 # Begin tuning, log records to file `conv2d.log`
 # During tuning we will also try many invalid configs, so you are expected to
 # see many error reports. As long as you can see non-zero GFLOPS, it is okay.
-logdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../docs/tutorials/autotvm")
+try:
+    curdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../")
+except NameError:
+    # in sphinx
+    curdir = os.path.join(os.getcwd(), "../../")
+logdir = os.path.join(curdir, "docs/tutorials/autotvm")
 if not os.path.isdir(logdir):
     os.makedirs(logdir)
 logfile = os.path.join(logdir, "conv2d.log")
