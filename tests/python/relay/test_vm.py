@@ -23,6 +23,7 @@ from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
+from tvm.relay.loops import while_loop
 from tvm.relay import testing
 
 def check_result(args, expected_result, mod=None):
@@ -575,6 +576,32 @@ def test_vm_optimize():
     mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
     comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, "llvm", params)
+
+def test_loop_free_var():
+    x = relay.var('x', shape=(), dtype='int32')
+    i = relay.var('i', shape=(), dtype='int32')
+    s = relay.var('s', shape=(), dtype='int32')
+
+    def cond(i, _):
+        return i < relay.const(10, dtype='int32')
+
+    def body_no_free_var(i, acc):
+        incr = relay.const(1, "int32")
+        return i + incr, acc + i
+
+    def body_with_free_var(i, acc):
+        incr = relay.const(1, "int32")
+        return i + incr, acc + x
+
+    for args, body, expected in zip([[], [1]],
+                                    [body_no_free_var, body_with_free_var],
+                                    [45, 10]):
+        loop = while_loop(cond, [i, s], body)
+        tup = loop(relay.const(0, dtype='int32'), relay.zeros(shape=(), dtype='int32'))
+        ret = relay.TupleGetItem(tup, 1)
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
+        check_result(args, expected, mod=mod)
 
 if __name__ == "__main__":
     pytest.main([__file__])
