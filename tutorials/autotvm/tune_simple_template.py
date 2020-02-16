@@ -52,6 +52,7 @@ The whole workflow is illustrated by a matrix multiplication example.
 
 import logging
 import sys
+import os
 
 import numpy as np
 import tvm
@@ -297,10 +298,14 @@ measure_option = autotvm.measure_option(
 
 # Begin tuning with RandomTuner, log records to file `matmul.log`
 # You can use alternatives like XGBTuner.
+logdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../docs/tutorials/autotvm")
+if not os.path.isdir(logdir):
+    os.makedirs(logdir)
+logfile = os.path.join(logdir, "matmul.log")
 tuner = autotvm.tuner.RandomTuner(task)
 tuner.tune(n_trial=10,
            measure_option=measure_option,
-           callbacks=[autotvm.callback.log_to_file('matmul.log')])
+           callbacks=[autotvm.callback.log_to_file(logfile)])
 
 #########################################################################
 # Finally we apply history best from the cache file and check its correctness.
@@ -310,7 +315,7 @@ tuner.tune(n_trial=10,
 # with the same argument.
 
 # apply history best from log file
-with autotvm.apply_history_best('matmul.log'):
+with autotvm.apply_history_best(logfile):
     with tvm.target.create("llvm"):
         s, arg_bufs = matmul(N, L, M, 'float32')
         func = tvm.build(s, arg_bufs)

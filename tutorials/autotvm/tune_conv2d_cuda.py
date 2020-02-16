@@ -195,23 +195,27 @@ measure_option = autotvm.measure_option(
 # Begin tuning, log records to file `conv2d.log`
 # During tuning we will also try many invalid configs, so you are expected to
 # see many error reports. As long as you can see non-zero GFLOPS, it is okay.
+logdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../docs/tutorials/autotvm")
+if not os.path.isdir(logdir):
+    os.makedirs(logdir)
+logfile = os.path.join(logdir, "conv2d.log")
 tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(n_trial=20,
            measure_option=measure_option,
-           callbacks=[autotvm.callback.log_to_file('conv2d.log')])
+           callbacks=[autotvm.callback.log_to_file(logfile)])
 
 #########################################################################
 # Finally we can inspect the best config from log file, check correctness,
 # and measure running time.
 
 # inspect the best config
-dispatch_context = autotvm.apply_history_best("conv2d.log")
+dispatch_context = autotvm.apply_history_best(logfile)
 best_config = dispatch_context.query(task.target, task.workload)
 print("\nBest config:")
 print(best_config)
 
 # apply history best from log file
-with autotvm.apply_history_best('conv2d.log'):
+with autotvm.apply_history_best(logfile):
     with tvm.target.create("cuda"):
         s, arg_bufs = conv2d_no_batching(N, H, W, CO, CI, KH, KW, strides, padding)
         func = tvm.build(s, arg_bufs)
