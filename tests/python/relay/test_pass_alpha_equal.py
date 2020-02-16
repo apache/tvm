@@ -18,6 +18,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import analysis
+from tvm.relay.testing import run_opt_pass
 
 def alpha_equal(x, y):
     """
@@ -313,7 +314,7 @@ def test_tuple_get_item_alpha_equal():
     assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
-def test_multi_node_subgraph():
+def test_function_attr():
     x0 = relay.var('x0', shape=(10, 10))
     w00 = relay.var('w00', shape=(10, 10))
     w01 = relay.var('w01', shape=(10, 10))
@@ -608,6 +609,7 @@ def test_graph_equal():
     z3 = relay.add(relay.add(x, x), relay.add(x, x))
 
     assert alpha_equal(z0, z1)
+    assert alpha_equal(z0, z1)
 
     # z3's dataflow format is different from z0
     # z0 is computed from a common y0 node
@@ -649,6 +651,26 @@ def test_tuple_match():
     assert analysis.structural_hash(x) == analysis.structural_hash(y)
 
 
+def test_fn_attribute():
+    # create function that performs add
+    a = relay.var('a', shape=(10, 10))
+    b = relay.var('b', shape=(10, 10))
+    add = relay.add(a, b)
+    add_fn = relay.Function([a, b], add)
+    add_fn = run_opt_pass(add_fn, relay.transform.InferType())
+
+    # create function that performs add with test attribute
+    c = relay.var('c', shape=(10, 10))
+    d = relay.var('d', shape=(10, 10))
+    add_1 = relay.add(c, d)
+    add_1_fn = relay.Function([c, d], add_1)
+    add_1_fn = add_1_fn.set_attribute("TestAttribute", tvm.tir.StringImm("test"))
+    add_1_fn = run_opt_pass(add_1_fn, relay.transform.InferType())
+
+    assert not relay.analysis.alpha_equal(add_1_fn, add_fn)
+    assert not relay.analysis.alpha_equal(add_fn, add_1_fn)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -672,3 +694,4 @@ if __name__ == "__main__":
     test_var_alpha_equal()
     test_graph_equal()
     test_hash_unequal()
+    test_fn_attribute()
