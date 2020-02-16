@@ -17,8 +17,9 @@
 # under the License.
 import tvm
 import numpy as np
+import topi
 import unittest
-from tvm.contrib.nvcc import parse_compute_version, have_int8
+from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
 
 tx = tvm.thread_axis("threadIdx.x")
@@ -30,11 +31,8 @@ def test_cuda_vectorize_add():
         if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
-        if dtype == "float16":
-            major, minor = parse_compute_version(tvm.gpu(0).compute_version)
-            # fp16 starts from 5.3
-            if major < 6 or (major == 5 and minor < 3):
-                print("skip because gpu does not support fp16")
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
             return
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
@@ -291,6 +289,36 @@ def test_cuda_const_float_to_half():
     func(a, c)
     np.testing.assert_equal(c.asnumpy(), a_np > b.value)
 
+def test_cuda_reduction():
+    def check_cuda(dtype, m=32, n=32):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
+
+        a = tvm.placeholder((m, n), name="a", dtype=dtype)
+        b = tvm.placeholder((m, n), name="b", dtype=dtype)
+        c = a + b
+        d = a * b
+        e = topi.elemwise_sum([c, d])
+        g = topi.sum(e)
+        with tvm.target.cuda():
+            sg = topi.generic.schedule_reduce(g)
+            ctx = tvm.gpu(0)
+            func = tvm.build(sg, [a, b, g], 'cuda')
+            a_np = np.random.uniform(size=(m, n)).astype(a.dtype)
+            b_np = np.random.uniform(size=(m, n)).astype(b.dtype)
+            g_np = np.sum(np.add(a_np * b_np, a_np + b_np))
+            a_nd = tvm.nd.array(a_np, ctx)
+            b_nd = tvm.nd.array(b_np, ctx)
+            g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), ctx)
+            func(a_nd, b_nd, g_nd)
+            tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-3)
+
+    check_cuda("float32")
+    check_cuda("float16")
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
@@ -302,3 +330,4 @@ if __name__ == "__main__":
     test_cuda_reducition_binding()
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
+    test_cuda_reduction()
