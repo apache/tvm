@@ -121,9 +121,6 @@ class TaskExtractEnv:
 
         args: tuple
             Arguments to the TOPI function.
-
-        cond: SpecializedCondition
-            Specialized condition to enable the TOPI template.
         """
         key = (task_name, serialize_args(args))
         if self.allow_duplicate or key not in self.task_collection:

@@ -155,7 +155,7 @@ class OpImplement(Object):
         attrs : Attrs
             Op attributes.
 
-        inputs : list[tvm.Tensor]
+        inputs : list[tvm.tensor.Tensor]
             The input tensors.
 
         out_type : relay.Type
@@ -163,7 +163,7 @@ class OpImplement(Object):
 
         Returns
         -------
-        outs : list[tvm.Tensor]
+        outs : list[tvm.tensor.Tensor]
             The output tensors.
         """
         return _OpImplementCompute(self, attrs, inputs, out_type)
@@ -176,10 +176,10 @@ class OpImplement(Object):
         attrs : Attrs
             Op attributes.
 
-        outs : list[tvm.Tensor]
+        outs : list[tvm.tensor.Tensor]
             The output tensors.
 
-        target : tvm.Target
+        target : tvm.target.Target
             The target to schedule the op.
 
         Returns

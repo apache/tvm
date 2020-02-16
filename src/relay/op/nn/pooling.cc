@@ -164,8 +164,8 @@ bool Pool2DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
-                                 const Array<te::Tensor>& inputs,
-                                 const Type& out_type) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);

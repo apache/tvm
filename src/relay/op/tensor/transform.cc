@@ -1674,8 +1674,8 @@ bool SqueezeRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> SqueezeCompute(const Attrs& attrs,
-                                  const Array<te::Tensor>& inputs,
-                                  const Type& out_type) {
+                                 const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
   const SqueezeAttrs *param = attrs.as<SqueezeAttrs>();
   CHECK(param != nullptr);
   return { topi::squeeze(inputs[0], param->axis) };
