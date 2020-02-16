@@ -45,6 +45,7 @@ vendor provided library CuDNN in many cases.
 # Now return to python code. Import packages.
 
 import logging
+import os
 import sys
 import numpy as np
 
