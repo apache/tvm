@@ -22,13 +22,20 @@ import topi
 import topi.testing
 
 
-def test_argsort():
+def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
-    data = tvm.placeholder(dshape, name="data", dtype="float32")
-    np_data = np.random.rand(dshape[0], dshape[1]).astype(data.dtype)
-    np_data_sorted = np.sort(np_data)
-    np.random.shuffle(np_data_sorted)
-    np_result = np.argsort(-np_data_sorted)
+    data_dtype = "float32"
+    data = tvm.placeholder(dshape, name="data", dtype=data_dtype)
+    np_data = np.random.uniform(size=dshape).astype(data_dtype)
+    if is_ascend:
+        np_indices = np.argsort(np_data, axis=axis)
+    else:
+        np_indices = np.argsort(-np_data, axis=axis)
+
+    if axis == 0:
+        np_indices = np_indices[:dshape[axis], :]
+    else:
+        np_indices = np_indices[:, :dshape[axis]]
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -37,14 +44,14 @@ def test_argsort():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, axis=-1, is_ascend=False)
+            out = topi.argsort(data, axis=axis, is_ascend=is_ascend)
             s = topi.generic.schedule_argsort(out)
 
-        tvm_data = tvm.nd.array(np_data_sorted, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
+        tvm_data = tvm.nd.array(np_data, ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
         f = tvm.build(s, [data, out], device)
         f(tvm_data, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_indices.astype(data_dtype), rtol=1e0)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
@@ -99,6 +106,13 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
+
+
+def test_argsort():
+    np.random.seed(0)
+    for axis in [0, -1, 1]:
+        verify_argsort(axis, True)
+        verify_argsort(axis, False)
 
 
 def test_topk():
