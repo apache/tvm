@@ -232,11 +232,7 @@ def have_fp16(compute_version):
     # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#arithmetic-instructions
     if major == 5 and minor == 3:
         return True
-    # NOTE: exclude compute capability 6.1 devices although it is actually available
-    #       to compute fp16, because these devices only have low-rate fp16 performance.
-    if major == 6 and minor != 1:
-        return True
-    if major == 7:
+    if major >= 6:
         return True
 
     return False
