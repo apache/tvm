@@ -637,6 +637,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // emit invoke closure here.
       VisitExpr(GetRef<Var>(var_node));
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
+    } else if (auto inner_call_node = op.as<CallNode>()) {
+      VisitExpr(GetRef<Call>(inner_call_node));
+      Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
       // Finally if there are any other cases this is a bug.
       LOG(FATAL) << "internal error: unreachable code,"
