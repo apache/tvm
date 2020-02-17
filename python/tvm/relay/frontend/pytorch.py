@@ -207,6 +207,7 @@ def _convolution():
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
 
+        # TODO: Add reshape when channel multiplier > 1. Pending PR #4644
         channels = weight_shape[0]
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
