@@ -61,6 +61,9 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout='NCHW'):
     # Keras frontend currently supports tensorflow backend only.
     assert(keras.backend.backend() == 'tensorflow')
 
+    if layout != 'NCHW':
+        need_transpose = False
+
     in_shapes = []
     for layer in keras_model._input_layers:
         if tf.executing_eagerly():
@@ -372,22 +375,22 @@ class TestKeras:
         verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_xception(self, keras):
+    def test_forward_xception(self, keras, layout='NCHW'):
         keras_model = keras.applications.Xception(include_top=True, weights='imagenet',
             input_shape=(299, 299, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_resnet50(self, keras):
+    def test_forward_resnet50(self, keras, layout='NCHW'):
         keras_model = keras.applications.ResNet50(include_top=True, weights='imagenet',
             input_shape=(224, 224, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_mobilenet(self, keras):
+    def test_forward_mobilenet(self, keras, layout='NCHW'):
         keras_model = keras.applications.MobileNet(include_top=True, weights='imagenet',
             input_shape=(224, 224, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
 if __name__ == '__main__':
@@ -403,14 +406,17 @@ if __name__ == '__main__':
         #sut.test_forward_conv(keras=k)
         #sut.test_forward_batch_norm(keras=k)
         #sut.test_forward_upsample(keras=k, interpolation='nearest')
-        #sut.test_forward_upsample(keras=k, interpolation='bilinear')
+        sut.test_forward_upsample(keras=k, interpolation='bilinear')
         #sut.test_forward_reshape(keras=k)
         #sut.test_forward_crop(keras=k)
         #sut.test_forward_multi_inputs(keras=k)
         #sut.test_forward_multi_outputs(keras=k)
         #sut.test_forward_reuse_layers(keras=k)
         #sut.test_forward_rnn(keras=k)
-        sut.test_forward_vgg16(keras=k)
+        #sut.test_forward_vgg16(keras=k)
+        #sut.test_forward_vgg16(keras=k, layout='NHWC')
         #sut.test_forward_xception(keras=k)
         #sut.test_forward_resnet50(keras=k)
+        #sut.test_forward_resnet50(keras=k, layout='NHWC')
         #sut.test_forward_mobilenet(keras=k)
+        #sut.test_forward_mobilenet(keras=k, layout='NHWC')

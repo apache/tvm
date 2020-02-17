@@ -251,13 +251,12 @@ def _convert_convolution(inexpr, keras_layer, etab):
         if kernel_layout == 'OIHW':
             weight = weight.transpose([2, 3, 0, 1])
         else:
-            weight = weight.transpose([0, 1, 3, 2])
+            kernel_layout = "HWOI"
     elif etab.data_layout == 'NCHW':
         kernel_h, kernel_w, in_channels, n_filters = weight.shape
         weight = weight.transpose([3, 2, 0, 1])
     else:
         kernel_h, kernel_w, in_channels, n_filters = weight.shape
-
     if isinstance(keras_layer.dilation_rate, (list, tuple)):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
@@ -303,6 +302,7 @@ def _convert_convolution(inexpr, keras_layer, etab):
         out = _op.nn.conv2d_transpose(data=inexpr, **params)
     else:
         out = _op.nn.conv2d(data=inexpr, **params)
+
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[1])
         if etab.data_layout == 'NCHW':
@@ -321,18 +321,27 @@ def _convert_convolution(inexpr, keras_layer, etab):
 
 def _convert_separable_convolution(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
+    if etab.data_layout == 'NHWC':
+        kernel_layout = 'HWOI'
+    else:
+        kernel_layout = 'OIHW'
     weightList = keras_layer.get_weights()
     # depthwise conv
     kernel_h, kernel_w, in_channels, depth_mult = weightList[0].shape
     stride_h, stride_w = keras_layer.strides
-    weight0 = weightList[0].transpose([2, 3, 0, 1])
+    if kernel_layout == 'OIHW':
+        weight0 = weightList[0].transpose([2, 3, 0, 1])
+    else:
+        weight0 = weightList[0]
     params0 = {'weight': etab.new_const(weight0),
                'channels': in_channels * depth_mult,
                'groups': in_channels,
                'kernel_size': [kernel_h, kernel_w],
                'strides': [stride_h, stride_w],
                'dilation': [1, 1],
-               'padding': [0, 0]}
+               'padding': [0, 0],
+               'data_layout': etab.data_layout,
+               'kernel_layout': kernel_layout}
     if keras_layer.padding == 'valid':
         pass
     # we insert a separate pad operator
@@ -344,26 +353,39 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
         if pad_t == pad_b and pad_l == pad_r:
             params0['padding'] = (pad_t, pad_l)
         else:
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            if etab.data_layout == 'NCHW':
+                inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                    (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            else:
+                inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                    (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
+
     else:
         msg = 'Padding with {} is not supported for operator Separable ' \
               'Convolution in frontend Keras.'
         raise tvm.error.OpAttributeUnImplemented(msg.format(keras_layer.padding))
-
     depthconv = _op.nn.conv2d(data=inexpr, **params0)
     # pointwise conv
-    weight1 = weightList[1].transpose([3, 2, 0, 1])
+    if kernel_layout == 'OIHW':
+        weight1 = weightList[1].transpose([3, 2, 0, 1])
+    else:
+        weight1 = weightList[1]
+        kernel_layout = "HWIO"
     params1 = {'weight': etab.new_const(weight1),
-               'channels': weight1.shape[0],
+               'channels': weightList[1].shape[3],
                'groups': 1,
                'kernel_size': [1, 1],
                'strides': [1, 1],
-               'dilation': [1, 1]}
+               'dilation': [1, 1],
+               'data_layout': etab.data_layout,
+               'kernel_layout': kernel_layout}
     out = _op.nn.conv2d(data=depthconv, **params1)
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[2])
-        out = _op.nn.bias_add(out, bias)
+        if etab.data_layout == 'NCHW':
+            out = _op.nn.bias_add(out, bias)
+        else:
+            out = _op.nn.bias_add(out, bias, axis=-1)
     # defuse activation
     if sys.version_info.major < 3:
         act_type = keras_layer.activation.func_name
@@ -502,7 +524,7 @@ def _convert_batchnorm(inexpr, keras_layer, etab):
     return result
 
 
-def _convert_padding(inexpr, keras_layer, _):
+def _convert_padding(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     padding_type = type(keras_layer).__name__
     padding = keras_layer.padding
@@ -528,20 +550,21 @@ def _convert_padding(inexpr, keras_layer, _):
     else:
         msg = 'Operator {} is not supported in frontend Keras.'
         raise tvm.error.OpNotImplemented(msg.format(padding_type))
-    return _op.nn.pad(data=inexpr,
-                      pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
+    if etab.data_layout == 'NCHW':
+        return _op.nn.pad(data=inexpr, pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
+    return _op.nn.pad(data=inexpr, pad_width=((0, 0), (top, bottom), (left, right), (0, 0)))
 
 
 def _convert_concat(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
-    if etab.data_layout == 'NHWC' or len(keras_layer.input_shape) < 4:
+    if etab.data_layout == 'NHWC' or len(keras_layer.input_shape[0]) < 4:
         axis = -1
     else:
         axis = 1
     return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
-def _convert_reshape(inexpr, keras_layer, _):
+def _convert_reshape(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     inshape = keras_layer.input_shape # includes batch
     tshape = keras_layer.target_shape # no batch
@@ -562,7 +585,10 @@ def _convert_reshape(inexpr, keras_layer, _):
         assert ch == tshape[-1], \
             "Only supports last dimension in target shape being equal to " \
             "the channel number of input tensor."
-        shape = (-1, ch) + tshape[:-1]
+        if etab.data_layout == 'NCHW':
+            shape = (-1, ch) + tshape[:-1]
+        else:
+            shape = (-1,) + tshape[:-1] + (ch,)
     return _op.reshape(inexpr, newshape=shape)
 
 
