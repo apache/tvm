@@ -304,6 +304,6 @@ TVM_REGISTER_GLOBAL("node.NodeGetAttr")
 TVM_REGISTER_GLOBAL("node.NodeListAttrNames")
 .set_body(NodeListAttrNames);
 
-TVM_REGISTER_GLOBAL("make._Node")
+TVM_REGISTER_GLOBAL("node.MakeNode")
 .set_body(MakeNode);
 }  // namespace tvm

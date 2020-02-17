@@ -28,14 +28,14 @@ def test_for():
 
     body = ib.get()
     print(body)
-    assert isinstance(body, tvm.stmt.AttrStmt)
+    assert isinstance(body, tvm.tir.AttrStmt)
     body = body.body
-    assert isinstance(body, tvm.stmt.Allocate)
+    assert isinstance(body, tvm.tir.Allocate)
     body = body.body
-    assert isinstance(body, tvm.stmt.For)
+    assert isinstance(body, tvm.tir.For)
     body = body.body
-    assert isinstance(body, tvm.stmt.SeqStmt)
-    assert isinstance(body[1], tvm.stmt.For)
+    assert isinstance(body, tvm.tir.SeqStmt)
+    assert isinstance(body[1], tvm.tir.For)
 
 def test_if():
     ib = tvm.ir_builder.create()
@@ -50,11 +50,11 @@ def test_if():
 
     body = ib.get()
     assert A == A
-    assert isinstance(body, tvm.stmt.For)
+    assert isinstance(body, tvm.tir.For)
     body = body.body
-    assert isinstance(body, tvm.stmt.IfThenElse)
-    assert isinstance(body.condition, tvm.expr.EQ)
-    assert isinstance(body.then_case.index, tvm.expr.Var)
+    assert isinstance(body, tvm.tir.IfThenElse)
+    assert isinstance(body.condition, tvm.tir.EQ)
+    assert isinstance(body.then_case.index, tvm.tir.Var)
     assert body.else_case.index.value == 0
 
 def test_prefetch():
@@ -64,10 +64,10 @@ def test_prefetch():
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
-            tvm.make.Prefetch(
+            tvm.tir.Prefetch(
                 A.op, A.value_index, A.dtype,
-                [tvm.make.range_by_min_extent(i+1, 2),
-                 tvm.make.range_by_min_extent(0, 20)]))
+                [tvm.ir.Range.make_by_min_extent(i+1, 2),
+                 tvm.ir.Range.make_by_min_extent(0, 20)]))
     body = ib.get()
     assert body.body.bounds[0].extent.value == 2
 

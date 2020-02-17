@@ -29,7 +29,7 @@ def test_const_fold():
     def check(f, *args):
         x = f(*[tvm.const(x, "int32") for x in args])
         y = f(*args)
-        if not isinstance(x, (tvm.expr.IntImm,)) or x.value != int(y):
+        if not isinstance(x, (tvm.tir.IntImm,)) or x.value != int(y):
             raise ValueError("check error: %s vs %s " % (x, y))
 
     tmod = tvm.truncmod
@@ -56,7 +56,7 @@ def test_const_fold2():
     assert tmod(x, 1).value == 0
     assert (x * 1).same_as(x)
     assert (1 * x).same_as(x)
-    assert isinstance(tdiv(1, x), tvm.expr.Div)
+    assert isinstance(tdiv(1, x), tvm.tir.Div)
 
 def test_const_fold3():
     # Test that using ints with logic operations is forbidden
@@ -92,17 +92,17 @@ def test_const_fold4():
     x1 = tvm.const(4, "int32")
     x2 = x1 + 5
     tdiv = tvm.truncdiv
-    assert isinstance(x2, tvm.expr.IntImm) and x2.value == 9
+    assert isinstance(x2, tvm.tir.IntImm) and x2.value == 9
     x3 = tdiv(x2, 3)
-    assert isinstance(x3, tvm.expr.IntImm) and x3.value == 3
+    assert isinstance(x3, tvm.tir.IntImm) and x3.value == 3
     x4 = x3 + 0.55
-    assert isinstance(x4, tvm.expr.FloatImm) and abs(x4.value - 3.55) < 1e-6
+    assert isinstance(x4, tvm.tir.FloatImm) and abs(x4.value - 3.55) < 1e-6
     x5 = tvm.ceil(x4)
-    assert isinstance(x5, tvm.expr.FloatImm) and x5.value == 4
+    assert isinstance(x5, tvm.tir.FloatImm) and x5.value == 4
     x6 = x5.astype('int')
-    assert isinstance(x6, tvm.expr.IntImm) and x6.value == 4, "x6={}".format(x6)
+    assert isinstance(x6, tvm.tir.IntImm) and x6.value == 4, "x6={}".format(x6)
     y = (tvm.round((tvm.const(6.5, 'float32') - 1) / 1.5) + 2).astype('int')
-    assert isinstance(y, tvm.expr.IntImm) and y.value == 6
+    assert isinstance(y, tvm.tir.IntImm) and y.value == 6
 
 
 def test_binary_dtype_match():

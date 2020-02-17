@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to cuBLASlt libraries."""
-from __future__ import absolute_import as _abs
-
+import tvm
 from .. import api as _api
-from .. import intrin as _intrin
+
 
 def matmul(lhs, rhs, transa=False, transb=False, n=0, m=0, dtype=None):
     """Create an extern op that compute matrix mult of A and rhs with cuBLAS
@@ -46,6 +45,6 @@ def matmul(lhs, rhs, transa=False, transb=False, n=0, m=0, dtype=None):
     dtype = dtype if dtype is not None else lhs.dtype
     return _api.extern(
         (n, m), [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cublaslt.matmul",
             ins[0], ins[1], outs[0], transa, transb), dtype=dtype, name="C")

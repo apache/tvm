@@ -1385,6 +1385,51 @@ def test_forward_fully_connected():
 
 
 #######################################################################
+# Custom Operators
+# ----------------
+
+def test_detection_postprocess():
+    tf_model_file = tf_testing.get_workload_official(
+        "http://download.tensorflow.org/models/object_detection/"
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03.tar.gz",
+        "ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03/tflite_graph.pb"
+    )
+    converter = tf.lite.TFLiteConverter.from_frozen_graph(
+        tf_model_file,
+        input_arrays=["raw_outputs/box_encodings", "raw_outputs/class_predictions"],
+        output_arrays=[
+            "TFLite_Detection_PostProcess",
+            "TFLite_Detection_PostProcess:1",
+            "TFLite_Detection_PostProcess:2",
+            "TFLite_Detection_PostProcess:3"
+        ],
+        input_shapes={
+            "raw_outputs/box_encodings": (1, 1917, 4),
+            "raw_outputs/class_predictions": (1, 1917, 91),
+        },
+    )
+    converter.allow_custom_ops = True
+    converter.inference_type = tf.lite.constants.FLOAT
+    tflite_model = converter.convert()
+    np.random.seed(0)
+    box_encodings = np.random.uniform(size=(1, 1917, 4)).astype('float32')
+    class_predictions = np.random.uniform(size=(1, 1917, 91)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model, [box_encodings, class_predictions])
+    tvm_output = run_tvm_graph(tflite_model, [box_encodings, class_predictions],
+                               ["raw_outputs/box_encodings", "raw_outputs/class_predictions"], num_output=4)
+    # check valid count is the same
+    assert tvm_output[3] == tflite_output[3]
+    valid_count = tvm_output[3][0]
+    tvm_boxes = tvm_output[0][0][:valid_count]
+    tvm_classes = tvm_output[1][0][:valid_count]
+    tvm_scores = tvm_output[2][0][:valid_count]
+    # check the output data is correct
+    tvm.testing.assert_allclose(np.squeeze(tvm_boxes), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(np.squeeze(tvm_classes), np.squeeze(tflite_output[1]), rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(np.squeeze(tvm_scores), np.squeeze(tflite_output[2]), rtol=1e-5, atol=1e-5)
+
+
+#######################################################################
 # Mobilenet
 # ---------
 
@@ -1610,6 +1655,9 @@ if __name__ == '__main__':
 
     # Logical
     test_all_logical()
+
+    # Detection_PostProcess
+    test_detection_postprocess()
 
     # End to End
     test_forward_mobilenet_v1()

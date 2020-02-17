@@ -165,6 +165,11 @@ TVM_REGISTER_GLOBAL("topi.exp")
   *rv = exp(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.fast_exp")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_exp(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.erf")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = erf(args[0]);

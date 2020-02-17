@@ -18,6 +18,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import analysis
+from tvm.relay.testing import run_opt_pass
 
 def alpha_equal(x, y):
     """
@@ -160,9 +161,9 @@ def test_type_relation_alpha_equal():
     broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
     identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
-    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
     tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
     same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
@@ -313,7 +314,7 @@ def test_tuple_get_item_alpha_equal():
     assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
-def test_multi_node_subgraph():
+def test_function_attr():
     x0 = relay.var('x0', shape=(10, 10))
     w00 = relay.var('w00', shape=(10, 10))
     w01 = relay.var('w01', shape=(10, 10))
@@ -322,7 +323,7 @@ def test_multi_node_subgraph():
     p00 = relay.subtract(z00, w01)
     q00 = relay.multiply(p00, w02)
     func0 = relay.Function([x0, w00, w01, w02], q00)
-    func0 = func0.set_attribute("FuncName", tvm.expr.StringImm("a"))
+    func0 = func0.set_attribute("FuncName", tvm.tir.StringImm("a"))
 
     x1 = relay.var('x1', shape=(10, 10))
     w10 = relay.var('w10', shape=(10, 10))
@@ -332,7 +333,7 @@ def test_multi_node_subgraph():
     p10 = relay.subtract(z10, w11)
     q10 = relay.multiply(p10, w12)
     func1 = relay.Function([x1, w10, w11, w12], q10)
-    func1 = func1.set_attribute("FuncName", tvm.expr.StringImm("b"))
+    func1 = func1.set_attribute("FuncName", tvm.tir.StringImm("b"))
     assert not alpha_equal(func0, func1)
 
 
@@ -413,9 +414,9 @@ def test_call_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((), "int8")
@@ -608,6 +609,7 @@ def test_graph_equal():
     z3 = relay.add(relay.add(x, x), relay.add(x, x))
 
     assert alpha_equal(z0, z1)
+    assert alpha_equal(z0, z1)
 
     # z3's dataflow format is different from z0
     # z0 is computed from a common y0 node
@@ -649,6 +651,26 @@ def test_tuple_match():
     assert analysis.structural_hash(x) == analysis.structural_hash(y)
 
 
+def test_fn_attribute():
+    # create function that performs add
+    a = relay.var('a', shape=(10, 10))
+    b = relay.var('b', shape=(10, 10))
+    add = relay.add(a, b)
+    add_fn = relay.Function([a, b], add)
+    add_fn = run_opt_pass(add_fn, relay.transform.InferType())
+
+    # create function that performs add with test attribute
+    c = relay.var('c', shape=(10, 10))
+    d = relay.var('d', shape=(10, 10))
+    add_1 = relay.add(c, d)
+    add_1_fn = relay.Function([c, d], add_1)
+    add_1_fn = add_1_fn.set_attribute("TestAttribute", tvm.tir.StringImm("test"))
+    add_1_fn = run_opt_pass(add_1_fn, relay.transform.InferType())
+
+    assert not relay.analysis.alpha_equal(add_1_fn, add_fn)
+    assert not relay.analysis.alpha_equal(add_fn, add_1_fn)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -672,3 +694,4 @@ if __name__ == "__main__":
     test_var_alpha_equal()
     test_graph_equal()
     test_hash_unequal()
+    test_fn_attribute()

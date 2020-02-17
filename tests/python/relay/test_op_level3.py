@@ -517,7 +517,7 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
         alpha_shape = (data[axis],)
         assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
 
-    if all(isinstance(v, tvm.expr.Var) == 1 for v in data) or not alpha:
+    if all(isinstance(v, tvm.tir.Var) == 1 for v in data) or not alpha:
         return
 
     func = relay.Function([x, y], z)

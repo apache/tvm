@@ -25,17 +25,20 @@ import tvm.runtime
 
 from tvm.runtime import Object, ndarray
 from tvm.ir import container
+from tvm.target import codegen
+from tvm.tir import expr
+from tvm.tir import ir_pass
+from tvm.tir import Stmt
+from tvm.tir.stmt import LoweredFunc
+
+from . import target as _target
+
 from . import api
 from . import _api_internal
 from . import tensor
 from . import schedule
-from . import expr
-from . import ir_pass
-from . import stmt as _stmt
-from . import codegen
-from . import target as _target
 from . import make
-from .stmt import LoweredFunc
+
 
 
 class DumpIR(object):
@@ -60,7 +63,7 @@ class DumpIR(object):
         def dump(*args, **kwargs):
             """dump function"""
             retv = func(*args, **kwargs)
-            if not isinstance(retv, (_stmt.Stmt, LoweredFunc, container.Array)):
+            if not isinstance(retv, (Stmt, LoweredFunc, container.Array)):
                 return retv
             fname = func.func_name if hasattr(func, 'func_name') else func.__name__
             pname = str(self._pass_id) + "_" + fname + "_ir.cc"
@@ -602,7 +605,7 @@ def build(inputs,
                          "LoweredFunc.")
 
     if not isinstance(inputs, (dict, container.Map)):
-        target = _target.current_target() if target is None else target
+        target = _target.Target.current() if target is None else target
         target = target if target else "llvm"
         target_flist = {target: flist}
     else:

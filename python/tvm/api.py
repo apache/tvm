@@ -23,13 +23,17 @@ import tvm.ir
 
 from tvm.runtime import convert, const, DataType
 from tvm.ir import container as _container
+from tvm.tir import expr as _expr
+from tvm.tir import stmt as _stmt
+from tvm.tir import decl_buffer, layout, bijective_layout
+from tvm.tir import min_value, max_value, indexdiv, indexmod
+import tvm.tir._ffi_api
 
 from ._ffi.base import string_types, TVMError
 from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
 
 from . import _api_internal
 from . import make as _make
-from . import expr as _expr
 from . import tensor as _tensor
 from . import schedule as _schedule
 from . import tag as _tag
@@ -39,37 +43,6 @@ int32 = "int32"
 float32 = "float32"
 handle = "handle"
 
-
-def min_value(dtype):
-    """minimum value of dtype
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    Returns
-    -------
-    value : tvm.Expr
-        The minimum value of dtype.
-    """
-    return _api_internal._min_value(dtype)
-
-
-def max_value(dtype):
-    """maximum value of dtype
-
-    Parameters
-    ----------
-    dtype : str
-        The data type.
-
-    Returns
-    -------
-    value : tvm.Expr
-        The maximum value of dtype.
-    """
-    return _api_internal._max_value(dtype)
 
 def var(name="tindex", dtype=int32):
     """Create a new variable with specified name and dtype
@@ -87,7 +60,7 @@ def var(name="tindex", dtype=int32):
     var : Var
         The result symbolic variable.
     """
-    return _api_internal._Var(name, dtype)
+    return _expr.Var(name, dtype)
 
 
 def size_var(name="size", dtype=int32):
@@ -106,7 +79,7 @@ def size_var(name="size", dtype=int32):
     var : SizeVar
         The result symbolic shape variable.
     """
-    return _api_internal._SizeVar(name, dtype)
+    return _expr.SizeVar(name, dtype)
 
 
 def any(*args):
@@ -126,9 +99,9 @@ def any(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _make._OpOr(args[0], args[1])
+    ret = tvm.tir._ffi_api._OpOr(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _make._OpOr(ret, args[i])
+        ret = tvm.tir._ffi_api._OpOr(ret, args[i])
     return ret
 
 
@@ -150,9 +123,9 @@ def all(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _make._OpAnd(args[0], args[1])
+    ret = tvm.tir._ffi_api._OpAnd(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _make._OpAnd(ret, args[i])
+        ret = tvm.tir._ffi_api._OpAnd(ret, args[i])
     return ret
 
 
@@ -438,7 +411,7 @@ def extern(shape,
             output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, _expr.PrimExpr):
-        body = _make.Evaluate(body)
+        body = _stmt.Evaluate(body)
 
     op = _api_internal._ExternOp(name, tag, attrs,
                                  inputs, input_placeholders,
@@ -446,159 +419,6 @@ def extern(shape,
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res
 
-
-def decl_buffer(shape,
-                dtype=None,
-                name="buffer",
-                data=None,
-                strides=None,
-                elem_offset=None,
-                scope="",
-                data_alignment=-1,
-                offset_factor=0,
-                buffer_type=""):
-    """Declare a new symbolic buffer.
-
-    Normally buffer is created automatically during lower and build.
-    This is only needed if user want to specify their own buffer layout.
-
-    See the note below for detailed discussion on usage of buffer.
-
-    Parameters
-    ----------
-    shape : tuple of Expr
-        The shape of the buffer.
-
-    dtype : str, optional
-        The data type of the buffer.
-
-    name : str, optional
-        The name of the buffer.
-
-    data : Var, optional
-        The data pointer in the buffer.
-
-    strides: array of Expr
-        The stride of the buffer.
-
-    elem_offset: Expr, optional
-        The beginning offset of the array to data.
-        In terms of number of elements of dtype.
-
-    scope: str, optional
-        The storage scope of the buffer, if not global.
-        If scope equals empty string, it means it is global memory.
-
-    data_alignment: int, optional
-        The alignment of data pointer in bytes.
-        If -1 is passed, the alignment will be set to TVM's internal default.
-
-    offset_factor: int, optional
-        The factor of elem_offset field, when set,
-        elem_offset is required to be multiple of offset_factor.
-        If 0 is pssed, the alignment will be set to 1.
-        if non-zero is passed, we will created a Var for elem_offset if elem_offset is not None.
-
-    buffer_type: str, optional, {"", "auto_broadcast"}
-        auto_broadcast buffer allows one to implement broadcast computation
-        without considering whether dimension size equals to one.
-        TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
-
-    Returns
-    -------
-    buffer : Buffer
-        The created buffer
-
-    Example
-    -------
-    Here's an example of how broadcast buffer can be used to define a symbolic broadcast operation,
-
-    .. code-block:: python
-
-        m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
-        n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
-        o0, o1, o2 = tvm.var("o0"), tvm.var("o1"), tvm.var("o2")
-        A = tvm.placeholder((m0, m1, m2), name='A')
-        B = tvm.placeholder((n0, n1, n2), name='B')
-        C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
-        Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-        Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-        s = tvm.create_schedule(C.op)
-        fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
-        ctx = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), ctx)
-        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), ctx)
-        fadd(a, b, c)
-        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
-
-    Note
-    ----
-    Buffer data structure reflects the DLTensor structure in dlpack.
-    While DLTensor data structure is very general, it is usually helpful
-    to create function that only handles specific case of data structure
-    and make compiled function benefit from it.
-
-    If user pass strides and elem_offset is passed as None
-    when constructing the function, then the function will be specialized
-    for the DLTensor that is compact and aligned.
-    If user pass a fully generic symbolic array to the strides,
-    then the resulting function becomes fully generic.
-    """
-    shape = (shape,) if isinstance(shape, (_expr.PrimExpr, _Integral)) else shape
-    dtype = float32 if dtype is None else dtype
-    strides = () if strides is None else strides
-    if offset_factor != 0 and elem_offset is None:
-        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
-        elem_offset = var('%s_elem_offset' % name, shape_dtype)
-    if data is None:
-        data = var(name, "handle")
-    return _api_internal._Buffer(
-        data, dtype, shape, strides, elem_offset, name, scope,
-        data_alignment, offset_factor, buffer_type)
-
-def layout(layout_str):
-    """Create a layout node from a string.
-
-    Parameters
-    ----------
-    layout_str : str
-        A layout representation is composed of upper cases, lower cases and numbers,
-        where upper case indicates a primal axis and
-        the corresponding lower case with factor size indicates the subordinate axis.
-        For example, NCHW16c can describe a 5-D tensor of
-        [batch_size, channel, height, width, channel_block].
-        Here subordinate axis channel_block=16 is the factor size of
-        the primal axis C (channel).
-
-    Returns
-    -------
-    layout : Layout
-        The created layout
-    """
-    return _api_internal._Layout(layout_str)
-
-def bijective_layout(src_layout, dst_layout):
-    """Create a bijective layout mapping.
-
-    Parameters
-    ----------
-    src_layout : str or Layout
-        source layout.
-
-    dst_layout : str or Layout
-        destination layout.
-
-    Returns
-    -------
-    bijective_layout : BijectiveLayout
-        The created bijective layout
-    """
-    if isinstance(src_layout, str):
-        src_layout = layout(src_layout)
-    if isinstance(dst_layout, str):
-        dst_layout = layout(dst_layout)
-    return _api_internal._BijectiveLayout(src_layout, dst_layout)
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar
@@ -758,7 +578,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             expr = convert([expr])
         result = convert(result)
         id_elem = convert(id_elem)
-        combiner = _make.CommReducer(lhs, rhs, result, id_elem)
+        combiner = _expr.CommReducer(lhs, rhs, result, id_elem)
         axis = convert(axis if isinstance(axis, (list, tuple)) else [axis])
         if where is None:
             where = convert(True)
@@ -810,164 +630,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     reducer.__doc__ = doc_str.format(name)
     return reducer
 
-def div(a, b):
-    """Compute a / b as in C/C++ semantics.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    Note
-    ----
-    When operands are integers, returns truncdiv(a, b).
-    """
-    return _make._OpDiv(a, b)
-
-
-def indexdiv(a, b):
-    """Compute floor(a / b) where a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _make._OpIndexDiv(a, b)
-
-
-def indexmod(a, b):
-    """Compute the remainder of indexdiv. a and b are non-negative.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand, known to be non-negative.
-
-    b : Expr
-        The right hand operand, known to be non-negative.
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    Use this function to split non-negative indices.
-    This function may take advantage of operands'
-    non-negativeness.
-    """
-    return _make._OpIndexMod(a, b)
-
-
-def truncdiv(a, b):
-    """Compute the truncdiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _make._OpTruncDiv(a, b)
-
-
-def truncmod(a, b):
-    """Compute the truncmod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-
-    Note
-    ----
-    This is the default integer division behavior in C.
-    """
-    return _make._OpTruncMod(a, b)
-
-
-def floordiv(a, b):
-    """Compute the floordiv of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _make._OpFloorDiv(a, b)
-
-
-def floormod(a, b):
-    """Compute the floormod of two expressions.
-
-    Parameters
-    ----------
-    a : Expr
-        The left hand operand
-
-    b : Expr
-        The right hand operand
-
-    Returns
-    -------
-    res : Expr
-        The result expression.
-    """
-    return _make._OpFloorMod(a, b)
-
-#pylint: disable=unnecessary-lambda
+# pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')
-max = comm_reducer(lambda x, y: _make._OpMax(x, y), min_value, name='max')
+min = comm_reducer(lambda x, y: tvm.tir._ffi_api._OpMin(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: tvm.tir._ffi_api._OpMax(x, y), min_value, name='max')
 
 tvm._ffi._init_api("tvm.api")

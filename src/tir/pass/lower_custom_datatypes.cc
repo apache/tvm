@@ -95,19 +95,19 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     return expr;
   }
 
-#define DEFINE_MUTATE__(OP, NodeName)                                              \
-  inline PrimExpr VisitExpr_(const NodeName* op) final {                                     \
-    auto type_code = op->dtype.code();                                             \
+#define DEFINE_MUTATE__(OP, NodeName)                                   \
+  inline PrimExpr VisitExpr_(const NodeName* op) final {                \
+    auto type_code = op->dtype.code();                                  \
     bool toBeLowered = datatype::Registry::Global()->GetTypeRegistered(type_code); \
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);                                   \
-    op = expr.as<NodeName>();                                                            \
-    if (toBeLowered) {                                                             \
-      auto lower = datatype::Get##OP##LowerFunc(target_, type_code);               \
-      CHECK(lower) << #OP " lowering function for target " << target_ << " type "  \
-                   << static_cast<unsigned>(type_code) << " not found";            \
-      return (*lower)(expr);                                                       \
-    }                                                                              \
-    return expr;                                                                   \
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op);                    \
+    op = expr.as<NodeName>();                                           \
+    if (toBeLowered) {                                                  \
+      auto lower = datatype::Get##OP##LowerFunc(target_, type_code);    \
+      CHECK(lower) << #OP " lowering function for target " << target_ << " type " \
+                   << static_cast<unsigned>(type_code) << " not found"; \
+      return (*lower)(expr);                                            \
+    }                                                                   \
+    return expr;                                                        \
   }
 
   DEFINE_MUTATE__(Add, AddNode);

@@ -25,22 +25,22 @@ namespace datatype {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
-TVM_REGISTER_GLOBAL("_datatype_register")
+TVM_REGISTER_GLOBAL("runtime._datatype_register")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   datatype::Registry::Global()->Register(args[0], static_cast<uint8_t>(args[1].operator int()));
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_code")
+TVM_REGISTER_GLOBAL("runtime._datatype_get_type_code")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = datatype::Registry::Global()->GetTypeCode(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_name")
+TVM_REGISTER_GLOBAL("runtime._datatype_get_type_name")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Registry::Global()->GetTypeName(args[0].operator int());
 });
 
-TVM_REGISTER_GLOBAL("_datatype_get_type_registered")
+TVM_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
 });
@@ -90,7 +90,6 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   } else {
     ss << runtime::TypeCode2Str(src_type_code);
   }
-
   return runtime::Registry::Get(ss.str());
 }
 

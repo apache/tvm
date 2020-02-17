@@ -96,7 +96,7 @@ print(fopencl.imported_modules[0].get_source())
 #
 def my_cuda_math_rule(op):
     """Customized CUDA intrinsic lowering rule"""
-    assert isinstance(op, tvm.expr.Call)
+    assert isinstance(op, tvm.tir.Call)
     if op.dtype == "float32":
         # call float function
         return tvm.call_pure_extern("float32", "%sf" % op.name, op.args[0])
@@ -106,7 +106,7 @@ def my_cuda_math_rule(op):
     else:
         # cannot do translation, return self.
         return op
-tvm.register_intrin_rule("cuda", "exp", my_cuda_math_rule, override=True)
+tvm.target.register_intrin_rule("cuda", "exp", my_cuda_math_rule, override=True)
 ######################################################################
 # Register the rule to TVM with override option to override existing rule.
 # Notice the difference between the printed code from previous one:
@@ -135,7 +135,7 @@ def my_cuda_mylog_rule(op):
         return tvm.call_pure_extern("float64", "log", op.args[0])
     else:
         return op
-tvm.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
+tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
 
 n = tvm.var("n")
 A = tvm.placeholder((n,), name='A')

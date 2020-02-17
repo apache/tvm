@@ -41,7 +41,7 @@ def test_basic_build():
     }
     # build
     targets = {
-        tvm.expr.IntImm("int32", ctx.device_type): tgt
+        tvm.tir.IntImm("int32", ctx.device_type): tgt
     }
     g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), targets, "llvm", params=params)
 

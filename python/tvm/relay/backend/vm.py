@@ -176,16 +176,16 @@ class VMCompiler(object):
 
     def _update_target(self, target):
         """Update target."""
-        target = target if target else tvm.target.current_target()
+        target = target if target else tvm.target.Target.current()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
         tgts = {}
         if isinstance(target, (str, tvm.target.Target)):
-            dev_type = tvm.expr.IntImm("int32", tvm.nd.context(str(target)).device_type)
+            dev_type = tvm.tir.IntImm("int32", tvm.nd.context(str(target)).device_type)
             tgts[dev_type] = tvm.target.create(target)
         elif isinstance(target, dict):
             for dev, tgt in target.items():
-                dev_type = tvm.expr.IntImm("int32", tvm.nd.context(dev).device_type)
+                dev_type = tvm.tir.IntImm("int32", tvm.nd.context(dev).device_type)
                 tgts[dev_type] = tvm.target.create(tgt)
         else:
             raise TypeError("target is expected to be str, tvm.target.Target, " +

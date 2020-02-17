@@ -92,7 +92,7 @@ class AlphaEqualHandler:
     auto compute = [&]() {
       if (&lhs == &rhs) return true;
       if (auto lhsd = lhs.as<DictAttrsNode>()) {
-        auto rhsd = lhs.as<DictAttrsNode>();
+        auto rhsd = rhs.as<DictAttrsNode>();
         if (!rhsd) return false;
         if (lhsd->dict.size() != rhsd->dict.size()) return false;
         for (const auto& k : lhsd->dict) {

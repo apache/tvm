@@ -30,50 +30,50 @@
 namespace tvm {
 namespace tir {
 
-TVM_REGISTER_GLOBAL("_Var")
+TVM_REGISTER_GLOBAL("tir.Var")
 .set_body_typed([](std::string s, DataType t) {
     return Var(s, t);
   });
 
-TVM_REGISTER_GLOBAL("_SizeVar")
+TVM_REGISTER_GLOBAL("tir.SizeVar")
 .set_body_typed([](std::string s, DataType t) {
     return SizeVar(s, t);
   });
 
-TVM_REGISTER_GLOBAL("make.abs")
+TVM_REGISTER_GLOBAL("tir.abs")
 .set_body_typed(tvm::abs);
 
-TVM_REGISTER_GLOBAL("make.isnan")
+TVM_REGISTER_GLOBAL("tir.isnan")
 .set_body_typed(tvm::isnan);
 
-TVM_REGISTER_GLOBAL("make.floor")
+TVM_REGISTER_GLOBAL("tir.floor")
 .set_body_typed(tvm::floor);
 
-TVM_REGISTER_GLOBAL("make.ceil")
+TVM_REGISTER_GLOBAL("tir.ceil")
 .set_body_typed(tvm::ceil);
 
-TVM_REGISTER_GLOBAL("make.round")
+TVM_REGISTER_GLOBAL("tir.round")
 .set_body_typed(tvm::round);
 
-TVM_REGISTER_GLOBAL("make.nearbyint")
+TVM_REGISTER_GLOBAL("tir.nearbyint")
 .set_body_typed(tvm::nearbyint);
 
-TVM_REGISTER_GLOBAL("make.trunc")
+TVM_REGISTER_GLOBAL("tir.trunc")
 .set_body_typed(tvm::trunc);
 
-TVM_REGISTER_GLOBAL("make._cast")
+TVM_REGISTER_GLOBAL("tir._cast")
 .set_body_typed(tvm::cast);
 
-TVM_REGISTER_GLOBAL("make._range_by_min_extent")
+TVM_REGISTER_GLOBAL("ir.range_by_min_extent")
 .set_body_typed(Range::make_by_min_extent);
 
 
-TVM_REGISTER_GLOBAL("make.SeqStmt")
+TVM_REGISTER_GLOBAL("tir.SeqStmt")
 .set_body_typed([](Array<Stmt> seq) {
   return SeqStmt(std::move(seq));
 });
 
-TVM_REGISTER_GLOBAL("make.For")
+TVM_REGISTER_GLOBAL("tir.For")
 .set_body_typed([](
   Var loop_var, PrimExpr min, PrimExpr extent,
   int for_type, int device_api, Stmt body) {
@@ -85,7 +85,7 @@ TVM_REGISTER_GLOBAL("make.For")
                    body);
 });
 
-TVM_REGISTER_GLOBAL("make.Load")
+TVM_REGISTER_GLOBAL("tir.Load")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     DataType t = args[0];
     if (args.size() == 3) {
@@ -95,7 +95,7 @@ TVM_REGISTER_GLOBAL("make.Load")
     }
   });
 
-TVM_REGISTER_GLOBAL("make.Store")
+TVM_REGISTER_GLOBAL("tir.Store")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     PrimExpr value = args[1];
     if (args.size() == 3) {
@@ -105,10 +105,10 @@ TVM_REGISTER_GLOBAL("make.Store")
     }
   });
 
-TVM_REGISTER_GLOBAL("make.Realize")
+TVM_REGISTER_GLOBAL("tir.Realize")
 .set_body_typed(RealizeNode::make);
 
-TVM_REGISTER_GLOBAL("make.Call")
+TVM_REGISTER_GLOBAL("tir.Call")
 .set_body_typed([](
   DataType type, std::string name,
   Array<PrimExpr> args, int call_type,
@@ -122,12 +122,12 @@ TVM_REGISTER_GLOBAL("make.Call")
                     value_index);
 });
 
-TVM_REGISTER_GLOBAL("make.CommReducer")
+TVM_REGISTER_GLOBAL("tir.CommReducer")
 .set_body_typed(CommReducerNode::make);
 
 // make from two arguments
 #define REGISTER_MAKE(NodeName)                                     \
-  TVM_REGISTER_GLOBAL("make."#NodeName)                             \
+  TVM_REGISTER_GLOBAL("tir."#NodeName)                             \
   .set_body_typed(NodeName ## Node::make);                          \
 
 
@@ -172,7 +172,7 @@ REGISTER_MAKE(Evaluate);
 
 // overloaded, needs special handling
 // has default args
-TVM_REGISTER_GLOBAL("make.Allocate")
+TVM_REGISTER_GLOBAL("tir.Allocate")
   .set_body_typed([](
     Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition, Stmt body
   ){
@@ -180,14 +180,14 @@ TVM_REGISTER_GLOBAL("make.Allocate")
   });
 
 // operator overloading, smarter than make
-#define REGISTER_MAKE_BINARY_OP(Node, Func)                     \
-  TVM_REGISTER_GLOBAL("make."#Node)                             \
+#define REGISTER_MAKE_BINARY_OP(Node, Func)                    \
+  TVM_REGISTER_GLOBAL("tir."#Node)                              \
   .set_body_typed([](PrimExpr a, PrimExpr b) {                  \
     return (Func(a, b));                                        \
   })
 
-#define REGISTER_MAKE_BIT_OP(Node, Func)                                \
-  TVM_REGISTER_GLOBAL("make."#Node)                                     \
+#define REGISTER_MAKE_BIT_OP(Node, Func)                               \
+  TVM_REGISTER_GLOBAL("tir."#Node)                                      \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
     bool lhs_is_int = args[0].type_code() == kDLInt;                    \
     bool rhs_is_int = args[1].type_code() == kDLInt;                    \
@@ -228,7 +228,7 @@ REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
 REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
-TVM_REGISTER_GLOBAL("make._OpIfThenElse")
+TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
 .set_body_typed([] (PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
   return if_then_else(cond, true_value, false_value);
 });

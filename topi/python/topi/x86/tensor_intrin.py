@@ -17,11 +17,12 @@
 """Core kernel of dot product of 4 Int8 operations"""
 #pylint: disable=invalid-name
 import tvm
+import tvm.target.codegen
 
 
 def dot_16x1x16_uint8_int8_int32():
     """Dispatch the most optimized intrin depending on the target"""
-    mcpu = tvm.target.current_target().mcpu
+    mcpu = tvm.target.Target.current().mcpu
 
     assert mcpu in ("skylake-avx512", "cascadelake"), \
             "An old Intel machine that does not have fast Int8 support."
@@ -254,7 +255,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
             vec_b = ins[1].vload([0, 0], "int8x64")
 
             vnni_inst_name = 'llvm.x86.avx512.vpdpbusd.512'
-            llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(vnni_inst_name)
+            llvm_id = tvm.target.codegen.llvm_lookup_intrinsic_id(vnni_inst_name)
 
             if llvm_id != 0: # VNNI is available for current LLVM version
                 vec_bi32 = tvm.call_pure_intrin('int32x16', 'reinterpret', vec_b)

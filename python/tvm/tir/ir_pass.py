@@ -25,4 +25,4 @@ You can read "include/tvm/tir/ir_pass.h" for the function signature and
 """
 import tvm._ffi
 
-tvm._ffi._init_api("tvm.ir_pass")
+tvm._ffi._init_api("tvm.ir_pass", __name__)

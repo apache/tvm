@@ -84,8 +84,8 @@ def test_add_pipeline():
             return
         if not tvm.runtime.enabled(host):
             return
-        mhost = tvm.codegen.build_module(fsplits[0], host)
-        mdev = tvm.codegen.build_module(fsplits[1:], device)
+        mhost = tvm.target.codegen.build_module(fsplits[0], host)
+        mdev = tvm.target.codegen.build_module(fsplits[1:], device)
         mhost.import_module(mdev)
         code = mdev.get_source()
         f = mhost.entry_func
@@ -110,8 +110,8 @@ def test_add_pipeline():
             fmt = "hsaco"
         else:
             fmt = device
-        mhost = tvm.codegen.build_module(fsplits[0], host)
-        mdev = tvm.codegen.build_module(fsplits[1:], device)
+        mhost = tvm.target.codegen.build_module(fsplits[0], host)
+        mdev = tvm.target.codegen.build_module(fsplits[1:], device)
         temp = util.tempdir()
         mpath = temp.relpath("test.%s" % fmt)
         mdev.save(mpath)

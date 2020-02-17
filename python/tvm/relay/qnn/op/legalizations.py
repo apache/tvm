@@ -220,13 +220,13 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
 def is_fast_int8_on_intel():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     intel_supported_arches = {'-mcpu=skylake-avx512', '-mcpu=cascadelake'}
     return intel_supported_arches.intersection(set(target.options))
 
 def is_fast_int8_on_arm():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     return '+v8.2a,+dotprod' in ' '.join(target.options)
 
 ########################

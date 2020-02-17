@@ -185,7 +185,45 @@ def test_cast():
     verify("bool", "int32")
 
 
+def test_fastmath():
+    def test_apply(
+        func,
+        name,
+        f_numpy,
+        low,
+        high,
+        step,
+        dtype=tvm.float32
+    ):
+        a_np = np.arange(low, high, step).astype(dtype)
+        b_np = f_numpy(a_np)
+        A = tvm.placeholder(a_np.shape, dtype=dtype, name="A")
+        B = func(A)
+        assert tuple(B.shape) == tuple(A.shape)
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            with tvm.target.create(device):
+                s = topi.generic.schedule_injective(B)
+            func = tvm.build(s, [A, B], device, name=name)
+            a = tvm.nd.array(a_np, ctx)
+            b = tvm.nd.array(np.zeros_like(b_np), ctx)
+            func(a, b)
+            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+
+        check_device('llvm')
+        check_device('llvm -device=arm-cpu')
+
+
+    test_apply(topi.fast_exp, "fast_exp", np.exp,
+               low=-88, high=88,
+               step = 0.01)
+
 if __name__ == "__main__":
     test_util()
     test_ewise()
     test_cast()
+    test_fastmath()

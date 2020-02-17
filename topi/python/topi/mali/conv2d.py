@@ -153,7 +153,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
             # this part to make tuning records correct
             s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
         else:
-            max_threads = tvm.target.current_target(allow_none=False).max_num_threads
+            max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
             co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
             fused, vec = s[kernel_vec].split(fused, VC)

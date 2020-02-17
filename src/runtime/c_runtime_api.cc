@@ -46,20 +46,20 @@ namespace tvm {
 namespace runtime {
 
 std::string GetCustomTypeName(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("_datatype_get_type_name");
-  CHECK(f) << "Function _datatype_get_type_name not found";
+  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_name");
+  CHECK(f) << "Function runtime._datatype_get_type_name not found";
   return (*f)(type_code).operator std::string();
 }
 
 uint8_t GetCustomTypeCode(const std::string& type_name) {
-  auto f = tvm::runtime::Registry::Get("_datatype_get_type_code");
-  CHECK(f) << "Function _datatype_get_type_code not found";
+  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_code");
+  CHECK(f) << "Function runtime._datatype_get_type_code not found";
   return (*f)(type_name).operator int();
 }
 
 bool GetCustomTypeRegistered(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("_datatype_get_type_registered");
-  CHECK(f) << "Function _datatype_get_type_registered not found";
+  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_registered");
+  CHECK(f) << "Function runtime._datatype_get_type_registered not found";
   return (*f)(type_code).operator bool();
 }
 
@@ -612,7 +612,7 @@ TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
   });
 
 // set device api
-TVM_REGISTER_GLOBAL("_GetDeviceAttr")
+TVM_REGISTER_GLOBAL("runtime.GetDeviceAttr")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     TVMContext ctx;
     ctx.device_type = static_cast<DLDeviceType>(args[0].operator int());

@@ -31,7 +31,7 @@ def test_make_smap():
     # save load json
     x = tvm.const(1, "int32")
     y = tvm.const(10, "int32")
-    z = tvm.expr.Add(x, y)
+    z = tvm.tir.Add(x, y)
     smap = tvm.convert({"z": z, "x": x})
     json_str = tvm.ir.save_json(tvm.convert([smap]))
     arr = tvm.ir.load_json(json_str)
@@ -40,11 +40,11 @@ def test_make_smap():
 
 
 def test_make_node():
-    x = tvm.make.node("IntImm", dtype="int32", value=10)
-    assert isinstance(x, tvm.expr.IntImm)
+    x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
+    assert isinstance(x, tvm.tir.IntImm)
     assert x.value == 10
     A = tvm.placeholder((10, ), name='A')
-    AA = tvm.make.node("Tensor",
+    AA = tvm.ir.make_node("Tensor",
                        shape=A.shape,
                        dtype=A.dtype,
                        op=A.op,
@@ -55,25 +55,25 @@ def test_make_node():
 
 def test_make_attrs():
     try:
-        x = tvm.make.node("attrs.TestAttrs", unknown_key=1, name="xx")
+        x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
         assert False
     except tvm.error.TVMError as e:
         assert str(e).find("unknown_key") != -1
 
     try:
-        x = tvm.make.node("attrs.TestAttrs", axis=100, name="xx")
+        x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
         assert False
     except tvm.error.TVMError as e:
         assert str(e).find("upper bound") != -1
 
-    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4))
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4))
     assert x.name == "xx"
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4
     assert x.axis == 10
 
 
-    dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
+    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert dattr.x.value == 1
     datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name.value == "xyz"
@@ -104,7 +104,7 @@ def test_env_func():
     assert y(1) == 2
     assert y.func(1) == 2
 
-    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4), func=y)
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4), func=y)
     assert x.name == "xx"
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4

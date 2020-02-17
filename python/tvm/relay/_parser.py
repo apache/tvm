@@ -48,19 +48,20 @@ from . import op
 
 PYTHON_VERSION = sys.version_info.major
 try:
-    from .grammar.py3.RelayVisitor import RelayVisitor
-    from .grammar.py3.RelayParser import RelayParser
-    from .grammar.py3.RelayLexer import RelayLexer
-except ImportError:
-    raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
-
-try:
     from antlr4 import InputStream, CommonTokenStream
     from antlr4.error.ErrorListener import ErrorListener
 except ImportError:
     raise Exception("Couldn't find ANTLR runtime." +
                     "Try running `pip{version} install antlr4-python{version}-runtime`."
                     .format(version=PYTHON_VERSION))
+
+try:
+    from .grammar.py3.RelayVisitor import RelayVisitor
+    from .grammar.py3.RelayParser import RelayParser
+    from .grammar.py3.RelayLexer import RelayLexer
+except ImportError:
+    raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
+
 
 sys.setrecursionlimit(10000)
 
@@ -509,7 +510,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             _, type_params = zip(*type_params)
         self.exit_var_scope()
 
-        attrs = tvm.make.node("DictAttrs", **attr_list) if attr_list is not None else None
+        attrs = tvm.ir.make_node("DictAttrs", **attr_list) if attr_list is not None else None
         return expr.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify

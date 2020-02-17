@@ -33,7 +33,7 @@ from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
 def _update_target(target):
-    target = target if target else _target.current_target()
+    target = target if target else _target.Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
 

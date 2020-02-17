@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for merge composite."""
-from tvm import expr
 from tvm import relay
+from tvm import tir
 from tvm.relay.testing import run_opt_pass
 
 """
@@ -144,6 +144,8 @@ def test_simple_merge():
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
+        add_relu = add_relu.set_attribute("Primitive", tir.IntImm("int32", 1))
+        add_relu = add_relu.set_attribute("Composite", tir.StringImm("add_relu"))
 
         # merged function
         r = relay.Call(add_relu, [a, b])
@@ -208,11 +210,27 @@ def test_branch_merge():
         sub_node = relay.subtract(in_1, in_2)
         mul_node = relay.multiply(add_node, sub_node)
         add_sub_mul = relay.Function([in_1, in_2], mul_node)
+        add_sub_mul = add_sub_mul.set_attribute("Primitive",
+                                                tir.IntImm("int32", 1))
+        add_sub_mul = add_sub_mul.set_attribute("Composite",
+                                                tir.StringImm("add_sub_mul"))
+
+        # add_sub_mul1 function
+        in_3 = relay.var('in_3', shape=(10, 10))
+        in_4 = relay.var('in_4', shape=(10, 10))
+        add_node_1 = relay.add(in_3, in_4)
+        sub_node_1 = relay.subtract(in_3, in_4)
+        mul_node_1 = relay.multiply(add_node_1, sub_node_1)
+        add_sub_mul_1 = relay.Function([in_3, in_4], mul_node_1)
+        add_sub_mul_1 = add_sub_mul_1.set_attribute("Primitive",
+                                                    tir.IntImm("int32", 1))
+        add_sub_mul_1 = add_sub_mul_1.set_attribute("Composite",
+                                                    tir.StringImm("add_sub_mul"))
 
         # merged function
-        add_sub_mul_1 = relay.Call(add_sub_mul, [a, b])
-        add_sub_mul_2 = relay.Call(add_sub_mul, [c, add_sub_mul_1])
-        r = relay.nn.relu(add_sub_mul_2)
+        m_add_sub_mul_1 = relay.Call(add_sub_mul, [a, b])
+        m_add_sub_mul_2 = relay.Call(add_sub_mul_1, [c, m_add_sub_mul_1])
+        r = relay.nn.relu(m_add_sub_mul_2)
         return relay.Function([a, b, c], r)
 
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
@@ -291,6 +309,9 @@ def test_multiple_patterns():
         bias_node = relay.nn.bias_add(conv_node, in_3)
         r = relay.nn.relu(bias_node)
         conv_bias_add_relu = relay.Function([in_1, in_2, in_3], r)
+        conv_bias_add_relu = conv_bias_add_relu.set_attribute("Primitive", tir.IntImm("int32", 1))
+        conv_bias_add_relu = conv_bias_add_relu.set_attribute("Composite",
+                                                              tir.StringImm("conv2d_bias_relu"))
 
         # add_relu function
         in_4 = relay.var('in_4', shape=(1, 256, 28, 28))
@@ -298,6 +319,8 @@ def test_multiple_patterns():
         add_node = relay.add(in_4, in_5)
         r = relay.nn.relu(add_node)
         add_relu = relay.Function([in_4, in_5], r)
+        add_relu = add_relu.set_attribute("Primitive", tir.IntImm("int32", 1))
+        add_relu = add_relu.set_attribute("Composite", tir.StringImm("add_relu"))
 
         # merged function
         conv_bias_add_relu_1 = relay.Call(conv_bias_add_relu, [data, kernel, bias])
@@ -357,7 +380,7 @@ def test_merge_order():
         out = relay.nn.relu(out)
         return relay.Function([input_1, input_2], out)
 
-    def after_A_priority():
+    def after_A_priority(composite_name):
         input_1 = relay.var('input_1', shape=(10, 10))
         input_2 = relay.var('input_2', shape=(10, 10))
         x = relay.var('x')
@@ -366,36 +389,10 @@ def test_merge_order():
         out = relay.abs(out)
         out = relay.nn.relu(out)
         merged_func = relay.Function([x, y], out)
-        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
-        merged_func = merged_func.set_attribute('Composite', expr.StringImm('A'))
+        merged_func = merged_func.set_attribute('Primitive', tir.IntImm('int32', 1))
+        merged_func = merged_func.set_attribute('Composite',
+                                                tir.StringImm(composite_name))
         ret = relay.Call(merged_func, [input_1, input_2])
-        return relay.Function([input_1, input_2], ret)
-
-    def after_B_priority():
-        input_1 = relay.var('input_1', shape=(10, 10))
-        input_2 = relay.var('input_2', shape=(10, 10))
-        x = relay.var('x')
-        y = relay.var('y')
-        out = relay.add(x, y)
-        out = relay.abs(out)
-        merged_func = relay.Function([x, y], out)
-        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
-        merged_func = merged_func.set_attribute('Composite', expr.StringImm('B'))
-        merged_call = relay.Call(merged_func, [input_1, input_2])
-        ret = relay.nn.relu(merged_call)
-        return relay.Function([input_1, input_2], ret)
-
-    def after_C_priority():
-        input_1 = relay.var('input_1', shape=(10, 10))
-        input_2 = relay.var('input_2', shape=(10, 10))
-        add = relay.add(input_1, input_2)
-        x = relay.var('x')
-        out = relay.abs(x)
-        out = relay.nn.relu(out)
-        merged_func = relay.Function([x], out)
-        merged_func = merged_func.set_attribute('Primitive', expr.IntImm('int32', 1))
-        merged_func = merged_func.set_attribute('Composite', expr.StringImm('C'))
-        ret = relay.Call(merged_func, [add])
         return relay.Function([input_1, input_2], ret)
 
     # check A highest priority
@@ -406,7 +403,7 @@ def test_merge_order():
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    expected = run_opt_pass(after_A_priority("A"), relay.transform.InferType())
     assert relay.analysis.alpha_equal(result, expected)
 
     # check B highest priority
@@ -417,7 +414,7 @@ def test_merge_order():
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    expected = run_opt_pass(after_A_priority("B"), relay.transform.InferType())
     assert relay.analysis.alpha_equal(result, expected)
 
     # check C highest priority
@@ -428,7 +425,7 @@ def test_merge_order():
     ]
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
-    expected = run_opt_pass(after_A_priority(), relay.transform.InferType())
+    expected = run_opt_pass(after_A_priority("C"), relay.transform.InferType())
     assert relay.analysis.alpha_equal(result, expected)
 
 
@@ -459,11 +456,15 @@ def test_parallel_merge():
         y = relay.var('y')
         branch_1 = relay.multiply(relay.add(x, y), relay.subtract(x, y))
         func_1 = relay.Function([x, y], branch_1)
+        func_1 = func_1.set_attribute('Primitive', tir.IntImm('int32', 1))
+        func_1 = func_1.set_attribute('Composite', tir.StringImm("add_sub_mul"))
         call_1 = relay.Call(func_1, [input_1, input_2])
         x1 = relay.var('x1')
         y1 = relay.var('y1')
         branch_2 = relay.multiply(relay.add(x1, y1), relay.subtract(x1, y1))
         func_2 = relay.Function([x1, y1], branch_2)
+        func_2 = func_2.set_attribute('Primitive', tir.IntImm('int32', 1))
+        func_2 = func_2.set_attribute('Composite', tir.StringImm("add_sub_mul"))
         call_2 = relay.Call(func_2, [input_1, input_2])
         out = relay.multiply(call_1, call_2)
         return relay.Function([input_1, input_2], out)
@@ -542,16 +543,16 @@ def test_multiple_input_subgraphs():
         add_relu_1 = relay.add(x, y)
         add_relu_1 = relay.nn.relu(add_relu_1)
         add_relu_1 = relay.Function([x, y], add_relu_1)
-        add_relu_1 = add_relu_1.set_attribute('Primitive', expr.IntImm('int32', 1))
-        add_relu_1 = add_relu_1.set_attribute('Composite', expr.StringImm('add_relu'))
+        add_relu_1 = add_relu_1.set_attribute('Primitive', tir.IntImm('int32', 1))
+        add_relu_1 = add_relu_1.set_attribute('Composite', tir.StringImm('add_relu'))
         add_relu_call_1 = relay.Call(add_relu_1, [inputs[0], inputs[1]])
         x1 = relay.var('x1')
         y1 = relay.var('y1')
         add_relu_2 = relay.add(x1, y1)
         add_relu_2 = relay.nn.relu(add_relu_2)
         add_relu_2 = relay.Function([x1, y1], add_relu_2)
-        add_relu_2 = add_relu_2.set_attribute('Primitive', expr.IntImm('int32', 1))
-        add_relu_2 = add_relu_2.set_attribute('Composite', expr.StringImm('add_relu'))
+        add_relu_2 = add_relu_2.set_attribute('Primitive', tir.IntImm('int32', 1))
+        add_relu_2 = add_relu_2.set_attribute('Composite', tir.StringImm('add_relu'))
         add_relu_call_2 = relay.Call(add_relu_2, [inputs[2], inputs[3]])
         x2 = relay.var('x2')
         y2 = relay.var('y2')
@@ -559,8 +560,8 @@ def test_multiple_input_subgraphs():
         sub = relay.subtract(x2, y2)
         add_sub_mul = relay.multiply(add, sub)
         add_sub_mul = relay.Function([x2, y2], add_sub_mul)
-        add_sub_mul = add_sub_mul.set_attribute('Primitive', expr.IntImm('int32', 1))
-        add_sub_mul = add_sub_mul.set_attribute('Composite', expr.StringImm('add_sub_mul'))
+        add_sub_mul = add_sub_mul.set_attribute('Primitive', tir.IntImm('int32', 1))
+        add_sub_mul = add_sub_mul.set_attribute('Composite', tir.StringImm('add_sub_mul'))
         add_sub_mul_call = relay.Call(add_sub_mul, [add_relu_call_1, add_relu_call_2])
         return relay.Function(inputs, add_sub_mul_call)
 
@@ -573,8 +574,8 @@ def test_multiple_input_subgraphs():
             add_relu = relay.add(x, y)
             add_relu = relay.nn.relu(add_relu)
             add_relu = relay.Function([x, y], add_relu)
-            add_relu = add_relu.set_attribute('Primitive', expr.IntImm('int32', 1))
-            add_relu = add_relu.set_attribute('Composite', expr.StringImm('add_relu'))
+            add_relu = add_relu.set_attribute('Primitive', tir.IntImm('int32', 1))
+            add_relu = add_relu.set_attribute('Composite', tir.StringImm('add_relu'))
             add_relu_call = relay.Call(add_relu, [inputs[i*2], inputs[i*2+1]])
             add_relu_calls.append(add_relu_call)
 

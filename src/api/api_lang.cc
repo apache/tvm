@@ -34,10 +34,10 @@
 
 namespace tvm {
 
-TVM_REGISTER_GLOBAL("_min_value")
+TVM_REGISTER_GLOBAL("tir.min_value")
 .set_body_typed(min_value);
 
-TVM_REGISTER_GLOBAL("_max_value")
+TVM_REGISTER_GLOBAL("tir.max_value")
 .set_body_typed(max_value);
 
 TVM_REGISTER_GLOBAL("Range")
@@ -48,66 +48,6 @@ TVM_REGISTER_GLOBAL("Range")
       *ret = Range(args[0], args[1]);
     }
   });
-
-namespace tir {
-
-TVM_REGISTER_GLOBAL("_Buffer")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    CHECK_EQ(args.size(), 10);
-    auto buffer_type = args[9].operator std::string();
-    BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-    *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4],
-                            args[5], args[6], args[7], args[8], type);
-  });
-
-TVM_REGISTER_GLOBAL("_BufferAccessPtr")
-.set_body_method(&Buffer::access_ptr);
-
-TVM_REGISTER_GLOBAL("_BufferVLoad")
-.set_body_method(&Buffer::vload);
-
-TVM_REGISTER_GLOBAL("_BufferVStore")
-.set_body_method(&Buffer::vstore);
-
-TVM_REGISTER_GLOBAL("_Layout")
-.set_body_typed(LayoutNode::make);
-
-TVM_REGISTER_GLOBAL("_LayoutIndexOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.IndexOf(LayoutAxis::make(axis));
-});
-
-TVM_REGISTER_GLOBAL("_LayoutFactorOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.FactorOf(LayoutAxis::make(axis));
-});
-
-TVM_REGISTER_GLOBAL("_LayoutNdim")
-.set_body_typed([](Layout layout) -> int {
-  return layout.ndim();
-});
-
-TVM_REGISTER_GLOBAL("_LayoutGetItem")
-.set_body_typed([](Layout layout, int idx) -> std::string {
-  const LayoutAxis& axis = layout[idx];
-  return axis.name();
-});
-
-TVM_REGISTER_GLOBAL("_BijectiveLayout")
-.set_body_typed(BijectiveLayoutNode::make);
-
-TVM_REGISTER_GLOBAL("_BijectiveLayoutForwardIndex")
-.set_body_method(&BijectiveLayout::ForwardIndex);
-
-TVM_REGISTER_GLOBAL("_BijectiveLayoutBackwardIndex")
-.set_body_method(&BijectiveLayout::BackwardIndex);
-
-TVM_REGISTER_GLOBAL("_BijectiveLayoutForwardShape")
-.set_body_method(&BijectiveLayout::ForwardShape);
-
-TVM_REGISTER_GLOBAL("_BijectiveLayoutBackwardShape")
-.set_body_method(&BijectiveLayout::BackwardShape);
-}  // namespace tir
 
 namespace te {
 TVM_REGISTER_GLOBAL("_Tensor")

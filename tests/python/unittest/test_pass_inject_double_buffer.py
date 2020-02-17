@@ -37,13 +37,13 @@ def test_double_buffer():
     stmt = ib.get()
     stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, 2)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert isinstance(stmt.body.body, tvm.stmt.Allocate)
+    assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
     f = tvm.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
     f = tvm.ir_pass.ThreadSync(f, "shared")
     count = [0]
     def count_sync(op):
-        if isinstance(op, tvm.expr.Call) and op.name == "tvm_storage_sync":
+        if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
     tvm.ir_pass.PostOrderVisit(f.body, count_sync)
     assert count[0] == 4
