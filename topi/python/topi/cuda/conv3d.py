@@ -27,7 +27,7 @@ from .conv3d_direct import schedule_direct_conv3d_cuda
 
 @autotvm.register_topi_compute("conv3d_ncdhw.cuda")
 def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
-    """Conv3D operator for cuda backend.
+    """Conv3D operator in NCDHW layout for cuda backend.
 
     Parameters
     ----------
@@ -92,35 +92,29 @@ def schedule_conv3d_ncdhw(cfg, outs):
 
 @autotvm.register_topi_compute("conv3d_ndhwc.cuda")
 def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
-    """Conv3D operator for cuda backend.
+    """Conv3d operator in NDHWC layout for cuda backend.
 
     Parameters
     ----------
-    cfg: ConfigEntity
-        The config for this template
+    Input : tvm.Tensor
+        5-D with shape [batch, in_depth, in_height, in_width, in_channel]
 
-    data : tvm.Tensor
-        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+    Filter : tvm.Tensor
+        5-D with shape [filter_depth, filter_height, filter_width, in_channel, num_filter]
 
-    kernel : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
+    stride : int or a list/tuple of three ints
+        Stride size, or [stride_depth, stride_height, stride_width]
 
-    strides : int or a list/tuple of three ints
-        stride size, or [stride_depth, stride_height, stride_width]
-
-    padding : int or a list/tuple of three ints
-        padding size, or [pad_depth, pad_height, pad_width]
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
 
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
-    out_dtype: str
-        The output type. This is used for mixed precision.
-
     Returns
     -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+    Output : tvm.Tensor
+        5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
     return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, out_dtype)
 

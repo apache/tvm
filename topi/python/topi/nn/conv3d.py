@@ -100,13 +100,13 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     Parameters
     ----------
     Input : tvm.Tensor
-        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+        5-D with shape [batch, in_depth, in_height, in_width, in_channel]
 
     Filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
+        5-D with shape [filter_depth, filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of three ints
-        Stride size, or [strid_depth, stride_height, stride_width]
+        Stride size, or [stride_depth, stride_height, stride_width]
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
@@ -117,7 +117,7 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     Returns
     -------
     Output : tvm.Tensor
-        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+        5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 3
     assert isinstance(dilation, int) or len(dilation) == 3
