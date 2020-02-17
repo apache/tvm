@@ -186,7 +186,7 @@ def _convert_merge(inexpr, keras_layer, _):
         assert len(inexpr) == 2, "Subtract merge takes 2 inputs."
         ret = _op.subtract(ret, inexpr[1])
     elif merge_type in ['Add', 'Multiply', 'Maximum']:
-        op_map = {'Add':_op.add, 'Multiply':_op.multiply, 'Maximum':_op.maximum}
+        op_map = {'Add': _op.add, 'Multiply': _op.multiply, 'Maximum': _op.maximum}
         for i in range(1, len(inexpr)):
             ret = op_map[merge_type](ret, inexpr[i])
     elif merge_type == 'Average':
@@ -206,7 +206,7 @@ def _convert_permute(inexpr, keras_layer, _):
 def _convert_dense(inexpr, keras_layer, etab):
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
-    params = {'weight':weight, 'units':weightList[0].shape[1]}
+    params = {'weight': weight, 'units': weightList[0].shape[1]}
     input_shape = keras_layer.input_shape
     input_dim = len(input_shape)
     # In case of RNN dense, input shape will be (1, 1, n)
@@ -234,18 +234,30 @@ def _convert_dense(inexpr, keras_layer, etab):
 
 def _convert_convolution(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
+    if etab.data_layout == 'NHWC':
+        kernel_layout = 'HWIO'
+    else:
+        kernel_layout = 'OIHW'
     is_deconv = type(keras_layer).__name__ == 'Conv2DTranspose'
     is_depthconv = type(keras_layer).__name__ == 'DepthwiseConv2D'
     weightList = keras_layer.get_weights()
+    weight = weightList[0]
     if is_deconv:
-        kernel_h, kernel_w, n_filters, in_channels = weightList[0].shape
-        weight = weightList[0].transpose([3, 2, 0, 1])
+        kernel_h, kernel_w, n_filters, in_channels = weight.shape
+        if kernel_layout == 'OIHW':
+            weight = weight.transpose([3, 2, 0, 1])
     elif is_depthconv:
-        kernel_h, kernel_w, in_channels, depth_mult = weightList[0].shape
-        weight = weightList[0].transpose([2, 3, 0, 1])
+        kernel_h, kernel_w, in_channels, depth_mult = weight.shape
+        if kernel_layout == 'OIHW':
+            weight = weight.transpose([2, 3, 0, 1])
+        else:
+            weight = weight.transpose([0, 1, 3, 2])
+    elif etab.data_layout == 'NCHW':
+        kernel_h, kernel_w, in_channels, n_filters = weight.shape
+        weight = weight.transpose([3, 2, 0, 1])
     else:
-        kernel_h, kernel_w, in_channels, n_filters = weightList[0].shape
-        weight = weightList[0].transpose([3, 2, 0, 1])
+        kernel_h, kernel_w, in_channels, n_filters = weight.shape
+
     if isinstance(keras_layer.dilation_rate, (list, tuple)):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
@@ -257,7 +269,9 @@ def _convert_convolution(inexpr, keras_layer, etab):
               'kernel_size': [kernel_h, kernel_w],
               'strides': [stride_h, stride_w],
               'dilation': dilation,
-              'padding': [0, 0]}
+              'padding': [0, 0],
+              'data_layout': etab.data_layout,
+              'kernel_layout': kernel_layout}
     if is_depthconv:
         params['channels'] = in_channels * depth_mult
         params['groups'] = in_channels
@@ -274,8 +288,13 @@ def _convert_convolution(inexpr, keras_layer, etab):
         if pad_t == pad_b and pad_l == pad_r:
             params['padding'] = (pad_t, pad_l)
         else:
-            inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            if etab.data_layout == 'NCHW':
+                inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                    (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            else:
+                inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                    (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
+
     else:
         msg = 'Padding with {} is not supported for operator Convolution ' \
               'in frontend Keras.'
@@ -286,7 +305,10 @@ def _convert_convolution(inexpr, keras_layer, etab):
         out = _op.nn.conv2d(data=inexpr, **params)
     if keras_layer.use_bias:
         bias = etab.new_const(weightList[1])
-        out = _op.nn.bias_add(out, bias)
+        if etab.data_layout == 'NCHW':
+            out = _op.nn.bias_add(out, bias)
+        else:
+            out = _op.nn.bias_add(out, bias, axis=-1)
     # defuse activation
     if sys.version_info.major < 3:
         act_type = keras_layer.activation.func_name
@@ -352,10 +374,11 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
     return out
 
 
-def _convert_flatten(inexpr, keras_layer, _):
+def _convert_flatten(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     # NCHW -> NHWC so that dense can be correctly converted
-    inexpr = _op.transpose(inexpr, axes=[0, 2, 3, 1])
+    if etab.data_layout == 'NCHW':
+        inexpr = _op.transpose(inexpr, axes=[0, 2, 3, 1])
     return _op.nn.batch_flatten(inexpr)
 
 
@@ -363,15 +386,19 @@ def _convert_pooling(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     pool_type = type(keras_layer).__name__
     # global pool in keras = global pool + flatten in relay
+    global_pool_params = {'layout': etab.data_layout}
     if pool_type == 'GlobalMaxPooling2D':
-        return _convert_flatten(_op.nn.global_max_pool2d(inexpr), keras_layer, etab)
+        return _convert_flatten(
+            _op.nn.global_max_pool2d(inexpr, **global_pool_params), keras_layer, etab)
     if pool_type == 'GlobalAveragePooling2D':
-        return _convert_flatten(_op.nn.global_avg_pool2d(inexpr), keras_layer, etab)
+        return _convert_flatten(
+            _op.nn.global_avg_pool2d(inexpr, **global_pool_params), keras_layer, etab)
     pool_h, pool_w = keras_layer.pool_size
     stride_h, stride_w = keras_layer.strides
     params = {'pool_size': [pool_h, pool_w],
               'strides': [stride_h, stride_w],
-              'padding': [0, 0]}
+              'padding': [0, 0],
+              'layout': etab.data_layout}
     if keras_layer.padding == 'valid':
         pass
     elif keras_layer.padding == 'same':
@@ -442,9 +469,15 @@ def _convert_cropping(inexpr, keras_layer, _):
 
 
 def _convert_batchnorm(inexpr, keras_layer, etab):
+    if etab.data_layout == 'NCHW' or len(keras_layer.input_shape) < 4:
+        axis = 1
+    else:
+        axis = 3
+
     params = {'scale': False,
               'center': False,
-              'epsilon': keras_layer.epsilon}
+              'epsilon': keras_layer.epsilon,
+              'axis': axis}
     idx = 0
     if keras_layer.scale:
         params['scale'] = True
@@ -499,9 +532,13 @@ def _convert_padding(inexpr, keras_layer, _):
                       pad_width=((0, 0), (0, 0), (top, bottom), (left, right)))
 
 
-def _convert_concat(inexpr, keras_layer, _):
+def _convert_concat(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
-    return _op.concatenate(_as_list(inexpr), axis=1)
+    if etab.data_layout == 'NHWC' or len(keras_layer.input_shape) < 4:
+        axis = -1
+    else:
+        axis = 1
+    return _op.concatenate(_as_list(inexpr), axis=axis)
 
 
 def _convert_reshape(inexpr, keras_layer, _):
@@ -740,7 +777,7 @@ def keras_op_to_relay(inexpr, keras_layer, outname, etab):
         etab.set_expr(name, out)
 
 
-def from_keras(model, shape=None):
+def from_keras(model, shape=None, layout='NCHW'):
     """Convert keras model to relay Function.
 
     Parameters
@@ -750,6 +787,10 @@ def from_keras(model, shape=None):
 
     shape: dict of str to int list/tuple
         Input shapes of the model, optional
+
+    layout: str
+        One of 'NCHW' or 'NHWC', indicates how data should be arranged in
+        the output model.
 
     Returns
     -------
@@ -793,6 +834,9 @@ def from_keras(model, shape=None):
     assert isinstance(model, expected_model_class)
 
     etab = ExprTable()
+    # Set global data format.
+    assert layout in ['NCHW', 'NHWC'], "Layout must be one of 'NCHW' or NHWC"
+    etab.data_layout = layout
     for keras_layer in model.layers:
         if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
@@ -818,7 +862,11 @@ def from_keras(model, shape=None):
                 # The one exception is InputLayer. Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible. Fortunately,
                 # they are named uniquely to input_1, input_2, input_3... by default.
-                zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
+                _as_list = lambda x: x if isinstance(x, (list, tuple)) else [x]
+                zip_node = zip(
+                    _as_list(node.node_indices),
+                    _as_list(node.tensor_indices),
+                    _as_list(node.inbound_layers))
                 for n_idx, t_idx, inbound_layer in zip_node:
                     if isinstance(inbound_layer, input_layer_class):
                         expr_name = inbound_layer.name
