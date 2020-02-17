@@ -46,7 +46,7 @@ te::Schedule OpImplementation::Schedule(const Attrs& attrs,
 void OpSpecialization::AddImplementation(tvm::relay::FTVMCompute fcompute,
                                          tvm::relay::FTVMSchedule fschedule,
                                          std::string name,
-                                         int plevel){
+                                         int plevel) {
   auto n = make_object<OpImplementationNode>();
   n->fcompute = fcompute;
   n->fschedule = fschedule;
