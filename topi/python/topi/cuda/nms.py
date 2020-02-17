@@ -103,6 +103,8 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     tid = bx * max_threads + tx
     idxd = tvm.indexdiv
 
+    with ib.if_scope(tid < batch_size):
+        valid_count[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         Flag[tid] = 0
@@ -111,8 +113,6 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
             Flag[tid] = 1
             atomicAdd_return[0] = atomicAdd(tvm.call_pure_intrin("handle", "tvm_address_of",
                                                                  valid_count[i]), one_count)
-    with ib.else_scope():
-        Flag[tid] = 0
 
     return ib.get()
 
@@ -138,6 +138,8 @@ def flag_scan(Flag, PrefixSum):
     idxd = tvm.indexdiv
     idxm = tvm.indexmod
 
+    with ib.if_scope(tid < batch_size * num_anchors):
+        PrefixSum[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
