@@ -892,7 +892,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         (const Buffer &buffer) {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
-          if (ca->type == Int(1) && cb->type == Int(1)) {
+          if (ca->dtype == DataType::Int(1) && cb->dtype == DataType::Int(1)) {
             return EvaluateNode::make(
                     CallNode::make(DataType::Handle(),
                           intrinsic::tvm_bmma_sync,

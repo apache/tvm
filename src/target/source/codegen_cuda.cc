@@ -468,8 +468,10 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
       stream << ' ';
       PrintType(op->dtype, stream);
     }
-    if ((op->type == Int(4) || op->type == UInt(4) || op->type == Int(1)) && scope == "shared") {
-      constant_size = constant_size / (32 / op->type.bits());
+    if ((op->dtype == DataType::Int(4) ||
+         op->dtype == DataType::UInt(4) ||
+         op->dtype == DataType::Int(1)) && scope == "shared") {
+      constant_size = constant_size / (32 / op->dtype.bits());
     }
     stream << ' '<< vid << '['
            << constant_size << "];\n";

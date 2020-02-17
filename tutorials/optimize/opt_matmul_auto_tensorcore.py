@@ -252,8 +252,7 @@ if len(sys.argv) >= 6:
   layout = sys.argv[5]
 
 # check whether current gpu arch support support current dtype's wmma codegen
-from tvm import _api_internal
-cuda_compute_capability = _api_internal._GetDeviceAttr(2, 0, 4)
+cuda_compute_capability = tvm.runtime._ffi_api.GetDeviceAttr(2, 0, 4)
 major, minor= nvcc.parse_compute_version(cuda_compute_capability)
 if dtype == 'int8':
   assert(major == 7 and minor >= 2)

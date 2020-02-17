@@ -184,7 +184,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                IntImm(DataType::UInt(8), dtype.bits()) &&
                TVMArrayGet(DataType::UInt(16), handle, intrinsic::kArrTypeLanes) ==
                IntImm(DataType::UInt(16), dtype.lanes()));
-  if (!(dtype == Int(4) || dtype == UInt(4) || dtype == Int(1))) {
+  if (!(dtype == DataType::Int(4) ||
+        dtype == DataType::UInt(4) ||
+        dtype == DataType::Int(1))) {
     asserts_.emplace_back(AssertStmtNode::make(cond, type_err_msg.str(), nop));
   }
   // data field
@@ -203,7 +205,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   init_nest_.emplace_back(LetStmtNode::make(
       v_shape, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrShape), nop));
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
-    if (dtype == Int(4) || dtype == UInt(4) || dtype == Int(1)) {
+    if (dtype == DataType::Int(4) ||
+        dtype == DataType::UInt(4) ||
+        dtype == DataType::Int(1)) {
       break;
     }
     std::ostringstream field_name;
