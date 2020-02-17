@@ -209,7 +209,7 @@ def _convolution():
 
         channels = weight_shape[0]
         kernel_size = weight_shape[2:]
-        use_bias = True if isinstance(bias, _expr.Expr) else False
+        use_bias = isinstance(bias, _expr.Expr)
 
         if isinstance(strides, _expr.Expr):
             strides = _infer_shape(strides)
@@ -358,7 +358,7 @@ def _flatten():
 
 def _dense():
     def _impl(inputs, input_types):
-        use_bias = True if isinstance(inputs[0], _expr.Expr) else False
+        use_bias = isinstance(inputs[0], _expr.Expr)
 
         data = inputs[1]
         data_type = input_types[1]
