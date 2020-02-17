@@ -234,14 +234,18 @@ def _convert_dense(inexpr, keras_layer, etab):
 
 def _convert_convolution(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
-    if etab.data_layout == 'NHWC':
-        kernel_layout = 'HWIO'
-    else:
-        kernel_layout = 'OIHW'
     is_deconv = type(keras_layer).__name__ == 'Conv2DTranspose'
     is_depthconv = type(keras_layer).__name__ == 'DepthwiseConv2D'
     weightList = keras_layer.get_weights()
     weight = weightList[0]
+    if etab.data_layout == 'NHWC':
+        if is_depthconv:
+            kernel_layout = 'HWOI'
+        else:
+            kernel_layout = 'HWIO'
+    else:
+        kernel_layout = 'OIHW'
+
     if is_deconv:
         kernel_h, kernel_w, n_filters, in_channels = weight.shape
         if kernel_layout == 'OIHW':
@@ -250,8 +254,6 @@ def _convert_convolution(inexpr, keras_layer, etab):
         kernel_h, kernel_w, in_channels, depth_mult = weight.shape
         if kernel_layout == 'OIHW':
             weight = weight.transpose([2, 3, 0, 1])
-        else:
-            kernel_layout = "HWOI"
     elif etab.data_layout == 'NCHW':
         kernel_h, kernel_w, in_channels, n_filters = weight.shape
         weight = weight.transpose([3, 2, 0, 1])
@@ -286,13 +288,12 @@ def _convert_convolution(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
         if pad_t == pad_b and pad_l == pad_r:
             params['padding'] = (pad_t, pad_l)
+        elif etab.data_layout == 'NCHW':
+            inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
         else:
-            if etab.data_layout == 'NCHW':
-                inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                    (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
-            else:
-                inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                    (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
+            inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
 
     else:
         msg = 'Padding with {} is not supported for operator Convolution ' \
@@ -352,13 +353,12 @@ def _convert_separable_convolution(inexpr, keras_layer, etab):
         pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
         if pad_t == pad_b and pad_l == pad_r:
             params0['padding'] = (pad_t, pad_l)
+        elif etab.data_layout == 'NCHW':
+            inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
         else:
-            if etab.data_layout == 'NCHW':
-                inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                    (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
-            else:
-                inexpr = _op.nn.pad(data=inexpr, pad_width=(
-                    (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
+            inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                (0, 0), (pad_t, pad_b), (pad_l, pad_r), (0, 0)))
 
     else:
         msg = 'Padding with {} is not supported for operator Separable ' \
@@ -818,7 +818,8 @@ def from_keras(model, shape=None, layout='NCHW'):
 
     layout: str
         One of 'NCHW' or 'NHWC', indicates how data should be arranged in
-        the output model.
+        the output model. Default layout is 'NCHW' as it in general
+        performs better across TVM.
 
     Returns
     -------
