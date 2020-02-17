@@ -189,6 +189,7 @@ class ExprPack(ExprMutator):
         self.bias_add = op.op.get("nn.bias_add")
         self.pad = op.op.get("nn.pad")
         self.upsampling = op.op.get("nn.upsampling")
+        self.reshape = op.op.get("reshape")
         self.number_of_conv2d = 0
         super().__init__()
 
@@ -340,6 +341,10 @@ class ExprPack(ExprMutator):
                                         data_layout,
                                         method,
                                         align_corners)
+            elif call.op == self.reshape and len(input_types[0].shape) == 4:
+                data, = args
+                data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
+                return op.reshape(data, input_types[0].shape)
 
         return relay.Call(
             self.visit(call.op),
