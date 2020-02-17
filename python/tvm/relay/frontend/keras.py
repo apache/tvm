@@ -890,7 +890,6 @@ def from_keras(model, shape=None, layout='NCHW'):
                 # The one exception is InputLayer. Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible. Fortunately,
                 # they are named uniquely to input_1, input_2, input_3... by default.
-                _as_list = lambda x: x if isinstance(x, (list, tuple)) else [x]
                 zip_node = zip(
                     _as_list(node.node_indices),
                     _as_list(node.tensor_indices),
