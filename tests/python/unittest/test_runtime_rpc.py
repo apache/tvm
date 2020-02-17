@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 import os
 import logging
 import time
@@ -210,7 +211,7 @@ def test_rpc_return_ndarray():
         if name == "get_arr":
             return lambda : nd
         elif name == "ref_count":
-            return lambda : tvm._api_internal._ndarray_use_count(nd)
+            return lambda : tvm.testing.ndarray_use_count(nd)
         elif name == "get_elem":
             return lambda idx: nd.asnumpy()[idx]
         elif name == "get_arr_elem":

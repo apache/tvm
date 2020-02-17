@@ -54,11 +54,11 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 
-TVM_REGISTER_GLOBAL("_nop")
+TVM_REGISTER_GLOBAL("testing.nop")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
   });
 
-TVM_REGISTER_GLOBAL("_test_wrap_callback")
+TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     PackedFunc pf = args[0];
     *ret = runtime::TypedPackedFunc<void()>([pf](){
@@ -66,7 +66,7 @@ TVM_REGISTER_GLOBAL("_test_wrap_callback")
       });
   });
 
-TVM_REGISTER_GLOBAL("_test_raise_error_callback")
+TVM_REGISTER_GLOBAL("testing.test_raise_error_callback")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     std::string msg = args[0];
     *ret = runtime::TypedPackedFunc<void()>([msg](){
@@ -74,7 +74,7 @@ TVM_REGISTER_GLOBAL("_test_raise_error_callback")
       });
   });
 
-TVM_REGISTER_GLOBAL("_test_check_eq_callback")
+TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     std::string msg = args[0];
     *ret = runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y){
@@ -82,7 +82,7 @@ TVM_REGISTER_GLOBAL("_test_check_eq_callback")
       });
   });
 
-TVM_REGISTER_GLOBAL("_context_test")
+TVM_REGISTER_GLOBAL("testing.context_test")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     DLContext ctx = args[0];
     int dtype = args[1];
@@ -103,11 +103,11 @@ void ErrorTest(int x, int y) {
   }
 }
 
-TVM_REGISTER_GLOBAL("_ErrorTest")
+TVM_REGISTER_GLOBAL("testing.ErrorTest")
 .set_body_typed(ErrorTest);
 
 // internal function used for debug and testing purposes
-TVM_REGISTER_GLOBAL("_ndarray_use_count")
+TVM_REGISTER_GLOBAL("testing.ndarray_use_count")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     runtime::NDArray nd = args[0];
     // substract the current one

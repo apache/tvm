@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.schedule import Buffer
+from tvm.tir import Buffer
 import numpy as np
 
 def test_buffer():
@@ -25,7 +25,7 @@ def test_buffer():
     Ab = tvm.decl_buffer((m, n), tvm.float32)
     Bb = tvm.decl_buffer((n, l), tvm.float32)
 
-    assert isinstance(Ab, tvm.schedule.Buffer)
+    assert isinstance(Ab, tvm.tir.Buffer)
     assert Ab.dtype == tvm.float32
     assert tuple(Ab.shape) == (m, n)
 

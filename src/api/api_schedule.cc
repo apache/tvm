@@ -47,9 +47,9 @@ TVM_REGISTER_GLOBAL("schedule.ScheduleOps")
     *ret = ScheduleOps(args[0], args[1], args[2]);
 });
 
-#define REGISTER_SCHEDULE_PASS(PassName)                          \
+#define REGISTER_SCHEDULE_PASS(PassName)                             \
   TVM_REGISTER_GLOBAL("schedule."#PassName)                          \
-  .set_body_typed(PassName);                                     \
+  .set_body_typed(PassName);                                         \
 
 
 REGISTER_SCHEDULE_PASS(InferBound);
