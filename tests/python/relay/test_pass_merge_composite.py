@@ -110,6 +110,26 @@ def make_conv_bias_relu_pattern():
     return r
 
 
+def make_add_add_add_pattern():
+    """Create a pattern to match the following graph.
+       Useful for testing re-using a call node.
+
+        x    y
+      /  \  /
+      |  add
+       \  |  \
+         add |
+          | /
+         add
+    """
+    x = relay.var('x')
+    y = relay.var('y')
+    add_node = relay.add(x, y)
+    add_node_1 = relay.add(x, add_node)
+    r = relay.add(add_node_1, add_node)
+    return r
+
+
 def test_simple_merge():
     """Test composite function is correctly produced from simple graph.
 
@@ -232,6 +252,67 @@ def test_branch_merge():
         m_add_sub_mul_2 = relay.Call(add_sub_mul_1, [c, m_add_sub_mul_1])
         r = relay.nn.relu(m_add_sub_mul_2)
         return relay.Function([a, b, c], r)
+
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result)
+    expected = run_opt_pass(expected(), relay.transform.InferType())
+    assert relay.analysis.alpha_equal(result, expected)
+
+
+def test_reuse_call_merge():
+    """Test composite function is correctly produced from simple graph
+       which re-uses call nodes.
+
+    We could expect the pattern `make_add_add_add` to be merged
+    into a single op `add_add_add`.
+
+        x     y
+         \   / \
+          sub  |           x     y
+        /  |  /             \   / |
+        | add      ====>     sub  |
+         \ |  \               |  /
+          add |           add_add_add
+           | /
+          add
+
+    """
+    pattern_table = [
+        ("add_add_add", make_add_add_add_pattern())
+    ]
+
+    def before():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+        sub_node = relay.subtract(a, b)
+
+        # pattern
+        add_node = relay.add(sub_node, b)
+        add_node_1 = relay.add(sub_node, add_node)
+        r = relay.add(add_node_1, add_node)
+
+        return relay.Function([a, b], r)
+
+    def expected():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+
+        # add_relu_add function
+        in_1 = relay.var('in_1', shape=(10, 10))
+        in_2 = relay.var('in_2', shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        add_node_1 = relay.add(in_1, add_node)
+        add_node_2 = relay.add(add_node_1, add_node)
+        add_add_add = relay.Function([in_1, in_2], add_node_2)
+        add_add_add = add_add_add.set_attribute("Primitive",
+                                                tir.IntImm("int32", 1))
+        add_add_add = add_add_add.set_attribute("Composite",
+                                                tir.StringImm("add_add_add"))
+
+        # merged function
+        sub_node = relay.subtract(a, b)
+        call = relay.Call(add_add_add, [sub_node, b])
+        return relay.Function([a, b], call)
 
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
@@ -608,3 +689,4 @@ if __name__ == "__main__":
     test_merge_order()
     test_parallel_merge()
     test_multiple_input_subgraphs()
+    test_reuse_call_merge()
