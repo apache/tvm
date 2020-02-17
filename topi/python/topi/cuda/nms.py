@@ -103,11 +103,14 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     tid = bx * max_threads + tx
     idxd = tvm.indexdiv
 
+    # initialize valid_count
     with ib.if_scope(tid < batch_size):
         valid_count[tid] = 0
+    # initialize Flag
+    with ib.if_scope(tid < batch_size * num_anchors):
+        Flag[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
-        Flag[tid] = 0
         with ib.if_scope(tvm.all(data[tid * elem_length + score_index] > score_threshold,
                                  tvm.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
             Flag[tid] = 1
@@ -138,6 +141,7 @@ def flag_scan(Flag, PrefixSum):
     idxd = tvm.indexdiv
     idxm = tvm.indexmod
 
+    # initialize PrefixSum
     with ib.if_scope(tid < batch_size * num_anchors):
         PrefixSum[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):

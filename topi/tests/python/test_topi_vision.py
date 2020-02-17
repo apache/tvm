@@ -63,27 +63,21 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
         f = tvm.build(s, [data, outs[0], outs[1]], device)
         f(tvm_input_data, tvm_out1, tvm_out2)
-        import sys
-        np.set_printoptions(threshold=sys.maxsize)
-        #print(tvm_out2.asnumpy())
-        #print("====================================")
-        #print(np_out2)
-        #print("===============diff================")
-        #print(tvm_out2.asnumpy() - np_out2)
         tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
-    for device in ['cuda', 'opencl']:
-        # Disable gpu test for now
+    for device in ['llvm', 'cuda', 'opencl']:
+        # Disable opencl test for now
+        if device != "llvm" and device != "cuda":
+            continue
         check_device(device)
 
 
 def test_get_valid_counts():
-    verify_get_valid_counts((1, 122640, 6), 0.01, 0, 1)
-    verify_get_valid_counts((1, 125000, 6), 0, 0, 1)
-    #verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
-    #verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
-    #verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)
+    verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
+    verify_get_valid_counts((1, 2500, 5), -1, -1, 0)
+    verify_get_valid_counts((3, 1000, 6), 0.55, 1, 0)
+    verify_get_valid_counts((16, 500, 5), 0.95, -1, 1)
 
 
 def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_result, iou_threshold,
@@ -430,8 +424,8 @@ def test_proposal():
 
 if __name__ == "__main__":
     test_get_valid_counts()
-    #test_non_max_suppression()
-    #test_multibox_prior()
-    #test_multibox_detection()
-    #test_roi_align()
-    #test_proposal()
+    test_non_max_suppression()
+    test_multibox_prior()
+    test_multibox_detection()
+    test_roi_align()
+    test_proposal()
