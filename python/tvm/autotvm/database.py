@@ -167,10 +167,12 @@ class RedisDatabase(Database):
             current = self.get(key)
             try:
                 records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
-                records = list(filter(None, records))
+                records = [rec for rec in records if rec is not None]
             except TypeError: # got a badly formatted/old format record
                 continue
 
+            if not records:
+                continue
             inps, results = zip(*records)
             inp = inps[0]
             if not func(inp, results):

@@ -124,15 +124,16 @@ def decode(row, protocol='json'):
 
     Parameters
     ----------
-    row: str
+    row : str
         a row in the logger file
-    protocol: str
+
+    protocol : str
         log protocol, json or pickle
 
     Returns
     -------
-    input: autotvm.tuner.MeasureInput
-    result: autotvm.tuner.MeasureResult
+    ret : tuple(autotvm.tuner.MeasureInput, autotvm.tuner.MeasureResult), or None
+        The tuple of input and result, or None if input uses old version log format.
     """
     # pylint: disable=unused-variable
     global _old_version_warning
@@ -229,8 +230,7 @@ def split_workload(in_file, clean=True):
 
     logger.info("start converting...")
     pool = multiprocessing.Pool()
-    lines = pool.map(decode, lines)
-    lines = list(filter(None, lines))
+    lines = [rec for rec in pool.map(decode, lines) if rec is not None]
     logger.info("map done %.2f", time.time() - tic)
 
     wkl_dict = OrderedDict()
