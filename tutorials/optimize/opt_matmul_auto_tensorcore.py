@@ -236,6 +236,10 @@ def test_gemm(N, L, M, dtype, layout):
 # and run the kernel to compare with numpy to check whether the results are correct.
 
 # check whether the gpu has tensorcore
+if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+  print("skip because cuda is not enabled..")
+  sys.exit(0)
+
 ctx = tvm.gpu()
 if not nvcc.have_tensorcore(ctx.compute_version):
   print('the gpu has no tensorcore, skipping...')
