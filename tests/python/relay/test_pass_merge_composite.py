@@ -18,7 +18,6 @@
 from tvm import relay
 from tvm import tir
 from tvm.relay.testing import run_opt_pass
-import tvm.tir
 
 """
 The merge composite pass is designed to merge multiple relay operators, that
@@ -110,6 +109,7 @@ def make_conv_bias_relu_pattern():
     r = relay.nn.relu(bias_node)
     return r
 
+
 def make_add_add_add_pattern():
     """Create a pattern to match the following graph.
        Useful for testing re-using a call node.
@@ -128,6 +128,7 @@ def make_add_add_add_pattern():
     add_node_1 = relay.add(x, add_node)
     r = relay.add(add_node_1, add_node)
     return r
+
 
 def test_simple_merge():
     """Test composite function is correctly produced from simple graph.
@@ -173,7 +174,7 @@ def test_simple_merge():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
 
 def test_branch_merge():
@@ -255,7 +256,8 @@ def test_branch_merge():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
+
 
 def test_reuse_call_merge():
     """Test composite function is correctly produced from simple graph
@@ -315,7 +317,7 @@ def test_reuse_call_merge():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
 
 def test_multiple_patterns():
@@ -410,7 +412,7 @@ def test_multiple_patterns():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(expected(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
 
 def test_merge_order():
@@ -554,7 +556,7 @@ def test_parallel_merge():
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
 
 def test_multiple_input_subgraphs():
@@ -671,13 +673,13 @@ def test_multiple_input_subgraphs():
     result = run_opt_pass(before()['A'], relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_A(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
     # check case 'B'
     result = run_opt_pass(before()['B'], relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
     expected = run_opt_pass(after_B(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert relay.analysis.alpha_equal(result, expected)
 
 
 if __name__ == "__main__":
