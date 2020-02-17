@@ -49,7 +49,7 @@ def atomicAdd(x, y):
 
 def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
-    given a score threshold. Also moves valid boxes to the
+    given a score threshold. Also prepares to move valid boxes to the
     top of input data.
 
     Parameters
@@ -57,17 +57,20 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     data : Buffer
         Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
 
-    flag : Buffer
+    valid_count : Buffer
+        1D buffer for valid number of boxes with shape [batch_size, ].
+
+    Flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
-    idx : Buffer
-        2D Buffer of valid data indices with shape [batch_size, num_anchors].
+    score_threshold : float32
+        Lower limit of score for valid bounding boxes.
 
-    valid_count : Buffer
-        1-D buffer for valid number of boxes.
+    id_index : optional, int
+        index of the class categories, -1 to disable.	
 
-    out : Buffer
-        Rearranged data buffer.
+    score_index: optional, int
+        Index of the scores/confidence of boxes.
 
     Returns
     -------
@@ -121,6 +124,21 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
 
 
 def flag_scan(Flag, PrefixSum):
+    """Low level IR to calculate correct positions for valid boxes.
+
+    Parameters
+    ----------
+    Flag : Buffer
+        2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
+
+    PrefixSum : Buffer
+        2D Buffer of prefix sum of flags indicating new locations of valid boxes with same shape as Flag.
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
     batch_size = Flag.shape[0]
     num_anchors = Flag.shape[1]
 
@@ -154,6 +172,31 @@ def flag_scan(Flag, PrefixSum):
 
 
 def out_rewrite(data, Flag, PrefixSum, valid_count, out):
+    """Low level IR to move valid boxes to the
+    top of input data.
+
+    Parameters
+    ----------
+    data : Buffer
+        Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
+
+    Flag : Buffer
+        2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
+
+    PrefixSum : Buffer
+        2D Buffer of prefix sum of flags indicating new locations of valid boxes with same shape as Flag.
+
+    valid_count : Buffer
+        1D buffer for valid number of boxes with shape [batch_size, ].
+
+    out : Buffer
+        Rearranged data buffer.
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
     batch_size = out.shape[0]
     num_anchors = out.shape[1]
     elem_length = out.shape[2]
