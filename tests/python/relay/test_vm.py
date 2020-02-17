@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+import numpy as np
+import pytest
 
 import tvm
-import numpy as np
+from tvm import runtime
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.prelude import Prelude
+from tvm.relay.loops import while_loop
 from tvm.relay import testing
-import pytest
 
 def check_result(args, expected_result, mod=None):
     """
@@ -46,20 +47,20 @@ def check_result(args, expected_result, mod=None):
 
 def veval(f, *args, ctx=tvm.cpu(), target="llvm"):
     if isinstance(f, relay.Expr):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         mod["main"] = f
     else:
-        assert isinstance(f, relay.Module), "expected expression or module"
+        assert isinstance(f, tvm.IRModule), "expected expression or module"
         mod = f
     exe = relay.vm.compile(mod, target)
-    vm = relay.vm.VirtualMachine(exe)
+    vm = runtime.vm.VirtualMachine(exe)
     vm.init(ctx)
     return vm.invoke("main", *args)
 
 def vmobj_to_list(o):
     if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.container.ADT):
+    elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
@@ -92,7 +93,7 @@ def test_id():
     x = relay.var('x', shape=(10, 10), dtype='float64')
     f = relay.Function([x], x)
     x_data = np.random.rand(10, 10).astype('float64')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([x_data], x_data, mod=mod)
 
@@ -100,7 +101,7 @@ def test_op():
     x = relay.var('x', shape=(10, 10))
     f = relay.Function([x], x + x)
     x_data = np.random.rand(10, 10).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([x_data], 2 * x_data, mod=mod)
 
@@ -116,7 +117,7 @@ def test_cond():
     x_data = np.random.rand(10, 10).astype('float32')
     y_data = np.random.rand(10, 10).astype('float32')
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     # same
     check_result([x_data, x_data], True, mod=mod)
@@ -132,7 +133,7 @@ def test_simple_if():
     x_data = np.random.rand(10, 10).astype('float32')
     y_data = np.random.rand(10, 10).astype('float32')
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     # same
     check_result([x_data, x_data], x_data, mod=mod)
@@ -141,7 +142,7 @@ def test_simple_if():
     check_result([x_data, y_data], y_data, mod=mod)
 
 def test_simple_call():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
@@ -154,7 +155,7 @@ def test_simple_call():
     check_result([i_data], i_data, mod=mod)
 
 def test_count_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
@@ -174,7 +175,7 @@ def test_count_loop():
     check_result([i_data], i_data, mod=mod)
 
 def test_sum_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
@@ -201,7 +202,7 @@ def test_tuple_fst():
     f = relay.Function([tup], relay.TupleGetItem(tup, 0))
     i_data = np.random.rand(41).astype('float32')
     j_data = np.random.rand(10).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([(i_data, j_data)], i_data, mod=mod)
 
@@ -211,12 +212,12 @@ def test_tuple_second():
     f = relay.Function([tup], relay.TupleGetItem(tup, 1))
     i_data = np.random.rand(41).astype('float32')
     j_data = np.random.rand(10).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([(i_data, j_data)], j_data, mod=mod)
 
 def test_list_constructor():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -251,7 +252,7 @@ def test_let_tensor():
     f = relay.Function([x], body)
 
     x_data = np.random.rand(*shape).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([x_data], x_data + 42.0, mod=mod)
 
@@ -267,12 +268,12 @@ def test_let_scalar():
     f = relay.Function([x], body)
 
     x_data = np.array(np.random.rand()).astype('float32')
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod["main"] = f
     check_result([x_data], x_data + 42.0, mod=mod)
 
 def test_compose():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     compose = p.compose
@@ -305,7 +306,7 @@ def test_compose():
     tvm.testing.assert_allclose(result.asnumpy(), x_data + 2.0)
 
 def test_list_hd():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -326,7 +327,7 @@ def test_list_hd():
 
 @pytest.mark.xfail
 def test_list_tl_empty_list():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -341,7 +342,7 @@ def test_list_tl_empty_list():
     print(result)
 
 def test_list_tl():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -364,7 +365,7 @@ def test_list_nth():
     expected = list(range(10))
 
     for i in range(len(expected)):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
 
         nil = p.nil
@@ -382,7 +383,7 @@ def test_list_nth():
 def test_list_update():
     expected = list(range(10))
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -406,7 +407,7 @@ def test_list_update():
 def test_list_length():
     expected = list(range(10))
 
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -426,7 +427,7 @@ def test_list_length():
     tvm.testing.assert_allclose(result.asnumpy(), 10)
 
 def test_list_map():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     x = relay.var('x', 'int32')
@@ -444,7 +445,7 @@ def test_list_map():
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 2]))
 
 def test_list_foldl():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -462,7 +463,7 @@ def test_list_foldl():
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([3, 3, 2, 2, 1, 1]))
 
 def test_list_foldr():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -480,7 +481,7 @@ def test_list_foldr():
     tvm.testing.assert_allclose(vmobj_to_list(result), np.array([1, 2, 3]))
 
 def test_list_sum():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -494,7 +495,7 @@ def test_list_sum():
     tvm.testing.assert_allclose(result.asnumpy(), 6)
 
 def test_list_filter():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     nil = p.nil
@@ -530,7 +531,7 @@ def test_add_op_scalar():
             return x + y;
         }
     """
-    mod = relay.Module()
+    mod = tvm.IRModule()
     x = relay.var('x', shape=())
     y = relay.var('y', shape=())
     func = relay.Function([x, y], relay.op.add(x, y))
@@ -546,7 +547,7 @@ def test_add_op_tensor():
             return x + y;
         }
     """
-    mod = relay.Module()
+    mod = tvm.IRModule()
     x = relay.var('x', shape=(10, 5))
     y = relay.var('y', shape=(10, 5))
     func = relay.Function([x, y], relay.op.add(x, y))
@@ -562,7 +563,7 @@ def test_add_op_broadcast():
             return x + y;
         }
     """
-    mod = relay.Module()
+    mod = tvm.IRModule()
     x = relay.var('x', shape=(10, 5))
     y = relay.var('y', shape=(1, 5))
     func = relay.Function([x, y], relay.op.add(x, y))
@@ -573,8 +574,34 @@ def test_add_op_broadcast():
 
 def test_vm_optimize():
     mod, params = testing.resnet.get_workload(batch_size=1, num_layers=18)
-    comp = relay.backend.vm.VMCompiler()
+    comp = relay.vm.VMCompiler()
     opt_mod, _ = comp.optimize(mod, "llvm", params)
+
+def test_loop_free_var():
+    x = relay.var('x', shape=(), dtype='int32')
+    i = relay.var('i', shape=(), dtype='int32')
+    s = relay.var('s', shape=(), dtype='int32')
+
+    def cond(i, _):
+        return i < relay.const(10, dtype='int32')
+
+    def body_no_free_var(i, acc):
+        incr = relay.const(1, "int32")
+        return i + incr, acc + i
+
+    def body_with_free_var(i, acc):
+        incr = relay.const(1, "int32")
+        return i + incr, acc + x
+
+    for args, body, expected in zip([[], [1]],
+                                    [body_no_free_var, body_with_free_var],
+                                    [45, 10]):
+        loop = while_loop(cond, [i, s], body)
+        tup = loop(relay.const(0, dtype='int32'), relay.zeros(shape=(), dtype='int32'))
+        ret = relay.TupleGetItem(tup, 1)
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
+        check_result(args, expected, mod=mod)
 
 if __name__ == "__main__":
     pytest.main([__file__])

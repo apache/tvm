@@ -165,7 +165,7 @@ using TypeRelationFn =
                       const TypeReporter& reporter)>;
 
 /*!
- * \brief User defined type relation, is an input-output relation on types.
+ * \brief User defined type relation, it is an input-output relation on types.
  *
  * TypeRelation is more generalized than type call as it allows inference
  * of both inputs and outputs.

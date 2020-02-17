@@ -92,7 +92,7 @@ class AlphaEqualHandler:
     auto compute = [&]() {
       if (&lhs == &rhs) return true;
       if (auto lhsd = lhs.as<DictAttrsNode>()) {
-        auto rhsd = lhs.as<DictAttrsNode>();
+        auto rhsd = rhs.as<DictAttrsNode>();
         if (!rhsd) return false;
         if (lhsd->dict.size() != rhsd->dict.size()) return false;
         for (const auto& k : lhsd->dict) {
@@ -597,6 +597,11 @@ bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
 TVM_REGISTER_GLOBAL("relay._make._alpha_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   return AlphaEqualHandler(false, false).Equal(a, b);
+});
+
+TVM_REGISTER_GLOBAL("ir.type_alpha_equal")
+.set_body_typed([](Type a, Type b) {
+  return AlphaEqual(a, b);
 });
 
 TVM_REGISTER_GLOBAL("relay._make._assert_alpha_equal")

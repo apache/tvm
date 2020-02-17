@@ -334,7 +334,7 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
 
-TVM_REGISTER_GLOBAL("_AttrsListFieldInfo")
+TVM_REGISTER_GLOBAL("ir.AttrsListFieldInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator Attrs()->ListFieldInfo();
 });

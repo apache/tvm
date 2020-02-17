@@ -84,7 +84,7 @@ def check_server_drop():
                 f1 = remote2.get_function("rpc.test2.addone")
                 assert f1(10) == 11
 
-            except tvm.TVMError as e:
+            except tvm.error.TVMError as e:
                 pass
             remote3 = tclient.request("abc")
             f1 = remote3.get_function("rpc.test2.addone")

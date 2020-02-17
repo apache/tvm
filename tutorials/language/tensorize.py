@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tutorials-tensorize:
+
 Use Tensorize to Leverage Hardware Intrinsics
 =============================================
 **Author**: `Yizhi Liu <https://github.com/yzhliu>`_

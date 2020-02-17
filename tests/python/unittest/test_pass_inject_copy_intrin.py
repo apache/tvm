@@ -33,7 +33,7 @@ def test_copy2d():
         assert dst.strides[1].value == 1
         assert src.strides[0] == l
         assert tuple(src.shape) == (m, l)
-        return tvm.make.Evaluate(0)
+        return tvm.tir.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def test_copy_pad():
@@ -57,7 +57,7 @@ def test_copy_pad():
         assert pad_after[0].value == 1
         assert pad_after[1].value == 0
         assert pad_value.value == 1.0
-        return tvm.make.Evaluate(0)
+        return tvm.tir.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def test_single_point_test():
@@ -76,7 +76,7 @@ def test_single_point_test():
         assert tvm.ir_pass.Simplify(dst.elem_offset).value == 0
         assert tvm.ir_pass.Simplify(src.strides[0]).value == 1
         assert tvm.ir_pass.Simplify(dst.strides[0]).value == 1
-        return tvm.make.Evaluate(0)
+        return tvm.tir.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def assert_expr_equal(a, b):
@@ -109,7 +109,7 @@ def test_copy_pad_split():
         assert_expr_equal(pad_before[0], rpad_before)
         assert_expr_equal(pad_after[0], rpad_after)
         assert_expr_equal(src.shape[0], 6 - rpad_before - rpad_after)
-        return tvm.make.Evaluate(0)
+        return tvm.tir.Evaluate(0)
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 

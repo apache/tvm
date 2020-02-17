@@ -429,7 +429,9 @@ def cast(x, dtype):
     if isinstance(x, tvm.tensor.Tensor):
         return tvm.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
-    return tvm.make._cast(dtype, x)
+    # pylint: disable=import-outside-toplevel
+    from tvm.tir import _ffi_api
+    return _ffi_api._cast(dtype, x)
 
 
 def reinterpret(x, dtype):
@@ -449,3 +451,19 @@ def reinterpret(x, dtype):
         The result.
     """
     return cpp.reinterpret(x, dtype)
+
+
+def fast_exp(x):
+    """Take exponential of input x using fast_exp implementation
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)

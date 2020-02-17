@@ -131,6 +131,7 @@ class RelayTextPrinter :
     } else if (node.as<IRModuleNode>()) {
       return PrintMod(Downcast<IRModule>(node));
     } else {
+      // default module.
       std::ostringstream os;
       os << node;
       return Doc() << os.str();
@@ -914,11 +915,15 @@ std::string AsText(const ObjectRef& node,
                    bool show_meta_data,
                    runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
   Doc doc;
-  doc << kSemVer << Doc::NewLine()
-      << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
+  doc << kSemVer << Doc::NewLine();
+  doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
   return doc.str();
 }
 
-TVM_REGISTER_GLOBAL("relay._expr.AsText")
+
+TVM_REGISTER_GLOBAL("ir.PrettyPrint")
+.set_body_typed(PrettyPrint);
+
+TVM_REGISTER_GLOBAL("ir.AsText")
 .set_body_typed(AsText);
 }  // namespace tvm

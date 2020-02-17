@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""FFI APIs for tvm.tir"""
+import tvm._ffi
 
-from typing import Union, Tuple, Dict, List
-from relay.ir import GlobalId, OperatorId, Item, Object, Span, FileId
-from relay.ir import ShapeExtension, Operator, Defn
 
-class Module(Object): ...
+tvm._ffi._init_api("tir", __name__)

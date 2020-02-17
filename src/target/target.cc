@@ -144,7 +144,7 @@ Target CreateTarget(const std::string& target_name,
   return Target(t);
 }
 
-TVM_REGISTER_GLOBAL("_TargetCreate")
+TVM_REGISTER_GLOBAL("target.TargetCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_name = args[0];
   std::vector<std::string> options;
@@ -156,7 +156,7 @@ TVM_REGISTER_GLOBAL("_TargetCreate")
   *ret = CreateTarget(target_name, options);
   });
 
-TVM_REGISTER_GLOBAL("_TargetFromString")
+TVM_REGISTER_GLOBAL("target.TargetFromString")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   std::string target_str = args[0];
   *ret = Target::Create(target_str);
@@ -269,7 +269,7 @@ tvm::Target Target::Current(bool allow_not_defined) {
   return Target();
 }
 
-TVM_REGISTER_GLOBAL("_GetCurrentTarget")
+TVM_REGISTER_GLOBAL("target.GetCurrentTarget")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   bool allow_not_defined = args[0];
   *ret = Target::Current(allow_not_defined);
@@ -284,10 +284,10 @@ class Target::Internal {
   }
 };
 
-TVM_REGISTER_GLOBAL("_EnterTargetScope")
+TVM_REGISTER_GLOBAL("target.EnterTargetScope")
 .set_body_typed(Target::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("_ExitTargetScope")
+TVM_REGISTER_GLOBAL("target.ExitTargetScope")
 .set_body_typed(Target::Internal::ExitScope);
 
 namespace target {

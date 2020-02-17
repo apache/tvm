@@ -40,7 +40,7 @@ def test_opencl_ternary_expression():
         true_value = tvm.const(1, dtype=dtype)
         false_value = tvm.const(3, dtype=dtype)
         max_lhs = tvm.const(2, dtype=dtype)
-        max_rhs = tvm.expr.Select(A[0] > 0, true_value, false_value)
+        max_rhs = tvm.tir.Select(A[0] > 0, true_value, false_value)
         C = tvm.compute((n,), lambda i: tvm.max(max_lhs, max_rhs), name='C')
         s = tvm.create_schedule(C.op)
         s[C].bind(s[C].op.axis[0], tvm.thread_axis("threadIdx.x"))

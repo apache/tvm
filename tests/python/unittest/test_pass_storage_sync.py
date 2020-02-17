@@ -40,14 +40,14 @@ def test_storage_sync():
     flist = tvm.ir_pass.SplitHostDevice(f)
     f = flist[1]
     f = tvm.ir_pass.ThreadSync(f, "shared")
-    body_list = tvm.make.stmt_list(f.body.body.body.body)
+    body_list = tvm.tir.stmt_list(f.body.body.body.body)
     assert(body_list[1].value.name == "tvm_storage_sync")
 
 
 def test_coproc_sync():
     @tvm.register_func("tvm.info.mem.global.cache")
     def meminfo_cache():
-        return tvm.make.node(
+        return tvm.ir.make_node(
             "MemoryInfo",
             unit_bits=8,
             max_simd_bits=32,
@@ -66,7 +66,7 @@ def test_coproc_sync():
     stmt = ib.get()
     stmt = tvm.ir_pass.CoProcSync(stmt)
     body = stmt.body.body.body
-    blist = tvm.make.stmt_list(body)
+    blist = tvm.tir.stmt_list(body)
     assert(blist[1].value.name == "cop.coproc_read_barrier")
     assert(blist[1].value.args[3].value == 80)
     assert(blist[-2].value.name == "cop.coproc_sync")
@@ -119,9 +119,9 @@ def test_coproc_sync3():
 
     stmt = ib.get()
     stmt = tvm.ir_pass.CoProcSync(stmt)
-    slist = tvm.make.stmt_list(stmt[0].body.body)
+    slist = tvm.tir.stmt_list(stmt[0].body.body)
     push_st = slist[2]
-    slist = tvm.make.stmt_list(slist[-1])
+    slist = tvm.tir.stmt_list(slist[-1])
     pop_st = slist[0].body[0]
 
     assert(push_st.value.name == "cop.coproc_dep_push")

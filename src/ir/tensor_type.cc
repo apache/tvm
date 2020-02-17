@@ -55,7 +55,7 @@ PrimExpr TensorTypeNode::Size() const {
 
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TensorType")
+TVM_REGISTER_GLOBAL("ir.TensorType")
 .set_body_typed([](Array<PrimExpr> shape, DataType dtype) {
   return TensorType(shape, dtype);
 });

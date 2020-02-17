@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to random library."""
+import tvm
 import tvm._ffi
-
 from .. import api as _api
-from .. import intrin as _intrin
 
 
 def randint(low, high, size, dtype='int32'):
@@ -39,7 +38,7 @@ def randint(low, high, size, dtype='int32'):
         A tensor with specified size and dtype
     """
     assert 'int' in dtype, "the type of randint output must be int or uint"
-    return _api.extern(size, [], lambda ins, outs: _intrin.call_packed(
+    return _api.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.random.randint", int(low), int(high), outs[0]), dtype=dtype)
 
 
@@ -67,7 +66,7 @@ def uniform(low, high, size):
     out : Tensor
         A tensor with specified size and dtype.
     """
-    return _api.extern(size, [], lambda ins, outs: _intrin.call_packed(
+    return _api.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.random.uniform", float(low), float(high), outs[0]), dtype='float32')
 
 
@@ -91,7 +90,7 @@ def normal(loc, scale, size):
     out : Tensor
         A tensor with specified size and dtype
     """
-    return _api.extern(size, [], lambda ins, outs: _intrin.call_packed(
+    return _api.extern(size, [], lambda ins, outs: tvm.tir.call_packed(
         "tvm.contrib.random.normal", float(loc), float(scale), outs[0]), dtype='float32')
 
 

@@ -557,7 +557,7 @@ def split_shape_func(attrs, inputs, _):
     """
     Shape function for split op.
     """
-    if isinstance(attrs.indices_or_sections, (int, tvm.expr.IntImm)):
+    if isinstance(attrs.indices_or_sections, (int, tvm.tir.IntImm)):
         indices_or_sections = get_const_int(attrs.indices_or_sections)
     else:
         indices_or_sections = get_const_tuple(attrs.indices_or_sections)

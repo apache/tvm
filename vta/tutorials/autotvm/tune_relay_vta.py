@@ -321,7 +321,7 @@ def register_vta_tuning_tasks():
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.current_target().device_name == 'vta':
+        if tvm.target.Target.current().device_name == 'vta':
             s = topi.generic.schedule_conv2d_nchw([res])
         else:
             s = tvm.create_schedule([res.op])
@@ -353,7 +353,7 @@ def tune_and_evaluate(tuning_opt):
     # Perform task extraction on Relay program
     print("Extract tasks...")
     relay_prog, params = compile_network(env, target, network, start_pack, stop_pack)
-    mod = relay.Module.from_expr(relay_prog)
+    mod = tvm.IRModule.from_expr(relay_prog)
     tasks = autotvm.task.extract_from_program(mod,
                                               params=params,
                                               ops=(tvm.relay.op.nn.conv2d, ),

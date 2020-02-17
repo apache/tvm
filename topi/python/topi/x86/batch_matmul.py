@@ -43,7 +43,7 @@ def _declaration_batch_matmul_nopack(cfg, x, y):
     output : tvm.Tensor
         3-D with shape [batch, M, N]
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         return cblas.batch_matmul(x, y, False, True)
 
@@ -83,7 +83,7 @@ def schedule_batch_matmul(cfg, outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if "cblas" in target.libs:
         return generic.schedule_extern(outs)
 

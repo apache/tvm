@@ -19,7 +19,9 @@ import numpy as np
 
 import tvm
 from tvm.contrib import graph_runtime
-from tvm import relay, container
+from tvm import relay
+from tvm.runtime import container
+from tvm.runtime import vm as vm_rt
 from tvm.relay import testing
 from tvm.relay import vm
 
@@ -58,7 +60,7 @@ def benchmark_execution(mod,
                       number=2, repeat=20):
         with relay.build_config(opt_level=3):
             exe = vm.compile(mod, target, params=params)
-            rly_vm = vm.VirtualMachine(exe)
+            rly_vm = vm_rt.VirtualMachine(exe)
             rly_vm.init(ctx)
             result = rly_vm.run(data)
 

@@ -79,7 +79,7 @@ def conv2d_legalize(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -101,7 +101,7 @@ def conv2d_alter_layout(attrs, inputs, tinfos, F):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols
@@ -465,7 +465,7 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = \
         get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn

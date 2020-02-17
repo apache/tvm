@@ -63,7 +63,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -106,7 +106,7 @@ def helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -169,7 +169,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -220,13 +220,13 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
 
 def is_fast_int8_on_intel():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     intel_supported_arches = {'-mcpu=skylake-avx512', '-mcpu=cascadelake'}
     return intel_supported_arches.intersection(set(target.options))
 
 def is_fast_int8_on_arm():
     """ Checks whether the hardware has support for fast Int8 arithmetic operations. """
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     return '+v8.2a,+dotprod' in ' '.join(target.options)
 
 ########################

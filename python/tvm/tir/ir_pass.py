@@ -14,25 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Code generation related functions."""
+"""Namespace of IR pass functions.
+
+This namespace is used for developers. While you do not see any declarations.
+The functions are automatically exported from C++ side via PackedFunc.
+
+Each api is a PackedFunc that can be called in a positional argument manner.
+You can read "include/tvm/tir/ir_pass.h" for the function signature and
+"src/api/api_pass.cc" for the PackedFunc's body of these functions.
+"""
 import tvm._ffi
 
-def build_module(lowered_func, target):
-    """Build lowered_func into Module.
-
-    Parameters
-    ----------
-    lowered_func : LoweredFunc
-        The lowered function
-
-    target : str
-        The target module type.
-
-    Returns
-    -------
-    module : Module
-        The corressponding module.
-    """
-    return _Build(lowered_func, target)
-
-tvm._ffi._init_api("tvm.codegen")
+tvm._ffi._init_api("tvm.ir_pass", __name__)

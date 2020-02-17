@@ -74,7 +74,7 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
         kh, kw, oc, _ = kshape
     elif pat.match(layout) is not None:
         n, ic_chunk, h, w, ic_bn = dshape
-        target = tvm.target.current_target(allow_none=False)
+        target = tvm.target.Target.current(allow_none=False)
         oc_chunk, k_ic_chunk, kh, kw, k_ic_bn, oc_bn = kshape
         assert ic_chunk == k_ic_chunk
         assert ic_bn == k_ic_bn
@@ -423,7 +423,7 @@ def _schedule_conv2d_NCHWc(cfg, outs):
                 data = data_pad.op.input_tensors[0]
 
             args = [s, cfg, data_vec, conv_out, outs[0]]
-            target = tvm.target.current_target(allow_none=False)
+            target = tvm.target.Target.current(allow_none=False)
             _, _, kh, kw, _, _, = get_const_tuple(kernel.shape)
             if kh == 1 and kw == 1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)

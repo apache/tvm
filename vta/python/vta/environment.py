@@ -62,11 +62,11 @@ class DevContext(object):
 
     def __init__(self, env):
         self.vta_axis = tvm.thread_axis("vta")
-        self.vta_push_uop = tvm.make.StringImm("VTAPushGEMMOp")
+        self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
         ctx = tvm.call_extern("handle", "VTATLSCommandHandle")
-        self.command_handle = tvm.make.Call(
+        self.command_handle = tvm.tir.Call(
             "handle", "tvm_thread_context", [ctx],
-            tvm.expr.Call.Intrinsic, None, 0)
+            tvm.tir.Call.Intrinsic, None, 0)
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -256,29 +256,29 @@ def get_env():
 @tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
 def mem_info_inp_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.INP_ELEM_BITS,
-                         max_simd_bits=spec.INP_ELEM_BITS,
-                         max_num_bits=spec.INP_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.INP_ELEM_BITS,
+                            max_simd_bits=spec.INP_ELEM_BITS,
+                            max_num_bits=spec.INP_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
 def mem_info_wgt_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.WGT_ELEM_BITS,
-                         max_simd_bits=spec.WGT_ELEM_BITS,
-                         max_num_bits=spec.WGT_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.WGT_ELEM_BITS,
+                            max_simd_bits=spec.WGT_ELEM_BITS,
+                            max_num_bits=spec.WGT_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
 def mem_info_acc_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.ACC_ELEM_BITS,
-                         max_simd_bits=spec.ACC_ELEM_BITS,
-                         max_num_bits=spec.ACC_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.ACC_ELEM_BITS,
+                            max_simd_bits=spec.ACC_ELEM_BITS,
+                            max_num_bits=spec.ACC_BUFF_SIZE * 8,
+                            head_address=None)
 
 # TVM related registration
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")

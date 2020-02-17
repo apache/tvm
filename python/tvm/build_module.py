@@ -24,17 +24,22 @@ import tvm._ffi
 import tvm.runtime
 
 from tvm.runtime import Object, ndarray
+from tvm.ir import container
+from tvm.target import codegen
+from tvm.tir import expr
+from tvm.tir import ir_pass
+from tvm.tir import Stmt
+from tvm.tir.stmt import LoweredFunc
+
+from . import target as _target
+
 from . import api
 from . import _api_internal
 from . import tensor
 from . import schedule
-from . import expr
-from . import ir_pass
-from . import stmt as _stmt
-from . import container
-from . import codegen
-from . import target as _target
 from . import make
+
+
 
 class DumpIR(object):
     """
@@ -58,16 +63,16 @@ class DumpIR(object):
         def dump(*args, **kwargs):
             """dump function"""
             retv = func(*args, **kwargs)
-            if not isinstance(retv, (_stmt.Stmt, container.LoweredFunc, container.Array)):
+            if not isinstance(retv, (Stmt, LoweredFunc, container.Array)):
                 return retv
             fname = func.func_name if hasattr(func, 'func_name') else func.__name__
             pname = str(self._pass_id) + "_" + fname + "_ir.cc"
             with open(pname, "a") as f:
-                out = retv.body if isinstance(retv, container.LoweredFunc) else retv
+                out = retv.body if isinstance(retv, LoweredFunc) else retv
                 f.write(str(out))
                 if isinstance(retv, container.Array):
                     for x in retv:
-                        out = x.body if isinstance(x, container.LoweredFunc) else x
+                        out = x.body if isinstance(x, LoweredFunc) else x
                         f.write("---------%s\n%s\n-----------\n"%(x.name, str(out)))
                 self._pass_id += 1
             return retv
@@ -459,7 +464,7 @@ def _build_for_device(flist, target, target_host):
             raise ValueError(
                 "Direct host side access to device memory is detected in %s. "
                 "Did you forget to bind?" % func.name)
-        if func.func_type == container.LoweredFunc.MixedFunc:
+        if func.func_type == LoweredFunc.MixedFunc:
             if current_build_config().detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
@@ -471,9 +476,9 @@ def _build_for_device(flist, target, target_host):
             fhost.append(fsplits[0])
             for x in fsplits[1:]:
                 fdevice.append(x)
-        elif func.func_type == container.LoweredFunc.HostFunc:
+        elif func.func_type == LoweredFunc.HostFunc:
             fhost.append(func)
-        elif func.func_type == container.LoweredFunc.DeviceFunc:
+        elif func.func_type == LoweredFunc.DeviceFunc:
             fdevice.append(func)
         else:
             raise ValueError("unknown function type %d" % func.func_type)
@@ -586,9 +591,9 @@ def build(inputs,
         flist = lower(inputs, args,
                       name=name,
                       binds=binds)
-        if isinstance(flist, container.LoweredFunc):
+        if isinstance(flist, LoweredFunc):
             flist = [flist]
-    elif isinstance(inputs, container.LoweredFunc):
+    elif isinstance(inputs, LoweredFunc):
         if args:
             raise ValueError("args must be done when build from LoweredFunc.")
         flist = [inputs]
@@ -600,7 +605,7 @@ def build(inputs,
                          "LoweredFunc.")
 
     if not isinstance(inputs, (dict, container.Map)):
-        target = _target.current_target() if target is None else target
+        target = _target.Target.current() if target is None else target
         target = target if target else "llvm"
         target_flist = {target: flist}
     else:
@@ -612,7 +617,7 @@ def build(inputs,
                              "_target.Target when inputs is dict.")
         fname_set = set()
         for x in flist:
-            if not isinstance(x, container.LoweredFunc):
+            if not isinstance(x, LoweredFunc):
                 raise ValueError("inputs must be Schedule, LoweredFunc, list "
                                  "of LoweredFunc, or dict of str to list of "
                                  "LoweredFunc.")

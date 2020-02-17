@@ -36,7 +36,6 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
 
     A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
     W = tvm.placeholder((kernel_depth, kernel_height, kernel_width, in_channel, num_filter), name='W')
-    B = topi.nn.conv3d_ndhwc(A, W, stride, padding, dilation)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -57,6 +56,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            B = topi.nn.conv3d(A, W, stride, padding, dilation, layout="NDHWC")
             s = topi.generic.schedule_conv3d_ndhwc([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)

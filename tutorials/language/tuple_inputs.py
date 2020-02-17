@@ -61,8 +61,8 @@ print(tvm.lower(s, [A0, A1, B0, B1], simple_mode=True))
 # x and y are the operands of reduction, both of them is a tuple of index
 # and value.
 def fcombine(x, y):
-    lhs = tvm.expr.Select((x[1] >= y[1]), x[0], y[0])
-    rhs = tvm.expr.Select((x[1] >= y[1]), x[1], y[1])
+    lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+    rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
     return lhs, rhs
 
 # our identity element also need to be a tuple, so `fidentity` accepts

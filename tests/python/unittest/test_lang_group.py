@@ -46,7 +46,7 @@ def test_scan_group():
         # compute outside group error.
         s[s_update2].compute_at(s[s_init], s_init.op.axis[0])
         assert False
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 def test_compute_group():

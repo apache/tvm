@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" TVM Attribute module, which is mainly used for defining attributes of operators"""
+""" TVM Attribute module, which is mainly used for defining attributes of operators."""
 import tvm._ffi
 
 from tvm.runtime import Object
-from . import _api_internal
+import tvm.runtime._ffi_node_api
+from . import _ffi_api
 
 
 @tvm._ffi.register_object
@@ -36,7 +37,7 @@ class Attrs(Object):
         infos: list of AttrFieldInfo
             List of field information
         """
-        return _api_internal._AttrsListFieldInfo(self)
+        return _ffi_api.AttrsListFieldInfo(self)
 
     def keys(self):
         """Get list of names in the attribute.
@@ -92,5 +93,39 @@ class Attrs(Object):
     def __getitem__(self, item):
         return self.__getattr__(item)
 
+def make_node(type_key, **kwargs):
+    """Make a new IR node by its type key and fields
 
-tvm._ffi._init_api("tvm.attrs")
+    Parameters
+    ----------
+    type_key : str
+        The type key of the node.
+
+    **kwargs : dict
+        The fields of the node.
+
+    Returns
+    -------
+    node : Node
+        The corresponding IR Node
+
+    Note
+    ----
+    If the created node is instance of AttrsNode, then
+    the creator function will also run bound checks and
+    default value setup as supported by Attrs.
+
+    Example
+    -------
+    The following code constructs a IntImm object
+
+    .. code-block:: python
+
+       x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
+       assert isinstance(x, tvm.tir.IntImm)
+       assert x.value == 10
+    """
+    args = [type_key]
+    for k, v in kwargs.items():
+        args += [k, v]
+    return tvm.runtime._ffi_node_api.MakeNode(*args)

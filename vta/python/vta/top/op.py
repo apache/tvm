@@ -84,7 +84,7 @@ def compute_conv2d(attrs, inputs, output_type, target):
                                               groups,
                                               out_dtype)]
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
             return _nn.compute_conv2d(attrs, inputs, output_type, target)
 
     # If VTA is not the target, default to _nn def
@@ -105,8 +105,8 @@ def schedule_conv2d(attrs, outs, target):
                 return topi.generic.schedule_conv2d_nchw(outs)
             return topi.generic.schedule_group_conv2d_nchw(outs)
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
-            return _nn.schedule_conv2d(attrs, outs, tvm.target.current_target())
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
+            return _nn.schedule_conv2d(attrs, outs, tvm.target.Target.current())
 
     # If VTA is not the target, default to _nn def
     return _nn.schedule_conv2d(attrs, outs, target)
@@ -128,7 +128,7 @@ def compute_conv2d_transpose(attrs, inputs, output_type, target):
             return [topi.nn.conv2d_transpose_nchw(
                 inputs[0], inputs[1], strides, padding, out_dtype)]
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
             return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
 
     # If VTA is not the target, default to _nn def
@@ -145,11 +145,11 @@ def schedule_conv2d_transpose(attrs, outputs, target):
         if is_packed_layout(layout):
             return topi.nn.schedule_conv2d_transpose_nchw(outputs)
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
-            return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
+            return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.Target.current())
 
     # If VTA is not the target, default to _nn def
-    return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.current_target())
+    return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.Target.current())
 
 
 @reg.register_compute("nn.dense", level=15)
@@ -163,7 +163,7 @@ def compute_dense(attrs, inputs, out_type, target):
             target = tvm.target.create(target)
             return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
             return _nn.compute_dense(attrs, inputs, out_type, target)
 
     # If VTA is not the target, default to _nn def
@@ -179,8 +179,8 @@ def schedule_dense(attrs, outs, target):
             assert target.device_name == "vta"
             return topi.generic.schedule_dense(outs)
         # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.current_target().model):
-            return _nn.schedule_dense(attrs, outs, tvm.target.current_target())
+        with tvm.target.arm_cpu(tvm.target.Target.current().model):
+            return _nn.schedule_dense(attrs, outs, tvm.target.Target.current())
 
     # If VTA is not the target, default to _nn def
     return _nn.schedule_dense(attrs, outs, target)

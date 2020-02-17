@@ -15,6 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _vta-index:
+
 VTA: Deep Learning Accelerator Stack
 ====================================
 

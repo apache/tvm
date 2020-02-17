@@ -41,7 +41,6 @@ from . import _tensor_grad
 from . import _transform
 from . import _reduce
 from . import _algorithm
-from ..expr import Expr
 from ..base import register_relay_node
 
 
