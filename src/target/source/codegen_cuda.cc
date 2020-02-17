@@ -452,6 +452,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
               op->dtype == DataType::Int(8) ||
               op->dtype == DataType::UInt(8) ||
               op->dtype == DataType::Int(4) ||
+              op->dtype == DataType::UInt(4) ||
               op->dtype == DataType::Int(1))
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";

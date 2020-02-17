@@ -1261,12 +1261,12 @@ constexpr const char* tvm_load_matrix_sync = "tvm_load_matrix_sync";
  */
 constexpr const char* tvm_mma_sync = "tvm_mma_sync";
 /*!
- * \brief tvm intrinsic for tensor core mma_sync operators.
+ * \brief tvm intrinsic for tensor core bmma_sync operators.
  *
  *  void tvm_bmma_sync(Var fragment_d, Expr index_d,
- *                    Var fragment_a, Expr index_a,
- *                    Var fragment_b, Expr index_b,
- *                    Var fragment_c, Expr index_c) {
+ *                     Var fragment_a, Expr index_a,
+ *                     Var fragment_b, Expr index_b,
+ *                     Var fragment_c, Expr index_c) {
  *    nvcuda::wmma::bmma_sync(fragment_d[index_d], fragment_a[index_a],
  *                           fragment_b[index_b], fragment_c[index_c]);
  *  }
