@@ -24,6 +24,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/op_strategy.h>
 #include <tvm/relay/op_attr_types.h>
 #include <topi/broadcast.h>
 #include <topi/generic/injective.h>
