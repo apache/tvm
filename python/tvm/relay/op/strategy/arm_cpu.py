@@ -54,7 +54,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
                 name="conv2d_nchw_spatial_pack.arm_cpu")
@@ -63,13 +63,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
             if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
                 dilation_h == 1 and dilation_w == 1:
-                strategy.add_implement(
+                strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
                     name="conv2d_nchw_winograd.arm_cpu",
                     plevel=15)
                 if "nnpack" in target.libs and pt == 1 and pb == 1 and pl == 1 and pr == 1:
-                    strategy.add_implement(
+                    strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd_nnpack),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack),
                         name="conv2d_nchw_winograd_nnpack.arm_cpu",
@@ -77,13 +77,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             logger.warning("conv2d_hwcn is not optimized for arm cpu.")
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_hwcn),
                 wrap_topi_schedule(topi.generic.schedule_conv2d_hwcn),
                 name="conv2d_hwcn.generic")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_spatial_pack),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
                 name="conv2d_nhwc_spatial_pack.arm_cpu")
@@ -93,11 +93,11 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW" or re.match(r"OIHW\d*o", kernel_layout)
             if kernel_layout == "OIHW":
-                strategy.add_implement(
+                strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw),
                     name="depthwise_conv2d_nchw.arm_cpu")
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_spatial_pack),
                 wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_spatial_pack),
                 name="depthwise_conv2d_nchw_spatial_pack.arm_cpu",
@@ -105,7 +105,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.generic.schedule_depthwise_conv2d_nhwc),
                 name="depthwise_conv2d_nhwc.generic")
@@ -116,7 +116,7 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         if layout == 'NCHW':
             assert kernel_layout == "OIHW"
             logger.warning("group_conv2d with layout NCHW is not optimized for arm cpu.")
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.group_conv2d_nchw, has_groups=True),
                 wrap_topi_schedule(topi.generic.schedule_group_conv2d_nchw),
                 name="group_conv2d_nchw.generic")
@@ -152,12 +152,12 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
         _, _, kh, kw = get_const_tuple(inputs[1].shape)
         pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
         assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
-        strategy.add_implement(
+        strategy.add_implementation(
             wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
             name="conv2d_nchw_winograd.arm_cpu")
         if pt == 1 and pb == 1 and pl == 1 and pr == 1:
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d_winograd_nnpack(
                     topi.arm_cpu.conv2d_nchw_winograd_nnpack_without_weight_transform),
                 wrap_topi_schedule(
@@ -179,7 +179,7 @@ def conv2d_transpose_strategy_arm_cpu(attrs, inputs, out_type, target):
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implement(
+    strategy.add_implementation(
         wrap_compute_conv2d_transpose(topi.arm_cpu.conv2d_transpose_nchw),
         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_transpose_nchw),
         name="conv2d_tranpose_nchw.arm_cpu")
@@ -191,12 +191,12 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     if layout == "NCHW":
-        strategy.add_implement(
+        strategy.add_implementation(
             wrap_compute_bitserial_conv2d(topi.x86.bitserial_conv2d_nchw),
             wrap_topi_schedule(topi.x86.schedule_bitserial_conv2d_nchw),
             name="bitserial_conv2d_nchw.arm_cpu")
     elif layout == "NHWC":
-        strategy.add_implement(
+        strategy.add_implementation(
             wrap_compute_bitserial_conv2d(topi.arm_cpu.bitserial_conv2d_nhwc),
             wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_conv2d_nhwc),
             name="bitserial_conv2d_nhwc.arm_cpu")
@@ -208,7 +208,7 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
 def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
     """bitserial_dense arm cpu strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(
+    strategy.add_implementation(
         wrap_compute_bitserial_dense(topi.arm_cpu.bitserial_dense),
         wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_dense),
         name="bitserial_dense.arm_cpu")

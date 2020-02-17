@@ -53,10 +53,10 @@ TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
-LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplement implement) {
+LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
   auto n = make_object<LoweredOutputNode>();
   n->outputs = std::move(outputs);
-  n->implement = std::move(implement);
+  n->implementation = std::move(impl);
   data_ = std::move(n);
 }
 
@@ -166,8 +166,8 @@ class ScheduleGetter :
     te::Schedule schedule;
     // No need to register schedule for device copy op.
     if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      CHECK(master_implement_.defined());
-      schedule = master_implement_.Schedule(master_attrs_, tensor_outs, target_);
+      CHECK(master_implementation_.defined());
+      schedule = master_implementation_.Schedule(master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
@@ -245,7 +245,7 @@ class ScheduleGetter :
     Op op = Downcast<Op>(call_node->op);
 
     Array<te::Tensor> outputs;
-    OpImplement implement;
+    OpImplementation impl;
     // Skip fcompute for device copy operators as it is not registered.
     if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
@@ -254,7 +254,7 @@ class ScheduleGetter :
     } else {
       LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
       outputs = lowered_out->outputs;
-      implement = lowered_out->implement;
+      impl = lowered_out->implementation;
     }
 
     int op_pattern = fpattern[op];
@@ -267,7 +267,7 @@ class ScheduleGetter :
       master_op_ = op;
       master_attrs_ = call_node->attrs;
       master_op_pattern_ = op_pattern;
-      master_implement_ = implement;
+      master_implementation_ = impl;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type =
@@ -324,7 +324,7 @@ class ScheduleGetter :
   Op master_op_;
   Attrs master_attrs_;
   int master_op_pattern_{0};
-  OpImplement master_implement_;
+  OpImplementation master_implementation_;
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> memo_;
   Array<te::Operation> scalars_;
@@ -814,8 +814,8 @@ const CompileEngine& CompileEngine::Global() {
 }
 
 TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
-.set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplement implement) {
-  return LoweredOutput(outputs, implement);
+.set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+  return LoweredOutput(outputs, impl);
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")

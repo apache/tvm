@@ -37,7 +37,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
                 wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
                 name="conv2d_nchw_spatial_pack.bifrost")
@@ -45,7 +45,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
             _, _, kh, kw = get_const_tuple(kernel.shape)
             if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
                     dilation_h == 1 and dilation_w == 1:
-                strategy.add_implement(
+                strategy.add_implementation(
                     wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
                     name="conv2d_nchw_winograd.bifrost",
@@ -56,7 +56,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.bifrost.schedule_depthwise_conv2d_nchw),
                 name="depthwise_conv2d_nchw.bifrost")
@@ -80,7 +80,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out
     if layout == "NCHW":
         _, _, kh, kw = get_const_tuple(inputs[1].shape)
         assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
-        strategy.add_implement(
+        strategy.add_implementation(
             wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
             wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
             name="conv2d_nchw_winograd.bifrost")
@@ -93,7 +93,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out
 def dense_strategy_bifrost(attrs, inputs, out_type, target):
     """dense mali(bifrost) strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_dense(topi.bifrost.dense),
-                           wrap_topi_schedule(topi.bifrost.schedule_dense),
-                           name="dense.bifrost")
+    strategy.add_implementation(wrap_compute_dense(topi.bifrost.dense),
+                                wrap_topi_schedule(topi.bifrost.schedule_dense),
+                                name="dense.bifrost")
     return strategy

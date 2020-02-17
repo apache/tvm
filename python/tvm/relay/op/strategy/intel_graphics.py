@@ -36,13 +36,13 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_nchw),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_nchw),
                 name="conv2d_nchw.intel_graphics")
             # conv2d_NCHWc won't work without alter op layout pass
             # TODO(@Laurawly): fix this
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
                 wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
                 name="conv2d_NCHWc.intel_graphics",
@@ -53,7 +53,7 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            strategy.add_implement(
+            strategy.add_implementation(
                 wrap_compute_conv2d(topi.intel_graphics.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.intel_graphics.schedule_depthwise_conv2d_nchw),
                 name="depthwise_conv2d_nchw.intel_graphics")
@@ -67,7 +67,7 @@ def conv2d_strategy_intel_graphics(attrs, inputs, out_type, target):
 def conv2d_NCHWc_strategy_intel_graphics(attrs, inputs, out_type, target):
     """conv2d_NCHWc intel_graphics strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(
+    strategy.add_implementation(
         wrap_compute_conv2d(topi.intel_graphics.conv2d_NCHWc, True, True),
         wrap_topi_schedule(topi.intel_graphics.schedule_conv2d_NCHWc),
         name="conv2d_NCHWc.intel_graphics")

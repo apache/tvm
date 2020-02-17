@@ -53,7 +53,7 @@ TVM_REGISTER_GLOBAL("test.strategy")
 
     auto n = make_object<OpStrategyNode>();
     auto strategy = tvm::relay::OpStrategy(std::move(n));
-    strategy.AddImplement(fcompute, fschedule, "test.strategy", 10);
+    strategy.AddImplementation(fcompute, fschedule, "test.strategy", 10);
     return strategy;
 });
 
@@ -64,7 +64,7 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
     Op op = Downcast<Op>(call->op);
     auto out_type = call->checked_type();
     OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
-    auto impl = strategy->specializations[0]->implements[0];
+    auto impl = strategy->specializations[0]->implementations[0];
     auto outs = impl.Compute(call->attrs, inputs, out_type);
     auto f = tvm::runtime::Registry::Get("relay.backend._make_LoweredOutput");
     if (!f) {

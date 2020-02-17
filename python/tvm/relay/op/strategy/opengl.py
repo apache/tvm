@@ -58,16 +58,16 @@ def conv2d_strategy_opengl(attrs, inputs, out_type, target):
     layout = attrs.data_layout
     assert groups == 1, "Don't support group conv2d on OpenGL"
     assert layout == "NCHW", "Only support conv2d layout NCHW for OpenGL"
-    strategy.add_implement(wrap_compute_conv2d(topi.nn.conv2d),
-                           wrap_topi_schedule(topi.opengl.schedule_conv2d_nchw),
-                           name="conv2d_nchw.opengl")
+    strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d),
+                                wrap_topi_schedule(topi.opengl.schedule_conv2d_nchw),
+                                name="conv2d_nchw.opengl")
     return strategy
 
 @dense_strategy.register("opengl")
 def dense_strategy_opengl(attrs, inputs, out_type, target):
     """dense opengl strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implement(wrap_compute_dense(topi.nn.dense),
-                           wrap_topi_schedule(topi.opengl.schedule_dense),
-                           name="dense.opengl")
+    strategy.add_implementation(wrap_compute_dense(topi.nn.dense),
+                                wrap_topi_schedule(topi.opengl.schedule_dense),
+                                name="dense.opengl")
     return strategy

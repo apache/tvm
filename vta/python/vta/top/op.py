@@ -53,7 +53,7 @@ def compute_clip_vta(attrs, inputs, output_type):
 
 def clip_strategy_vta(attrs, inputs, out_type, target):
     strategy = OpStrategy()
-    strategy.add_implement(
+    strategy.add_implementation(
         compute_clip_vta,
         _strategy.wrap_topi_schedule(topi.generic.schedule_injective),
         name="clip.vta")
@@ -78,12 +78,12 @@ def conv2d_strategy_vta(attrs, inputs, out_type, target):
             assert env.LOG_WGT_WIDTH == 3, "only support 8bit wgt for now"
             assert kernel.dtype == "int8"
 
-            strategy.add_implement(
+            strategy.add_implementation(
                 _strategy.wrap_compute_conv2d(conv2d_packed, True),
                 _strategy.wrap_topi_schedule(schedule_conv2d_packed),
                 name="conv2d_packed.vta")
         else: # group_conv2d
-            strategy.add_implement(
+            strategy.add_implementation(
                 _strategy.wrap_compute_conv2d(group_conv2d_packed, has_groups=True),
                 _strategy.wrap_topi_schedule(schedule_group_conv2d_packed),
                 name="group_conv2d_packed.vta")
@@ -103,7 +103,7 @@ def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
 
     if is_packed_layout(layout):
         strategy = OpStrategy()
-        strategy.add_implement(
+        strategy.add_implementation(
             _strategy.wrap_compute_conv2d_transpose(conv2d_transpose_packed),
             _strategy.wrap_topi_schedule(schedule_conv2d_transpose_packed),
             name="conv2d_transpose_packed.vta")
@@ -119,7 +119,7 @@ def dense_strategy_vta(attrs, inputs, out_type, target):
     """dense vta strategy"""
     if inputs[0].shape == 4: # this implies the layout is packed
         strategy = OpStrategy()
-        strategy.add_implement(
+        strategy.add_implementation(
             _strategy.wrap_compute_dense(dense_packed),
             _strategy.wrap_topi_schedule(schedule_dense_packed),
             name="dense_packed.vta")

@@ -144,8 +144,8 @@ class OpPattern(object):
     OPAQUE = 8
 
 
-@tvm._ffi.register_object("relay.OpImplement")
-class OpImplement(Object):
+@tvm._ffi.register_object("relay.OpImplementation")
+class OpImplementation(Object):
     """Operator implementation"""
     def compute(self, attrs, inputs, out_type):
         """Call compute function.
@@ -166,7 +166,7 @@ class OpImplement(Object):
         outs : list[tvm.tensor.Tensor]
             The output tensors.
         """
-        return _OpImplementCompute(self, attrs, inputs, out_type)
+        return _OpImplementationCompute(self, attrs, inputs, out_type)
 
     def schedule(self, attrs, outs, target):
         """Call schedule function.
@@ -187,7 +187,7 @@ class OpImplement(Object):
         schedule : tvm.Schedule
             The schedule.
         """
-        return _OpImplementSchedule(self, attrs, outs, target)
+        return _OpImplementationSchedule(self, attrs, outs, target)
 
 
 @tvm._ffi.register_object("relay.OpSpecialization")
@@ -201,7 +201,7 @@ class OpStrategy(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_make.OpStrategy)
 
-    def add_implement(self, compute, schedule, name="default", plevel=10):
+    def add_implementation(self, compute, schedule, name="default", plevel=10):
         """Add an implementation to the strategy
 
         Parameters
@@ -219,13 +219,13 @@ class OpStrategy(Object):
         plevel : int
             The priority level of implementation.
         """
-        _OpStrategyAddImplement(self, compute, schedule, name, plevel)
+        _OpStrategyAddImplementation(self, compute, schedule, name, plevel)
 
 
 def _wrap_default_fstrategy(compute, schedule, name):
     def _fstrategy(attrs, inputs, out_type, target):
         strategy = OpStrategy()
-        strategy.add_implement(compute, schedule, name=name)
+        strategy.add_implementation(compute, schedule, name=name)
         return strategy
     return _fstrategy
 

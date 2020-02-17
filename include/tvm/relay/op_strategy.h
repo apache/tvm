@@ -38,7 +38,7 @@ namespace relay {
 /*!
  * \brief Operator implementation that includes compute and schedule function.
  */
-class OpImplementNode : public Object {
+class OpImplementationNode : public Object {
  public:
   /*! \brief Compute function */
   FTVMCompute fcompute;
@@ -54,14 +54,14 @@ class OpImplementNode : public Object {
     v->Visit("plevel", &plevel);
   }
 
-  static constexpr const char* _type_key = "relay.OpImplement";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpImplementNode, Object);
+  static constexpr const char* _type_key = "relay.OpImplementation";
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpImplementationNode, Object);
 };
 
 /*!
  * \brief Operator implementation class.
  */
-class OpImplement : public ObjectRef {
+class OpImplementation : public ObjectRef {
  public:
   /*!
    * \brief Invoke the operator compute function.
@@ -84,7 +84,7 @@ class OpImplement : public ObjectRef {
                                 const Array<te::Tensor>& outs,
                                 const Target& target);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(OpImplement, ObjectRef, OpImplementNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(OpImplementation, ObjectRef, OpImplementationNode);
 };
 
 /*!
@@ -93,14 +93,14 @@ class OpImplement : public ObjectRef {
 class OpSpecializationNode : public Object {
  public:
   /*! \brief List of implementations. */
-  Array<OpImplement> implements;
+  Array<OpImplementation> implementations;
   /*! \brief Condition to enable the specialization.
    *    Could be undefined to represent generic case. */
   te::SpecializedCondition condition;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("condition", &condition);
-    v->Visit("implements", &implements);
+    v->Visit("implements", &implementations);
   }
 
   static constexpr const char* _type_key = "relay.OpSpecialization";
@@ -119,8 +119,8 @@ class OpSpecialization : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  TVM_DLL void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
-                            std::string name, int plevel);
+  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule,
+                                 std::string name, int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpSpecialization, ObjectRef, OpSpecializationNode);
 };
@@ -153,8 +153,8 @@ class OpStrategy : public ObjectRef {
    * \param name Name of the implementation
    * \param plevel Priority level of the implementation
    */
-  TVM_DLL void AddImplement(FTVMCompute fcompute, FTVMSchedule fschedule,
-                            std::string name, int plevel);
+  TVM_DLL void AddImplementation(FTVMCompute fcompute, FTVMSchedule fschedule,
+                                 std::string name, int plevel);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(OpStrategy, ObjectRef, OpStrategyNode);
 };

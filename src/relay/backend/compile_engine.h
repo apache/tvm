@@ -1,4 +1,4 @@
-/*
+src/relay/backend/compile_engine.cc/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -49,11 +49,11 @@ struct LoweredOutputNode : public Object {
   /*! \brief The outputs to the function */
   tvm::Array<te::Tensor> outputs;
   /*! \brief The implementation used to compute the output */
-  OpImplement implement;
+  OpImplementation implementation;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("outputs", &outputs);
-    v->Visit("implement", &implement);
+    v->Visit("implementation", &implementation);
   }
 
   static constexpr const char* _type_key = "relay.LoweredOutput";
@@ -62,7 +62,7 @@ struct LoweredOutputNode : public Object {
 
 class LoweredOutput : public ObjectRef {
  public:
-  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplement implement);
+  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl);
 
   TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
 };
