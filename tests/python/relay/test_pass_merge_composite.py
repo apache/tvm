@@ -129,11 +129,6 @@ def make_add_add_add_pattern():
     r = relay.add(add_node_1, add_node)
     return r
 
-def add_attributes_to_fn(fn, composite_name):
-    new_fn = fn.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-    new_fn = new_fn.set_attribute("Composite", tvm.tir.StringImm(composite_name))
-    return new_fn
-
 def test_simple_merge():
     """Test composite function is correctly produced from simple graph.
 
@@ -307,7 +302,10 @@ def test_reuse_call_merge():
         add_node_1 = relay.add(in_1, add_node)
         add_node_2 = relay.add(add_node_1, add_node)
         add_add_add = relay.Function([in_1, in_2], add_node_2)
-        add_add_add = add_attributes_to_fn(add_add_add, "add_add_add")
+        add_add_add = add_add_add.set_attribute("Primitive",
+                                                tir.IntImm("int32", 1))
+        add_add_add = add_add_add.set_attribute("Composite",
+                                                tir.StringImm("add_add_add"))
 
         # merged function
         sub_node = relay.subtract(a, b)
@@ -689,3 +687,4 @@ if __name__ == "__main__":
     test_merge_order()
     test_parallel_merge()
     test_multiple_input_subgraphs()
+    test_reuse_call_merge()
