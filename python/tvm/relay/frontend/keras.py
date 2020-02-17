@@ -441,7 +441,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
         'Operator {} is not supported for frontend Keras.'.format(keras_layer))
 
 
-def _convert_upsample(inexpr, keras_layer, _):
+def _convert_upsample(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     upsample_type = type(keras_layer).__name__
     params = {}
@@ -473,7 +473,9 @@ def _convert_upsample(inexpr, keras_layer, _):
     else:
         raise tvm.error.OpNotImplemented(
             'Operator {} is not supported for frontend Keras.'.format(upsample_type))
-    return _op.nn.upsampling(inexpr, **params)
+    params['layout'] = etab.data_layout
+    out = _op.nn.upsampling(inexpr, **params)
+    return out
 
 
 def _convert_cropping(inexpr, keras_layer, _):
