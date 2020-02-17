@@ -274,7 +274,12 @@ def register_task_schedule(name, func=None):
     return _do_reg
 
 def register_customized_task(name, func=None):
-    """Register a customized function to autotvm task.
+    """Register a customized function to AutoTVM task.
+
+    In most cases, you can just use register_topi_compute and register_topi_schedule
+    with the same task name to define an AutoTVM task. However, you can also
+    create a customized AutoTVM task that defines a tunable template or performs
+    extra layout transform before invoking compute/schedule function.
 
     Parameters
     ----------
@@ -289,6 +294,39 @@ def register_customized_task(name, func=None):
     -------
     decorator: callable
         A decorator
+
+    Examples
+    --------
+    The following code is a tunable template for a blocked matrix multiplication
+
+    .. code-block:: python
+
+        @autotvm.register_customized_task("matmul")
+        def matmul(N, L, M, dtype):
+            A = tvm.placeholder((N, L), name='A', dtype=dtype)
+            B = tvm.placeholder((L, M), name='B', dtype=dtype)
+
+            k = tvm.reduce_axis((0, L), name='k')
+            C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
+            s = tvm.create_schedule(C.op)
+
+            # schedule
+            y, x = s[C].op.axis
+            k = s[C].op.reduce_axis[0]
+
+            ##### define space begin #####
+            cfg = autotvm.get_config()
+            cfg.define_split("tile_y", y, num_outputs=2)
+            cfg.define_split("tile_x", x, num_outputs=2)
+            ##### define space end #####
+
+            # schedule according to config
+            yo, yi = cfg["tile_y"].apply(s, C, y)
+            xo, xi = cfg["tile_x"].apply(s, C, x)
+
+            s[C].reorder(yo, xo, k, yi, xi)
+
+            return s, [A, B, C]
     """
     def _do_reg(f):
         if name not in TASK_TABLE:

@@ -121,13 +121,14 @@ def get_valid_implements(op, attrs, inputs, out_type, target):
     assert fstrategy is not None, "%s doesn't have FTVMStrategy registered" % op.name
     with target:
         strategy = fstrategy(attrs, inputs, out_type, target)
+    analyzer = tvm.arith.Analyzer()
     ret = []
     for spec in strategy.specializations:
         if spec.condition:
             # check if all the clauses in the specialized condition are true
             flag = True
             for clause in spec.condition.clauses:
-                clause = tvm.ir_pass.Simplify(clause)
+                clause = analyzer.canonical_simplify(clause)
                 if isinstance(clause, tvm.expr.IntImm) and clause.value:
                     continue
                 flag = False

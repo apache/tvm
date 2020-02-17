@@ -30,6 +30,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/op_strategy.h>
 #include <string>
 #include <functional>
 

@@ -17,8 +17,12 @@
  * under the License.
  */
 
-#include <tvm/ir/expr.h>
-#include <tvm/relay/op_attr_types.h>
+/*!
+ * \file src/tvm/relay/ir/op_strategy.cc
+ * \brief The Relay operator Strategy and related data structure.
+ */
+
+#include <tvm/relay/op_strategy.h>
 
 namespace tvm {
 namespace relay {
@@ -105,7 +109,6 @@ TVM_REGISTER_GLOBAL("relay.op._OpStrategyAddImplement")
     int plevel = args[4];
     strategy.AddImplement(compute, schedule, name, plevel);
 });
-
 
 }  // namespace relay
 }  // namespace tvm

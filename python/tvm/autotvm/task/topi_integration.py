@@ -162,10 +162,9 @@ class TaskExtractEnv:
 def register_topi_compute(task_name, func=None):
     """Register a tunable template for a topi compute function.
 
-    After the registration, this topi compute will become a configuration dispatcher. It uses
-    all its argument as workload and dispatches configurations according to the input workload.
-
-    It also stores this "workload" to its final ComputeOp, which can be used to reconstruct
+    The registration will wrap this topi compute to take `cfg` as the first argument,
+    followed by the original argument list. It uses all its argument as workload and
+    stores this "workload" to its final ComputeOp, which can be used to reconstruct
     "workload" in the following topi_schedule call.
 
     Parameters
@@ -281,13 +280,13 @@ def register_topi_compute(task_name, func=None):
 def register_topi_schedule(task_name, func=None):
     """Register a tunable template for a topi schedule function.
 
-    After the registration. This topi schedule will become a configuration dispatcher. It dispatches
-    configurations according to the input workload.
+    The registration will wrap this topi schedule to take `cfg` as the first argument,
+    followed by the original argument list.
 
     Note that this function will try to find "workload" from all the ComputeOp in the input.
     You can attach "workload" to your compute op by using :any:`register_topi_compute`.
 
-    The task name need to match with the task name of the corresponding topi compute function.
+    The task name has to be the same as that of the corresponding topi compute function.
 
     Parameters
     ----------
