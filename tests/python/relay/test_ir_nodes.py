@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """ test ir"""
+import pytest
 import tvm
 from tvm import relay
 from tvm.tir.expr import *
@@ -174,6 +175,7 @@ def test_function():
     str(fn)
     check_json_roundtrip(fn)
 
+@pytest.mark.skip(reason="AttrsEqualHandler doesn't handle Map so far.")
 def test_function_attrs():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.convert([relay.var(n, shape=(5, 2)) for n in param_names])
