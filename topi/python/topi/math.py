@@ -451,3 +451,19 @@ def reinterpret(x, dtype):
         The result.
     """
     return cpp.reinterpret(x, dtype)
+
+
+def fast_exp(x):
+    """Take exponential of input x using fast_exp implementation
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)
