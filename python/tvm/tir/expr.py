@@ -309,6 +309,57 @@ class SizeVar(Var):
 
 
 @tvm._ffi.register_object
+class IterVar(Object, ExprOp):
+    """Represent iteration variable.
+
+    IterVar represents axis iterations in the computation.
+
+    Parameters
+    ----------
+    dom : Range
+        The domain of the iteration.
+
+    var : Union[Var, str]
+        The internal variable that is used for iteration.
+
+    iter_type : int
+        The iteration type.
+
+    thread_tag : str
+        The thread type tag.
+
+    See Also
+    --------
+    tvm.thread_axis: Create thread axis IterVar.
+    tvm.reduce_axis: Create reduce axis IterVar.
+    """
+    DataPar = 0
+    ThreadIndex = 1
+    CommReduce = 2
+    Ordered = 3
+    DimInfo = 4
+    Unrolled = 5
+    Vectorized = 6
+    Parallelized = 7
+    Tensorized = 8
+
+    def __init__(self, dom, var, iter_type, thread_tag=""):
+        if dom is not None:
+            if isinstance(dom, (list, tuple)):
+                if len(dom) != 2:
+                    raise TypeError("need to be list of ranges")
+                dom = tvm.ir.Range(dom[0], dom[1])
+
+            if not isinstance(dom, tvm.ir.Range):
+                raise TypeError("dom need to be Range")
+
+        name = var if var is not None else "iter"
+        var = Var(name, dtype="int32") if not isinstance(var, Var) else var
+        self.__init_handle_by_constructor__(
+            _ffi_api.IterVar, dom, var, iter_type, thread_tag)
+
+
+@tvm._ffi.register_object
 class CommReducer(Object):
     """Communicative reduce operator
 

@@ -17,9 +17,9 @@
 """Common expressions data structures in the IR."""
 import tvm._ffi
 
-
 from .base import Node
 from . import _ffi_api
+
 
 class BaseExpr(Node):
     """Base class of all the expressions."""
@@ -98,7 +98,29 @@ class Range(Node):
 
     You do not need to create a Range explicitly.
     Python lists and tuples will be converted automatically to a Range in API functions.
+
+    Parameters
+    ----------
+    begin : PrimExpr
+        The begin value of the range when end is None.
+        Otherwise it is the length of the range.
+
+    end : Optional[PrimExpr]
+        The end value of the range.
+
+    Note
+    ----
+    The constructor creates the range `[begin, end)`
+    if the end argument is not None. Otherwise, it creates `[0, begin)`.
     """
+    def __init__(self, begin, end=None):
+        if end is None:
+            self.__init_handle_by_constructor__(
+                _ffi_api.Range, 0, begin)
+        else:
+            self.__init_handle_by_constructor__(
+                _ffi_api.Range, begin, end)
+
     @staticmethod
     def make_by_min_extent(min_value, extent):
         """Construct a Range by min and extent.
