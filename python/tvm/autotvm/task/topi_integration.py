@@ -26,56 +26,12 @@ tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
-<<<<<<< HEAD
 import tvm.te._ffi_api
-
-from ... import tensor, placeholder
-
-from .task import args_to_workload, dispatcher, register
-from ..util import get_const_tuple
-
-# A table that records all registered dispatcher for all targets
-_REGISTERED_DISPATCHER = {
-}
-
-
-def serialize_args(args):
-    """serialize arguments of a topi function to a hashable tuple.
-
-    Parameters
-    ----------
-    args: list of hashable or Tensor
-    """
-    ret = []
-    for t in args:
-        if isinstance(t, tensor.Tensor):
-            ret.append(('TENSOR', get_const_tuple(t.shape), t.dtype))
-        else:
-            ret.append(t)
-    return tuple(ret)
-
-
-def deserialize_args(args):
-    """The inverse function of :code:`serialize_args`.
-
-    Parameters
-    ----------
-    args: list of hashable or Tensor
-    """
-    ret = []
-    for t in args:
-        if isinstance(t, tuple) and t[0] == 'TENSOR':
-            ret.append(placeholder(shape=t[1], dtype=t[2]))
-        else:
-            ret.append(t)
-    return ret
-=======
 from tvm import target as _target
 
-from ... import _api_internal, tensor
+from ... import tensor
 from .task import args_to_workload, DispatchContext, \
     register_task_compute, register_task_schedule, serialize_args
->>>>>>> relay op strategy
 
 
 # Task extractor for relay program
@@ -185,56 +141,6 @@ def register_topi_compute(task_name, func=None):
     --------
     See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
     """
-<<<<<<< HEAD
-    def _decorator(f):
-        targets = [target_keys] if isinstance(target_keys, str) else target_keys
-        for target_key in targets:
-            if target_key not in _REGISTERED_DISPATCHER:
-                _REGISTERED_DISPATCHER[target_key] = {}
-            if topi_compute not in _REGISTERED_DISPATCHER[target_key]:
-                @topi_compute.register(target_key)
-                @dispatcher
-                def config_dispatcher(*args, **kwargs):
-                    """override topi call as a config dispatcher"""
-                    assert not kwargs, "Do not support kwargs in template function call"
-                    return args_to_workload(args, topi_compute)
-                _REGISTERED_DISPATCHER[target_key][topi_compute] = config_dispatcher
-
-            config_dispatcher = _REGISTERED_DISPATCHER[target_key][topi_compute]
-
-            @config_dispatcher.register(template_keys, override=override)
-            def template_call(cfg, *args, **kwargs):
-                """call the topi func and attach workload to compute node"""
-                assert not kwargs, "Do not support kwargs in template function call"
-
-                if f == topi_compute.fdefault:
-                    node = f(*args, **kwargs)
-                else:
-                    node = f(cfg, *args, **kwargs)
-
-                # attach workload to return op
-                op = node.op
-                attrs = {}
-                for k, v in node.op.attrs.items():
-                    attrs[k] = v
-                attrs['workload'] = args_to_workload(args, topi_compute)
-                if isinstance(op, tensor.ComputeOp):
-                    op = tvm.te._ffi_api.ComputeOp(
-                        op.name, op.tag, attrs, op.axis, op.body)
-                elif isinstance(op, tensor.ExternOp):
-                    op = tvm.te._ffi_api.ExternOp(
-                        op.name, op.tag, attrs,
-                        op.inputs, op.input_placeholders,
-                        op.output_placeholders, op.body)
-                else:
-                    raise RuntimeError("Unsupported op type: " + str(type(op)))
-
-                if isinstance(node, tensor.Tensor):
-                    return op.output(0)
-                return [op.output(i) for i in range(len(node))]
-
-        return f
-=======
     def _decorate(topi_compute):
         @register_task_compute(task_name)
         def wrapper(*args, **kwargs):
@@ -255,16 +161,15 @@ def register_topi_compute(task_name, func=None):
                 attrs[k] = v
             attrs['workload'] = workload
             if isinstance(op, tensor.ComputeOp):
-                op = _api_internal._ComputeOp(
+                op = tvm.te._ffi_api.ComputeOp(
                     op.name, op.tag, attrs, op.axis, op.body)
             elif isinstance(op, tensor.ExternOp):
-                op = _api_internal._ExternOp(
+                op = tvm.te._ffi_api.ExternOp(
                     op.name, op.tag, attrs,
                     op.inputs, op.input_placeholders,
                     op.output_placeholders, op.body)
             else:
                 raise RuntimeError("Unsupported op type: " + str(type(op)))
->>>>>>> relay op strategy
 
             if isinstance(node, tensor.Tensor):
                 return op.output(0)

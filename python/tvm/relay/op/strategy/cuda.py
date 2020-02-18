@@ -17,9 +17,9 @@
 """Definition of CUDA/GPU operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import topi
+from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
-from ....schedule import SpecializedCondition
 
 @schedule_injective.register(["cuda", "gpu"])
 def schedule_injective_cuda(attrs, outs, target):

@@ -825,12 +825,12 @@ SpecializedCondition SpecializedCondition::Current() {
   return cond;
 }
 
-TVM_REGISTER_GLOBAL("_CreateSpecializedCondition")
+TVM_REGISTER_GLOBAL("te.CreateSpecializedCondition")
 .set_body_typed([](Array<PrimExpr> condition) {
   return SpecializedCondition(condition);
 });
 
-TVM_REGISTER_GLOBAL("_GetCurrentSpecialization")
+TVM_REGISTER_GLOBAL("te.GetCurrentSpecialization")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = SpecializedCondition::Current();
 });
@@ -846,10 +846,10 @@ class SpecializedCondition::Internal {
   }
 };
 
-TVM_REGISTER_GLOBAL("_EnterSpecializationScope")
+TVM_REGISTER_GLOBAL("te.EnterSpecializationScope")
 .set_body_typed(SpecializedCondition::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("_ExitSpecializationScope")
+TVM_REGISTER_GLOBAL("te.ExitSpecializationScope")
 .set_body_typed(SpecializedCondition::Internal::ExitScope);
 
 TVM_REGISTER_NODE_TYPE(StageNode);
@@ -917,7 +917,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 })
 .set_dispatch<SpecializedConditionNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const SpecializedConditionNode*>(node.get());
-    p->stream << "specialization(";
+    p->stream << "specialized_condition(";
     p->Print(op->clauses);
     p->stream << ')';
 });

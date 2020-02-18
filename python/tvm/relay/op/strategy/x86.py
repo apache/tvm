@@ -19,9 +19,9 @@
 import logging
 
 import topi
+from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
-from ....schedule import SpecializedCondition
 
 logger = logging.getLogger('strategy')
 

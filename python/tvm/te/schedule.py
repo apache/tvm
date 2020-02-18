@@ -537,19 +537,19 @@ class SpecializedCondition(Object):
         if not isinstance(conditions, (list, _container.Array)):
             conditions = [conditions]
         self.__init_handle_by_constructor__(
-            _ffi_api._CreateSpecializedCondition, conditions)
+            _ffi_api.CreateSpecializedCondition, conditions)
 
     @staticmethod
     def current():
         """Returns the current specialized condition"""
-        return _ffi_api._GetCurrentSpecialization()
+        return _ffi_api.GetCurrentSpecialization()
 
     def __enter__(self):
-        _ffi_api._EnterSpecializationScope(self)
+        _ffi_api.EnterSpecializationScope(self)
         return self
 
     def __exit__(self, ptype, value, trace):
-        _ffi_api._ExitSpecializationScope(self)
+        _ffi_api.ExitSpecializationScope(self)
 
 
 tvm._ffi._init_api("schedule", __name__)
