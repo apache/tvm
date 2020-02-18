@@ -168,10 +168,12 @@ def test_function():
     body = relay.Tuple(tvm.convert([]))
     type_params = tvm.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
+    fn = fn.set_attribute("test_attribute", tvm.tir.StringImm("value"))
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params
     assert fn.span == None
+    assert fn.get_attribute("test_attribute") == "value"
     str(fn)
     check_json_roundtrip(fn)
 

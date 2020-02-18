@@ -360,6 +360,12 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
     return FunctionSetAttr(func, name, ref);
 });
 
+TVM_REGISTER_GLOBAL("relay._expr.FunctionGetAttr")
+.set_body_typed(
+  [](Function func, std::string name) {
+    return FunctionGetAttr(func, name);
+});
+
 TVM_REGISTER_GLOBAL("relay._make.Any")
 .set_body_typed([]() { return Any::make(); });
 
