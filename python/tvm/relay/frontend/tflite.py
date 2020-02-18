@@ -2084,7 +2084,44 @@ def get_custom_options(op, option_names):
     return custom_options
 
 
-def from_tflite(model, shape_dict, dtype_dict):
+def get_tensor_type(subgraph, tensor_idx):
+    """Get the tensor type - shape and dtype.
+
+    Parameters
+    ----------
+    subgraph:
+        tflite.Subgraph.Subgraph
+
+    tensor:
+        tensor index in subgraph
+
+    Returns
+    -------
+        shape and dtype info
+    """
+    try:
+        from tflite.TensorType import TensorType
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
+
+    # Extract shape
+    shape = list(subgraph.Tensors(tensor_idx).ShapeAsNumpy())
+
+    # Extract dtype
+    tflite_dtype = subgraph.Tensors(tensor_idx).Type()
+    dtype = None
+    if tflite_dtype == TensorType.UINT8:
+        dtype = 'uint8'
+    elif tflite_dtype == TensorType.FLOAT32:
+        dtype = 'float32'
+    elif tflite_dtype == TensorType.INT32:
+        dtype = 'int32'
+    elif tflite_dtype == TensorType.INT64:
+        dtype = 'int64'
+    return shape, dtype
+
+
+def from_tflite(model, shape_dict=dict(), dtype_dict=dict()):
     """Convert from tflite model into compatible relay Function.
 
     Parameters
@@ -2092,10 +2129,10 @@ def from_tflite(model, shape_dict, dtype_dict):
     model:
         tflite.Model.Model
 
-    shape_dict : dict of str to int list/tuple
+    shape_dict : dict of str to int list/tuple, optional
         Input shapes of the model.
 
-    dtype_dict : dict of str to str
+    dtype_dict : dict of str to str, optional
         Input types of the model.
 
     Returns
@@ -2125,8 +2162,12 @@ def from_tflite(model, shape_dict, dtype_dict):
     exp_tab = ExprTable()
     for model_input in model_inputs:
         model_input_name = get_tensor_name(subgraph, model_input)
-        shape = shape_dict[model_input_name] if model_input_name in shape_dict else None
-        dtype = dtype_dict[model_input_name] if model_input_name in dtype_dict else "float32"
+        model_input_shape, model_input_dtype = get_tensor_type(subgraph, model_input)
+
+        shape = shape_dict[model_input_name] \
+                if model_input_name in shape_dict else model_input_shape
+        dtype = dtype_dict[model_input_name] \
+                if model_input_name in dtype_dict else model_input_dtype
         exp_tab.set_expr(model_input_name, _expr.var(model_input_name, shape=shape, dtype=dtype))
 
     # op code in model

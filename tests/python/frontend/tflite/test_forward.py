@@ -81,15 +81,7 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
 
-    shape_dict = {}
-    dtype_dict = {}
-    for i, e in enumerate(input_node):
-        shape_dict[e] = input_data[i].shape
-        dtype_dict[e] = input_data[i].dtype.name
-
-    mod, params = relay.frontend.from_tflite(tflite_model,
-                                             shape_dict=shape_dict,
-                                             dtype_dict=dtype_dict)
+    mod, params = relay.frontend.from_tflite(tflite_model)
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
