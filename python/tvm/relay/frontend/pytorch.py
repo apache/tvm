@@ -640,7 +640,6 @@ def _create_typed_const(data, data_type):
         raise NotImplementedError("input_type {} is not handled yet" % (data_type))
     return typed_data
 
-# TODO: Fix typing
 def _convert_elemwise_input(data, input_type):
     import torch
     if isinstance(data, torch.Tensor):
