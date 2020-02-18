@@ -21,8 +21,7 @@ import math
 import tvm
 
 from tvm import api
-from tvm.generic import cast
-from tvm.intrin import if_then_else, log, power
+from tvm.intrin import if_then_else
 from topi.vision import non_max_suppression, get_valid_counts
 from .sort import argsort
 from .. import tag
@@ -31,12 +30,11 @@ from .. import tag
 def cuda_atomicAdd_rule(op):
     if op.dtype == "float32":
         return tvm.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
-    elif op.dtype == "float64":
+    if op.dtype == "float64":
         return tvm.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
-    elif op.dtype == "int32":
+    if op.dtype == "int32":
         return tvm.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
-    else:
-        raise RuntimeError("only support int32, float32 and float64")
+    raise RuntimeError("only support int32, float32 and float64")
 
 
 tvm.target.intrin.register_intrin_rule(
@@ -67,7 +65,7 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
         Lower limit of score for valid bounding boxes.
 
     id_index : optional, int
-        index of the class categories, -1 to disable.	
+        index of the class categories, -1 to disable.
 
     score_index: optional, int
         Index of the scores/confidence of boxes.
@@ -132,7 +130,8 @@ def flag_scan(Flag, PrefixSum):
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
     PrefixSum : Buffer
-        2D Buffer of prefix sum of flags indicating new locations of valid boxes with same shape as Flag.
+        2D Buffer of prefix sum of flags indicating new locations of valid boxes
+        with same shape as Flag.
 
     Returns
     -------
@@ -184,7 +183,8 @@ def out_rewrite(data, Flag, PrefixSum, valid_count, out):
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
     PrefixSum : Buffer
-        2D Buffer of prefix sum of flags indicating new locations of valid boxes with same shape as Flag.
+        2D Buffer of prefix sum of flags indicating new locations of valid boxes
+        with same shape as Flag.
 
     valid_count : Buffer
         1D buffer for valid number of boxes with shape [batch_size, ].
@@ -425,7 +425,8 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
             with ib.for_range(0, valid_count[i]) as k:
                 offset_k = k * box_data_length
                 with ib.if_scope(tvm.all(out[base_idx + offset_k + score_index] > 0,
-                                         tvm.any(id_index < 0, out[base_idx + offset_k + id_index] >= 0))):
+                                         tvm.any(id_index < 0, out[base_idx +
+                                                                   offset_k + id_index] >= 0))):
                     with ib.if_scope(j < valid_count[i]):
                         offset_j = j * box_data_length
                         with ib.if_scope(tvm.all(j > k,
