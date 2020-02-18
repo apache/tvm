@@ -76,7 +76,7 @@ def fold_uop_loop(stmt_in):
                 args = []
                 args += op.args[:base_args]
                 for i in range(3):
-                    m = tvm.arith.DetectLinearEquation(
+                    m = tvm.arith.detect_linear_equation(
                         op.args[i + base_args], [loop_var])
                     if not m:
                         fail[0] = True
@@ -867,25 +867,25 @@ def inject_alu_intrin(stmt_in):
                         type(loop_body.value), str(loop_body.value), str(stmt)))
 
             # Derive array index coefficients
-            dst_coeff = tvm.arith.DetectLinearEquation(dst_idx, indices)
+            dst_coeff = tvm.arith.detect_linear_equation(dst_idx, indices)
             # Check if lhs/rhs is immediate
             use_imm = False
             imm_val = None
             if isinstance(rhs, tvm.tir.IntImm):
                 assert lhs.buffer_var.same_as(dst_var)
-                src_coeff = tvm.arith.DetectLinearEquation(lhs.index, indices)
+                src_coeff = tvm.arith.detect_linear_equation(lhs.index, indices)
                 use_imm = True
                 imm_val = rhs
             if isinstance(lhs, tvm.tir.IntImm):
                 assert rhs.buffer_var.same_as(dst_var)
-                src_coeff = tvm.arith.DetectLinearEquation(rhs.index, indices)
+                src_coeff = tvm.arith.detect_linear_equation(rhs.index, indices)
                 use_imm = True
                 imm_val = lhs
             if imm_val is None:
                 imm_val = 0
                 assert lhs.buffer_var.same_as(dst_var) and rhs.buffer_var.same_as(dst_var)
-                src_lhs_coeff = tvm.arith.DetectLinearEquation(lhs.index, indices)
-                src_rhs_coeff = tvm.arith.DetectLinearEquation(rhs.index, indices)
+                src_lhs_coeff = tvm.arith.detect_linear_equation(lhs.index, indices)
+                src_rhs_coeff = tvm.arith.detect_linear_equation(rhs.index, indices)
                 # Determine which side has the same coefficients
                 lhs_equal = True
                 rhs_equal = True
