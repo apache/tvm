@@ -119,5 +119,8 @@ Domain DomainTouched(Stmt stmt,
   return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
 
+TVM_REGISTER_GLOBAL("arith.DomainTouched")
+.set_body_typed(DomainTouched);
+
 }  // namespace arith
 }  // namespace tvm

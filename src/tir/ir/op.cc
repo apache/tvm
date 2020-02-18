@@ -662,4 +662,90 @@ TVM_REGISTER_GLOBAL("node.LargeUIntImm")
 TVM_REGISTER_GLOBAL("node.String")
 .set_body_typed(tir::StringImmNode::make);
 
+TVM_REGISTER_GLOBAL("tir.min_value")
+.set_body_typed(min_value);
+
+TVM_REGISTER_GLOBAL("tir.max_value")
+.set_body_typed(max_value);
+
+TVM_REGISTER_GLOBAL("tir.abs")
+.set_body_typed(tvm::abs);
+
+TVM_REGISTER_GLOBAL("tir.isnan")
+.set_body_typed(tvm::isnan);
+
+TVM_REGISTER_GLOBAL("tir.floor")
+.set_body_typed(tvm::floor);
+
+TVM_REGISTER_GLOBAL("tir.ceil")
+.set_body_typed(tvm::ceil);
+
+TVM_REGISTER_GLOBAL("tir.round")
+.set_body_typed(tvm::round);
+
+TVM_REGISTER_GLOBAL("tir.nearbyint")
+.set_body_typed(tvm::nearbyint);
+
+TVM_REGISTER_GLOBAL("tir.trunc")
+.set_body_typed(tvm::trunc);
+
+TVM_REGISTER_GLOBAL("tir._cast")
+.set_body_typed(tvm::cast);
+
+
+
+// operator overloading, smarter than make
+#define REGISTER_MAKE_BINARY_OP(Node, Func)                     \
+  TVM_REGISTER_GLOBAL("tir."#Node)                              \
+  .set_body_typed([](PrimExpr a, PrimExpr b) {                  \
+    return (Func(a, b));                                        \
+  })
+
+#define REGISTER_MAKE_BIT_OP(Node, Func)                                \
+  TVM_REGISTER_GLOBAL("tir."#Node)                                      \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+    bool lhs_is_int = args[0].type_code() == kDLInt;                    \
+    bool rhs_is_int = args[1].type_code() == kDLInt;                    \
+    if (lhs_is_int) {                                                   \
+      *ret = (Func(args[0].operator int(), args[1].operator PrimExpr())); \
+    } else if (rhs_is_int) {                                            \
+      *ret = (Func(args[0].operator PrimExpr(), args[1].operator int())); \
+    } else {                                                            \
+      *ret = (Func(args[0].operator PrimExpr(), args[1].operator PrimExpr())); \
+    }                                                                   \
+  })
+
+
+REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
+REGISTER_MAKE_BINARY_OP(_OpSub, operator-);
+REGISTER_MAKE_BINARY_OP(_OpMul, operator*);
+REGISTER_MAKE_BINARY_OP(_OpDiv, div);
+REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
+REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
+REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
+REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
+REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
+REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);
+REGISTER_MAKE_BINARY_OP(_OpPow, pow);
+REGISTER_MAKE_BINARY_OP(_OpMin, min);
+REGISTER_MAKE_BINARY_OP(_OpMax, max);
+REGISTER_MAKE_BINARY_OP(_OpEQ, operator==);
+REGISTER_MAKE_BINARY_OP(_OpNE, operator!=);
+REGISTER_MAKE_BINARY_OP(_OpLT, operator<); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpLE, operator<=); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpGT, operator>);  // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpGE, operator>=);
+REGISTER_MAKE_BINARY_OP(_OpAnd, operator&&);
+REGISTER_MAKE_BINARY_OP(_OpOr, operator||);
+REGISTER_MAKE_BIT_OP(bitwise_and, operator&);
+REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
+REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
+REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
+REGISTER_MAKE_BIT_OP(right_shift, operator>>);
+
+TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
+.set_body_typed([] (PrimExpr cond, PrimExpr true_value, PrimExpr false_value) {
+  return if_then_else(cond, true_value, false_value);
+});
 }  // namespace tvm

@@ -18,13 +18,13 @@
  */
 
  /*!
- *  Code mainly used for test purposes.
- * \file api_test.cc
+ *  FFI registration code used for frontend testing purposes.
+ * \file ffi_testing.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/te/tensor.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/ir/env_func.h>
 
 namespace tvm {

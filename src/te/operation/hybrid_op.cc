@@ -21,6 +21,7 @@
  * \brief Hybrid computation rule.
  * \file hybrid_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -82,6 +83,10 @@ Operation HybridOpNode::make(std::string name,
   Operation res = Operation(n);
   return res;
 }
+
+TVM_REGISTER_GLOBAL("te.HybridOp")
+.set_body_typed(HybridOpNode::make);
+
 
 Array<Tensor> HybridOpNode::InputTensors() const {
   // Because input tensors could be potentially inlined into hybrid scripts,

@@ -19,7 +19,7 @@
 
 /*!
  *  Exposure of pass functions.
- * \file api_pass.cc
+ * \file ffi_api.cc
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -136,8 +136,8 @@ TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccess")
 
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
-  TVM_REGISTER_GLOBAL("ir_pass."#PassName)                           \
-  .set_body_typed(PassName);                                     \
+  TVM_REGISTER_GLOBAL("ir_pass."#PassName)                        \
+  .set_body_typed(PassName);                                      \
 
 
 REGISTER_PASS(ConvertSSA);
