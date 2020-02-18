@@ -22,8 +22,8 @@ def test_expr_constructor():
     assert x.name == "xx"
 
     x = tvm.tir.Reduce(None, [1],
-                        [tvm.api._IterVar((0, 1), "x", 2)],
-                        None, 0)
+                       [tvm.tir.IterVar((0, 1), "x", 2)],
+                       None, 0)
     assert isinstance(x, tvm.tir.Reduce)
     assert x.combiner == None
     assert x.value_index == 0

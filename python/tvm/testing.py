@@ -17,6 +17,8 @@
 """ TVM testing utilities """
 import logging
 import numpy as np
+import tvm._ffi
+
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     """ Version of np.testing.assert_allclose with `atol` and `rtol` fields set
@@ -161,3 +163,6 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         logging.info("Numerical grad test wrt '%s' of shape %s passes, "
                      "dist = %f, max_diff = %f, avg_diff = %f",
                      x_name, grad.shape, dist, max_diff, avg_diff)
+
+
+tvm._ffi._init_api("testing", __name__)

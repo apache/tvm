@@ -18,17 +18,16 @@
 import tvm._ffi
 from tvm.runtime import Object
 
-from . import _api_internal
 
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
     def is_nothing(self):
         """Whether the set represent nothing"""
-        return _api_internal._IntSetIsNothing(self)
+        return _IntSetIsNothing(self)
 
     def is_everything(self):
         """Whether the set represent everything"""
-        return _api_internal._IntSetIsEverything(self)
+        return _IntSetIsEverything(self)
 
 
 @tvm._ffi.register_object("arith.IntervalSet")

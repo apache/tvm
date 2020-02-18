@@ -21,7 +21,7 @@ See the example sections for for suggested message conventions.
 To make the code more readable, we recommended developers to
 copy the examples and raise errors with the same message convention.
 """
-from ._ffi.base import register_error, TVMError
+from tvm._ffi.base import register_error, TVMError
 
 @register_error
 class InternalError(TVMError):
