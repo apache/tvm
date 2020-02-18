@@ -36,12 +36,16 @@ def test_basic():
     assert s.min_value.value == 2
     assert s.max_value.value == 3
 
+    s = tvm.arith.IntSet.single_point(2)
+    assert s.min_value.value == 2
+    assert s.max_value.value == 2
+
 
 def test_vector():
     base = 10
     stride = 3
     lanes = 2
-    s = tvm.arith.intset_vector(tvm.tir.Ramp(base, stride, lanes))
+    s = tvm.arith.IntSet.vector(tvm.tir.Ramp(base, stride, lanes))
     assert s.min_value.value == base
     assert s.max_value.value == base + stride * lanes - 1
 

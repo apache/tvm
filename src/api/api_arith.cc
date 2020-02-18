@@ -64,33 +64,33 @@ TVM_REGISTER_GLOBAL("arith.DeduceBound")
 TVM_REGISTER_GLOBAL("arith.DomainTouched")
 .set_body_typed(DomainTouched);
 
-TVM_REGISTER_GLOBAL("arith._IntervalSetGetMin")
+TVM_REGISTER_GLOBAL("arith.IntervalSetGetMin")
 .set_body_method(&IntSet::min);
 
-TVM_REGISTER_GLOBAL("arith._IntervalSetGetMax")
+TVM_REGISTER_GLOBAL("arith.IntervalSetGetMax")
 .set_body_method(&IntSet::max);
 
-TVM_REGISTER_GLOBAL("arith._IntSetIsNothing")
+TVM_REGISTER_GLOBAL("arith.IntSetIsNothing")
 .set_body_method(&IntSet::is_nothing);
 
-TVM_REGISTER_GLOBAL("arith._IntSetIsEverything")
+TVM_REGISTER_GLOBAL("arith.IntSetIsEverything")
 .set_body_method(&IntSet::is_everything);
 
 ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith._make_ConstIntBound")
+TVM_REGISTER_GLOBAL("arith.ConstIntBound")
 .set_body_typed(MakeConstIntBound);
 
 ModularSet MakeModularSet(int64_t coeff, int64_t base) {
   return ModularSet(coeff, base);
 }
 
-TVM_REGISTER_GLOBAL("arith._make_ModularSet")
+TVM_REGISTER_GLOBAL("arith.ModularSet")
 .set_body_typed(MakeModularSet);
 
-TVM_REGISTER_GLOBAL("arith._CreateAnalyzer")
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
@@ -107,6 +107,10 @@ TVM_REGISTER_GLOBAL("arith._CreateAnalyzer")
       } else if (name == "const_int_bound_update") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
             self->const_int_bound.Update(args[0], args[1], args[2]);
+        });
+      } else if (name == "Simplify") {
+        return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
+            *ret = self->Simplify(args[0]);
         });
       } else if (name == "rewrite_simplify") {
         return PackedFunc([self](TVMArgs args, TVMRetValue *ret) {
