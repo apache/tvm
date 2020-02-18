@@ -280,6 +280,9 @@ class Function(BaseFunc):
     def set_attribute(self, name, ref):
         return _expr.FunctionSetAttr(self, name, ref)
 
+    def get_attribute(self, name):
+        return _expr.FunctionGetAttr(self, name)
+
 
 @register_relay_node
 class Call(ExprWithOp):
