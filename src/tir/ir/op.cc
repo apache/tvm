@@ -417,6 +417,8 @@ PrimExpr operator!(PrimExpr a) {
 }
 
 PrimExpr operator>>(PrimExpr a, PrimExpr b) {
+  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -430,6 +432,8 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr operator<<(PrimExpr a, PrimExpr b) {
+  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -443,6 +447,8 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr operator&(PrimExpr a, PrimExpr b) {
+  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -453,6 +459,8 @@ PrimExpr operator&(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr operator|(PrimExpr a, PrimExpr b) {
+  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
@@ -463,6 +471,8 @@ PrimExpr operator|(PrimExpr a, PrimExpr b) {
 }
 
 PrimExpr operator^(PrimExpr a, PrimExpr b) {
+  CHECK(a.dtype().is_int() || a.dtype().is_uint());
+  CHECK(b.dtype().is_int() || b.dtype().is_uint());
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
