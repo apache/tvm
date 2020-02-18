@@ -20,6 +20,7 @@ import logging
 import multiprocessing as mp
 import numpy as np
 import tvm
+import tvm.driver
 from tvm.ir import IRModule
 
 from . import _quantize

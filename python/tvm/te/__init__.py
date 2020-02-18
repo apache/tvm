@@ -14,25 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Functions defined in TVM."""
-# pylint: disable=invalid-name,unused-import,redefined-builtin
-import tvm._ffi
-import tvm.ir
-import tvm.tir
+# pylint: disable=unused-import, redefined-builtin, wildcard-import
+"""Namespace for Tensor-level IR"""
+# expose all operators in tvm tir.op
+from tvm.tir.op import *
 
-from tvm.runtime import convert, const, DataType
-from tvm.ir import container as _container, Range
-from tvm.tir import decl_buffer, layout, bijective_layout
-from tvm.tir import min_value, max_value, indexdiv, indexmod, all, any
-from tvm.te import placeholder, compute, scan, extern, var, size_var, thread_axis, reduce_axis
-
-
-from ._ffi.base import string_types, TVMError
-from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
-
-from . import make as _make
-
-int8 = "int8"
-int32 = "int32"
-float32 = "float32"
-handle = "handle"
+from .schedule import Schedule, create_schedule
+from .tensor import TensorSlice, Tensor
+from .tensor_intrin import decl_tensor_intrin
+from .tag import tag_scope
+from .operation import placeholder, compute, scan, extern, var, size_var
+from .operation import thread_axis, reduce_axis

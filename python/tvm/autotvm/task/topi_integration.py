@@ -26,8 +26,9 @@ tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
+import tvm.te._ffi_api
 
-from ... import _api_internal, tensor, placeholder
+from ... import tensor, placeholder
 
 from .task import args_to_workload, dispatcher, register
 from ..util import get_const_tuple
@@ -420,10 +421,10 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None, o
                     attrs[k] = v
                 attrs['workload'] = args_to_workload(args, topi_compute)
                 if isinstance(op, tensor.ComputeOp):
-                    op = _api_internal._ComputeOp(
+                    op = tvm.te._ffi_api.ComputeOp(
                         op.name, op.tag, attrs, op.axis, op.body)
                 elif isinstance(op, tensor.ExternOp):
-                    op = _api_internal._ExternOp(
+                    op = tvm.te._ffi_api.ExternOp(
                         op.name, op.tag, attrs,
                         op.inputs, op.input_placeholders,
                         op.output_placeholders, op.body)

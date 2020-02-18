@@ -20,253 +20,18 @@ This module provides the functions to transform schedule to
 LoweredFunc and compiled Module.
 """
 import warnings
-import tvm._ffi
-import tvm.runtime
 
-from tvm.runtime import Object, ndarray
+import tvm.tir
+
+from tvm.runtime import ndarray
 from tvm.ir import container
-from tvm.target import codegen
-from tvm.tir import expr
+from tvm.target import codegen, BuildConfig
 from tvm.tir import ir_pass
-from tvm.tir import Stmt
 from tvm.tir.stmt import LoweredFunc
+from tvm.te import tensor
+from tvm.te import schedule
+from tvm import target as _target
 
-from . import target as _target
-
-from . import api
-from . import _api_internal
-from . import tensor
-from . import schedule
-from . import make
-
-
-
-class DumpIR(object):
-    """
-    Dump IR for each pass.
-    With it, you can dump ir just like gcc/llvm.
-
-    How to use:
-    -----------
-    .. code-block:: python
-
-        with tvm.build_config(dump_pass_ir=True)
-            run()
-    """
-    scope_level = 0
-    def __init__(self):
-        self._pass_id = 0
-        self._recover_list = []
-
-    def decorate(self, func):
-        """ decorate the pass function"""
-        def dump(*args, **kwargs):
-            """dump function"""
-            retv = func(*args, **kwargs)
-            if not isinstance(retv, (Stmt, LoweredFunc, container.Array)):
-                return retv
-            fname = func.func_name if hasattr(func, 'func_name') else func.__name__
-            pname = str(self._pass_id) + "_" + fname + "_ir.cc"
-            with open(pname, "a") as f:
-                out = retv.body if isinstance(retv, LoweredFunc) else retv
-                f.write(str(out))
-                if isinstance(retv, container.Array):
-                    for x in retv:
-                        out = x.body if isinstance(x, LoweredFunc) else x
-                        f.write("---------%s\n%s\n-----------\n"%(x.name, str(out)))
-                self._pass_id += 1
-            return retv
-        return dump
-
-    def decorate_irpass(self):
-        """decorate ir_pass and ScheduleOps"""
-        self._old_sgpass = schedule.ScheduleOps
-        schedule.ScheduleOps = self.decorate(schedule.ScheduleOps)
-        vset = vars(ir_pass)
-        k = v = 0
-        def recover():
-            vset[k] = v
-        for k, v in vset.items():
-            self._recover_list.append(recover)
-            vset[k] = self.decorate(v) if isinstance(v, Function) else v
-
-    def decorate_custompass(self, custom_pass):
-        """decorate given list of custom passes, and return decorated passes"""
-        custom_pass = custom_pass if custom_pass else []
-        pass_list = []
-        for idx, x in enumerate(custom_pass):
-            x[1].__name__ = "custom{}_phase{}".format(idx, x[0])
-            pass_list += [(x[0], self.decorate(x[1]))]
-        return pass_list
-
-    def enter(self):
-        """only decorate outermost nest"""
-        if DumpIR.scope_level > 0:
-            return
-        self.decorate_irpass()
-        self._pass_id = 0
-        DumpIR.scope_level += 1
-
-    def exit(self):
-        """recover outermost nest"""
-        if DumpIR.scope_level > 1:
-            return
-        # recover decorated functions
-        for f in self._recover_list:
-            f()
-        schedule.ScheduleOps = self._old_sgpass
-        DumpIR.scope_level -= 1
-
-
-@tvm._ffi.register_object
-class BuildConfig(Object):
-    """Configuration scope to set a build config option.
-
-    Note
-    ----
-    This object is backed by object protocol in C++, with arguments that can be
-    exchanged between python and C++.
-
-    Do not construct directly, use build_config instead.
-
-    The fields that are backed by the C++ object are immutable once an instance
-    is constructed. See _object_defaults for the fields.
-    """
-
-    _object_defaults = {
-        "auto_unroll_max_step": 0,
-        "auto_unroll_max_depth": 8,
-        "auto_unroll_max_extent": 0,
-        "unroll_explicit": True,
-        "detect_global_barrier": False,
-        "partition_const_loop": False,
-        "offset_factor": 0,
-        "data_alignment": -1,
-        "restricted_func": True,
-        "double_buffer_split_loop": 1,
-        "dump_pass_ir": False,
-        "instrument_bound_checkers": False,
-        "disable_select_rewriting": False,
-        "disable_vectorize": False,
-        "disable_assert": False
-    }
-    _dump_ir = DumpIR()
-
-    # pylint: disable=no-member
-    def __init__(self, handle):
-        """Initialize the function with handle
-
-        Parameters
-        ----------
-        handle : SymbolHandle
-            the handle to the underlying C++ Symbol
-        """
-        super(BuildConfig, self).__init__(handle)
-        self.handle = handle
-
-    @property
-    def add_lower_pass(self):
-        size = _api_internal._BuildConfigGetAddLowerPassInfo(self)
-        result = []
-        for i in range(size):
-            phase = _api_internal._BuildConfigGetAddLowerPassInfo(self, i, True)
-            func = _api_internal._BuildConfigGetAddLowerPassInfo(self, i, False)
-            result += [(phase, func)]
-        return result
-
-    @add_lower_pass.setter
-    def add_lower_pass(self, value):
-        add_lower_pass_args = []
-        for x in value:
-            add_lower_pass_args += [x[0], x[1]]
-        _api_internal._BuildConfigSetAddLowerPass(self, *add_lower_pass_args)
-
-    def __enter__(self):
-        # pylint: disable=protected-access
-        _api_internal._EnterBuildConfigScope(self)
-        if self.dump_pass_ir:
-            BuildConfig._dump_ir.enter()
-        return self
-
-    def __exit__(self, ptype, value, trace):
-        if self.dump_pass_ir:
-            BuildConfig._dump_ir.exit()
-        _api_internal._ExitBuildConfigScope(self)
-
-    def __setattr__(self, name, value):
-        if name in BuildConfig._object_defaults:
-            raise AttributeError(
-                "'%s' object cannot set attribute '%s'" % (str(type(self)), name))
-        return super(BuildConfig, self).__setattr__(name, value)
-
-
-def current_build_config():
-    """Get the current build configuration."""
-    return _api_internal._GetCurrentBuildConfig()
-
-
-def build_config(**kwargs):
-    """Configure the build behavior by setting config variables.
-
-    Parameters
-    ----------
-    auto_unroll_max_step: int, default=0
-        Threshold of number of steps in the loop to be automatically unrolled.
-        This takes inner loop count into consideration.
-
-    auto_unroll_max_depth: int, default=8
-        The maximum nested level of loops that can be automatically unrolled.
-
-    unroll_explicit: bool, default=True
-        Whether explicitly unroll the loop, if set false, the unroll hint will
-        be passed to the CodeGen phase, which may generate pragma unroll hint.
-        Set this to be true if CodeGen support unroll pragma and
-        when we want to be more readable.
-
-    detect_global_barrier: bool, default=True
-        Whether detect global barrier.
-
-    partition_const_loop: bool, default=False
-        Whether partition const loop
-
-    data_alignment: int, optional
-        The alignment of data pointer in bytes.
-        If -1 is passed, the alignment will be set to TVM's internal default.
-
-    offset_factor: int, default=0
-        The factor used in default buffer declaration.
-        If specified as 0, offset field is not used.
-
-    restricted_func: bool, default=True
-        Whether build restricted function.
-        That is each buffer argument to the function are guaranteed
-        not to overlap. This enables more optimization.
-        Corresponds to restricted keyword in C99
-
-    double_buffer_split_loop: int, default=2
-        Whether split the loop with factor. If it is zero, no splitting will happen.
-        It it is bigger than one, the logic will do a split with factor equals the integer
-        and unroll the inner loop. This allows the buffer fetching won't contain condition.
-
-    add_lower_pass: list of tuple (phase, function(Stmt->Stmt)), default=None
-        phase contains an integer on which optimization pass we apply the pass.
-        Additional lowering passes to be applied before make_api.
-
-    dump_pass_ir: dump ir of each pass into file idx_passname_ir.cc, default=False
-
-    Returns
-    -------
-    config: BuildConfig
-        The build configuration
-    """
-    node_args = {k: v if k not in kwargs else kwargs[k]
-                 for k, v in BuildConfig._object_defaults.items()}
-    config = make.node("BuildConfig", **node_args)
-
-    if "add_lower_pass" in kwargs:
-        config.add_lower_pass = kwargs["add_lower_pass"]
-
-    return config
 
 def get_binds(args, compact=False, binds=None):
     """Internal function to get binds and arg_list given arguments.
@@ -293,26 +58,27 @@ def get_binds(args, compact=False, binds=None):
         The list of symbolic buffers of arguments.
     """
     binds = {} if binds is None else binds.copy()
-    cfg = current_build_config()
+    cfg = BuildConfig.current()
     arg_list = []
     for x in args:
         if isinstance(x, tensor.Tensor):
-            any_dim = any(isinstance(i, expr.Var) for i in x.shape)
+            any_dim = any(isinstance(i, tvm.tir.Var) for i in x.shape)
             buffer_type = "auto_broadcast" if any_dim and not compact else ""
             if x not in binds:
-                buf = api.decl_buffer(x.shape,
-                                      dtype=x.dtype,
-                                      name=x.name,
-                                      data_alignment=cfg.data_alignment,
-                                      offset_factor=cfg.offset_factor,
-                                      buffer_type=buffer_type)
+                buf = tvm.tir.decl_buffer(
+                    x.shape,
+                    dtype=x.dtype,
+                    name=x.name,
+                    data_alignment=cfg.data_alignment,
+                    offset_factor=cfg.offset_factor,
+                    buffer_type=buffer_type)
                 binds[x] = buf
                 arg_list.append(buf)
             else:
                 arg_list.append(binds[x])
         elif isinstance(x, schedule.Buffer):
             arg_list.append(x)
-        elif isinstance(x, expr.Var):
+        elif isinstance(x, tvm.tir.Var):
             arg_list.append(x)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
@@ -371,7 +137,7 @@ def lower(sch,
        The result function, if with_api_wrapper=False
        Then the Stmt before make api is returned.
     """
-    cfg = current_build_config()
+    cfg = BuildConfig.current()
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
     if cfg.dump_pass_ir:
         add_lower_pass = BuildConfig._dump_ir.decorate_custompass(add_lower_pass)
@@ -465,7 +231,7 @@ def _build_for_device(flist, target, target_host):
                 "Direct host side access to device memory is detected in %s. "
                 "Did you forget to bind?" % func.name)
         if func.func_type == LoweredFunc.MixedFunc:
-            if current_build_config().detect_global_barrier:
+            if BuildConfig.current().detect_global_barrier:
                 func = ir_pass.ThreadSync(func, "global")
             func = ir_pass.ThreadSync(func, "shared")
             func = ir_pass.ThreadSync(func, "warp")

@@ -14,25 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Functions defined in TVM."""
-# pylint: disable=invalid-name,unused-import,redefined-builtin
-import tvm._ffi
-import tvm.ir
-import tvm.tir
-
-from tvm.runtime import convert, const, DataType
-from tvm.ir import container as _container, Range
-from tvm.tir import decl_buffer, layout, bijective_layout
-from tvm.tir import min_value, max_value, indexdiv, indexmod, all, any
-from tvm.te import placeholder, compute, scan, extern, var, size_var, thread_axis, reduce_axis
-
-
-from ._ffi.base import string_types, TVMError
-from ._ffi.registry import register_func, get_global_func, extract_ext_funcs
-
-from . import make as _make
-
-int8 = "int8"
-int32 = "int32"
-float32 = "float32"
-handle = "handle"
+"""Namespace for driver APIs"""
+from .build_module import lower, build

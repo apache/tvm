@@ -16,9 +16,8 @@
 # under the License.
 """The interface of expr function exposed from C++."""
 import tvm._ffi
+import tvm.driver
 from tvm.ir import container as _container
-
-from ... import build_module as _build
 
 
 @tvm._ffi.register_func("relay.backend.lower")
@@ -48,7 +47,7 @@ def lower(sch, inputs, func_name, source_func):
     import traceback
 
     try:
-        f = _build.lower(sch, inputs, name=func_name)
+        f = tvm.driver.lower(sch, inputs, name=func_name)
         # logging.debug("lower function %s", func_name)
         # logging.debug("%s", _build.lower(sch, inputs, simple_mode=True))
     except Exception:
@@ -85,7 +84,7 @@ def build(funcs, target, target_host=None):
     """
     if target_host == "":
         target_host = None
-    return _build.build(funcs, target=target, target_host=target_host)
+    return tvm.driver.build(funcs, target=target, target_host=target_host)
 
 
 @tvm._ffi.register_func("relay._tensor_value_repr")
