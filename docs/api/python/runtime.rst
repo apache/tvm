@@ -19,6 +19,11 @@ tvm.runtime
 -----------
 
 .. automodule:: tvm.runtime
+   :members:
+   :imported-members:
+   :exclude-members: NDArray
+   :autosummary:
+
 
 .. autoclass:: tvm.runtime.PackedFunc
    :members:

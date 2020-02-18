@@ -20,3 +20,4 @@ tvm.ir
 .. automodule:: tvm.ir
    :members:
    :imported-members:
+   :autosummary:

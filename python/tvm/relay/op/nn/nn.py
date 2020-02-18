@@ -1424,10 +1424,12 @@ def batch_norm(data,
 
     Besides the inputs and the outputs, this operator accepts two auxiliary
     states, ``moving_mean`` and ``moving_var``, which are *k*-length
-    vectors. They are global statistics for the whole dataset, which are updated by::
+    vectors. They are global statistics for the whole dataset, which are updated by
 
-    moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
-    moving_var = moving_var * momentum + data_var * (1 - momentum)
+    .. code:: python
+
+        moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+        moving_var = moving_var * momentum + data_var * (1 - momentum)
 
     The parameter ``axis`` specifies which axis of the input shape denotes
     the 'channel' (separately normalized groups).  The default is 1.
