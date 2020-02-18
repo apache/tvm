@@ -614,7 +614,7 @@ def _convert_data_type(input_type):
     elif input_type in ["byte", "torch.uint8"]:
         return "uint8"
     else:
-        raise NotImplementedError("input_type {} is not handled yet" % (data_type))
+        raise NotImplementedError("input_type {} is not handled yet" % (input_type))
     return "float32"
 
 def _create_typed_const(data, data_type):
