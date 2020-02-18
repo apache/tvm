@@ -30,12 +30,12 @@ class Target(Object):
     ----
     Do not use class constructor, you can create target using the following functions
 
-    - :py:func:`~tvm.target.create` create target from string
-    - :py:func:`~tvm.target.arm_cpu` create arm_cpu target
-    - :py:func:`~tvm.target.cuda` create CUDA target
-    - :py:func:`~tvm.target.rocm` create ROCM target
-    - :py:func:`~tvm.target.mali` create Mali target
-    - :py:func:`~tvm.target.intel_graphics` create Intel Graphics target
+    - :py:func:`tvm.target.create` create target from string
+    - :py:func:`tvm.target.arm_cpu` create arm_cpu target
+    - :py:func:`tvm.target.cuda` create CUDA target
+    - :py:func:`tvm.target.rocm` create ROCM target
+    - :py:func:`tvm.target.mali` create Mali target
+    - :py:func:`tvm.target.intel_graphics` create Intel Graphics target
     """
     def __new__(cls):
         # Always override new to enable class
@@ -262,7 +262,7 @@ def create(target_str):
 
     Note
     ----
-    See the note on :py:mod:`~tvm.target` on target string format.
+    See the note on :py:mod:`tvm.target` on target string format.
     """
     if isinstance(target_str, Target):
         return target_str

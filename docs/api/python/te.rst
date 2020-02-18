@@ -15,10 +15,16 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relay.module
-----------------
+tvm.te
+------
+.. Exclude the ops imported from tir.
 
-.. automodule:: tvm.relay.module
-
-.. autoclass:: tvm.relay.module.Module
-    :members:
+.. automodule:: tvm.te
+   :members:
+   :imported-members:
+   :exclude-members:
+      exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil,
+      trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else,
+      div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod,
+      comm_reducer, min, max, sum
+   :autosummary:

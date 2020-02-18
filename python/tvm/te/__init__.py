@@ -15,12 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin, wildcard-import
-"""Namespace for Tensor-level IR"""
+"""Namespace for Tensor Expression Language
+"""
 # expose all operators in tvm tir.op
-from tvm.tir.op import *
+from tvm.tir import exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil
+from tvm.tir import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
+from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
+from tvm.tir import comm_reducer, min, max, sum
 
 from .schedule import Schedule, create_schedule
-from .tensor import TensorSlice, Tensor
+from .tensor import Tensor
 from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, size_var

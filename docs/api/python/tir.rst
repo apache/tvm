@@ -15,10 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.build
----------
-.. autofunction:: tvm.lower
-
-.. autofunction:: tvm.build
-
-.. autofunction:: tvm.build_config
+tvm.tir
+-------
+.. automodule:: tvm.tir
+   :members:
+   :imported-members:
+   :exclude-members: PrimExpr
+   :autosummary:
