@@ -96,7 +96,7 @@ def lower(*args, **kwargs):
     --------
     tvm.lower : The original TVM's lower function
     """
-    cfg = tvm.build_module.current_build_config()
+    cfg = tvm.target.BuildConfig.current()
     if not cfg.add_lower_pass:
         with build_config():
             return tvm.lower(*args, **kwargs)
@@ -113,7 +113,7 @@ def build(*args, **kwargs):
     --------
     tvm.build : The original TVM's build function
     """
-    cfg = tvm.build_module.current_build_config()
+    cfg = tvm.target.BuildConfig.current()
     if not cfg.add_lower_pass:
         with build_config():
             return tvm.build(*args, **kwargs)

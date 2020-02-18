@@ -30,9 +30,9 @@ HalideIR.
 # 2. Support multi-level HalideIR
 import inspect
 import tvm._ffi
+from tvm.driver.build_module import form_body
 
 from .._ffi.base import decorate
-from ..build_module import form_body
 
 from .module import HybridModule
 from .parser import source_to_op

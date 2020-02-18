@@ -29,7 +29,8 @@ There are two types of feature
 import struct
 import numpy as np
 
-from tvm import schedule, ir_pass, build_module, get_global_func, target as _target
+from tvm import schedule, ir_pass, get_global_func, target as _target
+from tvm.driver import build_module
 
 def ana_lower(sch, args,
               binds=None,

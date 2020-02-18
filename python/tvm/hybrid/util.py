@@ -27,9 +27,9 @@ from tvm.ir.container import Array
 
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
+from tvm.te.tensor import Tensor
 
 from .. import api as _api
-from ..tensor import Tensor
 
 
 #pylint: disable=invalid-name

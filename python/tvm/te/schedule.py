@@ -21,10 +21,10 @@ from tvm._ffi.base import string_types
 
 from tvm.runtime import Object, convert
 from tvm.ir import container as _container
-from tvm.tir import expr as _expr, Buffer
+from tvm.tir import IterVar, Buffer
 
-from . import _api_internal
 from . import tensor as _tensor
+from . import _ffi_api
 
 
 @tvm._ffi.register_object
@@ -42,31 +42,6 @@ class Singleton(Object):
     """Singleton axis."""
 
 
-@tvm._ffi.register_object
-class IterVar(Object, _expr.ExprOp):
-    """Represent iteration variable.
-
-    IterVar is normally created by Operation, to represent
-    axis iterations in the computation.
-    It can also created by schedule primitives like :any:`tvm.schedule.Stage.split`.
-
-    See Also
-    --------
-    tvm.thread_axis: Create thread axis IterVar.
-    tvm.reduce_axis: Create reduce axis IterVar.
-    """
-    DataPar = 0
-    ThreadIndex = 1
-    CommReduce = 2
-    Ordered = 3
-    DimInfo = 4
-    Unrolled = 5
-    Vectorized = 6
-    Parallelized = 7
-    Tensorized = 8
-
-_tensor.iter_var_cls = IterVar
-
 def create_schedule(ops):
     """Create a schedule for list of ops
 
@@ -82,7 +57,7 @@ def create_schedule(ops):
     """
     if not isinstance(ops, (list, _container.Array)):
         ops = [ops]
-    return _api_internal._CreateSchedule(ops)
+    return _ffi_api.CreateSchedule(ops)
 
 
 @tvm._ffi.register_object
@@ -108,7 +83,7 @@ class Schedule(Object):
         sch : Schedule
             The normalized schedule.
         """
-        return _api_internal._ScheduleNormalize(self)
+        return _ffi_api.ScheduleNormalize(self)
 
     def create_group(self, outputs, inputs, include_inputs=False):
         """Create stage group by giving output and input boundary.
@@ -137,7 +112,7 @@ class Schedule(Object):
             outputs = [outputs]
         if isinstance(inputs, _tensor.Tensor):
             inputs = [inputs]
-        return _api_internal._ScheduleCreateGroup(
+        return _ffi_api.ScheduleCreateGroup(
             self, outputs, inputs, include_inputs)
 
     def cache_read(self, tensor, scope, readers):
@@ -164,7 +139,7 @@ class Schedule(Object):
         if isinstance(readers, (_tensor.Tensor, _tensor.Operation)):
             readers = [readers]
         readers = [t.op if isinstance(t, _tensor.Tensor) else t for t in readers]
-        return _api_internal._ScheduleCacheRead(self, tensor, scope, readers)
+        return _ffi_api.ScheduleCacheRead(self, tensor, scope, readers)
 
     def cache_write(self, tensor, scope):
         """Create a cache write of original tensor, before storing into tensor.
@@ -192,7 +167,7 @@ class Schedule(Object):
         cache : Tensor
             The created cache tensor.
         """
-        return _api_internal._ScheduleCacheWrite(self, tensor, scope)
+        return _ffi_api.ScheduleCacheWrite(self, tensor, scope)
 
     def rfactor(self, tensor, axis, factor_axis=0):
         """ Factor a reduction axis in tensor's schedule to be an explicit axis.
@@ -215,7 +190,7 @@ class Schedule(Object):
         tfactor : Tensor or Array of Tensor
             The created factored tensor.
         """
-        factored = _api_internal._ScheduleRFactor(self, tensor, axis, factor_axis)
+        factored = _ffi_api.ScheduleRFactor(self, tensor, axis, factor_axis)
         return factored[0] if len(factored) == 1 else factored
 
 
@@ -247,11 +222,11 @@ class Stage(Object):
         if nparts is not None:
             if factor is not None:
                 raise ValueError("Do not need to provide both outer and nparts")
-            outer, inner = _api_internal._StageSplitByNParts(self, parent, nparts)
+            outer, inner = _ffi_api.StageSplitByNParts(self, parent, nparts)
         else:
             if factor is None:
                 raise ValueError("Either nparts or factor need to be provided")
-            outer, inner = _api_internal._StageSplitByFactor(self, parent, factor)
+            outer, inner = _ffi_api.StageSplitByFactor(self, parent, factor)
         return outer, inner
 
     def fuse(self, *args):
@@ -270,7 +245,7 @@ class Stage(Object):
         fused : IterVar
             The fused variable of iteration.
         """
-        fused = _api_internal._StageFuse(self, args)
+        fused = _ffi_api.StageFuse(self, args)
         return fused
 
     def set_scope(self, scope):
@@ -281,7 +256,7 @@ class Stage(Object):
         scope : str
             The thread scope of this stage
         """
-        return _api_internal._StageSetScope(self, scope)
+        return _ffi_api.StageSetScope(self, scope)
 
     def bind(self, ivar, thread_ivar):
         """Bind ivar to thread index thread_ivar
@@ -294,7 +269,7 @@ class Stage(Object):
         thread_ivar : IterVar
             The thread to be binded.
         """
-        _api_internal._StageBind(self, ivar, thread_ivar)
+        _ffi_api.StageBind(self, ivar, thread_ivar)
 
     def env_threads(self, threads):
         """Mark threads to be launched at the outer scope of composed op.
@@ -306,7 +281,7 @@ class Stage(Object):
         """
         if isinstance(threads, IterVar):
             threads = [threads]
-        _api_internal._StageEnvThreads(self, threads)
+        _ffi_api.StageEnvThreads(self, threads)
 
     def set_store_predicate(self, predicate):
         """Set predicate under which store to the array can be performed.
@@ -319,7 +294,7 @@ class Stage(Object):
         predicate : Expr
             The guard condition fo store.
         """
-        _api_internal._StageSetStorePredicate(self, predicate)
+        _ffi_api.StageSetStorePredicate(self, predicate)
 
     def compute_at(self, parent, scope):
         """Attach the stage at parent's scope
@@ -332,7 +307,7 @@ class Stage(Object):
         scope : IterVar
             The loop scope t be attached to.
         """
-        _api_internal._StageComputeAt(self, parent, scope)
+        _ffi_api.StageComputeAt(self, parent, scope)
 
     def compute_inline(self):
         """Mark stage as inline
@@ -342,7 +317,7 @@ class Stage(Object):
         parent : Stage
             The parent stage
         """
-        _api_internal._StageComputeInline(self)
+        _ffi_api.StageComputeInline(self)
 
     def compute_root(self):
         """Attach the stage at parent, and mark it as root
@@ -352,7 +327,7 @@ class Stage(Object):
         parent : Stage
             The parent stage
         """
-        _api_internal._StageComputeRoot(self)
+        _ffi_api.StageComputeRoot(self)
 
     def reorder(self, *args):
         """reorder the arguments in the specified order.
@@ -362,7 +337,7 @@ class Stage(Object):
         args : list of IterVar
             The order to be ordered
         """
-        _api_internal._StageReorder(self, args)
+        _ffi_api.StageReorder(self, args)
 
     def tile(self, x_parent, y_parent, x_factor, y_factor):
         """ Perform tiling on two dimensions
@@ -392,7 +367,7 @@ class Stage(Object):
         p_y_inner : IterVar
             Inner axis of y dimension
         """
-        x_outer, y_outer, x_inner, y_inner = _api_internal._StageTile(
+        x_outer, y_outer, x_inner, y_inner = _ffi_api.StageTile(
             self, x_parent, y_parent, x_factor, y_factor)
         return x_outer, y_outer, x_inner, y_inner
 
@@ -404,7 +379,7 @@ class Stage(Object):
         var : IterVar
             The iteration to be vectorize
         """
-        _api_internal._StageVectorize(self, var)
+        _ffi_api.StageVectorize(self, var)
 
     def tensorize(self, var, tensor_intrin):
         """Tensorize the computation enclosed by var with tensor_intrin
@@ -417,7 +392,7 @@ class Stage(Object):
         tensor_intrin : TensorIntrin
             The tensor intrinsic used for computation.
         """
-        _api_internal._StageTensorize(self, var, tensor_intrin)
+        _ffi_api.StageTensorize(self, var, tensor_intrin)
 
     def unroll(self, var):
         """Unroll the iteration.
@@ -427,7 +402,7 @@ class Stage(Object):
         var : IterVar
             The iteration to be unrolled.
         """
-        _api_internal._StageUnroll(self, var)
+        _ffi_api.StageUnroll(self, var)
 
     def parallel(self, var):
         """Parallelize the iteration.
@@ -437,7 +412,7 @@ class Stage(Object):
         var : IterVar
             The iteration to be parallelized.
         """
-        _api_internal._StageParallel(self, var)
+        _ffi_api.StageParallel(self, var)
 
     def pragma(self, var, pragma_type, pragma_value=None):
         """Annotate the iteration with pragma
@@ -489,7 +464,7 @@ class Stage(Object):
         """
         if isinstance(pragma_value, string_types):
             pragma_value = convert(pragma_value)
-        _api_internal._StagePragma(self, var, pragma_type, pragma_value)
+        _ffi_api.StagePragma(self, var, pragma_type, pragma_value)
 
     def prefetch(self, tensor, var, offset):
         """Prefetch the specified variable
@@ -503,7 +478,7 @@ class Stage(Object):
         offset : Expr
             The number of iterations to be prefetched before actual execution
         """
-        _api_internal._StagePrefetch(self, tensor, var, offset)
+        _ffi_api.StagePrefetch(self, tensor, var, offset)
 
     def storage_align(self, axis, factor, offset):
         """Set alignment requirement for specific axis
@@ -523,7 +498,7 @@ class Stage(Object):
         offset : int
             The offset in the alignment specification.
         """
-        _api_internal._StageStorageAlign(self, axis, factor, offset)
+        _ffi_api.StageStorageAlign(self, axis, factor, offset)
 
     def double_buffer(self):
         """Compute the current stage via double buffering.
@@ -532,13 +507,14 @@ class Stage(Object):
         This will double the storage cost of the current stage.
         Can be useful to hide load latency.
         """
-        _api_internal._StageDoubleBuffer(self)
+        _ffi_api.StageDoubleBuffer(self)
 
     def opengl(self):
         """The special OpenGL schedule
 
         Maps each output element to a pixel.
         """
-        _api_internal._StageOpenGL(self)
+        _ffi_api.StageOpenGL(self)
 
-tvm._ffi._init_api("tvm.schedule")
+
+tvm._ffi._init_api("schedule", __name__)

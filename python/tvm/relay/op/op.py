@@ -18,11 +18,11 @@
 """The base node types for the Relay language."""
 import topi
 import tvm._ffi
+from tvm.driver import lower, build
 
 from ..base import register_relay_node
 from ..expr import RelayExpr
 from ...api import register_func
-from ...build_module import lower, build
 from . import _make
 
 @register_relay_node

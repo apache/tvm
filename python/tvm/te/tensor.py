@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tensor and Operation class for computation declaration."""
+"""Tensor class for computation declaration."""
 # pylint: disable=invalid-name
 import tvm._ffi
 
 from tvm.runtime import Object, ObjectGeneric, convert_to_object
 from tvm.tir import expr as _expr
 
-from . import _api_internal
-
+from . import _ffi_api
 
 class TensorSlice(ObjectGeneric, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
@@ -52,9 +51,6 @@ class TensorIntrinCall(Object):
     """Intermediate structure for calling a tensor intrinsic."""
 
 
-itervar_cls = None
-
-
 @tvm._ffi.register_object
 class Tensor(Object, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
@@ -68,7 +64,7 @@ class Tensor(Object, _expr.ExprOp):
         for x in indices:
             if isinstance(x, _expr.PrimExpr):
                 args.append(x)
-            elif isinstance(x, iter_var_cls):
+            elif isinstance(x, _expr.IterVar):
                 args.append(x.var)
             else:
                 raise ValueError("The indices must be expression")
@@ -81,7 +77,7 @@ class Tensor(Object, _expr.ExprOp):
         return TensorSlice(self, indices)
 
     def __hash__(self):
-        return _api_internal._TensorHash(self)
+        return _ffi_api.TensorHash(self)
 
     def __eq__(self, other):
         if not isinstance(other, Tensor):
@@ -92,7 +88,7 @@ class Tensor(Object, _expr.ExprOp):
             raise ValueError("Equal == comparison among rank-0 tensor is ambiguous, "
                              "use Tensor.equal for content expression equvalence, "
                              "use Tensor.same_as for exact reference comparison")
-        return _api_internal._TensorEqual(self, other)
+        return _ffi_api.TensorEqual(self, other)
 
     @property
     def ndim(self):
@@ -143,17 +139,17 @@ class Operation(Object):
         out : Tensor
             The i-th output.
         """
-        return _api_internal._OpGetOutput(self, index)
+        return _ffi_api.OpGetOutput(self, index)
 
     @property
     def num_outputs(self):
         """Number of outputs from this op."""
-        return _api_internal._OpNumOutputs(self)
+        return _ffi_api.OpNumOutputs(self)
 
     @property
     def input_tensors(self):
         """List of input tensors to this op."""
-        return _api_internal._OpInputTensors(self)
+        return _ffi_api.OpInputTensors(self)
 
 
 @tvm._ffi.register_object

@@ -26,19 +26,20 @@ import numbers
 from enum import Enum
 from tvm.ir import Array, Range
 import tvm.tir
+import tvm.te._ffi_api
+
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
 from tvm.tir import ir_pass as _ir_pass
+from tvm.te.tensor import Tensor, Operation
+from tvm.tir import all as _all
+from tvm.tir import any as _any
 
 from .util import _internal_assert
 from . import calls
 from . import util
 from .preprocessor import determine_variable_usage
-from ..api import all as _all
-from ..api import any as _any
 
-from ..tensor import Tensor, Operation
-from .. import _api_internal as _tvm_internal
 from .. import api  as _api
 
 
@@ -653,7 +654,7 @@ def source_to_op(src, args, symbols, closure_vars):
 
     for i in args:
         get_input_tensors(i)
-    op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
-                                 parser.outputs, parser.parsed_body)
+    op = tvm.te._ffi_api.HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+                                  parser.outputs, parser.parsed_body)
     res = [op.output(i) for i in range(len(parser.outputs))]
     return res[0] if len(res) == 1 else res

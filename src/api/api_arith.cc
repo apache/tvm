@@ -64,16 +64,16 @@ TVM_REGISTER_GLOBAL("arith.DeduceBound")
 TVM_REGISTER_GLOBAL("arith.DomainTouched")
 .set_body_typed(DomainTouched);
 
-TVM_REGISTER_GLOBAL("_IntervalSetGetMin")
+TVM_REGISTER_GLOBAL("arith._IntervalSetGetMin")
 .set_body_method(&IntSet::min);
 
-TVM_REGISTER_GLOBAL("_IntervalSetGetMax")
+TVM_REGISTER_GLOBAL("arith._IntervalSetGetMax")
 .set_body_method(&IntSet::max);
 
-TVM_REGISTER_GLOBAL("_IntSetIsNothing")
+TVM_REGISTER_GLOBAL("arith._IntSetIsNothing")
 .set_body_method(&IntSet::is_nothing);
 
-TVM_REGISTER_GLOBAL("_IntSetIsEverything")
+TVM_REGISTER_GLOBAL("arith._IntSetIsEverything")
 .set_body_method(&IntSet::is_everything);
 
 ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {

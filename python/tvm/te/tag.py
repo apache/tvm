@@ -16,7 +16,7 @@
 # under the License.
 """Tag class for TVM operators."""
 import warnings
-from ._ffi.base import decorate
+from tvm._ffi.base import decorate
 
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context

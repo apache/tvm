@@ -16,9 +16,10 @@
 # under the License.
 """Test runtime error handling"""
 import tvm
+import tvm.testing
 
 def test_op_translation():
-    ferror = tvm._api_internal._test_raise_error_callback(
+    ferror = tvm.testing.test_raise_error_callback(
         "OpNotImplemented: myop")
     try:
         ferror()
@@ -28,7 +29,7 @@ def test_op_translation():
         assert isinstance(e, NotImplementedError)
         assert msg.find("api_test.cc") != -1
 
-    fchk_eq = tvm._api_internal._test_check_eq_callback(
+    fchk_eq = tvm.testing.test_check_eq_callback(
         "InternalError: myop")
     try:
         fchk_eq(0, 1)
@@ -38,7 +39,7 @@ def test_op_translation():
         assert msg.find("api_test.cc") != -1
 
     try:
-        tvm._api_internal._ErrorTest(0, 1)
+        tvm.testing.ErrorTest(0, 1)
         assert False
     except ValueError as e:
         msg = str(e)
@@ -48,13 +49,13 @@ def test_op_translation():
 def test_deep_callback():
     def error_callback():
         raise ValueError("callback error")
-    wrap1 = tvm._api_internal._test_wrap_callback(error_callback)
+    wrap1 = tvm.testing.test_wrap_callback(error_callback)
     def flevel2():
         wrap1()
-    wrap2 = tvm._api_internal._test_wrap_callback(flevel2)
+    wrap2 = tvm.testing.test_wrap_callback(flevel2)
     def flevel3():
         wrap2()
-    wrap3 = tvm._api_internal._test_wrap_callback(flevel3)
+    wrap3 = tvm.testing.test_wrap_callback(flevel3)
 
     try:
         wrap3()

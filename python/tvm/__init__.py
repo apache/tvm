@@ -47,25 +47,30 @@ from . import tir
 
 # tvm.target
 from . import target
+from .target import build_config
 
-# others
-from . import tensor
-from . import arith
-from . import make
-from . import schedule
-from . import hybrid
+# tvm.te
+from .te import decl_tensor_intrin, create_schedule, tag_scope
+
+# tvm.testing
 from . import testing
 
-from .api import *
-from .tensor_intrin import decl_tensor_intrin
-from .schedule import create_schedule
-from .build_module import build, lower, build_config
-from .tag import tag_scope
+# tvm.driver
+from .driver import build, lower
+
+# tvm.hybrid
+from . import hybrid
+
+# others
+from . import arith
 
 # backward compact for topi, to be removed later
+from .api import *
 from .tir import expr, stmt, ir_builder, ir_pass, generic
+from .te import tensor, schedule
 from .tir.op import *
 from . import intrin
+from . import make
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
