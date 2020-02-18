@@ -54,7 +54,7 @@ IntervalSet MakeIntervalSet(PrimExpr min_value, PrimExpr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith._make_IntervalSet")
+TVM_REGISTER_GLOBAL("arith.IntervalSet")
 .set_body_typed(MakeIntervalSet);
 
 
