@@ -17,34 +17,7 @@
 """Arithmetic data structure and utility"""
 import tvm._ffi
 from tvm.runtime import Object
-
-
-class IntSet(Object):
-    """Represent a set of integer in one dimension."""
-    def is_nothing(self):
-        """Whether the set represent nothing"""
-        return _IntSetIsNothing(self)
-
-    def is_everything(self):
-        """Whether the set represent everything"""
-        return _IntSetIsEverything(self)
-
-
-@tvm._ffi.register_object("arith.IntervalSet")
-class IntervalSet(IntSet):
-    """Represent set of continuous interval [min_value, max_value]
-
-    Parameters
-    ----------
-    min_value : Expr
-        The minimum value in the interval.
-
-    max_value : Expr
-        The maximum value in the interval.
-    """
-    def __init__(self, min_value, max_value):
-        self.__init_handle_by_constructor__(
-            _make_IntervalSet, min_value, max_value)
+from . import _ffi_api
 
 
 @tvm._ffi.register_object("arith.ModularSet")
@@ -52,7 +25,7 @@ class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z """
     def __init__(self, coeff, base):
         self.__init_handle_by_constructor__(
-            _make_ModularSet, coeff, base)
+            _ffi_api.ModularSet, coeff, base)
 
 
 @tvm._ffi.register_object("arith.ConstIntBound")
@@ -72,7 +45,7 @@ class ConstIntBound(Object):
 
     def __init__(self, min_value, max_value):
         self.__init_handle_by_constructor__(
-            _make_ConstIntBound, min_value, max_value)
+            _ffi_api.ConstIntBound, min_value, max_value)
 
 
 class ConstraintScope:
@@ -105,11 +78,12 @@ class Analyzer:
     be used to perform various symbolic integer analysis.
     """
     def __init__(self):
-        _mod = _CreateAnalyzer()
+        _mod = _ffi_api.CreateAnalyzer()
         self._const_int_bound = _mod("const_int_bound")
         self._const_int_bound_update = _mod("const_int_bound_update")
         self._bind = _mod("bind")
         self._modular_set = _mod("modular_set")
+        self._simplify = _mod("Simplify")
         self._rewrite_simplify = _mod("rewrite_simplify")
         self._canonical_simplify = _mod("canonical_simplify")
         self._int_set = _mod("int_set")
@@ -120,7 +94,7 @@ class Analyzer:
 
         Parameters
         ----------
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
 
         Returns
@@ -135,7 +109,7 @@ class Analyzer:
 
         Parameters
         ----------
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
 
         Returns
@@ -145,12 +119,27 @@ class Analyzer:
         """
         return self._modular_set(expr)
 
+    def simplify(self, expr):
+        """Simplify expression via both rewrite and canonicalization.
+
+        Parameters
+        ----------
+        expr : PrimExpr
+            The expression.
+
+        Returns
+        -------
+        result : Expr
+            The result.
+        """
+        return self._simplify(expr)
+
     def rewrite_simplify(self, expr):
         """Simplify expression via rewriting rules.
 
         Parameters
         ----------
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
 
         Returns
@@ -165,7 +154,7 @@ class Analyzer:
 
         Parameters
         ----------
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
 
         Returns
@@ -180,7 +169,7 @@ class Analyzer:
 
         Parameters
         ----------
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
 
         dom_map : Dict[Var, tvm.arith.IntSet]
@@ -198,10 +187,10 @@ class Analyzer:
 
         Parameters
         ----------
-        var : tvm.Var
+        var : tvm.tir.Var
             The variable.
 
-        expr : tvm.Expr
+        expr : PrimExpr
             The expression.
         """
         return self._bind(var, expr)
@@ -211,7 +200,7 @@ class Analyzer:
 
         Parameters
         ----------
-        constraint : tvm.Expr
+        constraint : PrimExpr
             The constraint expression.
 
         returns
@@ -240,7 +229,7 @@ class Analyzer:
 
         Parameters
         ----------
-        var : tvm.Var
+        var : tvm.tir.Var
             The variable.
 
         info : tvm.Object
@@ -254,6 +243,3 @@ class Analyzer:
         else:
             raise TypeError(
                 "Do not know how to handle type {}".format(type(info)))
-
-
-tvm._ffi._init_api("tvm.arith")
