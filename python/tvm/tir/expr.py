@@ -52,6 +52,11 @@ def _dtype_is_int(value):
     return (isinstance(value, ExprOp) and
             DataType(value.dtype).type_code == TypeCode.INT)
 
+def _dtype_is_float(value):
+    if isinstance(value, float):
+        return True
+    return (isinstance(value, ExprOp) and
+            DataType(value.dtype).type_code == TypeCode.FLOAT)
 
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
@@ -102,6 +107,9 @@ class ExprOp(object):
     def __mod__(self, other):
         return _ffi_api._OpFloorMod(self, other)
 
+    def __rmod__(self, other):
+        return _ffi_api._OpFloorMod(other, self)
+
     def __neg__(self):
         neg_one = const(-1, self.dtype)
         return self.__mul__(neg_one)
@@ -109,8 +117,14 @@ class ExprOp(object):
     def __lshift__(self, other):
         return _ffi_api.left_shift(self, other)
 
+    def __rlshift__(self, other):
+        return _ffi_api.left_shift(other, self)
+
     def __rshift__(self, other):
         return _ffi_api.right_shift(self, other)
+
+    def __rrshift__(self, other):
+        return _ffi_api.right_shift(other, self)
 
     def __and__(self, other):
         return _ffi_api.bitwise_and(self, other)
@@ -131,6 +145,8 @@ class ExprOp(object):
         return _ffi_api.bitwise_xor(other, self)
 
     def __invert__(self):
+        if _dtype_is_float(self):
+            raise RuntimeError("Cannot use ~ operator on float type Expr.")
         return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
