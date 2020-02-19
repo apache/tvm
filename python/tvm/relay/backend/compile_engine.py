@@ -103,7 +103,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
     attrs : object
         The op attribute.
 
-    inputs : list of tvm.Tensor
+    inputs : List[tvm.Tensor]
         Input tensors to the op.
 
     out_type : relay.Type
@@ -114,8 +114,8 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
 
     Returns
     -------
-    ret : list of relay.op.OpImplement
-        The list of op implementations.
+    ret : List[relay.op.OpImplementation]
+        The list of all valid op implementations.
     """
     fstrategy = op.get_attr("FTVMStrategy")
     assert fstrategy is not None, "%s doesn't have FTVMStrategy registered" % op.name
@@ -162,7 +162,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     attrs : object
         The op attribute.
 
-    inputs : list[tvm.Tensor]
+    inputs : List[tvm.Tensor]
         Input tensors to the op.
 
     out_type : relay.Type
@@ -176,7 +176,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     Returns
     -------
-    ret : tuple(relay.op.OpImplement, list[tvm.Tensor])
+    ret : tuple(relay.op.OpImplementation, List[tvm.Tensor])
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
