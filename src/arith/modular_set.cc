@@ -21,6 +21,7 @@
  * \file modular_set.cc
  * \brief Modular set analysis
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/expr_functor.h>
@@ -52,6 +53,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
               << op->base << ')';
   });
 
+ModularSet MakeModularSet(int64_t coeff, int64_t base) {
+  return ModularSet(coeff, base);
+}
+
+TVM_REGISTER_GLOBAL("arith.ModularSet")
+.set_body_typed(MakeModularSet);
 
 // internal entry for const int bound
 struct ModularSetAnalyzer::Entry {

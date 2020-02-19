@@ -134,6 +134,14 @@ Range Range::make_by_min_extent(PrimExpr min, PrimExpr extent) {
   return Range(make_object<RangeNode>(min, extent));
 }
 
+TVM_REGISTER_GLOBAL("ir.range_by_min_extent")
+.set_body_typed(Range::make_by_min_extent);
+
+TVM_REGISTER_GLOBAL("ir.Range")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  *ret = Range(args[0], args[1]);
+  });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<RangeNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const RangeNode*>(node.get());
