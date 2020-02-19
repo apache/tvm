@@ -897,6 +897,7 @@ def _fused_batch_norm():
                       disables=['momentum'])(inputs, attr)
 
         if need_cast:
+            out = _expr.TupleGetItem(out.astuple(), 0)
             out = _op.cast(out, dtype=attr['T'].name)
         return out
     return _impl
