@@ -87,7 +87,6 @@ def csrmv(a, x, y=None):
     where `x` and `y` are vectors, `A` is an m-by-k sparse matrix in the CSR format.
 
     Parameters
-
     ----------
     a : tvm.contrib.sparse.CSRNDArray
         2-D sparse matrix with shape [m, k]

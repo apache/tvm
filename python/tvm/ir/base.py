@@ -39,11 +39,10 @@ class Node(Object):
             Optionally annotate function to provide additional
             information in the comment block.
 
-        Note
-        ----
-        The meta data section is necessary to fully parse the text format.
-        However, it can contain dumps that are big (e.g constant weights),
-        so it can be helpful to skip printing the meta data section.
+        .. note::
+            The meta data section is necessary to fully parse the text format.
+            However, it can contain dumps that are big (e.g constant weights),
+            so it can be helpful to skip printing the meta data section.
 
         Returns
         -------
@@ -75,7 +74,7 @@ class Span(Object):
 
     Parameters
     ----------
-    source : SourceName
+    source : tvm.ir.SourceName
         The source name.
 
     lineno : int
