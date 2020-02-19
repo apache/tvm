@@ -121,7 +121,8 @@ class OperatorConverter(object):
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess
+            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'SQUARE': self.convert_square,
         }
 
     def check_unsupported_ops(self):
@@ -635,6 +636,26 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NEG operator is not supported yet.')
         return self._convert_unary_elemwise(_op.negative, op)
+
+    def convert_square(self, op):
+        """Convert TFLite SQUARE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SQUARE operator is not supported yet.')
+        out = _op.multiply(in_expr, in_expr)
+
+        return out
 
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""
