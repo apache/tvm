@@ -20,10 +20,10 @@ import tvm._ffi
 
 try:
     from decorator import decorate
-except ImportError as err_msg:
+except ImportError:
     # Allow decorator to be missing in runtime
-    if _LIB_NAME != "libtvm_runtime.so":
-        raise err_msg
+    if not tvm._ffi.base._RUNTIME_ONLY:
+        raise
 
 from tvm.runtime import Object
 from . target import Target
