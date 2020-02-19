@@ -74,7 +74,7 @@ class Span(Object):
 
     Parameters
     ----------
-    source : tvm.ir.SourceName
+    source : SourceName
         The source name.
 
     lineno : int
