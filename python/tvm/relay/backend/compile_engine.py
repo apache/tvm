@@ -90,7 +90,7 @@ def get_shape(shape):
     return ret
 
 
-def get_valid_implements(op, attrs, inputs, out_type, target):
+def get_valid_implementations(op, attrs, inputs, out_type, target):
     """Get all valid implementations from the op strategy.
 
     Note that this function doesn't support op with symbolic input shapes.
@@ -109,7 +109,7 @@ def get_valid_implements(op, attrs, inputs, out_type, target):
     out_type : relay.Type
         The output type.
 
-    target : tvm.Target
+    target : tvm.target.Target
         The target to compile the op.
 
     Returns
@@ -134,16 +134,16 @@ def get_valid_implements(op, attrs, inputs, out_type, target):
                 flag = False
                 break
             if flag:
-                for impl in spec.implements:
+                for impl in spec.implementations:
                     ret.append(impl)
         else:
-            for impl in spec.implements:
+            for impl in spec.implementations:
                 ret.append(impl)
     return ret
 
 
-def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
-    """Select the best implement from the op strategy.
+def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True):
+    """Select the best implementation from the op strategy.
 
     If use_autotvm is True, it'll first try to find the best implementation
     based on AutoTVM profile results. If no AutoTVM profile result is found,
@@ -168,7 +168,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
     out_type : relay.Type
         The output type.
 
-    target : tvm.Target
+    target : tvm.target.Target
         The target to compile the op.
 
     use_autotvm : bool
@@ -179,7 +179,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
     ret : tuple(relay.op.OpImplement, list[tvm.Tensor])
         The best op implementation and the corresponding output tensors.
     """
-    all_impls = get_valid_implements(op, attrs, inputs, out_type, target)
+    all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
 
     best_plevel_impl = None
     for impl in all_impls:
@@ -200,7 +200,7 @@ def select_implement(op, attrs, inputs, out_type, target, use_autotvm=True):
         if workload is None:
             continue
         cfg = dispatch_ctx.query(target, workload)
-        if cfg.cost is None:
+        if cfg.is_fallback:
             # It's a fallback config
             continue
         if best_cfg is None or best_cfg.cost > cfg.cost:
@@ -245,13 +245,13 @@ def lower_call(call, inputs, target):
             reenable_tracing = True
 
     if not is_dyn:
-        best_impl, outputs = select_implement(
+        best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target)
         logger.info("Use implementation %s for op %s", best_impl.name, op.name)
     else:
         # TODO(@icemelon9): Allow tvm to generate multiple kernels for dynamic shapes.
         #   Currently, we just use the implementation with highest plevel
-        best_impl, outputs = select_implement(
+        best_impl, outputs = select_implementation(
             op, call.attrs, inputs, ret_type, target, use_autotvm=False)
 
     # re-enable AutoTVM tracing

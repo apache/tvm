@@ -359,6 +359,7 @@ def create(task_name, args, target, target_host=None):
     tsk: Task
         a task object
     """
+    args = serialize_args(args)
     ret = Task(task_name, args)
 
     if isinstance(target, str):

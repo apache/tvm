@@ -277,9 +277,6 @@ class Function(BaseFunc):
 
         return _expr.FunctionSetParams(self, params)
 
-    def get_attribute(self, name):
-        return _expr.FunctionGetAttr(self, name)
-
     def set_attribute(self, name, ref):
         return _expr.FunctionSetAttr(self, name, ref)
 

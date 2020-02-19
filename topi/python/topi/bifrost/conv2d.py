@@ -462,7 +462,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
-    _, outs = relay.backend.compile_engine.select_implement(
+    _, outs = relay.backend.compile_engine.select_implementation(
         relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target)
     workload = autotvm.task.get_workload(outs)
     if workload is None:

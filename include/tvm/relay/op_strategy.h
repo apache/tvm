@@ -100,7 +100,7 @@ class OpSpecializationNode : public Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("condition", &condition);
-    v->Visit("implements", &implementations);
+    v->Visit("implementations", &implementations);
   }
 
   static constexpr const char* _type_key = "relay.OpSpecialization";
