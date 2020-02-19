@@ -21,11 +21,11 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
 
 #include <unordered_set>
 #include <unordered_map>
@@ -361,6 +361,17 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e,
   }
   return DeduceBound(v, e, hmap, rmap);
 }
+
+
+TVM_REGISTER_GLOBAL("arith.DeduceBound")
+.set_body_typed([](
+  PrimExpr v, PrimExpr cond,
+  const Map<Var, IntSet> hint_map,
+  const Map<Var, IntSet> relax_map
+) {
+  return DeduceBound(v, cond, hint_map, relax_map);
+});
+
 
 }  // namespace arith
 }  // namespace tvm

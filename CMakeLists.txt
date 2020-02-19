@@ -133,7 +133,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/tir/*.cc
     src/driver/*.cc
     src/printer/*.cc
-    src/api/*.cc
+    src/support/*.cc
     )
 
 file(GLOB CODEGEN_SRCS
