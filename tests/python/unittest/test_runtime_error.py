@@ -27,7 +27,7 @@ def test_op_translation():
     except tvm.error.OpNotImplemented as e:
         msg = str(e)
         assert isinstance(e, NotImplementedError)
-        assert msg.find("api_test.cc") != -1
+        assert msg.find("ffi_testing.cc") != -1
 
     fchk_eq = tvm.testing.test_check_eq_callback(
         "InternalError: myop")
@@ -36,14 +36,14 @@ def test_op_translation():
         assert False
     except tvm.error.InternalError as e:
         msg = str(e)
-        assert msg.find("api_test.cc") != -1
+        assert msg.find("ffi_testing.cc") != -1
 
     try:
         tvm.testing.ErrorTest(0, 1)
         assert False
     except ValueError as e:
         msg = str(e)
-        assert msg.find("api_test.cc") != -1
+        assert msg.find("ffi_testing.cc") != -1
 
 
 def test_deep_callback():

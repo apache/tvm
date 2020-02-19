@@ -20,6 +20,7 @@
 /*!
  * \file auto_inline_elem_wise.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr_functor.h>
@@ -110,6 +111,13 @@ void AutoInlineInjective(Schedule sch) {
     }
   }
 }
+
+TVM_REGISTER_GLOBAL("schedule.AutoInlineElemWise")
+.set_body_typed(AutoInlineElemWise);
+
+
+TVM_REGISTER_GLOBAL("schedule.AutoInlineInjective")
+.set_body_typed(AutoInlineInjective);
 
 }  // namespace te
 }  // namespace tvm

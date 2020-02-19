@@ -20,6 +20,7 @@
 /*!
  * \file tvm/arith/const_int_bound.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr_functor.h>
 #include <algorithm>
@@ -40,6 +41,13 @@ ConstIntBound::ConstIntBound(
   node->max_value = max_value;
   data_ = std::move(node);
 }
+
+ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
+  return ConstIntBound(min_value, max_value);
+}
+
+TVM_REGISTER_GLOBAL("arith.ConstIntBound")
+.set_body_typed(MakeConstIntBound);
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {

@@ -21,6 +21,7 @@
  * \brief Compute Op.
  * \file compute_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -155,6 +156,10 @@ Operation ComputeOpNode::make(std::string name,
   VerifyComputeOp(n.get());
   return Operation(n);
 }
+
+TVM_REGISTER_GLOBAL("te.ComputeOp")
+.set_body_typed(ComputeOpNode::make);
+
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {

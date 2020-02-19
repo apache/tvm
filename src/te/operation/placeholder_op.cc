@@ -21,6 +21,7 @@
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 
 namespace tvm {
@@ -66,6 +67,11 @@ Operation PlaceholderOpNode::make(std::string name,
 Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
   return PlaceholderOpNode::make(name, shape, dtype).output(0);
 }
+
+TVM_REGISTER_GLOBAL("te.Placeholder")
+.set_body_typed([](Array<PrimExpr> shape, DataType dtype, std::string name) {
+  return placeholder(shape, dtype, name);
+});
 
 Array<Tensor> PlaceholderOpNode::InputTensors() const {
   return {};
