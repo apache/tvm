@@ -669,7 +669,7 @@ def _test_unary_elemwise(math_op, data):
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name='in')
         out = math_op(in_data)
-        compare_tflite_with_tvm(data, ['in:0'], in_data, [out])
+        compare_tflite_with_tvm(data, ['in:0'], [in_data], [out])
 
 #######################################################################
 # Abs
@@ -745,23 +745,24 @@ def _test_neg(data):
 
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
-    if test_op in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
-        test_op(np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)))
-        test_op(np.arange(6.0, dtype=np.int32).reshape((2, 1, 3)))
+    if test_op.__name__ in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
+        test_op(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)))
     else:
-        np.array(np.random.uniform(-5, 5, (3, 1)), dtype=np.int32)
+        test_op(np.random.uniform(-10, 10, (3, 2)).astype(np.float32))
 
 def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_abs)
-    _test_forward_unary_elemwise(_test_ceil)
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log)
     _test_forward_unary_elemwise(_test_sin)
-    _test_forward_unary_elemwise(_test_cos)
     _test_forward_unary_elemwise(_test_sqrt)
     _test_forward_unary_elemwise(_test_rsqrt)
     _test_forward_unary_elemwise(_test_neg)
+    # ceil and cos come with TFLite 1.14.0.post1 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_forward_unary_elemwise(_test_ceil)
+        _test_forward_unary_elemwise(_test_cos)
 
 #######################################################################
 # Element-wise
