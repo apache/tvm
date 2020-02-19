@@ -27,25 +27,25 @@ from .sort import argsort
 from .. import tag
 
 
-def cuda_atomicAdd_rule(op):
+def cuda_atomic_add_rule(op):
     if op.dtype == "float32":
-        return tvm.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
+        return tvm.call_pure_extern("float32", "atomic_add", op.args[0], op.args[1])
     if op.dtype == "float64":
-        return tvm.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
+        return tvm.call_pure_extern("float64", "atomic_add", op.args[0], op.args[1])
     if op.dtype == "int32":
-        return tvm.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
+        return tvm.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
     raise RuntimeError("only support int32, float32 and float64")
 
 
 tvm.target.intrin.register_intrin_rule(
-    "cuda", "atomicAdd", cuda_atomicAdd_rule, override=True)
+    "cuda", "atomic_add", cuda_atomic_add_rule, override=True)
 
 
-def atomicAdd(x, y):
-    return tvm.call_pure_intrin(y.dtype, "atomicAdd", x, y)
+def atomic_add(x, y):
+    return tvm.call_pure_intrin(y.dtype, "atomic_add", x, y)
 
 
-def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, score_index):
+def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
@@ -58,7 +58,7 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     valid_count : Buffer
         1D buffer for valid number of boxes with shape [batch_size, ].
 
-    Flag : Buffer
+    flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
     score_threshold : float32
@@ -84,9 +84,9 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     data = ib.buffer_ptr(data)
 
     valid_count = ib.buffer_ptr(valid_count)
-    Flag = ib.buffer_ptr(Flag)
-    atomicAdd_return = ib.allocate(
-        valid_count.dtype, (1,), name='atomicAdd_return', scope='local')
+    flag = ib.buffer_ptr(flag)
+    atomic_add_return = ib.allocate(
+        valid_count.dtype, (1,), name='atomic_add_return', scope='local')
     one_count = tvm.const(1, dtype=valid_count.dtype)
     score_threshold = tvm.make.node(
         "FloatImm", dtype="float32", value=score_threshold)
@@ -107,44 +107,44 @@ def get_valid_counts_ir(data, valid_count, Flag, score_threshold, id_index, scor
     # initialize valid_count
     with ib.if_scope(tid < batch_size):
         valid_count[tid] = 0
-    # initialize Flag
+    # initialize flag
     with ib.if_scope(tid < batch_size * num_anchors):
-        Flag[tid] = 0
+        flag[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         with ib.if_scope(tvm.all(data[tid * elem_length + score_index] > score_threshold,
                                  tvm.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
-            Flag[tid] = 1
-            atomicAdd_return[0] = atomicAdd(tvm.call_pure_intrin("handle", "tvm_address_of",
+            flag[tid] = 1
+            atomic_add_return[0] = atomic_add(tvm.call_pure_intrin("handle", "tvm_address_of",
                                                                  valid_count[i]), one_count)
 
     return ib.get()
 
 
-def flag_scan(Flag, PrefixSum):
+def flag_scan(flag, prefix_sum):
     """Low level IR to calculate correct positions for valid boxes.
 
     Parameters
     ----------
-    Flag : Buffer
+    flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
-    PrefixSum : Buffer
+    prefix_sum : Buffer
         2D Buffer of prefix sum of flags indicating new locations of valid boxes
-        with same shape as Flag.
+        with same shape as flag.
 
     Returns
     -------
     stmt : Stmt
         The result IR statement.
     """
-    batch_size = Flag.shape[0]
-    num_anchors = Flag.shape[1]
+    batch_size = flag.shape[0]
+    num_anchors = flag.shape[1]
 
     ib = tvm.ir_builder.create()
 
-    Flag = ib.buffer_ptr(Flag)
-    PrefixSum = ib.buffer_ptr(PrefixSum)
+    flag = ib.buffer_ptr(flag)
+    prefix_sum = ib.buffer_ptr(prefix_sum)
 
     max_threads = int(tvm.target.Target.current(
         allow_none=False).max_num_threads)
@@ -158,19 +158,19 @@ def flag_scan(Flag, PrefixSum):
     idxd = tvm.indexdiv
     idxm = tvm.indexmod
 
-    # initialize PrefixSum
+    # initialize prefix_sum
     with ib.if_scope(tid < batch_size * num_anchors):
-        PrefixSum[tid] = 0
+        prefix_sum[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         with ib.for_range(0, j) as r:
-            PrefixSum[tid] += Flag[i * num_anchors + r]
+            prefix_sum[tid] += flag[i * num_anchors + r]
 
     return ib.get()
 
 
-def out_rewrite(data, Flag, PrefixSum, valid_count, out):
+def out_rewrite(data, flag, prefix_sum, valid_count, out):
     """Low level IR to move valid boxes to the
     top of input data.
 
@@ -179,12 +179,12 @@ def out_rewrite(data, Flag, PrefixSum, valid_count, out):
     data : Buffer
         Input data. 3-D Buffer with shape [batch_size, num_anchors, elem_length].
 
-    Flag : Buffer
+    flag : Buffer
         2D Buffer of flag indicating valid data with shape [batch_size, num_anchors].
 
-    PrefixSum : Buffer
+    prefix_sum : Buffer
         2D Buffer of prefix sum of flags indicating new locations of valid boxes
-        with same shape as Flag.
+        with same shape as flag.
 
     valid_count : Buffer
         1D buffer for valid number of boxes with shape [batch_size, ].
@@ -205,9 +205,9 @@ def out_rewrite(data, Flag, PrefixSum, valid_count, out):
 
     one = tvm.const(1, dtype=out.dtype)
     data = ib.buffer_ptr(data)
-    Flag = ib.buffer_ptr(Flag)
+    flag = ib.buffer_ptr(flag)
     valid_count = ib.buffer_ptr(valid_count)
-    PrefixSum = ib.buffer_ptr(PrefixSum)
+    prefix_sum = ib.buffer_ptr(prefix_sum)
     out = ib.buffer_ptr(out)
 
     max_threads = int(tvm.target.Target.current(
@@ -226,9 +226,9 @@ def out_rewrite(data, Flag, PrefixSum, valid_count, out):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         base_idx = i * num_anchors * elem_length
-        with ib.if_scope(tvm.all(Flag[tid] > 0, PrefixSum[tid] >= 0, PrefixSum[tid] < num_anchors)):
+        with ib.if_scope(tvm.all(flag[tid] > 0, prefix_sum[tid] >= 0, prefix_sum[tid] < num_anchors)):
             with ib.for_range(0, elem_length) as k:
-                out[base_idx + PrefixSum[tid] * elem_length +
+                out[base_idx + prefix_sum[tid] * elem_length +
                     k] = data[tid * elem_length + k]
         with ib.if_scope(j >= valid_count[i]):
             with ib.for_range(0, elem_length) as k:
