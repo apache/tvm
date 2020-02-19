@@ -27,6 +27,7 @@ from ...hybrid import script
 
 
 register_broadcast_schedule("log")
+register_broadcast_schedule("tan")
 register_broadcast_schedule("cos")
 register_broadcast_schedule("sin")
 register_broadcast_schedule("atan")

@@ -76,6 +76,7 @@ def test_unary_op():
                         (relay.nn.relu, relu),
                         (tvm.relay.cos, np.cos),
                         (tvm.relay.sin, np.sin),
+                        (tvm.relay.tan, np.tan),
                         (tvm.relay.atan, np.arctan)]:
         for dtype in ['float16', 'float32']:
             check_single_op(opfunc, ref, dtype)

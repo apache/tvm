@@ -68,6 +68,7 @@ class OperatorConverter(object):
             'LOG': self.convert_log,
             'SIN': self.convert_sin,
             'COS': self.convert_cos,
+            'TAN': self.convert_tan,
             'SQRT': self.convert_sqrt,
             'RSQRT': self.convert_rsqrt,
             'NEG': self.convert_neg,
@@ -656,6 +657,13 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized SIN operator is not supported yet.')
         return self._convert_unary_elemwise(_op.sin, op)
+
+    def convert_tan(self, op):
+        """Convert TFLite TAN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized TAN operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.tan, op)
 
     def convert_cos(self, op):
         """Convert TFLite COS"""

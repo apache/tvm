@@ -109,6 +109,23 @@ def tanh(x):
     return te.compute(x.shape, lambda *i: te.tanh(x(*i)))
 
 
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def tan(x):
+    """Take tan of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.tan(x(*i)))
+
+
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def cos(x):
     """Take cos of input x.

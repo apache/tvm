@@ -47,6 +47,21 @@ def log(data):
     """
     return _make.log(data)
 
+def tan(data):
+    """Compute elementwise tan of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.tan(data)
+
 def cos(data):
     """Compute elementwise cos of data.
 
