@@ -21,6 +21,7 @@
  * \file bound.cc
  * \brief The bound inference logic.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/ir_pass.h>
@@ -258,6 +259,9 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   }
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
+
+TVM_REGISTER_GLOBAL("schedule.InferBound")
+.set_body_typed(InferBound);
 
 }  // namespace te
 }  // namespace tvm

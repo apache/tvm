@@ -20,6 +20,7 @@
 /*!
  * \file schedule_lang.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/operation.h>
 #include <unordered_set>
@@ -848,5 +849,118 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
   });
+
+
+TVM_REGISTER_GLOBAL("te.CreateSchedule")
+.set_body_typed(create_schedule);
+
+TVM_REGISTER_GLOBAL("te.StageSetScope")
+.set_body_method(&Stage::set_scope);
+
+TVM_REGISTER_GLOBAL("te.StageBind")
+.set_body_method(&Stage::bind);
+
+TVM_REGISTER_GLOBAL("te.StageSplitByFactor")
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr factor) {
+  IterVar outer, inner;
+  stage.split(parent, factor, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
+
+TVM_REGISTER_GLOBAL("te.StageSplitByNParts")
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr nparts) {
+  IterVar outer, inner;
+  stage.split_by_nparts(parent, nparts, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
+
+TVM_REGISTER_GLOBAL("te.StageFuse")
+.set_body_typed([](Stage stage, Array<IterVar> axes) {
+    IterVar fused;
+    stage.fuse(axes, &fused);
+    return fused;
+  });
+
+TVM_REGISTER_GLOBAL("te.StageComputeAt")
+.set_body_method(&Stage::compute_at);
+
+TVM_REGISTER_GLOBAL("te.StageComputeInline")
+.set_body_method(&Stage::compute_inline);
+
+TVM_REGISTER_GLOBAL("te.StageComputeRoot")
+.set_body_method(&Stage::compute_root);
+
+TVM_REGISTER_GLOBAL("te.StageReorder")
+.set_body_method(&Stage::reorder);
+
+TVM_REGISTER_GLOBAL("te.StageTile")
+.set_body_typed([](
+  Stage stage,
+  IterVar x_parent, IterVar y_parent,
+  PrimExpr x_factor, PrimExpr y_factor
+) {
+    IterVar x_outer, y_outer, x_inner, y_inner;
+    stage.tile(x_parent, y_parent,
+               x_factor, y_factor,
+               &x_outer, &y_outer,
+               &x_inner, &y_inner);
+    return Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
+  });
+
+TVM_REGISTER_GLOBAL("te.StageEnvThreads")
+.set_body_method(&Stage::env_threads);
+
+TVM_REGISTER_GLOBAL("te.StageSetStorePredicate")
+.set_body_method(&Stage::set_store_predicate);
+
+TVM_REGISTER_GLOBAL("te.StageUnroll")
+.set_body_method(&Stage::unroll);
+
+TVM_REGISTER_GLOBAL("te.StageVectorize")
+.set_body_method(&Stage::vectorize);
+
+TVM_REGISTER_GLOBAL("te.StageTensorize")
+.set_body_method(&Stage::tensorize);
+
+TVM_REGISTER_GLOBAL("te.StageParallel")
+.set_body_method(&Stage::parallel);
+
+TVM_REGISTER_GLOBAL("te.StagePragma")
+.set_body_method(&Stage::pragma);
+
+TVM_REGISTER_GLOBAL("te.StagePrefetch")
+.set_body_method(&Stage::prefetch);
+
+TVM_REGISTER_GLOBAL("te.StageStorageAlign")
+.set_body_method(&Stage::storage_align);
+
+TVM_REGISTER_GLOBAL("te.StageDoubleBuffer")
+.set_body_method(&Stage::double_buffer);
+
+TVM_REGISTER_GLOBAL("te.StageOpenGL")
+.set_body_method(&Stage::opengl);
+
+TVM_REGISTER_GLOBAL("te.ScheduleNormalize")
+.set_body_method(&Schedule::normalize);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCreateGroup")
+.set_body_method(&Schedule::create_group);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCacheRead")
+.set_body_method(&Schedule::cache_read);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCacheWrite")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    if (args[1].IsObjectRef<Tensor>()) {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Tensor(), args[2]);
+    } else {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Array<Tensor>(), args[2]);
+    }
+  });
+
+TVM_REGISTER_GLOBAL("te.ScheduleRFactor")
+.set_body_method(&Schedule::rfactor);
 }  // namespace te
 }  // namespace tvm

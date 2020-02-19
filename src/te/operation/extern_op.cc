@@ -21,6 +21,7 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -85,6 +86,10 @@ Operation ExternOpNode::make(std::string name,
   n->body = std::move(body);
   return Operation(n);
 }
+
+TVM_REGISTER_GLOBAL("te.ExternOp")
+.set_body_typed(ExternOpNode::make);
+
 
 Array<Tensor> ExternOpNode::InputTensors() const {
   return inputs;

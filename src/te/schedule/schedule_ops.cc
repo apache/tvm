@@ -20,6 +20,7 @@
 /*!
  * \file schedule_ops.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
@@ -422,6 +423,14 @@ Stmt ScheduleOps(
   post_proc.Init(sch);
   return post_proc(std::move(body));
 }
+
+TVM_REGISTER_GLOBAL("schedule.ScheduleOps")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  if (args.size() == 2)
+    *ret = ScheduleOps(args[0], args[1], false);
+  else
+    *ret = ScheduleOps(args[0], args[1], args[2]);
+});
 
 }  // namespace te
 }  // namespace tvm
