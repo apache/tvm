@@ -226,7 +226,8 @@ def out_rewrite(data, flag, prefix_sum, valid_count, out):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         base_idx = i * num_anchors * elem_length
-        with ib.if_scope(tvm.all(flag[tid] > 0, prefix_sum[tid] >= 0, prefix_sum[tid] < num_anchors)):
+        with ib.if_scope(tvm.all(flag[tid] > 0, prefix_sum[tid] >= 0,
+                                 prefix_sum[tid] < num_anchors)):
             with ib.for_range(0, elem_length) as k:
                 out[base_idx + prefix_sum[tid] * elem_length +
                     k] = data[tid * elem_length + k]
