@@ -320,6 +320,7 @@ def test_conv2d_winograd():
                 return self.memory[key]
             cfg = autotvm.task.space.FallbackConfigEntity()
             cfg.is_fallback = False
+            cfg.cost = 0.1 if 'winograd' in workload[0] else 1
             cfg['tile_b'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
             cfg['tile_y'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
             cfg['tile_x'] = autotvm.task.space.SplitEntity([-1, 1, 1, 1])
