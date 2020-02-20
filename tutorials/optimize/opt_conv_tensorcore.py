@@ -18,7 +18,7 @@
 .. _opt-conv-tensorcore:
 
 How to optimize convolution using TensorCores
-==================================
+=============================================
 **Author**: `Siyuan Feng <https://github.com/Hzfengsy>`_
 
 In this tutorial, we will demonstrate how to write a high performance convolution
@@ -29,7 +29,7 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 ################################################################
 # TensorCore Introduction
-# -------------------------
+# -----------------------
 # Each Tensor Core provides a 4x4x4 matrix processing array that operates
 # :code:`D = A * B + C`, where A, B, C and D are 4x4 matrices as Figure shows.
 # The matrix multiplication inputs A and B are FP16 matrices, while the accumulation
@@ -45,7 +45,7 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 ################################################################
 # Preparation and Algorithm
-# --------------------------
+# -------------------------
 # We use the fixed size for input tensors with 256 channels and 14 x 14 dimensions.
 # The batch size is 256. Convolution filters contain 512 filters of size 3 x 3.
 # We use stride size 1 and padding size 1 for the convolution. In the example, we use
@@ -126,8 +126,7 @@ s[Apad].compute_inline()
 
 ###############################################################################
 # Memory Scope
-# ----------------
-#
+# ------------
 # In traditional GPU schedule, we have global, shared and local memory scope.
 # To support TensorCores, we add another three special memory scope: :code:`wmma.matrix_a`,
 # :code:`wmma.matrix_b` and :code:`wmma.accumulator`. On hardware, all fragments scope
@@ -142,6 +141,7 @@ ConvF = s.cache_write(Conv, 'wmma.accumulator')
 
 ###############################################################################
 # Define Tensor Intrinsic
+# -----------------------
 # In fact, TensorCore is a special hardware operation. So, we can just use tensorize
 # to replace a unit of computation with the TensorCore instruction. The first thing is
 # that we need to define tensor intrinsic.
@@ -246,7 +246,6 @@ def intrin_wmma_store_matrix():
 #   easiest way to solve this. Then We can bind threadIdx.x to any loops except those contain
 #   TensorCore intrinsics directly or indirectly. Also note that it is not the unique solution.
 #   The only thing we should do is to make sure all threads in a warp can call TensorCore at the same time.
-#
 
 # Define tiling sizes
 block_row_warps = 4
@@ -312,10 +311,9 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ###############################################################################
 # Lowering Computation to Intrinsics
-# --------------------------
+# ----------------------------------
 # The last phase is to lower the computation loops down to TensorCore hardware intrinsics
 # by mapping the 2D convolution to tensor intrinsics
-#
 
 s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_a'))
 s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_b'))
@@ -344,5 +342,6 @@ if nvcc.have_tensorcore(ctx.compute_version):
 
 ###############################################################################
 # Summary
+# -------
 # This tutorial demonstrates how TVM scheduling primitives can be used to
 # call TensorCores on specific GPUs.

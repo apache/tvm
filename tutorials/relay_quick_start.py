@@ -18,7 +18,7 @@
 .. _tutorial-relay-quick-start:
 
 Quick Start Tutorial for Compiling Deep Learning Models
-======================================================
+=======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
@@ -47,7 +47,7 @@ from tvm.contrib import graph_runtime
 
 ######################################################################
 # Define Neural Network in Relay
-# -----------------------------
+# ------------------------------
 # First, let's define a neural network with relay python frontend.
 # For simplicity, we'll use pre-defined resnet-18 network in Relay.
 # Parameters are initialized with Xavier initializer.
