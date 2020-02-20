@@ -29,11 +29,11 @@ from .. import tag
 
 def cuda_atomic_add_rule(op):
     if op.dtype == "float32":
-        return tvm.call_pure_extern("float32", "atomic_add", op.args[0], op.args[1])
+        return tvm.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "float64":
-        return tvm.call_pure_extern("float64", "atomic_add", op.args[0], op.args[1])
+        return tvm.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "int32":
-        return tvm.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
+        return tvm.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
     raise RuntimeError("only support int32, float32 and float64")
 
 
