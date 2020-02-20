@@ -160,7 +160,8 @@ class Sequential(Pass):
     Some typical usage of the sequential pass are:
     1. Users provide a list of passes for optimization.
     2. Only an optimization level is provided so that the backend system has
-       to glob all passes at this level and below to perform the optimizations.
+    to glob all passes at this level and below to perform the optimizations.
+
     Note that users can also provide a series of passes that they don't want to
     apply when running a sequential pass. Pass dependency will be resolved in
     the backend as well.
