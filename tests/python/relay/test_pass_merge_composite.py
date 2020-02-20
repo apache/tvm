@@ -340,10 +340,11 @@ def test_reuse_call_merge():
 
 def test_ignore_const_merge():
     """Test composite function is correctly produced from simple graph
-       where the pattern contains a const.
+       where the pattern contains a const, but the const's value is passed
+       in as a parameter to the top-level function.
 
     We could expect the pattern `make_add_add_const` to be merged
-    into a single op `add_add`.
+    into a single op `add_add_const`.
 
         x     y
          \   /                x    y
@@ -359,24 +360,24 @@ def test_ignore_const_merge():
     def before():
         a = relay.var('a', shape=(10, 10))
         b = relay.var('b', shape=(10, 10))
-        c = relay.const(10, dtype="float32")
+        c = relay.var('c', shape=(10, 10))
 
         # pattern
         add_node = relay.add(a, b)
         r = relay.add(add_node, c)
 
-        return relay.Function([a, b], r)
+        return relay.Function([a, b, c], r)
 
     def expected():
         a = relay.var('a', shape=(10, 10))
         b = relay.var('b', shape=(10, 10))
+        c = relay.var('c', shape=(10, 10))
 
         # add_add function
         in_1 = relay.var('in_1', shape=(10, 10))
         in_2 = relay.var('in_2', shape=(10, 10))
-        in_3 = relay.const(10, dtype="float32")
         add_node = relay.add(in_1, in_2)
-        add_node_1 = relay.add(add_node, in_3)
+        add_node_1 = relay.add(add_node, c)
         add_add = relay.Function([in_1, in_2], add_node_1)
         add_add = add_add.set_attribute("Primitive",
                                                 tir.IntImm("int32", 1))
@@ -385,7 +386,7 @@ def test_ignore_const_merge():
 
         # merged function
         call = relay.Call(add_add, [a, b])
-        return relay.Function([a, b], call)
+        return relay.Function([a, b, c], call)
 
     result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
     assert not relay.analysis.free_vars(result)
