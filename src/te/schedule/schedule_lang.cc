@@ -825,16 +825,6 @@ SpecializedCondition SpecializedCondition::Current() {
   return cond;
 }
 
-TVM_REGISTER_GLOBAL("te.CreateSpecializedCondition")
-.set_body_typed([](Array<PrimExpr> condition) {
-  return SpecializedCondition(condition);
-});
-
-TVM_REGISTER_GLOBAL("te.GetCurrentSpecialization")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = SpecializedCondition::Current();
-});
-
 class SpecializedCondition::Internal {
  public:
   static void EnterScope(SpecializedCondition cond) {
@@ -845,12 +835,6 @@ class SpecializedCondition::Internal {
     cond.ExitWithScope();
   }
 };
-
-TVM_REGISTER_GLOBAL("te.EnterSpecializationScope")
-.set_body_typed(SpecializedCondition::Internal::EnterScope);
-
-TVM_REGISTER_GLOBAL("te.ExitSpecializationScope")
-.set_body_typed(SpecializedCondition::Internal::ExitScope);
 
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
@@ -1034,6 +1018,22 @@ TVM_REGISTER_GLOBAL("te.ScheduleCacheWrite")
 
 TVM_REGISTER_GLOBAL("te.ScheduleRFactor")
 .set_body_method(&Schedule::rfactor);
+
+TVM_REGISTER_GLOBAL("te.CreateSpecializedCondition")
+.set_body_typed([](Array<PrimExpr> condition) {
+    return SpecializedCondition(condition);
+});
+
+TVM_REGISTER_GLOBAL("te.GetCurrentSpecialization")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = SpecializedCondition::Current();
+});
+
+TVM_REGISTER_GLOBAL("te.EnterSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::EnterScope);
+
+TVM_REGISTER_GLOBAL("te.ExitSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::ExitScope);
 
 }  // namespace te
 }  // namespace tvm
