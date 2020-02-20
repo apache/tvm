@@ -38,7 +38,7 @@ def yolo_reorg(data, stride):
                             [[ 5]]  [[ 7]]  [[13]]  [[15]]]]
 
     .. note::
-    
+
         stride=1 has no significance for reorg operation.
 
     Parameters
