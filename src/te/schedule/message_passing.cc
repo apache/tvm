@@ -62,7 +62,7 @@ void PassDownDomain(const Stage& stage,
     return actx->Simplify(indexdiv(a + (b - 1), b));
   };
 
-  auto minimum = [actx](PrimExpr a, PrimExpr b) {
+  auto minimum_or_later  = [actx](PrimExpr a, PrimExpr b) {
     if (actx->CanProve(a < b)) {
       return actx->Simplify(a);
     }
@@ -82,7 +82,7 @@ void PassDownDomain(const Stage& stage,
       if (r->factor.defined()) {
         Update(p_state, r->inner,
                Range::make_by_min_extent(
-                   0, minimum(range_parent->extent, r->factor)), actx);
+                   0, minimum_or_later(range_parent->extent, r->factor)), actx);
         Update(p_state, r->outer,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->factor)), actx);
