@@ -232,7 +232,6 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 #
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/array-packing.png
 #      :align: center
-#      :scale: 100%
 #
 
 

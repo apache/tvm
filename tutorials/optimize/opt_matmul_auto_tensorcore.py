@@ -18,7 +18,7 @@
 .. _opt-matmul-auto-tensorcore:
 
 How to optimize matmul with Auto TensorCore CodeGen
-==================================
+===================================================
 **Author**: `Minmin Sun <https://github.com/minminsun>`_, \
             `Lanbo Li <https://github.com/Orion34C>`_, \
             `Chenfan Jia <https://github.com/jcf94>`_, \
@@ -31,12 +31,11 @@ with most transformations done in ir passes.
 Users can also write schedule with tensorization to generate TensorCore code.
 Both solutions use the same tensorcore intrinsics.
 Please refer to :ref:`opt-conv-tensorcore` tutorial for more details.
-
 """
 
 ################################################################
 # Preparation and Algorithm
-# --------------------------
+# -------------------------
 # 2 kinds of input data types are supported: float16 and int8.
 # For float16, the accumulator is float32.
 # For int8, the accumulator is int32.
@@ -215,7 +214,7 @@ def test_gemm(N, L, M, dtype, layout):
 
 ###############################################################################
 # AutoTune and Test
-# --------------------
+# -----------------
 # Finally we use a tuner to tune the schedule, generate code with best config
 # and run the kernel to compare with numpy to check whether the results are correct.
 
@@ -460,6 +459,6 @@ def tune_and_evaluate(M, N, L, dtype, layout):
 
 ###############################################################################
 # Summary
-# --------------------------
+# -------
 # This tutorial demonstrates how to use the AutoTensorCoreCodeGen of TVM
 # to generate tensorcore kernels.

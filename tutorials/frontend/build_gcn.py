@@ -16,32 +16,29 @@
 # under the License.
 """
 Building a Graph Convolutional Network
-=====================
+======================================
 **Author**: `Yulun Yao <https://yulunyao.io/>`_, \
             `Chien-Yu Lin <https://homes.cs.washington.edu/~cyulin/>`_
 
 This article is an introductory tutorial to build a Graph Convolutional Network (GCN) with Relay.
-
 In this tutorial, we will run our GCN on Cora dataset to demonstrate.
-
 Cora dataset is a common benchmark for Graph Neural Networks (GNN) and frameworks that support GNN training and inference.
-
 We directly load the dataset from DGL library to do the apples to apples comparison against DGL.
 
 Please refer to DGL doc for DGL installation at
-https://docs.dgl.ai/install/index.html
+https://docs.dgl.ai/install/index.html.
 
-and refer to PyTorch guide for PyTorch installation at
-https://pytorch.org/get-started/locally/
+Please refer to PyTorch guide for PyTorch installation at
+https://pytorch.org/get-started/locally/.
 """
 
 
 ######################################################################
 # Define GCN in DGL with PyTorch backend
-# ------------------
+# --------------------------------------
 #
 # DGL example: https://github.com/dmlc/dgl/tree/master/examples/pytorch/gcn
-# This part reuses the code from the above example
+# This part reuses the code from the above example.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -78,7 +75,7 @@ class GCN(nn.Module):
 
 ######################################################################
 # Define the functions to load dataset and evaluate accuracy
-# ------------------
+# ----------------------------------------------------------
 # You may substitute this part with your own dataset, here we load data from DGL
 from dgl.data import load_data
 from collections import namedtuple
@@ -106,7 +103,7 @@ def evaluate(data, logits):
 
 ######################################################################
 # Load the data and set up model parameters
-# ------------------
+# -----------------------------------------
 """
 Parameters
 ----------
@@ -136,7 +133,7 @@ num_classes = data.num_labels
 
 ######################################################################
 # Set up the DGL-PyTorch model and get the golden results
-# ------------------
+# -------------------------------------------------------
 #
 # The weights are trained with https://github.com/dmlc/dgl/blob/master/examples/pytorch/gcn/train.py
 from tvm.contrib.download import download_testdata
@@ -162,7 +159,7 @@ torch_model.load_state_dict(torch.load(model_path))
 
 ######################################################################
 # Run the DGL model and test for accuracy
-# ------------------
+# ---------------------------------------
 torch_model.eval()
 with torch.no_grad():
     logits_torch = torch_model(features)
@@ -174,9 +171,8 @@ print("Test accuracy of DGL results: {:.2%}".format(acc))
 
 ######################################################################
 # Define Graph Convolution Layer in Relay
-# ----------------------------
+# ---------------------------------------
 # To run GCN on TVM, we first need to implement Graph Convolution Layer.
-#
 # You may refer to https://github.com/dmlc/dgl/blob/master/python/dgl/nn/mxnet/conv.py for a GraphConv Layer implemented in DGL with MXNet Backend
 #
 # The layer is defined with below operations, note that we apply two transposes to keep adjacency matrix on right hand side of sparse_dense operator,
@@ -251,7 +247,7 @@ def GraphConv(layer_name,
 
 ######################################################################
 # Prepare the parameters needed in the GraphConv layers
-# ------------------
+# -----------------------------------------------------
 #
 import numpy as np
 import networkx as nx
@@ -282,7 +278,7 @@ assert params['infeats'].shape[0] == params['indptr'].shape[0] - 1
 
 ######################################################################
 # Put layers together
-# ------------------
+# -------------------
 
 # Define input features, norms, adjacency matrix in Relay
 infeats = relay.var("infeats", shape=data.features.shape)
@@ -321,7 +317,8 @@ func = relay.Function(relay.analysis.free_vars(output), output)
 
 ######################################################################
 # Compile and run with TVM
-# ------------------
+# ------------------------
+#
 # Export the weigths from PyTorch model to Python Dict
 model_params = {}
 for param_tensor in torch_model.state_dict():
@@ -345,7 +342,7 @@ m.set_input(**params)
 
 ######################################################################
 # Run the TVM model, test for accuracy and verify with DGL
-# ------------------
+# --------------------------------------------------------
 m.run()
 logits_tvm = m.get_output(0).asnumpy()
 print("Print the first five outputs from TVM execution\n", logits_tvm[:5])

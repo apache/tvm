@@ -27,7 +27,7 @@ tvm.runtime
 
 .. autoclass:: tvm.runtime.PackedFunc
    :members:
-   :inheritated-members:
+   :inherited-members:
 
 .. autofunction:: tvm.register_func
 
