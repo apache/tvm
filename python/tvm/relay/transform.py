@@ -256,17 +256,20 @@ def CombineParallelConv2D(min_num_branches=3):
 def CombineParallelDense(min_num_branches=3):
     """Combine multiple dense operators into one. For example:
 
-                data
-          /              \
-     dense (2,2)         dense (2,2)
-         |                 |
-    elemwise/bcast (2,2)  elemwise/bcast (2,2)
+    .. code-block
+                    data
+            /              \
+        dense (2,2)         dense (2,2)
+            |                 |
+        elemwise/bcast (2,2)  elemwise/bcast (2,2)
 
     Would become:
 
-             data
-              |
-        batch_matmul+elemwise/bcast (2,2,2)
+    .. code-block
+
+                data
+                |
+            batch_matmul+elemwise/bcast (2,2,2)
 
     Parameters
     ----------

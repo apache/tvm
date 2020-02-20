@@ -102,7 +102,7 @@ class Tensor(Object, _expr.ExprOp):
 
     @property
     def op(self):
-        """The corressponding :any:`Operation`."""
+        """The corressponding :py:class:`Operation`."""
         return self.__getattr__("op")
 
     @property
