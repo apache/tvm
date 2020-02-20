@@ -535,7 +535,7 @@ To simplify, we define a graph representation named "ExampleJSON" in this guide.
 
 Then the ExampleJON of this subgraph looks like:
 
-.. code-block:: json
+.. code-block:: none
 
   subgraph_0
     input 0 10 10
@@ -544,7 +544,7 @@ Then the ExampleJON of this subgraph looks like:
     input 3 10 10
     add 4 inputs: 0 1 shape: 10 10
     sub 5 inputs: 4 2 shape: 10 10
-    add 6 inputs: 5 3 shape: 10 10
+    mul 6 inputs: 5 3 shape: 10 10
 
 The ``input`` keyword declares an input tensor with its ID and shape; while the other statements describes computations in ``<op> <output ID> inputs: [input ID] shape: [shape]`` syntax.
 

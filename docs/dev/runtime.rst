@@ -258,6 +258,7 @@ It also allows us to get members of an object easily in front-end language.
 For example, in the following code, we accessed the op field of the TensorNode.
 
 .. code:: python
+
     import tvm
 
     x = tvm.placeholder((3,4), name="x")

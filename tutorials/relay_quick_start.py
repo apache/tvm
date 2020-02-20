@@ -18,7 +18,7 @@
 .. _tutorial-relay-quick-start:
 
 Quick Start Tutorial for Compiling Deep Learning Models
-======================================================
+=======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
@@ -33,7 +33,6 @@ Notice that you need to build TVM with cuda and llvm enabled.
 #
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png
 #      :align: center
-#      :scale: 100%
 #
 # In this tutorial, we'll choose cuda and llvm as target backends.
 # To begin with, let's import Relay and TVM.
@@ -47,7 +46,7 @@ from tvm.contrib import graph_runtime
 
 ######################################################################
 # Define Neural Network in Relay
-# -----------------------------
+# ------------------------------
 # First, let's define a neural network with relay python frontend.
 # For simplicity, we'll use pre-defined resnet-18 network in Relay.
 # Parameters are initialized with Xavier initializer.

@@ -94,7 +94,7 @@ assert model in pack_dict
 
 ######################################################################
 # Obtain an execution remote
-# ---------------------------------
+# --------------------------
 # When target is 'pynq', reconfigure FPGA and runtime.
 # Otherwise, if target is 'sim', execute locally.
 
@@ -136,15 +136,16 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # ---------------------------------
 # Grab vision model from Gluon model zoo and compile with Relay.
 # The compilation steps are:
-#    1) Front end translation from MxNet into Relay module.
-#    2) Apply 8-bit quantization: here we skip the first conv layer,
-#       and dense layer which will both be executed in fp32 on the CPU.
-#    3) Perform graph packing to alter the data layout for tensorization.
-#    4) Perform constant folding to reduce number of operators (e.g. eliminate
-#       batch norm multiply).
-#    5) Perform relay build to object file.
-#    6) Load the object file onto remote (FPGA device).
-#    7) Generate graph runtime, `m`.
+#
+# 1. Front end translation from MxNet into Relay module.
+# 2. Apply 8-bit quantization: here we skip the first conv layer,
+#    and dense layer which will both be executed in fp32 on the CPU.
+# 3. Perform graph packing to alter the data layout for tensorization.
+# 4. Perform constant folding to reduce number of operators (e.g. eliminate batch norm multiply).
+# 5. Perform relay build to object file.
+# 6. Load the object file onto remote (FPGA device).
+# 7. Generate graph runtime, `m`.
+#
 
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
