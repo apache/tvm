@@ -53,8 +53,3 @@ tvm.relay.op
 
 .. automodule:: tvm.relay.op.nn
     :members:
-
-.. automodule:: tvm.relay.op.vision.multibox
-    :members:
-
-.. autofunction:: tvm.relay.vision.nms

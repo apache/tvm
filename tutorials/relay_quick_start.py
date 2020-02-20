@@ -33,7 +33,6 @@ Notice that you need to build TVM with cuda and llvm enabled.
 #
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png
 #      :align: center
-#      :scale: 100%
 #
 # In this tutorial, we'll choose cuda and llvm as target backends.
 # To begin with, let's import Relay and TVM.

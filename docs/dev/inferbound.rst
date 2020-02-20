@@ -118,13 +118,11 @@ In the Operation class declaration above, we can see that each operation also ha
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/stage_graph.png
     :align: center
-    :scale: 70%
 
 InferBound makes one pass through the graph, visiting each stage exactly once. InferBound starts from the output stages (i.e., the solid blue nodes in the graph above), and moves upwards (in the opposite direction of the edges). This is achieved by performing a reverse topological sort on the nodes of the graph. Therefore, when InferBound visits a stage, each of its consumer stages has already been visited.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/inferbound_traversal.png
     :align: center
-    :scale: 70%
 
 The InferBound pass is shown in the following pseudo-code:
 
@@ -162,7 +160,6 @@ Recall that all IterVars of the stage are related by IterVarRelations. The IterV
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/relations.png
     :align: center
-    :scale: 70%
 
 
 The above diagram shows the IterVar hyper-graph for one stage. The stage has one root_iter_var, ``i``. It has been split, and the resulting inner axis ``i.inner``, has been split again. The leaf_iter_vars of the stage are shown in green: ``i.outer``, ``i.inner.outer``, and ``i.inner.inner``.
@@ -208,7 +205,6 @@ As mentioned above, a consumer may only require a small number of elements from 
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/inferbound_phases.png
     :align: center
-    :scale: 70%
 
 IntSets
 ~~~~~~~
@@ -323,14 +319,12 @@ A ComputeOp has only a single output Tensor, whose axes correspond to the axis v
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/gatherbound.png
     :align: center
-    :scale: 70%
 
 
 The union of IntSets is computed by converting each IntSet to an Interval, and then taking the minimum of all minimums, and the maximum of all of these interval's maximums.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/union.png
     :align: center
-    :scale: 70%
 
 
 This clearly results in some unnecessary computation, i.e., tensor elements will be computed that are never used.
@@ -340,7 +334,6 @@ Unfortunately, even if we're lucky and the IntervalSet unions do not produce unn
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/gatherbound_problem.png
     :align: center
-    :scale: 70%
 
 .. _InferBoundCA:
 
@@ -696,7 +689,6 @@ When InferRootBound is working on stage B, it visits B's consumer stage C to fin
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_problem.png
     :align: center
-    :scale: 70%
 
 
 
@@ -756,17 +748,14 @@ If the split factor is 4, or 8, in the above example, the region of B needed in 
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_div.png
     :align: center
-    :scale: 70%
 
 However, if the split factor is changed from 4 to 3 in the example above, it is easy to see that the region of B that C needs can no longer be described by an independent Range for each of its axes.
 
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_nodiv.png
     :align: center
-    :scale: 70%
 
 The best that can be done with rectangular regions is shown in the following diagram. The orange regions are the minimum rectangular regions covering the region of B that needs to be computed, at each iteration of the outer loop.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/docs/inferbound/passupdomain_min.png
     :align: center
-    :scale: 70%
