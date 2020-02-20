@@ -21,23 +21,22 @@ from .. import api as _api
 
 def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     """Create an extern op that compute matrix mult of A and rhs with CrhsLAS
-
     This function serves as an example on how to call external libraries.
 
     Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
 
     Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     n = lhs.shape[1] if transa else lhs.shape[0]
@@ -55,20 +54,22 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
 
 def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs):
     """Create an extern op that compute batched matrix mult of A and rhs with CBLAS
-     This function serves as an example on how to call external libraries.
-     Parameters
+    This function serves as an example on how to call external libraries.
+
+    Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
-     Returns
+
+    Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     b = lhs.shape[0]

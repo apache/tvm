@@ -21,7 +21,7 @@ tvm.contrib
 
 tvm.contrib.cblas
 ~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.cc
+.. automodule:: tvm.contrib.cblas
     :members:
 
 

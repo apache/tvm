@@ -258,8 +258,7 @@ class ApplyHistoryBest(DispatchContext):
     records : str or iterator of (MeasureInput, MeasureResult)
         Collection of tuning records.
         If is str, then it should be the filename of a records log file.
-                   Each row of this file is an encoded record pair.
-        Otherwise, it is an iterator.
+        Each row of this file is an encoded record pair. Otherwise, it is an iterator.
     """
     def __init__(self, records):
         super(ApplyHistoryBest, self).__init__()
@@ -279,8 +278,7 @@ class ApplyHistoryBest(DispatchContext):
         records : str or iterator of (MeasureInput, MeasureResult)
             Collection of tuning records.
             If is str, then it should be the filename of a records log file.
-                       Each row of this file is an encoded record pair.
-            Otherwise, it is an iterator.
+            Each row of this file is an encoded record pair. Otherwise, it is an iterator.
         """
         # pylint: disable=import-outside-toplevel
         from pathlib import Path

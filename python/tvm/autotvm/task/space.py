@@ -54,13 +54,13 @@ class TransformSpace(object):
     """Base class for transform space
     TransformSpace is the node in the computation graph of axes
 
-    Note
-    ----
-    We can regard our schedule code as a transformation graph of axes.
-    Starting from raw axes in the definition of tvm.compute, we can transform these axes
-    by some operators. The operator includes 'split', 'reorder' and 'annotate'.
-    Each operator has some tunable parameters (e.g. the split factor).
-    Then the tuning process is just to find good parameters of these op.
+    .. note::
+
+        We can regard our schedule code as a transformation graph of axes.
+        Starting from raw axes in the definition of tvm.compute, we can transform these axes
+        by some operators. The operator includes 'split', 'reorder' and 'annotate'.
+        Each operator has some tunable parameters (e.g. the split factor).
+        Then the tuning process is just to find good parameters of these op.
 
     So the all the combinations of the parameters of these op forms our search space.
 
@@ -109,7 +109,8 @@ class VirtualAxis(TransformSpace):
     var: int or tvm.schedule.IterVar
         If is int, return a virtual axis whose length is the provided argument.
         If is IterVar, return a virtual axis whose length is extracted from
-                       the IterVar's extent domain.
+        the IterVar's extent domain.
+
     name: str
     """
     name_ct = 0
@@ -253,9 +254,9 @@ class SplitEntity(object):
     Parameters
     ----------
     size: Array of int
-        the size of every axis after split
+        the size of every axis after split.
         e.g. an axis of extent 128, we split it into 3 axes, a possible
-             size is [4, 4, 8] (4x4x8 = 128)
+        size is [4, 4, 8] (4x4x8 = 128).
     """
     def __init__(self, size):
         self.size = size
@@ -626,7 +627,7 @@ class ConfigSpace(object):
         var: int or tvm.schedule.IterVar
             If is int, return an axis whose length is the provided argument.
             If is IterVar, return an axis whose length is extracted from the
-                           IterVar's extent domain.
+            IterVar's extent domain.
         """
         return VirtualAxis(var)
 
@@ -647,18 +648,19 @@ class ConfigSpace(object):
             If is 'power2', the tuner will try power-of-two factors less or equal to the length.
             If is 'verbose', the tuner will try all candidates in above two policies.
             If is 'candidate', try given candidates.
-        kwargs: dict
+        **kwargs:
             extra arguments for policy
-            max_factor: int
-                the maximum split factor.
-            filter: function(int) -> bool
-                see examples below for how to use filter.
-            num_outputs: int
-                the total number of axis after split.
-            no_tail: bool
-                should we only include divisible numbers as split factors.
-            candidate: list
-                (policy=candidate) manual candidate list.
+
+            ``max_factor``:
+                the maximum split factor (`int`).
+            ``filter``:
+                see examples below for how to use filter (`Callable[[int], bool]`).
+            ``num_outputs``:
+                the total number of axis after split (`int`).
+            ``no_tail``:
+                should we only include divisible numbers as split factors (`bool`).
+            `candidate``:
+                (policy=candidate) manual candidate list (`List`).
 
         Examples
         --------
@@ -668,6 +670,7 @@ class ConfigSpace(object):
         >>> # use a filter that only accepts the split scheme whose inner most tile is less then 4
         >>> cfg.define_split('tile_y', y, policy='factors', filter=lambda x: x.size[-1] <= 4)
         """
+
         axes = [axis]
         return self._add_new_transform(SplitSpace, name, axes, policy, **kwargs)
 
@@ -749,8 +752,11 @@ class ConfigSpace(object):
 
     def valid(self):
         """Check whether the config meets all the constraints
-        Note: This check should be called after instantiation of task,
-              because the ConfigEntity/ConfigSpace collects errors during instantiation
+
+        .. note::
+
+            This check should be called after instantiation of task,
+            because the ConfigEntity/ConfigSpace collects errors during instantiation
 
         Returns
         -------
