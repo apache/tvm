@@ -158,7 +158,8 @@ PrimExpr SelectNode::make(PrimExpr condition, PrimExpr true_value, PrimExpr fals
   CHECK(true_value.defined()) << "ValueError: true_value is undefined";
   CHECK(false_value.defined()) << "ValueError: true_value is undefined";
   CHECK(condition.dtype().is_bool());
-  CHECK_EQ(condition.dtype().lanes(), true_value.dtype().lanes());
+  CHECK(condition.dtype().lanes() == true_value.dtype().lanes() ||
+        condition.dtype().lanes() == 1);
   CHECK(false_value.dtype() == true_value.dtype()) << "TypeError: mismatched types";
 
   ObjectPtr<SelectNode> node = make_object<SelectNode>();
