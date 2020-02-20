@@ -323,6 +323,7 @@ def test_strided_set():
             op_res = intrp.evaluate(func)(x_data, v_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
+    verify((3, 4, 16), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
