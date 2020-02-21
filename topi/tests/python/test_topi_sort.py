@@ -26,12 +26,10 @@ def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
     data_dtype = "float32"
     data = tvm.placeholder(dshape, name="data", dtype=data_dtype)
-    np_data = np.random.uniform(size=dshape).astype(data_dtype)
 
-    # Shuffle index and get data from shuffled index
-    perm = np.arange(len(np_data))
+    perm = np.arange(dshape[0] * dshape[1], dtype=data_dtype)
     np.random.shuffle(perm)
-    np_data = np_data[perm]
+    np_data = perm.reshape(dshape)
 
     if is_ascend:
         np_indices = np.argsort(np_data, axis=axis)
