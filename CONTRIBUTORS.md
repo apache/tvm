@@ -45,6 +45,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhi Chen](https://github.com/zhiics): @zhiics - relay, quantization, pass manager
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
+- [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PPMC): @ZihengJiang - relay, compiler
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
