@@ -40,29 +40,27 @@ class MergeCompositeWrapper : public ExprMutator {
   explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
     : pattern_name_(pattern_name), pattern_(pattern) {}
 
-  Expr ExtractPattern(const Var& pattern, const Expr& root,
-          Map<std::string, Array<Expr>>* var_map) {
-    if (var_map->find(pattern->name_hint()) == var_map->end()) {
+  Expr ExtractPattern(const Var& pattern, const Expr& root) {
+    if (var_map_.find(pattern->name_hint()) == var_map_.end()) {
       // if we haven't encountered this var yet, make a new free var and associate
       // it with the value at 'root'
       auto free_var = VarNode::make(pattern->name_hint(), Type());
-      var_map->Set(pattern->name_hint(), Array<Expr>({free_var, root}));
+      var_map_.Set(pattern->name_hint(), Array<Expr>({free_var, root}));
       return std::move(free_var);
     } else {
       // if we have encountered this var already, return the free var that was created
-      auto vars = (*var_map)[pattern->name_hint()];
+      auto vars = var_map_[pattern->name_hint()];
       auto free_var = vars[0];
       auto graph_expr = vars[1];
       // make sure to first check they both map to the same node in the graph
       if (graph_expr != root) {
         return Expr();
       }
-      return (*var_map)[pattern->name_hint()][0];
+      return var_map_[pattern->name_hint()][0];
     }
   }
 
-  Expr ExtractPattern(const Constant& pattern, const Expr& root,
-          Map<std::string, Array<Expr>>* var_map) {
+  Expr ExtractPattern(const Constant& pattern, const Expr& root) {
     return root;
   }
 
@@ -70,7 +68,6 @@ class MergeCompositeWrapper : public ExprMutator {
    * \brief Try and extract a given pattern from a graph as a subgraph.
    * \param pattern The pattern to extract.
    * \param root The graph to extract from.
-   * \param var_map A map between free vars in the subgraph and nodes in the graph.
    * \return The extracted subgraph.
    *
    * \note How does this work?
@@ -86,9 +83,7 @@ class MergeCompositeWrapper : public ExprMutator {
    * up correctly with the rest of the graph. The return value of this function when successful is
    * a new Relay expression ready to be wrapped into a composite function.
    */
-  Expr ExtractPattern(const Call& pattern, const Call& root,
-          Map<std::string, Array<Expr>>* var_map, Map<Expr, Expr>* call_map,
-          Array<Expr>* const_list) {
+  Expr ExtractPattern(const Call& pattern, const Call& root) {
     // check to make sure both calls are to operators (not functions)
     if (!pattern->op->IsInstance<OpNode>() || !root->op->IsInstance<OpNode>())
       return Expr();
@@ -101,32 +96,26 @@ class MergeCompositeWrapper : public ExprMutator {
       Expr new_arg;
       if (arg->IsInstance<CallNode>()) {
         // if we've already processed this call node, return the previous result
-        if (call_map->find(arg) != call_map->end()) {
-          new_arg = (*call_map)[arg];
+        if (call_map_.find(arg) != call_map_.end()) {
+          new_arg = call_map_[arg];
         } else {
           // fail if the root argument is not also a call node
           if (!root->args[i]->IsInstance<CallNode>()) {
             return Expr();
           }
           // if it's a call node, recursively call this function
-          new_arg = ExtractPattern(Downcast<Call>(arg),
-                                  Downcast<Call>(root->args[i]),
-                                  var_map, call_map, const_list);
-          call_map->Set(arg, new_arg);
+          new_arg = ExtractPattern(Downcast<Call>(arg), Downcast<Call>(root->args[i]));
+          call_map_.Set(arg, new_arg);
         }
       } else if (arg->IsInstance<VarNode>()) {
         // if there's a var in the pattern, it must be a free var
         // so call the function to update the var_map
-        new_arg = ExtractPattern(Downcast<Var>(arg),
-                                 root->args[i],
-                                 var_map);
+        new_arg = ExtractPattern(Downcast<Var>(arg), root->args[i]);
       } else if (arg->IsInstance<ConstantNode>()) {
         // if there's a constant, simply get the corresponding
         // value of the constant from the root
-        new_arg = ExtractPattern(Downcast<Constant>(arg),
-                                 root->args[i],
-                                 var_map);
-        const_list->push_back(new_arg);
+        new_arg = ExtractPattern(Downcast<Constant>(arg), root->args[i]);
+        const_list_.push_back(new_arg);
       }
       if (!new_arg.defined()) {
         return Expr();
@@ -162,21 +151,19 @@ class MergeCompositeWrapper : public ExprMutator {
     // only call patterns are supported
     Call pattern = Downcast<Call>(pattern_);
     CHECK(pattern.defined());
-    Map<std::string, Array<Expr>> args_map;
-    Map<Expr, Expr> call_map;
-    Array<Expr> const_list;
-    auto extract = ExtractPattern(pattern, call, &args_map, &call_map, &const_list);
+    ResetDataStructures();
+    auto extract = ExtractPattern(pattern, call);
     if (extract.defined()) {
-      auto free_vars = GetFreeVarsWithoutConst(extract, const_list);
+      auto free_vars = GetFreeVarsWithoutConst(extract);
       // make the composite function
       auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
       f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
       f = FunctionSetAttr(f, attr::kPrimitive, tvm::Integer(1));
-      // find the expressions associated with the free vars using the args_map
+      // find the expressions associated with the free vars using the var_map_
       // this tells us which expressions should be given as inputs to the composite function
       Array<Expr> args;
       for (const auto& free_var : free_vars) {
-        args.push_back(args_map[free_var->name_hint()][1]);
+        args.push_back(var_map_[free_var->name_hint()][1]);
       }
       auto new_call = CallNode::make(f, args);
       return std::move(new_call);
@@ -186,13 +173,13 @@ class MergeCompositeWrapper : public ExprMutator {
 
  private:
   /*! \brief Returns all free vars from expr that are not constants */
-  Array<Var> GetFreeVarsWithoutConst(const Expr& expr, const Array<Expr>& const_list) {
+  Array<Var> GetFreeVarsWithoutConst(const Expr& expr) {
     Array<Var> free_vars_without_const;
     auto free_vars = FreeVars(expr);
     for (const auto& free_var : free_vars) {
       bool is_const = false;
-      for (const auto& const_var : const_list) {
-        if (free_var.get() == const_var.get()) {
+      for (const auto& const_var : const_list_) {
+        if (free_var == const_var) {
           is_const = true;
           break;
         }
@@ -206,10 +193,23 @@ class MergeCompositeWrapper : public ExprMutator {
     return free_vars_without_const;
   }
 
+  /*! \brief Resets all data structures used in pattern matching */
+  void ResetDataStructures() {
+    var_map_ = Map<std::string, Array<Expr>>();
+    call_map_ = Map<Expr, Expr>();
+    const_list_ = Array<Expr>();
+  }
+
   /*! \brief The name of the pattern to match */
   std::string pattern_name_;
   /*! \brief The pattern to match */
   Expr pattern_;
+  /*! \brief Mapping of var name_hint to var. Used so vars aren't processed multiple times. */
+  Map<std::string, Array<Expr>> var_map_;
+  /*! \brief Mapping of call to Expr. Used so calls aren't processed multiple times. */
+  Map<Expr, Expr> call_map_;
+  /*! \brief List of consts seen. Used so consts aren't processed multiple times. */
+  Array<Expr> const_list_;
 };
 
 Expr MergeComposite(const Expr& expr,
