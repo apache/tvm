@@ -106,7 +106,6 @@ def schedule_direct_cuda(cfg, s, conv):
         tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
         s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
         s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
     # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)

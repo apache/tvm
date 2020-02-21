@@ -87,10 +87,11 @@ void PassDownDomain(const Stage& stage,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
-        Update(p_state, r->outer, Range::make_by_min_extent(0, r->nparts), actx);
-        Update(p_state, r->inner,
+        Update(p_state, r->outer,
                Range::make_by_min_extent(
-                   0, ceil_div(range_parent->extent, r->nparts)), actx);
+                   0, minimum_or_later(range_parent->extent, r->nparts)), actx);
+        Update(p_state, r->inner,
+               Range::make_by_min_extent(0, ceil_div(range_parent->extent, r->nparts)), actx);
       }
     } else if (const FuseNode* r = rel.as<FuseNode>()) {
       if (!state.count(r->outer) || !state.count(r->inner)) {
