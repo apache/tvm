@@ -221,8 +221,6 @@ def test_get_valid_counts():
         func = relay.Function([x], z.astuple())
         func = run_infer_type(func)
         for target, ctx in ctx_list():
-            if target == 'cuda':
-                return
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
