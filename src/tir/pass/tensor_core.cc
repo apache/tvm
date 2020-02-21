@@ -199,7 +199,11 @@ class MMAMatcher: public StmtVisitor {
     BufferInfo buffer_a;
     if (!check_local_buffer_(load_a, &buffer_a)
         || !(buffer_a.dtype == DataType::Float(16) ||
-             buffer_a.dtype == DataType::Int(8))) {
+             buffer_a.dtype == DataType::Int(8) ||
+             buffer_a.dtype == DataType::UInt(8) ||
+             buffer_a.dtype == DataType::Int(4) ||
+             buffer_a.dtype == DataType::UInt(4) ||
+             buffer_a.dtype == DataType::Int(1))) {
       return false;
     }
 
@@ -208,7 +212,11 @@ class MMAMatcher: public StmtVisitor {
     BufferInfo buffer_b;
     if (!check_local_buffer_(load_b, &buffer_b)
         || !(buffer_b.dtype == DataType::Float(16) ||
-             buffer_b.dtype == DataType::Int(8))) {
+             buffer_b.dtype == DataType::Int(8) ||
+             buffer_b.dtype == DataType::UInt(8) ||
+             buffer_b.dtype == DataType::Int(4) ||
+             buffer_a.dtype == DataType::UInt(4) ||
+             buffer_a.dtype == DataType::Int(1))) {
       return false;
     }
 
@@ -736,6 +744,17 @@ class BufferAnalyser : public StmtExprVisitor {
         warp_tile_.k == 16) {
       return true;
     }
+    if (warp_tile_.m == 8 &&
+        warp_tile_.n == 8 &&
+        warp_tile_.k == 32) {
+      return true;
+    }
+    if (warp_tile_.m == 8 &&
+        warp_tile_.n == 8 &&
+        warp_tile_.k == 128) {
+      return true;
+    }
+
     return false;
   }
 
@@ -869,18 +888,29 @@ class TensorCoreIRMutator : public StmtExprMutator {
       ObjectPtr<BufferNode> buffer_node_c = make_object<BufferNode>();
 
       auto mma_sync_call =
-        [&buffer_node_a, &buffer_node_b]
+        [&buffer_node_a, &buffer_node_b, &ca, &cb]
         (const Buffer &buffer) {
           Buffer buffer_a(buffer_node_a);
           Buffer buffer_b(buffer_node_b);
-          return EvaluateNode::make(
-                  CallNode::make(DataType::Handle(),
-                        intrinsic::tvm_mma_sync,
-                        {buffer->data, buffer->elem_offset,
-                        buffer_a->data, buffer_a->elem_offset,
-                        buffer_b->data, buffer_b->elem_offset,
-                        buffer->data, buffer->elem_offset},
-                        CallNode::Intrinsic));
+          if (ca->dtype == DataType::Int(1) && cb->dtype == DataType::Int(1)) {
+            return EvaluateNode::make(
+                    CallNode::make(DataType::Handle(),
+                          intrinsic::tvm_bmma_sync,
+                          {buffer->data, buffer->elem_offset,
+                          buffer_a->data, buffer_a->elem_offset,
+                          buffer_b->data, buffer_b->elem_offset,
+                          buffer->data, buffer->elem_offset},
+                          CallNode::Intrinsic));
+          } else {
+            return EvaluateNode::make(
+                    CallNode::make(DataType::Handle(),
+                          intrinsic::tvm_mma_sync,
+                          {buffer->data, buffer->elem_offset,
+                          buffer_a->data, buffer_a->elem_offset,
+                          buffer_b->data, buffer_b->elem_offset,
+                          buffer->data, buffer->elem_offset},
+                          CallNode::Intrinsic));
+          }
         };
 
       auto call_add_c =
