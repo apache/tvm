@@ -166,7 +166,11 @@ class OperatorConverter(object):
 
         op_code_list_idx = op.OpcodeIndex()
         op_code_id = self.model.OperatorCodes(op_code_list_idx).BuiltinCode()
-        op_code_str = self.builtin_op_code[op_code_id]
+        try:
+            op_code_str = self.builtin_op_code[op_code_id]
+        except KeyError:
+            raise NotImplementedError('TFLite operator with code ' + str(op_code_id) + \
+                                      ' is not supported by this version of the fbs schema.')
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
             custom_op_code_str = self.model.OperatorCodes(op_code_list_idx).CustomCode()
