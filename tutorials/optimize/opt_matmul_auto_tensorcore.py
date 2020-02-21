@@ -56,6 +56,8 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
       out_type = 'float'
     elif dtype == 'int8':
       out_type = 'int'
+    elif dtype == 'int4' or dtype == 'int1':
+      out_type = 'int'
     if (layout == 'NN'):
       return tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k].astype(out_type) * B[k, j].astype(out_type), axis=k))
     if (layout == 'NT'):
@@ -123,6 +125,12 @@ def test_gemm(N, L, M, dtype, layout):
     if dtype == 'int8':
       factor = 32
       offset = 16
+    elif dtype == 'int4':
+      factor = 64
+      offset = 32
+    elif dtype == 'int1':
+      factor = 256
+      offset = 128
 
     # create cache stages
     AA = s.cache_read(A, "shared", [C])
@@ -139,9 +147,9 @@ def test_gemm(N, L, M, dtype, layout):
     cfg = autotvm.get_config()
 
     cfg.define_knob("bx", [2, 4, 8])
-    cfg.define_knob("by", [16, 32, 64])
-    cfg.define_knob("step_k", [8, 16, 32])
-    cfg.define_knob("v", [4, 8])
+    cfg.define_knob("by", [8, 16, 32, 64])
+    cfg.define_knob("step_k", [1, 2, 4, 8, 16, 32])
+    cfg.define_knob("v", [4, 8, 16, 32])
     by = cfg['by'].val
     bx = cfg['bx'].val
     step_k = cfg['step_k'].val
@@ -150,9 +158,17 @@ def test_gemm(N, L, M, dtype, layout):
     # thread tile
     TX = 8
     TY = 1
+    if dtype == 'int4' or dtype == 'int1':
+      TX = 2
     # warp tile
     warp_tile_m = 16 # it could also be 8 or 32 on CUDA version >= 10.0
-    warp_tile_k = 16 # it must be 16
+    warp_tile_k = 16 # it must be 16 for fp16/int8 data type
+    if dtype == 'int4':
+      warp_tile_m = 8
+      warp_tile_k = 32
+    elif dtype == 'int1':
+      warp_tile_m = 8
+      warp_tile_k = 128
     # block tile
     tile_x = bx * TX
     tile_y = by * TY
@@ -219,6 +235,10 @@ def test_gemm(N, L, M, dtype, layout):
 # and run the kernel to compare with numpy to check whether the results are correct.
 
 # check whether the gpu has tensorcore
+if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+  print("skip because cuda is not enabled..")
+  sys.exit(0)
+
 ctx = tvm.gpu()
 if not nvcc.have_tensorcore(ctx.compute_version):
   print('the gpu has no tensorcore, skipping...')
@@ -233,6 +253,15 @@ if len(sys.argv) >= 5:
   dtype = sys.argv[4]
 if len(sys.argv) >= 6:
   layout = sys.argv[5]
+
+# check whether current gpu arch support support current dtype's wmma codegen
+cuda_compute_capability = tvm.runtime._ffi_api.GetDeviceAttr(2, 0, 4)
+major, minor= nvcc.parse_compute_version(cuda_compute_capability)
+if dtype == 'int8':
+  assert(major == 7 and minor >= 2)
+elif dtype == 'int4' or dtype == 'int1':
+  # int4/int1 only support layout TN
+  assert(major == 7 and minor == 5 and layout == 'TN')
 
 def tune_and_evaluate(M, N, L, dtype, layout):
   task = autotvm.task.create(test_gemm, args=(N, L, M, dtype, layout), target='cuda')
@@ -305,6 +334,42 @@ def tune_and_evaluate(M, N, L, dtype, layout):
       c_np = np.dot(a_np.astype(np.int32), b_np.astype(np.int32).T)
     elif (layout == "TT"):
       c_np = np.dot(a_np.astype(np.int32).T, b_np.astype(np.int32).T)
+  elif dtype == 'int4':
+    c_np_type = np.int32
+    a_np_int = np.random.randint(low=-8, high=7, size=shape_a).astype(np.int32)
+    b_np_int = np.random.randint(low=-8, high=7, size=shape_b).astype(np.int32)
+    # "TN"
+    c_np = np.dot(a_np_int.astype(np.int32), b_np_int.astype(np.int32).T)
+    a_np = np.zeros(shape=(N, int(L/8)), dtype = np.int32)
+    b_np = np.zeros(shape=(M, int(L/8)), dtype = np.int32)
+    # a_np --> col_major
+    for i in range(N):
+      for j in range(int(L/8)):
+        for k in range(8):
+          a_np[i, j] = a_np[i, j] | ((a_np_int[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
+
+    # b_np --> row_major
+    for i in range(M):
+      for j in range(int(L/8)):
+        for k in range(8):
+          b_np[i, j] = b_np[i, j] | ((b_np_int[i, j * 8 + k] & 0xf) << ((7 - k) * 4))
+  elif dtype == 'int1':
+    c_np_type = np.int32
+    a_np_int = np.random.randint(low=0, high=1, size=shape_a).astype(np.int32)
+    b_np_int = np.random.randint(low=0, high=1, size=shape_b).astype(np.int32)
+    # "TN"
+    c_np = np.dot(a_np_int.astype(np.int32), b_np_int.astype(np.int32).T)
+    a_np = np.zeros(shape=(N, int(L/32)), dtype = np.int32)
+    b_np = np.zeros(shape=(M, int(L/32)), dtype = np.int32)
+    for i in range(N):
+      for j in range(int(L/32)):
+        for k in range(32):
+          a_np[i, j] = a_np[i, j] | ((a_np_int[i, j * 32 + k] & 0xf) << (31 - k))
+
+    for i in range(M):
+      for j in range(int(L/32)):
+        for k in range(32):
+          b_np[i, j] = b_np[i, j] | ((b_np_int[i, j * 32 + k] & 0xf) << (31 - k))
 
   c_tvm = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np_type), ctx=ctx)
   a_tvm = tvm.nd.array(a_np, ctx=ctx)

@@ -138,7 +138,8 @@ class FragmentChecker : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
-    if (op->is_intrinsic(intrinsic::tvm_mma_sync)) {
+    if (op->is_intrinsic(intrinsic::tvm_mma_sync) ||
+        op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
       CHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = op->args[0].as<VarNode>();
       const VarNode* buffer_var_a = op->args[2].as<VarNode>();
