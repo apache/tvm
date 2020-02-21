@@ -174,7 +174,7 @@ std::string CodeGenC::GetBufferRef(
     PrintExpr(index, os);
     os << ")";
     if (t.bits() == 4 ||
-        (t.bits() == 1 && t.is_uint())) {
+        (t.bits() == 1 && t.is_int())) {
       os << " / " << (32 / t.bits());
     }
     os << ']';
@@ -214,7 +214,7 @@ std::string CodeGenC::GetBufferRef(
     PrintExpr(index, os);
     os << ")";
     if (t.bits() == 4 ||
-        (t.bits() == 1 && t.is_uint())) {
+        (t.bits() == 1 && t.is_int())) {
       os << " / " << (32 / t.bits());
     }
     os << "))[0]";
