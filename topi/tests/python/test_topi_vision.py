@@ -67,8 +67,8 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
     for device in ['llvm', 'cuda', 'opencl']:
-        # Disable gpu test for now
-        if device != "llvm":
+        # Disable opencl test for now
+        if device != "llvm" and device != "cuda":
             continue
         check_device(device)
 
