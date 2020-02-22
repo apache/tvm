@@ -49,6 +49,7 @@ tensorization in the core) to massage the compute graph for the hardware target.
 from __future__ import absolute_import, print_function
 
 import sys
+import os
 import time
 import tvm
 import vta
