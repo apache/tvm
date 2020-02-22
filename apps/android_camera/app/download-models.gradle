@@ -1,0 +1,81 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+/*
+ * download-models.gradle
+ *     Downloads model files from ${MODEL_URL} into application's asset folder
+ * Input:
+ *     project.ext.TMP_DIR: absolute path to hold downloaded zip files
+ *     project.ext.ASSET_DIR: absolute path to save unzipped model files
+ * Output:
+ *     3 model files will be downloaded into given folder of ext.ASSET_DIR
+ */
+// hard coded model files
+def models = ['extraction.zip']
+
+// Root URL for model archives
+def MODEL_URL = 'https://github.com/PariksheetPinjari909/TVM_models/blob/master/extraction_model'
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'de.undercouch:gradle-download-task:3.2.0'
+    }
+}
+
+import de.undercouch.gradle.tasks.download.Download
+task downloadFile(type: Download){
+    for (f in models) {
+        src "${MODEL_URL}/" + f + "?raw=true"
+        dest new File(project.ext.TMP_DIR + "/" + f)
+    }
+    overwrite true
+}
+
+task extractModels(type: Copy) {
+    def needDownload = false
+    for (f in models) {
+        def localFile = f.split("/")[-1]
+        if (!(new File(project.ext.TMP_DIR + '/' + localFile)).exists()) {
+            needDownload = true
+        }
+    }
+
+    if (needDownload) {
+        dependsOn downloadFile
+    }
+
+    for (f in models) {
+        def localFile = f.split("/")[-1]
+        from zipTree(project.ext.TMP_DIR + '/' + localFile)
+    }
+
+    into file(project.ext.ASSET_DIR)
+    fileMode  0644
+    exclude '**/LICENSE'
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == 'assembleDebug') {
+        task.dependsOn 'extractModels'
+    }
+    if (task.name == 'assembleRelease') {
+        task.dependsOn 'extractModels'
+    }
+}
+
