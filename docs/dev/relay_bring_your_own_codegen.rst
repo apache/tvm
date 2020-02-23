@@ -137,7 +137,7 @@ Here we highlight the notes marked in the above code:
 
 * **Note 3** is a TVM runtime compatible wrapper function. It accepts a list of input tensors and one output tensor (the last argument), casts them to the right data type, and invokes the subgraph function described in Note 2. In addition, ``TVM_DLL_EXPORT_TYPED_FUNC`` is a TVM macro that generates another function ``gcc_0`` with unified the function arguments by packing all tensors to ``TVMArgs``. As a result, the TVM runtime can directly invoke ``gcc_0`` to execute the subgraph without additional efforts. With the above code generated, TVM is able to compile it along with the rest parts of the graph and export a single library for deployment.
 
-In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `here<https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
+In the rest of this section, we will implement a codegen step-by-step to generate the above code. Your own codegen has to be located at ``src/relay/backend/contrib/<your-codegen-name>/``. In our example, we name our codegen "codegen_c" and put it under `/src/relay/backend/contrib/codegen_c/ <https://github.com/apache/incubator-tvm/blob/master/src/relay/backend/contrib/codegen_c/codegen.cc>`_. Feel free to check this file for a complete implementation.
 
 Specifically, we are going to implement two classes in this file and here is their relationship:
 
@@ -625,7 +625,7 @@ The next step is to implement a customized runtime to make use of the output of 
 Implement a Customized Runtime
 ==============================
 
-In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime" and put it under `here<src/runtime/contrib/example_ext_runtime/example_ext_runtime.cc>`_. Feel free to check this file for a complete implementation.
+In this section, we will implement a customized TVM runtime step-by-step and register it to TVM runtime modules. The customized runtime should be located at ``src/runtime/contrib/<your-runtime-name>/``. In our example, we name our runtime "example_ext_runtime" and put it under `/src/runtime/contrib/example_ext_runtime/ <https://github.com/apache/incubator-tvm/blob/master/src/runtime/contrib/example_ext_runtime/example_ext_runtime.cc>`_. Feel free to check this file for a complete implementation.
 
 Again, we first define a customized runtime class as follows. The class has to be derived from TVM ``ModuleNode`` in order to be compatible with other TVM runtime modules.
 

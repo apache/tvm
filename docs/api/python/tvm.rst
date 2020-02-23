@@ -44,7 +44,9 @@ The user facing API for computation declaration.
    tvm.min
    tvm.max
    tvm.tag_scope
-
+   tvm.exp
+   tvm.intrin
+   tvm.call_pure_extern
 
 .. autofunction:: tvm.var
 .. autofunction:: tvm.size_var
@@ -69,3 +71,6 @@ The user facing API for computation declaration.
 .. autofunction:: tvm.min
 .. autofunction:: tvm.max
 .. autofunction:: tvm.tag_scope
+.. autofunction:: tvm.exp
+.. autofunction:: tvm.intrin
+.. autofunction:: tvm.call_pure_extern
