@@ -46,10 +46,8 @@ echo "Running unittest in tsim..."
 python3 -m pytest -v vta/tests/python/unittest
 
 # Run unit tests in cycle accurate simulator
-# TODO(@icemelon9): temporarily disable tsim test because it takes a long time without tophub logs.
-#   Re-enable this test after update the tophub logs.
-# echo "Running integration test in tsim..."
-# python3 -m pytest -v vta/tests/python/integration
+echo "Running integration test in tsim..."
+python3 -m pytest -v vta/tests/python/integration
 
 # Reset default fsim simulation
 cp vta/config/fsim_sample.json vta/config/vta_config.json
