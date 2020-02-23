@@ -153,8 +153,9 @@ class AlphaEqualHandler:
       if (it != equal_map_.end()) {
         return it->second.same_as(rhs);
       }
-      if (this->VisitExpr(lhs, rhs)) {
+      if (this->VisitExpr(lhs, rhs) && equal_map_.find(rhs) == equal_map_.end()) {
         equal_map_[lhs] = rhs;
+        equal_map_[rhs] = lhs;
         return true;
       } else {
         return false;

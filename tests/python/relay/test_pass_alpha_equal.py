@@ -670,6 +670,18 @@ def test_fn_attribute():
     assert not relay.analysis.alpha_equal(add_1_fn, add_fn)
     assert not relay.analysis.alpha_equal(add_fn, add_1_fn)
 
+def test_commutative():
+    # create function performs add
+    x = relay.var('x', shape=(10,10))
+    y1 = relay.add(x, x)
+    z1 = relay.add(y1, y1)
+
+    # create function that is computationally the same, structually different
+    y2 = relay.add(x, x)
+    y3 = relay.add(x, x)
+    z2 = relay.add(y2, y3)
+
+    assert relay.analysis.alpha_equal(z1, z2) == relay.analysis.alpha_equal(z2, z1)
 
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
@@ -695,3 +707,4 @@ if __name__ == "__main__":
     test_graph_equal()
     test_hash_unequal()
     test_fn_attribute()
+    test_commutative()
