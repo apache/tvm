@@ -53,27 +53,35 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
 
     if groups == 1:
         if layout == "NCHW":
-            assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
-                name="conv2d_nchw_spatial_pack.arm_cpu")
-
-            _, _, kh, kw = get_const_tuple(kernel.shape)
-            pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
-            if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
-                dilation_h == 1 and dilation_w == 1:
+            if kernel_layout == "OIHW":
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
-                    name="conv2d_nchw_winograd.arm_cpu",
-                    plevel=15)
-                if "nnpack" in target.libs and pt == 1 and pb == 1 and pl == 1 and pr == 1:
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
+                    name="conv2d_nchw_spatial_pack.arm_cpu")
+                # check if winograd algorithm is applicable
+                _, _, kh, kw = get_const_tuple(kernel.shape)
+                pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
+                if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
+                    dilation_h == 1 and dilation_w == 1:
                     strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd_nnpack),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack),
-                        name="conv2d_nchw_winograd_nnpack.arm_cpu",
-                        plevel=13)
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
+                        name="conv2d_nchw_winograd.arm_cpu",
+                        plevel=15)
+                    if "nnpack" in target.libs and pt == 1 and pb == 1 and pl == 1 and pr == 1:
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd_nnpack),
+                            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack),
+                            name="conv2d_nchw_winograd_nnpack.arm_cpu",
+                            plevel=13)
+            elif re.match(r"OIHW\d*o", kernel_layout):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
+                    name="conv2d_nchw_spatial_pack.arm_cpu")
+            else:
+                raise RuntimeError("Unsupported weight layout {} for conv2d NCHW".
+                                   format(kernel_layout))
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             logger.warning("conv2d_hwcn is not optimized for arm cpu.")
@@ -141,22 +149,27 @@ def wrap_compute_conv2d_winograd_nnpack(topi_compute):
 def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
     dilation = attrs.get_int_tuple("dilation")
-    padding = attrs.get_int_tuple("padding")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
     stride_h, stride_w = attrs.get_int_tuple("strides")
+    tile_size = attrs.get_int("tile_size")
+    kernel = inputs[1]
     assert dilation == (1, 1), "Do not support dilate now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
-        _, _, kh, kw = get_const_tuple(inputs[1].shape)
-        pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
-        assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
-        strategy.add_implementation(
-            wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
-            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
-            name="conv2d_nchw_winograd.arm_cpu")
-        if pt == 1 and pb == 1 and pl == 1 and pr == 1:
+        if len(kernel.shape) == 5:
+            pad_kh, pad_kw, _, _, _ = get_const_tuple(inputs[1].shape)
+            kh = pad_kh - tile_size + 1
+            kw = pad_kw - tile_size + 1
+            assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
+                wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
+                name="conv2d_nchw_winograd.arm_cpu")
+        elif len(kernel.shape) == 4:
+            # kernel must be packed by winograd nnpack
+            assert "nnpack" in target.libs
             strategy.add_implementation(
                 wrap_compute_conv2d_winograd_nnpack(
                     topi.arm_cpu.conv2d_nchw_winograd_nnpack_without_weight_transform),
@@ -164,6 +177,8 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
                     topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack_without_weight_transform),
                 name="conv2d_nchw_winograd_nnpack_withou_weight_transform.arm_cpu",
                 plevel=5)
+        else:
+            raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))

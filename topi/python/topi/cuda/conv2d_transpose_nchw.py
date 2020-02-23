@@ -24,7 +24,7 @@ from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 
-@autotvm.register_topi_compute("nn.conv2d_transpose_nchw.cuda")
+@autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
 def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
     """Transposed 2D convolution nchw forward operator.
 
@@ -101,7 +101,7 @@ def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
 
     return data_out
 
-@autotvm.register_topi_schedule("nn.conv2d_transpose_nchw.cuda")
+@autotvm.register_topi_schedule("conv2d_transpose_nchw.cuda")
 def schedule_conv2d_transpose_nchw(cfg, outs):
     """TOPI Schedule callback for conv2d transpose operator.
 
