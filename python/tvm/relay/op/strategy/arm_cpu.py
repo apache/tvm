@@ -151,15 +151,16 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
-    stride_h, stride_w = attrs.get_int_tuple("strides")
-    tile_size = attrs.get_int("tile_size")
+    strides = attrs.get_int_tuple("strides")
     kernel = inputs[1]
     assert dilation == (1, 1), "Do not support dilate now"
+    assert strides == (1, 1), "Do not support strides now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
         if len(kernel.shape) == 5:
             pad_kh, pad_kw, _, _, _ = get_const_tuple(inputs[1].shape)
+            tile_size = attrs.get_int("tile_size")
             kh = pad_kh - tile_size + 1
             kw = pad_kw - tile_size + 1
             assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1

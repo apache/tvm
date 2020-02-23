@@ -16,6 +16,7 @@
 # under the License.
 """Definition of bifrost operator strategy."""
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
+import re
 import topi
 from .generic import *
 from .. import op as _op
@@ -36,20 +37,25 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
 
     if groups == 1:
         if layout == "NCHW":
-            assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
-                name="conv2d_nchw_spatial_pack.bifrost")
-
-            _, _, kh, kw = get_const_tuple(kernel.shape)
-            if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
-                    dilation_h == 1 and dilation_w == 1:
+            if kernel_layout == "OIHW":
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
-                    wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
-                    name="conv2d_nchw_winograd.bifrost",
-                    plevel=15)
+                    wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
+                    wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
+                    name="conv2d_nchw_spatial_pack.bifrost")
+
+                _, _, kh, kw = get_const_tuple(kernel.shape)
+                if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
+                   dilation_h == 1 and dilation_w == 1:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
+                        wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
+                        name="conv2d_nchw_winograd.bifrost",
+                        plevel=15)
+            elif re.match(r"OIHW\d*o", kernel_layout):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
+                    wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_spatial_pack),
+                    name="conv2d_nchw_spatial_pack.bifrost")
         else:
             raise RuntimeError("Unsupported conv2d layout {} for Mali(Bifrost)".
                                format(layout))
@@ -73,13 +79,12 @@ def conv2d_winograd_without_weight_transfrom_strategy_bifrost(attrs, inputs, out
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
     layout = attrs.data_layout
-    stride_h, stride_w = attrs.get_int_tuple("strides")
+    strides = attrs.get_int_tuple("strides")
     assert dilation == (1, 1), "Do not support dilate now"
+    assert strides == (1, 1), "Do not support strides now"
     assert groups == 1, "Do not supoort arbitrary group number"
     strategy = _op.OpStrategy()
     if layout == "NCHW":
-        _, _, kh, kw = get_const_tuple(inputs[1].shape)
-        assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
         strategy.add_implementation(
             wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
             wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),

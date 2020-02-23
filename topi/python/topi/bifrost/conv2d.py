@@ -457,7 +457,7 @@ def _schedule_winograd(cfg, s, op):
 
 
 ##### REGISTER ALTER OP LAYOUT #####
-@nn.conv2d_alter_layout.register(["bifrost"])
+@nn.conv2d_alter_layout.register("bifrost")
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
@@ -503,7 +503,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
-    elif topi_tmpl == "conv2d_nchw_winograd.bifrost":
+
+    if topi_tmpl == "conv2d_nchw_winograd.bifrost":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -527,5 +528,5 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
             inputs[0], weight_expr, **new_attrs)
-    else:
-        return None
+
+    return None
