@@ -19,9 +19,9 @@
 """x86 specific declaration and schedules."""
 from __future__ import absolute_import as _abs
 
-from .conv1d import schedule_conv1d_nwc
-from .conv2d import schedule_conv2d, schedule_conv2d_nhwc
-from .conv3d import schedule_conv3d_ndhwc
+from .conv1d import *
+from .conv2d import *
+from .conv3d import *
 from .binarize_pack import schedule_binarize_pack
 from .binary_dense import schedule_binary_dense
 from .nn import *
@@ -29,12 +29,12 @@ from .conv2d_int8 import *
 from .injective import *
 from .reduction import *
 from .pooling import schedule_pool, schedule_adaptive_pool
-from .bitserial_conv2d import schedule_bitserial_conv2d
-from .bitserial_dense import schedule_bitserial_dense
-from .depthwise_conv2d import schedule_depthwise_conv2d_NCHWc
-from .dense import _schedule_dense, _schedule_dense_pack, _schedule_dense_nopack
-from .batch_matmul import schedule_batch_matmul
+from .bitserial_conv2d import *
+from .bitserial_dense import *
+from .depthwise_conv2d import *
+from .dense import *
+from .batch_matmul import *
 from .roi_align import roi_align_nchw
-from .conv2d_transpose import _schedule_conv2d_transpose_nchw
+from .conv2d_transpose import *
 from .sparse import *
 from .conv2d_alter_op import *

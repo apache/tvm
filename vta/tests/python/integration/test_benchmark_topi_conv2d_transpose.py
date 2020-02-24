@@ -20,10 +20,12 @@
 import json
 import os
 
+import pytest
 import numpy as np
 from collections import namedtuple
 
 import tvm
+from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -80,14 +82,18 @@ def run_conv2d_transpose(env, remote, wl, target,
     if "arm_cpu" in target.keys:
         data_pack = False
         layout = "NCHW"
+        fcompute = topi.arm_cpu.conv2d_transpose_nchw
+        fschedule = topi.arm_cpu.schedule_conv2d_transpose_nchw
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
+        fcompute = vta.top.conv2d_transpose_packed
+        fschedule = vta.top.schedule_conv2d_transpose_packed
 
     # Derive shapes depending upon packing
 
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
-    w_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
+    w_shape = (wl.in_filter, wl.out_filter, wl.hkernel, wl.wkernel)
     if data_pack:
         data_shape = (wl.batch//env.BATCH, wl.in_filter//env.BLOCK_IN,
                       wl.height, wl.width, env.BATCH, env.BLOCK_IN)
@@ -98,16 +104,17 @@ def run_conv2d_transpose(env, remote, wl, target,
         kernel_shape = w_shape
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    padding = relay.nn.get_pad_tuple2d((wl.hpad, wl.wpad))
 
     # Define base computation schedule
     with target:
-        res = topi.nn.conv2d_transpose_nchw(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), env.acc_dtype)
+        res = fcompute(
+            data, kernel, (wl.hstride, wl.wstride), padding, env.acc_dtype)
         res = topi.right_shift(res, env.WGT_WIDTH)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
-        s = topi.generic.schedule_conv2d_transpose_nchw([res])
+        s = fschedule([res])
         if print_ir:
             print(vta.lower(s, [data, kernel, res], simple_mode=True))
 
@@ -210,7 +217,8 @@ def run_conv2d_transpose(env, remote, wl, target,
 
     return correct, cost, stats
 
-def test_conv2d_transpose(device="vta"):
+@pytest.mark.parametrize("device", ["vta", "arm_cpu"])
+def test_conv2d_transpose(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target
@@ -227,5 +235,5 @@ def test_conv2d_transpose(device="vta"):
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    # test_conv2d_transpose(device="arm_cpu")
+    test_conv2d_transpose(device="arm_cpu")
     test_conv2d_transpose(device="vta")

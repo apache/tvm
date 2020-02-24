@@ -131,12 +131,13 @@ def test_fold_fwd_dual_path():
         z = relay.add(y1, y2)
         return relay.Function(args, z)
 
-    def check(shape, channels):
-        x =  relay.var("x", shape=shape)
-        in_channels = shape[-1]
+    def check(dshape, channels):
+        x =  relay.var("x", shape=dshape)
+        in_channels = dshape[-1]
         # test depthwise
         assert in_channels == channels
-        weight = relay.var("weight")
+        wshape = (3, 3, 1, channels) # HWIO
+        weight = relay.var("weight", shape=wshape)
         in_bias = relay.var("in_bias", shape=(in_channels,))
         in_scale = relay.const(_get_positive_scale(in_channels,))
         y1 = before(x, weight, in_bias, in_scale, channels)

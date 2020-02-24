@@ -305,7 +305,7 @@ def test_cuda_reduction():
         e = topi.elemwise_sum([c, d])
         g = topi.sum(e)
         with tvm.target.cuda():
-            sg = topi.generic.schedule_reduce(g)
+            sg = topi.cuda.schedule_reduce(g)
             ctx = tvm.gpu(0)
             func = tvm.build(sg, [a, b, g], 'cuda')
             a_np = np.random.uniform(size=(m, n)).astype(a.dtype)

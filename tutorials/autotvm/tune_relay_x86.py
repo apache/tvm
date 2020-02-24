@@ -132,21 +132,8 @@ def tune_kernels(tasks,
                  early_stopping=None,
                  log_filename='tuning.log'):
 
-    for i, tsk in enumerate(tasks):
+    for i, task in enumerate(tasks):
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
-
-        # converting conv2d tasks to conv2d_NCHWc tasks
-        op_name = tsk.workload[0]
-        if op_name == 'conv2d':
-            func_create = 'topi_x86_conv2d_NCHWc'
-        elif op_name == 'depthwise_conv2d_nchw':
-            func_create = 'topi_x86_depthwise_conv2d_NCHWc_from_nchw'
-        else:
-            raise ValueError("Tuning {} is not supported on x86".format(op_name))
-
-        task = autotvm.task.create(func_create, args=tsk.args,
-                                   target=target, template_key='direct')
-        task.workload = tsk.workload
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
@@ -173,7 +160,7 @@ def tune_kernels(tasks,
 # Use graph tuner to achieve graph level optimal schedules
 # Set use_DP=False if it takes too long to finish.
 def tune_graph(graph, dshape, records, opt_sch_file, use_DP=True):
-    target_op = [relay.nn.conv2d]
+    target_op = [relay.op.get("nn.conv2d"),]
     Tuner = DPTuner if use_DP else PBQPTuner
     executor = Tuner(graph, {input_name: dshape}, records, target_op, target)
     executor.benchmark_layout_transform(min_exec_num=2000)
@@ -189,10 +176,10 @@ def tune_and_evaluate(tuning_opt):
     print("Extract tasks...")
     mod, params, data_shape, out_shape = get_network(model_name, batch_size)
     tasks = autotvm.task.extract_from_program(mod["main"], target=target,
-                                              params=params, ops=(relay.op.nn.conv2d,))
+                                              params=params,
+                                              ops=(relay.op.get("nn.conv2d"),))
 
     # run tuning tasks
-    print("Tuning...")
     tune_kernels(tasks, **tuning_opt)
     tune_graph(mod["main"], data_shape, log_file, graph_opt_sch_file)
 

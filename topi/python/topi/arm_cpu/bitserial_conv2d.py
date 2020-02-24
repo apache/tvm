@@ -22,11 +22,10 @@ from tvm import autotvm
 from tvm import relay
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitserial_conv2d_nhwc, bitserial_conv2d_legalize
+from ..nn.bitserial_conv2d import bitserial_conv2d_legalize
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 from ..nn.util import get_pad_tuple
 from ..util import get_const_int, get_const_tuple
-from .. import generic
 
 def _kernel_vec_spatial_pack_nhwc(kernel, kernel_bits, VC, use_bitpack=True):
     if use_bitpack:
@@ -38,9 +37,9 @@ def _kernel_vec_spatial_pack_nhwc(kernel, kernel_bits, VC, use_bitpack=True):
     return tvm.compute(kvshape, lambda co, dh, dw, b, vc, ci: \
         kernel_q[dh][dw][b][ci][co*VC+vc], name='kernel_vec')
 
-@autotvm.register_topi_compute(bitserial_conv2d_nhwc, 'arm_cpu', 'direct')
-def spatial_pack_nhwc(cfg, data, kernel, stride, padding, activation_bits, weight_bits,
-                      pack_dtype, out_dtype, unipolar):
+@autotvm.register_topi_compute("bitserial_conv2d_nhwc.arm_cpu")
+def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, activation_bits, weight_bits,
+                          pack_dtype, out_dtype, unipolar):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     assert pack_dtype == 'uint8', "only support packing into uint8 bits"
@@ -323,7 +322,7 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
     s[last].parallel(oh)
     return s
 
-@autotvm.register_topi_schedule(generic.nn.schedule_bitserial_conv2d_nhwc, 'arm_cpu', 'direct')
+@autotvm.register_topi_schedule("bitserial_conv2d_nhwc.arm_cpu")
 def schedule_bitserial_conv2d_nhwc(cfg, outs):
     """Arm cpu schedule for bitserial conv2d"""
     s = tvm.create_schedule([x.op for x in outs])

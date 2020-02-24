@@ -20,10 +20,8 @@ REORG Operator
 Reorg operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
-import tvm
 from .. import cpp
 
-@tvm.target.generic_func
 def reorg(data, stride):
     """Reorg forward operators.
 

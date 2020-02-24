@@ -29,6 +29,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
 #include <tvm/target/target.h>
+#include <tvm/target/generic_func.h>
 #include <tvm/tir/data_layout.h>
 #include <string>
 
@@ -105,9 +106,8 @@ using TShapeDataDependant = bool;
  */
 using FTVMCompute = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
-                     const Array<te::Tensor>& inputs,
-                     const Type& out_type,
-                     const Target& target)>;
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -120,8 +120,18 @@ using FTVMCompute = runtime::TypedPackedFunc<
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
   te::Schedule(const Attrs& attrs,
-                const Array<te::Tensor>& outs,
-                const Target& target)>;
+               const Array<te::Tensor>& outs,
+               const Target& target)>;
+
+/*!
+ * \brief Generate the strategy of operators. This function is a generic
+ * function and can be re-defined for different targets.
+ *
+ * The function signature of generic function is:
+ *   OpStrategy(const Attrs& attrs, const Array<Tensor>& inputs,
+ *              const Type& out_type, const Target& target)
+ */
+using FTVMStrategy = GenericFunc;
 
 /*!
  * \brief Alternate the layout of operators or replace the
@@ -136,7 +146,8 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<te::Tensor>& tinfos)>;
+       const Array<te::Tensor>& tinfos,
+       const Type& out_type)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -191,9 +202,7 @@ using FForwardRewrite = runtime::TypedPackedFunc<
  * \brief Gradient for a specific op.
  *
  * \param orig_call the original Expr.
- *
  * \param output_grad the gradient of the Expr.
- *
  * \return the gradient for each parameters.
  */
 using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
@@ -207,13 +216,13 @@ enum AnyCodegenStrategy {
   kVariableDimensions
 };
 
-/* \brief A runtime representation of shape. */
+/*! \brief A runtime representation of shape. */
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
-                     const Array<te::Tensor>& inputs,
-                     const Array<IndexExpr>& out_ndims)>;
+                    const Array<te::Tensor>& inputs,
+                    const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

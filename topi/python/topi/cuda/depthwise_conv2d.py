@@ -14,20 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, unused-argument
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
 from tvm import autotvm
 from ..util import traverse_inline
 from .. import tag
-from .. import generic, nn
+from .. import nn
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct',
-                              nn.depthwise_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("depthwise_conv2d_nchw.cuda")
+def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise_conv2d with NCHW layout."""
+    return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
-@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct')
-def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw.cuda")
+def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
@@ -66,7 +68,7 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
             # fallback support
             if cfg.is_fallback:
                 ref_log = autotvm.tophub.load_reference_log(
-                    target.target_name, target.model, 'depthwise_conv2d_nchw', 'direct')
+                    target.target_name, target.model, 'depthwise_conv2d_nchw.cuda')
                 cfg.fallback_with_reference_log(ref_log)
                 # TODO(lmzheng): A bug here, set unroll_explicit to False as workaround
                 cfg['unroll_explicit'].val = 0
@@ -131,7 +133,6 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-@generic.schedule_depthwise_conv2d_nhwc.register(["cuda", "gpu"])
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc forward.
 

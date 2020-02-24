@@ -20,9 +20,11 @@
 /*!
  * \file schedule_lang.cc
  */
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/operation.h>
+#include <stack>
 #include <unordered_set>
 #include "graph.h"
 
@@ -787,6 +789,53 @@ IterVarRelation SingletonNode::make(IterVar iter) {
   return IterVarRelation(n);
 }
 
+SpecializedCondition::SpecializedCondition(Array<PrimExpr> conditions) {
+  ObjectPtr<SpecializedConditionNode> n = make_object<SpecializedConditionNode>();
+  n->clauses = std::move(conditions);
+  data_ = std::move(n);
+}
+
+/*! \brief Entry to hold the SpecializedCondition context stack. */
+struct TVMSpecializationThreadLocalEntry {
+  /*! \brief The current specialized condition */
+  std::stack<SpecializedCondition> condition_stack;
+};
+
+/*! \brief Thread local store to hold the Target context stack. */
+typedef dmlc::ThreadLocalStore<TVMSpecializationThreadLocalEntry> TVMSpecializationThreadLocalStore;
+
+void SpecializedCondition::EnterWithScope() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  entry->condition_stack.push(*this);
+}
+
+void SpecializedCondition::ExitWithScope() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  CHECK(!entry->condition_stack.empty());
+  CHECK(entry->condition_stack.top().same_as(*this));
+  entry->condition_stack.pop();
+}
+
+SpecializedCondition SpecializedCondition::Current() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  SpecializedCondition cond;
+  if (entry->condition_stack.size() > 0) {
+    cond = entry->condition_stack.top();
+  }
+  return cond;
+}
+
+class SpecializedCondition::Internal {
+ public:
+  static void EnterScope(SpecializedCondition cond) {
+    cond.EnterWithScope();
+  }
+
+  static void ExitScope(SpecializedCondition cond) {
+    cond.ExitWithScope();
+  }
+};
+
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
@@ -794,6 +843,7 @@ TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);
 TVM_REGISTER_NODE_TYPE(SingletonNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
+TVM_REGISTER_NODE_TYPE(SpecializedConditionNode);
 
 // Printer
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -848,7 +898,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<ScheduleNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
-  });
+})
+.set_dispatch<SpecializedConditionNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const SpecializedConditionNode*>(node.get());
+    p->stream << "specialized_condition(";
+    p->Print(op->clauses);
+    p->stream << ')';
+});
 
 
 TVM_REGISTER_GLOBAL("te.CreateSchedule")
@@ -962,5 +1018,22 @@ TVM_REGISTER_GLOBAL("te.ScheduleCacheWrite")
 
 TVM_REGISTER_GLOBAL("te.ScheduleRFactor")
 .set_body_method(&Schedule::rfactor);
+
+TVM_REGISTER_GLOBAL("te.CreateSpecializedCondition")
+.set_body_typed([](Array<PrimExpr> condition) {
+    return SpecializedCondition(condition);
+});
+
+TVM_REGISTER_GLOBAL("te.GetCurrentSpecialization")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = SpecializedCondition::Current();
+});
+
+TVM_REGISTER_GLOBAL("te.EnterSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::EnterScope);
+
+TVM_REGISTER_GLOBAL("te.ExitSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::ExitScope);
+
 }  // namespace te
 }  // namespace tvm

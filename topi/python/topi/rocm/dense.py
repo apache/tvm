@@ -20,13 +20,12 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
 from tvm.contrib import rocblas
-import topi
-from ..nn.dense import dense, dense_default
+from .. import generic, nn
 from .. import tag
-from .. import generic
+from ..util import traverse_inline
 
-@autotvm.register_topi_compute(dense, "rocm", "direct")
-def dense_rocm(cfg, data, weight, bias=None, out_dtype=None):
+@autotvm.register_topi_compute('dense.rocm')
+def dense(cfg, data, weight, bias=None, out_dtype=None):
     """Dense operator for rocm backend.
 
     Parameters
@@ -54,21 +53,10 @@ def dense_rocm(cfg, data, weight, bias=None, out_dtype=None):
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = data.dtype
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
-    target = tvm.target.Target.current()
-    if "rocblas" in target.libs:
-        assert out_dtype == data.dtype, "Mixed precision not supported."
-        matmul = rocblas.matmul(data, weight, False, True)
-        if bias is not None:
-            matmul = tvm.compute((batch, out_dim), \
-                                 lambda i, j: matmul[i, j] + bias[j], \
-                                 tag=tag.BROADCAST)
-        return matmul
-    return dense_default(data, weight, bias, out_dtype)
+    return nn.dense(data, weight, bias, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_dense, "rocm", "direct")
+@autotvm.register_topi_schedule('dense.rocm')
 def schedule_dense(cfg, outs):
     """Schedule for dense operator.
 
@@ -83,7 +71,72 @@ def schedule_dense(cfg, outs):
     s: Schedule
         The computation schedule for dense.
     """
-    target = tvm.target.Target.current()
-    if target.target_name == "rocm" and "rocblas" in target.libs:
-        return generic.schedule_extern(outs)
-    return topi.cuda.schedule_dense(cfg, outs)
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == 'dense':
+            Dense = op.output(0)
+            num_thread = 64
+            k = Dense.op.reduce_axis[0]
+            ko, kf = s[Dense].split(k, factor=num_thread)
+            DenseF = s.rfactor(Dense, kf)
+
+            if Dense.op in s.outputs:
+                Out = Dense
+            else:
+                Out = outs[0].op.output(0)
+                s[Dense].compute_at(s[Out], s[Out].op.axis[1])
+            s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
+            s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
+
+            tx = s[Dense].op.reduce_axis[0]
+            thread_x = tvm.thread_axis("threadIdx.x")
+            s[Dense].bind(tx, thread_x)
+            s[DenseF].compute_at(s[Dense], tx)
+            s[Dense].set_store_predicate(thread_x.var.equal(0))
+            s[Out].set_store_predicate(thread_x.var.equal(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_compute('dense_rocblas.rocm')
+def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
+    """Dense operator for rocm backend with cblas.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        2-D with shape [batch, in_dim]
+
+    weight : tvm.Tensor
+        2-D with shape [out_dim, in_dim]
+
+    bias : tvm.Tensor, optional
+        1-D with shape [out_dim]
+
+    out_dtype : str
+        The output type. This is used for mixed precision.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        2-D with shape [batch, out_dim]
+    """
+    assert out_dtype == data.dtype, "Mixed precision not supported."
+    matmul = rocblas.matmul(data, weight, False, True)
+    batch, in_dim = data.shape
+    out_dim, _ = weight.shape
+    cfg.add_flop(batch * in_dim * out_dim * 2)
+    if bias is not None:
+        matmul = tvm.compute((batch, out_dim),
+                             lambda i, j: matmul[i, j] + bias[j],
+                             tag=tag.BROADCAST)
+    return matmul
+
+
+@autotvm.register_topi_schedule('dense_rocblas.rocm')
+def schedule_dense_rocblas(_, outs):
+    """Schedule for dense operator with rocm cblas"""
+    return generic.schedule_extern(outs)

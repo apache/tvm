@@ -852,17 +852,22 @@ def test_forward_slice():
 
 
 def test_forward_convolution():
-    def verify(data_shape, kernel_size, stride, pad, num_filter):
-        weight_shape=(num_filter, data_shape[1],) + kernel_size
+    def verify(data_shape, kernel_size, stride, pad, num_filter, is_depthwise=False):
+        if is_depthwise:
+            groups = data_shape[1]
+            weight_shape=(data_shape[1], num_filter // groups,) + kernel_size
+        else:
+            groups = 1
+            weight_shape=(num_filter, data_shape[1],) + kernel_size
         x = np.random.uniform(size=data_shape).astype("float32")
         weight = np.random.uniform(size=weight_shape).astype("float32")
         bias = np.random.uniform(size=num_filter).astype("float32")
         ref_res = mx.nd.Convolution(data=mx.nd.array(x), weight=mx.nd.array(weight),
                                     bias=mx.nd.array(bias), kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         mx_sym = mx.sym.Convolution(mx.sym.var("x"), mx.sym.var("weight"), mx.sym.var("bias"),
                                     kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         shape_dict = {"x": x.shape, "weight": weight.shape, "bias": bias.shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, ctx in ctx_list():
@@ -879,6 +884,8 @@ def test_forward_convolution():
     verify(data_shape=(20, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(20, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+    verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=8,
+           is_depthwise=True)
 
 def test_forward_deconvolution():
     def verify(data_shape, kernel_size, stride, pad, num_filter):

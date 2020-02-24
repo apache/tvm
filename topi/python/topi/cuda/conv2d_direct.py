@@ -43,7 +43,7 @@ def schedule_direct_cuda(cfg, s, conv):
     # fallback support
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.target_name, target.model, 'conv2d', 'direct')
+            target.target_name, target.model, 'conv2d_nchw.cuda')
         cfg.fallback_with_reference_log(ref_log)
     ##### space definition end #####
 

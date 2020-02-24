@@ -21,13 +21,12 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
 
-from ..generic import schedule_conv2d_transpose_nchw
-from ..nn import conv2d_transpose_nchw, dilate, pad, get_pad_tuple
+from ..nn import dilate, pad, get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 from .conv2d_spatial_pack import schedule_conv2d_spatial_pack_nchw
 
-@autotvm.task.register_topi_compute(conv2d_transpose_nchw, "arm_cpu", "direct")
-def conv2d_transpose_nchw_arm(cfg, Input, Filter, strides, padding, out_dtype):
+@autotvm.register_topi_compute("conv2d_transpose_nchw.arm_cpu")
+def conv2d_transpose_nchw(cfg, Input, Filter, strides, padding, out_dtype):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -135,8 +134,8 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
 
 
 # register customized schedule for arm cpu.
-@autotvm.task.register_topi_schedule(schedule_conv2d_transpose_nchw, "arm_cpu", "direct")
-def schedule_conv2d_transpose_arm(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_transpose_nchw.arm_cpu")
+def schedule_conv2d_transpose_nchw(cfg, outs):
     """Schedule conv2d transpose for arm cpu"""
     s = tvm.create_schedule([x.op for x in outs])
 

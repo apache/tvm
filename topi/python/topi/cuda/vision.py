@@ -18,17 +18,16 @@
 """Schedule for vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import generic
 from .. import cpp
 from .. import tag
 from .pooling import schedule_pool
+from .injective import schedule_injective_from_existing
 
 def _default_schedule(outs):
     """Default schedule for gpu."""
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    from .injective import schedule_injective_from_existing
     def traverse(op):
         if tag.is_broadcast(op.tag) or op.tag in ['bbox_score', 'sorted_bbox']:
             schedule_injective_from_existing(s, op.output(0))
@@ -39,7 +38,6 @@ def _default_schedule(outs):
     traverse(outs[0].op)
     return s
 
-@generic.schedule_reorg.register(["cuda", "gpu"])
 def schedule_reorg(outs):
     """Schedule for reorg operator.
     Parameters
@@ -57,7 +55,6 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.cuda.schedule_injective(cpp_target, outs)
 
-@generic.schedule_nms.register(["cuda", "gpu"])
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
 
@@ -74,7 +71,6 @@ def schedule_nms(outs):
     """
     return _default_schedule(outs)
 
-@generic.schedule_multibox_prior.register(["cuda", "gpu"])
 def schedule_multibox_prior(outs):
     """Schedule for multibox_prior operator.
 
@@ -91,7 +87,6 @@ def schedule_multibox_prior(outs):
     """
     return _default_schedule(outs)
 
-@generic.schedule_multibox_transform_loc.register(["cuda", "gpu"])
 def schedule_multibox_transform_loc(outs):
     """Schedule for multibox_transform_loc
 
@@ -109,7 +104,6 @@ def schedule_multibox_transform_loc(outs):
     """
     return _default_schedule(outs)
 
-@generic.schedule_multibox_detection.register(["cuda", "gpu"])
 def schedule_multibox_detection(outs):
     """Schedule for multibox_detection operator.
 
@@ -126,15 +120,12 @@ def schedule_multibox_detection(outs):
     """
     return _default_schedule(outs)
 
-@generic.schedule_roi_align.register(["cuda", "gpu"])
 def schedule_roi_align(outs):
     return schedule_pool(outs, 'NCHW')
 
-@generic.schedule_roi_pool.register(["cuda", "gpu"])
 def schedule_roi_pool(outs):
     return schedule_pool(outs, 'NCHW')
 
-@generic.schedule_proposal.register(["cuda", "gpu"])
 def schedule_proposal(outs):
     """Schedule for proposal operator.
 
@@ -151,7 +142,6 @@ def schedule_proposal(outs):
     """
     return _default_schedule(outs)
 
-@generic.schedule_get_valid_counts.register(["cuda", "gpu"])
 def schedule_get_valid_counts(outs):
     """Schedule for get_valid_counts operator.
 

@@ -23,6 +23,13 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
+from common import get_all_backend
+
+_conv3d_ndhwc_implement = {
+    "generic": (topi.nn.conv3d_ndhwc, topi.generic.schedule_conv3d_ndhwc),
+    "cpu": (topi.x86.conv3d_ndhwc, topi.x86.schedule_conv3d_ndhwc),
+    "gpu": (topi.cuda.conv3d_ndhwc, topi.cuda.schedule_conv3d_ndhwc),
+}
 
 def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     if isinstance(in_size, tuple):
@@ -51,13 +58,15 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
     a_np, w_np, b_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.runtime.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+        fcompute, fschedule = topi.testing.dispatch(device, _conv3d_ndhwc_implement)
         with tvm.target.create(device):
-            B = topi.nn.conv3d(A, W, stride, padding, dilation, layout="NDHWC")
-            s = topi.generic.schedule_conv3d_ndhwc([B])
+            B = fcompute(A, W, stride, padding, dilation, dtype)
+            s = fschedule([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
@@ -66,7 +75,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
         func(a, w, b)
         tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in get_all_backend():
         check_device(device)
 
 

@@ -47,7 +47,6 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
                     out_channel, kh, kw, HPAD, WPAD, HSTR, WSTR)
 
 
-@tvm.target.generic_func
 def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nchw forward operator.
 
@@ -121,7 +120,6 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     return Output
 
 
-@tvm.target.generic_func
 def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nhwc forward operator.
 
@@ -307,7 +305,6 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
     return Weight_grad
 
 
-@tvm.target.generic_func
 def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
                            layout, out_layout, out_dtype=None):
     """Depthwise convolution NCHW[x]c forward operator.

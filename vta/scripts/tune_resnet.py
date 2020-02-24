@@ -246,7 +246,7 @@ if __name__ == '__main__':
     print("Extracting tasks...")
     tasks = extract_from_program(func=relay_prog,
                                  params=params,
-                                 ops=(tvm.relay.op.nn.conv2d,),
+                                 ops=(relay.op.get("nn.conv2d"),),
                                  target=target,
                                  target_host=env.target_host)
 

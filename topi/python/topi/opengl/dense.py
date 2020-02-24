@@ -19,9 +19,7 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
-from .. import generic
 
-@generic.schedule_dense.register(["opengl"])
 def schedule_dense(outs):
     """Schedule for dense operator.
 

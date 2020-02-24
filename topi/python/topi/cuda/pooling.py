@@ -18,12 +18,9 @@
 """Schedule for pooling operators"""
 import tvm
 from .. import tag
-from .. import generic
 from ..util import traverse_inline
 
 
-
-@generic.schedule_adaptive_pool.register(["cuda", "gpu"])
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive_pool.
 
@@ -89,7 +86,6 @@ def schedule_adaptive_pool(outs):
     return s
 
 
-@generic.schedule_pool.register(["cuda", "gpu"])
 def schedule_pool(outs, layout):
     """Schedule for pool.
 
@@ -153,8 +149,7 @@ def schedule_pool(outs, layout):
     return s
 
 
-@generic.schedule_pool_grad.register(['cuda', 'gpu'])
-def schedule_pool_grad_cuda(outs):
+def schedule_pool_grad(outs):
     """Schedule for pool_grad on CUDA
 
     Parameters

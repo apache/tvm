@@ -27,6 +27,11 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
+_conv3d_ncdhw_implement = {
+    "generic": (topi.nn.conv3d_ncdhw, topi.generic.schedule_conv3d_ncdhw),
+    "gpu": (topi.cuda.conv3d_ncdhw, topi.cuda.schedule_conv3d_ncdhw),
+}
+
 def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
     pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(padding, (kernel, kernel, kernel))
     padding_sum = pad_front + pad_back + pad_top + pad_left + pad_bottom + pad_right
@@ -65,14 +70,15 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+        fcompute, fschedule = topi.testing.dispatch(device, _conv3d_ncdhw_implement)
         with tvm.target.create(device):
-            C = topi.nn.conv3d(A, W, (stride, stride, stride), padding,
-                               (dilation, dilation, dilation), layout='NCDHW', out_dtype=dtype)
+            C = fcompute(A, W, (stride, stride, stride), padding,
+                         (dilation, dilation, dilation), dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv3d_ncdhw([C])
+            s = fschedule([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

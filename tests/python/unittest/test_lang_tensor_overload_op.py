@@ -108,7 +108,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_elemwise(B)
+            s = topi.testing.get_elemwise_schedule(device)(B)
 
         k_ = 2
         foo = tvm.build(s, [A, B, k] + sh, device, name="tensor_scalar_" + typ)
@@ -154,7 +154,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(C)
+            s = topi.testing.get_broadcast_schedule(device)(C)
 
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
@@ -190,12 +190,14 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
             return
         print("Running on target: %s" % device)
 
+        conv2d_nchw, schedule_conv2d_nchw = topi.testing.get_conv2d_nchw_implement(device)
+
         k = 10.0
         dilation = (1, 1)
         with tvm.target.create(device):
             A = tvm.placeholder((batch, in_channel, in_size, in_size), name='A')
             W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-            B = topi.nn.conv2d(A, W, stride, padding, dilation)
+            B = conv2d_nchw(A, W, stride, padding, dilation, A.dtype)
             if typ == "add":
                 C = B + k
             elif typ == "sub":
@@ -206,7 +208,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
                 C = B / k
             else:
                 raise NotImplementedError()
-            s = topi.generic.schedule_conv2d_nchw([C])
+            s = schedule_conv2d_nchw([C])
 
         foo = tvm.build(s, [A, W, B, C], device, name="conv2d_scalar_" + typ)
 

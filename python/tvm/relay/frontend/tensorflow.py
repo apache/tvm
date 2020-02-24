@@ -311,6 +311,7 @@ def _conv(opname):
             flip_layout = True
 
         if attr['data_format'] == 'NHWC':
+            in_channels = input_shape[3]
             kernel_h, kernel_w, _, depth_mult = weights_shape
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
             if opname == 'conv':
@@ -324,6 +325,7 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
+            in_channels = input_shape[1]
             _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
@@ -344,7 +346,7 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if opname == 'depthwise':
-            attr['groups'] = attr['channels']
+            attr['groups'] = in_channels
 
         # Fix padding
         attr['padding'] = attr['padding'].decode("utf-8")

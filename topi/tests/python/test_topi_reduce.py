@@ -19,6 +19,7 @@ import os
 import numpy as np
 import tvm
 import topi
+import topi.testing
 
 from common import get_all_backend
 
@@ -74,7 +75,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_reduce(B)
+            s = topi.testing.get_reduce_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name=type)
         # Test

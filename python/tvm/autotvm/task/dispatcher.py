@@ -33,9 +33,6 @@ from __future__ import absolute_import as _abs
 import logging
 
 import numpy as np
-from decorator import decorate
-
-from tvm import target as _target
 
 from .space import FallbackConfigEntity
 
@@ -152,79 +149,6 @@ class DispatchContext(object):
         DispatchContext.current = self._old_ctx
 
 
-def dispatcher(fworkload):
-    """Wrap a workload dispatcher function.
-
-    Parameters
-    ----------
-    fworkload : function
-        The workload extraction function from arguments.
-
-    Returns
-    -------
-    fdispatcher : function
-        A wrapped dispatcher function, which will
-        dispatch based on DispatchContext and
-        the current workload.
-    """
-    dispatch_dict = {}
-    func_name = fworkload.__name__
-
-    def register(key, func=None, override=False):
-        """Register template function.
-
-        Parameters
-        ----------
-        key : str or List of str
-            The template key to identify the template
-            under this dispatcher.
-        func : function
-            The function to be registered.
-            The first argument of the function is always
-            cfg returned by DispatchContext,
-            the rest arguments are the same as the fworkload.
-        override : bool
-            Whether override existing registration.
-
-        Returns
-        -------
-        The register function if necessary.
-        """
-        if isinstance(key, str):
-            key = [key]
-
-        def _do_reg(myf):
-            for x in key:
-                if x in dispatch_dict and not override:
-                    raise ValueError(
-                        "Key %s is already registered for %s" % (x, func_name))
-                dispatch_dict[x] = myf
-            return myf
-
-        if func:
-            return _do_reg(func)
-        return _do_reg
-
-    def dispatch_func(func, *args, **kwargs):
-        """The wrapped dispatch function"""
-        tgt = _target.Target.current()
-        workload = func(*args, **kwargs)
-        cfg = DispatchContext.current.query(tgt, workload)
-        if cfg.is_fallback and not cfg.template_key:
-            # first try 'direct' template
-            if 'direct' in dispatch_dict:
-                return dispatch_dict['direct'](cfg, *args, **kwargs)
-            # otherwise pick a random template
-            for v in dispatch_dict.values():
-                return v(cfg, *args, **kwargs)
-        else:
-            return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
-
-    fdecorate = decorate(fworkload, dispatch_func)
-    fdecorate.register = register
-    return fdecorate
-
-
 class ApplyConfig(DispatchContext):
     """Apply a deterministic config entity for all queries.
 
@@ -334,7 +258,8 @@ class ApplyHistoryBest(DispatchContext):
         if key in self._best_user_defined:
             return self._best_user_defined[key]
         if key in self.best_by_model:
-            return self.best_by_model[key][0].config
+            inp, _ = self.best_by_model[key]
+            return inp.config
 
         # then try matching by target key
         for k in target.keys:
@@ -342,13 +267,16 @@ class ApplyHistoryBest(DispatchContext):
             if key in self._best_user_defined:
                 return self._best_user_defined[key]
             if key in self.best_by_targetkey:
-                return self.best_by_targetkey[key][0].config
+                inp, _ = self.best_by_targetkey[key]
+                return inp.config
 
         return None
 
     def update(self, target, workload, cfg):
         model = target.model
         key = (model, workload)
+        # assume user provided config is the best
+        cfg.cost = 0
         self._best_user_defined[key] = cfg
 
         for k in target.keys:
@@ -481,8 +409,12 @@ class ApplyGraphBest(DispatchContext):
         """
         if self._counter < len(self._records):
             cfg = self._records[self._counter][0].config
+            wkl = self._records[self._counter][0].task.workload
+            if workload is not None:
+                assert wkl == workload
             self._counter += 1
-            self.update(target, workload, cfg)
+            self.update(target, wkl, cfg)
+            cfg.workload = wkl
             return cfg
         key = (str(target), workload)
         if key not in self._global_cfg_dict:
