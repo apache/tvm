@@ -74,6 +74,37 @@ def build_bridge(opts):
             f_bridge.write("  REGISTER_PACKED_FUNC(%s);\n" % (node,))
         f_bridge.write("}\n")
 
+def build_inputs(opts):
+    from tvm.contrib import download
+    from PIL import Image
+    import numpy as np
+
+    build_dir = os.path.abspath(opts.out_dir)
+
+    # Download ImageNet categories
+    categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/synset.txt"
+    categ_fn = os.path.join(build_dir, "synset.txt")
+    download.download(categ_url, categ_fn)
+    synset = eval(open(categ_fn).read())
+
+    # Download test image
+    image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
+    image_fn = os.path.join(build_dir, "cat.png")
+    download.download(image_url, image_fn)
+    image = Image.open(image_fn).resize((224, 224))
+
+    def transform_image(image):
+        image = np.array(image) - np.array([123., 117., 104.])
+        image /= np.array([58.395, 57.12, 57.375])
+        image = image.transpose((2, 0, 1))
+        image = image[np.newaxis, :]
+        return image
+
+    x = transform_image(image)
+    print('x', x.shape)
+    with open(os.path.join(build_dir, "cat.bin"), "wb") as fp:
+        fp.write(x.astype(np.float32).tobytes())
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
@@ -83,3 +114,4 @@ if __name__ == '__main__':
 
     build_module(opts)
     build_bridge(opts)
+    build_inputs(opts)

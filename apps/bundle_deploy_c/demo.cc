@@ -34,21 +34,20 @@ template <typename F> auto getFunc(void *bundle, const char *name) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 2 && "Usage: demo <bundle.so>");
+  assert(argc == 3 && "Usage: demo <bundle.so> <cat.bin>");
   auto *bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
   auto *handle = getFunc<void *()>(bundle, "tvm_runtime_create")();
 
-  std::vector<float> input_storage(1 * 3 * 224 * 224);
-  std::mt19937 gen(0);
-  for (auto &e : input_storage) {
-    e = std::uniform_real_distribution<float>(0.0, 1.0)(gen);
-  }
+  float input_storage[1 * 3 * 224 * 224];
+  FILE * fp = fopen(argv[2], "rb");
+  fread(input_storage, 3 * 224 * 224, 4, fp);
+  fclose(fp);
 
   std::vector<int64_t> input_shape = {1, 3, 224, 224};
   DLTensor input;
-  input.data = input_storage.data();
+  input.data = input_storage;
   input.ctx = DLContext{kDLCPU, 0};
   input.ndim = 4;
   input.dtype = DLDataType{kDLFloat, 32, 1};

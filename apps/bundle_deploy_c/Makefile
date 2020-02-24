@@ -53,8 +53,8 @@ PKG_LDFLAGS = -pthread
 
 build_dir := build
 
-test: $(build_dir)/demo $(build_dir)/bundle.so
-	$(build_dir)/demo $(build_dir)/bundle.so
+test: $(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/cat.bin
+	$(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/cat.bin
 
 $(build_dir)/demo: demo.cc
 	@mkdir -p $(@D)
@@ -68,7 +68,7 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/bridge.c: build_model.py
+$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/bridge.c $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
