@@ -123,7 +123,7 @@ class CodegenCBase {
    *
    * \endcode
    */
-  void GenerateBackendCFunc(const std::string& func_name, Array<Var> args, const Output& out) {
+  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args, const Output& out) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
@@ -215,9 +215,10 @@ class CodegenCBase {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(std::string ext_func_id, Array<Var> args,
-                      std::vector<std::string> buf_decl, std::vector<std::string> body,
-                      std::vector<Output> out) {
+  std::string JitImpl(std::string ext_func_id, const Array<Var>& args,
+                      const std::vector<std::string>& buf_decl,
+                      const std::vector<std::string>& body,
+                      const std::vector<Output>& out) {
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
@@ -269,7 +270,7 @@ class CodegenCBase {
    *
    * \return The dtype string.
    */
-  std::string GetDtypeString(Var var) {
+  std::string GetDtypeString(const Var& var) {
     auto ttype = var->checked_type().as<TensorTypeNode>();
     CHECK(ttype) << "Expect TensorTypeNode";
     return GetDtypeString(ttype);

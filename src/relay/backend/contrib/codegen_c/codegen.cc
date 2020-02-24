@@ -73,7 +73,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
       macro_stream << ", " << in_shape[i];
     }
 
-    auto type_node = call->checked_type().as<TensorTypeNode>();
+    const auto* type_node = call->checked_type().as<TensorTypeNode>();
     CHECK(type_node);
     const auto& dtype = GetDtypeString(type_node);
     macro_stream << ", " << dtype;
